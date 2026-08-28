@@ -6,7 +6,7 @@
 - Scope: the project's tracked user-facing documentation only - README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md. Out of scope: `.aw/system/workflows/` (framework tooling), `workflow-artifacts/` (run records), and the `docs/` reference tree (verified accurate this run - no changes). No code/behavior changes: these are doc-accuracy corrections, so the fix is to make the docs match the code, never the reverse.
 - Scope-Paths: README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: assessdocs
 - Order: 1
 - Highest E allocated: 09
@@ -16,6 +16,7 @@
 ## Workflow history
 
 - 2026-08-28 to-review (/assess documentation, opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed the documentation concern for accuracy across README/CONTRIBUTING/ARCHITECTURE/TODO/CHANGELOG + the docs/ tree; proposed 5 changes (2 High, 3 Medium/Low). docs/ verified accurate (no changes). Run record: workflow-artifacts/assess-documentation/20260828-165500/.
+- 2026-08-28 reviewed (/plan-review, opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (all LOW, all FIXED). Verified all five findings (F1-F5) TRUE against repo evidence (`aw install --help` enum, `ls -d .aw/records/*/`, `aw update`/`aw comms` absent, `.agents/` gone, both target specs resolve). Structural lint conforming (author + review-finalize). Revisions: E-05 per-line LIVE/HISTORICAL adjudication + `.spec.md` facet on both spec pointers; V-05 tightened; `docs_check` invocation named (`python -m pytest tests/test_docs.py`); F1 code-side twin (argparse help text) captured out-of-scope; OQ-01 resolved (silent correction) from repo evidence; execution contract hardened with the paste-actual-output honesty MUST. GO - PENDING HUMAN APPROVAL.
 
 ## Goal
 
@@ -49,9 +50,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: no user-facing doc names a command that `aw --help` does not list.
   - Execution state: pending
 
-- [ ] E-05 Update TODO.md's present-tense `.agents/...` pointers (6 refs) to their post-migration `.aw/records/...` homes with the `.spec.md` facet where applicable (e.g. `.agents/docs/specs/20260813-1833-01-...` -> `.aw/records/specs/20260813-1833-01-...spec.md`; `.agents/plans/pending/` -> `.aw/records/plans/pending/`; `.agents/backlog/README.md` -> `.aw/records/backlog/README.md`). Leave lines that are explicitly historical ("pre-migration `.agents/`, post-migration `.aw/records/`") unchanged. `.agents/` no longer exists.
+- [ ] E-05 Rewrite TODO.md's LIVE `.agents/...` pointers to their post-migration `.aw/records/...` homes, applying the flatten (`docs/specs/` -> `specs/`) and appending the `.spec.md` facet to BOTH spec pointers. Adjudicate each `.agents/` occurrence explicitly, LIVE (rewrite) vs HISTORICAL (leave verbatim):
+    - TODO.md:6-7 `materialized at .agents/backlog/ pre-migration, .aw/records/backlog/ post-migration` -> HISTORICAL (deliberate pre/post contrast). LEAVE the `.agents/backlog/` half UNCHANGED.
+    - TODO.md:7 `See .agents/backlog/README.md` -> LIVE -> `.aw/records/backlog/README.md`.
+    - TODO.md:8 `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md` -> LIVE -> `.aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md` (facet already present; only the path flattens).
+    - TODO.md:10 `an IPD under .agents/plans/pending/` -> LIVE -> `.aw/records/plans/pending/`.
+    - TODO.md:18 `the .agents/comms/ layout` (inside the "was FORMALIZED in DECISIONS D81" sentence) -> HISTORICAL (narrates what shipped at D81). LEAVE UNCHANGED.
+    - TODO.md:21 `the canonical spec is .agents/docs/specs/20260715-1722-01-agent-comms-convention.md` -> LIVE pointer to a file that still exists (verified `.aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md`) -> rewrite to `.aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` (flatten AND append the missing `.spec.md` facet). Do NOT alter the surrounding historical narration.
   - Depends on: none
-  - Expected outcome: TODO.md's live pointers resolve to existing files; no live pointer references the removed `.agents/` tree.
+  - Expected outcome: every LIVE pointer above resolves via `ls`; the two HISTORICAL `.agents/` mentions (`:6-7` pre-migration half, `:18` D81 narration) remain verbatim; no LIVE pointer references the removed `.agents/` tree.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -61,7 +68,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - This IS the framework's own repo, so per the assess/release-review scope rule the *project* under review is the `agent_workflows` toolkit + its user-facing docs; `.aw/system/workflows/` and `workflow-artifacts/` are excluded.
 - Plans live in `.aw/records/plans/pending/`, named `YYYYMMDD-<setid>-NN-<id6>-<slug>.ipd.md`; a newly-authored IPD is born `to-review`. Scaffolded via `aw ipd scaffold`.
 - Docs surface: top-level (README, ARCHITECTURE, DECISIONS, CONTRIBUTING, RELEASING, GUIDING_PRINCIPLES, CHANGELOG, TODO) + a `docs/` operator-reference tree (24 files) whose host-support/benchmark tables are generated from evidence registries via `agent_workflows/docs_render.py` (verified true).
-- `docs/` has its own conformance check (`docs_check`) reporting 0 findings; the accuracy problems are concentrated in the hand-maintained top-level docs.
+- `docs/` has its own conformance check (the `agent_workflows.docs_check` module, exercised by `tests/test_docs.py`; it is NOT an `aw` CLI verb) reporting 0 findings; the accuracy problems are concentrated in the hand-maintained top-level docs. `docs_check` covers only the `docs/` reference tree, not the top-level README/CONTRIBUTING/ARCHITECTURE/TODO/CHANGELOG this IPD edits, so it will neither catch these defects before the fix nor regress after it - it is a "still-clean" cross-check, not the primary validation.
 
 ## Findings
 
@@ -88,6 +95,7 @@ All five are Remediation Risk **Low** on the Complexity axis (they only correct 
 - The `docs/` operator-reference tree: assessed, verified accurate (module/function/CLI references, generated tables, walkthrough fixtures all match code; `docs_check` = 0 findings). No changes - nothing to fix.
 - `docs/skill-selection.md` roots skills at `.agents/skills/`, which MATCHES the code today (`host_adapters.SHARED_SKILLS_DIR`), so the doc is accurate; a latent drift to revisit only if the code moves skills under `.aw/`. Not a doc-accuracy defect now.
 - Completeness gaps (undocumented capabilities): none rising to a finding this pass; accuracy was the priority per the lens ("prefer fixing inaccuracies before filling gaps").
+- CODE-SIDE TWIN of F1 (out of scope here; needs a separate IPD): the `aw install --help` argparse HELP TEXT itself repeats the same wrong preset names - the `--preset` help description reads "private-target (default), public-private-companion, clean-target, local-only" even though the enum `choices=` are the correct `public-target-private-companion`/`completely-clean-target`. Evidence: `python -m agent_workflows install --help` (the choices line is correct; the prose description below it is wrong). This IPD is docs-only prose corrections and MUST NOT touch code, so fixing the argparse help string (a code change) is deliberately NOT done here; captured so it is not lost. A user reading `aw install --help` sees the same two phantom names the README did, so this twin should be filed as its own small code-fix IPD.
 
 ## Scope check
 
@@ -100,7 +108,7 @@ All five are Remediation Risk **Low** on the Complexity axis (they only correct 
 - F2/E-02,E-03: every `.aw/records/...` path cited in README/CONTRIBUTING/ARCHITECTURE resolves via `ls`; `.aw/records/research/INDEX.json` exists; no doc cites `.aw/records/docs/`.
 - F3/F4/E-04: `grep -n "aw update\|aw comms"` over README/CONTRIBUTING/CHANGELOG returns only historical/removed contexts; `aw <verb> --help` confirms no such verb is presented as current.
 - F5/E-05: `grep -n "\.agents/" TODO.md` returns only explicitly-historical lines; every live pointer resolves.
-- Cross-check: re-run the documentation lens spot-checks; `docs_check` (if invoked) still clean.
+- Cross-check: re-run the documentation lens spot-checks; the `docs/`-tree conformance check stays clean via `python -m pytest tests/test_docs.py` (this IPD touches no `docs/` file, so it must remain green - a change here means an unintended edit escaped scope).
 
 ## Spec / documentation sync
 
@@ -111,9 +119,9 @@ This IPD IS documentation work; there is no separate spec to sync. No behavior c
 ### OQ-01: Should the `.aw/records/docs/` -> flat-layout correction also add a one-line "layout changed in 2.x" note, or just silently correct?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: Prefer a silent correction (the docs should describe today's layout; migration history lives in CHANGELOG/DECISIONS). Add a note only if reviewers feel users need the transition context. Decide at execution.
+- Resolution or deferral rationale: RESOLVED - silently correct, no transition note. The README Records section (README.md:65 and the layout description ~256) and the ARCHITECTURE tree (:61) are CURRENT-STATE layout descriptions, whose job is to describe what exists today; the project already owns transition history in CHANGELOG.md and DECISIONS.md (per AGENTS.md and the honest-documentation principle "docs describe what the software actually does today"). Adding a "layout changed" note to a current-state layout description would duplicate the CHANGELOG/DECISIONS record in the wrong place and re-introduce staleness (the note itself ages). So the E-02/E-03 corrections replace the phantom `.aw/records/docs/` with the real flat roots and add NO migration note. (Resolved from repository convention; not escalated to the human because the repo's own honest-docs principle answers it.)
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -140,7 +148,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: `grep -n "\.agents/" TODO.md` output pasted, each remaining line confirmed explicitly-historical; each rewritten `.aw/records/...` pointer resolved with `ls`.
+  - Required evidence: `grep -n "\.agents/" TODO.md` output pasted; confirm the ONLY remaining `.agents/` lines are the two adjudicated HISTORICAL ones (`:6-7` pre-migration half, `:18` D81 narration); `ls` each rewritten pointer to prove it resolves - specifically `ls .aw/records/backlog/README.md`, `ls .aw/records/plans/pending/`, and `ls .aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md .aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` (both spec pointers, `.spec.md` facet present).
   - Observed evidence:
   - Result: pending
 
@@ -150,4 +158,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan is an /assess output: a PROPOSAL only. It makes NO changes to code, docs, or config, and is NOT auto-executed. It must be human-reviewed (optionally via /plan-review) and moved to `Status: approved` before any execution. On approval + execution, apply E-01..E-05, verify V-01..V-05 with pasted evidence, then finalize via `aw ipd begin`/`aw ipd finalize` and commit path-scoped (docs only); never push. All five findings are Remediation-Risk Low, so none is deferred.
+This plan is an /assess output: a PROPOSAL only. It makes NO changes to code, docs, or config, and is NOT auto-executed. It must be human-reviewed (optionally via /plan-review) and moved to `Status: approved` before any execution.
+
+Execution contract (binding on the executor):
+- Scope fence: edit ONLY the five Scope-Paths (README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md). Touch NO code and NO `docs/`-tree file; if a fix appears to need a code change, STOP and split it to a separate IPD (see the F1 code-side twin in "Deferred / out of scope").
+- Open questions: OQ-01 is resolved (silent correction, no migration note); no open question blocks execution.
+- Honesty (hard MUST): every V-01..V-05 "Observed evidence" MUST be the ACTUAL pasted output of the stated command (`aw install --help`, `ls -d .aw/records/*/`, the `grep -n`/`ls` checks, `python -m pytest tests/test_docs.py`). Do NOT claim a check passed you did not run, and do NOT paraphrase output as prose - paste the runner's real output.
+- Commit + lifecycle: `aw ipd begin` to start, apply E-01..E-05, verify V-01..V-05 with the pasted evidence above, then `aw ipd finalize` for the atomic terminal transition; commit path-scoped to the five doc files only (`git commit -m msg -- README.md CONTRIBUTING.md ARCHITECTURE.md TODO.md CHANGELOG.md`), never `git add -A`/`-a`, and never push.
+
+All five findings are Remediation-Risk Low, so none is deferred.
