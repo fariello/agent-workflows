@@ -3240,6 +3240,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-26",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md",
+    "plan_id": "ha55fi",
+    "set_id": "specid6",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-27",
     "disposition": "executed",
     "kind": "child",
@@ -3417,16 +3427,6 @@
     "path": "pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md",
     "plan_id": "88h0h8",
     "set_id": "selfcommit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-26",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md",
-    "plan_id": "ha55fi",
-    "set_id": "specid6",
     "status": "approved"
   },
   {

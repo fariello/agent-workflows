@@ -33,7 +33,7 @@ Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
 
 ## specid6
 
-- `ha55fi` [pending] 01 pending/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md
+- `ha55fi` [executed] 01 executed/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md
 
 ## agentadhere
 
