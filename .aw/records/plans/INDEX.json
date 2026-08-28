@@ -304,6 +304,16 @@
     "disposition": "executed",
     "kind": null,
     "order": 0,
+    "path": "executed/20260712-1043-01-1028-falsely-marked-executed-tests-still-red.md",
+    "plan_id": "y6kuar",
+    "set_id": "falsely-marked",
+    "status": "executed"
+  },
+  {
+    "date": "2026-07-12",
+    "disposition": "executed",
+    "kind": null,
+    "order": 0,
     "path": "executed/20260712-agent-brain-00-lhmlzo-agent-brain-dir-plan-and-walkthrough-mirroring.ipd.md",
     "plan_id": "lhmlzo",
     "set_id": "agent-brain",
@@ -3538,6 +3548,16 @@
     "plan_id": "pky603",
     "set_id": "assessdocs",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md",
+    "plan_id": "ynix69",
+    "set_id": "puot79e04",
+    "status": "reviewed"
   },
   {
     "date": "2026-08-28",

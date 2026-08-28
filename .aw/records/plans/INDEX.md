@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 145 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 
 ## assessdocs
 
 - `pky603` [pending] 01 pending/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
+
+## puot79e04
+
+- `ynix69` [pending] 01 pending/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md
 
 ## tabcomp
 
@@ -251,10 +255,6 @@ Showing the 40 most-recent of 145 Sets; the full manifest is INDEX.json.
 - `g6zjao` [executed] 16 executed/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
 - `gnfkh8` [executed] 17 executed/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
 - `0zst62` [executed] 18 executed/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
-
-## awhistignore
-
-- `pprchd` [not-executed] 01 not-executed/20260820-awhistignore-01-pprchd-untrack-aw-records-history-jsonl-accidental-local-sidecar-an.ipd.md
 
 ## (singletons: no Set)
 
