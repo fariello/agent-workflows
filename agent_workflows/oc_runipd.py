@@ -781,6 +781,22 @@ def determine_action(status: str) -> str:
     return "execute"
 
 
+def action_for(kind: str | None, status: str) -> str:
+    """Decide the driver action for a plan given its Kind + Status.
+
+    Orchestrators are special ONLY once past review: an approved/auto-approved
+    orchestrator authors no code, so it is not agent-executed ('orchestrate' -> the
+    runner administratively finalizes it iff all its children reached executed). But a
+    draft/to-review orchestrator still needs its own /plan-review to advance (the
+    orchestrator artifact must be review-complete whether the set is driven by
+    aw oc run OR executed manually), so it takes the normal 'review' action. Everything
+    else uses determine_action (review for to-review/draft, execute otherwise)."""
+    norm = (status or "approved").lower().strip()
+    if (kind or "").lower() == "orchestrator" and norm not in ("to-review", "draft"):
+        return "orchestrate"
+    return determine_action(status or "approved")
+
+
 def new_run_id() -> str:
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"run-{stamp}-{os.getpid()}"
@@ -894,10 +910,10 @@ def initialize_run(args: argparse.Namespace) -> Path:
         # blocked/partial. Instead the runner administratively finalizes it iff every
         # child in its set reached `executed` (see run_queue). Detected by the reliable
         # `- Kind:` field, not the Order number.
-        if (plan.get("kind") or "").lower() == "orchestrator":
-            action = "orchestrate"
-        else:
-            action = determine_action(status or "approved")
+        # Kind + Status decide the action (see action_for): a draft/to-review
+        # orchestrator still needs its /plan-review; only a past-review orchestrator is
+        # 'orchestrate' (not agent-executed; finalized when all children executed).
+        action = action_for(plan.get("kind"), status or "approved")
         queue.append(
             {
                 "position": position,

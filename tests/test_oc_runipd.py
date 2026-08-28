@@ -1770,6 +1770,25 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
         ok, _ = driver._set_children_all_executed(state, "oset", "orc001")
         self.assertFalse(ok)
 
+    def test_orchestrator_in_review_gets_review_not_orchestrate(self):
+        # A draft/to-review orchestrator MUST still get its /plan-review (it advances
+        # like any reviewable IPD); it is NOT skipped as 'orchestrate'. Otherwise it
+        # would stay stuck at draft/to-review whether run via aw oc run or manually.
+        self.assertEqual(driver.action_for("orchestrator", "draft"), "review")
+        self.assertEqual(driver.action_for("orchestrator", "to-review"), "review")
+
+    def test_orchestrator_past_review_is_orchestrate(self):
+        # approved/auto-approved orchestrator authors no code -> not agent-executed.
+        self.assertEqual(driver.action_for("orchestrator", "approved"), "orchestrate")
+        self.assertEqual(
+            driver.action_for("orchestrator", "auto-approved"), "orchestrate"
+        )
+
+    def test_child_action_unaffected_by_kind(self):
+        self.assertEqual(driver.action_for("child", "approved"), "execute")
+        self.assertEqual(driver.action_for("child", "to-review"), "review")
+        self.assertEqual(driver.action_for(None, "approved"), "execute")
+
 
 if __name__ == "__main__":
     unittest.main()
