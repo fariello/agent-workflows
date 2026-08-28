@@ -1,5 +1,5 @@
 - Id: ctt412
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: driverwire
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw oc/agy run must drive execution through engine-owned aw commit/aw finish (not runbook prose) so a run never leaves the IPD move/status/code changes uncommitted
 
 ## Workflow history
+- 2026-08-28 done (aw set): Graduated to a plan. Release gate (Blocks-Release: next) preserved via HANDOFF to the driverfin Set: the orchestrator plan 20260827-driverfin-00-yt93ir carries `- From-Backlog: ctt412` + `- Blocks-Release: next`, and child 20260827-driverfin-01-p7peqf ("ctt412 core") wires aw oc/agy run to drive begin/finalize (the engine-owned commit path) instead of runbook prose. The plan now owns execution.
 - 2026-08-27 open (aw set): Marked release blocker for 2.0.0 (next): uncommitted-work-after-aw-oc-run must be fixed before ship - the driver must commit through aw commit/aw finish, not rely on agent prose.
 - 2026-08-27 created (aw backlog): aw oc/agy run must drive execution through engine-owned aw commit/aw finish (not runbook prose) so a run never leaves the IPD move/status/code changes uncommitted
 
