@@ -5,15 +5,15 @@
 - Concern: Findings bu9yij Phase 5 + section 7.8: required CI on a protected branch is the ONLY non-bypassable authority boundary rated "Very high" - a clean, remote environment running the same policy engine, validating committed artifacts, and blocking merge on findings, with branch protection that also protects the policy/workflow files themselves from being weakened without approval. CI already runs the test suite (`.github/workflows/tests.yml` `unittest` job) and a fail-closed `aw specs check` + `aw attention --check` gate (`attention-check` job); what is MISSING is a fail-closed CI invocation of the full phase-1 `aw check` engine over the remaining committed artifact types (plans, backlog, releases) and documented protected-branch enforcement of the required check + the policy/CI-definition files themselves.
 - Scope: Add the required-CI + protected-branch DELTA on top of the existing CI (do NOT recreate what `tests.yml` already does): (1) extend the existing fail-closed CI gate so a clean, remote environment runs the SAME phase-1 `aw check` engine (machine-readable via `aw check --agent`/`--json`; there is NO `--format json` flag) over the committed workflow artifacts NOT yet gated (plans/backlog/releases conformance, scope, release gates), publishing machine-readable evidence and failing the job on any finding; REUSE the running test suite rather than duplicating it; (2) document/configure branch protection to REQUIRE the check and disallow ordinary bypass actors, and to protect the policy/hook/CI definition files from being weakened without approval (findings 7.8); (3) ensure the CI-run engine and the local `aw check` produce identical results (no divergence). This is the authoritative repository boundary; it does NOT attempt authority-invariant guarantees (external signing/push broker - deferred set). Should land LAST in the set so it gates on a stable engine.
 - Scope-Paths: .github/, agent_workflows/check_engine.py, agent_workflows/cli.py, docs/, tests/
-- Status: approved
+- Status: executed
 - Set: agentadhere
 - Order: 6
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: r2ks4k
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Extended CI with fail-closed aw check plans/releases (+ advisory backlog) via the shipped engine, added docs/branch-protection.md + .github/CODEOWNERS (human enables remote protection), and a CI/local parity test. Full suite 2524 passed 1 skipped; aw check all unchanged at 68 baseline; aw sanitize clean. [Scope reconciliation - in-scope-unmodified .github/: committed-in-dd4eeda; in-scope-unmodified agent_workflows/check_engine.py: not-needed (shipped aw check already covers plans/backlog/releases; no engine gap); in-scope-unmodified agent_workflows/cli.py: not-needed (no aw check surface gap found); in-scope-unmodified docs/: committed-in-dd4eeda; in-scope-unmodified tests/: committed-in-dd4eeda]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 approved (aw set): status set to approved
 

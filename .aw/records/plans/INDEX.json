@@ -3193,6 +3193,16 @@
     "date": "2026-08-25",
     "disposition": "executed",
     "kind": "child",
+    "order": 6,
+    "path": "executed/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md",
+    "plan_id": "r2ks4k",
+    "set_id": "agentadhere",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md",
     "plan_id": "vaq9qf",
@@ -3386,16 +3396,6 @@
     "order": 0,
     "path": "pending/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md",
     "plan_id": "3b4f8u",
-    "set_id": "agentadhere",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md",
-    "plan_id": "r2ks4k",
     "set_id": "agentadhere",
     "status": "approved"
   },

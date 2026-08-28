@@ -43,7 +43,7 @@ Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
 - `8dto0g` [executed] 03 executed/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md
 - `wqj1ne` [executed] 04 executed/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
 - `diundn` [executed] 05 executed/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md
-- `r2ks4k` [pending] 06 pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
+- `r2ks4k` [executed] 06 executed/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
 
 ## beginscope
 
