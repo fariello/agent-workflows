@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 
@@ -148,6 +148,26 @@ def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
         mid.group(1) if mid else "?",
         mver.group(1) if mver else "?",
     )
+
+
+class ActiveRelease(NamedTuple):
+    """The single planned ('active') release, as id6 + version + record path."""
+
+    id6: str
+    version: str
+    path: Path
+
+
+def load_active_release(repo_root: Path) -> Optional[ActiveRelease]:
+    """Return the single planned release as an ActiveRelease (id6/version/path), or
+    None if there is not exactly one. Used by `aw doctor` to name the release line."""
+    p = resolve_release(repo_root, "next")
+    if p is None:
+        return None
+    desc = describe_planned_release(repo_root)
+    if desc is None:
+        return None
+    return ActiveRelease(id6=desc[0], version=desc[1], path=p)
 
 
 _PRIORITY_LINE_RE = re.compile(r"(?m)^- Priority:[ \t]*[^\n]*$\n?")

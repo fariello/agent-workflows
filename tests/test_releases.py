@@ -75,6 +75,17 @@ class ReleasesClassTests(unittest.TestCase):
         m = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", p.read_text(encoding="utf-8"))
         self.assertEqual(id6, m.group(1))
 
+    def test_load_active_release(self) -> None:
+        # None when none planned; the ActiveRelease (id6/version/path) when exactly one.
+        # This backs the `aw doctor` Release line (doctor calls load_active_release).
+        self.assertIsNone(releases.load_active_release(self.root))
+        p = releases.create_release(self.root, "2.0.0", "x")
+        act = releases.load_active_release(self.root)
+        self.assertIsNotNone(act)
+        self.assertEqual(act.version, "2.0.0")
+        self.assertEqual(act.path, p)
+        self.assertRegex(act.id6, r"^[0-9a-z]{6}$")
+
     def test_attention_release_reader(self) -> None:
         # Unit-level: the attention release reader maps a planned release to the `ready` class.
         from agent_workflows import attention
