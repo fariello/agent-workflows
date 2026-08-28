@@ -41,7 +41,7 @@ Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
 - `gfokao` [executed] 01 executed/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md
 - `uisjns` [executed] 02 executed/20260825-agentadhere-02-uisjns-phase-1-versioned-policy-schema-and-shared-aw-check-format-j.ipd.md
 - `8dto0g` [executed] 03 executed/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md
-- `wqj1ne` [pending] 04 pending/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
+- `wqj1ne` [executed] 04 executed/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
 - `diundn` [pending] 05 pending/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md
 - `r2ks4k` [pending] 06 pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
 
