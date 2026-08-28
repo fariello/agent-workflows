@@ -6,14 +6,16 @@
 - Scope: Implement drop-in auto-discovery installation, an interactive setup prompt, CLI flags, and documentation: (1) Add `resolve_completion_dir`, `install_shell_completion`, and `uninstall_shell_completion` in `agent_workflows/completion.py` targeting XDG auto-discovery directories with shell-specific alias binding and no-clobber/sentinel safety; (2) Wire `aw completion install` and `aw completion uninstall` in `agent_workflows/cli.py`, extending child 01's `completion` parser shape additively; (3) Add an interactive completion prompt to the host-level `_run_setup` flow in `agent_workflows/cli.py` (NOT the per-repo `install_wizard.py`); (4) Add `--completion [auto|bash|zsh|fish|none]` flag to `aw install` / `aw setup` in `agent_workflows/cli.py` (default `none` non-interactively) and post-install discovery tips; (5) Add unit tests in `tests/test_completion.py` (and `tests/test_cli_*`/setup coverage as needed); (6) Update `README.md`.
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py, README.md
 - Item-Dependencies: executed:4f1j25
-- Status: reviewed
+- Status: approved
 - Set: tabcomp
 - Order: 3
 - Highest E allocated: 05
 - Author: Antigravity
 - Id: jolfpj
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 
 - 2026-08-28 reviewed (OpenCode/its_direct/pt3-claude-opus-4.8): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Moved the completion prompt out of the per-repo `install_wizard.py` into the host-level `_run_setup` (verified module roles); made E-02 depend explicitly on child 01's extensible `completion` parser shape; corrected the blanket-symlink assumption to shell-specific alias binding (bash command-name files, single zsh `_aw`, fish multi-`complete -c`); added no-clobber/sentinel + symlink-safe + uninstall-only-ours semantics; added XDG env-var precedence consistent with `config._config_dir`; and added the dotfile-untouched and no-clobber test assertions. Dropped `install_wizard.py`/`test_install_wizard.py` from Scope-Paths.
 - 2026-08-28 to-review (Antigravity): authored detailed atomic implementation plan for drop-in installation, wizard integration, and documentation.

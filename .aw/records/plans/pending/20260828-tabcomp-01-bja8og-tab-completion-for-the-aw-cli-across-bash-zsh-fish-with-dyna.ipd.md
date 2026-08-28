@@ -6,14 +6,16 @@
 - Scope: Implement native, zero-runtime-dependency (stdlib-only) STATIC completion script generators for Bash, Zsh, and Fish: (1) Add `agent_workflows/completion.py` with `introspect_cli_tree`, `generate_bash_completion`, `generate_zsh_completion`, and `generate_fish_completion`; (2) Add `aw completion <shell>` subcommand to `agent_workflows/cli.py` to stream the generated completion script to stdout, structured so child 03 can later add `install`/`uninstall` subcommands WITHOUT reshaping the parser (see E-03); (3) Add unit tests in `tests/test_completion.py` verifying alias binding, shell-syntax validity, CLI execution, and correct filtering of non-user commands.
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: tabcomp
 - Order: 1
 - Highest E allocated: 04
 - Author: Antigravity
 - Id: bja8og
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 
 - 2026-08-28 reviewed (OpenCode/its_direct/pt3-claude-opus-4.8): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Added command-visibility filter policy (E-01), shell-escaping discipline for special chars in help text (E-02), forward-compatible `completion` parser shape to unblock child 03's install/uninstall (E-03), and shell-own-parser syntax-validity + escaping tests (E-04); scoped the concern to STATIC generation; strengthened V-items to demand concrete evidence.
 - 2026-08-28 to-review (Antigravity): authored detailed atomic implementation plan for native shell completion generators.

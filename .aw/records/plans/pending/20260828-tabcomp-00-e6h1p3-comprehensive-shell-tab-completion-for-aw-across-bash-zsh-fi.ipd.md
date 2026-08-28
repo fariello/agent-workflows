@@ -6,14 +6,16 @@
 - Scope: Deliver clean, production-grade tab-completion for `aw` across Bash, Zsh, and Fish with zero external runtime dependencies: (1) Child 01 (`bja8og`): Core completion generation engine for Bash/Zsh/Fish and `aw completion <shell>` CLI command; (2) Child 02 (`4f1j25`): Dynamic contextual artifact query resolver (`aw __complete`) and soft-imported `argcomplete` hook; (3) Child 03 (`jolfpj`): Drop-in auto-discovery file installation (`aw completion install/uninstall`), shell-specific alias binding, a completion prompt in the HOST-LEVEL once-per-user `_run_setup` flow (NOT the per-repo `install_wizard.py`), `aw install --completion` flag, and documentation.
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py, README.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: tabcomp
 - Order: 0
 - Highest E allocated: 01
 - Author: Antigravity
 - Id: e6h1p3
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 
 - 2026-08-28 reviewed (OpenCode/its_direct/pt3-claude-opus-4.8): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Corrected the orchestrator to match the (already reviewed) children: removed stale `agent_workflows/install_wizard.py` + `tests/test_install_wizard.py` from Scope-Paths and Required-tests and V-01 evidence (child 03 moved the prompt to the host-level `_run_setup`), added XDG precedence + shell-specific alias binding + sentinel safety to the completion criteria, aligned the child-03 table row and Scope wording (host-level setup prompt, not `install_wizard.py`), broadened the reuse/cross-IPD statement (`plans_index`/`ipd_schema`/config XDG + the child-01/03 parser-shape contract), and hardened the execution-gate contract (scope fence, paste-actual-output honesty rule, path-scoped commit + never-push/tag).
 - 2026-08-28 to-review (Antigravity): refined orchestrator plan into 3 atomic, right-sized child plans with explicit verification boundaries.
