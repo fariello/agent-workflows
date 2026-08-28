@@ -30,10 +30,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the catalog spec
 
-- [ ] E-01 Author a reviewed spec/record capturing the threat model, the three assurance classes (Guidance / Repository-invariant / Authority-invariant), and an invariant catalog: each toolkit process rule with its assurance class and its observable evidence (or an honest unverifiable/probabilistic label). No enforcement code.
+- [x] E-01 Author a reviewed spec/record capturing the threat model, the three assurance classes (Guidance / Repository-invariant / Authority-invariant), and an invariant catalog: each toolkit process rule with its assurance class and its observable evidence (or an honest unverifiable/probabilistic label). No enforcement code.
   - Depends on: none
   - Expected outcome: a spec under `.aw/records/specs/` enumerating invariants + classes + evidence, reviewable and citable by phase 1.
-  - Execution state: pending
+  - Execution note: authored `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md` (id6 pqsx96) via the new `aw specs new` producer (dogfooding ha55fi: today is 2026-08-28, the id6 cutover, so the spec is id6-clustered by construction). It has: Section 1 threat model (actor, capabilities that defeat local controls, the remote authority boundary), Section 2 the three assurance classes + observable-evidence definition, Section 3 a 15-row invariant catalog (I-01..I-15) each tagged with class + observable evidence (or honest unverifiable/forgeable-locally label), Section 4 traceability, Section 5 non-goals. No enforcement code. Doc-sync scope decision recorded as DECISION 13-gfokao-D1 (AGENTS.md/orchestrator are out of Scope-Paths/another plan, so linkage is via `- From-Plan:` + prose, not an out-of-scope edit).
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -83,10 +84,34 @@ The catalog is analysis, not code; its value is preventing later phases from ove
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: (a) a spec file exists under `.aw/records/specs/` (paste its path) containing the threat model, the three assurance-class definitions (Guidance / Repository-invariant / Authority-invariant), and the invariant catalog; (b) EVERY catalog entry carries an assurance class AND an observable-evidence entry OR an explicit "unverifiable/probabilistic" label - none left blank (paste the catalog table); (c) the catalog INCLUDES the mandated authoring-lifecycle entry "a finished draft IPD is advanced to `to-review`" (class Guidance; evidence: placeholder-free `draft` is deterministically detectable) that phase-1 child 02's `check.ipd-draft-ready-to-review` rule is built from; (d) the catalog enumerates the invariants named in Scope (path-scoped commits/no `add -A`, no push without authorization, no hand-edited lifecycle status, tree-bound test evidence, IPD finalize requires validation, backlog release-gate preservation) - confirm each appears; (e) `aw specs check <path>` passes (paste the actual command output); (f) traceability: pick one phase-1 policy rule and show it traces back to a named cataloged invariant.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    (a) `.aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md` exists;
+    it has Section 1 (threat model: actor, bypass capabilities, remote authority boundary), Section 2
+    (the three assurance classes Guidance / Repository invariant / Authority invariant + observable-evidence
+    definition), and Section 3 (the invariant catalog).
+    (b) Programmatic check over the 15 catalog rows: "catalog rows: 15" and "rows with blank class/evidence: 0"
+    (each row's #, invariant, class, and evidence cell is non-empty; residual-risk rows I-13/I-14/I-15 carry
+    explicit "unverifiable / probabilistic / locally-forgeable" labels).
+    (c) I-12 is present: "| I-12 | A finished draft IPD is advanced to `to-review` ... | Guidance | A `draft`
+    plan that contains NO authoring placeholders ... deterministically detectable ... NUDGED | Phase-1 child
+    02 implements `check.ipd-draft-ready-to-review` ... built FROM this catalog entry | ...".
+    (d) All Scope-named invariants appear: path-scoped commits/no add -A = I-01; no push without
+    authorization = I-02; no hand-edited lifecycle status = I-03 (+ terminal case I-04); tree-bound test
+    evidence = I-06; IPD finalize requires validation = I-05; backlog release-gate preservation = I-07
+    (grep of I-0[1-7] and I-1[0-9] confirms I-01..I-07, I-10..I-15 present).
+    (e) `aw specs check .aw/records/specs/20260828-pqsx96-01-pqsx96-agent-adherence-invariant-catalog.spec.md`
+    -> "aw specs check: all specs conform." (exit 0). `aw check all --agent` total findings = 68 == HEAD
+    baseline (0 new; 0 on the new spec; an interim `- Set: agentadhere` line was removed to avoid a
+    cross-type `check.setid-collision`, see DECISION 13-gfokao-D1). `aw sanitize --agent` clean.
+    Full suite `python -m pytest tests/ -p no:randomly` -> "2453 passed, 1 skipped in 21.04s".
+    (f) Traceability (Section 4): phase-1 rule `check.ipd-draft-ready-to-review` traces to catalog
+    invariant I-12 (Guidance; placeholder-free draft deterministically detectable), inheriting I-12's
+    Guidance/nudge class; additional traces map `check.status-untooled`->I-03,
+    `check.blocking-item-closed-without-gate`->I-07, `check.name-nonconformant`->I-09,
+    `executed_transition_gate`->I-04, `evaluate_ipd_dependencies`->I-08.
+  - Result: pass
 
 ## Approval and execution gate
 
