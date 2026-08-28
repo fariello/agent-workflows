@@ -176,10 +176,20 @@ def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
-def run_checked(argv: list[str], cwd: Path | None = None) -> str:
+def run_checked(
+    argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> str:
+    merged_env = os.environ.copy()
+    repo_src = str(Path(__file__).resolve().parent.parent)
+    cur_pp = merged_env.get("PYTHONPATH", "")
+    if repo_src not in cur_pp.split(os.pathsep):
+        merged_env["PYTHONPATH"] = f"{repo_src}{os.pathsep}{cur_pp}".rstrip(os.pathsep)
+    if env:
+        merged_env.update(env)
     result = subprocess.run(
         argv,
         cwd=str(cwd) if cwd else None,
+        env=merged_env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -231,6 +241,8 @@ def set_plan_approved(
         "approved",
         id6,
         "--by-human",
+        "--yes",
+        "--no-commit",
         "--dir",
         str(repo),
         "-m",
@@ -239,7 +251,7 @@ def set_plan_approved(
     try:
         run_checked(cmd, cwd=repo)
         return
-    except (DriverError, FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError):
         pass
     if shutil.which("aw"):
         run_checked(
@@ -249,6 +261,8 @@ def set_plan_approved(
                 "approved",
                 id6,
                 "--by-human",
+                "--yes",
+                "--no-commit",
                 "--dir",
                 str(repo),
                 "-m",
@@ -308,6 +322,109 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
         return True
     except (DriverError, FileNotFoundError, OSError):
         return False
+
+
+def driver_actor(state: dict[str, Any]) -> str:
+    """The attributed actor string bound into begin/finalize (driver + configured model).
+
+    Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, and
+    the attribution lint's actor capture (`\\(...[^)]*...\\)`) would misparse a parenthesized actor,
+    so the model is rendered as `model=<model>` (no nested parens)."""
+    model = (state.get("options", {}) or {}).get("model")
+    return f"aw oc run model={model}" if model else "aw oc run"
+
+
+def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
+    """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
+
+    Reuses the packaged `aw ipd begin` surface (subprocess to `python -m agent_workflows`,
+    mirroring `set_plan_approved`/`finalize_orchestrator`); begin writes the gitignored
+    `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
+    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority)."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        "ipd",
+        "begin",
+        id6,
+        "--actor",
+        actor,
+        "--dir",
+        str(repo),
+    ]
+    result = subprocess.run(
+        cmd, cwd=str(repo), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    return result.returncode, (result.stderr or result.stdout or "").strip()
+
+
+def _compute_scope_reconciliation(
+    repo: Path, plan_path: Path
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Compute the two-way scope reconciliation (Order 05) the driver will hand to finalize.
+
+    Reuses the authoritative, read-only `ipd_lifecycle.finalize_precheck` (which validates the
+    begin receipt and computes `evidence['scope_audit']` without mutating) rather than
+    re-implementing the diff. Returns ({out-of-scope path: reason}, {declared-but-unmodified
+    path: ack}). An empty pair means a clean delta (nothing to reconcile)."""
+    from agent_workflows import ipd_lifecycle
+
+    exit_code, _msg, evidence, _findings = ipd_lifecycle.finalize_precheck(
+        repo, plan_path
+    )
+    if exit_code != 0:
+        # The precheck itself refused (bad/missing receipt, failing pre-transition lint). Return
+        # empty maps; the finalize call below will surface the same refusal authoritatively.
+        return {}, {}
+    audit = evidence.get("scope_audit", {}) or {}
+    out_of_scope = list(audit.get("out_of_scope_paths", []) or [])
+    in_scope_unmodified = list(audit.get("in_scope_unmodified", []) or [])
+    reasons = {
+        p: "changed by the plan's approved execution (auto-reconciled by aw oc run)"
+        for p in out_of_scope
+    }
+    acks = {
+        p: "declared-but-unmodified (auto-acknowledged by aw oc run)"
+        for p in in_scope_unmodified
+    }
+    return reasons, acks
+
+
+def driver_finalize(
+    repo: Path, plan_path: Path, id6: str, actor: str, message: str
+) -> tuple[int, str]:
+    """Run `aw ipd finalize <id6> --actor --message --apply` after a verified turn.
+
+    Computes the two-way scope reconciliation programmatically (`--scope-reason` for out-of-scope
+    changed paths, `--scope-ack` for declared-but-unmodified paths) from the plan's Scope-Paths vs
+    the actual changed paths, then invokes the SAME gated finalize surface (no forked path). Never
+    forces the transition (mirrors `finalize_orchestrator`): a refusal returns nonzero and the
+    caller records the child NOT-executed. Returns (exit_code, stderr)."""
+    reasons, acks = _compute_scope_reconciliation(repo, plan_path)
+    cmd = [
+        sys.executable,
+        "-m",
+        "agent_workflows",
+        "ipd",
+        "finalize",
+        id6,
+        "--actor",
+        actor,
+        "--message",
+        message,
+        "--apply",
+        "--dir",
+        str(repo),
+    ]
+    for path, reason in reasons.items():
+        cmd.extend(["--scope-reason", f"{path}={reason}"])
+    for path, note in acks.items():
+        cmd.extend(["--scope-ack", f"{path}={note}"])
+    result = subprocess.run(
+        cmd, cwd=str(repo), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
 def git_common_dir(repo: Path) -> Path:
@@ -958,6 +1075,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
             "no_audit": getattr(args, "no_audit", False),
+            "self_finalize": getattr(args, "self_finalize", True),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -988,12 +1106,12 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     for item in state["queue"]:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     lines = [
-        f"# Execution Report: {state['run_id']}",
+        f"# Execution Report: {state.get('run_id', '')}",
         "",
-        f"- Repository: `{state['repo']}`",
-        f"- Created: {state['created_at']}",
-        f"- Updated: {state['updated_at']}",
-        f"- Selectors: `{' '.join(state['selectors'])}`",
+        f"- Repository: `{state.get('repo', '')}`",
+        f"- Created: {state.get('created_at', '')}",
+        f"- Updated: {state.get('updated_at', '')}",
+        f"- Selectors: `{' '.join(state.get('selectors', []))}`",
         f"- Set sessions: `{json.dumps(state.get('set_sessions', {}), sort_keys=True)}`",
         f"- Counts: `{json.dumps(counts, sort_keys=True)}`",
         "- Pushed: no (required; verify independently in outcomes)",
@@ -1548,6 +1666,41 @@ def execute_item(
     )
     print(banner)
     print(pal(f"  plan: {plan_path}", "dim"))
+
+    # driverfin-01 (p7peqf): self-finalize step 1 - run the fail-closed `aw ipd begin` gate BEFORE
+    # the agent turn for an execute-action child, so scope + base HEAD are frozen and the agent turn
+    # only starts with execution authority. A begin refusal blocks the child cleanly (no agent turn).
+    self_finalize = state.get("options", {}).get("self_finalize", True)
+    if self_finalize and not is_review:
+        actor = driver_actor(state)
+        begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+        if begin_rc != 0:
+            attempt["ended_at"] = utc_now()
+            attempt["begin_refused"] = begin_msg
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["begin_refusal"] = begin_msg
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-begin-refused",
+                    "id6": item["id6"],
+                    "exit_code": begin_rc,
+                    "detail": begin_msg,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} begin refused "
+                    f"(no execution authority); not launching. {begin_msg}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
     try:
         exit_code, session_id, log_path, argv = run_opencode(
             state,
@@ -1692,6 +1845,87 @@ def execute_item(
     item["last_outcome"] = outcome
     item["verification_status"] = verify_disp
     save_state(run_dir, state)
+
+    # driverfin-01 (p7peqf): self-finalize step 2 - after a VERIFIED execute turn, run the gated
+    # `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
+    # finalize the verified child is still in pending/, so reconcile_disposition reports
+    # `substantially-complete` (an agent self-claimed `executed` is downgraded there); we therefore
+    # trigger on disposition in {executed, substantially-complete} AND verification == verified (NOT
+    # on `disposition == "executed"` alone, which would never fire). On finalize success the plan is
+    # now in executed/, so re-resolve and set the child `executed`; on refusal, keep it
+    # substantially-complete and NEVER force the transition (mirrors finalize_orchestrator).
+    if (
+        self_finalize
+        and not is_review
+        and disposition in ("executed", "substantially-complete")
+        and verify_disp == "verified"
+    ):
+        try:
+            current_plan_for_finalize = resolve_plan_path(
+                repo, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            current_plan_for_finalize = plan_path
+        actor = driver_actor(state)
+        fin_message = (
+            f"aw oc run self-finalize: {item['id6']} verified "
+            f"(set {item['setid']}, attempt {attempt_no})."
+        )
+        fin_rc, fin_msg = driver_finalize(
+            repo, current_plan_for_finalize, item["id6"], actor, fin_message
+        )
+        if fin_rc == 0:
+            disposition = "executed"
+            attempt["disposition"] = "executed"
+            attempt["finalized"] = True
+            item["status"] = "executed"
+            # Re-resolve so any later handling sees the plan now living in executed/.
+            try:
+                item["last_plan_path"] = str(
+                    resolve_plan_path(
+                        repo, item.get("configured_file", ""), item["id6"]
+                    )
+                )
+            except DriverError:
+                pass
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-finalized",
+                    "id6": item["id6"],
+                    "setid": item["setid"],
+                },
+            )
+            print(
+                pal(
+                    f"  \u2713 IPD {item['id6']} finalized -> executed/ (aw ipd finalize)",
+                    "green",
+                )
+            )
+        else:
+            attempt["finalize_refused"] = fin_msg
+            item["finalize_refusal"] = fin_msg
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "ipd-finalize-refused",
+                    "id6": item["id6"],
+                    "exit_code": fin_rc,
+                    "detail": fin_msg,
+                },
+            )
+            print(
+                pal(
+                    f"  ! IPD {item['id6']} finalize refused (left {disposition}, not forced): "
+                    f"{fin_msg}",
+                    "yellow",
+                ),
+                file=sys.stderr,
+            )
 
     full_auto = state.get("options", {}).get("full_auto", False)
     auto_approved = False
@@ -2171,6 +2405,14 @@ AUTOMATIC STATUS ROUTING:
         dest="no_audit",
         action="store_true",
         help="Skip the turn-2 independent clean-session verification of executed plans",
+    )
+    start.add_argument(
+        "--no-self-finalize",
+        dest="self_finalize",
+        action="store_false",
+        default=True,
+        help="Do not run 'aw ipd begin' before / 'aw ipd finalize' after each verified execute "
+        "turn (the agent must move the plan itself). Default: the driver self-finalizes.",
     )
     _add_output_mode_flags(start)
 

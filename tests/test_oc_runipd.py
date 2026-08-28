@@ -175,6 +175,7 @@ class DriverTests(unittest.TestCase):
                     *_DRIVER_CMD,
                     "start",
                     "demo",
+                    "--no-self-finalize",
                     "--repo",
                     os.fspath(repo),
                     "--manifest",
@@ -1007,6 +1008,7 @@ class StallWatchdogTests(unittest.TestCase):
                     *_DRIVER_CMD,
                     "start",
                     "stall1",
+                    "--no-self-finalize",
                     "--repo",
                     os.fspath(repo),
                     "--stall-timeout",
@@ -1100,6 +1102,7 @@ class StallWatchdogTests(unittest.TestCase):
                     *_DRIVER_CMD,
                     "start",
                     "activ1",
+                    "--no-self-finalize",
                     "--repo",
                     os.fspath(repo),
                     "--stall-timeout",
@@ -1294,6 +1297,7 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                     *_DRIVER_CMD,
                     "start",
                     "all",
+                    "--no-self-finalize",
                     "--repo",
                     os.fspath(repo),
                     "--full-auto",
@@ -1822,6 +1826,458 @@ class OrchestratorNotAgentExecutedTests(unittest.TestCase):
         self.assertEqual(driver.action_for("child", "approved"), "execute")
         self.assertEqual(driver.action_for("child", "to-review"), "review")
         self.assertEqual(driver.action_for(None, "approved"), "execute")
+
+
+# --- driverfin-01 (p7peqf): driver self-finalize (aw ipd begin before + aw ipd finalize after) ---
+
+_CONFORMING_PLAN = """\
+# IPD: Demo self-finalize
+
+- Date: 2026-08-28
+- Kind: child
+- Concern: demo concern for the self-finalize test.
+- Scope: demo scope.
+- Scope-Paths: src/
+- Item-Dependencies: none
+- Status: approved
+- Set: demo
+- Order: 1
+- Highest E allocated: 01
+- Author: test
+- Id: {id6}
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
+
+## Workflow history
+
+- 2026-08-28 approved (aw set): status set to approved
+- 2026-08-28 draft (test): created.
+
+## Goal
+
+Demo goal sentence.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation.
+
+### Task group 1: demo
+
+- [x] E-01 Create the demo file.
+  - Depends on: none
+  - Expected outcome: the demo file exists.
+  - Execution state: performed
+
+## Project conventions discovered (Step 0)
+
+- demo convention.
+
+## Findings
+
+demo findings.
+
+## Proposed changes (ordered, validatable)
+
+1. src/demo.txt: create it.
+
+## Deferred / out of scope (with reason)
+
+none.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: none.
+
+## Required tests / validation
+
+Manual check that src/demo.txt exists.
+
+## Spec / documentation sync
+
+N/A: demo only.
+
+## Open questions
+
+### OQ-01: none?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: none.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass.
+
+- [x] V-01 validates E-01
+  - Required evidence: src/demo.txt present.
+  - Observed evidence: src/demo.txt present.
+  - Result: pass
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execution contract: commit path-scoped; do not push.
+"""
+
+
+def _init_repo_with_conforming_plan(repo: Path, id6: str = "slf001") -> Path:
+    """Create a git repo (with .aw/state gitignored) holding one approved, lint-conforming plan."""
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True)
+    plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
+    plan.write_text(_CONFORMING_PLAN.format(id6=id6), encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+    return plan
+
+
+class SelfFinalizeHelperTests(unittest.TestCase):
+    """Unit coverage of the begin/finalize driver helpers + programmatic scope reconciliation."""
+
+    def test_driver_actor_is_parenthesis_free(self):
+        # The terminal history line is `- <date> <status> (<actor>): <msg>`; a parenthesized actor
+        # would misparse under the attribution lint, so the model is rendered as `model=<m>`.
+        self.assertEqual(
+            driver.driver_actor({"options": {"model": "opus-4.8"}}),
+            "aw oc run model=opus-4.8",
+        )
+        self.assertNotIn("(", driver.driver_actor({"options": {"model": "x"}}))
+        self.assertEqual(driver.driver_actor({"options": {}}), "aw oc run")
+
+    def test_begin_writes_receipt_then_finalize_moves_to_executed(self):
+        # V-01/V-02 end-to-end: real `aw ipd begin` writes the gitignored receipt, and after the
+        # (simulated) verified turn `aw ipd finalize` moves the plan to executed/ via the driver
+        # helpers with programmatic scope reconciliation.
+        from agent_workflows import ipd_lifecycle
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "slf001")
+            actor = driver.driver_actor({"options": {"model": "opus"}})
+
+            rc, msg = driver.driver_begin(repo, "slf001", actor)
+            self.assertEqual(rc, 0, msg)
+            receipt = ipd_lifecycle.receipt_path_for(repo, "slf001")
+            self.assertTrue(receipt.is_file(), f"begin must write receipt at {receipt}")
+
+            # Simulate the agent turn producing + committing the in-scope work.
+            (repo / "src").mkdir()
+            (repo / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "demo: create src/demo.txt"],
+                cwd=repo,
+                check=True,
+            )
+
+            reasons, acks = driver._compute_scope_reconciliation(repo, plan)
+            # src/ was modified and is in Scope-Paths; nothing out-of-scope, nothing unmodified.
+            self.assertEqual(reasons, {})
+            self.assertEqual(acks, {})
+
+            rc, msg = driver.driver_finalize(
+                repo, plan, "slf001", actor, "self-finalize demo verified"
+            )
+            self.assertEqual(rc, 0, msg)
+            self.assertFalse(plan.is_file(), "plan should have moved out of pending/")
+            executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+            self.assertTrue(executed.is_file(), "plan must land in executed/")
+            self.assertIn("- Status: executed", executed.read_text(encoding="utf-8"))
+
+    def test_compute_scope_reconciliation_handles_out_of_scope_and_unmodified(self):
+        # A change OUTSIDE Scope-Paths yields a --scope-reason; a declared-but-untouched path yields
+        # a --scope-ack. Both are computed from the authoritative finalize_precheck audit.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "slf002")
+            actor = driver.driver_actor({"options": {"model": "opus"}})
+            rc, msg = driver.driver_begin(repo, "slf002", actor)
+            self.assertEqual(rc, 0, msg)
+            # Change a path OUTSIDE Scope-Paths (src/), and leave src/ untouched (unmodified).
+            (repo / "OTHER.txt").write_text("out of scope\n", encoding="utf-8")
+            subprocess.run(["git", "add", "OTHER.txt"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "out of scope change"], cwd=repo, check=True
+            )
+            reasons, acks = driver._compute_scope_reconciliation(repo, plan)
+            self.assertIn("OTHER.txt", reasons)
+            self.assertIn("src/", acks)
+
+
+class SelfFinalizeWiringTests(unittest.TestCase):
+    """execute_item wiring: begin runs BEFORE the turn (refusal blocks); finalize runs AFTER a
+    verified turn (success -> executed; refusal -> not forced). Uses mocks to isolate the ordering
+    and gate logic from the real lifecycle machinery."""
+
+    def _state_and_item(
+        self, repo: Path, plan: Path, self_finalize: bool = True
+    ) -> tuple[dict, dict]:
+        item = {
+            "position": 1,
+            "id6": "wir001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "opencode": "/bin/true",
+                "model": "opus",
+                "self_finalize": self_finalize,
+                "no_audit": True,  # skip turn-2 verify unless a test overrides
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo: Path) -> Path:
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def test_begin_runs_before_turn_and_refusal_blocks(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            calls = []
+
+            def fake_begin(r, i, a):
+                calls.append(("begin", i))
+                return 1, "pre-execution gate did NOT conform"  # refusal
+
+            def fake_run(*a, **k):
+                calls.append(("run_opencode", None))
+                return 0, "ses1", str(run_dir / "log"), ["opencode"]
+
+            with (
+                mock.patch.object(driver, "driver_begin", fake_begin),
+                mock.patch.object(driver, "run_opencode", fake_run),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # begin was attempted; run_opencode was NEVER launched; item recorded blocked.
+            self.assertEqual(calls, [("begin", "wir001")])
+            self.assertEqual(item["status"], "blocked")
+            self.assertIn("begin_refusal", item)
+
+    def test_begin_precedes_run_opencode_on_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            order = []
+
+            with (
+                mock.patch.object(
+                    driver,
+                    "driver_begin",
+                    lambda r, i, a: order.append("begin") or (0, "ok"),
+                ),
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    lambda *a, **k: (
+                        order.append("run") or (0, "ses1", str(run_dir / "log"), ["oc"])
+                    ),
+                ),
+                mock.patch.object(
+                    driver, "driver_finalize", lambda *a, **k: (0, "finalized")
+                ),
+            ):
+                # write an outcome so reconcile reports substantially-complete
+                (run_dir / "outcomes" / "01-wir001.json").write_text(
+                    json.dumps({"disposition": "executed", "pushed": False}),
+                    encoding="utf-8",
+                )
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(order[:2], ["begin", "run"])
+
+    def test_finalize_fires_on_verified_substantially_complete_and_marks_executed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, self_finalize=True)
+            state["options"]["no_audit"] = False  # exercise the verify path
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            # verifier outcome -> verified
+            (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
+                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+            )
+
+            finalize_calls = []
+
+            def fake_finalize(r, p, i, a, m):
+                finalize_calls.append((i, a, m))
+                # simulate the real finalize moving the plan to executed/
+                executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+                executed.parent.mkdir(parents=True, exist_ok=True)
+                plan.rename(executed)
+                return 0, "finalized"
+
+            def fake_run(*a, **k):
+                return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+            with (
+                mock.patch.object(driver, "driver_begin", lambda r, i, a: (0, "ok")),
+                mock.patch.object(driver, "run_opencode", fake_run),
+                mock.patch.object(driver, "driver_finalize", fake_finalize),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(len(finalize_calls), 1, "finalize must fire once")
+            self.assertEqual(finalize_calls[0][0], "wir001")
+            # actor is parenthesis-free and non-generic; message non-empty.
+            self.assertTrue(finalize_calls[0][1].startswith("aw oc run"))
+            self.assertTrue(finalize_calls[0][2])
+            self.assertEqual(item["status"], "executed")
+
+    def test_finalize_refusal_leaves_not_executed_and_not_forced(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, self_finalize=True)
+            state["options"]["no_audit"] = (
+                True  # disposition stays substantially-complete, verified via rc
+            )
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+
+            # With no_audit=True, verify_disp stays None, so the finalize gate should NOT fire.
+            # This asserts the gate requires verification == verified.
+            fin = []
+            with (
+                mock.patch.object(driver, "driver_begin", lambda r, i, a: (0, "ok")),
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    lambda *a, **k: (0, "ses1", str(run_dir / "log"), ["oc"]),
+                ),
+                mock.patch.object(
+                    driver,
+                    "driver_finalize",
+                    lambda *a, **k: fin.append(1) or (1, "refused"),
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                fin, [], "finalize must NOT fire without verification==verified"
+            )
+            self.assertEqual(item["status"], "substantially-complete")
+            self.assertTrue(plan.is_file(), "plan must remain in pending/ (not forced)")
+
+    def test_finalize_refusal_does_not_stamp_executed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, self_finalize=True)
+            state["options"]["no_audit"] = False
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            (run_dir / "outcomes" / "01-wir001-verification.json").write_text(
+                json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+            )
+
+            with (
+                mock.patch.object(driver, "driver_begin", lambda r, i, a: (0, "ok")),
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    lambda *a, **k: (0, "ses1", str(run_dir / "log"), ["oc"]),
+                ),
+                mock.patch.object(
+                    driver,
+                    "driver_finalize",
+                    lambda *a, **k: (
+                        1,
+                        "refused: out-of-scope path needs a --scope-reason",
+                    ),
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # A finalize REFUSAL must leave the child NOT executed with a recorded reason.
+            self.assertEqual(item["status"], "substantially-complete")
+            self.assertIn("finalize_refusal", item)
+            self.assertTrue(
+                plan.is_file(), "plan must not be moved on finalize refusal"
+            )
+
+    def test_no_self_finalize_skips_begin_and_finalize(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan, self_finalize=False)
+
+            (run_dir / "outcomes" / "01-wir001.json").write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            begin_calls, fin_calls = [], []
+            with (
+                mock.patch.object(
+                    driver,
+                    "driver_begin",
+                    lambda r, i, a: begin_calls.append(1) or (0, "ok"),
+                ),
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    lambda *a, **k: (0, "ses1", str(run_dir / "log"), ["oc"]),
+                ),
+                mock.patch.object(
+                    driver,
+                    "driver_finalize",
+                    lambda *a, **k: fin_calls.append(1) or (0, "ok"),
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(
+                begin_calls, [], "begin must be skipped with --no-self-finalize"
+            )
+            self.assertEqual(
+                fin_calls, [], "finalize must be skipped with --no-self-finalize"
+            )
 
 
 if __name__ == "__main__":
