@@ -870,6 +870,58 @@ def check_scope_paths(
     return blocking, advisory
 
 
+# ipddeps Order ovbnyq (spec 25kzda 2.9-2.11): phased cross-IPD Item-Dependencies enforcement.
+# lint_text is PURE, so it only performs the SYNTAX-level checks (missing / unresolved / malformed)
+# here; the RESOLUTION-level checks (dangling / ambiguous / cycle) need the repo and are added in
+# lint_file via the ONE shared check_engine evaluator. The rule IDs are the shared
+# `check.ipd-dependency-*` family so every surface reports the same rule.
+_DEP_BLOCKING_CHECKPOINTS = frozenset(
+    ("review-finalize", "pre-execution", "pre-transition")
+)
+
+
+def check_item_dependencies(
+    doc: ParsedDoc, checkpoint: str, directory: Optional[str]
+) -> Tuple[List[Diagnostic], List[Diagnostic]]:
+    """Pure SYNTAX-level Item-Dependencies enforcement. Returns (blocking, advisory).
+
+    At `author`: a valid statement passes; a missing statement or the `unresolved` sentinel is
+    ADVISORY (an honest not-ready draft); a malformed statement is always BLOCKING. At
+    review-finalize/pre-execution/pre-transition: missing / `unresolved` / malformed are BLOCKING.
+    Resolution (dangling/ambiguous/cycle) is added by lint_file (needs the repo).
+    """
+    blocking: List[Diagnostic] = []
+    advisory: List[Diagnostic] = []
+    is_blocking_phase = checkpoint in _DEP_BLOCKING_CHECKPOINTS
+    raw = doc.meta_fields.get(S.META_ITEM_DEPENDENCIES)
+    if raw is None:
+        # MISSING-statement mandatoriness is CUTOVER-conditional (spec 2.11) and lint_text is PURE
+        # (no repo -> cannot know the cutover). Emitting a finding here would either mass-fail /
+        # pollute the advisory channel for the entire pre-cutover corpus. So the pure lint emits
+        # NOTHING for a missing statement; the repo-aware, cutover-gated MISSING enforcement (which
+        # blocks only a POST-CUTOVER plan at a blocking phase) is applied in lint_file via the shared
+        # evaluator. Pre-cutover / no-cutover plans are thus grandfathered and never mass-failed.
+        return blocking, advisory
+    value = raw.strip()
+    if value == S.ITEM_DEPENDENCIES_UNRESOLVED:
+        diag = Diagnostic(
+            0,
+            0,
+            S.RULE_IPD_DEP_UNRESOLVED,
+            "Item-Dependencies is still the `unresolved` scaffold sentinel; resolve it before "
+            "review-readiness/execution",
+        )
+        (blocking if is_blocking_phase else advisory).append(diag)
+        return blocking, advisory
+    _edges, _ready, err = S.parse_item_dependencies(value)
+    if err:
+        # malformed is always blocking (an invalid statement is never acceptable)
+        blocking.append(
+            Diagnostic(0, 0, S.RULE_IPD_DEP_MALFORMED, f"Item-Dependencies: {err}")
+        )
+    return blocking, advisory
+
+
 # --------------------------------------------------------------------------------------
 # Top-level lint
 # --------------------------------------------------------------------------------------
@@ -916,8 +968,10 @@ def lint_text(
     diags += check_checkpoint(doc, checkpoint, directory)
     scope_blocking, scope_advisory = check_scope_paths(doc, checkpoint, directory)
     diags += scope_blocking
+    dep_blocking, dep_advisory = check_item_dependencies(doc, checkpoint, directory)
+    diags += dep_blocking
     disposition = S.DISPOSITION_CONFORMING if not diags else S.DISPOSITION_ERROR
-    advisories = check_density(doc) + scope_advisory
+    advisories = check_density(doc) + scope_advisory + dep_advisory
     return LintResult(disposition, diags, advisories)
 
 
@@ -925,9 +979,50 @@ def lint_file(
     path: Path, *, checkpoint: str = "author", legacy: bool = False
 ) -> LintResult:
     text = path.read_text(encoding="utf-8")
-    return lint_text(
+    result = lint_text(
         text, checkpoint=checkpoint, directory=_dir_of(path), legacy=legacy
     )
+    # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
+    # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
+    # shared check_engine evaluator, only at the blocking phases (author stays pure/advisory). They
+    # are merged into the LintResult so a dangling/cyclic statement blocks at review-readiness+.
+    if checkpoint in _DEP_BLOCKING_CHECKPOINTS and result.disposition in (
+        S.DISPOSITION_CONFORMING,
+        S.DISPOSITION_ERROR,
+    ):
+        try:
+            from agent_workflows import check_engine as _ce
+
+            # Derive the repo root by walking up to the dir that contains `.aw` (or `.agents`), so a
+            # plan under `<root>/.aw/records/plans/pending/...` resolves to `<root>`, not its parent.
+            repo_root = path.resolve().parent
+            for anc in path.resolve().parents:
+                if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                    repo_root = anc
+                    break
+            resolution_rules = {
+                S.RULE_IPD_DEP_DANGLING,
+                S.RULE_IPD_DEP_AMBIGUOUS,
+                S.RULE_IPD_DEP_CYCLE,
+                # MISSING is cutover-gated in the evaluator (post-cutover plans only), so it is applied
+                # here (repo-aware) rather than in the pure lint_text; pre-cutover/no-cutover plans
+                # are grandfathered and never blocked.
+                S.RULE_IPD_DEP_MISSING,
+            }
+            extra = [
+                Diagnostic(0, 0, d.rule, d.detail)
+                for d in _ce.evaluate_ipd_dependencies(
+                    repo_root, phase=checkpoint, plans=[(path, text)]
+                )
+                if d.rule in resolution_rules
+            ]
+            if extra:
+                merged = list(result.diagnostics) + extra
+                return LintResult(S.DISPOSITION_ERROR, merged, list(result.advisories))
+        except Exception:
+            # Resolution is best-effort; a repo-scan failure never masks the pure lint result.
+            pass
+    return result
 
 
 # --------------------------------------------------------------------------------------

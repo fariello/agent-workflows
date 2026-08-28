@@ -66,6 +66,11 @@ def _ready_plan_text(
         if in_meta and ln.startswith("- Scope-Paths:"):
             out.append("- Scope-Paths: " + scope_paths)
             continue
+        if in_meta and ln.startswith("- Item-Dependencies:"):
+            # ipddeps ovbnyq: an EXECUTION-READY fixture resolves its cross-IPD deps (the scaffold
+            # emits `unresolved`, which is correctly blocked at pre-execution/pre-transition).
+            out.append("- Item-Dependencies: none")
+            continue
         out.append(ln)
         if in_meta and ln.startswith("- Author:"):
             out.append("- Approval: 2026-08-24, human: approved")

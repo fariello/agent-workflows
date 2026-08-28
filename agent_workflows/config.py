@@ -266,3 +266,51 @@ def expanded_excludes(config: Dict[str, Any]) -> List[str]:
         os.path.expandvars(os.path.expanduser(str(e)))
         for e in config.get("exclude", [])
     ]
+
+
+# --------------------------------------------------------------------------------------
+# ipddeps Order ovbnyq (spec 25kzda 2.11): the ONE dependency-schema cutover marker.
+#
+# Recorded in the COMMITTED, portable project policy (`.aw/config/project.json`) as the
+# `dependency_schema_cutover` key. It is read here (not via the XDG user config, which drops
+# unknown keys) with a fail-open default: an ABSENT or unreadable marker means "no cutover in
+# effect", so EVERY existing plan is grandfathered and the corpus is NEVER mass-failed. When the
+# marker IS set, only IPDs authored on/after its `date` (YYYY-MM-DD) must carry a resolved
+# Item-Dependencies statement; older plans stay grandfathered (advisory).
+# --------------------------------------------------------------------------------------
+
+DEPENDENCY_SCHEMA_CUTOVER_KEY = "dependency_schema_cutover"
+
+
+def read_dependency_schema_cutover(
+    repo_root: "os.PathLike[str] | str",
+) -> Optional[Dict[str, Any]]:
+    """Return the dependency-schema cutover marker dict from `.aw/config/project.json`, or None.
+
+    The marker (when present) is a small object like ``{"date": "2026-09-01", "commit": "<sha>"}``.
+    Fail-open: any read/parse error, a missing file, or a missing key returns None (no cutover ->
+    grandfather everything). Pure read; never writes.
+    """
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    marker = data.get(DEPENDENCY_SCHEMA_CUTOVER_KEY)
+    if isinstance(marker, dict):
+        return marker
+    # Tolerate a bare date string for convenience.
+    if isinstance(marker, str) and marker.strip():
+        return {"date": marker.strip()}
+    return None
+
+
+def dependency_cutover_date(repo_root: "os.PathLike[str] | str") -> Optional[str]:
+    """Return the cutover `date` (YYYY-MM-DD) if a marker is set, else None (no cutover)."""
+    marker = read_dependency_schema_cutover(repo_root)
+    if marker is None:
+        return None
+    date = marker.get("date")
+    return date if isinstance(date, str) and date.strip() else None

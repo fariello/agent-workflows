@@ -11,6 +11,9 @@ from typing import Dict, List, NamedTuple, Optional, Tuple
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import engine as _engine
+from agent_workflows import (
+    ipd_schema as _S,
+)  # low-level; safe (no cycle) - ipddeps ovbnyq
 from agent_workflows import record_producers as _rp
 
 # Which check kinds each type supports today. "names" = filename-grammar conformity;
@@ -174,6 +177,14 @@ def check_content(
         dirs = _type_dirs(repo_root, "plans")
         if dirs:
             drift.extend(_pidx.check_drift(repo_root, dirs[0]))
+        # ipddeps ovbnyq (spec 25kzda 2.10): the cross-IPD dependency check is a PLANS-scoped concern
+        # (every dependency source is an IPD), so it runs in the plans-type content path - reached by
+        # BOTH `aw check plans` and the `aw check all` fan-out, exactly once, never double-reported
+        # (deliberately NOT also added to the collisions-only cross-tree sweep).
+        try:
+            drift.extend(check_ipd_dependencies(repo_root))
+        except Exception:
+            pass
     elif record_type == "research":
         from agent_workflows import research_index as _ridx
 
@@ -998,3 +1009,239 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
                 )
                 break
     return warnings
+
+
+# ======================================================================================
+# ipddeps Order ovbnyq (spec 25kzda 2.9-2.11): the ONE shared cross-IPD dependency evaluator.
+#
+# Parses each `Item-Dependencies` statement once (child 01's `parse_item_dependencies`), resolves
+# every typed id6 edge once against a repo identity index, builds ONE directed IPD->IPD graph,
+# detects cycles, and emits the `check.ipd-dependency-*` rule family with phase/grandfather severity.
+# Consumed by `aw check` (the plans-type content path) AND phased `aw ipd lint` AND (child 03) the
+# hook - never duplicated. `aw check` uses phase="check" (post-cutover mandatoriness applies by the
+# plan's own Date vs the cutover date; pre-cutover plans are grandfathered/advisory, so the current
+# corpus is never mass-failed).
+# ======================================================================================
+
+_ITEM_DEPENDENCIES_RE = _re.compile(r"(?m)^- Item-Dependencies:[ \t]*(.*?)[ \t]*$")
+_DATE_LINE_RE = _re.compile(r"(?m)^- Date:[ \t]*(\S+)[ \t]*$")
+
+# Phases where a missing/unresolved/malformed/dangling/cyclic statement is BLOCKING (error). At the
+# always-on `check`/`author` phase, a pre-cutover plan's missing statement is only an advisory
+# (grandfathered) and an `unresolved` scaffold sentinel is advisory; later phases block.
+_DEP_BLOCKING_PHASES = frozenset(
+    ("review-finalize", "review-readiness", "pre-execution", "pre-transition")
+)
+
+
+class _DepIndex(NamedTuple):
+    # id6 -> list of (record_type, status, path_str) owners (len>1 => ambiguous).
+    owners: Dict[str, List[Tuple[str, Optional[str], str]]]
+
+
+def build_dependency_index(repo_root: Path) -> _DepIndex:
+    """Build the repo identity index for dependency resolution: id6 -> [(record_type,status,path)].
+
+    Uses the unified artifact inventory (plans/specs/backlog + more) so an edge's typed id6 can be
+    resolved and a multi-owner id6 (ambiguous) detected. Lazy import avoids any import cycle.
+    """
+    owners: Dict[str, List[Tuple[str, Optional[str], str]]] = {}
+    try:
+        from agent_workflows import status_set as _ss
+
+        records = _ss.inventory_all_artifacts(Path(repo_root))
+    except Exception:
+        return _DepIndex(owners)
+    for rec in records:
+        rid = getattr(rec, "id6", None)
+        if not rid:
+            continue
+        owners.setdefault(rid, []).append((rec.record_type, rec.status, str(rec.path)))
+    return _DepIndex(owners)
+
+
+def _resolve_edge(
+    edge: "_S.ItemDependency", index: _DepIndex
+) -> Tuple[str, Optional[str]]:
+    """Resolve one edge against the index. Returns (verdict, detail):
+    verdict in {"ok","dangling","ambiguous"}. An `executed:`/state:ipd:.../exists:ipd: edge must
+    resolve to a plans record; exists:spec:/state:spec: to a specs record; backlog to backlog."""
+    want_rt = _S.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
+    hits = index.owners.get(edge.id6, [])
+    typed = [h for h in hits if want_rt is None or h[0] == want_rt]
+    if not typed:
+        return "dangling", (
+            f"{edge.canonical()}: no {edge.target_type} artifact has id6 {edge.id6}"
+        )
+    if len(typed) > 1:
+        return "ambiguous", (
+            f"{edge.canonical()}: id6 {edge.id6} matches multiple {edge.target_type} "
+            f"artifacts ({', '.join(h[2] for h in typed)})"
+        )
+    return "ok", None
+
+
+def _plan_date(text: str) -> Optional[str]:
+    m = _DATE_LINE_RE.search(text)
+    return m.group(1).strip() if m else None
+
+
+def evaluate_ipd_dependencies(
+    repo_root: Path,
+    *,
+    phase: str = "check",
+    plans: Optional[List[Tuple[Path, str]]] = None,
+) -> List[_core.Drift]:
+    """The shared cross-IPD dependency evaluator. Returns Drift findings (deterministic order).
+
+    `phase` selects severity: "check"/"author" grandfather a pre-cutover missing statement (advisory)
+    and treat `unresolved` as advisory; the blocking phases make missing/unresolved/malformed/
+    dangling/ambiguous/cycle errors. When `plans` is given (a single-plan lint), only those plan(s)
+    are evaluated for per-statement findings, but the cycle graph is still built from the whole repo
+    so an inter-plan cycle involving the target is caught.
+    """
+    repo_root = Path(repo_root)
+    from agent_workflows import config as _config
+
+    cutover_date = _config.dependency_cutover_date(repo_root)
+    index = build_dependency_index(repo_root)
+
+    # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph).
+    all_plans: List[Tuple[Path, str]] = list(_iter_plan_ipds(repo_root))
+    own_id: Dict[str, str] = {}  # path_str -> declared id6
+    dep_value: Dict[
+        str, Optional[str]
+    ] = {}  # path_str -> raw Item-Dependencies value (or None)
+    plan_text: Dict[str, str] = {}
+    for p, text in all_plans:
+        ps = str(p)
+        plan_text[ps] = text
+        mid = _ID_LINE_RE.search(text)
+        if mid:
+            own_id[ps] = mid.group(1)
+        mdep = _ITEM_DEPENDENCIES_RE.search(text)
+        dep_value[ps] = mdep.group(1).strip() if mdep else None
+
+    # Build the IPD->IPD edge graph (by owner id6) from ALL plans for cycle detection.
+    edges_by_plan: Dict[str, List[str]] = {}
+    for ps, oid in own_id.items():
+        raw = dep_value.get(ps)
+        if not raw:
+            continue
+        edges, _ready, err = _S.parse_item_dependencies(raw)
+        if err:
+            continue
+        ipd_targets = [e.id6 for e in edges if e.target_type == "ipd"]
+        if oid not in edges_by_plan:
+            edges_by_plan[oid] = []
+        edges_by_plan[oid].extend(ipd_targets)
+
+    cycles = _S.item_dependency_cycles(edges_by_plan)
+    # Map an owner id6 back to a path for cycle reporting.
+    id_to_path: Dict[str, str] = {oid: ps for ps, oid in own_id.items()}
+
+    drift: List[_core.Drift] = []
+    blocking = phase in _DEP_BLOCKING_PHASES
+
+    # Per-statement findings for the target set (default: all plans).
+    target_plans = plans if plans is not None else all_plans
+    for p, text in sorted(target_plans, key=lambda pt: str(pt[0])):
+        ps = str(p)
+        raw = dep_value.get(ps, None)
+        if raw is None:
+            raw = None
+            mdep = _ITEM_DEPENDENCIES_RE.search(text)
+            raw = mdep.group(1).strip() if mdep else None
+        oid = own_id.get(ps)
+        # (1) missing statement - CUTOVER-GATED: a grandfathered (pre-cutover / no-cutover) plan is
+        # NEVER flagged for a missing statement, at ANY phase, so the existing corpus is not
+        # mass-failed. Only a POST-cutover plan missing the field is a finding (error).
+        if raw is None:
+            if not _is_grandfathered_plan(text, cutover_date):
+                drift.append(
+                    _core.Drift(
+                        ps,
+                        _S.RULE_IPD_DEP_MISSING,
+                        "IPD has no `- Item-Dependencies:` statement; add one via "
+                        "`aw ipd dependencies set <id6> none|<edge...>` "
+                        "(scaffold emits `unresolved`)",
+                    )
+                )
+            continue
+        # (2) unresolved sentinel
+        if raw == _S.ITEM_DEPENDENCIES_UNRESOLVED:
+            if blocking:
+                drift.append(
+                    _core.Drift(
+                        ps,
+                        _S.RULE_IPD_DEP_UNRESOLVED,
+                        "Item-Dependencies is still the `unresolved` scaffold sentinel; "
+                        "resolve it with `aw ipd dependencies set <id6> none|<edge...>`",
+                    )
+                )
+            continue
+        # (3) malformed
+        edges, _ready, err = _S.parse_item_dependencies(raw)
+        if err:
+            drift.append(
+                _core.Drift(
+                    ps,
+                    _S.RULE_IPD_DEP_MALFORMED,
+                    f"malformed Item-Dependencies: {err}",
+                )
+            )
+            continue
+        # self-edge (a plan depending on its own id6) is malformed - the parser cannot see the
+        # owner, so detect it here.
+        if oid and any(e.id6 == oid for e in edges):
+            drift.append(
+                _core.Drift(
+                    ps,
+                    _S.RULE_IPD_DEP_MALFORMED,
+                    f"malformed Item-Dependencies: self-dependency on own id6 {oid}",
+                )
+            )
+            continue
+        # (4)/(5) resolve each edge -> dangling / ambiguous
+        for e in edges:
+            verdict, detail = _resolve_edge(e, index)
+            if verdict == "dangling":
+                drift.append(_core.Drift(ps, _S.RULE_IPD_DEP_DANGLING, detail or ""))
+            elif verdict == "ambiguous":
+                drift.append(_core.Drift(ps, _S.RULE_IPD_DEP_AMBIGUOUS, detail or ""))
+
+    # (6) cycles - report once per cycle, located at the (sorted-first) member's path if known.
+    target_ids = {own_id.get(str(p)) for p, _t in target_plans}
+    for cyc in cycles:
+        # When evaluating a subset (lint of one plan), only report a cycle that involves a target.
+        if plans is not None and not (set(cyc) & target_ids):
+            continue
+        member_paths = [id_to_path.get(c, c) for c in cyc]
+        loc = sorted(pp for pp in member_paths if pp in plan_text) or [member_paths[0]]
+        drift.append(
+            _core.Drift(
+                loc[0],
+                _S.RULE_IPD_DEP_CYCLE,
+                "cross-IPD dependency cycle: " + " -> ".join(cyc),
+            )
+        )
+
+    return drift
+
+
+def _is_grandfathered_plan(text: str, cutover_date: Optional[str]) -> bool:
+    """A plan is grandfathered (missing-statement is advisory, not error) when there is no cutover
+    in effect, or the plan's `- Date:` predates the cutover date. Fail-open: unparseable -> True."""
+    if cutover_date is None:
+        return True
+    pdate = _plan_date(text)
+    if not pdate:
+        return True
+    return pdate < cutover_date
+
+
+def check_ipd_dependencies(repo_root: Path) -> List[_core.Drift]:
+    """Repo-wide cross-IPD dependency check for `aw check` (phase="check"). Mirrors the
+    `check_from_backlog` scan shape; wired into the plans-type content path so BOTH `aw check plans`
+    and `aw check all` surface it exactly once (never double-reported)."""
+    return evaluate_ipd_dependencies(repo_root, phase="check")

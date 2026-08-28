@@ -694,6 +694,73 @@ def canonical_item_dependencies(value: str) -> Tuple[Optional[str], Optional[str
 
 
 # --------------------------------------------------------------------------------------
+# Cross-IPD dependency RULE FAMILY (ipddeps Order ovbnyq; spec 25kzda 2.9-2.11).
+# One shared rule-id vocabulary consumed by the check_engine evaluator, phased ipd lint, and the
+# child-03 hook, so the surfaces cannot diverge.
+# --------------------------------------------------------------------------------------
+
+RULE_IPD_DEP_MISSING = "check.ipd-missing-dependency-statement"
+RULE_IPD_DEP_UNRESOLVED = "check.ipd-dependency-unresolved"
+RULE_IPD_DEP_MALFORMED = "check.ipd-dependency-malformed"
+RULE_IPD_DEP_DANGLING = "check.ipd-dependency-dangling"
+RULE_IPD_DEP_AMBIGUOUS = "check.ipd-dependency-ambiguous"
+RULE_IPD_DEP_CYCLE = "check.ipd-dependency-cycle"
+
+# The type token used in an edge maps to the artifact record_type used by the resolver.
+ITEM_DEP_TYPE_TO_RECORD_TYPE: Dict[str, str] = {
+    "ipd": "plans",
+    "spec": "specs",
+    "backlog": "backlog",
+}
+
+
+def item_dependency_cycles(edges_by_plan: Dict[str, List[str]]) -> List[List[str]]:
+    """Detect directed cycles in the IPD->IPD dependency graph. Pure.
+
+    ``edges_by_plan`` maps an owner id6 to the list of target IPD id6s it depends on (only the
+    IPD-typed edges - ``executed:`` / ``exists:ipd:`` / ``state:ipd:`` - participate; spec/backlog
+    targets are graph leaves). Returns each detected cycle as a list of id6s in visitation order
+    (the first repeated node closes the cycle); returns [] when the graph is acyclic. Deterministic:
+    nodes and neighbors are visited in sorted order so the reported cycles are stable.
+    """
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color: Dict[str, int] = {}
+    cycles: List[List[str]] = []
+    nodes = sorted(edges_by_plan.keys())
+
+    def visit(node: str, stack: List[str]) -> None:
+        color[node] = GRAY
+        stack.append(node)
+        for nxt in sorted(edges_by_plan.get(node, [])):
+            if nxt not in edges_by_plan:
+                # target is not itself an owner in the graph (leaf / external) - no cycle through it
+                continue
+            state = color.get(nxt, WHITE)
+            if state == GRAY:
+                # found a back-edge: close the cycle from where nxt appears in the stack
+                if nxt in stack:
+                    idx = stack.index(nxt)
+                    cycles.append(stack[idx:] + [nxt])
+            elif state == WHITE:
+                visit(nxt, stack)
+        stack.pop()
+        color[node] = BLACK
+
+    for n in nodes:
+        if color.get(n, WHITE) == WHITE:
+            visit(n, [])
+    # De-duplicate cycles by their normalized node set (a cycle may be discovered from several starts).
+    seen: set = set()
+    unique: List[List[str]] = []
+    for cyc in cycles:
+        key = frozenset(cyc)
+        if key not in seen:
+            seen.add(key)
+            unique.append(cyc)
+    return unique
+
+
+# --------------------------------------------------------------------------------------
 # Identifier grammar + allocation watermark (spec Sections 5.1, 5.6)
 # --------------------------------------------------------------------------------------
 
