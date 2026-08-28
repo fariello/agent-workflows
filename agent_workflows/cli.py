@@ -37,6 +37,14 @@ from .term import Term
 # E-06). Keyed by full command path. The short one-liner stays as `help=` in the parent
 # listing; this is the multi-sentence "what it does, inputs/outputs, key flags, caveats".
 _DESCRIPTIONS = {
+    "completion": (
+        "Emit a native shell completion script for the aw CLI to stdout. `aw completion bash` "
+        "(also zsh, fish) prints a self-contained script that completes commands and flags for all "
+        "three entrypoints (aw, agentwf, agent-workflows); with no shell argument it detects the "
+        "active shell from $SHELL (falling back to bash). Evaluate it directly, e.g. "
+        "`source <(aw completion bash)`. Static generation only; dynamic id/enum completion and "
+        "drop-in install arrive in later tabcomp children."
+    ),
     "install": (
         "Install or update the agent-workflows framework in one or more target repos "
         "(idempotent: safe to re-run). With no target, acts on the current directory; "
@@ -3168,6 +3176,28 @@ EXAMPLES
         parents=[common],
         help="Local pre-push gate: prevent an accidental push and explain real authorization "
         "(OPT-IN, LOCAL FEEDBACK ONLY, bypassable; NOT an authority boundary - CI/protected branch is).",
+    )
+
+    # tabcomp Order 01 (bja8og): `aw completion <shell>` streams a native completion script to
+    # stdout. PARSER SHAPE (forward-compatibility, blocks tabcomp-03 jolfpj E-02): `shell` is NOT a
+    # bare `choices={bash,zsh,fish}` positional - that would collide with the `install`/`uninstall`
+    # verbs tabcomp-03 adds. Instead `target` is a free-form optional positional (validated in the
+    # handler): today it accepts a shell name (or is omitted -> $SHELL detection, OQ-01 bash
+    # fallback); tabcomp-03 can additively accept `install`/`uninstall` as the first token WITHOUT
+    # reshaping this parser. Do NOT convert `target` to a fixed-choices positional.
+    p_completion = sub.add_parser(
+        "completion",
+        parents=[common],
+        help="Emit a native shell completion script (bash|zsh|fish) to stdout for `aw`, `agentwf`, "
+        "and `agent-workflows`; e.g. `source <(aw completion bash)`.",
+    )
+    p_completion.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        metavar="bash|zsh|fish",
+        help="Shell to generate for (default: detect from $SHELL, else bash). tabcomp-03 will "
+        "additively accept install|uninstall here without reshaping the parser.",
     )
 
     _apply_descriptions(parser)
@@ -7525,6 +7555,38 @@ def _show_family_help(
     return 2
 
 
+def _detect_shell() -> str:
+    """Detect the active shell from $SHELL for `aw completion` (OQ-01: bash fallback).
+
+    Returns the basename of $SHELL when it is one of bash|zsh|fish, else 'bash' (the POSIX baseline
+    when $SHELL is unset, empty, or names an unsupported shell)."""
+    raw = os.environ.get("SHELL", "") or ""
+    name = os.path.basename(raw).strip()
+    return name if name in ("bash", "zsh", "fish") else "bash"
+
+
+def _run_completion(args: argparse.Namespace) -> int:
+    """`aw completion [bash|zsh|fish]` -> stream the native completion script to stdout (bja8og E-03).
+
+    Bare invocation detects the shell from $SHELL (bash fallback, OQ-01). Clean stdout only (the raw
+    script), so `source <(aw completion bash)` works. tabcomp-03 will additively route an
+    install/uninstall `target` here without reshaping the parser."""
+    from agent_workflows import completion as _completion
+
+    target = getattr(args, "target", None)
+    shell = target if target else _detect_shell()
+    if shell not in ("bash", "zsh", "fish"):
+        print(
+            f"agent-workflows: error: unknown completion target {shell!r} "
+            "(expected bash|zsh|fish).",
+            file=sys.stderr,
+        )
+        print("Next  aw completion --help", file=sys.stderr)
+        return 2
+    sys.stdout.write(_completion.generate(shell))
+    return 0
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
@@ -7610,6 +7672,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             "check-local-leaks. See 'aw --help'."
         )
         return 0
+
+    if args.command == "completion":
+        return _run_completion(args)
 
     if args.command == "project":
         project_cmd = getattr(args, "project_command", None)
