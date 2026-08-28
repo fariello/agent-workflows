@@ -111,13 +111,51 @@ def compute_target_name(
     new_slug: Optional[str] = None,
     new_set: Optional[str] = None,
     new_order: Optional[int] = None,
+    to_id6: bool = False,
+    mint_id6: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
     """Compute the new filename given the existing name and mutation arguments.
 
     Returns (new_name, error_message).
+
+    ``to_id6`` (IPD ha55fi E-04): the id6-minting conversion mode. When set and ``src_name`` is a
+    legacy ``YYYYMMDD-HHMM-NN-<slug>[.<facet>].md`` timestamp name, the returned name is the uniform
+    id6-clustered form ``YYYYMMDD-<mint_id6>-NN-<mint_id6>-<slug>[.<facet>].md`` (a standalone
+    artifact uses its own id6 as the setid). ``mint_id6`` MUST be supplied by the caller
+    (``run_rename_generic`` mints it, or reuses an existing ``- Id:``); this pure function does not
+    read the filesystem. An already-clustered name in ``--to-id6`` mode is a no-op rename target
+    (it already carries an id6), so it flows through the uniform branch unchanged.
     """
-    if not new_slug and new_set is None and new_order is None:
+    if not to_id6 and not new_slug and new_set is None and new_order is None:
         return None, "at least one of --slug, --set, or --order is required to rename"
+
+    # IPD ha55fi E-04: in id6-minting mode a legacy timestamp name (YYYYMMDD-HHMM-NN-...) is the
+    # WHOLE POINT of the conversion, and its HHMM (4 digits) unambiguously distinguishes it from the
+    # uniform form (whose set segment can otherwise capture a 4-digit token). So try the legacy
+    # timestamp shape FIRST when --to-id6 is set, then fall through to the uniform (already-clustered)
+    # branch below for an idempotent no-op on an id6-bearing name.
+    if to_id6:
+        m_ts_first = _LEGACY_TIMESTAMP_RE.match(src_name)
+        if m_ts_first:
+            if not mint_id6:
+                return None, "internal: --to-id6 conversion requires a minted id6"
+            date_str = m_ts_first.group("date")
+            slug = _core.kebab(new_slug) if new_slug else m_ts_first.group("slug")
+            artifact_type_facet = _naming.TYPE_FACET.get(artifact_type)
+            try:
+                return (
+                    _naming.build_clustered_name(
+                        date=date_str,
+                        set_id=mint_id6,
+                        order=1,
+                        id6=mint_id6,
+                        slug=slug,
+                        artifact_type=artifact_type_facet,
+                    ),
+                    None,
+                )
+            except ValueError as exc:
+                return None, str(exc)
 
     m_uni = _UNIFORM_RE.match(src_name)
     if m_uni:
@@ -138,6 +176,8 @@ def compute_target_name(
         slug = _core.kebab(new_slug) if new_slug else m_ts.group("slug")
         facet = m_ts.group("facet")
         ext = f".{facet}.md" if facet else ".md"
+        # NOTE: a legacy timestamp name in --to-id6 mode is handled by the earlier to_id6 block
+        # (its HHMM disambiguates it from the uniform form); here to_id6 is necessarily False.
         return f"{date_str}-{hhmm}-{order_num:02d}-{slug}{ext}", None
 
     m_wt_d = _WALKTHROUGH_DATED_RE.match(src_name)
@@ -188,10 +228,24 @@ def apply_reference_rewrites(edits: List[RefEdit]) -> None:
     _refs.apply_reference_rewrites(edits, prefix=".aw-ref-")
 
 
+_ID_LINE_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*.+?\s*$")
+_DATE_LINE_RE = re.compile(r"(?m)^- Date:\s*.+?\s*$")
+
+
 def _update_frontmatter_metadata(
-    file_path: Path, set_id: Optional[str] = None, order: Optional[int] = None
+    file_path: Path,
+    set_id: Optional[str] = None,
+    order: Optional[int] = None,
+    id6: Optional[str] = None,
 ) -> None:
-    """Update Set and Order metadata in the file frontmatter if present."""
+    """Update Set/Order (and, IPD ha55fi E-04, Id) metadata in the file frontmatter if present.
+
+    ``id6``: when supplied and the file has NO ``- Id:`` bullet, inject one into the metadata block
+    (after ``- Status:``, else ``- Date:``, else after the H1). When the file already carries an
+    ``- Id:`` this is a no-op for that field (the existing id6 is reused, never re-minted); this is
+    the idempotence property (V-04/V-05). Set/Order updates are unchanged.
+    """
     try:
         text = file_path.read_text(encoding="utf-8")
     except OSError:
@@ -206,8 +260,103 @@ def _update_frontmatter_metadata(
         text = _ORDER_LINE_RE.sub(f"- Order: {order}", text)
         updated = True
 
+    if id6 is not None and not _ID_LINE_RE.search(text):
+        lines = text.split("\n")
+        insert_at: Optional[int] = None
+        for i, line in enumerate(lines):
+            if _STATUS_LINE_RE.match(line):
+                insert_at = i + 1
+                break
+        if insert_at is None:
+            for i, line in enumerate(lines):
+                if _DATE_LINE_RE.match(line):
+                    insert_at = i + 1
+                    break
+        if insert_at is None:
+            for i, line in enumerate(lines):
+                if line.startswith("# "):
+                    insert_at = i + 1
+                    break
+        if insert_at is None:
+            insert_at = 0
+        lines.insert(insert_at, f"- Id: {id6}")
+        text = "\n".join(lines)
+        updated = True
+
     if updated:
         _core.atomic_write(file_path, text, prefix=".aw-meta-")
+
+
+def _read_existing_id6(file_path: Path) -> Optional[str]:
+    """Return the id6 in a file's `- Id:` metadata, or None (IPD ha55fi E-04 idempotence read)."""
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = _ID_LINE_RE.search(text)
+    return m.group(1) if m else None
+
+
+def find_unrewritable_path_citations(
+    repo_root: Path, old_name: str, src_dir: Path
+) -> List[Tuple[str, str]]:
+    """Find full-PATH citations of ``old_name`` whose directory differs from the file's real dir.
+
+    IPD ha55fi E-05: a ``--to-id6`` rename keeps the file in ``src_dir`` and only changes the
+    FILENAME, so the standard full-name substitution correctly rewrites a full-path citation whose
+    directory equals ``src_dir``. But a citation that names a DIFFERENT directory (e.g. a stale or
+    hand-typed path) cannot be safely auto-rewritten by a filename-only substitution: replacing the
+    filename would leave a still-wrong directory. These are surfaced fail-loud so an operator fixes
+    them by hand. Returns a list of (repo-relative-file, cited-path) pairs.
+    """
+    try:
+        src_dir_rel = src_dir.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        src_dir_rel = src_dir.as_posix()
+    # A path-citation is a run of path chars ending in `/<old_name>`.
+    path_re = re.compile(r"[A-Za-z0-9._/\-]*/" + re.escape(old_name))
+    out: List[Tuple[str, str]] = []
+    for f in _core.iter_scan_files(repo_root):
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for m in path_re.finditer(text):
+            cited = m.group(0)
+            cited_dir = cited[: -(len(old_name) + 1)]  # strip `/<old_name>`
+            # Normalize a leading `./` and compare the directory tail against the real dir.
+            norm = cited_dir.lstrip("./")
+            if (
+                norm
+                and not src_dir_rel.endswith(norm)
+                and not norm.endswith(src_dir_rel)
+            ):
+                try:
+                    rel_f = f.relative_to(repo_root).as_posix()
+                except ValueError:
+                    rel_f = str(f)
+                out.append((rel_f, cited))
+    return out
+
+
+def _existing_type_id6s(repo_root: Path, artifact_type: str) -> set:
+    """Every id6 already used by any artifact of ``artifact_type`` (mint collision set, E-04).
+
+    Scans that type's on-disk names for a clustered id6 AND each file's ``- Id:`` metadata bullet,
+    so a freshly minted id6 never collides with an existing standalone/legacy-with-Id artifact.
+    """
+    ids: set = set()
+    try:
+        for p, text in selectors._iter_files(repo_root, artifact_type):
+            m_name = _UNIFORM_RE.match(p.name)
+            if m_name:
+                ids.add(m_name.group("id6"))
+            m_id = _ID_LINE_RE.search(text)
+            if m_id:
+                ids.add(m_id.group(1))
+    except Exception:
+        pass
+    return ids
 
 
 def _update_or_inject_set_metadata(
@@ -350,6 +499,23 @@ def run_rename_generic(
     new_slug = getattr(args, "slug", None)
     new_set = getattr(args, "set", None)
     new_order = getattr(args, "order", None)
+    to_id6 = bool(getattr(args, "to_id6", False))
+
+    # IPD ha55fi E-04: id6-minting conversion mode. Reuse an existing `- Id:` (idempotent, never
+    # re-mint) else mint a fresh id6 collision-checked against the existing spec id6 set.
+    minted_id6: Optional[str] = None
+    inject_id6: Optional[str] = None
+    if to_id6:
+        existing = _read_existing_id6(src)
+        if existing:
+            minted_id6 = existing  # reuse; no metadata write needed (already present)
+        else:
+            minted_id6 = _core.generate_id6(
+                _existing_type_id6s(repo_root, artifact_type)
+            )
+            inject_id6 = (
+                minted_id6  # must be written into the file during the transaction
+            )
 
     new_name, err = compute_target_name(
         src.name,
@@ -357,6 +523,8 @@ def run_rename_generic(
         new_slug=new_slug,
         new_set=new_set,
         new_order=new_order,
+        to_id6=to_id6,
+        mint_id6=minted_id6,
     )
     if err:
         print(f"error: {err}")
@@ -376,10 +544,19 @@ def run_rename_generic(
         plan_reference_rewrites(repo_root, src.name, new_name) if update_refs else []
     )
 
+    # IPD ha55fi E-05: surface full-path citations that a filename-only rewrite cannot safely fix.
+    unrewritable: List[Tuple[str, str]] = []
+    if to_id6 and update_refs and src.name != new_name:
+        unrewritable = find_unrewritable_path_citations(repo_root, src.name, src.parent)
+
     if not apply:
         print(
             f"--- would rename {src.relative_to(repo_root).as_posix()} -> {new_name} ---"
         )
+        if to_id6 and inject_id6:
+            print(f"--- would inject '- Id: {inject_id6}' into {new_name} ---")
+        elif to_id6 and minted_id6:
+            print(f"--- reuses existing '- Id: {minted_id6}' (no re-mint) ---")
         if update_refs:
             for e in ref_edits:
                 try:
@@ -389,7 +566,21 @@ def run_rename_generic(
                 print(
                     f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
                 )
+        for rel_f, cited in unrewritable:
+            print(
+                f"--- WARNING: full-path citation '{cited}' in {rel_f} names a different "
+                f"directory and cannot be auto-rewritten; fix it by hand ---"
+            )
         return MutationResult(0)
+
+    if unrewritable:
+        # Fail loud on --apply so the operator fixes the un-auto-rewritable citation first.
+        for rel_f, cited in unrewritable:
+            print(
+                f"error: full-path citation '{cited}' in {rel_f} names a different directory "
+                f"than the file; cannot auto-rewrite. Fix it by hand, then retry."
+            )
+        return MutationResult(2)
 
     # Apply changes
     touched: List[str] = []
@@ -412,10 +603,16 @@ def run_rename_generic(
     else:
         touched.append(_rel_to_repo(dst, repo_root))
 
-    if new_set is not None or new_order is not None:
+    if new_set is not None or new_order is not None or inject_id6 is not None:
+        # IPD ha55fi E-04: same atomic transaction writes Set/Order AND injects the minted `- Id:`.
         _update_frontmatter_metadata(
-            dst, set_id=_core.kebab(new_set) if new_set else None, order=new_order
+            dst,
+            set_id=_core.kebab(new_set) if new_set else None,
+            order=new_order,
+            id6=inject_id6,
         )
+        if inject_id6 is not None:
+            print(f"injected '- Id: {inject_id6}' into {dst.name}")
         touched.append(_rel_to_repo(dst, repo_root))
 
     if update_refs and ref_edits:

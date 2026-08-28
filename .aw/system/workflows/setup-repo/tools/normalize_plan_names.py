@@ -203,7 +203,9 @@ def parse_name(filename: str) -> Optional[Parsed]:
     return None
 
 
-def is_conformant(filename: str, expected_type: str = "ipd") -> bool:
+def is_conformant(
+    filename: str, expected_type: str = "ipd", require_id6: bool = False
+) -> bool:
     """True for a valid canonical plan name: either the Set-clustering grammar
     ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<type>].md`` (current, plans-adopter) or the older
     ``YYYYMMDD-HHMM-NN-<slug>.md`` form (accepted for compatibility). Both use clean
@@ -211,12 +213,22 @@ def is_conformant(filename: str, expected_type: str = "ipd") -> bool:
 
     When a clustered name carries a `.<type>` facet it must match ``expected_type`` (a plan is an
     ``ipd``); a facet of the wrong type (e.g. a plan named ``...-slug.spec.md``) is NONCONFORMANT
-    even though the facet is a known token (spec 20260817-2147-01)."""
+    even though the facet is a known token (spec 20260817-2147-01).
+
+    ``require_id6`` (IPD ha55fi E-02): when True the legacy ``YYYYMMDD-HHMM-NN-<slug>`` form is NOT
+    accepted - only the clustered id6-bearing grammar conforms. The DEFAULT (False) preserves the
+    exact prior behavior for every artifact type, so pre-cutover artifacts still validate; the
+    spec-id6 checker cutover (check_engine) is the only caller that passes ``require_id6=True``, and
+    only for specs dated at/after the configured cutover. The legacy ``_NEW_RE`` is deliberately NOT
+    removed: other types and pre-cutover artifacts still rely on it."""
 
     cm = _CLUSTERED_RE.match(filename)
     if cm is not None:
         facet = cm.groupdict().get("type")
         return facet is None or facet == expected_type
+    if require_id6:
+        # Clustered form is required; the legacy HHMM-NN form does not carry an id6.
+        return False
     return _NEW_RE.match(filename) is not None
 
 

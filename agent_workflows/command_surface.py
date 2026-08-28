@@ -1048,6 +1048,22 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     ),
     # --- Specs Family & Spec Aliases ---
     CommandDeclaration(
+        command="specs new",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--title",
+            "--slug",
+            "--summary",
+            "--date",
+            "--apply",
+        ),
+        exit_contract=(0, 2),
+    ),
+    CommandDeclaration(
         command="specs set",
         command_class="mutation",
         human_recipe="status",

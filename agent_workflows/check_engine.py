@@ -20,7 +20,7 @@ from agent_workflows import record_producers as _rp
 # "content" = front-matter/status/contract; "refs" = reference integrity (via the index drift).
 SUPPORTED: Dict[str, tuple] = {
     "plans": ("names", "content", "refs"),
-    "specs": ("content",),
+    "specs": ("names", "content"),
     "backlog": ("names", "content"),
     "research": ("names", "content", "refs"),
     "prompts": ("names",),
@@ -28,6 +28,18 @@ SUPPORTED: Dict[str, tuple] = {
     "roadmaps": ("names",),
     "releases": ("names", "content"),
 }
+
+# Spec id6-in-filename cutover (IPD ha55fi E-03 / OQ-01): specs are the last faceted type to adopt
+# the id6-clustered grammar. To grandfather the existing legacy `YYYYMMDD-HHMM-NN-<slug>.spec.md`
+# corpus while forcing id6 GOING FORWARD, a spec whose FILENAME date is at/after this cutover MUST
+# be id6-clustered (`require_id6=True`); a pre-cutover spec stays conformant in either shape. There
+# is NO pre-existing name-conformance cutover mechanism in this module to reuse (verified); this is
+# the single configured boundary. Value chosen (run-20260828T035444Z-36740 DECISION 11-ha55fi-D1):
+# strictly AFTER the newest existing legacy-named spec date (20260827), so ALL existing specs remain
+# grandfathered. A future migration run that mass-renames the legacy specs may lower it.
+SPEC_ID6_CUTOVER_DATE = (
+    "20260828"  # compact YYYYMMDD; require_id6 iff filename date >= this
+)
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
 # The type->facet map is defined ONCE in the naming authority (IPD o6b8l3). check_names only checks
@@ -148,21 +160,46 @@ def check_names(
     for p in _iter_type_files(
         repo_root, record_type, include_untracked=include_untracked
     ):
-        if npn.is_conformant(p.name, expected_type=facet):
+        # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after SPEC_ID6_CUTOVER_DATE must be
+        # id6-clustered; a pre-cutover spec is grandfathered (legacy HHMM-NN name still conforms).
+        require_id6 = record_type == "specs" and _spec_requires_id6(p.name)
+        if npn.is_conformant(p.name, expected_type=facet, require_id6=require_id6):
             continue
         # legacy=True allows a name that FAILS is_conformant but is a RECOGNIZED legacy shape
         # (parse_name non-None) - e.g. hyphenated-date YYYY-MM-DD-<slug>.md. The classic
-        # YYYYMMDD-HHMM-NN form is already is_conformant, so it never reaches here.
-        if legacy and npn.parse_name(p.name) is not None:
+        # YYYYMMDD-HHMM-NN form is already is_conformant, so it never reaches here. This grandfather
+        # path does NOT apply once require_id6 is in force (a post-cutover legacy spec must convert).
+        if legacy and not require_id6 and npn.parse_name(p.name) is not None:
             continue
+        detail = f"filename does not match the {record_type} grammar"
+        if require_id6:
+            detail = (
+                f"spec dated at/after the id6 cutover ({SPEC_ID6_CUTOVER_DATE}) must be "
+                f"id6-clustered; convert it with `aw rename specs {p.name} --to-id6 --apply`"
+            )
         drift.append(
             _core.Drift(
                 str(p),
                 "check.name-nonconformant",
-                f"filename does not match the {record_type} grammar",
+                detail,
             )
         )
     return drift
+
+
+_SPEC_DATE_RE = _re.compile(r"\A(\d{8})-")
+
+
+def _spec_requires_id6(filename: str) -> bool:
+    """True iff a spec filename's leading YYYYMMDD date is at/after SPEC_ID6_CUTOVER_DATE.
+
+    A name with no parseable leading date is treated as pre-cutover (require_id6=False) so an
+    unusual/legacy shape is not force-failed by the cutover; the normal grammar check still applies.
+    """
+    m = _SPEC_DATE_RE.match(filename)
+    if m is None:
+        return False
+    return m.group(1) >= SPEC_ID6_CUTOVER_DATE
 
 
 def check_content(

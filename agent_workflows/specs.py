@@ -699,6 +699,137 @@ def run_note(args) -> int:
     return 0
 
 
+def _existing_spec_ids(repo_root: Path) -> set:
+    """Every id6 already present in a spec's `- Id:` metadata (collision set for minting)."""
+    ids: set = set()
+    for p in _spec_files(repo_root):
+        try:
+            m = _SPEC_ID_RE.search(p.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue
+        if m:
+            ids.add(m.group(1))
+    return ids
+
+
+def _render_new_spec(*, title: str, id6: str, date_iso: str, summary: str) -> str:
+    """A minimal but contract-conformant spec skeleton (IPD ha55fi E-01).
+
+    Carries a bare-enum `- Status: draft`, the minted `- Id:`, and a conformant
+    `## Workflow history` record so `validate_spec` passes immediately.
+    """
+    lines = [
+        f"# Spec: {title}",
+        "",
+        f"- Date: {date_iso}",
+        "- Status: draft",
+        f"- Id: {id6}",
+        "- Author: aw specs new",
+    ]
+    if summary:
+        lines.append(f"- Scope: {summary}")
+    lines += [
+        "",
+        "## Workflow history",
+        "",
+        f"- {date_iso} created (aw specs): {summary or title}",
+        "",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _specs_root(repo_root: Path) -> Path:
+    """Prefer an existing `.aw/records/specs`, else the legacy `.agents/docs/specs`."""
+    new = repo_root / ".aw" / "records" / "specs"
+    if new.exists():
+        return new
+    legacy = repo_root / ".agents" / "docs" / "specs"
+    if legacy.exists():
+        return legacy
+    return new
+
+
+def run_new(args) -> int:
+    """Create a forward-conforming, id6-clustered spec (IPD ha55fi E-01).
+
+    Mints a fresh id6 (collision-checked against the existing spec id6 set), writes a conformant
+    skeleton carrying that id6 in both the `- Id:` metadata and the filename, and derives the
+    filename via ``artifact_naming.build_clustered_name(..., artifact_type="spec")`` (a standalone
+    spec uses its own id6 as the setid, NN=01). Dry-run/preview by default; ``--apply`` writes.
+    """
+    from agent_workflows.project_context import resolve_verb_repo_root
+    from agent_workflows import artifact_naming as _naming
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        Change,
+        CommandResult,
+        select_output,
+    )
+
+    repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+    title = (getattr(args, "title", None) or "").strip()
+    slug_arg = getattr(args, "slug", None)
+    summary = (getattr(args, "summary", None) or "").strip()
+    ctx = select_output(args)
+
+    if not title:
+        sys.stderr.write("aw specs new: --title is required\n")
+        return 2
+    slug = core.kebab(slug_arg or title)[:60] or "spec"
+
+    id6 = core.generate_id6(_existing_spec_ids(repo_root))
+    date_iso = getattr(args, "date", None) or _today()
+    date_compact = date_iso.replace("-", "")
+
+    filename = _naming.build_clustered_name(
+        date=date_compact,
+        set_id=id6,  # standalone spec: its own id6 is the setid
+        order=1,
+        id6=id6,
+        slug=slug,
+        artifact_type="spec",
+    )
+    dest = _specs_root(repo_root) / filename
+    rendered = _render_new_spec(
+        title=title, id6=id6, date_iso=date_iso, summary=summary
+    )
+
+    if not getattr(args, "apply", False):
+        if ctx.is_agent or ctx.is_json:
+            res = CommandResult(
+                command="specs new",
+                status="clean",
+                exit_code=0,
+                summary=f"would write {dest}",
+                changes=[Change(path=str(dest), kind="create", applied=False)],
+                data={"path": str(dest), "id": id6},
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx).emit(res, ctx)
+        sys.stdout.write(f"--- would write {dest} ---\n{rendered}")
+        return 0
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    core.atomic_write(dest, rendered)
+
+    if ctx.is_agent or ctx.is_json:
+        res = CommandResult(
+            command="specs new",
+            status="clean",
+            exit_code=0,
+            summary=f"wrote {dest}",
+            changes=[Change(path=str(dest), kind="create", applied=True)],
+            data={"path": str(dest), "id": id6},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx).emit(res, ctx)
+
+    sys.stdout.write(f"aw specs new: wrote {dest}\n")
+    return 0
+
+
 def _spec_repo_root(spec_path: Path) -> Path:
     """The repo root for a spec file: walk up until a `.git`/`.aw`/`.agents` marker (bklggrad
     orb9zb: factored out of `_evidence_resolvable` so the shared resolver can reuse it)."""

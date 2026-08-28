@@ -29,11 +29,17 @@ reference matcher, and ``artifact_core`` never imports THIS module - the import 
 toward core (orchestrator g6mbht module-placement principle). Pure, stdlib-only, Python 3.9
 compatible.
 
-id6-less legacy types (OQ documentation requirement): specs, prompts, roadmaps, releases, and
-walkthroughs do not yet carry an id6 in most on-disk names; they are represented here through the
-same clustered grammar when they DO have an id6 (e.g. a ``.spec.md`` faceted clustered name) and
-through the legacy ``YYYYMMDD-HHMM-NN`` and dated-slug forms when they do not. This module does NOT
-add an id6 to those types (out of scope); it only represents whatever shape they already use.
+id6-less legacy types (OQ documentation requirement): prompts, roadmaps, releases, and walkthroughs
+do not yet carry an id6 in most on-disk names; they are represented here through the same clustered
+grammar when they DO have an id6 (e.g. a ``.spec.md`` faceted clustered name) and through the legacy
+``YYYYMMDD-HHMM-NN`` and dated-slug forms when they do not. This module still does NOT add an id6 to
+those types (out of scope); it only represents whatever shape they already use.
+
+Specs are NO LONGER in that id6-less set going forward (IPD ha55fi): ``aw specs new`` mints an id6
+and emits the id6-clustered ``.spec.md`` name via :func:`build_clustered_name`, and the checker
+enforces the clustered grammar for specs dated at/after ``check_engine.SPEC_ID6_CUTOVER_DATE``.
+Pre-cutover legacy ``YYYYMMDD-HHMM-NN-<slug>.spec.md`` names remain valid (grandfathered) and can be
+converted on demand with ``aw rename specs <legacy> --to-id6``.
 """
 
 from __future__ import annotations

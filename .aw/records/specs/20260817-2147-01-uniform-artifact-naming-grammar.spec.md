@@ -9,13 +9,7 @@
 
 ## Workflow history
 
-- 2026-08-17 draft (opencode Opus 4.8 its_direct/pt3-claude-opus-4.8-1m-us): authored from a maintainer proposal during release-review run 20260817-153418. Contract details settled interactively (type-token set, standalone shape, run-artifact scope). Separated from the directory-taxonomy spec 20260817-2124-01 per the maintainer.
-- 2026-08-18 to-review (aw specs): Completed for review; drove the awnaming Set IPDs.
-- 2026-08-18 reviewed (aw specs): Reviewed via /plan-review of the awnaming orchestrator + Orders 01/02 (APPROVE WITH REVISIONS APPLIED).
-- 2026-08-18 approved (aw specs, --by-human): Human approved the awnaming Set ('Approved. Go, one after the other.', 2026-08-18) which implements this spec.
-- 2026-08-18 implementing (aw specs): awnaming Set executing (Orders 01, 02).
-- 2026-08-18 implemented (aw specs): Implemented by awnaming Set: Order 01 f8e6y7 at 0f8a861, Order 02 975whv at f0ddd40; comms + research documented exceptions; suite 1021 passed 1 skipped.
-
+- 2026-08-28 note (aw specs): IPD ha55fi: specs adopt id6-in-filename going forward (producer aw specs new, checker cutover grandfathering legacy, aw rename specs --to-id6 conversion); Section 2.1 Spec row updated.
 ## 0. PRE-RELEASE FRAMING
 
 Like spec 20260817-2124-01: the `.aw/` layout has NOT shipped. If this lands pre-release, it is a
@@ -53,7 +47,7 @@ YYYYMMDD-<setid>-NN-<id6>-<slug>.<type>.md
 |---|---|---|
 | Plan / IPD | `.ipd.md` | (was bare `.md`) |
 | Prompt | `.prompt.md` | staging AND library items are `.prompt.md` |
-| Spec | `.spec.md` | ALREADY the convention (no change) |
+| Spec | `.spec.md` | The `.spec.md` suffix was always the convention; the id6-in-filename requirement is now ALSO applied to specs GOING FORWARD (IPD ha55fi): `aw specs new` produces `YYYYMMDD-<id6>-NN-<id6>-<slug>.spec.md`, and `aw check specs` enforces the id6-clustered grammar for a spec dated at/after the configured cutover (`check_engine.SPEC_ID6_CUTOVER_DATE`) while GRANDFATHERING pre-cutover legacy `YYYYMMDD-HHMM-NN-<slug>.spec.md` names. A legacy spec is converted on demand with `aw rename specs <legacy> --to-id6` (mints the id6, injects `- Id:`, rewrites references). |
 | Walkthrough | `.walkthrough.md` | |
 | Roadmap | `.roadmap.md` | |
 | Backlog item | `.backlog.md` | |

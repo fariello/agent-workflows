@@ -2203,6 +2203,15 @@ def _build_parser() -> argparse.ArgumentParser:
             action="store_true",
             help="rename/group: rename the file only; do NOT rewrite citing documents.",
         )
+        _p.add_argument(
+            "--to-id6",
+            dest="to_id6",
+            action="store_true",
+            help="rename: id6-minting conversion - convert a legacy timestamp name "
+            "(YYYYMMDD-HHMM-NN-<slug>.<type>.md) to the uniform id6-clustered form "
+            "(YYYYMMDD-<id6>-01-<id6>-<slug>.<type>.md), minting an id6 and injecting it as "
+            "'- Id:' (reuses an existing '- Id:', never re-mints).",
+        )
         # IPD laykok E-07: --force overrides a filename-substring multi-match on mutating verbs
         # (rename/group). It does NOT override a unique-id (id6/path/stem) collision; a setid
         # multi-target needs no force.
@@ -2667,6 +2676,38 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     specs_sub = p_specs.add_subparsers(dest="specs_command")
+    p_specs_new = specs_sub.add_parser(
+        "new",
+        aliases=["scaffold"],
+        parents=[common],
+        description=(
+            "Create a forward-conforming, id6-clustered spec (dry-run by default; --apply to write). "
+            "Mints a fresh id6 and writes it into both the filename "
+            "(YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md) and the `- Id:` metadata."
+        ),
+        help="Create an id6-clustered spec (dry-run by default; --apply to write).",
+    )
+    p_specs_new.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_specs_new.add_argument(
+        "--title", default=None, help="Spec title (required; used in the H1 heading)."
+    )
+    p_specs_new.add_argument(
+        "--slug",
+        default=None,
+        help="Short descriptive kebab slug (default: derived from --title).",
+    )
+    p_specs_new.add_argument(
+        "--summary", default=None, help="Optional one-line scope/summary."
+    )
+    p_specs_new.add_argument(
+        "--date", default=None, help="Override the authored date (YYYY-MM-DD)."
+    )
+    p_specs_new.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+
     p_specs_set = specs_sub.add_parser(
         "set",
         parents=[common],
@@ -7688,6 +7729,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         specs_cmd = getattr(args, "specs_command", None) or getattr(
             args, "spec_command", None
         )
+        if specs_cmd in ("new", "scaffold"):
+            from agent_workflows import specs as sp
+
+            return sp.run_new(args)
         if specs_cmd == "set":
             if getattr(args, "status", None) is None:
                 from agent_workflows import status_set
