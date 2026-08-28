@@ -1170,6 +1170,113 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    # agentadhere Phase 2 (IPD 8dto0g): atomic workflow primitives that validate-then-act via the
+    # phase-1 engine and produce evidence at the action boundary. `aw work begin`, `aw test`,
+    # `aw commit`, `aw finish`. Delegates to work_cmd (reusing worktree_lease/git_commit_helper/
+    # status_set); no forked worktree/commit/finalize path.
+    p_work = sub.add_parser(
+        "work",
+        parents=[common],
+        help="Atomic workflow primitives. 'work begin <ipd>' validates a plan and allocates an isolated worktree.",
+        description=(
+            "Atomic workflow primitives (agentadhere Phase 2). 'aw work begin <ipd>' validates the "
+            "plan via the shared policy engine (fail closed on findings) and allocates an isolated "
+            "git worktree with a recorded lease, making the compliant path the easy path."
+        ),
+    )
+    work_sub = p_work.add_subparsers(dest="work_command")
+    p_work_begin = work_sub.add_parser(
+        "begin",
+        parents=[common],
+        help="Validate a plan (fail closed) and allocate an isolated worktree for its execution.",
+    )
+    p_work_begin.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_work_begin.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    p_test = sub.add_parser(
+        "test",
+        parents=[common],
+        help="Run a command and capture tree-bound test evidence for a plan: 'aw test <ipd> -- <cmd>'.",
+        description=(
+            "Execute a command and capture its stdout/stderr/exit + env metadata (command line, cwd, "
+            "timestamp, git HEAD/tree) as an evidence record bound to the current tree/commit under "
+            "the plan's local run-record area. The evidence is honestly labeled locally-produced and "
+            "forgeable by a privileged local agent; a non-forgeable / CI-reproduced boundary is a "
+            "later phase. Exit mirrors the command's own exit."
+        ),
+    )
+    p_test.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_test.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    # dest MUST NOT be `command` (that is the top-level subcommand dest); use `cmd_argv`. Place any
+    # options (e.g. --dir) BEFORE the `--` so REMAINDER captures only the command tokens.
+    p_test.add_argument(
+        "cmd_argv",
+        nargs=argparse.REMAINDER,
+        help="The test command, after `--` (e.g. `-- pytest tests`).",
+    )
+
+    p_commit = sub.add_parser(
+        "commit",
+        parents=[common],
+        help="Commit ONLY a plan's in-scope paths via the shared path-scoped helper: 'aw commit <ipd> -- <paths>'.",
+        description=(
+            "Compute a plan's allowed scope from its Scope-Paths, refuse when the staged index holds "
+            "any out-of-scope change, run the shared policy engine, then commit ONLY the declared "
+            "in-scope paths by reusing the path-scoped git_commit_helper (never git add -A/-a, never "
+            "--no-verify, never push). Exit 0 committed, 1 refused/nothing, 2 usage."
+        ),
+    )
+    p_commit.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_commit.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_commit.add_argument("--message", "-m", default=None, help="Commit message.")
+    p_commit.add_argument(
+        "--no-commit",
+        dest="no_commit",
+        action="store_true",
+        help="Preview only; do not commit.",
+    )
+    # dest is `path_argv` (NOT `command`); place options before the `--`.
+    p_commit.add_argument(
+        "path_argv",
+        nargs=argparse.REMAINDER,
+        help="The in-scope paths to commit, after `--`.",
+    )
+
+    p_finish = sub.add_parser(
+        "finish",
+        parents=[common],
+        help="Verify bound evidence then perform a non-authoritative plan transition: 'aw finish <ipd> --to <status>'.",
+        description=(
+            "Verify the plan's required test evidence (from `aw test`) is present and bound to the "
+            "current tree, then perform ONLY a valid NON-AUTHORITATIVE status transition via the "
+            "tooled `aw set` path. It never performs the authoritative terminal 'executed' transition "
+            "(that stays with `aw ipd finalize`), never pushes, and never tags."
+        ),
+    )
+    p_finish.add_argument(
+        "plan", help="Plan selector (id6, setid, stem, path, or substring)."
+    )
+    p_finish.add_argument(
+        "--to",
+        default=None,
+        help="Target non-authoritative status (never executed/done).",
+    )
+    p_finish.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
     # awoptimize Order 01 E-06: canonical workflow schema/compiler CLI (validate/compile/
     # check-generated). The heavy lifting is in workflow_schema/source/loader/compiler; this only
     # registers the parser. compile is dry-run by default (--apply writes); validate + check-generated
@@ -7624,6 +7731,25 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if ipd_cmd == "board" or ipd_cmd is None:
             return _run_plans(args, term, context=context)
         return _show_family_help(parser, "ipd", "aw ipd board", term, context)
+    # agentadhere Phase 2 (IPD 8dto0g): atomic workflow primitives.
+    if args.command == "work":
+        from agent_workflows import work_cmd
+
+        if getattr(args, "work_command", None) == "begin":
+            return work_cmd.run_work_begin(args)
+        return _show_family_help(parser, "work", "aw work begin", term, context)
+    if args.command == "test":
+        from agent_workflows import work_cmd
+
+        return work_cmd.run_test(args)
+    if args.command == "commit":
+        from agent_workflows import work_cmd
+
+        return work_cmd.run_commit(args)
+    if args.command == "finish":
+        from agent_workflows import work_cmd
+
+        return work_cmd.run_finish(args)
     if args.command in ("prompt", "prompts"):
         prompt_cmd = getattr(args, "prompts_command", None) or getattr(
             args, "prompt_command", None
