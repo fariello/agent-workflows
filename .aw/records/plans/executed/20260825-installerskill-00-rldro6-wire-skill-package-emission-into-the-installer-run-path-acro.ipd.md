@@ -5,15 +5,15 @@
 - Concern: The execset Set (Order 05, 2h7777) proved skill/shim generation at the library level (`build_skill_package` digest parity + `generate_shim_members` drift-free) and exposed `/exec-set` via the existing shim path, but did NOT wire skill-package emission (`host_adapters.generate_adapter_bundle` / `build_skill_package(...).to_files()`) into `engine.install_all` (engine.py:1953), which today writes only `body_members` + `shim_members`. So a real `aw install` never emits the generated skill packages / per-host adapter bundles. Wiring it is a cross-cutting installer-output change (all hosts + uninstall + idempotency + install-diff), deliberately deferred out of the packaging Order (D21-2h7777-D2). Backlog item bplplj (medium).
 - Scope: Wire skill-PACKAGE emission (`host_adapters.build_skill_package(...).to_files()` via `AdapterBundle.skill_files()`, host_adapters.py:227/663) into the installer run path so `aw install` writes the generated skill files alongside body + shim members, covering the hosts the bundle already generates, uninstall, idempotency, and install-diff. Single coherent child (01) plus this orchestrator. Deliverable: `install_into_repo` (engine.py:4992) builds the skill member map and merges it into the desired set passed to `install_all` (engine.py:1953), written the same idempotent way as shim members; the framework-namespace predicate (`in_framework_namespace`, engine.py:1632), the prune scan (`collect_target_framework_files`, engine.py:2012) and the prune defense-in-depth guard (engine.py:2072) are extended to recognize the skills directory so orphaned skill files are pruned and re-install is a no-op; uninstall is manifest-driven (`uninstall_repo`, engine.py:3836 removes any file `write_file` recorded in the ownership manifest), so it removes emitted skill files WITHOUT a separate member set once the namespace guard admits them; install-diff/idempotency tests are extended so a fresh install emits the skill package and a re-install is a no-op. NOTE: the per-host `host_adapters` metadata in `AdapterBundle` (host_adapters.py:661) is structured data (`to_dict`), NOT writable files - see OQ-02; this Set does not emit adapter-metadata files unless OQ-02 decides otherwise.
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/host_adapters.py, tests/
-- Status: approved
+- Status: executed
 - Set: installerskill
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rldro6
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Whole-Set verification: aw install emits skill packages (AdapterBundle.skill_files) idempotently across generated hosts, orphan skill files pruned, manifest-driven uninstall removes them, no adapter-metadata files (OQ-02 A); child kvfsak executed (5af28bb). 10 skill-emission + 148 install/adapters/shims/layout tests green; 4 pre-existing unrelated CLI-declaration failures out of scope (04-rldro6-D1) [Scope reconciliation - in-scope-unmodified agent_workflows/engine.py: implemented+committed by child kvfsak (5af28bb); orchestrator authors no code; in-scope-unmodified agent_workflows/host_adapters.py: implemented+committed by child kvfsak (5af28bb); orchestrator authors no code; in-scope-unmodified tests/: skill-emission tests added+committed by child kvfsak (5af28bb); orchestrator authors no code]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: REVIEWED - OPEN QUESTIONS (OQ-02/03/04 blocking); adapter-file conflation, namespace/prune/layout gaps, uninstall mechanism, citations, execution contract fixed
 
@@ -31,10 +31,10 @@ This orchestrator authors NO code; child 01 carries the work. Its only execution
 
 ### Task group 1: whole-Set verification
 
-- [ ] E-01 After child 01 executes, confirm a fresh `aw install` emits the skill-package files (`AdapterBundle.skill_files()`) for the hosts the bundle generates, a re-install is a no-op (idempotent, empty install-diff), an orphaned skill file (from a removed workflow) is pruned, and `uninstall` removes the emitted skill files; full suite green.
+- [x] E-01 After child 01 executes, confirm a fresh `aw install` emits the skill-package files (`AdapterBundle.skill_files()`) for the hosts the bundle generates, a re-install is a no-op (idempotent, empty install-diff), an orphaned skill file (from a removed workflow) is pruned, and `uninstall` removes the emitted skill files; full suite green.
   - Depends on: none
   - Expected outcome: install-diff test shows skill-package members on fresh install, empty diff on re-install, pruning of an orphaned skill file, and clean manifest-driven removal on uninstall. If OQ-02 resolves to include adapter-metadata files, they are covered too; otherwise the check explicitly asserts NO adapter-metadata files are emitted.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -84,32 +84,32 @@ Aggregate of child 01: fresh-install emits skill-package files for the hosts the
 ### OQ-02: Does this Set emit per-host adapter-metadata FILES, or only skill-package files?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: `AdapterBundle` (host_adapters.py:655-674) exposes writable files ONLY through `skill_files()`; its `host_adapters` field is `to_dict`-only metadata with no file renderer. The plan title/backlog say "skill-package emission"; the body previously also said "adapter bundle files". Option A (recommended): scope this Set to skill-package files only (matches title + the one existing writable API); adapter-metadata file emission, if ever wanted, is a separate future concern with its own renderer. Option B: add a new adapter-metadata renderer in this Set (contradicts the "no forked generator / reuse existing library" constraint and enlarges scope). MUST be resolved before execution.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED - Option A, mirrored from the executed child kvfsak (DECISION 02-kvfsak-D1). Emit ONLY skill-package files (`AdapterBundle.skill_files()`); do NOT emit adapter-metadata files (`host_adapters` is `to_dict`-only, no file renderer). The child's `test_no_adapter_metadata_files_emitted` asserts none are written. Verified green in this orchestrator's E-01/V-01.
 
 ### OQ-03: Under the `aw` layout, where do skill files land?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: `SHARED_SKILLS_DIR = ".agents/skills"` (host_adapters.py:60) is the LEGACY path and `build_skill_package.to_files()` embeds it in the relative paths; `engine.py` has no aw-layout skills-dir resolver (only `resolve_workflows_dir`). Option A: add an aw-layout skills-dir resolver and pass the resolved `skill_dir` into `build_skill_package`/`generate_adapter_bundle` (they already accept a `skill_dir` argument). Option B: keep `.agents/skills` for both layouts (inconsistent with the aw-layout convention that everything framework-owned lives under `.aw/system/`; likely wrong). MUST be resolved before execution because the target path drives write, prune, namespace, and uninstall.
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED, mirrored from the executed child kvfsak (DECISION 02-kvfsak-D2), with a deliberate evidence-based DEVIATION from the Option-A wording, flagged for human review. Added `resolve_skills_dir(target_layout)` in `engine.py` and threaded the result as `skill_dir` into the generators (satisfying the "add a resolver, pass resolved skill_dir" structural requirement). The resolver returns the shared HOST-CONSUMPTION dir `.agents/skills` for BOTH layouts because a skill package must be DISCOVERED by a host tool at a fixed dir (like the command shims `.opencode/commands`/`.claude/commands`, which are layout-independent); `.aw/system/skills` would be discovered by no host, and `migration_compact` already uses `.agents/skills` for both layouts. If the maintainer prefers `.aw/system/skills` or per-host native dirs, only `resolve_skills_dir` changes. Verified green in E-01/V-01.
 
 ### OQ-04: Extend the framework-namespace predicate + prune scan for the skills dir - confirm approach?
 
 - Blocking: yes
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: For skill files to be written, adopted, pruned when orphaned, and manifest-uninstalled safely, `in_framework_namespace` (engine.py:1632), `collect_target_framework_files` (engine.py:2012), and the prune defense-in-depth guard (engine.py:2072) MUST all recognize the resolved skills dir. Recommended: extend all three to admit the skills-dir prefix resolved per OQ-03, mirroring how shim dirs are handled. MUST be resolved (it is the load-bearing mechanism the original plan omitted).
+- Status: resolved
+- Owner: opencode its_direct/pt3-claude-opus-4.8-1m-us
+- Resolution or deferral rationale: RESOLVED as recommended, mirrored from the executed child kvfsak (DECISION 02-kvfsak-D3). Extended `in_framework_namespace` (admits `SKILLS_DIR + "/"`) and `collect_target_framework_files` (recursively scans the resolved skills dir); the prune defense-in-depth guard then admits skill paths automatically via the updated predicate. Verified by the child's namespace/collect tests and the orphan-prune tests, re-run green in this orchestrator's E-01/V-01.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output of the repo's real test runner showing (a) the new install-emission test passing: a fresh install into a temp repo writes the expected `SKILL.md` + resource files under the resolved skills dir for each generated host; (b) a re-install test showing an empty install-diff / all-skipped `[already current]`; (c) an orphaned-skill-file prune test; (d) an uninstall test showing the skill files removed via the manifest; and (e) the full suite green (paste the actual pass/fail summary line). Also paste `aw ipd lint --phase pre-transition --agent <child>` conforming for child 01.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Whole-Set verification run against the executed child kvfsak (implementation in commit 5af28bb, now in .aw/records/plans/executed/). Runner: `python3 -m pytest tests/test_installer_skill_emission.py -n0 -m ''` -> `10 passed in 14.51s`, with the named cases: (a) `SkillEmissionInstallTests::test_fresh_install_emits_skill_packages_and_records_manifest` PASSED (writes `.agents/skills/<name>/SKILL.md` + `reference/` + `scripts/` per generated host and matches the ownership manifest); (b) `test_reinstall_is_idempotent_no_op_for_skills` PASSED (0 newly-installed, all `[already current]`, 0 pruned); (c) `test_orphaned_tracked_skill_file_is_pruned` + `test_orphaned_untracked_skill_file_is_pruned` PASSED (orphan removed via `[git rm]`/`[rm]`); (d) `test_uninstall_removes_emitted_skill_files_via_manifest` PASSED (manifest-driven removal, 0 remaining); plus `test_no_adapter_metadata_files_emitted` (OQ-02 Option A), `NamespaceAndCollectTests` x2 (in_framework_namespace + collect_target_framework_files admit the skills dir), and `SkillsDirResolverTests` x2 (resolver + threading). Regression: `python3 -m pytest tests/test_installer.py tests/test_host_adapters_skills.py tests/test_command_shims.py tests/test_layout_migration.py -m slow` -> `148 passed in 22.91s`. Child pre-transition lint: `aw ipd lint --phase pre-transition` on kvfsak (executed) conforming. Full-suite run `python3 -m pytest tests/ -m ''` -> `4 failed, 2698 passed, 1 skipped`; the 4 failures (test_cli_conformance_matrix UndeclaredLeafGuardTests x2, test_command_surface_declarations::test_zero_undeclared_parser_leaves, test_cli::test_every_subparser_has_fuller_description) are PRE-EXISTING and UNRELATED - they flag undeclared/empty-description CLI runner leaves (oc/agy/antigravity/pwatch/runs/ipd dependencies set/research pending/research set-outcome) added by concurrent work on main, OUTSIDE installerskill Scope-Paths (engine.py/host_adapters.py/tests), and the executed child kvfsak's V-05 already documented them as pre-existing (proven by stashing the engine.py change and re-running to the same failure). See DECISION 04-rldro6-D1. The installerskill Set's own acceptance criteria are all green.
+  - Result: pass
 
 ## Approval and execution gate
 

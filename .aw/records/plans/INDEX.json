@@ -3192,6 +3192,16 @@
   {
     "date": "2026-08-25",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md",
+    "plan_id": "rldro6",
+    "set_id": "installerskill",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md",
@@ -3327,16 +3337,6 @@
     "path": "pending/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md",
     "plan_id": "r2ks4k",
     "set_id": "agentadhere",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md",
-    "plan_id": "rldro6",
-    "set_id": "installerskill",
     "status": "approved"
   },
   {

@@ -51,7 +51,7 @@ Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
 
 ## installerskill
 
-- `rldro6` [pending] 00 pending/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md
+- `rldro6` [executed] 00 executed/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md
 - `kvfsak` [executed] 01 executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md
 
 ## runnernorm
