@@ -3142,6 +3142,16 @@
   {
     "date": "2026-08-25",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md",
+    "plan_id": "3b4f8u",
+    "set_id": "agentadhere",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md",
@@ -3418,16 +3428,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md",
-    "plan_id": "3b4f8u",
-    "set_id": "agentadhere",
-    "status": "approved"
   },
   {
     "date": "2026-08-25",
