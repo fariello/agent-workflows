@@ -6,7 +6,7 @@ order: 00
 topic: [runner, dependencies, build-order, agentadhere, awoptimize]
 model:
 kind: findings
-status: intake
+status: todo
 outcome: adopted
 summary: What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 consumed-by: [25kzda]

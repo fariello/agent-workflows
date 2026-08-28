@@ -6,7 +6,7 @@ order: 00
 topic: [runner, run-and-verify, dependencies, prompt-provenance, spec-25kzda]
 model:
 kind: research-prompt
-status: intake
+status: todo
 outcome: adopted
 summary: The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
 consumed-by: [25kzda]

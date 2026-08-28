@@ -4,7 +4,7 @@
 
 Showing the most-recent 40 of 63 hot docs (archive excluded).
 
-## Needs addressing (intake)
+## Needs addressing (todo)
 
 - `ud28vy` 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
@@ -19,16 +19,16 @@ Showing the most-recent 40 of 63 hot docs (archive excluded).
 
 ## Most recent
 
-- `ud28vy` [intake] 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
-- `sk94i0` [intake] 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
-- `40g511` [intake] 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
-- `0my8eb` [intake] 20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md - sonnet5 report.
-- `3uh9j3` [intake] 20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md - gemini31pro report.
-- `e3arxt` [intake] 20260826-awclia-01-e3arxt-aw-cli-naming-ia.gpt56.research-report.md - gpt56 report.
-- `f79ve1` [intake] 20260826-awclia-00-f79ve1-aw-cli-naming-ia.research-prompt.md - Originating prompt for the comparison set.
-- `v912ed` [intake] 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
-- `3nlmug` [intake] 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
-- `8it88r` [intake] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
+- `ud28vy` [todo] 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
+- `sk94i0` [todo] 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
+- `40g511` [todo] 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
+- `0my8eb` [todo] 20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md - sonnet5 report.
+- `3uh9j3` [todo] 20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md - gemini31pro report.
+- `e3arxt` [todo] 20260826-awclia-01-e3arxt-aw-cli-naming-ia.gpt56.research-report.md - gpt56 report.
+- `f79ve1` [todo] 20260826-awclia-00-f79ve1-aw-cli-naming-ia.research-prompt.md - Originating prompt for the comparison set.
+- `v912ed` [todo] 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
+- `3nlmug` [todo] 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
+- `8it88r` [todo] 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 - `2mpcqb` [reference] reference/202608/20260823-agentadhere-02-2mpcqb-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.gpt56medium.research-report.md - Why soft prose fails; defense-in-depth for heterogeneous coding agents (ChatGPT 5.6 Sol Medium)
 - `9bd3j8` [reference] reference/202608/20260823-agentadhere-00-9bd3j8-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.research-prompt.md - How to make agent-workflow process steps (aw set, aw ipd begin/finalize, IPD authoring, path-scoped commits) reliably adhered-to by untrained heterogeneous coding agents
 - `bu9yij` [reference] reference/202608/20260823-agentadhere-04-bu9yij-ensuring-agent-process-adherence-across-heterogeneous-coding-agents.reconciliation.findings.md - Aggregate finding: layered defense-in-depth for reliable process adherence (definitive synthesis of the 3 model reports)

@@ -6,7 +6,7 @@ order: 00
 topic: [lifecycle, multi-agent, liveness, claims, process-adherence, config, recovery]
 model:
 kind: findings
-status: intake
+status: todo
 outcome: none-yet
 summary: Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 consumed-by: []

@@ -6,7 +6,7 @@ order: 01
 topic: [cli, information-architecture, naming, pre-release]
 model: gpt56
 kind: research-report
-status: intake
+status: todo
 outcome: none-yet
 summary: gpt56 report.
 consumed-by: []

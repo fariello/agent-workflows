@@ -6,7 +6,7 @@ order: 00
 topic: [actor-attribution, environment-detection, host-identity, model-identity, provenance, workflow-reliability]
 model:
 kind: research-prompt
-status: intake
+status: todo
 outcome: none-yet
 summary: How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
 consumed-by: []

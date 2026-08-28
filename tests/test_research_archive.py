@@ -459,5 +459,60 @@ class ShardDateTests(unittest.TestCase):
         self.assertEqual(R.shard_for_date("20260701"), "202607")
 
 
+class IntakeToTodoMigrationTests(unittest.TestCase):
+    """rstodo lpqy64: migrating a legacy `intake` doc to `todo` through the contract tool
+    (`aw research promote --to todo`) flips ONLY the status line, preserves the rest, keeps the
+    doc at the hot root (no shard move), and leaves it validating + INDEX regenerated."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        _init_git(self.root)
+        self.rroot = self.root / R.RESEARCH_ROOT
+        # a legacy `intake` doc on disk (the pre-migration corpus shape)
+        self.doc = _write_doc(
+            self.root,
+            set_id="mig",
+            order=0,
+            id6="migx01",
+            slug="m",
+            status="intake",
+            created="20260701",
+        )
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_promote_intake_to_todo_flips_only_status_in_place(self):
+        before = self.doc.read_text(encoding="utf-8")
+        mv, err = A.plan_transition(self.rroot, "migx01", "todo")
+        self.assertIsNone(
+            err, f"promote --to todo must be accepted post child-01: {err}"
+        )
+        # hot->hot: same path (no shard move)
+        self.assertEqual(mv.old_path.resolve(), mv.new_path.resolve())
+        A.apply_moves(self.root, self.rroot, [mv])
+        after = self.doc.read_text(encoding="utf-8")
+        # ONLY the status line changed: intake -> todo; every other line identical.
+        b_lines = before.splitlines()
+        a_lines = after.splitlines()
+        self.assertEqual(len(b_lines), len(a_lines))
+        diffs = [(b, a) for b, a in zip(b_lines, a_lines) if b != a]
+        self.assertEqual(diffs, [("status: intake", "status: todo")])
+        # the migrated doc still validates through the contract.
+        fm = R.parse_frontmatter(after)
+        self.assertEqual(fm["status"], "todo")
+        self.assertFalse(any(e.field == "status" for e in R.validate_frontmatter(fm)))
+
+    def test_legacy_intake_still_accepted_during_window(self):
+        # backward-compat: a not-yet-migrated `intake` doc is still accepted (normalizes to todo).
+        self.assertEqual(R.normalize_status("intake").value, "todo")
+        errs = R.validate_frontmatter(
+            R.parse_frontmatter(self.doc.read_text(encoding="utf-8"))
+        )
+        self.assertFalse(any(e.field == "status" for e in errs))
+
+
 if __name__ == "__main__":
     unittest.main()

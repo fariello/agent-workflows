@@ -6,7 +6,7 @@ order: 00
 topic: [cli, information-architecture, naming, pre-release]
 model:
 kind: research-prompt
-status: intake
+status: todo
 outcome: none-yet
 summary: Originating prompt for the comparison set.
 consumed-by: []

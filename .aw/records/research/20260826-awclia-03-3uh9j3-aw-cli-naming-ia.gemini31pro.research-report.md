@@ -6,7 +6,7 @@ order: 03
 topic: [cli, information-architecture, naming, pre-release]
 model: gemini31pro
 kind: research-report
-status: intake
+status: todo
 outcome: none-yet
 summary: gemini31pro report.
 consumed-by: []

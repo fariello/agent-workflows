@@ -6,7 +6,7 @@ order: 02
 topic: [cli, information-architecture, naming, pre-release]
 model: sonnet5
 kind: research-report
-status: intake
+status: todo
 outcome: none-yet
 summary: sonnet5 report.
 consumed-by: []

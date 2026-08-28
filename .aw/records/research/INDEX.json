@@ -75,7 +75,7 @@
     "outcome": "none-yet",
     "path": "20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md",
     "set_id": "awclia",
-    "status": "intake",
+    "status": "todo",
     "summary": "sonnet5 report.",
     "topic": [
       "cli",
@@ -170,7 +170,7 @@
     "outcome": "adopted",
     "path": "20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md",
     "set_id": "awrunverify",
-    "status": "intake",
+    "status": "todo",
     "summary": "The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design",
     "topic": [
       "runner",
@@ -206,7 +206,7 @@
     "outcome": "none-yet",
     "path": "20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md",
     "set_id": "awclia",
-    "status": "intake",
+    "status": "todo",
     "summary": "gemini31pro report.",
     "topic": [
       "cli",
@@ -228,7 +228,7 @@
     "outcome": "adopted",
     "path": "20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md",
     "set_id": "aw-run-spec-build-order",
-    "status": "intake",
+    "status": "todo",
     "summary": "What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map",
     "topic": [
       "runner",
@@ -392,7 +392,7 @@
     "outcome": "none-yet",
     "path": "20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md",
     "set_id": "actorenv",
-    "status": "intake",
+    "status": "todo",
     "summary": "How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor",
     "topic": [
       "actor-attribution",
@@ -619,7 +619,7 @@
     "outcome": "none-yet",
     "path": "20260826-awclia-01-e3arxt-aw-cli-naming-ia.gpt56.research-report.md",
     "set_id": "awclia",
-    "status": "intake",
+    "status": "todo",
     "summary": "gpt56 report.",
     "topic": [
       "cli",
@@ -711,7 +711,7 @@
     "outcome": "none-yet",
     "path": "20260826-awclia-00-f79ve1-aw-cli-naming-ia.research-prompt.md",
     "set_id": "awclia",
-    "status": "intake",
+    "status": "todo",
     "summary": "Originating prompt for the comparison set.",
     "topic": [
       "cli",
@@ -1155,7 +1155,7 @@
     "outcome": "adopted",
     "path": "20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md",
     "set_id": "aw-cli-surface-inventory",
-    "status": "intake",
+    "status": "todo",
     "summary": "Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign",
     "topic": [
       "cli",
@@ -1285,7 +1285,7 @@
     "outcome": "none-yet",
     "path": "20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md",
     "set_id": "activework",
-    "status": "intake",
+    "status": "todo",
     "summary": "Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)",
     "topic": [
       "lifecycle",
@@ -1353,7 +1353,7 @@
     "outcome": "none-yet",
     "path": "20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md",
     "set_id": "awclia",
-    "status": "intake",
+    "status": "todo",
     "summary": "Synthesis of the model reports.",
     "topic": [
       "cli",

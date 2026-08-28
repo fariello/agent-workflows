@@ -6,7 +6,7 @@ order: 04
 topic: [cli, information-architecture, naming, pre-release]
 model: reconciliation
 kind: reconciliation-report
-status: intake
+status: todo
 outcome: none-yet
 summary: Synthesis of the model reports.
 consumed-by: []

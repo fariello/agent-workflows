@@ -6,7 +6,7 @@ order: 00
 topic: [cli, information-architecture, naming, inventory, pre-release]
 model:
 kind: survey
-status: intake
+status: todo
 outcome: adopted
 summary: Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 consumed-by: [25kzda]
