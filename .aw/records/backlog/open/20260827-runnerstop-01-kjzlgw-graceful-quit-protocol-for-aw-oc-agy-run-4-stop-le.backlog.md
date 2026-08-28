@@ -1,11 +1,13 @@
 - Id: kjzlgw
 - Status: open
+- Blocks-Release: next
 - Set: runnerstop
 - Priority: high
 - Kind: feature
 - Summary: Graceful-quit protocol for aw oc/agy run: 4 stop levels (after-call / after-set / now / now-clean) via escalating signals + aw oc run stop <run-id>, each ending in a coherent ledger+lock+worktree cleanup (no orphaned children, no stale lock, no contaminated tree)
 
 ## Workflow history
+- 2026-08-28 open (aw set): status set to open
 - 2026-08-27 created (aw backlog): Graceful-quit protocol for aw oc/agy run: 4 stop levels (after-call / after-set / now / now-clean) via escalating signals + aw oc run stop <run-id>, each ending in a coherent ledger+lock+worktree cleanup (no orphaned children, no stale lock, no contaminated tree)
 
 Problem (observed 2026-08-27): `aw oc run` has NO graceful stop. SIGTERM makes the driver print "Terminated" and exit, but its child `opencode` agent is reparented to init (orphaned, still writing the tree), the `driver.lock` is left stale (holds a dead PID), and the working tree is left mid-edit. There is no way to say "wind down cleanly."

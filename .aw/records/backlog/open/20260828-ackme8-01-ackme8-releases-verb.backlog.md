@@ -1,11 +1,13 @@
 - Id: ackme8
 - Status: open
+- Blocks-Release: next
 - Set: ackme8
 - Priority: medium
 - Kind: feature
 - Summary: Add an 'aw releases' owner-verb to inspect/list release records
 
 ## Workflow history
+- 2026-08-28 open (aw set): status set to open
 - 2026-08-28 created (aw backlog): Add an 'aw releases' owner-verb to inspect/list release records
 
 Releases are a first-class record class (.aw/records/releases/, releases.py, Blocks-Release gating across every tree) but the ONE records tree with no owner-verb: backlog/specs/plans/research all have 'aw <type>', releases has none. You cannot ask 'what is the planned release, its id6/version, and everything gating it?' on demand.
