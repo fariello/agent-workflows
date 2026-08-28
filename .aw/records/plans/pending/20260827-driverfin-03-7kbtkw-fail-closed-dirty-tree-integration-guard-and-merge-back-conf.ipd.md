@@ -6,7 +6,7 @@
 - Scope: (1) DIRTY-TREE GUARD: before integrating a verified branch to main (child 02), assert the main tree has no un-owned dirty paths overlapping the incoming change; if it does, REFUSE to integrate (record integration-blocked, leave the verified branch intact + the worktree preserved, continue independent items) rather than merging into a dirty base. (2) MERGE-BACK CONFLICT HANDLING: attempt the integration; on a genuine conflict, ABORT the merge (`git merge --abort`), leave main untouched, record `merge-conflict` with the conflicting paths + the preserved branch, and mark the IPD not-integrated (NOT executed on main) - never leave conflict markers or a partial merge. (3) SET COMPLETION HONESTY: a set is only "finished" when all children integrated cleanly; a child blocked on dirty/conflict leaves its orchestrator unfinalized (consistent with 801dd28's all-children-executed rule). (4) Optional: use the cross-set Scope-Paths overlap to WARN (or serialize) known-conflicting sets before they run. This is the safety layer over 01+02; it does NOT auto-resolve conflicts (a human/serial ordering does).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
 - Item-Dependencies: executed:emus4n
-- Status: to-review
+- Status: reviewed
 - Set: driverfin
 - Order: 3
 - Highest E allocated: 02
@@ -14,6 +14,7 @@
 - Id: 7kbtkw
 
 ## Workflow history
+- 2026-08-28 reviewed (aw set): status set to reviewed
 - 2026-08-28 to-review (aw set): status set to to-review
 
 - 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to executed:emus4n, populated concrete V evidence, resolved OQ-01, and completed execution gate.

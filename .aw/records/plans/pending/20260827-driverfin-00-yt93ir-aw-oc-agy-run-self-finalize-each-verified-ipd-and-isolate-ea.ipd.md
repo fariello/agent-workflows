@@ -6,7 +6,7 @@
 - Scope: Make `aw oc/agy run` produce FINISHED sets and be safe to run in parallel, by (a) SELF-FINALIZING each verified child (driver runs `aw ipd begin` before the agent turn and `aw ipd finalize` after, with the two-way scope reconciliation) and (b) ISOLATING each IPD's execution in its own git worktree/branch (via `worktree_lease`), integrating the verified branch back to main, with a fail-closed guard so a run never contaminates the main tree or half-finishes. Three children: 01 self-finalize (the ctt412 core); 02 per-run worktree isolation + merge-back; 03 the fail-closed dirty-tree/integration guard + merge-back conflict handling. Orchestrator-execution is ALREADY fixed (commit 801dd28: the runner no longer agent-executes Kind: orchestrator IPDs and auto-finalizes them iff all children executed) - this set builds on that. EXPLICITLY OUT: the graceful-quit stop protocol (backlog kjzlgw) and the uninformative-blocked-output cosmetic fix are separate.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/ipd_lifecycle.py, tests/
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - From-Backlog: ctt412
 - Blocks-Release: next
 - Set: driverfin
@@ -16,6 +16,7 @@
 - Id: yt93ir
 
 ## Workflow history
+- 2026-08-28 reviewed (aw set): status set to reviewed
 - 2026-08-28 to-review (aw set): status set to to-review
 
 - 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to none, populated concrete V evidence, resolved OQs, and completed execution gate.

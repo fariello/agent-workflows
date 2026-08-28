@@ -6,7 +6,7 @@
 - Scope: Wrap the child-01 begin/execute/finalize pipeline in per-IPD worktree isolation: (1) before the agent turn, `allocate_worktree` a fresh worktree on a run/<id6> branch (via worktree_lease) and point the agent at it (`--dir <worktree>`); (2) begin/execute/verify/finalize all happen IN that worktree, so the main tree is untouched during the turn; (3) after finalize succeeds in the worktree, INTEGRATE the verified branch back to main (fast-forward if possible; else a controlled merge of only that IPD's commits); (4) `teardown_worktree` on success. Run-ledger + begin receipts remain anchored to the main repo's gitignored `.aw/` keyed by run-id (OQ from orchestrator) so finalize/state is findable regardless of worktree. This child delivers isolation + happy-path integration; the fail-closed guard + merge-CONFLICT handling is child 03. Reuse worktree_lease; do not fork worktree logic.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
 - Item-Dependencies: executed:p7peqf
-- Status: to-review
+- Status: reviewed
 - Set: driverfin
 - Order: 2
 - Highest E allocated: 02
@@ -14,6 +14,7 @@
 - Id: emus4n
 
 ## Workflow history
+- 2026-08-28 reviewed (aw set): status set to reviewed
 - 2026-08-28 to-review (aw set): status set to to-review
 
 - 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to executed:p7peqf, populated concrete V evidence, resolved OQ-01, and completed execution gate.
