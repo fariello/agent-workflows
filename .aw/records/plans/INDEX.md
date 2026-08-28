@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 144 Sets; the full manifest is INDEX.json.
+
+## tabcomp
+
+- `bja8og` [pending] 01 pending/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md
 
 ## driverfin
 
@@ -248,10 +252,6 @@ Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
 ## awinstallfix
 
 - `e41hhs` [executed] 01 executed/20260820-awinstallfix-01-e41hhs-atomic-install-wizard-no-writes-until-final-confirm-honest-a.ipd.md
-
-## awuiux
-
-- `ygeuha` [executed] 01 executed/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
 
 ## (singletons: no Set)
 

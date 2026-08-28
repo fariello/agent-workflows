@@ -3530,6 +3530,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md",
+    "plan_id": "bja8og",
+    "set_id": "tabcomp",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
