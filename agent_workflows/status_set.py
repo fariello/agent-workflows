@@ -21,6 +21,7 @@ import argparse
 import contextlib
 import datetime
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -417,10 +418,32 @@ def validate_transition_allowed(
             if (auth.get("by_human") or auth.get("human_token")) and not getattr(
                 args, "by_human", False
             ):
-                return (
-                    False,
-                    f"Transition {old_status} -> {norm_status} requires --by-human attestation",
+                is_interactive = (
+                    hasattr(sys.stdin, "isatty")
+                    and sys.stdin.isatty()
+                    and not getattr(args, "agent", False)
+                    and not getattr(args, "as_agent", False)
+                    and not getattr(args, "json", False)
+                    and not getattr(args, "dry_run", False)
                 )
+                if is_interactive:
+                    try:
+                        ans = (
+                            input(
+                                f"Approve spec '{rec.path.name}' (attest human approval)? [y/N] "
+                            )
+                            .strip()
+                            .lower()
+                        )
+                    except EOFError:
+                        ans = "n"
+                    if ans in ("y", "yes"):
+                        setattr(args, "by_human", True)
+                if not getattr(args, "by_human", False):
+                    return (
+                        False,
+                        f"Transition {old_status} -> {norm_status} requires --by-human attestation",
+                    )
 
     if rec.record_type == "backlog" and norm_status == "blocked":
         gk = getattr(args, "gate_kind", None)

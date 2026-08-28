@@ -491,6 +491,80 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("explicit maintainer signoff", text)
         self.assertIn("--by-human", text)
 
+    def test_spec_approved_interactive_confirmation(self):
+        spec = self.create_spec(
+            "20260822-0033-01-interactive-spec.spec.md",
+            "sp0033",
+            "specinter",
+            "reviewed",
+        )
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "builtins.input", return_value="y"
+        ):
+            rc = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "sp0033",
+                    "--message",
+                    "interactive human signoff",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 0)
+        text = spec.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("interactive human signoff", text)
+        self.assertIn("--by-human", text)
+
+    def test_spec_approved_interactive_declined(self):
+        spec = self.create_spec(
+            "20260822-0034-01-interactive-spec.spec.md",
+            "sp0034",
+            "specinter",
+            "reviewed",
+        )
+        with patch("sys.stdin.isatty", return_value=True), patch(
+            "builtins.input", return_value="n"
+        ):
+            rc = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "sp0034",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        text = spec.read_text(encoding="utf-8")
+        self.assertIn("- Status: reviewed", text)
+
+    def test_spec_approved_non_interactive_refused(self):
+        spec = self.create_spec(
+            "20260822-0035-01-interactive-spec.spec.md",
+            "sp0035",
+            "specinter",
+            "reviewed",
+        )
+        with patch("sys.stdin.isatty", return_value=False):
+            rc = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "sp0035",
+                    "--yes",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        text = spec.read_text(encoding="utf-8")
+        self.assertIn("- Status: reviewed", text)
+
     def test_dry_run_mode(self):
         plan = self.create_plan(
             "20260822-dryrun-01-pl0011-plan.ipd.md", "pl0011", "dryrun", "draft"

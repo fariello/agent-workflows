@@ -456,11 +456,32 @@ def run_set(args) -> int:
     auth = A.TRANSITION_AUTHORITY.get(f"->{new}", {})
     if auth.get("by_human") or auth.get("human_token"):
         if not getattr(args, "by_human", False):
-            sys.stderr.write(
-                f"aw specs set: {old} -> {new} is a human-only transition; pass --by-human to attest "
-                "(and record) that a human approved it. Use --message to say who/how.\n"
+            is_interactive = (
+                hasattr(sys.stdin, "isatty")
+                and sys.stdin.isatty()
+                and not getattr(args, "agent", False)
+                and not getattr(args, "as_agent", False)
+                and not getattr(args, "json", False)
             )
-            return 1
+            if is_interactive:
+                try:
+                    ans = (
+                        input(
+                            f"Approve spec '{path.name}' (attest human approval)? [y/N] "
+                        )
+                        .strip()
+                        .lower()
+                    )
+                except EOFError:
+                    ans = "n"
+                if ans in ("y", "yes"):
+                    setattr(args, "by_human", True)
+            if not getattr(args, "by_human", False):
+                sys.stderr.write(
+                    f"aw specs set: {old} -> {new} is a human-only transition; pass --by-human to attest "
+                    "(and record) that a human approved it. Use --message to say who/how.\n"
+                )
+                return 1
     if auth.get("evidence"):
         ev = getattr(args, "evidence", None)
         if not ev or not _evidence_resolvable(path, ev):
