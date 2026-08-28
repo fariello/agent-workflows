@@ -131,6 +131,31 @@ jobs:
         shell: bash
         run: python -m agent_workflows attention --check --agent
 
+      # agentadhere Phase 5 (r2ks4k E-01): run the SAME shipped phase-1 policy engine
+      # (python -m agent_workflows check ...) over the committed artifact types in a clean, remote
+      # environment and FAIL the job on any finding. This is the authoritative repository boundary
+      # the local phase-4 hooks defer to; CI and local `aw check` come from the SAME check_engine
+      # (no forked/inlined policy). NOTE: no second test-run step is added - the `unittest` job
+      # already runs the full suite; this gate only runs the artifact-conformance engine.
+      - name: aw check plans (plan conformance; fail closed)
+        shell: bash
+        run: python -m agent_workflows check plans --agent
+
+      - name: aw check releases (release-record conformance; fail closed)
+        shell: bash
+        run: python -m agent_workflows check releases --agent
+
+      # backlog is currently ADVISORY (report-only), NOT fail-closed: the tree carries pre-existing
+      # backlog name/summary debt (outside this plan's Scope-Paths) that a fail-closed gate would red
+      # `main` on. It joins the fail-closed set above once that baseline is cleaned by a separate
+      # migration (DECISION 18-r2ks4k-D1). It still runs the SAME shipped engine so the finding set is
+      # visible in CI; `|| true` keeps it non-blocking for now.
+      - name: aw check backlog (backlog conformance; ADVISORY until baseline cleaned)
+        shell: bash
+        run: |
+          python -m agent_workflows check backlog --agent || \
+            echo "::warning::aw check backlog reported findings (advisory; see agentadhere r2ks4k DECISION 18-r2ks4k-D1 - flip to fail-closed after the backlog baseline is cleaned)"
+
   output-conformance:
     name: CLI output-conformance harness (fail-closed)
     runs-on: ${{ matrix.os }}

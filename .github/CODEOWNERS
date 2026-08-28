@@ -1,0 +1,26 @@
+# CODEOWNERS - policy/CI/hook file protection (agentadhere Phase 5, IPD r2ks4k E-02).
+#
+# This file, TOGETHER WITH a GitHub "Require review from Code Owners" branch-protection rule that a
+# repo admin must ENABLE (see docs/branch-protection.md), makes the policy engine, the CI workflow
+# definitions, and the local-hook definitions require an owner review before they can be weakened
+# (findings bu9yij 7.8). HONEST LIMIT: a CODEOWNERS file by itself enforces NOTHING - it only takes
+# effect when branch protection with "Require review from Code Owners" is enabled on the default
+# branch (a remote repo-admin action the local toolkit cannot self-enforce).
+#
+# ACTION REQUIRED (human): replace @OWNER below with the actual maintainer handle or team
+# (e.g. @your-org/maintainers). It is left as a placeholder deliberately so no maintainer identity is
+# committed to this public repo (see CONTRIBUTING.md on not embedding maintainer identity).
+
+# The shared policy engine every layer (hooks, CI, aw check) depends on.
+/agent_workflows/check_engine.py            @OWNER
+
+# The local git-hook definitions (the phase-4 gates that delegate to the engine).
+/agent_workflows/hooks/                      @OWNER
+
+# The CI / workflow definitions - the authoritative repository boundary must not be weakened
+# without an owner review.
+/.github/workflows/                          @OWNER
+/.github/CODEOWNERS                          @OWNER
+
+# The branch-protection policy document itself.
+/docs/branch-protection.md                   @OWNER
