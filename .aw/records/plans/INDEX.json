@@ -3270,6 +3270,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-27",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md",
+    "plan_id": "p3o9je",
+    "set_id": "rstodo",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3426,16 +3436,6 @@
     "order": 0,
     "path": "pending/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md",
     "plan_id": "dh5gnl",
-    "set_id": "rstodo",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md",
-    "plan_id": "p3o9je",
     "set_id": "rstodo",
     "status": "approved"
   },
