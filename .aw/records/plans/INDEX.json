@@ -3220,6 +3220,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md",
+    "plan_id": "jgcm68",
+    "set_id": "selfcommit",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3356,16 +3366,6 @@
     "order": 0,
     "path": "pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md",
     "plan_id": "88h0h8",
-    "set_id": "selfcommit",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md",
-    "plan_id": "jgcm68",
     "set_id": "selfcommit",
     "status": "approved"
   },

@@ -11,15 +11,15 @@
   - `aw specs set` DUAL-PATH caveat (PR-004): the `specs`/`spec` command branch (cli.py:7257) routes the NO-`--status` form to `status_set.run_set_command(scoped_type="specs")` and the `--status <X> <path>` form to `specs.py:run_set` (specs.py:430). To avoid a MISSED path or a DOUBLE offer, the offer must fire in exactly one place per invocation: since `status_set` already covers the no-flag form, either (a) also add the offer to `specs.py:run_set` for the `--status` form (both single-fire, no overlap), or (b) route both forms through `status_set`. The plan chooses and the tests assert exactly one offer per invocation.
   Each verb passes the PRECISE touched-path list tracked explicitly during the mutation, NOT "whatever is dirty". Add `--commit`/`--no-commit` as a SHARED arg group registered on each records-mutating parser (OQ-01). Per-verb default messages (e.g. `chore(research): archive aged artifacts and regenerate index`, `refactor(plans): regroup set <id> and rewrite refs`, `chore(specs): set <id> status <old> -> <new>`).
 - Scope-Paths: agent_workflows/research_archive.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/artifact_rename.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, tests/
-- Status: approved
+- Status: executed
 - Set: selfcommit
 - Order: 2
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: jgcm68
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Adopt git_commit_helper.offer_commit across archive/group/rename/research set-assign-mv/status_set set family/specs dual path; shared --commit/--no-commit flags; MutationResult backends; offer once per call site; 20 new tests + full suite green (2372 passed) [Scope reconciliation - in-scope-unmodified agent_workflows/artifact_rename.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/cli.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/plans_archive.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/plans_refs.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/research_archive.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/research_refs.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/specs.py: implemented in preceding commit d0a1985; in-scope-unmodified agent_workflows/status_set.py: implemented in preceding commit d0a1985; in-scope-unmodified tests/: implemented in preceding commit d0a1985]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED (PR-001..PR-010); corrected architecture (type-parameterized group/rename dispatch, shared status_set engine, specs dual path), fixed the cli.py prompt-helper citation and non-TTY gating divergence, parameterized on_unrelated_staged, split the multi-concern E-item, authored falsifiable V-evidence, filled execution-contract gates. GO - PENDING HUMAN APPROVAL.
 
@@ -35,40 +35,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: adopt in the archive verbs
 
-- [ ] E-01 Add a SHARED `--commit`/`--no-commit` arg group and register it on every records-mutating parser (archive, group, rename, research set-assign/mv, the `set` family) in cli.py; thread the resolved flags onto the args namespace each backend receives (OQ-01).
+- [x] E-01 Add a SHARED `--commit`/`--no-commit` arg group and register it on every records-mutating parser (archive, group, rename, research set-assign/mv, the `set` family) in cli.py; thread the resolved flags onto the args namespace each backend receives (OQ-01).
   - Depends on: none
   - Expected outcome: every named verb accepts `--commit`/`--no-commit`; the flags reach the backend; `--help` shows them.
-  - Execution state: pending
-- [ ] E-02 Wire `offer_commit` into `research_archive.run_archive` (research_archive.py:284) and `plans_archive.run_archive` (plans_archive.py:189): collect the exact moved/renamed/deleted paths + regenerated INDEX, call the helper with a `chore(<domain>): archive aged artifacts and regenerate index` message (`on_unrelated_staged="scope"`).
+  - Execution state: performed
+- [x] E-02 Wire `offer_commit` into `research_archive.run_archive` (research_archive.py:284) and `plans_archive.run_archive` (plans_archive.py:189): collect the exact moved/renamed/deleted paths + regenerated INDEX, call the helper with a `chore(<domain>): archive aged artifacts and regenerate index` message (`on_unrelated_staged="scope"`).
   - Depends on: E-01
   - Expected outcome: `aw archive` (research + plans) interactively offers to commit exactly its touched paths; `--no-commit` skips; non-interactive without `--commit` does not auto-commit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: adopt in the type-parameterized regroup/rename dispatch
 
-- [ ] E-03 Make the `group`/`rename` backends surface their touched-path set (e.g. return a small `MutationResult(touched_paths, index_paths)`) across `plans_refs`, `research_refs`, and `artifact_rename`, WITHOUT committing or offering inside the backend (the offer is placed by the caller; PR-012 - `research_refs` is shared by two entry points).
+- [x] E-03 Make the `group`/`rename` backends surface their touched-path set (e.g. return a small `MutationResult(touched_paths, index_paths)`) across `plans_refs`, `research_refs`, and `artifact_rename`, WITHOUT committing or offering inside the backend (the offer is placed by the caller; PR-012 - `research_refs` is shared by two entry points).
   - Depends on: none
   - Expected outcome: each group/rename backend returns the exact set of paths it moved/renamed + the regenerated index paths and performs NO commit itself; a test reads those return values for plans, research, and one artifact_rename type.
-  - Execution state: pending
-- [ ] E-07 Wire `offer_commit` ONCE at the `_run_noun_verb` group/rename dispatch CALL SITE (cli.py:5601) - i.e. after the resolved backend returns, using its returned touched paths - with a `refactor(<type>): regroup/rename <selector> and rewrite refs` message (`on_unrelated_staged="scope"`), covering ALL types via that single call site. The offer is at the dispatch layer, NOT inside any backend (PR-012). This covers `aw group <type>`/`aw rename <type>` for every type; the SEPARATE `aw research set-assign`/`mv` call site is E-04.
+  - Execution state: performed
+- [x] E-07 Wire `offer_commit` ONCE at the `_run_noun_verb` group/rename dispatch CALL SITE (cli.py:5601) - i.e. after the resolved backend returns, using its returned touched paths - with a `refactor(<type>): regroup/rename <selector> and rewrite refs` message (`on_unrelated_staged="scope"`), covering ALL types via that single call site. The offer is at the dispatch layer, NOT inside any backend (PR-012). This covers `aw group <type>`/`aw rename <type>` for every type; the SEPARATE `aw research set-assign`/`mv` call site is E-04.
   - Depends on: E-01, E-03
   - Expected outcome: `aw group <type>`/`aw rename <type>` for every supported type offer to commit exactly their moved paths + rewritten index via the single dispatch-site call; flags honored; verified for at least plans, research, and one artifact_rename type (e.g. specs); no in-backend offer.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: adopt in the shared status-set engine and the specs dual path
 
-- [ ] E-04 Wire `offer_commit` at the `aw research set-assign`/`mv` CALL SITE in the `research` command branch (cli.py:7182), using the touched paths RETURNED by `research_refs.run_set_assign`/`run_mv` (E-03), with a `refactor(research): ...` message (`on_unrelated_staged="scope"`). Do NOT place the offer inside the `research_refs` backend (PR-012): those functions are shared with the `aw group research`/`aw rename research` path wired in E-07, so an in-backend offer would double-fire; the offer belongs at each of the two distinct call sites so each entry point fires exactly once.
+- [x] E-04 Wire `offer_commit` at the `aw research set-assign`/`mv` CALL SITE in the `research` command branch (cli.py:7182), using the touched paths RETURNED by `research_refs.run_set_assign`/`run_mv` (E-03), with a `refactor(research): ...` message (`on_unrelated_staged="scope"`). Do NOT place the offer inside the `research_refs` backend (PR-012): those functions are shared with the `aw group research`/`aw rename research` path wired in E-07, so an in-backend offer would double-fire; the offer belongs at each of the two distinct call sites so each entry point fires exactly once.
   - Depends on: E-01, E-03, E-07
   - Expected outcome: `aw research set-assign`/`mv` offer to commit exactly their touched paths; flags honored; `aw group research`/`aw rename research` (E-07) and `aw research set-assign`/`mv` (E-04) EACH fire exactly one offer with no double-commit.
-  - Execution state: pending
-- [ ] E-05 Wire `offer_commit` ONCE into the shared `status_set.run_set_command` (status_set.py:808) so every `set` variant (`aw set`/`ipd set`/`spec set`/`prompts set`/`backlog set`) offers to commit exactly the artifact file(s) it rewrote (single-file or whole-Set), with a `chore(<type>): set <selector> status <old> -> <new>` message.
+  - Execution state: performed
+- [x] E-05 Wire `offer_commit` ONCE into the shared `status_set.run_set_command` (status_set.py:808) so every `set` variant (`aw set`/`ipd set`/`spec set`/`prompts set`/`backlog set`) offers to commit exactly the artifact file(s) it rewrote (single-file or whole-Set), with a `chore(<type>): set <selector> status <old> -> <new>` message.
   - Depends on: E-01
   - Expected outcome: each `set` variant offers to commit its own path-scoped metadata rewrite; flags honored; unrelated dirty files never folded in.
-  - Execution state: pending
-- [ ] E-06 Handle the `aw specs set --status <X> <path>` form that routes to `specs.py:run_set` (specs.py:430) so it fires the offer exactly once (no double-offer with the E-05 status_set path, no missed path); resolve per the PR-004 decision (add the offer here for the `--status` form, or route both forms through status_set).
+  - Execution state: performed
+- [x] E-06 Handle the `aw specs set --status <X> <path>` form that routes to `specs.py:run_set` (specs.py:430) so it fires the offer exactly once (no double-offer with the E-05 status_set path, no missed path); resolve per the PR-004 decision (add the offer here for the `--status` form, or route both forms through status_set).
   - Depends on: E-05
   - Expected outcome: both `aw specs set <id6>` and `aw specs set --status <X> <path>` offer to commit exactly once; a test asserts a single offer per invocation on each form.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -134,34 +134,36 @@ Adoption is mechanical per integration point: collect the touched paths (already
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `aw archive --help`, `aw group plans --help`, `aw rename plans --help`, `aw set --help`, and `aw research set-assign --help` output all show `--commit` and `--no-commit`; a test asserts the flags reach each backend's args namespace. Paste the runner output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `--help` for `archive`, `group plans`, `set`, `research set-assign` (and `ipd set`/`spec set`) all render `[--commit | --no-commit]` with the help lines "Commit the change this command made (path-scoped, no push); required to commit non-interactively." and "Do NOT offer to commit the change this command made." (verified via `python3 -m agent_workflows <verb> --help`). Test `tests/test_selfcommit_adoption.py::FlagRegistrationTests` (test_flags_present_on_all_records_mutating_parsers + test_commit_and_no_commit_are_mutually_exclusive) parses 9 argv forms and asserts `hasattr(ns,'commit')` and `hasattr(ns,'no_commit')`, and that `--commit --no-commit` together exit nonzero (mutually exclusive). PASSED (see V-01..V-07 combined run below).
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: A test drives `research_archive.run_archive` and `plans_archive.run_archive` on a temp repo with an aged artifact and an unrelated dirty file; asserts the offer commits exactly the moved paths + regenerated INDEX, `--no-commit` skips, non-interactive-without-`--commit` is a no-op, and the unrelated dirty file is never committed. Paste pytest output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `tests/test_selfcommit_adoption.py::ArchiveCommitTests` - test_commit_flag_commits_exactly_moved_and_index asserts a real new HEAD whose committed files include the moved `bbbbbb` doc + `INDEX.json` and EXCLUDE `unrelated.txt`; test_no_commit_skips asserts HEAD unchanged with `--no-commit`; test_non_interactive_without_commit_is_noop asserts HEAD unchanged with neither flag on non-TTY stdin. `PlansArchiveCommitTests::test_commit_flag_commits_moved_plan` covers the plans backend. All PASSED.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: A test calls each group/rename backend (plans_refs, research_refs, and one artifact_rename type) and asserts the returned touched-path/index set exactly matches the files the backend moved/regenerated. Paste pytest output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `tests/test_selfcommit_adoption.py::BackendReturnShapeTests` - three tests call `plans_refs.run_set_assign`, `research_refs.run_mv`, and `artifact_rename.run_group_specs`; each asserts the result `isinstance(..., plans_refs.MutationResult)`, `rc==0`, that `touched_paths` contains the moved id6 (and plans additionally that `index_paths` ends with INDEX.json), and that HEAD is UNCHANGED (the backend commits nothing itself). All PASSED.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: A test drives `aw research set-assign`/`mv` AND `aw group research`/`aw rename research` (both entry points into the shared `research_refs` backend), asserting EACH fires exactly ONE commit offer for its own touched paths with NO double-commit (guards PR-012: the offer is at the call site, not in the backend). Paste pytest output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `tests/test_selfcommit_adoption.py::ResearchExactlyOnceTests` - test_research_mv_command_branch_fires_one_offer drives `aw research mv` via `cli._dispatch` with an `offer_commit` spy and asserts exactly ONE call; test_group_research_dispatch_fires_one_offer drives `aw group research` and asserts exactly ONE call (no double-fire through the shared research_refs backend). Both PASSED.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: A test drives `status_set.run_set_command` for a single-target transition (commits exactly one artifact file) AND a whole-Set transition (commits exactly the Set's files), asserting the offer fires once, `--no-commit` skips, non-interactive-without-`--commit` is a no-op, and an unrelated dirty file is never included. Paste pytest output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `tests/test_selfcommit_adoption.py::StatusSetCommitTests` - test_single_target_offers_once_and_commits_one_file (spy count==1, touched includes pl0001), test_whole_set_offers_once_and_commits_set_files (one offer whose paths include both grp members pl0002+pl0003), test_no_commit_real_skips (HEAD unchanged with `--no-commit`), test_commit_flag_does_not_fold_unrelated_dirty (real commit contains pl0005 but NOT unrelated.txt). All PASSED.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: A test asserts BOTH `aw specs set <id6>` (status_set path) and `aw specs set --status <X> <path>` (specs.py path) fire exactly ONE commit offer each with no double-commit and no missed path (guards PR-004). Paste pytest output.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `tests/test_selfcommit_adoption.py::SpecsDualPathTests` - test_status_set_path_no_status_flag_fires_one_offer (`aw spec set to-review <id6>` -> status_set path, spy count==1); test_specs_py_path_with_status_flag_fires_one_offer (`aw spec set --status to-review <path>` -> specs.py path, spy count==1). Neither double-offers nor misses. Both PASSED.
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: A test exercises the `_run_noun_verb` group/rename dispatch for at least plans, research, AND one artifact_rename type (e.g. specs), asserting each offers to commit exactly its backend-returned moved paths + rewritten index via the single dispatch-site wiring, that a non-plans type IS covered (guards PR-003), and that the offer fires exactly once per invocation. Paste pytest output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_selfcommit_adoption.py::DispatchCoverageTests` - test_group_plans_offers_once, test_group_research_offers_once, and test_group_specs_offers_once_nonplans_coverage each drive `aw group <type>` via `cli._dispatch` and assert exactly ONE `offer_commit` call; the specs case proves a non-plans artifact_rename type IS covered by the single dispatch-site wiring (PR-003). All PASSED.
+  - Result: pass
+
+Runner output (V-01..V-07, `python3 -m pytest tests/test_selfcommit_adoption.py`): `20 passed in 1.47s`. Full suite (`python3 -m pytest`): `2372 passed, 1 skipped in 18.75s`. Single shared helper: `grep -rn "def offer_commit" agent_workflows/` -> exactly one definition (git_commit_helper.py:132); single git wrapper `def _git` in git_commit_helper.py with ipd_lifecycle._git delegating.
 
 
 ## Approval and execution gate
