@@ -94,7 +94,45 @@ def _one_line(text: str, limit: int = 200) -> str:
     return collapsed
 
 
-def render_event(raw_line: str, pal: Palette) -> str | None:
+def format_tokens(n: int | float) -> str:
+    """Format token count into compact human-readable string with K/M/G suffix."""
+    val = float(n)
+    if val >= 1_000_000_000:
+        return f"{val / 1_000_000_000:.2f}G"
+    if val >= 1_000_000:
+        return f"{val / 1_000_000:.2f}M"
+    if val >= 1_000:
+        return f"{val / 1_000:.2f}K"
+    return str(int(val))
+
+
+class StreamTracker:
+    """Tracks cumulative usage metrics across streamed events in a run."""
+
+    def __init__(self) -> None:
+        self.input_tokens: int = 0
+        self.output_tokens: int = 0
+        self.cache_tokens: int = 0
+        self.cost: float = 0.0
+
+    def update(
+        self,
+        inp: int = 0,
+        out: int = 0,
+        cache: int = 0,
+        cost: float = 0.0,
+    ) -> None:
+        self.input_tokens += inp
+        self.output_tokens += out
+        self.cache_tokens += cache
+        self.cost += cost
+
+
+def render_event(
+    raw_line: str,
+    pal: Palette,
+    tracker: StreamTracker | None = None,
+) -> str | None:
     """Translate one raw JSONL event from `opencode run --format json` into a
     concise, colored terminal line.
     """
@@ -135,16 +173,51 @@ def render_event(raw_line: str, pal: Palette) -> str | None:
         body = f": {title}" if title else ""
         return f"    {glyph} {label}{body}"
     if etype == "step_finish":
-        tokens = (part.get("tokens") or {}).get("total")
-        cost = part.get("cost")
-        bits = []
-        if tokens is not None:
-            bits.append(f"{tokens} tok")
-        if cost is not None:
-            bits.append(f"${cost:.4f}")
-        if not bits:
+        tok_dict = part.get("tokens") or {}
+        cost_raw = part.get("cost")
+        if not tok_dict and cost_raw is None:
             return None
-        return pal("    \u2014 step done (" + ", ".join(bits) + ")", "dim")
+
+        inp = tok_dict.get("input") or 0
+        out = tok_dict.get("output") or 0
+        cache_raw = tok_dict.get("cache") or 0
+        if isinstance(cache_raw, dict):
+            cache_val = (cache_raw.get("read") or 0) + (cache_raw.get("write") or 0)
+        elif isinstance(cache_raw, (int, float)):
+            cache_val = int(cache_raw)
+        else:
+            cache_val = 0
+
+        step_total = tok_dict.get("total")
+        if step_total is None:
+            step_total = inp + out + cache_val
+
+        cost = cost_raw or 0.0
+
+        if tracker is not None:
+            tracker.update(inp=inp, out=out, cache=cache_val, cost=cost)
+            cum_inp = tracker.input_tokens
+            cum_out = tracker.output_tokens
+            cum_cache = tracker.cache_tokens
+            cum_cost = tracker.cost
+        else:
+            cum_inp = inp
+            cum_out = out
+            cum_cache = cache_val
+            cum_cost = cost
+
+        step_tok_str = format_tokens(step_total)
+        step_cost_str = f"${cost:.4f}"
+        cum_in_str = format_tokens(cum_inp)
+        cum_out_str = format_tokens(cum_out)
+        cum_cache_str = format_tokens(cum_cache)
+        cum_cost_str = f"${cum_cost:.2f}"
+
+        summary = (
+            f"{step_tok_str} tok, {step_cost_str}; "
+            f"tok: {cum_in_str} in, {cum_out_str} out, {cum_cache_str} cache, {cum_cost_str} tot"
+        )
+        return pal(f"    \u2014 step done ({summary})", "dim")
     return None
 
 

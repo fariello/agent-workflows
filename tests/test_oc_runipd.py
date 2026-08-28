@@ -578,8 +578,9 @@ class ProgressRendererTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertIn("1234 tok", line)
+        self.assertIn("1.23K tok", line)
         self.assertIn("$0.0042", line)
+        self.assertIn("tok: 0 in, 0 out, 0 cache, $0.00 tot", line)
 
     def test_non_json_line_passed_through_dimmed(self):
         line = driver.render_event("a stray log line", self.plain)

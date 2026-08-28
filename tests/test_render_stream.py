@@ -72,8 +72,40 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertIn("1234 tok", line)
+        self.assertIn("1.23K tok", line)
         self.assertIn("$0.0042", line)
+        self.assertIn("tok: 0 in, 0 out, 0 cache, $0.00 tot", line)
+
+    def test_step_finish_with_full_tokens_and_cumulative_tracker(self):
+        tracker = render_stream.StreamTracker()
+        evt1 = (
+            '{"type":"step_finish","part":{"tokens":{"total":30476,"input":30371,'
+            '"output":105,"cache":{"read":30000,"write":0}},"cost":0.15448}}'
+        )
+        line1 = render_stream.render_event(evt1, self.plain, tracker=tracker)
+        assert line1 is not None
+        self.assertIn("30.48K tok", line1)
+        self.assertIn("$0.1545", line1)
+        self.assertIn("tok: 30.37K in, 105 out, 30.00K cache, $0.15 tot", line1)
+
+        evt2 = (
+            '{"type":"step_finish","part":{"tokens":{"total":37480,"input":7000,'
+            '"output":480,"cache":{"read":30000,"write":0}},"cost":0.0088}}'
+        )
+        line2 = render_stream.render_event(evt2, self.plain, tracker=tracker)
+        assert line2 is not None
+        self.assertIn("37.48K tok", line2)
+        self.assertIn("$0.0088", line2)
+        # Cumulative: input 37371 (37.37K), output 585 (585), cache 60000 (60.00K), cost 0.16328 ($0.16)
+        self.assertIn("tok: 37.37K in, 585 out, 60.00K cache, $0.16 tot", line2)
+
+    def test_format_tokens_units(self):
+        self.assertEqual(render_stream.format_tokens(0), "0")
+        self.assertEqual(render_stream.format_tokens(500), "500")
+        self.assertEqual(render_stream.format_tokens(1000), "1.00K")
+        self.assertEqual(render_stream.format_tokens(37480), "37.48K")
+        self.assertEqual(render_stream.format_tokens(1_500_000), "1.50M")
+        self.assertEqual(render_stream.format_tokens(2_500_000_000), "2.50G")
 
     def test_non_json_line_passed_through_dimmed(self):
         line = render_stream.render_event("a stray log line", self.plain)
@@ -195,7 +227,7 @@ class GoldenByteIdenticalTests(unittest.TestCase):
                 "    \u2026 bash: git status",
                 "    \u2713 bash: git status",
                 "    \u2717 edit: patch failed",
-                "    \u2014 step done (1234 tok, $0.0042)",
+                "    \u2014 step done (1.23K tok, $0.0042; tok: 0 in, 0 out, 0 cache, $0.00 tot)",
                 "  a stray non-json log line",
             ]
         )
@@ -229,6 +261,8 @@ class SingleDefinitionTests(unittest.TestCase):
     def test_names_are_the_same_objects(self):
         # Identity: the driver's names ARE the render_stream objects (no inline copy).
         self.assertIs(driver.Palette, render_stream.Palette)
+        self.assertIs(driver.StreamTracker, render_stream.StreamTracker)
+        self.assertIs(driver.format_tokens, render_stream.format_tokens)
         self.assertIs(driver.render_event, render_stream.render_event)
         self.assertIs(driver.Heartbeat, render_stream.Heartbeat)
         self.assertIs(driver._STATUS_COLOR, render_stream._STATUS_COLOR)
@@ -240,6 +274,8 @@ class SingleDefinitionTests(unittest.TestCase):
     def test_definitions_live_in_render_stream_module(self):
         for obj in (
             render_stream.Palette,
+            render_stream.StreamTracker,
+            render_stream.format_tokens,
             render_stream.render_event,
             render_stream.Heartbeat,
         ):
@@ -251,6 +287,8 @@ class SingleDefinitionTests(unittest.TestCase):
         # Source inspection: oc_runipd must not re-DEFINE the render layer inline.
         src = inspect.getsource(driver)
         self.assertNotIn("class Palette:", src)
+        self.assertNotIn("class StreamTracker:", src)
+        self.assertNotIn("def format_tokens(", src)
         self.assertNotIn("class Heartbeat:", src)
         self.assertNotIn("def render_event(", src)
         self.assertNotIn("def _one_line(", src)

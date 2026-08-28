@@ -43,8 +43,10 @@ from agent_workflows.render_stream import (
     _STATUS_COLOR,
     Heartbeat,
     Palette,
+    StreamTracker,
     _one_line,
     _strip_ansi,
+    format_tokens,
     render_event,
 )
 
@@ -56,8 +58,10 @@ __all__ = [
     "_STATUS_COLOR",
     "Heartbeat",
     "Palette",
+    "StreamTracker",
     "_one_line",
     "_strip_ansi",
+    "format_tokens",
     "render_event",
     "should_color",
 ]
@@ -1327,6 +1331,7 @@ def run_opencode(
     fresh_session: bool = False,
     log_suffix: str = "",
     label_suffix: str = "",
+    tracker: StreamTracker | None = None,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
@@ -1414,7 +1419,7 @@ def run_opencode(
                         sys.stdout.write(line)
                         sys.stdout.flush()
                     elif output_mode == "clean":
-                        rendered = render_event(line, pal)
+                        rendered = render_event(line, pal, tracker=tracker)
                         if rendered is not None:
                             sys.stdout.write(rendered + "\n")
                             sys.stdout.flush()
@@ -1486,7 +1491,11 @@ def reconcile_disposition(
 
 
 def execute_item(
-    run_dir: Path, state: dict[str, Any], item: dict[str, Any], recovery: bool
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+    tracker: StreamTracker | None = None,
 ) -> None:
     repo = Path(state["repo"])
     plan_path = resolve_plan_path(repo, item["configured_file"], item["id6"])
@@ -1541,7 +1550,13 @@ def execute_item(
     print(pal(f"  plan: {plan_path}", "dim"))
     try:
         exit_code, session_id, log_path, argv = run_opencode(
-            state, run_dir, item, plan_path, prompt_path, attempt_no
+            state,
+            run_dir,
+            item,
+            plan_path,
+            prompt_path,
+            attempt_no,
+            tracker=tracker,
         )
     except KeyboardInterrupt:
         attempt["interrupted_at"] = utc_now()
@@ -1645,6 +1660,7 @@ def execute_item(
                 fresh_session=True,
                 log_suffix="verify",
                 label_suffix="verification",
+                tracker=tracker,
             )
             v_outcome_file = (
                 run_dir
@@ -1832,6 +1848,7 @@ def run_queue(
                 item["status"] = "queued"
                 item["recovery_next"] = True
         save_state(run_dir, state)
+    tracker = StreamTracker()
     while True:
         state = load_state(run_dir)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
@@ -1902,7 +1919,7 @@ def run_queue(
             save_state(run_dir, state)
             continue
         try:
-            execute_item(run_dir, state, runnable, recovery=recovery)
+            execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
