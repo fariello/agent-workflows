@@ -2,7 +2,14 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 143 Sets; the full manifest is INDEX.json.
+
+## driverfin
+
+- `yt93ir` [pending] 00 pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md
+- `p7peqf` [pending] 01 pending/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md
+- `emus4n` [pending] 02 pending/20260827-driverfin-02-emus4n-per-run-worktree-isolation-execute-each-ipd-in-its-own-git-w.ipd.md
+- `7kbtkw` [pending] 03 pending/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md
 
 ## ipddeps
 
@@ -245,10 +252,6 @@ Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
 ## awuiux
 
 - `ygeuha` [executed] 01 executed/20260820-awuiux-01-ygeuha-unify-severity-labels-in-term-p14-bracketed-fixed-width-cons.ipd.md
-
-## awuninstallfix
-
-- `ejhzgk` [executed] 01 executed/20260820-awuninstallfix-01-ejhzgk-complete-uninstall-remove-orphaned-config-state-gitignore-se.ipd.md
 
 ## (singletons: no Set)
 
