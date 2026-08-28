@@ -6,14 +6,16 @@
 - Scope: the project's tracked user-facing documentation only - README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md. Out of scope: `.aw/system/workflows/` (framework tooling), `workflow-artifacts/` (run records), and the `docs/` reference tree (verified accurate this run - no changes). No code/behavior changes: these are doc-accuracy corrections, so the fix is to make the docs match the code, never the reverse.
 - Scope-Paths: README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: assessdocs
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: pky603
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 
 - 2026-08-28 to-review (/assess documentation, opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed the documentation concern for accuracy across README/CONTRIBUTING/ARCHITECTURE/TODO/CHANGELOG + the docs/ tree; proposed 5 changes (2 High, 3 Medium/Low). docs/ verified accurate (no changes). Run record: workflow-artifacts/assess-documentation/20260828-165500/.
 - 2026-08-28 reviewed (/plan-review, opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 (all LOW, all FIXED). Verified all five findings (F1-F5) TRUE against repo evidence (`aw install --help` enum, `ls -d .aw/records/*/`, `aw update`/`aw comms` absent, `.agents/` gone, both target specs resolve). Structural lint conforming (author + review-finalize). Revisions: E-05 per-line LIVE/HISTORICAL adjudication + `.spec.md` facet on both spec pointers; V-05 tightened; `docs_check` invocation named (`python -m pytest tests/test_docs.py`); F1 code-side twin (argparse help text) captured out-of-scope; OQ-01 resolved (silent correction) from repo evidence; execution contract hardened with the paste-actual-output honesty MUST. GO - PENDING HUMAN APPROVAL.
