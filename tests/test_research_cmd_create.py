@@ -46,7 +46,9 @@ class NewPlanTests(unittest.TestCase):
         # Frontmatter is full and passes the validator.
         data = _parse_frontmatter(f.content)
         self.assertEqual(R.validate_frontmatter(data), [])
-        self.assertEqual(data["status"], "intake")
+        self.assertEqual(
+            data["status"], "todo"
+        )  # rstodo p3o9je: created docs are born `todo`
         self.assertEqual(data["outcome"], "none-yet")
 
     def test_nn_increments_on_second_same_set_call(self):

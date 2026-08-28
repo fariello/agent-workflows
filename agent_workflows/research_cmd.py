@@ -186,7 +186,7 @@ def plan_new(
         topic=topic or [],
         model=model,
         kind=kind,
-        status="intake",
+        status="todo",
         outcome="none-yet",
         summary=summary,
     )
@@ -241,7 +241,7 @@ def plan_new_comparison(
             topic=topic or [],
             model=model,
             kind=kind,
-            status="intake",
+            status="todo",
             outcome="none-yet",
             summary=sm or summary,
         )

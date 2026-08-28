@@ -15,7 +15,7 @@ It resolves the spec's open questions with the reviewed leans:
 * OQ5 -> ``<id6>`` is 6 characters of base36 lowercase (``[0-9a-z]``), collision-checked by the tool.
 * OQ4 -> the leading ``YYYYMMDD`` in the name is the SET date; each file also records its own
   ``created`` date in frontmatter.
-* OQ6 -> hot states (``intake``/``active``) live at the ``research/`` root; ``reference`` and
+* OQ6 -> hot states (``todo``/``active``) live at the ``research/`` root; ``reference`` and
   ``archive`` live in weekly ``YYYYMM-Www`` shards.
 * OQ1 -> the ``<kind>`` vocabulary is corpus-derived (below) with a documented extension mechanism.
 """
@@ -145,9 +145,20 @@ KIND_NORMALIZATIONS: Dict[str, str] = {
 }
 
 # States (spec 4.5) and outcomes.
-STATUSES: FrozenSet[str] = frozenset(("intake", "active", "reference", "archive"))
-HOT_STATUSES: FrozenSet[str] = frozenset(("intake", "active"))
+# rstodo Order p3o9je (graduated from backlog sr47pt): the hot not-yet-worked state was renamed
+# `intake` -> `todo` (a name that says "you still need to do this"). `todo` is now the CANONICAL
+# token; the legacy `intake` is accepted purely through STATUS_NORMALIZATIONS below (it is NOT a
+# member of STATUSES) so every read site that normalizes still classifies an unmigrated doc, while
+# the scoped grep for a live `intake` status VALUE finds only the single alias-table entry.
+STATUSES: FrozenSet[str] = frozenset(("todo", "active", "reference", "archive"))
+HOT_STATUSES: FrozenSet[str] = frozenset(("todo", "active"))
 SHARDED_STATUSES: FrozenSet[str] = frozenset(("reference", "archive"))
+# Backward-compat status spellings (rstodo p3o9je): the legacy `intake` reads as canonical `todo`.
+# Mirrors the KIND_NORMALIZATIONS idiom; consumed by `normalize_status` and every raw-status read
+# site (attention scanner, research_index band/find) so an unmigrated `intake` doc behaves exactly
+# as a `todo` doc through the migration window (orchestrator OQ-01: kept through migration + one
+# release, then droppable).
+STATUS_NORMALIZATIONS: Dict[str, str] = {"intake": "todo"}
 OUTCOMES: FrozenSet[str] = frozenset(
     ("adopted", "rejected", "informational", "none-yet")
 )
@@ -211,6 +222,23 @@ def normalize_kind(token: str) -> VocabResult:
     sugg = _closest(raw, KINDS)
     hint = f"; did you mean '{sugg}'?" if sugg else ""
     return VocabResult(False, None, sugg, f"unknown kind '{token}'{hint}")
+
+
+def normalize_status(token: str) -> VocabResult:
+    """Validate/normalize a ``status`` token against STATUSES (+ STATUS_NORMALIZATIONS).
+
+    rstodo p3o9je: maps the legacy `intake` spelling to canonical `todo`. Read sites that consume the
+    RAW frontmatter status (the attention scanner, the research_index hot band + find filter) call
+    ``normalize_status(raw).value`` BEFORE any map/compare/band selection, so an unmigrated `intake`
+    doc classifies exactly as `todo` (behavior-preserving migration window)."""
+
+    raw = token.strip().lower()
+    canon = STATUS_NORMALIZATIONS.get(raw, raw)
+    if canon in STATUSES:
+        return VocabResult(True, canon, None, "ok")
+    sugg = _closest(raw, STATUSES)
+    hint = f"; did you mean '{sugg}'?" if sugg else ""
+    return VocabResult(False, None, sugg, f"unknown status '{token}'{hint}")
 
 
 # --------------------------------------------------------------------------------------
@@ -439,10 +467,12 @@ def validate_frontmatter(data: Dict[str, object]) -> List[FrontmatterError]:
             res = normalize_kind(val)
             if not res.ok:
                 errors.append(FrontmatterError("kind", res.message))
-    # status
+    # status - accept the canonical STATUSES OR a value that normalizes through
+    # STATUS_NORMALIZATIONS (rstodo p3o9je: a legacy `intake` doc is accepted as `todo`, not rejected).
     if "status" in data:
         val = data["status"]
-        if val not in STATUSES:
+        val_ok = isinstance(val, str) and normalize_status(val).ok
+        if not val_ok:
             errors.append(
                 FrontmatterError("status", f"status must be one of {sorted(STATUSES)}")
             )

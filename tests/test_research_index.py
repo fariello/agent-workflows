@@ -90,10 +90,12 @@ class IndexBuildTests(unittest.TestCase):
     def test_index_md_archive_excluded_reference_included_intake_shown(self):
         entries, _ = I._scan_docs(self.rroot)
         md = I.build_index_md(entries)
-        self.assertIn("aaaaaa", md)  # intake shown
+        self.assertIn(
+            "aaaaaa", md
+        )  # todo shown (a legacy `intake` fixture normalizes into the band)
         self.assertIn("bbbbbb", md)  # reference included
         self.assertNotIn("cccccc", md)  # archive excluded
-        self.assertIn("Needs addressing (intake)", md)
+        self.assertIn("Needs addressing (todo)", md)  # rstodo p3o9je: header renamed
 
     def test_n_honored(self):
         # Add more hot docs and bound to 2.

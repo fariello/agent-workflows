@@ -352,6 +352,45 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             self.assertEqual(cls.get("live01"), "active", "active doc keeps ACTIVE")
 
+    def test_todo_and_legacy_intake_classify_identically(self):
+        # rstodo p3o9je load-bearing compat: a `todo` doc and a legacy `intake` doc both classify
+        # READY and both surface with native_status normalized to canonical `todo` (so color +
+        # stale-reclass behave identically). Falsifiable: a legacy `intake` raising unknown-status or
+        # classifying differently fails.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self._write_research(
+                root,
+                set_id="s1",
+                order=0,
+                id6="todo01",
+                slug="a",
+                status="todo",
+                kind="notes",
+            )
+            self._write_research(
+                root,
+                set_id="s2",
+                order=0,
+                id6="oldik0",
+                slug="b",
+                status="intake",
+                kind="notes",
+            )
+            items, drift = att.scan(root)
+            self.assertFalse(
+                [dd for dd in drift if dd.rule == "attention.unknown-status"],
+                f"legacy intake must not raise unknown-status: {drift}",
+            )
+            by_id = {it.id: it for it in items if it.tree == "research"}
+            self.assertEqual(by_id["todo01"].attention_class, "ready")
+            self.assertEqual(by_id["oldik0"].attention_class, "ready")
+            # native_status normalized to canonical `todo` for BOTH (so color/reclass are identical)
+            self.assertEqual(by_id["todo01"].native_status, "todo")
+            self.assertEqual(by_id["oldik0"].native_status, "todo")
+
     def test_cited_by_executed_intake_not_ready(self):
         import tempfile
 
@@ -378,7 +417,10 @@ class StaleResearchReclassifyTests(unittest.TestCase):
 
     def test_class_of_unchanged_and_total(self):
         # E-02 must NOT modify class_of; it stays status-only and total over the four statuses.
-        self.assertEqual(A.class_of("research", "intake"), "ready")
+        # rstodo p3o9je: the hot state canonical token is now `todo` (renamed from `intake`); a legacy
+        # `intake` is normalized to `todo` at the SCANNER, not in the pure/total class_of, so class_of
+        # keys on the canonical `todo`.
+        self.assertEqual(A.class_of("research", "todo"), "ready")
         self.assertEqual(A.class_of("research", "active"), "active")
         self.assertEqual(A.class_of("research", "reference"), "done")
         self.assertEqual(A.class_of("research", "archive"), "parked")

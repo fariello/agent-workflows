@@ -215,13 +215,23 @@ class FrontmatterTests(unittest.TestCase):
 
 class SchemaConstantsTests(unittest.TestCase):
     def test_statuses(self):
+        # rstodo p3o9je: `intake` renamed to canonical `todo`; `intake` accepted via normalization.
         self.assertEqual(
-            R.STATUSES, frozenset({"intake", "active", "reference", "archive"})
+            R.STATUSES, frozenset({"todo", "active", "reference", "archive"})
         )
 
     def test_hot_vs_sharded(self):
-        self.assertEqual(R.HOT_STATUSES, frozenset({"intake", "active"}))
+        self.assertEqual(R.HOT_STATUSES, frozenset({"todo", "active"}))
         self.assertEqual(R.SHARDED_STATUSES, frozenset({"reference", "archive"}))
+
+    def test_legacy_intake_normalizes_to_todo(self):
+        # Backward-compat: a legacy `intake` value normalizes to canonical `todo` and validates.
+        self.assertEqual(R.normalize_status("intake").value, "todo")
+        self.assertEqual(R.normalize_status("todo").value, "todo")
+        self.assertTrue(R.normalize_status("intake").ok)
+        # validate_frontmatter accepts a legacy `intake` status (no status error).
+        errs = R.validate_frontmatter({"status": "intake"})
+        self.assertFalse(any(e.field == "status" for e in errs))
 
     def test_frontmatter_field_order(self):
         self.assertEqual(R.FRONTMATTER_FIELDS[0], "id")

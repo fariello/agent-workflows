@@ -6343,7 +6343,8 @@ def _run_search(
             "open",
             "done",
             "parked",
-            "intake",
+            "todo",  # rstodo p3o9je: research hot state (renamed from `intake`)
+            "intake",  # legacy alias kept for any unmigrated on-disk path bucket
             "reference",
             "archived",
             "planned",

@@ -101,7 +101,8 @@ def should_color(stream: Optional[TextIO] = None) -> bool:
 STATUS_COLOR_256 = {
     # Lifecycle & status states
     "active": 39,
-    "intake": 44,  # teal
+    "todo": 44,  # teal (research hot state; rstodo p3o9je, renamed from `intake`)
+    "intake": 44,  # teal - legacy alias kept so a raw pre-migration `intake` label keeps its color
     "open": 40,
     "ready": 40,
     "pending": 40,

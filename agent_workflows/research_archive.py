@@ -1,11 +1,11 @@
 """Research state lifecycle + monthly archival shards (Set research-org, Order 05).
 
-Implements the four-state lifecycle (intake/active/reference/archive) and the monthly `YYYYMM`
+Implements the four-state lifecycle (todo/active/reference/archive) and the monthly `YYYYMM`
 cold shards for reference and archive, with DELIBERATE, tool-invoked archival verbs (never a
 background or index-time side effect, spec 4.10):
 
 * a ``status`` transition helper that sets frontmatter ``status`` AND moves the file to the matching
-  location (hot root for intake/active; ``reference/YYYYMM/`` or ``archive/YYYYMM/`` for the
+  location (hot root for todo/active; ``reference/YYYYMM/`` or ``archive/YYYYMM/`` for the
   cold states) as an atomic tracked rename, reusing Order 04's reference-updater on move.
 * ``aw archive <set-id|doc-id>``: deep-shelve target(s), preview then ``--apply``.
 * bare ``aw archive``: a sweep of candidates that are BOTH older than the age threshold AND uncited, with a
@@ -414,14 +414,15 @@ def _offer_archive_commit(
 def suggest_triage(repo_root: Path, research_root: Path) -> List[Move]:
     """Classify every STALE hot doc into a promotion, reproducing the 2026-08-24 manual pass.
 
-    A hot (intake/active) doc is STALE when its SET is a RUN prompt-set (structural, E-01) OR it
+    A hot (todo/active) doc is STALE when its SET is a RUN prompt-set (structural, E-01) OR it
     is cited by an EXECUTED artifact (E-02's ``cited_by_executed_ids``). For each stale doc:
     cited-or-run -> ``reference`` (finished research worth keeping hot-adjacent); an uncited
     dead-end -> ``archive``. Returns the planned Moves in deterministic (id6) order; writes nothing.
     """
 
     entries, _drift = RI._scan_docs(research_root)
-    hot = [e for e in entries if e.status in R.HOT_STATUSES]
+    # rstodo p3o9je: normalize the raw status so a legacy `intake` doc is treated as hot `todo`.
+    hot = [e for e in entries if R.normalize_status(e.status).value in R.HOT_STATUSES]
     if not hot:
         return []
     run_sets = RI.run_prompt_set_ids(entries)

@@ -228,7 +228,7 @@ _PLANS_MAP: Dict[str, str] = {
 # Research (over research_contract.STATUSES). Research has a genuine native ``active`` -> the live source
 # of the attention ``active`` class in v1.
 _RESEARCH_MAP: Dict[str, str] = {
-    "intake": READY,
+    "todo": READY,  # rstodo p3o9je: canonical hot not-yet-worked state (renamed from `intake`)
     "active": ACTIVE,
     "reference": DONE,
     "archive": PARKED,
