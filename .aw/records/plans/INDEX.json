@@ -3183,6 +3183,16 @@
     "date": "2026-08-25",
     "disposition": "executed",
     "kind": "child",
+    "order": 5,
+    "path": "executed/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md",
+    "plan_id": "diundn",
+    "set_id": "agentadhere",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md",
     "plan_id": "vaq9qf",
@@ -3376,16 +3386,6 @@
     "order": 0,
     "path": "pending/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md",
     "plan_id": "3b4f8u",
-    "set_id": "agentadhere",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md",
-    "plan_id": "diundn",
     "set_id": "agentadhere",
     "status": "approved"
   },
