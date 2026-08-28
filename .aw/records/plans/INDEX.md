@@ -75,7 +75,7 @@ Showing the 40 most-recent of 144 Sets; the full manifest is INDEX.json.
 
 ## selfcommit
 
-- `88h0h8` [pending] 00 pending/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md
+- `88h0h8` [executed] 00 executed/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md
 - `cv1rfd` [executed] 01 executed/20260825-selfcommit-01-cv1rfd-shared-commit-what-i-changed-helper-path-scoped-tty-gated-no.ipd.md
 - `jgcm68` [executed] 02 executed/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md
 

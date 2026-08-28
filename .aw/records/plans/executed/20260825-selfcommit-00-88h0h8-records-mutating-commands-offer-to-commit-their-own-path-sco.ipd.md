@@ -5,15 +5,15 @@
 - Concern: Records-mutating verbs leave their changeset UNCOMMITTED, so the user must notice and hand-commit it. Two shapes: (a) MOVE/RENAME + INDEX-regeneration verbs (`aw archive`, `aw group`, `aw rename`, `aw research set-assign`/`mv`) produce a large coherent set of renames + index updates (origin: a 23-file `aw archive` research changeset); (b) IN-PLACE metadata rewrites (`aw ipd set`, `aw spec set`/`specs set`, and the shared `aw set` engine) flip `- Status:` + append workflow-history on one file (or a whole Set) with no rename. Both leave uncommitted work worth offering to commit. There is no shared "commit-what-I-changed" helper today; `ipd_lifecycle._git` (ipd_lifecycle.py:557) is a private path-scoped git wrapper used only by finalize, and each verb reimplements or omits committing. Backlog item vvc7c1 (medium).
 - Scope: Add ONE shared "commit-what-I-changed" helper and adopt it across the records-mutating verbs so that, when run interactively (TTY), each verb PROMPTS to commit ONLY the files it just touched (moved/renamed paths + regenerated index), path-scoped, never `git add -A`/`-a`, never push, no hook bypass, with a good per-verb default message. Constraints (from vvc7c1): (1) commit ONLY files the command itself touched - track them explicitly, never commit whatever is dirty; (2) interactive-only by default - non-interactive/CI must NOT auto-commit unless an explicit `--commit` flag is passed, and a `--no-commit` escape hatch exists; (3) respect the repo contract (path-scoped, no push, no hook bypass); (4) if the tree already has unrelated staged/unstaged changes, do not fold them in; (5) sensible default message per verb (e.g. `chore(research): archive aged artifacts and regenerate index`). Two children: 01 builds the shared helper (path-scoped, TTY-gated, explicit path-set, `--commit`/`--no-commit`, per-verb message); 02 adopts it across the verbs with tests. NOTE: this helper is the same path-scoped-commit plumbing the agentadhere `aw commit` primitive (Phase 2) will want; keep it a standalone reusable helper so agentadhere can consume it later (no duplicate code path).
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/research_archive.py, agent_workflows/plans_archive.py, agent_workflows/plans_refs.py, agent_workflows/status_set.py, agent_workflows/specs.py, agent_workflows/cli.py, tests/
-- Status: approved
+- Status: executed
 - Set: selfcommit
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 88h0h8
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Orchestrator rollup: selfcommit children cv1rfd+jgcm68 executed; integration check verified (single offer_commit + all adopting sites + 16 tests). Post-hoc finalize; orchestrator authors no code so declared paths were committed by children pre-receipt. [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: children, committed pre-receipt; in-scope-unmodified agent_workflows/git_commit_helper.py: child cv1rfd, committed pre-receipt; in-scope-unmodified agent_workflows/plans_archive.py: child jgcm68, committed pre-receipt; in-scope-unmodified agent_workflows/plans_refs.py: child jgcm68, committed pre-receipt; in-scope-unmodified agent_workflows/research_archive.py: child jgcm68, committed pre-receipt; in-scope-unmodified agent_workflows/specs.py: child jgcm68, committed pre-receipt; in-scope-unmodified agent_workflows/status_set.py: child, committed pre-receipt; in-scope-unmodified tests/: children, committed pre-receipt]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED (PR-001..PR-010); corrected architecture (type-parameterized group/rename dispatch, shared status_set engine, specs dual path), fixed the cli.py prompt-helper citation and non-TTY gating divergence, parameterized on_unrelated_staged, split the multi-concern E-item, authored falsifiable V-evidence, filled execution-contract gates. GO - PENDING HUMAN APPROVAL.
 
@@ -31,10 +31,10 @@ This orchestrator authors NO code; the children carry the executable work. Its o
 
 ### Task group 1: whole-Set integration check
 
-- [ ] E-01 After children 01-02 execute and are green, confirm one shared helper (`git_commit_helper.offer_commit`) is used by ALL adopting integration points (single definition, no duplicated commit path), that group/rename coverage spans non-plans types, that the `set` family + specs dual path each offer exactly once, and that the whole test suite passes.
+- [x] E-01 After children 01-02 execute and are green, confirm one shared helper (`git_commit_helper.offer_commit`) is used by ALL adopting integration points (single definition, no duplicated commit path), that group/rename coverage spans non-plans types, that the `set` family + specs dual path each offer exactly once, and that the whole test suite passes.
   - Depends on: none
   - Expected outcome: grep shows a single `def offer_commit` definition and a single git-subprocess wrapper; every adopting site imports/calls it; group/rename covers plans+research+artifact_rename types; full suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -92,10 +92,10 @@ Aggregate of the children's tests: helper unit tests (path-scoping, TTY gating, 
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `grep -rn "def offer_commit" agent_workflows/` returns exactly one definition; the git-subprocess wrapper (`_git`) has a single definition reused by the helper; every adopting site (archive x2, the group/rename dispatch, research set-assign/mv, status_set, specs.py) calls `offer_commit`; the child-02 coverage tests (V-03) and exactly-once tests (V-05/V-06) pass; and the full suite (`run_checks.py`/pytest) is green. Paste the grep output and the runner output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Post-hoc rollup verification 2026-08-28 (children cv1rfd + jgcm68 executed overnight, run-20260828T035444Z). `grep -rn "def offer_commit" agent_workflows/` -> exactly one: `agent_workflows/git_commit_helper.py:132`. Single `_git` wrapper: `git_commit_helper.py:54`. Adopting sites calling `offer_commit` (grep -rln): `cli.py`, `plans_archive.py`, `plans_refs.py`, `research_archive.py`, `specs.py`, `status_set.py` (+ `work_cmd.py`). `python -m pytest tests/test_git_commit_helper.py -p no:randomly` -> `16 passed`. Both children are in `.aw/records/plans/executed/`.
+  - Result: pass
 
 ## Approval and execution gate
 
