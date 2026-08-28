@@ -39,7 +39,7 @@ Showing the 40 most-recent of 145 Sets; the full manifest is INDEX.json.
 
 - `u5vyye` [pending] 00 pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md
 - `1b45el` [executed] 01 executed/20260827-xprio-01-1b45el-add-recognized-but-optional-priority-to-the-ipd-schema-plus.ipd.md
-- `rp859c` [pending] 02 pending/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md
+- `rp859c` [executed] 02 executed/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md
 - `6vgd0k` [pending] 03 pending/20260827-xprio-03-6vgd0k-add-priority-to-the-research-frontmatter-contract-plus-aw-re.ipd.md
 
 ## specid6

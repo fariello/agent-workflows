@@ -5,15 +5,15 @@
 - Concern: Specs have no `Priority`, so they cannot be prioritized on the attention board. Add it as a recognized-but-optional spec metadata field reusing the shared `{high,medium,low}` vocab, with the `aw specs set` setter, `aw check`/`aw specs check` validation, and `_spec_record` attention rendering. Part of Set xprio (graduated from backlog p9o1oo).
 - Scope: (1) Spec contract (`specs.py`): add a reader for an optional `- Priority:` bullet (mirroring `_read_blocks_release`, specs.py:149); the value is enum-validated in `validate_spec` (see (3)) - note `validate_spec` has no unknown-field rejection, so a Priority bullet needs no "recognition" step, only the reader + the explicit enum check. Optional so existing specs are not mass-failed (none carry Priority today). (2) Setter: add `--priority <low|medium|high|->` to `aw specs set` (cli.py + specs.py), writing/clearing the bullet as a side-effect of a status transition (the same shape as `--blocks-release`, specs.py:510-514). NOTE: `aw specs set` REQUIRES a target status (positional `<status>` or `--status`) and always appends a history record and re-runs `validate_spec` (specs.py:499-524); so setting priority re-asserts the current status (a no-op transition still records history), and once (3)'s enum check lives in `validate_spec` the setter itself REFUSES an out-of-vocab `--priority bogus` (byte-identical refuse path, specs.py:516-523). (3) Validation: enum-validate the value in `validate_spec` (specs.py) so `aw specs check`/`aw check` (and the setter's refuse path) flag an out-of-vocab value; reuse shared `backlog.PRIORITIES`. (4) Attention: populate `Item.priority` in `attention._spec_record` (:289) from the spec's `- Priority:`. Absent = unprioritized. Specs only; plans = child 01, research = child 03.
 - Scope-Paths: agent_workflows/specs.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/attention.py, agent_workflows/backlog.py, tests/
-- Status: approved
+- Status: executed
 - Set: xprio
 - Order: 2
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rp859c
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (aw oc run model=its_direct/pt3-claude-opus-4.8-1m-us): xprio-02 rp859c: Priority on spec contract (reader + validate_spec enum + aw specs set --priority + attention render), committed 3eaf7c0 [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: committed pre-begin (E-03 in 3eaf7c0); in-scope-unmodified agent_workflows/backlog.py: import-only, not modified; in-scope-unmodified agent_workflows/check_engine.py: not needed; spec enum lives in validate_spec (specs.py); in-scope-unmodified agent_workflows/cli.py: committed pre-begin (E-01 in 3eaf7c0); in-scope-unmodified agent_workflows/specs.py: committed pre-begin (E-01/E-02 in 3eaf7c0); in-scope-unmodified tests/: test committed pre-begin (3eaf7c0)]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-204 fixed (specs-set status-coupling + setter-refuse consequence, reader-not-recognition, label-not-sort, OQ-01 resolved, V-01/V-02 evidence)
 

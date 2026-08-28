@@ -3410,6 +3410,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-27",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md",
+    "plan_id": "rp859c",
+    "set_id": "xprio",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3506,16 +3516,6 @@
     "order": 0,
     "path": "pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md",
     "plan_id": "u5vyye",
-    "set_id": "xprio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md",
-    "plan_id": "rp859c",
     "set_id": "xprio",
     "status": "approved"
   },
