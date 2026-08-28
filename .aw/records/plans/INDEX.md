@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 144 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 145 Sets; the full manifest is INDEX.json.
+
+## assessdocs
+
+- `pky603` [pending] 01 pending/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
 
 ## tabcomp
 
@@ -251,10 +255,6 @@ Showing the 40 most-recent of 144 Sets; the full manifest is INDEX.json.
 ## awhistignore
 
 - `pprchd` [not-executed] 01 not-executed/20260820-awhistignore-01-pprchd-untrack-aw-records-history-jsonl-accidental-local-sidecar-an.ipd.md
-
-## awinstallfix
-
-- `e41hhs` [executed] 01 executed/20260820-awinstallfix-01-e41hhs-atomic-install-wizard-no-writes-until-final-confirm-honest-a.ipd.md
 
 ## (singletons: no Set)
 

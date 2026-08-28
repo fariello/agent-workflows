@@ -6,14 +6,16 @@
 - Scope: (1) DIRTY-TREE GUARD: before running child-02's integration gate for a verified branch, assert the main tree has no un-owned dirty paths overlapping the incoming change; if it does, REFUSE (record `integration-blocked`, leave the verified branch + worktree preserved, continue independent items) rather than integrating over a dirty base. (2) CONFLICT HANDLING ON THE GATE RESULT: layer on child-02's `execute_merge_and_revalidate_gate` result - a non-passing `IntegrationGateResult` (conflict/stale-base/combined-red/scope) leaves main untouched (diff-based gate = no partial merge; abort any real merge left in the apply step), records `merge-conflict` with the failing paths + preserved branch, and marks the IPD not-integrated (NOT executed on main); never conflict markers or a partial merge. Do NOT fork a separate live-merge path. (3) SET COMPLETION HONESTY: a set is "finished" only when all children integrated cleanly; a child blocked on dirty/conflict leaves its orchestrator unfinalized (consistent with 801dd28's all-children-executed rule; no new code, just do not falsely stamp executed). This is the safety layer over 01+02; it does NOT auto-resolve conflicts (a human/serial ordering does). The optional cross-set warn/serialize is DEFERRED (no committed overlap data source; see Deferred).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/render_stream.py, tests/
 - Item-Dependencies: executed:emus4n
-- Status: reviewed
+- Status: approved
 - Set: driverfin
 - Order: 3
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 7kbtkw
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (re-expressed E-02 to consume child-02's `execute_merge_and_revalidate_gate` result instead of forking a live `git merge --abort` path, corrected the overstated committed cross-set-overlap-analysis claim, added `render_stream.py` to Scope-Paths for the two new `TERMINAL_STATES` colors, deferred the optional warn/serialize with a stated no-data-source reason, added agy parity coverage, completed execution contract). GO - PENDING HUMAN APPROVAL (gated on child-02 emus4n executed).
 - 2026-08-28 to-review (aw set): status set to to-review
 - 2026-08-28 reviewed (aw set): status set to reviewed

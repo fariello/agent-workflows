@@ -6,7 +6,7 @@
 - Scope: Make `aw oc/agy run` produce FINISHED sets and be safe to run in parallel, by (a) SELF-FINALIZING each verified child (driver runs `aw ipd begin` before the agent turn and `aw ipd finalize` after, with the two-way scope reconciliation) and (b) ISOLATING each IPD's execution in its own git worktree/branch (via `worktree_lease`), integrating the verified branch back to main, with a fail-closed guard so a run never contaminates the main tree or half-finishes. Three children: 01 self-finalize (the ctt412 core); 02 per-run worktree isolation + merge-back; 03 the fail-closed dirty-tree/integration guard + merge-back conflict handling. Orchestrator-execution is ALREADY fixed (commit 801dd28: the runner no longer agent-executes Kind: orchestrator IPDs and auto-finalizes them iff all children executed) - this set builds on that. EXPLICITLY OUT: the graceful-quit stop protocol (backlog kjzlgw) and the uninformative-blocked-output cosmetic fix are separate.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/ipd_lifecycle.py, tests/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - From-Backlog: ctt412
 - Blocks-Release: next
 - Set: driverfin
@@ -14,8 +14,10 @@
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: yt93ir
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (repaired invalid `reviewed`->`to-review` history transitions flagged by check.lifecycle-transition-invalid), PR-002 (clarified E-01/V-01 whole-set verification actor vs 801dd28 auto-finalize). GO - PENDING HUMAN APPROVAL.
 - 2026-08-28 reviewed (Antigravity): /plan-review passed with revisions; resolved Item-Dependencies to none, populated concrete V evidence, resolved OQs, and completed execution gate.
 - 2026-08-28 to-review (aw set): completed IPD offered for review.

@@ -6,14 +6,16 @@
 - Scope: Wrap the child-01 begin/execute/finalize pipeline in per-IPD worktree isolation: (1) before the agent turn, `allocate_worktree` a fresh worktree on a run/<id6> branch (via worktree_lease) and point the agent at it (`--dir <worktree>`); (2) begin/execute/verify/finalize all happen IN that worktree, so the main tree is untouched during the turn; (3) after finalize succeeds in the worktree, INTEGRATE the verified branch back to main (fast-forward if possible; else a controlled merge of only that IPD's commits); (4) `teardown_worktree` on success. Run-ledger + begin receipts remain anchored to the main repo's gitignored `.aw/` keyed by run-id (OQ from orchestrator) so finalize/state is findable regardless of worktree. This child delivers isolation + happy-path integration; the fail-closed guard + merge-CONFLICT handling is child 03. Reuse worktree_lease; do not fork worktree logic.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
 - Item-Dependencies: executed:p7peqf
-- Status: reviewed
+- Status: approved
 - Set: driverfin
 - Order: 2
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: emus4n
+- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (corrected worktree path `.aw/worktrees/<lane>` + branch `aw/lane/<id6>`, resolved the plan-move vs worker path-fence architecture via OQ-02, routed E-02 through the reused `execute_merge_and_revalidate_gate`, added agy parity coverage, completed execution contract). GO - PENDING HUMAN APPROVAL (gated on child-01 p7peqf executed).
 - 2026-08-28 to-review (aw set): status set to to-review
 - 2026-08-28 reviewed (aw set): status set to reviewed
