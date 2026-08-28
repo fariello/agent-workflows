@@ -406,6 +406,18 @@ _DESCRIPTIONS = {
         "portable authority is the 'aw check' rule + CI); commit-scoped (historical done items "
         "grandfathered). Exit 0 = ok/no-op, 1 = refused. Invoked by the repo:local pre-commit hook."
     ),
+    "ipd-dependency-statement-gate": (
+        "Local pre-commit gate (ipddeps mp88bl): refuse committing a staged IPD whose "
+        "'- Item-Dependencies' statement is malformed, dangling, ambiguous, or cyclic - the "
+        "bypass-catcher for a hand-edit that skips 'aw ipd dependencies set'. Inspects the staged "
+        "diff over a staged-overlay snapshot and delegates to the shared "
+        "'check_engine.evaluate_ipd_dependencies' evaluator (the same authority as 'aw check'/'aw ipd "
+        "lint'), keeping only findings on staged files so an unrelated commit is never blocked; a "
+        "plain draft carrying 'unresolved' stays committable (it blocks only when the staged plan is "
+        "advancing to a blocking phase). LOCAL best-effort, OPT-IN only (--no-verify bypasses it; the "
+        "portable authority is the 'aw check' rule + CI); commit-scoped. Exit 0 = ok/no-op, 1 = "
+        "refused. Invoked by the repo:local pre-commit hook."
+    ),
 }
 
 
@@ -2927,6 +2939,15 @@ EXAMPLES
         parents=[common],
         help="Local pre-commit gate: refuse a release-blocking backlog item closed to done without a "
         "handoff/evidence/de-gate (OPT-IN, LOCAL prevention, no CI; the aw check rule is the backstop).",
+    )
+
+    # ipddeps mp88bl: OPT-IN local pre-commit gate refusing a staged IPD with an invalid/cyclic
+    # cross-IPD Item-Dependencies statement. Delegates to the child-02 shared evaluator.
+    sub.add_parser(
+        "ipd-dependency-statement-gate",
+        parents=[common],
+        help="Local pre-commit gate: refuse a staged IPD with a malformed/dangling/ambiguous/cyclic "
+        "Item-Dependencies statement (OPT-IN, LOCAL prevention, no CI; the aw check rule is the backstop).",
     )
 
     _apply_descriptions(parser)
@@ -7709,6 +7730,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows.hooks import backlog_blocking_close_gate as _bgate
 
         return _bgate.main([])
+
+    if args.command == "ipd-dependency-statement-gate":
+        from agent_workflows.hooks import ipd_dependency_statement_gate as _dgate
+
+        return _dgate.main([])
 
     parser.print_help()
     return 2

@@ -1091,6 +1091,7 @@ def evaluate_ipd_dependencies(
     *,
     phase: str = "check",
     plans: Optional[List[Tuple[Path, str]]] = None,
+    overlay: Optional[Dict[str, str]] = None,
 ) -> List[_core.Drift]:
     """The shared cross-IPD dependency evaluator. Returns Drift findings (deterministic order).
 
@@ -1099,6 +1100,12 @@ def evaluate_ipd_dependencies(
     dangling/ambiguous/cycle errors. When `plans` is given (a single-plan lint), only those plan(s)
     are evaluated for per-statement findings, but the cycle graph is still built from the whole repo
     so an inter-plan cycle involving the target is caught.
+
+    `overlay` (path_str -> text) is the STAGED-OVERLAY entry point (ipddeps mp88bl): the commit-scoped
+    pre-commit hook passes the staged blob content of each staged `.ipd.md`, which OVERRIDES the
+    on-disk text for BOTH the whole-repo cycle graph and the per-statement checks, so a staged edge
+    that introduces/participates in a cycle is caught. Paths in `overlay` not already on disk are
+    added to the graph (a newly-staged plan). Pure w.r.t. the overlay; no disk writes.
     """
     repo_root = Path(repo_root)
     from agent_workflows import config as _config
@@ -1106,8 +1113,16 @@ def evaluate_ipd_dependencies(
     cutover_date = _config.dependency_cutover_date(repo_root)
     index = build_dependency_index(repo_root)
 
-    # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph).
-    all_plans: List[Tuple[Path, str]] = list(_iter_plan_ipds(repo_root))
+    # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
+    # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
+    overlay = dict(overlay or {})
+    disk_plans: List[Tuple[Path, str]] = list(_iter_plan_ipds(repo_root))
+    merged: Dict[str, str] = {str(p): text for p, text in disk_plans}
+    for ov_ps, ov_text in overlay.items():
+        merged[ov_ps] = ov_text
+    all_plans: List[Tuple[Path, str]] = [
+        (Path(ps), text) for ps, text in merged.items()
+    ]
     own_id: Dict[str, str] = {}  # path_str -> declared id6
     dep_value: Dict[
         str, Optional[str]

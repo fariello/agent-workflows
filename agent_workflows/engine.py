@@ -823,15 +823,10 @@ def shim_body(
         else:
             claude_arg_hint = 'argument-hint: "[optional target path or flags]"\n'
         frontmatter = (
-            "---\n"
-            f"description: {workflow.description}\n"
-            f"{claude_arg_hint}"
-            "---\n"
+            f"---\ndescription: {workflow.description}\n{claude_arg_hint}---\n"
         )
     else:  # opencode
-        frontmatter = (
-            "---\n" f"description: {workflow.description}\n" "agent: build\n" "---\n"
-        )
+        frontmatter = f"---\ndescription: {workflow.description}\nagent: build\n---\n"
 
     if hint == "none":
         arguments_line = ""
@@ -887,7 +882,7 @@ def aw_dispatcher_shim(
             "---\n"
         )
     else:  # opencode
-        frontmatter = "---\n" f"description: {description}\n" "agent: build\n" "---\n"
+        frontmatter = f"---\ndescription: {description}\nagent: build\n---\n"
 
     return (
         f"{frontmatter}\n"
@@ -3368,7 +3363,7 @@ def prompt_and_run_commit(
                 quoted_paths.append(p)
         print()
         print("To commit these changes manually, run:")
-        print(f"  git commit -m \"sync agent-workflows\" -- {' '.join(quoted_paths)}")
+        print(f'  git commit -m "sync agent-workflows" -- {" ".join(quoted_paths)}')
 
 
 def format_output_item(item: str, term: Term) -> str:
@@ -4562,6 +4557,105 @@ def create_backlog_close_gate_hook(
         git_add_optional(repo_root, PRE_COMMIT_CONFIG)
     notes.append(
         f"appended the {_BACKLOG_CLOSE_GATE_HOOK_ID} hook block to {PRE_COMMIT_CONFIG}"
+    )
+    return {"created": created, "skipped": skipped, "notes": notes}
+
+
+# ipddeps mp88bl: the OPT-IN ipd-dependency-statement pre-commit hook block. NOT installed by the
+# default setup path; wired only on an explicit opt-in via create_dependency_gate_hook. It refuses
+# committing a staged IPD whose `- Item-Dependencies` is malformed/dangling/ambiguous/cyclic,
+# delegating to the shared check_engine.evaluate_ipd_dependencies evaluator (same authority as `aw
+# check`/`aw ipd lint`). Standalone-config variant (written when the repo has no pre-commit config).
+_DEPENDENCY_GATE_HOOK_ID = "ipd-dependency-statement-gate"
+_DEPENDENCY_GATE_PRECOMMIT_TEMPLATE = """\
+# Pre-commit hooks (created by agent-workflows). If you already use pre-commit, MERGE the
+# hook below into your existing .pre-commit-config.yaml instead of this file.
+repos:
+  # OPT-IN local guard (ipddeps mp88bl): refuse committing a staged IPD whose `- Item-Dependencies`
+  # statement is malformed/dangling/ambiguous/cyclic. Delegates to the shared cross-IPD dependency
+  # evaluator. LOCAL best-effort only (--no-verify bypasses it); the portable authority is the
+  # `aw check` rule + CI.
+  - repo: local
+    hooks:
+      - id: ipd-dependency-statement-gate
+        name: no staged IPD with an invalid/cyclic Item-Dependencies (use aw ipd dependencies set)
+        entry: python3 -m agent_workflows ipd-dependency-statement-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+
+# The hook block to hand a user (or append) when a .pre-commit-config.yaml already exists.
+_DEPENDENCY_GATE_PRECOMMIT_BLOCK = """\
+  - repo: local
+    hooks:
+      - id: ipd-dependency-statement-gate
+        name: no staged IPD with an invalid/cyclic Item-Dependencies (use aw ipd dependencies set)
+        entry: python3 -m agent_workflows ipd-dependency-statement-gate
+        language: system
+        pass_filenames: false
+        always_run: true
+"""
+
+
+def create_dependency_gate_hook(
+    repo_root: Path,
+    use_git: bool,
+    *,
+    install: bool,
+    dry_run: bool = False,
+) -> dict[str, list[str]]:
+    """OPTIONALLY (opt-in) wire the ipd-dependency-statement pre-commit hook into a TARGET repo
+    (ipddeps mp88bl E-02).
+
+    NOT called by the default setup path: the hook is installed ONLY on an explicit ``install=True``
+    request, mirroring ``create_backlog_close_gate_hook``. Idempotent (re-running does not duplicate
+    the hook), no-clobber (never edits a user's existing config beyond appending our own block when
+    absent), dry-run aware, and opt-out honored (``install=False`` writes nothing). Returns
+    ``{"created": [...], "skipped": [...], "notes": [...]}``.
+    """
+    created: list[str] = []
+    skipped: list[str] = []
+    notes: list[str] = []
+
+    if not install:
+        return {"created": created, "skipped": skipped, "notes": notes}
+
+    pc_path = repo_root / PRE_COMMIT_CONFIG
+    if not pc_path.exists():
+        if dry_run:
+            notes.append(
+                f"would create {PRE_COMMIT_CONFIG} with the {_DEPENDENCY_GATE_HOOK_ID} hook"
+            )
+        else:
+            _create_if_absent(
+                repo_root,
+                PRE_COMMIT_CONFIG,
+                _DEPENDENCY_GATE_PRECOMMIT_TEMPLATE,
+                use_git,
+                created,
+            )
+        return {"created": created, "skipped": skipped, "notes": notes}
+
+    # A config exists: append our block if the hook is not already wired (idempotent), never edit
+    # the rest of the user's config.
+    existing = pc_path.read_text(encoding="utf-8")
+    if _DEPENDENCY_GATE_HOOK_ID in existing:
+        skipped.append(
+            f"{PRE_COMMIT_CONFIG} [{_DEPENDENCY_GATE_HOOK_ID} already wired]"
+        )
+        return {"created": created, "skipped": skipped, "notes": notes}
+    if dry_run:
+        notes.append(
+            f"would append the {_DEPENDENCY_GATE_HOOK_ID} hook block to {PRE_COMMIT_CONFIG}"
+        )
+        return {"created": created, "skipped": skipped, "notes": notes}
+    updated = existing.rstrip("\n") + "\n" + _DEPENDENCY_GATE_PRECOMMIT_BLOCK
+    pc_path.write_text(updated, encoding="utf-8")
+    if use_git:
+        git_add_optional(repo_root, PRE_COMMIT_CONFIG)
+    notes.append(
+        f"appended the {_DEPENDENCY_GATE_HOOK_ID} hook block to {PRE_COMMIT_CONFIG}"
     )
     return {"created": created, "skipped": skipped, "notes": notes}
 
