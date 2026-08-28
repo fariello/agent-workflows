@@ -2688,6 +2688,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Gate-Ref (required iff --status blocked).",
     )
+    p_backlog_new.add_argument(
+        "--blocks-release",
+        dest="blocks_release",
+        default=None,
+        help="Declare this item gates a release: a release id6, 'next', or '-' to omit.",
+    )
+    p_backlog_new.add_argument(
+        "--message",
+        default="",
+        help="Custom note for the workflow history creation entry (default: summary).",
+    )
     p_backlog_new.add_argument("--body", default=None, help="Optional prose body.")
     p_backlog_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."

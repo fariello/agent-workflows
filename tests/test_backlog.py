@@ -217,6 +217,179 @@ class BacklogVerbTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("gate-unexpected", out.getvalue())
 
+    def test_new_blocks_release_valid_and_appears_in_release_blockers(self):
+        from agent_workflows import releases
+
+        releases.create_release(self.repo, "2.0.0", "Release 2.0.0")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = B.run_new(
+                _args(
+                    dir=str(self.repo),
+                    summary="Gate release",
+                    set="relgate",
+                    priority="high",
+                    kind="feature",
+                    slug="gate-rel",
+                    blocks_release="next",
+                    message="custom creation note",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc, 0)
+        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
+        self.assertEqual(len(items), 1)
+        text = items[0].read_text(encoding="utf-8")
+        parsed = B.parse_item(text)
+        self.assertEqual(parsed.blocks_release, "next")
+        self.assertIn("- Blocks-Release: next", text)
+        self.assertIn("created (aw backlog): custom creation note", text)
+        self.assertEqual(releases.check_blocks_release(self.repo), [])
+        items_att, drift = ATT.scan(self.repo)
+        self.assertEqual(len(items_att), 1)
+        self.assertEqual(items_att[0].blocks_release, "next")
+        blockers = ATT.release_blockers(items_att, self.repo)
+        self.assertEqual(len(blockers), 1)
+        self.assertEqual(blockers[0].path, items_att[0].path)
+
+    def test_new_blocks_release_unresolvable_fails_closed(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = B.run_new(
+                _args(
+                    dir=str(self.repo),
+                    summary="Invalid gate",
+                    set="badgate",
+                    priority="high",
+                    kind="feature",
+                    slug="bad-gate",
+                    blocks_release="next",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc, 2)
+        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
+        self.assertEqual(len(items), 0)
+
+    def test_new_blocks_release_dash_omits_field(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc = B.run_new(
+                _args(
+                    dir=str(self.repo),
+                    summary="No gate",
+                    set="nogate",
+                    priority="low",
+                    kind="chore",
+                    slug="no-gate",
+                    blocks_release="-",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc, 0)
+        items = list((self.repo / ".agents/backlog/open").glob("*.md"))
+        self.assertEqual(len(items), 1)
+        text = items[0].read_text(encoding="utf-8")
+        parsed = B.parse_item(text)
+        self.assertIsNone(parsed.blocks_release)
+        self.assertNotIn("Blocks-Release", text)
+
+    def test_new_custom_message_and_default_message(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            rc1 = B.run_new(
+                _args(
+                    dir=str(self.repo),
+                    summary="Default msg",
+                    set="s1",
+                    priority="medium",
+                    kind="chore",
+                    slug="s1",
+                    message="",
+                    apply=True,
+                )
+            )
+            rc2 = B.run_new(
+                _args(
+                    dir=str(self.repo),
+                    summary="Custom summary",
+                    set="s2",
+                    priority="medium",
+                    kind="chore",
+                    slug="s2",
+                    message="explicit note",
+                    apply=True,
+                )
+            )
+        self.assertEqual(rc1, 0)
+        self.assertEqual(rc2, 0)
+        items = sorted((self.repo / ".agents/backlog/open").glob("*.md"))
+        self.assertEqual(len(items), 2)
+        t1 = items[0].read_text(encoding="utf-8")
+        t2 = items[1].read_text(encoding="utf-8")
+        self.assertIn("created (aw backlog): Default msg", t1)
+        self.assertIn("created (aw backlog): explicit note", t2)
+
+    def test_one_call_vs_two_call_parity(self):
+        from agent_workflows import releases
+
+        # Repo 1: One-call creation
+        tmp1 = tempfile.TemporaryDirectory()
+        r1 = Path(tmp1.name)
+        releases.create_release(r1, "2.0.0", "Release 2.0.0")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            B.run_new(
+                _args(
+                    dir=str(r1),
+                    summary="Parity check",
+                    set="parity",
+                    priority="high",
+                    kind="feature",
+                    slug="parity-check",
+                    blocks_release="next",
+                    message="parity note",
+                    apply=True,
+                )
+            )
+        item1_file = next((r1 / ".agents/backlog/open").glob("*.md"))
+        p1 = B.parse_item(item1_file.read_text(encoding="utf-8"))
+
+        # Repo 2: Two-call creation (new then set)
+        tmp2 = tempfile.TemporaryDirectory()
+        r2 = Path(tmp2.name)
+        releases.create_release(r2, "2.0.0", "Release 2.0.0")
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            B.run_new(
+                _args(
+                    dir=str(r2),
+                    summary="Parity check",
+                    set="parity",
+                    priority="high",
+                    kind="feature",
+                    slug="parity-check",
+                    apply=True,
+                )
+            )
+            item2_file = next((r2 / ".agents/backlog/open").glob("*.md"))
+            B.run_set(
+                _args(
+                    dir=str(r2),
+                    path=str(item2_file),
+                    status="open",
+                    blocks_release="next",
+                    message="parity note",
+                    apply=True,
+                )
+            )
+        p2 = B.parse_item(item2_file.read_text(encoding="utf-8"))
+
+        self.assertEqual(p1.status, p2.status)
+        self.assertEqual(p1.set, p2.set)
+        self.assertEqual(p1.priority, p2.priority)
+        self.assertEqual(p1.kind, p2.kind)
+        self.assertEqual(p1.summary, p2.summary)
+        self.assertEqual(p1.blocks_release, p2.blocks_release)
+        self.assertEqual(p1.blocks_release, "next")
+
+        tmp1.cleanup()
+        tmp2.cleanup()
+
 
 class BacklogAttentionTests(unittest.TestCase):
     """(b) attention inclusion + hot-glance/JSON split + gate render; (d) _record_for mutation probe."""

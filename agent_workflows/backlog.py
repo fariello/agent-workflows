@@ -277,7 +277,7 @@ def _resolve_backlog_root(repo_root: Path) -> Path:
     return repo_root / ".agents" / "backlog"
 
 
-def _render_item(item: BacklogItem, body: str) -> str:
+def _render_item(item: BacklogItem, body: str, message: Optional[str] = None) -> str:
     lines = [
         f"- Id: {item.id}",
         f"- Status: {item.status}",
@@ -290,9 +290,10 @@ def _render_item(item: BacklogItem, body: str) -> str:
         lines.append(f"- Gate-Kind: {item.gate_kind}")
         lines.append(f"- Gate-Ref: {item.gate_ref}")
     today = datetime.date.today().isoformat()
+    msg = (message or "").strip() or item.summary
     lines.append("")
     lines.append("## Workflow history")
-    lines.append(f"- {today} created (aw backlog): {item.summary}")
+    lines.append(f"- {today} created (aw backlog): {msg}")
     lines.append("")
     lines.append(body.rstrip() + "\n" if body.strip() else "")
     return "\n".join(lines).rstrip() + "\n"
@@ -339,6 +340,19 @@ def run_new(args) -> int:
         )
         return 2
 
+    br = getattr(args, "blocks_release", None)
+    if br is not None and br != "-":
+        from agent_workflows import releases as _releases
+
+        if _releases.resolve_release(repo_root, br) is None:
+            sys.stderr.write(
+                f"aw backlog new: --blocks-release {br!r} does not resolve to a release record\n"
+            )
+            return 2
+        item.blocks_release = br
+
+    message = getattr(args, "message", None)
+
     today = datetime.date.today().strftime("%Y%m%d")
     slug = (
         core.kebab(getattr(args, "slug", None) or item.summary or "item")[:50] or "item"
@@ -346,7 +360,11 @@ def run_new(args) -> int:
     filename = f"{today}-{item.set}-01-{item.id}-{slug}.backlog.md"
     dest = _resolve_backlog_root(repo_root) / status / filename
     body = getattr(args, "body", None) or ""
-    rendered = _render_item(item, body)
+    rendered = _render_item(item, body, message=message)
+    if br is not None:
+        from agent_workflows import releases as _releases
+
+        rendered = _releases.set_blocks_release_line(rendered, br)
 
     from agent_workflows.renderers import get_renderer
     from agent_workflows.result_types import (
@@ -374,6 +392,21 @@ def run_new(args) -> int:
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     core.atomic_write(dest, rendered)
+
+    if item.id:
+        try:
+            from agent_workflows import record_history as _rh
+
+            _rh.append(
+                repo_root,
+                id6=item.id,
+                tree="backlog",
+                workflow="aw backlog",
+                actor="aw backlog",
+                message=((message or "").strip() or item.summary).strip(),
+            )
+        except Exception:
+            pass
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(

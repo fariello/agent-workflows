@@ -1012,6 +1012,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--slug",
             "--gate-kind",
             "--gate-ref",
+            "--blocks-release",
+            "--message",
             "--body",
             "--apply",
         ),
