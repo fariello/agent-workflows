@@ -4300,6 +4300,19 @@ def _status_badge_256(status: str, term: Term) -> str:
     return "[" + term.color256(status, 244, bold=True) + "]"
 
 
+def _release_label_for(repo: Path) -> str | None:
+    """Return a short 'version (id6)' label for the single planned release, or None.
+    Lets `aw status` name what a release-blocker count is gating instead of an
+    anonymous number."""
+    try:
+        from agent_workflows import releases as _releases
+
+        rel = _releases.describe_planned_release(repo)
+    except Exception:
+        return None
+    return f"{rel[1]} ({rel[0]})" if rel else None
+
+
 def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
     installed = engine.read_installed_version(repo)
     is_source = False
@@ -4450,6 +4463,8 @@ def _collect_repo_status_details(repo: Path, packaged: str) -> dict:
             "total": attn_total,
             "by_class": attn_by_class,
             "release_blockers": attn_blockers,
+            # Name the planned release (version) so a blocker count is attributable, not anonymous.
+            "release_label": _release_label_for(repo),
         },
         "git": git_info,
     }
@@ -4602,8 +4617,10 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
                     )
                     attn_line = f"{attn['total']} items ({cls_str})"
                     if attn["release_blockers"]:
+                        _rlabel = attn.get("release_label")
+                        _for = f" for {_rlabel}" if _rlabel else ""
                         attn_line += " - " + term.color256(
-                            f"{attn['release_blockers']} release blocker(s)",
+                            f"{attn['release_blockers']} release blocker(s){_for}",
                             208,
                             bold=True,
                         )

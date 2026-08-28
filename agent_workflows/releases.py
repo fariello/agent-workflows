@@ -7,7 +7,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
 
@@ -129,6 +129,25 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
             if m and m.group(1) == value:
                 return p
     return None
+
+
+def describe_planned_release(repo_root: Path) -> Optional[Tuple[str, str]]:
+    """Return (id6, version) of THE single planned release, or None if there is not
+    exactly one. Used to name the release in surfacing UI (attention/status) so the
+    thing that `Blocks-Release: next` gates is visible, not just a blocker count."""
+    p = resolve_release(repo_root, "next")
+    if p is None:
+        return None
+    try:
+        text = p.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    mid = _ID_RE.search(text)
+    mver = _VERSION_RE.search(text)
+    return (
+        mid.group(1) if mid else "?",
+        mver.group(1) if mver else "?",
+    )
 
 
 _PRIORITY_LINE_RE = re.compile(r"(?m)^- Priority:[ \t]*[^\n]*$\n?")

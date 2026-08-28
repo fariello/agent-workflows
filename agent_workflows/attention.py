@@ -932,7 +932,16 @@ def run(args) -> int:
         )
         blockers = release_blockers(items, repo_root)
         if blockers:
-            board += f"\n## release-blockers ({len(blockers)})\n"
+            # Name the release the blockers gate (id6 + version), not just a count, so the
+            # planned release is visible during ordinary tool use - not only a hidden record.
+            try:
+                from agent_workflows import releases as _releases
+
+                _rel = _releases.describe_planned_release(repo_root)
+            except Exception:
+                _rel = None
+            _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
+            board += f"\n## release-blockers{_rel_label} ({len(blockers)})\n"
             for it in blockers:
                 board += f"- {it.path} ({it.native_status})\n"
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the

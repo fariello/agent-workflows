@@ -61,6 +61,20 @@ class ReleasesClassTests(unittest.TestCase):
         p = releases.create_release(self.root, "2.0.0", "x")
         self.assertEqual(releases.resolve_release(self.root, "next"), p)
 
+    def test_describe_planned_release(self) -> None:
+        # None when no planned release; (id6, version) when exactly one.
+        self.assertIsNone(releases.describe_planned_release(self.root))
+        p = releases.create_release(self.root, "2.0.0", "x")
+        desc = releases.describe_planned_release(self.root)
+        self.assertIsNotNone(desc)
+        id6, version = desc
+        self.assertEqual(version, "2.0.0")
+        # id6 is the release record's own Id
+        import re as _re
+
+        m = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", p.read_text(encoding="utf-8"))
+        self.assertEqual(id6, m.group(1))
+
     def test_attention_release_reader(self) -> None:
         # Unit-level: the attention release reader maps a planned release to the `ready` class.
         from agent_workflows import attention
