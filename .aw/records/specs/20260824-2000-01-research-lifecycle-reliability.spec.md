@@ -1,7 +1,7 @@
 # Spec: research lifecycle reliability (make research state, outcome, and provenance tool-owned and verifiable)
 
 - Date: 2026-08-24
-- Status: reviewed
+- Status: approved
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 5tapom
 - Blocks-Release: next
@@ -152,5 +152,6 @@ must I still run?" is answerable without reading the corpus and without trusting
   (Section 5, AC 5) so it cannot be silently dropped, closing the review finding SR-001.
 
 ## Workflow history
+- 2026-08-28 approved (aw set, --by-human): status set to approved
 
 - 2026-08-27 note (aw specs): Cross-ref: backlog sr47pt renames research status 'intake' -> 'todo' (intuitive 'you still need to do this'). The rename should RIDE WITH this spec's tool-owned state-advancement so 'todo' means genuinely-not-started (not the current overload where finished-but-unadvanced docs also read 'intake'). Same reliability gap this spec (H2) targets.
