@@ -5,15 +5,15 @@
 - Concern: Findings bu9yij Phase 2 + section 4.3/7.4: reliable adherence requires replacing a sequence of remembered duties with a smaller number of atomic actions that make the compliant path the EASY path and produce evidence at the action boundary. Today the workflow is a chain of separate remembered steps (start work, run tests, commit path-scoped, finalize), each an independent failure opportunity. There is no `aw work`/`aw test`/`aw commit`/`aw finish` wrapper that validates-then-acts and captures evidence.
 - Scope: Add atomic workflow primitives (findings 7.4), each validating before mutating and calling the phase-1 `aw check` engine: (1) `aw work begin <ipd>` - validate the plan and create/associate an isolated worktree; (2) `aw test <ipd> -- <cmd>` - execute the test, capture stdout/stderr + exit + env metadata, bind evidence to the tree/commit; (3) `aw commit <ipd> -- <paths>` - compute allowed paths, refuse out-of-scope staged changes, run the checker, commit ONLY declared scope (REUSE the selfcommit `git_commit_helper` - no forked commit path); (4) `aw finish <ipd>` - check required evidence and perform valid non-authoritative transitions. Raw actions either blocked (where interception is reliable) or caught by a later deterministic failure; the wrapper must be the faster path. This child builds the primitives + their evidence capture; it does NOT build event-derived state (phase 3), hooks (phase 4), or CI (phase 5). Honest limit: local evidence is forgeable by a privileged local agent (findings 6.6); CI reproduction (phase 5) is the High-confidence boundary.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/work_cmd.py, agent_workflows/git_commit_helper.py, agent_workflows/worktree_lease.py, agent_workflows/ipd_lifecycle.py, tests/
-- Status: approved
+- Status: executed
 - Set: agentadhere
 - Order: 3
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 8dto0g
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Added atomic aw work begin/test/commit/finish primitives (validate-then-act via the phase-1 engine, evidence at the action boundary, reusing worktree_lease/git_commit_helper/status_set; no forked paths). Full suite 2486 passed 1 skipped; aw check all unchanged at 68 baseline; aw sanitize clean. [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: committed-in-005a890; in-scope-unmodified agent_workflows/git_commit_helper.py: reused-read-only-not-modified; in-scope-unmodified agent_workflows/ipd_lifecycle.py: reused-read-only-not-modified; in-scope-unmodified agent_workflows/work_cmd.py: committed-in-005a890; in-scope-unmodified agent_workflows/worktree_lease.py: reused-read-only-not-modified; in-scope-unmodified tests/: committed-in-005a890]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 approved (aw set): status set to approved
 
