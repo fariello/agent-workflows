@@ -8,7 +8,7 @@ Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
 
 - `r7xku3` [pending] 00 pending/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md
 - `g69y23` [executed] 01 executed/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md
-- `ovbnyq` [pending] 02 pending/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
+- `ovbnyq` [executed] 02 executed/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
 - `mp88bl` [pending] 03 pending/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md
 
 ## rstodo
