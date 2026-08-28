@@ -3560,6 +3560,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md",
+    "plan_id": "jolfpj",
+    "set_id": "tabcomp",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

@@ -3,7 +3,7 @@
 - Date: 2026-08-28
 - Kind: orchestrator
 - Concern: The `aw` CLI (and its console aliases `agentwf` and `agent-workflows`) provides dozens of subcommands, flags, and arguments, but offers no shell tab-completion. Developers must manually look up or re-type complex command paths, 6-character artifact handles (`id6`), Set IDs, run IDs, and status enums.
-- Scope: Deliver clean, production-grade tab-completion for `aw` across Bash, Zsh, and Fish with zero external runtime dependencies: (1) Child 01 (`bja8og`): Core completion generation engine for Bash/Zsh/Fish, dynamic contextual query resolver (`aw __complete`), and soft-imported `argcomplete` hook; (2) Child 02 (`4f1j25`): Installer and wizard integration (`aw completion install/uninstall` targeting standard user auto-discovery directories, interactive wizard prompt, `aw install --completion` flag, and post-install discovery tips).
+- Scope: Deliver clean, production-grade tab-completion for `aw` across Bash, Zsh, and Fish with zero external runtime dependencies: (1) Child 01 (`bja8og`): Core completion generation engine for Bash/Zsh/Fish and `aw completion <shell>` CLI command; (2) Child 02 (`4f1j25`): Dynamic contextual artifact query resolver (`aw __complete`) and soft-imported `argcomplete` hook; (3) Child 03 (`jolfpj`): Drop-in auto-discovery file installation (`aw completion install/uninstall`), alias symlinks, interactive install wizard prompt, `aw install --completion` flag, and documentation.
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, agent_workflows/install_wizard.py, tests/test_completion.py, tests/test_install_wizard.py, README.md
 - Item-Dependencies: none
 - Status: to-review
@@ -15,7 +15,7 @@
 
 ## Workflow history
 
-- 2026-08-28 to-review (Antigravity): authored orchestrator plan defining set-level goals, child sequence, and completion criteria.
+- 2026-08-28 to-review (Antigravity): refined orchestrator plan into 3 atomic, right-sized child plans with explicit verification boundaries.
 - 2026-08-28 draft (Antigravity): scaffolded skeleton.
 
 ## Goal
@@ -26,11 +26,11 @@ Provide seamless, high-performance tab-completion for `aw` across Bash, Zsh, and
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-This orchestrator authors no direct feature code; children 01 and 02 carry the deliverables. Its only execution step is whole-Set verification.
+This orchestrator authors no direct feature code; children 01, 02, and 03 carry the deliverables. Its only execution step is whole-Set verification.
 
 ### Task group 1: Whole-Set Verification
 
-- [ ] E-01 After children 01 and 02 execute, run end-to-end set verification covering shell completion script generation, dynamic artifact completion queries, drop-in installer operations, and full test suite validation.
+- [ ] E-01 After children 01, 02, and 03 execute, run end-to-end set verification covering shell completion script generation, dynamic artifact completion queries, drop-in installer operations, and full test suite validation.
   - Depends on: none
   - Expected outcome: End-to-end tab completion functions cleanly across all supported shells with full test suite passing.
   - Execution state: pending
@@ -41,13 +41,14 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | Order | File (id6) | What it does | Depends on |
 | :--- | :--- | :--- | :--- |
-| 01 | `bja8og` | Native completion generators (Bash, Zsh, Fish), dynamic query engine (`aw __complete`), and `argcomplete` soft-import | none |
-| 02 | `4f1j25` | Installer and wizard integration (`aw completion install/uninstall` with drop-in auto-discovery directories, wizard prompt, `aw install --completion` flag) | `executed:bja8og` |
+| 01 | `bja8og` | Native completion generators (Bash, Zsh, Fish) and `aw completion <shell>` CLI output | none |
+| 02 | `4f1j25` | Dynamic contextual artifact query resolver (`aw __complete`) and `argcomplete` soft-import | `executed:bja8og` |
+| 03 | `jolfpj` | Drop-in auto-discovery installer (`aw completion install/uninstall`), alias symlinks, wizard prompt, `aw install --completion` flag, and documentation | `executed:4f1j25` |
 
 ## Completion criteria (the whole Set is done only when)
 
-- `aw completion bash`, `aw completion zsh`, and `aw completion fish` output clean, syntax-valid completion scripts.
-- Dynamic completion returns matching repository artifacts (Set IDs, plan IDs, spec IDs, backlog IDs, run IDs, and status tokens) contextually.
+- `aw completion bash`, `aw completion zsh`, and `aw completion fish` output clean, syntax-valid completion scripts binding `aw`, `agentwf`, and `agent-workflows`.
+- `aw __complete` dynamically returns matching repository artifacts (Set IDs, plan IDs, spec IDs, backlog IDs, run IDs, and status tokens) contextually in <50ms.
 - `aw completion install` places completion files in standard user auto-discovery directories (`~/.local/share/bash-completion/completions/aw`, `~/.local/share/zsh/site-functions/_aw`, `~/.config/fish/completions/aw.fish`) with alias symlinks, leaving user RC files untouched.
 - Interactive install wizard and `aw install --completion` support 1-step completion setup.
 - Soft-import of `argcomplete` works automatically when installed, with zero required runtime dependencies when absent.
@@ -55,8 +56,8 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Cross-IPD validation
 
-- Single source of truth: Dynamic completers in Child 01 reuse `agent_workflows.selectors` and `agent_workflows.artifact_core`.
-- Clean separation: Child 01 delivers the generation and query engine; Child 02 delivers the file system / installer integration.
+- Single source of truth: Dynamic completers in Child 02 reuse `agent_workflows.selectors` and `agent_workflows.artifact_core`.
+- Clean separation: Child 01 delivers static generators; Child 02 delivers runtime dynamic query resolution; Child 03 delivers filesystem and installer integration.
 
 ## Cross-set dependencies
 
@@ -70,7 +71,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none (covers generation, dynamic artifact lookup, ecosystem hooks, drop-in installation, wizard integration, and complete test suites).
+- Under-scope: none (covers generation, dynamic artifact lookup, ecosystem hooks, drop-in installation, wizard integration, and complete test suites across 3 atomic children).
 
 ## Required tests / validation
 
@@ -96,7 +97,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: After children 01 and 02 execute, paste: (a) test output from `pytest tests/test_completion.py tests/test_install_wizard.py -v` showing all tests passing; (b) output of `aw completion bash` showing valid completion functions for `aw`, `agentwf`, `agent-workflows`; (c) output of `aw completion install --dry-run` showing drop-in target paths; (d) full test suite runner output showing green.
+  - Required evidence: After children 01, 02, and 03 execute, paste: (a) test output from `pytest tests/test_completion.py tests/test_install_wizard.py -v` showing all tests passing; (b) output of `aw completion bash` showing valid completion functions for `aw`, `agentwf`, `agent-workflows`; (c) output of `aw completion install --dry-run` showing drop-in target paths; (d) full test suite runner output showing green.
   - Observed evidence:
   - Result: pending
 
