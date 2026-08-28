@@ -30,34 +30,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Forward-conforming spec producer
 
-- [ ] E-01 Add a spec producer `aw specs new` (and/or `scaffold`) in specs.py + cli.py + command_surface.py that mints a fresh id6 via `artifact_core.generate_id6` (collision-checked against the existing spec id6 set), writes a conformant spec skeleton with the id6 in the `- Id:` metadata, and derives the filename via `artifact_naming.build_clustered_name(date, set_id=<id6>, order=1, id6=<id6>, slug=<slug>, artifact_type="spec")` (standalone spec: setid == its own id6, NN=01). Dry-run/preview by default; `--apply` writes. No other spec verb changes behavior.
+- [x] E-01 Add a spec producer `aw specs new` (and/or `scaffold`) in specs.py + cli.py + command_surface.py that mints a fresh id6 via `artifact_core.generate_id6` (collision-checked against the existing spec id6 set), writes a conformant spec skeleton with the id6 in the `- Id:` metadata, and derives the filename via `artifact_naming.build_clustered_name(date, set_id=<id6>, order=1, id6=<id6>, slug=<slug>, artifact_type="spec")` (standalone spec: setid == its own id6, NN=01). Dry-run/preview by default; `--apply` writes. No other spec verb changes behavior.
   - Depends on: none
   - Expected outcome: `aw specs new --title ... --slug ...` previews then (with --apply) writes `.aw/records/specs/YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` carrying `- Id: <id6>`, lints/`aw specs check` clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Grandfathering checker cutover
 
-- [ ] E-02 Add a per-type strictness option to the shared predicate `normalize_plan_names.is_conformant(filename, expected_type, require_id6=False)` (default preserves current behavior for every type; when `require_id6=True` the legacy `_NEW_RE` HHMM form is NOT accepted, only the clustered id6 form). Do NOT drop `_NEW_RE`; other types and pre-cutover artifacts still rely on it.
+- [x] E-02 Add a per-type strictness option to the shared predicate `normalize_plan_names.is_conformant(filename, expected_type, require_id6=False)` (default preserves current behavior for every type; when `require_id6=True` the legacy `_NEW_RE` HHMM form is NOT accepted, only the clustered id6 form). Do NOT drop `_NEW_RE`; other types and pre-cutover artifacts still rely on it.
   - Depends on: none
   - Expected outcome: unit tests show `is_conformant(legacy_spec, "spec")` is True (default) and `is_conformant(legacy_spec, "spec", require_id6=True)` is False, while the clustered form is True in both.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Enable spec name-checking with a grandfather cutover: add `"names"` to `check_engine.SUPPORTED["specs"]`, and make `check_names` pass `require_id6=True` ONLY for specs whose filename date is at/after a single configured spec-id6 cutover date; pre-cutover specs stay conformant (advisory `grandfathered` at most, never mass-fail). NOTE (verified at author time): `check_engine.py` has NO existing cutover-date mechanism to reuse (a repo-wide search for a name-conformance cutover found none; the only `cutover` usages are unrelated command-name removals). Therefore the DEFAULT and expected implementation is a single configured cutover date compared against the spec's filename date; record that constant (and its value) as a DECISION in this plan when chosen (see OQ-01). Do NOT block execution hunting for a pre-existing cutover-policy object that does not exist.
+- [x] E-03 Enable spec name-checking with a grandfather cutover: add `"names"` to `check_engine.SUPPORTED["specs"]`, and make `check_names` pass `require_id6=True` ONLY for specs whose filename date is at/after a single configured spec-id6 cutover date; pre-cutover specs stay conformant (advisory `grandfathered` at most, never mass-fail). NOTE (verified at author time): `check_engine.py` has NO existing cutover-date mechanism to reuse (a repo-wide search for a name-conformance cutover found none; the only `cutover` usages are unrelated command-name removals). Therefore the DEFAULT and expected implementation is a single configured cutover date compared against the spec's filename date; record that constant (and its value) as a DECISION in this plan when chosen (see OQ-01). Do NOT block execution hunting for a pre-existing cutover-policy object that does not exist.
   - Depends on: E-02
   - Expected outcome: `aw check specs` still reports 0 name failures for all 21 existing (pre-cutover) specs - INCLUDING the newest one dated `20260826` (the aw-run spec), which must be grandfathered by the strictly-after cutover boundary (2026-08-27) per OQ-01; a synthetic post-cutover legacy-named spec (filename date >= cutover) is flagged `check.name-nonconformant` with an `aw rename specs ... --to-id6` recovery command; a synthetic pre-cutover legacy-named spec is NOT flagged (boundary test).
-  - Execution state: pending
+  - Execution note (run-20260828T035444Z-36740, DECISION 11-ha55fi-D1): the spec corpus gained a concurrent `20260827`-dated legacy-named spec (id6 4w7d6s) after this plan was authored. To keep OQ-01's "grandfather ALL existing specs" invariant, the cutover constant `check_engine.SPEC_ID6_CUTOVER_DATE` was set to `20260828` (strictly after the newest existing spec date 20260827), not 2026-08-27. All 22 existing specs are grandfathered.
+  - Execution state: performed
 
 ### Task group 3: On-demand id6-minting rename
 
-- [ ] E-04 Extend the rename engine: add an id6-minting conversion mode (e.g. `aw rename specs <legacy> --to-id6`) so `compute_target_name` (artifact_rename.py:67) recognizes the legacy `_LEGACY_TIMESTAMP_RE` spec form and, in this mode, mints an id6 (`artifact_core.generate_id6` over existing spec ids), returns the clustered `build_clustered_name(..., artifact_type="spec")` name, AND signals the caller to inject `- Id: <id6>` into the file metadata during the rename transaction. IMPLEMENTATION NOTE (verified at author time): `run_rename_generic` (artifact_rename.py:271) ALREADY writes front-matter during a rename via `_update_frontmatter_metadata` (artifact_rename.py:364-367, currently for `set`/`order`); extend that SAME existing hook to also write `- Id:` when the `--to-id6` mode mints one, so the mint + name + metadata write remain ONE atomic transaction (no new transaction machinery, no separate E-item). Keep the default (non-`--to-id6`) rename behavior unchanged (HHMM-preserving). A spec that already has an `- Id:` reuses it rather than minting.
+- [x] E-04 Extend the rename engine: add an id6-minting conversion mode (e.g. `aw rename specs <legacy> --to-id6`) so `compute_target_name` (artifact_rename.py:67) recognizes the legacy `_LEGACY_TIMESTAMP_RE` spec form and, in this mode, mints an id6 (`artifact_core.generate_id6` over existing spec ids), returns the clustered `build_clustered_name(..., artifact_type="spec")` name, AND signals the caller to inject `- Id: <id6>` into the file metadata during the rename transaction. IMPLEMENTATION NOTE (verified at author time): `run_rename_generic` (artifact_rename.py:271) ALREADY writes front-matter during a rename via `_update_frontmatter_metadata` (artifact_rename.py:364-367, currently for `set`/`order`); extend that SAME existing hook to also write `- Id:` when the `--to-id6` mode mints one, so the mint + name + metadata write remain ONE atomic transaction (no new transaction machinery, no separate E-item). Keep the default (non-`--to-id6`) rename behavior unchanged (HHMM-preserving). A spec that already has an `- Id:` reuses it rather than minting.
   - Depends on: none
   - Expected outcome: `aw rename specs <legacy-spec> --to-id6` previews the new clustered name + the `- Id:` injection; `--apply` git-mv's the file, writes `- Id:`, and reports the change. Idempotent on an already-id6 spec (reuses its id6).
-  - Execution state: pending
+  - Execution note: because the legacy timestamp form and the uniform clustered form are ambiguous when a slug token is exactly 6 chars, `--to-id6` mode tries `_LEGACY_TIMESTAMP_RE` FIRST (its 4-digit HHMM disambiguates), then falls through to the uniform branch for the idempotent no-op on an already-clustered/id6 name.
+  - Execution state: performed
 
-- [ ] E-05 Ensure the `--to-id6` rename rewrites repo-wide references to the old spec path/stem (reusing `plan_reference_rewrites`), covering full-path citations; where a full-path citation cannot be auto-rewritten, report it fail-loud so the operator can fix it. Pilot on the 2 already-id6 specs (the aw-run spec `25kzda` and the research-lifecycle spec `5tapom`) as a preview-only demonstration in the test/validation, NOT an in-run mass rename. A spec that already carries `- Id:` MUST reuse that id6 (no re-mint); this is the idempotence property verified in V-04/V-05.
+- [x] E-05 Ensure the `--to-id6` rename rewrites repo-wide references to the old spec path/stem (reusing `plan_reference_rewrites`), covering full-path citations; where a full-path citation cannot be auto-rewritten, report it fail-loud so the operator can fix it. Pilot on the 2 already-id6 specs (the aw-run spec `25kzda` and the research-lifecycle spec `5tapom`) as a preview-only demonstration in the test/validation, NOT an in-run mass rename. A spec that already carries `- Id:` MUST reuse that id6 (no re-mint); this is the idempotence property verified in V-04/V-05.
   - Depends on: E-04
   - Expected outcome: a preview of `aw rename specs 25kzda --to-id6` (the aw-run spec) lists the new name (reusing its existing id6 `25kzda`, not minting a new one) and every reference that would be rewritten; a test asserts references to a renamed fixture spec are updated and any unrewritable full-path citation is surfaced.
-  - Execution state: pending
+  - Execution note: `plan_reference_rewrites` rewrites the full filename (which correctly rewrites a same-directory full-path citation) plus the stem; the new `find_unrewritable_path_citations` surfaces a full-PATH citation whose directory differs from the file's real directory (un-auto-rewritable), warning on preview and failing loud (rc=2) on `--apply`.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -118,30 +121,74 @@ Update `20260817-2147-01-uniform-artifact-naming-grammar.spec.md` Section 2.1 li
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `aw specs new --title ... --slug ... --apply` output and the created file's `- Id:` line + filename; show the filename matches `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` and `aw specs check` on it is clean. Runner output for the producer unit test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    `aw specs new --title "Example Spec" --slug "example-spec" --apply` (temp repo) ->
+    `aw specs new: wrote .../.aw/records/specs/20260828-a81jg5-01-a81jg5-example-spec.spec.md`;
+    file's `- Id: a81jg5`; filename `20260828-a81jg5-01-a81jg5-example-spec.spec.md` matches
+    `YYYYMMDD-<id6>-01-<id6>-<slug>.spec.md` (setid == its own id6); `aw specs check` -> "all specs conform.".
+    Unit tests `tests/test_spec_id6_filenames.py::TestSpecProducer` (test_new_preview_then_apply_conformant,
+    test_new_requires_title) PASS in the full run "2453 passed, 1 skipped in 20.87s".
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: unit test output for the `is_conformant` matrix: legacy spec True by default, False with `require_id6=True`; clustered spec True in both; other types' default behavior unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    Direct check: `is_conformant('20260701-1200-01-old-task.spec.md','spec')` -> True;
+    `... require_id6=True` -> False; clustered `20260828-ap4jbr-01-ap4jbr-my-spec.spec.md` -> True in both;
+    plan legacy `20260701-1200-01-some-plan.ipd.md` -> True (default unchanged).
+    Unit tests `tests/test_spec_id6_filenames.py::TestIsConformantRequireId6`
+    (test_legacy_spec_default_true_require_false, test_clustered_spec_true_in_both_modes,
+    test_other_types_default_behavior_unchanged) PASS in the full run "2453 passed, 1 skipped".
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `aw check specs --agent` showing ZERO name failures across all 21 existing (pre-cutover) specs (explicitly confirm the newest, `20260826`-dated aw-run spec is among the zero-failure set - the boundary case per OQ-01); a test with a synthetic post-cutover legacy-named spec showing `check.name-nonconformant` with an `aw rename specs ... --to-id6` recovery command; a boundary test asserting a spec dated exactly the cutover minus one day is NOT flagged and a spec dated exactly the cutover IS flagged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    `aw check specs --agent` on the real repo -> {"outcome":"conforms","exit":0,"findings":0} across all
+    22 existing specs (the corpus grew to 22 since authoring; ALL are grandfathered, including the newest
+    `20260827`-dated 4w7d6s and the `20260826`-dated aw-run 25kzda) - see DECISION 11-ha55fi-D1 for the
+    cutover=20260828 adjustment. Boundary: `_spec_requires_id6('20260827-1200-01-day-before.spec.md')` ->
+    False, `_spec_requires_id6('20260828-1200-01-at-cutover.spec.md')` -> True. Post-cutover legacy drift
+    detail: "spec dated at/after the id6 cutover (20260828) must be id6-clustered; convert it with
+    `aw rename specs 20260828-1200-01-post-cutover.spec.md --to-id6 --apply`". Unit tests
+    `tests/test_spec_id6_filenames.py::TestCheckGrandfatherCutover` (pre_cutover_legacy_grandfathered,
+    cutover_boundary, post_cutover_legacy_flagged_with_recovery, post_cutover_clustered_ok) PASS.
+    `aw check all --agent` == 68 findings == HEAD baseline (0 new; 0 in the specs tree).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `aw rename specs <legacy-fixture> --to-id6` preview (new clustered name + `- Id:` injection shown), then `--apply` result (git mv + metadata write); a test asserting idempotence on an already-id6 spec (reuses its id6, no re-mint).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    Preview (temp repo, legacy `20260701-1200-01-legacy.spec.md`):
+    "--- would rename ... -> 20260701-<id6>-01-<id6>-legacy.spec.md ---" and
+    "--- would inject '- Id: <id6>' into ... ---".
+    Apply (`--apply --no-commit`): "renamed ...20260701-1200-01-legacy.spec.md -> ...20260701-o3bq8p-01-o3bq8p-legacy.spec.md",
+    "injected '- Id: o3bq8p' into ...", and the file now carries `- Id: o3bq8p`.
+    Idempotence: re-running `--to-id6` on the clustered id6 spec prints
+    "--- reuses existing '- Id: o3bq8p' (no re-mint) ---" and does NOT rename.
+    Unit tests `tests/test_spec_id6_filenames.py::TestToId6Rename::test_to_id6_preview_then_apply_injects_and_rewrites`
+    and `::test_to_id6_idempotent_on_clustered_spec` PASS.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: a test showing references to a renamed fixture spec are rewritten and an unrewritable full-path citation is surfaced fail-loud; a preview-only `aw rename specs 25kzda --to-id6` (the aw-run spec; reuses its existing id6, no re-mint) listing the references it would rewrite (NOT applied in-run).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+    Reference rewrite: in the E-04 apply the citing plan's bare-filename citation AND its
+    `.aw/records/specs/<name>` full-path citation were both rewritten to the new clustered name
+    (asserted in test_to_id6_preview_then_apply_injects_and_rewrites: old name absent, new name and
+    `.aw/records/specs/<new>` present). Fail-loud: with a scanned plan citing
+    `some/other/dir/20260701-1200-01-legacy.spec.md` (different directory), preview prints
+    "--- WARNING: full-path citation 'some/other/dir/...' ... cannot be auto-rewritten ---" and
+    `--apply` returns rc=2 with "error: full-path citation ... cannot auto-rewrite ..." and does NOT
+    rename (test_to_id6_fail_loud_on_unrewritable_path_citation PASS).
+    Pilot (preview-only, NO in-run rename): `aw rename specs 25kzda --to-id6` (real repo, aw-run spec) ->
+    "--- would rename .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md ->
+    20260826-25kzda-01-25kzda-aw-run-deterministic-run-and-verify.spec.md ---" and
+    "--- reuses existing '- Id: 25kzda' (no re-mint) ---" plus the would-rewrite reference list
+    (NOT applied). The 5tapom research-lifecycle spec behaves identically (reuses 5tapom).
+  - Result: pass
 
 ## Approval and execution gate
 
