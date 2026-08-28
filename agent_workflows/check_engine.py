@@ -141,6 +141,17 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-draft-ready-to-review": RuleSpec(
         "info", ASSURANCE_GUIDANCE, DET_HEURISTIC, "I-12"
     ),
+    # Event-derived lifecycle transition validity (agentadhere Phase 3, IPD wqj1ne E-01; catalog
+    # I-03). A plan whose inline history event stream contains an invalid/out-of-order/unauthorized
+    # transition is flagged. Repository-class + deterministic over the (locally forgeable) events.
+    "check.lifecycle-transition-invalid": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
+    # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan with an
+    # active begin receipt whose changed paths since the frozen base fall outside its Scope-Paths.
+    "check.scope-drift": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01"
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -421,6 +432,22 @@ def check_content(
         try:
             drift.extend(
                 check_ipd_draft_ready(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # agentadhere Phase 3 (IPD wqj1ne): event-derived transition validity (E-01) + declared
+        # file-scope drift for a plan with an active begin receipt (E-02). Both fail-isolated.
+        try:
+            drift.extend(
+                check_lifecycle_transitions(
+                    repo_root, include_untracked=include_untracked
+                )
+            )
+        except Exception:
+            pass
+        try:
+            drift.extend(
+                check_scope_drift(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -841,6 +868,138 @@ def check_ipd_draft_ready(
                 recovery=recovery,
             )
         )
+    return drift
+
+
+_LIFECYCLE_INVALID_RULE = "check.lifecycle-transition-invalid"
+_SCOPE_DRIFT_RULE = "check.scope-drift"
+
+
+def check_lifecycle_transitions(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Event-derived transition-validity (agentadhere Phase 3 E-01; catalog I-03).
+
+    For each plan, derive its (date, status, actor) event stream from the INLINE history (via
+    ``ipd_lifecycle`` reusing ``record_history``'s inline parser - no parallel log) and validate each
+    consecutive transition with ``ipd_lifecycle.validate_transition``. A missing-predecessor /
+    backwards / unauthorized-terminal transition in the recorded history is flagged. This runs
+    ALONGSIDE the authoritative ``- Status:`` read (it validates the recorded events, it does not
+    replace the field). HONEST: the events are locally forgeable; this is a validity/consistency
+    check, not a tamper-proof authority boundary.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        # Scope to PENDING-lane plans only. Terminal-dir plans (executed/superseded/not-executed/
+        # reusable) carry slimmed, annotated, pre-rule histories that legitimately predate this
+        # check; retroactively re-litigating them would be a whole-tree false-positive explosion
+        # (the same grandfathering principle as the commit-scoped status-untooled/terminal gates).
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        events = _life._plan_status_events(text)
+        if len(events) < 2:
+            continue
+        prev = events[0][1]
+        for _date, status, actor in events[1:]:
+            if status == prev:
+                continue  # a same-status re-record (e.g. a duplicate `approved`) is not a transition
+            # Only validate a transition whose TARGET is on the forward sequence; an alternate/
+            # terminal disposition (superseded/not-executed/parked/reusable) is not a forward step.
+            if _life._status_rank(status) < 0:
+                prev = status
+                continue
+            check = _life.validate_transition(prev, status, actor=actor)
+            if not check.ok:
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(p),
+                            _LIFECYCLE_INVALID_RULE,
+                            f"recorded lifecycle transition {prev!r} -> {status!r} is invalid: "
+                            f"{check.reason}",
+                        ),
+                        observed=f"{prev} -> {status} (actor {actor})",
+                        required="a valid forward transition authored by the correct actor",
+                        recovery="correct the plan history via `aw set <status> <id6>` "
+                        "(or `aw ipd finalize` for the terminal transition)",
+                    )
+                )
+            prev = status
+    return drift
+
+
+def check_scope_drift(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Declared-file-scope drift (agentadhere Phase 3 E-02; catalog I-01).
+
+    For each plan that has an ACTIVE begin receipt (an in-flight execution with a frozen base HEAD +
+    Scope-Paths), compare the paths this execution changed since the frozen base against the plan's
+    declared Scope-Paths, REUSING the finalize scope helpers
+    (``_paths_changed_by_this_execution``/``_scope_match``/``_frozen_scope_paths``/
+    ``_is_implicitly_allowed``) - no forked comparator. A changed path outside the allowlist is
+    flagged. A ``grandfathered``/absent Scope-Paths carries no allowlist (empty frozen list), so it
+    is advisory-satisfied (never hard-flagged), honoring the sentinel.
+    """
+    from agent_workflows import ipd_lifecycle as _life
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _ITEM_ID_RE.search(text)
+        if not m:
+            continue
+        plan_id = m.group(1)
+        receipt = _life.read_receipt(repo_root, plan_id)
+        if not receipt:
+            continue  # no active execution -> nothing to reconcile
+        base_head = str(receipt.get("base_head") or "").strip()
+        if not base_head or base_head == "unversioned":
+            continue
+        scope_paths = _life._frozen_scope_paths(text)
+        if not scope_paths:
+            continue  # grandfathered/absent allowlist: advisory-satisfied, not hard-flagged
+        try:
+            plan_rel = str(p.resolve().relative_to(Path(repo_root).resolve())).replace(
+                "\\", "/"
+            )
+        except (ValueError, OSError):
+            plan_rel = p.name
+        changed = _life._paths_changed_by_this_execution(repo_root, base_head)
+        out_of_scope = [
+            c
+            for c in changed
+            # `.aw/state/` and `.aw/worktrees/` are gitignored RUNTIME scratch (receipts, journals,
+            # per-lane worktrees) - never part of a declared scope; exclude defensively in case a
+            # repo has not gitignored them (git status normally elides them).
+            if not c.replace("\\", "/").startswith((".aw/state/", ".aw/worktrees/"))
+            and not _life._is_implicitly_allowed(c, plan_rel)
+            and not any(_life._scope_match(c, pat) for pat in scope_paths)
+        ]
+        for c in sorted(set(out_of_scope)):
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(p),
+                        _SCOPE_DRIFT_RULE,
+                        f"changed path {c!r} is outside the plan's declared Scope-Paths",
+                    ),
+                    observed=f"changed: {c}",
+                    required="a change within the declared Scope-Paths: "
+                    + ", ".join(scope_paths),
+                    recovery="restrict the change to Scope-Paths, or declare the path in the plan's "
+                    "Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`",
+                )
+            )
     return drift
 
 

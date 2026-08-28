@@ -32,7 +32,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Tuple
 
 # Receipt schema version (bump on an incompatible receipt-shape change).
 RECEIPT_SCHEMA_VERSION = 1
@@ -322,6 +322,229 @@ def _frozen_scope_paths(text: str) -> List[str]:
     if is_grandfathered:
         return []
     return list(paths)
+
+
+# --------------------------------------------------------------------------------------
+# Event-derived lifecycle state (agentadhere Phase 3, IPD wqj1ne E-01).
+#
+# Findings bu9yij 7.3: a freely-editable `- Status:` is trivially hand-editable, so the lifecycle
+# state should be DERIVED from a validated event stream. We build ON the EXISTING history (no
+# parallel log, DECISION 16-wqj1ne-D1): for a PLAN the events are its inline `## Workflow history`
+# records (record_history owns/defers to them; plans are excluded from the sidecar), for other
+# trees they are the sidecar records. The derived status runs ALONGSIDE the authoritative
+# `- Status:` read (OQ-01) - it validates/cross-checks, it does not replace the field this phase.
+#
+# HONEST LIMIT (findings 5.4/7.3): the local event stream is FORGEABLE by a privileged local agent
+# (it can rewrite the inline history or the sidecar). This derivation is a consistency + validity
+# check, NOT a tamper-proof authority boundary; non-forgeable provenance is the deferred
+# external-signing set.
+
+# The logical lifecycle stages (findings 7.3), mapped from the concrete plan status vocabulary.
+LIFECYCLE_EVENTS: Tuple[str, ...] = (
+    "IPD_CREATED",
+    "WORK_STARTED",
+    "TEST_EVIDENCE_RECORDED",
+    "REVIEWED",
+    "FINALIZED",
+)
+
+# The canonical plan status RANKS (a status may only advance forward through these ranks; the
+# terminal `executed` state closes the sequence). Mirrors the plan status vocabulary used by
+# `aw set`/`aw ipd set` and ipd_schema. `approved` and `auto-approved` share a rank (they are two
+# ways to reach the ready-to-execute stage, NOT sequential steps), so `approved -> executed` is a
+# valid single forward step, not a skip.
+_PLAN_STATUS_RANKS: Dict[str, int] = {
+    "draft": 0,
+    "to-review": 1,
+    "reviewed": 2,
+    "approved": 3,
+    "auto-approved": 3,
+    "executed": 4,
+}
+# The rank-ordered status labels (one representative per rank) for skip-diagnostic messages.
+_PLAN_STATUS_ORDER: Tuple[str, ...] = (
+    "draft",
+    "to-review",
+    "reviewed",
+    "approved",
+    "executed",
+)
+# Terminal statuses whose transition is AUTHORITATIVE (only `aw ipd finalize` may perform it).
+_TERMINAL_STATUSES: FrozenSet[str] = frozenset(("executed",))
+# The actor `aw ipd finalize` records for the terminal transition; a terminal transition by any
+# other actor path is an UNAUTHORIZED terminal transition (rejected).
+_FINALIZE_ACTORS: FrozenSet[str] = frozenset(
+    ("aw ipd finalize", "aw finalize", "ipd finalize")
+)
+
+
+class TransitionCheck(NamedTuple):
+    """Result of validating one lifecycle transition (E-01)."""
+
+    ok: bool
+    reason: str  # "" when ok; else the specific rejection reason
+
+
+def _status_rank(status: str) -> int:
+    """The rank of a plan status, or -1 for an unknown/off-sequence status."""
+    return _PLAN_STATUS_RANKS.get(status, -1)
+
+
+def validate_transition(
+    from_status: Optional[str],
+    to_status: str,
+    *,
+    actor: Optional[str] = None,
+    tree_id_current: Optional[str] = None,
+    tree_id_evidence: Optional[str] = None,
+    evidence: Optional[Dict[str, Any]] = None,
+    require_evidence: bool = False,
+) -> TransitionCheck:
+    """Validate ONE lifecycle transition; return (ok, reason). Rejects (findings 7.3):
+
+    * MISSING PREDECESSOR - a transition that skips a required earlier status (e.g. draft -> executed
+      without the intervening reviewed/approved), or a backwards move.
+    * STALE TREE ID - the transition cites evidence bound to a tree that is not the current tree.
+    * INVALID ACTOR - an empty/malformed actor string.
+    * MALFORMED EVIDENCE - ``require_evidence`` is set but the evidence is absent/not a mapping/lacks
+      a bound ``git_tree``.
+    * UNAUTHORIZED TERMINAL - a terminal (``executed``) transition performed by an actor that is not
+      the finalize path.
+
+    This is a pure validity predicate over ALREADY-known facts; it is NOT tamper-proof (the caller's
+    inputs are locally forgeable). Order matters: actor and terminal-authority are checked first so
+    an unauthorized terminal transition is reported as such rather than as a predecessor gap.
+    """
+    to_status = (to_status or "").strip()
+    from_status = (from_status or "").strip() or None
+
+    # INVALID ACTOR: an empty/whitespace actor is never a valid transition author.
+    if actor is not None and not actor.strip():
+        return TransitionCheck(False, "invalid actor: empty actor string")
+
+    # UNAUTHORIZED TERMINAL: only the finalize path may perform the terminal transition.
+    if to_status in _TERMINAL_STATUSES:
+        if actor is not None and actor.strip() not in _FINALIZE_ACTORS:
+            return TransitionCheck(
+                False,
+                f"unauthorized terminal transition to {to_status!r} by actor "
+                f"{actor.strip()!r}: only `aw ipd finalize` may perform it",
+            )
+
+    # STALE TREE ID: evidence must be bound to the current tree.
+    if tree_id_evidence is not None and tree_id_current is not None:
+        if tree_id_evidence != tree_id_current:
+            return TransitionCheck(
+                False,
+                f"stale tree id: evidence bound to {tree_id_evidence[:12]!r} but current tree is "
+                f"{tree_id_current[:12]!r}",
+            )
+
+    # MALFORMED EVIDENCE: when evidence is required, it must be a mapping with a bound git_tree.
+    if require_evidence:
+        if not isinstance(evidence, dict) or not evidence.get("git_tree"):
+            return TransitionCheck(
+                False,
+                "malformed evidence: missing or non-mapping evidence with no bound git_tree",
+            )
+
+    # MISSING PREDECESSOR: the lifecycle only moves FORWARD. A forward move MAY skip an optional
+    # intermediate stage (real workflows go `draft -> reviewed` directly when `/plan-review` sets
+    # reviewed without a separate `to-review` step), so a forward skip is ALLOWED; only a BACKWARDS
+    # move is a missing-predecessor violation. The one exception is the terminal `executed`
+    # transition, which additionally REQUIRES a sufficiently-advanced predecessor (at least
+    # `reviewed`) so a raw `draft -> executed` jump is caught. An unknown target is off-sequence.
+    to_rank = _status_rank(to_status)
+    if to_rank < 0:
+        return TransitionCheck(False, f"unknown target status {to_status!r}")
+    from_rank = _status_rank(from_status) if from_status else -1
+    if from_status is None:
+        # A first recorded event must start at the sequence head (draft); starting mid-sequence with
+        # no predecessor is a missing-predecessor violation.
+        if to_rank != 0:
+            return TransitionCheck(
+                False,
+                f"missing predecessor: cannot start the lifecycle at {to_status!r} "
+                f"(expected {_PLAN_STATUS_ORDER[0]!r})",
+            )
+        return TransitionCheck(True, "")
+    if to_rank < from_rank:
+        return TransitionCheck(
+            False,
+            f"missing predecessor: backwards transition {from_status!r} -> {to_status!r}",
+        )
+    # Terminal `executed` requires a sufficiently-advanced predecessor (>= reviewed).
+    if to_status in _TERMINAL_STATUSES and from_rank < _PLAN_STATUS_RANKS["reviewed"]:
+        return TransitionCheck(
+            False,
+            f"missing predecessor: terminal transition {from_status!r} -> {to_status!r} "
+            f"requires at least 'reviewed'",
+        )
+    return TransitionCheck(True, "")
+
+
+# The full plan status vocabulary a history line's leading token may legitimately be (a STATUS
+# transition). A history line whose token is NOT one of these is a workflow NOTE (e.g.
+# `/plan-review:`, `authored`, `note`, `created`), NOT a status transition, and is IGNORED by the
+# event derivation - so annotations never masquerade as (invalid) transitions.
+_PLAN_STATUS_VOCAB: FrozenSet[str] = frozenset(
+    (
+        "draft",
+        "to-review",
+        "reviewed",
+        "approved",
+        "auto-approved",
+        "executed",
+        "superseded",
+        "not-executed",
+        "reusable",
+        "parked",
+    )
+)
+
+
+def _plan_status_events(text: str) -> List[Tuple[str, str, str]]:
+    """The plan's STATUS-TRANSITION events as (date, status, actor), OLDEST-first, from its INLINE
+    history.
+
+    Reuses ``record_history``'s inline parser (no parallel log). A plan history line
+    ``- <date> <status> (<actor>): <msg>`` yields (date, status, actor); the ``workflow`` token in
+    that grammar is the new status ONLY when it is a known plan status (``_PLAN_STATUS_VOCAB``). A
+    line whose token is a workflow NOTE (``/plan-review``, ``authored``, ``note``, ``created`` with a
+    non-status shape, ...) is NOT a transition and is skipped, so annotations never masquerade as
+    transitions.
+    """
+    from agent_workflows import record_history as _rh
+
+    events: List[Tuple[str, str, str]] = []
+    for line in _rh._inline_history_records(text):
+        date, workflow, actor, _msg = _rh._parse_record_line(line)
+        token = (workflow or "").strip()
+        if token in _PLAN_STATUS_VOCAB:
+            events.append((date, token, actor.strip()))
+    # Inline history is stored newest-first; reverse to oldest-first for derivation.
+    events.reverse()
+    return events
+
+
+def derive_status_from_events(events: List[Tuple[str, str, str]]) -> Optional[str]:
+    """Derive the visible lifecycle status from an OLDEST-first (date, status, actor) event list.
+
+    The derived status is the LAST status in the event stream that lies on the canonical plan-status
+    sequence (an off-sequence token such as a `parked`/`superseded` note is ignored for the forward
+    derivation). Returns None for an empty/derivation-less stream. This is the DERIVED cross-check of
+    the authoritative `- Status:` field; it never mutates anything.
+    """
+    derived: Optional[str] = None
+    for _date, status, _actor in events:
+        if _status_rank(status) >= 0:
+            derived = status
+    return derived
+
+
+def derive_plan_status(text: str) -> Optional[str]:
+    """Convenience: derive a plan's status from its inline history events (E-01)."""
+    return derive_status_from_events(_plan_status_events(text))
 
 
 def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
