@@ -304,16 +304,6 @@
     "disposition": "executed",
     "kind": null,
     "order": 0,
-    "path": "executed/20260712-1043-01-1028-falsely-marked-executed-tests-still-red.md",
-    "plan_id": "y6kuar",
-    "set_id": "falsely-marked",
-    "status": "executed"
-  },
-  {
-    "date": "2026-07-12",
-    "disposition": "executed",
-    "kind": null,
-    "order": 0,
     "path": "executed/20260712-agent-brain-00-lhmlzo-agent-brain-dir-plan-and-walkthrough-mirroring.ipd.md",
     "plan_id": "lhmlzo",
     "set_id": "agent-brain",
@@ -3342,6 +3332,16 @@
   {
     "date": "2026-08-27",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md",
+    "plan_id": "p7peqf",
+    "set_id": "driverfin",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md",
@@ -3496,16 +3496,6 @@
     "order": 0,
     "path": "pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md",
     "plan_id": "yt93ir",
-    "set_id": "driverfin",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md",
-    "plan_id": "p7peqf",
     "set_id": "driverfin",
     "status": "approved"
   },

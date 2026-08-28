@@ -6,15 +6,15 @@
 - Scope: In `oc_runipd.py` (and `agy_runipd.py`), make the driver drive the FULL lifecycle for an execute-action child: (1) run `aw ipd begin <id6> --actor <agent/model>` BEFORE the agent turn (fail-closed: no receipt = no execution authority), so scope + base HEAD are frozen; (2) after the agent turn completes AND the deterministic/verification checks pass, run `aw ipd finalize <id6> --actor ... [--scope-reason/--scope-ack ...]`, performing the two-way scope reconciliation programmatically (the driver knows the plan's Scope-Paths and the actual changed paths, so it can supply the acks/reasons that we did by hand); (3) on finalize success the child's runner status becomes `executed`; on finalize refusal (unresolved scope, failing lint, missing evidence) the child is recorded NOT-executed (substantially-complete/failed-safely) and the set stays unfinished - never fake executed. Do NOT isolate in a worktree yet (child 02) and do NOT change orchestrator handling (already done, 801dd28). Reuse the existing begin/finalize surface; do not fork a second finalize path.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_lifecycle.py, tests/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: driverfin
 - Order: 1
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: p7peqf
-- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Finalize p7peqf: driver self-finalize implemented+verified this run (code committed 682736e/5de7b6d); lifecycle move was blocked by a concurrent-run tests/ race, now clear. Unblocks emus4n. [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: already-committed; in-scope-unmodified agent_workflows/ipd_lifecycle.py: reused-not-modified; in-scope-unmodified agent_workflows/oc_runipd.py: already-committed; in-scope-unmodified tests/: already-committed]
 - 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed (receipt-path correction, finalize-gate precision, agy parity coverage, mid-execute_item path-move interaction, execution-contract completion). GO - PENDING HUMAN APPROVAL.
 - 2026-08-28 to-review (aw set): status set to to-review
