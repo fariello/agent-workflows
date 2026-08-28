@@ -494,6 +494,29 @@ class _AwArgumentParser(argparse.ArgumentParser):
         self.exit(2)
 
 
+def _add_commit_flags(parser: argparse.ArgumentParser) -> None:
+    """selfcommit jgcm68 E-01: register the SHARED ``--commit``/``--no-commit`` arg group on a
+    records-mutating parser. ``--commit`` commits the verb's own path-scoped changes without
+    prompting (the only way to commit non-interactively); ``--no-commit`` skips the offer entirely.
+    With neither, on a TTY the verb prompts, and non-interactively it is a NO-OP (never commits
+    silently). One shared registration keeps the UX identical across archive/group/rename/set/
+    research set-assign/mv (OQ-01)."""
+    grp = parser.add_mutually_exclusive_group()
+    grp.add_argument(
+        "--commit",
+        dest="commit",
+        action="store_true",
+        help="Commit the change this command made (path-scoped, no push); required to commit "
+        "non-interactively.",
+    )
+    grp.add_argument(
+        "--no-commit",
+        dest="no_commit",
+        action="store_true",
+        help="Do NOT offer to commit the change this command made.",
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # A shared parent so --no-color, --agent, and --json work consistently across all subcommands.
     common = _AwArgumentParser(add_help=False)
@@ -996,6 +1019,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    _add_commit_flags(p_ipd_set)  # selfcommit jgcm68 E-01/E-05
 
     # ipddeps Order g69y23: `aw ipd dependencies set` writes the machine-readable, id6-grounded
     # cross-IPD `Item-Dependencies` field (a DIFFERENT layer from the intra-plan `Depends on:`
@@ -1588,6 +1612,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Perform the renames (default is preview only).",
     )
+    _add_commit_flags(p_research_setassign)  # selfcommit jgcm68 E-01/E-04
 
     p_research_mv = research_sub.add_parser(
         "mv",
@@ -1606,6 +1631,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Perform the rename (default is preview only).",
     )
+    _add_commit_flags(p_research_mv)  # selfcommit jgcm68 E-01/E-04
 
     p_research_checkrefs = research_sub.add_parser(
         "check-refs",
@@ -2166,6 +2192,9 @@ def _build_parser() -> argparse.ArgumentParser:
             help="rename/group: act on ALL matches when a filename-substring selector is ambiguous "
             "(does not override a unique-id collision).",
         )
+        if _verb in ("rename", "group"):
+            # selfcommit jgcm68 E-01: offer to commit the rename/group's own path-scoped changes.
+            _add_commit_flags(_p)
         if _verb == "check":
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
@@ -2253,6 +2282,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm execution without prompt."
     )
+    # selfcommit jgcm68 E-01: `aw set` (and every family routing through it) offers to commit its
+    # own path-scoped metadata rewrite. The subcommand `set` parsers (ipd/spec/prompts/backlog) that
+    # also route through status_set register the flags on their own parsers below.
+    _add_commit_flags(p_set)
 
     p_migrate = sub.add_parser(
         "migrate-layout",
@@ -2574,6 +2607,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    _add_commit_flags(p_backlog_set)  # selfcommit jgcm68 E-01/E-05
 
     p_backlog_check = backlog_sub.add_parser(
         "check",
@@ -2676,6 +2710,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_specs_set.add_argument(
         "--yes", "-y", action="store_true", help="Confirm mutation without prompting."
     )
+    _add_commit_flags(p_specs_set)  # selfcommit jgcm68 E-01/E-05/E-06 (dual path)
 
     p_specs_note = specs_sub.add_parser(
         "note",
@@ -2803,6 +2838,7 @@ EXAMPLES
         action="store_true",
         help="Perform the moves (default is preview only).",
     )
+    _add_commit_flags(p_archive)  # selfcommit jgcm68 E-01/E-02
 
     # awcmdsurf Order 05 (hard cutover): the old `plan-names` verb was REMOVED; name conformance is
     # now `aw check plans names` (and `aw check <type> names`).
@@ -2924,6 +2960,57 @@ def _confirm(term: Term, prompt: str, assume_yes: bool) -> bool:
     except EOFError:
         return False
     return answer in ("y", "yes")
+
+
+def _offer_records_commit(
+    args: argparse.Namespace,
+    repo_root: Union[str, Path],
+    *,
+    paths: Sequence[str],
+    message: str,
+    on_unrelated_staged: str = "scope",
+) -> None:
+    """selfcommit jgcm68: offer to path-scoped-commit exactly ``paths`` after a records mutation.
+
+    Threads the SHARED ``--commit``/``--no-commit`` flags (E-01) onto the child-01
+    ``git_commit_helper.offer_commit`` call. Interactive-gated: on a TTY it prompts; non-interactive
+    without ``--commit`` is a NO-OP (never commits silently). Path-scoped, never ``add -A``/``-a``,
+    never push, never ``--no-verify``. A commit failure or decline is non-fatal - the mutation
+    already happened; we only surface a short status line so the run is not derailed.
+    """
+    from agent_workflows import git_commit_helper as _gch
+
+    if not paths:
+        return
+    assume_yes = bool(getattr(args, "commit", False))
+    no_commit = bool(getattr(args, "no_commit", False))
+    # jgcm68 D2: the backends git-mv their renames (pre-staging them), which makes offer_commit's
+    # `git add -- <old-path>` fail. Unstage exactly these touched paths first so the helper cleanly
+    # re-stages (and re-detects) them; scoped to the verb's own paths, never global.
+    _gch._git(Path(repo_root), ["reset", "--quiet", "HEAD", "--", *paths])
+    outcome = _gch.offer_commit(
+        Path(repo_root),
+        paths,
+        message=message,
+        assume_yes=assume_yes,
+        no_commit=no_commit,
+        on_unrelated_staged=on_unrelated_staged,
+    )
+    if outcome.status == _gch.STATUS_COMMITTED:
+        print(f"committed {len(outcome.staged)} path(s): {outcome.commit}")
+    elif outcome.status == _gch.STATUS_ERROR:
+        print(f"warning: self-commit skipped: {outcome.message}")
+
+
+def _nv_offer_selector_label(args: argparse.Namespace) -> str:
+    """A terse label of the group/rename selector(s) for the default commit message."""
+    ids = getattr(args, "ids", None)
+    if ids:
+        return ",".join(str(i) for i in ids)
+    one = getattr(args, "id", None) or getattr(args, "selector", None)
+    if isinstance(one, list):
+        one = one[0] if one else None
+    return str(one) if one else "records"
 
 
 def _prompt_yes_no(prompt: str, default: bool) -> bool:
@@ -5821,8 +5908,15 @@ def _run_noun_verb(
     if types is None:
         return 2
     from agent_workflows import artifact_types as at
+    from agent_workflows.plans_refs import MutationResult
 
     rc = 0
+    # selfcommit jgcm68 E-07: for group/rename, backends RETURN a MutationResult (touched +
+    # index paths) and perform NO commit; we aggregate across the (possibly several) types and
+    # place the self-commit offer ONCE here at the dispatch site (PR-012: never inside a shared
+    # backend, so `aw group research` fires exactly once from here and NOT again in the backend).
+    touched_all: list[str] = []
+    index_all: list[str] = []
     for t in types:
         fn = at.resolve_backend(t, verb)
         if fn is None:
@@ -5830,8 +5924,23 @@ def _run_noun_verb(
             rc = max(rc, 2)
             continue
         result = fn(_nv_backend_args(args, t))
-        if isinstance(result, int):
+        if isinstance(result, MutationResult):
+            rc = max(rc, result.rc)
+            touched_all.extend(result.touched_paths)
+            index_all.extend(result.index_paths)
+        elif isinstance(result, int):
             rc = max(rc, result)
+    if verb in ("group", "rename") and (touched_all or index_all):
+        from agent_workflows.project_context import resolve_verb_repo_root
+
+        repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+        sel = _nv_offer_selector_label(args)
+        _offer_records_commit(
+            args,
+            repo_root,
+            paths=[*touched_all, *index_all],
+            message=f"refactor({','.join(types)}): {verb} {sel} and rewrite refs",
+        )
     return rc
 
 
@@ -7452,14 +7561,34 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import research_cmd as rc
 
             return rc.run_new_comparison(args)
-        if research_cmd == "set-assign":
+        if research_cmd in ("set-assign", "mv"):
             from agent_workflows import research_refs as rr
+            from agent_workflows.project_context import resolve_verb_repo_root
 
-            return rr.run_set_assign(args)
-        if research_cmd == "mv":
-            from agent_workflows import research_refs as rr
-
-            return rr.run_mv(args)
+            # selfcommit jgcm68 E-04: the offer lives HERE at the command-branch call site (NOT
+            # inside the shared research_refs backend), so `aw research set-assign`/`mv` fires
+            # exactly once and does NOT double-fire with the `aw group/rename research` path (E-07),
+            # which reaches the SAME backend from the noun-verb dispatch (PR-012).
+            if research_cmd == "set-assign":
+                mr = rr.run_set_assign(args)
+                _verb = "set-assign"
+                _sel = (
+                    ",".join(str(i) for i in (getattr(args, "ids", None) or []))
+                    or "records"
+                )
+            else:
+                mr = rr.run_mv(args)
+                _verb = "mv"
+                _sel = str(getattr(args, "id", None) or "records")
+            if mr.touched_paths or mr.index_paths:
+                repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
+                _offer_records_commit(
+                    args,
+                    repo_root,
+                    paths=[*mr.touched_paths, *mr.index_paths],
+                    message=f"refactor(research): {_verb} {_sel} and rewrite refs",
+                )
+            return mr.rc
         if research_cmd == "check-refs":
             from agent_workflows import research_refs as rr
 

@@ -26,6 +26,9 @@ from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import record_history as _rh
 from agent_workflows import research_contract as R
+from agent_workflows.plans_refs import (
+    MutationResult,
+)  # shared self-commit result type (jgcm68)
 
 # --------------------------------------------------------------------------------------
 # The pinned reference scan-root + scan iteration + writing-safety helpers are defined ONCE in
@@ -237,8 +240,12 @@ def _repo_root(args: argparse.Namespace) -> Path:
 
 def _apply_renames(
     repo_root: Path, plans: List[RenamePlan], apply: bool, verb: str = "group"
-) -> None:
-    """Apply the file renames as tracked git moves plus the reference rewrites."""
+) -> Tuple[str, ...]:
+    """Apply the file renames as tracked git moves plus the reference rewrites.
+
+    Returns the repo-relative touched paths on ``apply`` (moved files + rewritten citing files);
+    empty on preview. The CALLER adds the regenerated INDEX paths and drives the self-commit offer
+    (selfcommit jgcm68 E-03: the backend RETURNS its touched set, it does NOT commit)."""
 
     renames = {p.old_path.name: p.new_path.name for p in plans}
     ref_edits = plan_reference_rewrites(repo_root, renames)
@@ -249,7 +256,15 @@ def _apply_renames(
             print(
                 f"--- would rewrite {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file} ---"
             )
-        return
+        return ()
+    touched: List[str] = []
+
+    def _rel(path: Path) -> str:
+        try:
+            return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            return path.as_posix()
+
     for p in plans:
         src_rel = p.old_path.relative_to(repo_root).as_posix()
         dst_rel = p.new_path.relative_to(repo_root).as_posix()
@@ -264,9 +279,12 @@ def _apply_renames(
             from_name=p.old_path.name,
             to_name=p.new_path.name,
         )
+        touched.append(src_rel)
+        touched.append(dst_rel)
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x '{e.old_name}' -> '{e.new_name}' in {e.file}")
+        touched.append(_rel(e.file))
     try:
         from agent_workflows import research_index as _ridx
 
@@ -280,9 +298,28 @@ def _apply_renames(
         )
     except Exception:
         pass
+    seen: dict = {}
+    for t in touched:
+        seen.setdefault(t, None)
+    return tuple(seen.keys())
 
 
-def run_set_assign(args: argparse.Namespace) -> int:
+def _index_paths_for(research_root: Path, repo_root: Path) -> Tuple[str, ...]:
+    """Repo-relative INDEX.json/INDEX.md for the research tree (only those that exist)."""
+    from agent_workflows import research_index as _ridx
+
+    out: List[str] = []
+    for name in (_ridx.INDEX_JSON, _ridx.INDEX_MD):
+        p = research_root / name
+        if p.exists():
+            try:
+                out.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
+            except ValueError:
+                out.append(p.as_posix())
+    return tuple(out)
+
+
+def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     repo_root = _repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     from datetime import date
@@ -290,7 +327,7 @@ def run_set_assign(args: argparse.Namespace) -> int:
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
         print("error: at least one <id6> is required")
-        return 2
+        return MutationResult(2)
     date_str = getattr(args, "date", None) or date.today().strftime("%Y%m%d")
     start = getattr(args, "order", None)
     plans, err = plan_set_assign(
@@ -302,12 +339,13 @@ def run_set_assign(args: argparse.Namespace) -> int:
     )
     if err:
         print(f"error: {err}")
-        return 2
-    _apply_renames(repo_root, plans or [], getattr(args, "apply", False))
-    return 0
+        return MutationResult(2)
+    touched = _apply_renames(repo_root, plans or [], getattr(args, "apply", False))
+    idx = _index_paths_for(research_root, repo_root) if touched else ()
+    return MutationResult(0, touched, idx)
 
 
-def run_mv(args: argparse.Namespace) -> int:
+def run_mv(args: argparse.Namespace) -> "MutationResult":
     repo_root = _repo_root(args)
     research_root = R.resolve_research_root(repo_root)
     plan, err = plan_mv(
@@ -319,11 +357,12 @@ def run_mv(args: argparse.Namespace) -> int:
     )
     if err:
         print(f"error: {err}")
-        return 2
-    _apply_renames(
+        return MutationResult(2)
+    touched = _apply_renames(
         repo_root, [plan] if plan else [], getattr(args, "apply", False), verb="rename"
     )
-    return 0
+    idx = _index_paths_for(research_root, repo_root) if touched else ()
+    return MutationResult(0, touched, idx)
 
 
 def run_check_refs(args: argparse.Namespace) -> int:

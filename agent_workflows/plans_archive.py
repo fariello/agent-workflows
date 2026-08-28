@@ -156,12 +156,30 @@ def _refresh_index(repo_root: Path, plans_dir: Path) -> None:
     )
 
 
-def apply_shard_moves(repo_root: Path, plans_dir: Path, moves: List[ShardMove]) -> None:
+def apply_shard_moves(
+    repo_root: Path, plans_dir: Path, moves: List[ShardMove]
+) -> List[str]:
+    """Apply archival shard moves; RETURN repo-relative touched paths (moved files + regenerated
+    INDEX) for the self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
+    touched: List[str] = []
     for m in moves:
         src_rel = m.old_path.relative_to(repo_root).as_posix()
         dst_rel = m.new_path.relative_to(repo_root).as_posix()
         _core.git_mv(repo_root, src_rel, dst_rel)
+        touched.append(src_rel)
+        touched.append(dst_rel)
     _refresh_index(repo_root, plans_dir)
+    for name in (_idx.INDEX_JSON, _idx.INDEX_MD):
+        p = plans_dir / name
+        if p.exists():
+            try:
+                touched.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
+            except ValueError:
+                touched.append(p.as_posix())
+    seen: dict = {}
+    for t in touched:
+        seen.setdefault(t, None)
+    return list(seen.keys())
 
 
 # --------------------------------------------------------------------------------------
@@ -213,11 +231,12 @@ def run_archive(args: argparse.Namespace) -> int:
                     f"--- would archive {mv.old_path.name} -> {mv.new_path.parent.name}/ ---"
                 )
             return 0
-        apply_shard_moves(repo_root, plans_dir, moves)
+        touched = apply_shard_moves(repo_root, plans_dir, moves)
         for mv in moves:
             print(
                 f"archived {mv.old_path.name} -> {mv.new_path.relative_to(plans_dir).as_posix()}"
             )
+        _offer_archive_commit(args, repo_root, touched)
         return 0
 
     # Bare sweep: parse age duration and find candidates keeping sets together
@@ -252,9 +271,37 @@ def run_archive(args: argparse.Namespace) -> int:
             print(f"  {mv.old_path.name} -> {mv.new_path.parent.name}/")
         print("preview only; re-run with --apply to move")
         return 0
-    apply_shard_moves(repo_root, plans_dir, moves)
+    touched = apply_shard_moves(repo_root, plans_dir, moves)
     for mv in moves:
         print(
             f"archived {mv.old_path.name} -> {mv.new_path.relative_to(plans_dir).as_posix()}"
         )
+    _offer_archive_commit(args, repo_root, touched)
     return 0
+
+
+def _offer_archive_commit(
+    args: argparse.Namespace, repo_root: Path, touched: List[str]
+) -> None:
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit the archived plan moves + regenerated
+    INDEX. Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
+    ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``; unrelated dirty files never
+    folded in. A commit failure is non-fatal (the archive already happened)."""
+    if not touched:
+        return
+    from agent_workflows import git_commit_helper as _gch
+
+    # jgcm68 D2: unstage the git-mv'd paths first so offer_commit's `git add` cleanly re-stages them.
+    _gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *touched])
+    outcome = _gch.offer_commit(
+        repo_root,
+        touched,
+        message="chore(plans): archive aged artifacts and regenerate index",
+        assume_yes=bool(getattr(args, "commit", False)),
+        no_commit=bool(getattr(args, "no_commit", False)),
+        on_unrelated_staged="scope",
+    )
+    if outcome.status == _gch.STATUS_COMMITTED:
+        print(f"committed {len(outcome.staged)} path(s): {outcome.commit}")
+    elif outcome.status == _gch.STATUS_ERROR:
+        print(f"warning: self-commit skipped: {outcome.message}")

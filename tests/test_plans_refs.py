@@ -184,7 +184,7 @@ class RenameOrderSlugPreservationTests(unittest.TestCase):
                 no_refs=True,
             )
         )
-        self.assertEqual(rc, 0)
+        self.assertEqual(rc.rc, 0)
         moved = list((pdir / "pending").glob("*wezhxg*.md"))
         self.assertEqual(len(moved), 1)
         name = moved[0].name

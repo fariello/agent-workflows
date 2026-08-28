@@ -241,10 +241,13 @@ def sweep_candidates(
 # --------------------------------------------------------------------------------------
 
 
-def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> None:
+def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List[str]:
+    """Apply archival moves; RETURN the repo-relative touched paths (moved files + regenerated
+    INDEX) for the self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
     """Apply status transitions: rewrite status, git mv into the shard, update references."""
 
     renames: Dict[str, str] = {}
+    touched: List[str] = []
     for m in moves:
         # Rewrite status in the file's frontmatter first (in place at the old path).
         text = m.old_path.read_text(encoding="utf-8")
@@ -257,6 +260,8 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> None
         # name-based references do not need rewriting; but if a full-path cite exists it is caught
         # by the dangling detector. Record for completeness.
         renames[m.old_path.name] = m.new_path.name
+        touched.append(src_rel)
+        touched.append(dst_rel)
     # Refresh the index after the moves.
     entries, _drift = RI._scan_docs(research_root)
     research_root.mkdir(parents=True, exist_ok=True)
@@ -266,6 +271,16 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> None
     (research_root / RI.INDEX_MD).write_text(
         RI.build_index_md(entries), encoding="utf-8"
     )
+    for name in (RI.INDEX_JSON, RI.INDEX_MD):
+        p = research_root / name
+        try:
+            touched.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
+        except ValueError:
+            touched.append(p.as_posix())
+    seen: dict = {}
+    for t in touched:
+        seen.setdefault(t, None)
+    return list(seen.keys())
 
 
 # --------------------------------------------------------------------------------------
@@ -317,11 +332,12 @@ def run_archive(args: argparse.Namespace) -> int:
                     f"--- would archive {m.old_path.name} -> {m.new_path.parent.name}/ ---"
                 )
             return 0
-        apply_moves(repo_root, research_root, moves)
+        touched = apply_moves(repo_root, research_root, moves)
         for m in moves:
             print(
                 f"archived {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
             )
+        _offer_archive_commit(args, repo_root, touched)
         return 0
 
     # Bare sweep: parse age duration and find candidates keeping sets together
@@ -359,12 +375,40 @@ def run_archive(args: argparse.Namespace) -> int:
             print(f"error: {err}")
             return 2
         moves.append(mv)
-    apply_moves(repo_root, research_root, moves)
+    touched = apply_moves(repo_root, research_root, moves)
     for m in moves:
         print(
             f"{m.new_status}: {m.id6} -> {m.new_path.relative_to(research_root).as_posix()}"
         )
+    _offer_archive_commit(args, repo_root, touched)
     return 0
+
+
+def _offer_archive_commit(
+    args: argparse.Namespace, repo_root: Path, touched: List[str]
+) -> None:
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit exactly the archived moves + regenerated
+    INDEX. Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
+    ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``; unrelated dirty files never
+    folded in. A commit failure is non-fatal (the archive already happened)."""
+    if not touched:
+        return
+    from agent_workflows import git_commit_helper as _gch
+
+    # jgcm68 D2: unstage the git-mv'd paths first so offer_commit's `git add` cleanly re-stages them.
+    _gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *touched])
+    outcome = _gch.offer_commit(
+        repo_root,
+        touched,
+        message="chore(research): archive aged artifacts and regenerate index",
+        assume_yes=bool(getattr(args, "commit", False)),
+        no_commit=bool(getattr(args, "no_commit", False)),
+        on_unrelated_staged="scope",
+    )
+    if outcome.status == _gch.STATUS_COMMITTED:
+        print(f"committed {len(outcome.staged)} path(s): {outcome.commit}")
+    elif outcome.status == _gch.STATUS_ERROR:
+        print(f"warning: self-commit skipped: {outcome.message}")
 
 
 def suggest_triage(repo_root: Path, research_root: Path) -> List[Move]:

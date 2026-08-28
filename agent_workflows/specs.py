@@ -523,7 +523,36 @@ def run_set(args) -> int:
         return 1
     core.atomic_write(path, new_text)
     sys.stdout.write(f"aw specs set: {path} -> {new}\n")
+    # selfcommit jgcm68 E-06: the `aw specs set --status <X> <path>` form routes HERE (not through
+    # status_set), so the offer must fire EXACTLY ONCE here for this form - the no-`--status` form
+    # is covered by status_set (E-05), so the two forms never double-offer or miss.
+    _offer_specs_set_commit(args, path, new)
     return 0
+
+
+def _offer_specs_set_commit(args, path: Path, new_status: str) -> None:
+    """Offer to path-scoped-commit the single spec file rewritten by the `--status` form (jgcm68 E-06).
+
+    Interactive-gated via child-01 ``offer_commit``: TTY prompts, non-interactive-without-``--commit``
+    is a NO-OP; path-scoped to exactly ``path``; no push, no ``add -A``. A commit failure is non-fatal.
+    """
+    from agent_workflows import git_commit_helper as _gch
+
+    repo_root = _repo_root_of(path)
+    # jgcm68 D2: unstage this single file first (no-op if not pre-staged) so the helper re-stages it.
+    _gch._git(Path(repo_root), ["reset", "--quiet", "HEAD", "--", str(path)])
+    outcome = _gch.offer_commit(
+        Path(repo_root),
+        [str(path)],
+        message=f"chore(specs): set status {new_status}",
+        assume_yes=bool(getattr(args, "commit", False)),
+        no_commit=bool(getattr(args, "no_commit", False)),
+        on_unrelated_staged="scope",
+    )
+    if outcome.status == _gch.STATUS_COMMITTED:
+        sys.stdout.write(f"committed {len(outcome.staged)} path(s): {outcome.commit}\n")
+    elif outcome.status == _gch.STATUS_ERROR:
+        sys.stdout.write(f"warning: self-commit skipped: {outcome.message}\n")
 
 
 def run_migrate(args) -> int:

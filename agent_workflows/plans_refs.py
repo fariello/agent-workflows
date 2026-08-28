@@ -130,6 +130,29 @@ class RenamePlan(NamedTuple):
     order: Optional[int] = None
 
 
+class MutationResult(NamedTuple):
+    """The exact set of paths a records-mutating backend touched, for the self-commit offer.
+
+    selfcommit child jgcm68 (E-03): group/rename backends (``plans_refs``, ``research_refs``,
+    ``artifact_rename``) RETURN this instead of a bare int so the CALLER (the ``_run_noun_verb``
+    group/rename dispatch, or the ``aw research set-assign``/``mv`` command branch) can place the
+    ``git_commit_helper.offer_commit`` offer ONCE at the call site (PR-012: never inside a shared
+    backend, or ``aw group research`` would double-fire). The backend itself performs NO commit.
+
+    * ``rc`` - the backend's exit code (0 ok / 1 findings / 2 cannot-run); the router still honors it.
+    * ``touched_paths`` - repo-relative paths the backend moved/renamed/rewrote (incl. citing files
+      whose references were rewritten), tracked EXPLICITLY during the mutation - never a dirty scan.
+    * ``index_paths`` - repo-relative regenerated INDEX files (INDEX.json/INDEX.md).
+
+    The commit path-set is ``touched_paths + index_paths``. This type is defined here (in scope) and
+    imported by ``research_refs`` and ``artifact_rename`` so there is a single shared definition.
+    """
+
+    rc: int
+    touched_paths: Tuple[str, ...] = ()
+    index_paths: Tuple[str, ...] = ()
+
+
 def clustered_name(
     *,
     date: str,
@@ -268,10 +291,14 @@ def apply_renames(
     descriptive: Optional[str] = None,
     update_refs: bool = True,
     verb: str = "group",
-) -> None:
+) -> Tuple[str, ...]:
     """Set metadata + (optional) clustering rename + citation rewrite. Preview when not apply.
     update_refs=False (from `--no-refs`, awcmdsurf Order 03) renames the file only, leaving citing
-    documents untouched."""
+    documents untouched.
+
+    Returns the repo-relative paths actually touched on ``apply`` (the mutated plan files at their
+    final location + rewritten citing files); empty on preview. The caller adds the regenerated
+    INDEX paths and drives the self-commit offer (selfcommit jgcm68 E-03)."""
 
     name_map = {
         p.old_path.name: p.new_path.name for p in plans if p.old_path != p.new_path
@@ -293,7 +320,15 @@ def apply_renames(
             print(
                 f"--- would rewrite {e.hits}x [{e.kind}] '{e.old}' -> '{e.new}' in {e.file} ---"
             )
-        return
+        return ()
+    touched: List[str] = []
+
+    def _rel(path: Path) -> str:
+        try:
+            return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            return path.as_posix()
+
     for i, p in enumerate(plans):
         # Update Set/Order metadata in place first. Use the plan's explicit order when provided
         # (mv preserves it), else the enumerate index (set-assign batch sequencing).
@@ -319,9 +354,15 @@ def apply_renames(
                 from_name=p.old_path.name,
                 to_name=p.new_path.name,
             )
+            # The tracked change is at the destination (rename records both delete+add).
+            touched.append(src_rel)
+            touched.append(dst_rel)
+        else:
+            touched.append(_rel(p.old_path))
     apply_reference_rewrites(ref_edits)
     for e in ref_edits:
         print(f"rewrote {e.hits}x [{e.kind}] in {e.file}")
+        touched.append(_rel(e.file))
     try:
         _idx.run_index(
             argparse.Namespace(
@@ -335,6 +376,11 @@ def apply_renames(
         )
     except Exception:
         pass
+    # De-duplicate, order-stable.
+    seen: dict = {}
+    for t in touched:
+        seen.setdefault(t, None)
+    return tuple(seen.keys())
 
 
 # --------------------------------------------------------------------------------------
@@ -361,12 +407,25 @@ def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
     return repo_root, plans_dir
 
 
-def run_set_assign(args: argparse.Namespace) -> int:
+def _index_paths_for(plans_dir: Path, repo_root: Path) -> Tuple[str, ...]:
+    """Repo-relative INDEX.json/INDEX.md for the plans tree (only those that exist)."""
+    out: List[str] = []
+    for name in (_idx.INDEX_JSON, _idx.INDEX_MD):
+        p = plans_dir / name
+        if p.exists():
+            try:
+                out.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
+            except ValueError:
+                out.append(p.as_posix())
+    return tuple(out)
+
+
+def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
     if not ids:
         print("error: at least one <id6> is required")
-        return 2
+        return MutationResult(2)
     start = getattr(args, "order", None)
     plans, err = plan_set_assign(
         plans_dir,
@@ -377,8 +436,8 @@ def run_set_assign(args: argparse.Namespace) -> int:
     )
     if err:
         print(f"error: {err}")
-        return 2
-    apply_renames(
+        return MutationResult(2)
+    touched = apply_renames(
         repo_root,
         plans_dir,
         plans or [],
@@ -386,16 +445,17 @@ def run_set_assign(args: argparse.Namespace) -> int:
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
     )
-    return 0
+    idx = _index_paths_for(plans_dir, repo_root) if touched else ()
+    return MutationResult(0, touched, idx)
 
 
-def run_mv(args: argparse.Namespace) -> int:
+def run_mv(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
     id6 = getattr(args, "id", "") or ""
     src = _find_plan_by_id(plans_dir, id6)
     if src is None:
         print(f"error: no plan has Id '{id6}'")
-        return 2
+        return MutationResult(2)
     text = src.read_text(encoding="utf-8")
     m = _SET_LINE_RE.search(text)
     om = _ORDER_LINE_RE.search(text)
@@ -424,7 +484,7 @@ def run_mv(args: argparse.Namespace) -> int:
         artifact_type="ipd",
     )
     plan = RenamePlan(src, src.parent / new_name, id6, order=order)
-    apply_renames(
+    touched = apply_renames(
         repo_root,
         plans_dir,
         [plan],
@@ -433,4 +493,5 @@ def run_mv(args: argparse.Namespace) -> int:
         update_refs=not getattr(args, "no_refs", False),
         verb="rename",
     )
-    return 0
+    idx = _index_paths_for(plans_dir, repo_root) if touched else ()
+    return MutationResult(0, touched, idx)

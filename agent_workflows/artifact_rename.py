@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows.plans_refs import (
+    MutationResult,
+)  # shared self-commit result type (jgcm68)
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import artifact_refs as _refs
 from agent_workflows import record_history as _rh
@@ -38,6 +41,44 @@ RefEdit = _refs.RefEdit
 
 def _resolve_repo_root(args: argparse.Namespace) -> Path:
     return resolve_verb_repo_root(getattr(args, "dir", None))
+
+
+def _rel_to_repo(path: Path, repo_root: Path) -> str:
+    """Repo-relative POSIX string for ``path`` (falls back to the raw posix path)."""
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _dedup(items: List[str]) -> Tuple[str, ...]:
+    """Order-stable de-duplication of the touched-path list."""
+    seen: dict = {}
+    for it in items:
+        seen.setdefault(it, None)
+    return tuple(seen.keys())
+
+
+def _index_paths_for(artifact_type: str, repo_root: Path) -> Tuple[str, ...]:
+    """Repo-relative INDEX.json/INDEX.md for an indexed artifact type (jgcm68 self-commit paths)."""
+    out: List[str] = []
+    if artifact_type == "plans":
+        from agent_workflows import plans_index as _pidx
+
+        _repo, base = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
+        names = (_pidx.INDEX_JSON, _pidx.INDEX_MD)
+    elif artifact_type == "research":
+        from agent_workflows import research_index as _ridx
+
+        _repo, base = _ridx._roots(argparse.Namespace(dir=str(repo_root)))
+        names = (_ridx.INDEX_JSON, _ridx.INDEX_MD)
+    else:
+        return ()
+    for name in names:
+        p = base / name
+        if p.exists():
+            out.append(_rel_to_repo(p, repo_root))
+    return tuple(out)
 
 
 def find_target_record(
@@ -268,8 +309,13 @@ def _update_or_inject_set_metadata(
         )
 
 
-def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
-    """Universal rename execution engine for an artifact type."""
+def run_rename_generic(
+    args: argparse.Namespace, artifact_type: str
+) -> "MutationResult":
+    """Universal rename execution engine for an artifact type.
+
+    selfcommit jgcm68 E-03: RETURNS a ``MutationResult`` (rc + touched/index paths); performs NO
+    commit itself. The caller (``_run_noun_verb`` dispatch) places the self-commit offer ONCE."""
     repo_root = _resolve_repo_root(args)
     selector = getattr(args, "id", None) or getattr(args, "selector", None)
     if isinstance(selector, list):
@@ -277,7 +323,7 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
 
     if not selector:
         print("error: at least one <id6>, <setid>, or <path> is required")
-        return 2
+        return MutationResult(2)
 
     # IPD laykok E-07: apply the kind-aware ambiguity policy through the unified resolver. `rename`
     # mutates ONE file, so a UNIQUE-id collision or an unforced substring multi-match REFUSES with
@@ -288,18 +334,18 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
     )
     if amb_err:
         print(f"error: {amb_err}")
-        return 2
+        return MutationResult(2)
     if len(paths) > 1 and not bool(getattr(args, "force", False)):
         cand = "\n  ".join(str(p) for p in paths)
         print(
             f"error: selector '{selector}' matched multiple files; rename targets one "
             f"(pass --force to rename the first, or use a unique id6):\n  {cand}"
         )
-        return 2
+        return MutationResult(2)
     src = paths[0].resolve()
     if not src.exists():
         print(f"error: no {artifact_type} artifact matched '{selector}'")
-        return 2
+        return MutationResult(2)
 
     new_slug = getattr(args, "slug", None)
     new_set = getattr(args, "set", None)
@@ -314,7 +360,7 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
     )
     if err:
         print(f"error: {err}")
-        return 2
+        return MutationResult(2)
 
     assert new_name is not None
     dst = src.parent / new_name
@@ -324,7 +370,7 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
 
     if dst.resolve() != src.resolve() and dst.exists():
         print(f"error: destination file already exists: {dst.name}")
-        return 2
+        return MutationResult(2)
 
     ref_edits = (
         plan_reference_rewrites(repo_root, src.name, new_name) if update_refs else []
@@ -343,9 +389,10 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
                 print(
                     f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
                 )
-        return 0
+        return MutationResult(0)
 
     # Apply changes
+    touched: List[str] = []
     if src.resolve() != dst.resolve():
         src_rel = src.relative_to(repo_root).as_posix()
         dst_rel = dst.relative_to(repo_root).as_posix()
@@ -360,11 +407,16 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
             from_name=src.name,
             to_name=dst.name,
         )
+        touched.append(src_rel)
+        touched.append(dst_rel)
+    else:
+        touched.append(_rel_to_repo(dst, repo_root))
 
     if new_set is not None or new_order is not None:
         _update_frontmatter_metadata(
             dst, set_id=_core.kebab(new_set) if new_set else None, order=new_order
         )
+        touched.append(_rel_to_repo(dst, repo_root))
 
     if update_refs and ref_edits:
         apply_reference_rewrites(ref_edits)
@@ -374,8 +426,10 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
             except ValueError:
                 rel_f = str(e.file)
             print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+            touched.append(rel_f)
 
     # Auto-index if supported
+    index_paths: Tuple[str, ...] = ()
     if artifact_type in {"plans", "research"}:
         try:
             if artifact_type == "plans":
@@ -404,13 +458,14 @@ def run_rename_generic(args: argparse.Namespace, artifact_type: str) -> int:
                         quiet=True,
                     )
                 )
+            index_paths = _index_paths_for(artifact_type, repo_root)
         except Exception:
             pass
 
-    return 0
+    return MutationResult(0, _dedup(touched), index_paths)
 
 
-def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
+def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "MutationResult":
     """Universal set assignment / group execution engine for an artifact type."""
     repo_root = _resolve_repo_root(args)
     raw_selectors = (
@@ -424,12 +479,12 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
 
     if not selectors_list:
         print("error: at least one <id6>, <setid>, or <path> is required")
-        return 2
+        return MutationResult(2)
 
     new_set = getattr(args, "set", None)
     if not new_set or not new_set.strip():
         print("error: --set <set-id> is required")
-        return 2
+        return MutationResult(2)
 
     set_k = _core.kebab(new_set)
     start_order = getattr(args, "order", None)
@@ -444,7 +499,7 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
         src = find_target_record(repo_root, artifact_type, sel)
         if src is None or not src.exists():
             print(f"error: no {artifact_type} artifact matched '{sel}'")
-            return 2
+            return MutationResult(2)
         order_val = (start_order + i) if start_order is not None else None
         if rename_files:
             new_name, err = compute_target_name(
@@ -462,7 +517,7 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
 
         if dst.resolve() != src.resolve() and dst.exists():
             print(f"error: destination file already exists: {dst.name}")
-            return 2
+            return MutationResult(2)
 
         targets.append((src, dst, order_val))
         if update_refs and src.name != dst.name:
@@ -483,9 +538,10 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
                 print(
                     f"--- would rewrite {e.hits}x '{e.old}' -> '{e.new}' in {rel_f} ---"
                 )
-        return 0
+        return MutationResult(0)
 
     # Apply changes
+    touched: List[str] = []
     for src, dst, order_val in targets:
         if src.resolve() != dst.resolve():
             src_rel = src.relative_to(repo_root).as_posix()
@@ -501,9 +557,12 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
                 from_name=src.name,
                 to_name=dst.name,
             )
+            touched.append(src_rel)
+            touched.append(dst_rel)
         _update_or_inject_set_metadata(dst, set_id=set_k, order=order_val)
         dst_rel = dst.relative_to(repo_root).as_posix()
         print(f"set metadata Set: {set_k} in {dst_rel}")
+        touched.append(dst_rel)
 
     if update_refs and all_edits:
         apply_reference_rewrites(all_edits)
@@ -513,8 +572,10 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
             except ValueError:
                 rel_f = str(e.file)
             print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
+            touched.append(rel_f)
 
     # Auto-index if indexed type
+    index_paths: Tuple[str, ...] = ()
     if artifact_type in {"plans", "research"}:
         try:
             if artifact_type == "plans":
@@ -543,55 +604,56 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> int:
                         quiet=True,
                     )
                 )
+            index_paths = _index_paths_for(artifact_type, repo_root)
         except Exception:
             pass
 
-    return 0
+    return MutationResult(0, _dedup(touched), index_paths)
 
 
-def run_rename_backlog(args: argparse.Namespace) -> int:
+def run_rename_backlog(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "backlog")
 
 
-def run_rename_specs(args: argparse.Namespace) -> int:
+def run_rename_specs(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "specs")
 
 
-def run_rename_prompts(args: argparse.Namespace) -> int:
+def run_rename_prompts(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "prompts")
 
 
-def run_rename_walkthroughs(args: argparse.Namespace) -> int:
+def run_rename_walkthroughs(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "walkthroughs")
 
 
-def run_rename_roadmaps(args: argparse.Namespace) -> int:
+def run_rename_roadmaps(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "roadmaps")
 
 
-def run_rename_releases(args: argparse.Namespace) -> int:
+def run_rename_releases(args: argparse.Namespace) -> "MutationResult":
     return run_rename_generic(args, "releases")
 
 
-def run_group_backlog(args: argparse.Namespace) -> int:
+def run_group_backlog(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "backlog")
 
 
-def run_group_specs(args: argparse.Namespace) -> int:
+def run_group_specs(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "specs")
 
 
-def run_group_prompts(args: argparse.Namespace) -> int:
+def run_group_prompts(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "prompts")
 
 
-def run_group_walkthroughs(args: argparse.Namespace) -> int:
+def run_group_walkthroughs(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "walkthroughs")
 
 
-def run_group_roadmaps(args: argparse.Namespace) -> int:
+def run_group_roadmaps(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "roadmaps")
 
 
-def run_group_releases(args: argparse.Namespace) -> int:
+def run_group_releases(args: argparse.Namespace) -> "MutationResult":
     return run_group_generic(args, "releases")

@@ -307,7 +307,7 @@ Body
                 no_refs=True,
             )
         )
-        self.assertEqual(rc, 0)
+        self.assertEqual(rc.rc, 0)
 
         # Verify INDEX.json was automatically updated with new-fresh-slug
         index_json_path = self.plans_dir / "INDEX.json"
@@ -346,7 +346,7 @@ Body
                 no_refs=True,
             )
         )
-        self.assertEqual(rc, 0)
+        self.assertEqual(rc.rc, 0)
 
         # Verify INDEX.json was automatically updated with newbrandset
         index_json_path = self.plans_dir / "INDEX.json"
