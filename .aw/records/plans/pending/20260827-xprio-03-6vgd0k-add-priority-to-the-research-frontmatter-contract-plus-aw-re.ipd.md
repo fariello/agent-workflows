@@ -29,25 +29,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: contract + INDEX + writers
 
-- [ ] E-01 In `research_contract.py`, support an optional `priority:` frontmatter key and carry it in the INDEX. Do NOT add `priority` to `FRONTMATTER_FIELDS` (that is the REQUIRED-presence tuple, :365-377/:400-402; adding it there mass-fails every existing doc) - "optional" means no presence check. Add reading/carrying of the key so `research_index` (build path) emits it as an `INDEX.json` field for a doc that has it. The enum VALUE validation is E-02 (a `validate_frontmatter` check), not this item.
+- [x] E-01 In `research_contract.py`, support an optional `priority:` frontmatter key and carry it in the INDEX. Do NOT add `priority` to `FRONTMATTER_FIELDS` (that is the REQUIRED-presence tuple, :365-377/:400-402; adding it there mass-fails every existing doc) - "optional" means no presence check. Add reading/carrying of the key so `research_index` (build path) emits it as an `INDEX.json` field for a doc that has it. The enum VALUE validation is E-02 (a `validate_frontmatter` check), not this item.
   - Depends on: none
   - Expected outcome: a research doc may carry `priority: high`, `aw research index --check` conforms with or without it (optional), and a rebuilt INDEX.json carries the `priority` field for a doc that has it (absent/null otherwise).
-  - Execution state: pending
-- [ ] E-03 Add the writer surface: `--priority <low|medium|high>` on `aw research new` (research_cmd.py `plan_new`/`run_new` + cli.py), and a set/clear path that MIRRORS the existing in-place frontmatter mutator `aw research set-outcome` (research_cmd.py:373/449, IPD xjrdjp) - either a `--priority` on that mutator or a sibling `aw research set-priority <id6> --to <low|medium|high|->` - to write/clear `priority` on an existing doc.
+  - Done note: `priority` is NOT added to `FRONTMATTER_FIELDS` (grep of the tuple -> 0 `priority`), so absence is clean. Added `priority: str = ""` to `research_index.DocEntry` (defaulted, carried into INDEX.json via `_asdict()`) and populated it in `_scan_docs` from `fm.get("priority","")`. Verified live: a doc with `priority: high` -> `aw research index --check: clean` (exit 0); INDEX.json carries `"priority": "high"`; a doc without it -> DocEntry.priority == "" and still conforms.
+  - Execution state: performed
+- [x] E-03 Add the writer surface: `--priority <low|medium|high>` on `aw research new` (research_cmd.py `plan_new`/`run_new` + cli.py), and a set/clear path that MIRRORS the existing in-place frontmatter mutator `aw research set-outcome` (research_cmd.py:373/449, IPD xjrdjp) - either a `--priority` on that mutator or a sibling `aw research set-priority <id6> --to <low|medium|high|->` - to write/clear `priority` on an existing doc.
   - Depends on: E-01
   - Expected outcome: `aw research new --priority high` emits `priority: high`; the set path writes `priority: medium` on an existing doc and `-`/clear removes it; both mirror `set-outcome`'s preview/`--apply` shape.
-  - Execution state: pending
+  - Done note: `build_frontmatter` gained an optional `priority` param that emits a `priority:` line ONLY when non-empty (so a doc created without it stays contract-clean); threaded through `plan_new`/`run_new` with a shared-vocab guard. Added a sibling `aw research set-priority <id6> --to <low|medium|high|->` (cli.py subparser + dispatch) backed by `plan_set_priority`/`run_set_priority`, mirroring `set-outcome`'s preview/`--apply` shape; the new `_set_priority_line` helper INSERTS the line when absent, REPLACES when present, and REMOVES on `-` (since priority is optional, unlike `update_frontmatter_fields` which only rewrites existing lines). Verified live: `aw research new . --kind findings --slug demo --priority high --apply` -> `priority: high` in the created doc; `aw research set-priority <id6> --to medium --apply` -> `priority: medium` (preview shows `would update`); `--to -` -> line removed.
+  - Execution state: performed
 
 ### Task group 2: check + attention
 
-- [ ] E-02 Add the enum value check to `validate_frontmatter` (research_contract.py): `if "priority" in data` and the value not in shared `backlog.PRIORITIES` (import, do not fork), emit a structured error - mirroring the `status`/`outcome` value checks (:442-457). Because `aw research index --check` (research_index.py:93) and `aw check` call `validate_frontmatter`, both then flag an out-of-vocab value.
+- [x] E-02 Add the enum value check to `validate_frontmatter` (research_contract.py): `if "priority" in data` and the value not in shared `backlog.PRIORITIES` (import, do not fork), emit a structured error - mirroring the `status`/`outcome` value checks (:442-457). Because `aw research index --check` (research_index.py:93) and `aw check` call `validate_frontmatter`, both then flag an out-of-vocab value.
   - Depends on: E-01
   - Expected outcome: `aw research index --check`/`aw check` reports a finding for a doc carrying `priority: bogus` and reports none for `priority: high` or an absent priority.
-  - Execution state: pending
-- [ ] E-04 Populate `Item.priority` in `attention._research_record` (attention.py:371) from the doc's `priority:` key so the board labels a research doc's priority (absent = unset). Scope note: reuses the EXISTING label renderer (attention.py:717) only; it does NOT change the shared attention sort key (attention.py:186), which excludes priority for all trees today.
+  - Done note: Added `if "priority" in data:` -> value must be in the SHARED `_backlog.PRIORITIES` (imported, 0 forked literals) to `validate_frontmatter`, emitting `FrontmatterError("priority", "priority must be one of [...]")`; absent = no error (optional). Verified live: `aw research index --check` and `aw check research` both report `frontmatter-invalid: priority: priority must be one of ['high','low','medium']` for a bogus value; `priority: high`/absent -> no priority finding.
+  - Execution state: performed
+- [x] E-04 Populate `Item.priority` in `attention._research_record` (attention.py:371) from the doc's `priority:` key so the board labels a research doc's priority (absent = unset). Scope note: reuses the EXISTING label renderer (attention.py:717) only; it does NOT change the shared attention sort key (attention.py:186), which excludes priority for all trees today.
   - Depends on: E-01
   - Expected outcome: `aw attention` renders a `[high]`/`[medium]`/`[low]` label for a research doc carrying `priority:`, matching backlog's label rendering; no label for an absent priority.
-  - Execution state: pending
+  - Done note: In `attention._research_record`, read `data.get("priority")` and pass `priority=pr` (None when absent/empty) to the existing `Item(...)`. My attention.py diff is ONLY this read + the `priority=pr` kwarg; the shared sort key is untouched. Verified live: `_research_record` yields `Item.priority == "high"` for a `priority: high` doc and `None` for an absent one.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -103,22 +107,22 @@ Same recognized-but-optional-field + setter + attention pattern; research-specif
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted `aw research index --check` on a fixture doc carrying `priority: high` showing conformance, and on a doc with NO priority also conforming (optional). Pasted rebuilt `INDEX.json` excerpt showing the `priority` field present for the doc that has it (and absent/null for one that does not). A grep proving `priority` is NOT added to `FRONTMATTER_FIELDS` (research_contract.py) - i.e. an existing doc with no `priority` still validates clean.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: INDEX CHECK (live) - a doc with `priority: high` -> `aw research index --check` -> `index --check: clean` (exit 0); a doc with no priority also conforms. INDEX.json - `python3 -c 'json.load(INDEX.json)[0]["priority"]'` -> `high` for the doc that has it; a doc without priority carries `DocEntry.priority == ""`. GREP - `sed -n '/^FRONTMATTER_FIELDS/,/)/p' research_contract.py | grep -c priority` = `0` (priority NOT in the required tuple). TESTS - `python3 -m pytest tests/test_research_priority.py -o addopts=""` -> `11 passed`: `ResearchPriorityContractTests::test_priority_not_in_required_fields`, `::test_absent_priority_conforms`; `ResearchPriorityIndexTests::test_index_carries_priority` (INDEX.json contains `"priority": "high"`), `::test_index_priority_empty_when_absent`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Pasted `aw research index --check` (and `aw check`) over a fixture doc carrying `priority: bogus` showing a `priority`-invalid finding (with its rule id), and over fixtures carrying `priority: high` and no priority showing NO such finding. A grep proving the `validate_frontmatter` enum check consumes the shared `backlog.PRIORITIES` (no forked `{"high","medium","low"}` literal). Pasted new/updated test in tests/ asserting all three cases.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: CHECK (live) - a `priority: bogus` doc -> `aw research index --check` -> `frontmatter-invalid: priority: priority must be one of ['high', 'low', 'medium']`; `aw check research` -> `Issue: priority: priority must be one of ['high','low','medium']`; `priority: high` and absent -> 0 priority findings. GREP - `grep -n _backlog.PRIORITIES research_contract.py` -> the check at :499/:503 uses `_backlog.PRIORITIES` (imported; no forked literal). TESTS - part of the `11 passed` run: `ResearchPriorityContractTests::test_out_of_vocab_priority_flagged` (exactly 1 priority error), `test_valid_priority_conforms` (every backlog.PRIORITIES member clean), `test_absent_priority_conforms`. Regression: `tests/test_research_contract.py tests/test_research_index.py tests/test_check_engine.py` green (part of `105 passed`).
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Pasted `aw research new --priority high ... --apply` run and the created doc's `priority: high` frontmatter line. Pasted set-path run (preview then `--apply`) writing `priority: medium` on an existing doc, and the clear (`-`) run removing the key; confirm the surface mirrors `set-outcome`'s preview/`--apply` shape.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: NEW (live) - `aw research new . --kind findings --slug demo --summary s --priority high --apply` -> `wrote .../20260828-demo-00-4sh13t-demo.findings.md`; the created doc carries `priority: high`. SET (live) - `aw research set-priority 4sh13t --to medium` (preview) -> `--- would update ...: priority=medium ---`; with `--apply` -> `updated ...` and the doc shows `priority: medium`; `aw research set-priority 4sh13t --to - --apply` -> `updated ...` and 0 `priority:` lines (cleared). Both mirror `set-outcome`'s preview/`--apply` shape. TESTS - part of the `11 passed` run: `ResearchPriorityNewAndSetTests::test_new_emits_priority_line_only_when_given` (line present only with --priority), `::test_new_rejects_out_of_vocab_priority`, `::test_set_priority_writes_inserts_and_clears` (insert/replace/remove, body preserved), `::test_plan_set_priority_rejects_out_of_vocab`.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Pasted `aw attention --format json` (or the table) for a fixture research doc carrying `priority: high` showing `"priority": "high"` (JSON) / a `[high]` label (table), and for a doc with no priority showing `"priority": null` / no label. A diff/grep proving `attention.py:186` sort key is UNCHANGED (priority not added to the sort tuple).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ATTENTION (live) - `attention._research_record` for a `priority: high` doc yields `Item.priority == "high"`; for a doc with no priority yields `None` (the serializer renders `"priority": "high"` / `"priority": null`, identical to the plans/specs paths proven in 1b45el/rp859c). DIFF - `git diff HEAD -- agent_workflows/attention.py` shows ONLY the `_research_record` change (the `pr_val`/`pr` read + the `priority=pr` kwarg on the existing `Item(...)`); the shared sort key is NOT in the diff (unchanged). TESTS - part of the `11 passed` run: `ResearchPriorityAttentionTests::test_research_record_populates_priority` (`Item.priority == "high"` for a priority doc, `None` when absent). Regression: `tests/test_attention.py` green.
+  - Result: pass
 
 
 
