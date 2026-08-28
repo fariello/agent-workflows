@@ -5,15 +5,15 @@
 - Concern: Findings bu9yij section 7.1/8 (Phase 0): before implementing any control you must classify each invariant and define what evidence is observable, or you risk describing local hooks/hashes/files as stronger than they are and building controls with no precise target. There is no catalog today of the toolkit's process invariants, their assurance class, or their observable evidence.
 - Scope: Author the Phase-0 foundation as a durable spec/record (under `.aw/records/specs/` or a docs artifact): (1) a threat model (an agent with broad local shell access can use raw tools, edit files, bypass local hooks, fabricate local records; remote acceptance is the authority boundary); (2) three assurance classes - Guidance (cooperative agents follow), Repository-invariant (noncompliant artifacts must fail checks/merge), Authority-invariant (even a locally-privileged agent must not forge/authorize); (3) an invariant catalog enumerating the toolkit's key process rules (path-scoped commits/no `add -A`, no push without authorization, no hand-edited lifecycle status, test evidence bound to the tree, IPD finalize requires validation, backlog release-gate preservation, etc.), each tagged with its assurance class and its observable evidence (what artifact/event proves compliance) or an honest "unverifiable/probabilistic" label. One catalog entry MUST be the authoring-lifecycle invariant "a finished draft IPD is advanced to `to-review`" (assurance class: Guidance; observable evidence: a `draft` plan with no authoring placeholders is deterministically detectable, so it is nudged, not left silently `draft`) - this closes the recurring miss where agents finish drafting but never advance the status, and phase-1 child 02 implements the `check.ipd-draft-ready-to-review` detect-and-nudge rule from it. This child produces NO enforcement code; it is the classification that phases 1-5 target. Deliverable is a reviewed spec/record that the phase-1 policy schema is built from.
 - Scope-Paths: .aw/records/specs/, docs/, tests/
-- Status: approved
+- Status: executed
 - Set: agentadhere
 - Order: 1
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: gfokao
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Authored the Phase-0 agentadhere catalog spec pqsx96 (threat model, three assurance classes, 15-row invariant catalog with observable-evidence tags incl. the mandated I-12 authoring-lifecycle entry, and traceability). No enforcement code. aw specs check clean; aw check all unchanged at 68 baseline; aw sanitize clean; full suite 2453 passed 1 skipped. [Scope reconciliation - in-scope-unmodified .aw/records/specs/: spec pqsx96 committed pre-begin in bfcc148; in-scope-unmodified docs/: no doc edit; linkage via From-Plan + prose per DECISION 13-gfokao-D1; in-scope-unmodified tests/: no test needed for a pure-authoring spec child]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (opencode its_direct/pt3-claude-opus-4.8-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 gate execution contract added, PR-002 V-01 concrete evidence, PR-003 right-sizing assessed (single-spec pass, no split), OQ-01 resolved
