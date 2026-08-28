@@ -30,29 +30,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: High-severity accuracy (getting-started breakers)
 
-- [ ] E-01 Correct the install-preset names in the README placement-presets table (README.md:78-79) and any prose using them: `public-private-companion` -> `public-target-private-companion`; `clean-target` -> `completely-clean-target`. Match the actual CLI enum (`aw install --preset {private-target,public-target-private-companion,completely-clean-target,local-only}`). Grep README for both wrong tokens and fix every occurrence.
+- [x] E-01 Correct the install-preset names in the README placement-presets table (README.md:78-79) and any prose using them: `public-private-companion` -> `public-target-private-companion`; `clean-target` -> `completely-clean-target`. Match the actual CLI enum (`aw install --preset {private-target,public-target-private-companion,completely-clean-target,local-only}`). Grep README for both wrong tokens and fix every occurrence.
   - Depends on: none
   - Expected outcome: every `--preset` name in README is copy-pasteable; `aw install --preset <name>` for each documented preset does not error.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Correct the `.aw/records/docs/` layout claim to the actual flat layout (awretrofit Order 07 flattened the doc-family types out of `records/docs/`). In README.md (line ~65 and the layout description ~256): replace `reference docs and specs (.aw/records/docs/)` / `docs/ - research (docs/research/), walkthroughs, specs` with the real flat roots `.aw/records/specs/`, `.aw/records/research/`, `.aw/records/walkthroughs/`, `.aw/records/roadmaps/` (and note `prompt-library/`). Verify against `ls -d .aw/records/*/`.
+- [x] E-02 Correct the `.aw/records/docs/` layout claim to the actual flat layout (awretrofit Order 07 flattened the doc-family types out of `records/docs/`). In README.md (line ~65 and the layout description ~256): replace `reference docs and specs (.aw/records/docs/)` / `docs/ - research (docs/research/), walkthroughs, specs` with the real flat roots `.aw/records/specs/`, `.aw/records/research/`, `.aw/records/walkthroughs/`, `.aw/records/roadmaps/` (and note `prompt-library/`). Verify against `ls -d .aw/records/*/`.
   - Depends on: none
   - Expected outcome: README's Records-root description lists only directories that actually exist under `.aw/records/`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Medium/Low staleness
 
-- [ ] E-03 Fix the same `.aw/records/docs/` flatten staleness in CONTRIBUTING.md (:43 Generated-files row, :44 Records row, :55 Research Manifest path) and ARCHITECTURE.md (:61 tree diagram, and the preset names :87-88): research manifest is `.aw/records/research/INDEX.{json,md}`; the Records tree is the flat roots; correct the preset names as in E-01.
+- [x] E-03 Fix the same `.aw/records/docs/` flatten staleness in CONTRIBUTING.md (:43 Generated-files row, :44 Records row, :55 Research Manifest path) and ARCHITECTURE.md (:61 tree diagram, and the preset names :87-88): research manifest is `.aw/records/research/INDEX.{json,md}`; the Records tree is the flat roots; correct the preset names as in E-01.
   - Depends on: none
   - Expected outcome: CONTRIBUTING/ARCHITECTURE cite only real paths + real preset names; `ls .aw/records/research/INDEX.json` resolves.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Remove references to non-existent commands: `aw update` (README.md:241; CHANGELOG.md:29) - install IS the updater (README:58 already says so), so drop `aw update` from those sentences; and `aw comms` (CONTRIBUTING.md:44 Records row "Managing Tool") - there is no `aw comms` verb (comms are scaffolded by the installer / `aw normalize-lanes`). Verify each with `python -m agent_workflows <verb> --help`.
+- [x] E-04 Remove references to non-existent commands: `aw update` (README.md:241; CHANGELOG.md:29) - install IS the updater (README:58 already says so), so drop `aw update` from those sentences; and `aw comms` (CONTRIBUTING.md:44 Records row "Managing Tool") - there is no `aw comms` verb (comms are scaffolded by the installer / `aw normalize-lanes`). Verify each with `python -m agent_workflows <verb> --help`.
   - Depends on: none
   - Expected outcome: no user-facing doc names a command that `aw --help` does not list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Rewrite TODO.md's LIVE `.agents/...` pointers to their post-migration `.aw/records/...` homes, applying the flatten (`docs/specs/` -> `specs/`) and appending the `.spec.md` facet to BOTH spec pointers. Adjudicate each `.agents/` occurrence explicitly, LIVE (rewrite) vs HISTORICAL (leave verbatim):
+- [x] E-05 Rewrite TODO.md's LIVE `.agents/...` pointers to their post-migration `.aw/records/...` homes, applying the flatten (`docs/specs/` -> `specs/`) and appending the `.spec.md` facet to BOTH spec pointers. Adjudicate each `.agents/` occurrence explicitly, LIVE (rewrite) vs HISTORICAL (leave verbatim):
     - TODO.md:6-7 `materialized at .agents/backlog/ pre-migration, .aw/records/backlog/ post-migration` -> HISTORICAL (deliberate pre/post contrast). LEAVE the `.agents/backlog/` half UNCHANGED.
     - TODO.md:7 `See .agents/backlog/README.md` -> LIVE -> `.aw/records/backlog/README.md`.
     - TODO.md:8 `.agents/docs/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md` -> LIVE -> `.aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md` (facet already present; only the path flattens).
@@ -61,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     - TODO.md:21 `the canonical spec is .agents/docs/specs/20260715-1722-01-agent-comms-convention.md` -> LIVE pointer to a file that still exists (verified `.aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md`) -> rewrite to `.aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` (flatten AND append the missing `.spec.md` facet). Do NOT alter the surrounding historical narration.
   - Depends on: none
   - Expected outcome: every LIVE pointer above resolves via `ls`; the two HISTORICAL `.agents/` mentions (`:6-7` pre-migration half, `:18` D81 narration) remain verbatim; no LIVE pointer references the removed `.agents/` tree.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -129,30 +129,30 @@ This IPD IS documentation work; there is no separate spec to sync. No behavior c
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `aw install --help` showing the four preset enum values, and confirm README's table rows now match verbatim (no `public-private-companion`/`clean-target`).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m agent_workflows install --help` preset enum -> `{private-target,public-target-private-companion,completely-clean-target,local-only}`. README preset backtick tokens now = `completely-clean-target` `local-only` `private-target` `public-target-private-companion` (all four match the enum verbatim). `grep -nE '\bpublic-private-companion\b|(^|[^-])clean-target\b' README.md` -> (none): no standalone wrong tokens remain.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `ls -d .aw/records/*/` and confirm every Records path in README now appears in that list; `grep -n "records/docs" README.md` returns nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `ls -d .aw/records/*/` -> `backlog/ comms/ plans/ prompt-library/ prompts/ releases/ research/ roadmaps/ runs/ specs/ walkthroughs/`. README's Records section (line 65) and layout description (~256) now list only `plans/ specs/ research/ walkthroughs/ roadmaps/ backlog/ comms/ prompts/ prompt-library/` - all present in the ls output. `grep -n "records/docs" README.md` -> (none): the phantom `.aw/records/docs/` is gone.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: `grep -n "records/docs" CONTRIBUTING.md ARCHITECTURE.md` returns nothing; `ls .aw/records/research/INDEX.json` resolves; preset names in ARCHITECTURE match the CLI enum.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep -n "records/docs" CONTRIBUTING.md ARCHITECTURE.md` -> (none). `ls .aw/records/research/INDEX.json` -> resolves (the CONTRIBUTING Generated + Research-Manifest rows now cite `.aw/records/research/INDEX.*`). `grep -nE 'public-private-companion|(^|[^-])clean-target\b' ARCHITECTURE.md` -> (none); ARCHITECTURE now uses `public-target-private-companion`/`completely-clean-target` matching the CLI enum. The ARCHITECTURE records tree lists the flat roots (specs/ research/ walkthroughs/ roadmaps/) instead of the nonexistent `docs/`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: `grep -n "aw update\|aw comms" README.md CONTRIBUTING.md CHANGELOG.md` shows only historical contexts (no present-tense "run aw update/aw comms"); `aw update --help` and `aw comms --help` still error (confirming they are not real).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep -nE 'aw update|aw comms' README.md CONTRIBUTING.md CHANGELOG.md` -> (none): removed `aw update` from README (migration-detection sentence) + CHANGELOG:29, and removed `aw comms` from the CONTRIBUTING Records "Managing Tool" cell (replaced with the real `aw specs`, which manages the `specs/` records root). `python3 -m agent_workflows update --help` -> exit 2 (no such subcommand); `python3 -m agent_workflows comms --help` -> exit 2 (no such subcommand) - confirming both are not real verbs.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: `grep -n "\.agents/" TODO.md` output pasted; confirm the ONLY remaining `.agents/` lines are the two adjudicated HISTORICAL ones (`:6-7` pre-migration half, `:18` D81 narration); `ls` each rewritten pointer to prove it resolves - specifically `ls .aw/records/backlog/README.md`, `ls .aw/records/plans/pending/`, and `ls .aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md .aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` (both spec pointers, `.spec.md` facet present).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep -nE '\.agents/' TODO.md` -> only two lines remain, both HISTORICAL as adjudicated: `6:The tree is records/backlog/... (materialized at .agents/backlog/ pre-migration...)` (the deliberate pre/post contrast) and `18:- The agent-comms convention was FORMALIZED in DECISIONS D81 (2026-07-15): the .agents/comms/ layout...` (D81 narration). The four LIVE pointers were rewritten and resolve: `ls .aw/records/backlog/README.md` -> resolves; `ls -d .aw/records/plans/pending/` -> resolves; `ls .aw/records/specs/20260813-1833-01-attention-visible-backlog-tier.spec.md .aw/records/specs/20260715-1722-01-agent-comms-convention.spec.md` -> both resolve (the D81 comms-spec pointer was flattened AND gained the `.spec.md` facet). Cross-check: `python3 -m pytest tests/test_docs.py -o addopts=""` -> `14 passed` (this IPD touched no `docs/` file, so the docs-tree conformance stays green).
+  - Result: pass
 
 
 ## Approval and execution gate
