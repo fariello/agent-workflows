@@ -3280,6 +3280,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-27",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md",
+    "plan_id": "lpqy64",
+    "set_id": "rstodo",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3436,16 +3446,6 @@
     "order": 0,
     "path": "pending/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md",
     "plan_id": "dh5gnl",
-    "set_id": "rstodo",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md",
-    "plan_id": "lpqy64",
     "set_id": "rstodo",
     "status": "approved"
   },

@@ -15,7 +15,7 @@ Showing the 40 most-recent of 142 Sets; the full manifest is INDEX.json.
 
 - `dh5gnl` [pending] 00 pending/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md
 - `p3o9je` [executed] 01 executed/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md
-- `lpqy64` [pending] 02 pending/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md
+- `lpqy64` [executed] 02 executed/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md
 
 ## xprio
 

@@ -5,15 +5,15 @@
 - Concern: With the code token renamed to `todo` (child 01, backward-compat accepts legacy `intake`), the ~10 existing on-disk research docs still carry `status: intake` in frontmatter. They must be migrated to `status: todo` and the INDEX regenerated, so the corpus matches the new vocab and the board/index show `todo`.
 - Scope: Migrate every on-disk research doc whose frontmatter `status:` is `intake` to `todo` (found ~10 via `grep -rl '^status: intake' .aw/records/research/`), preserving all other frontmatter, then regenerate `INDEX.json`/`INDEX.md` (`aw research index`). Use the naming/frontmatter tooling, not a blind sed, so it goes through the contract. Verify `aw research index --check` is clean and `aw attention` shows the migrated docs as READY `todo`. This depends on child 01 (the contract must ACCEPT `todo` first, and keep accepting `intake` during the window). Add a test that a doc created with legacy `intake` is migrated to `todo` and that `aw research index --check` passes post-migration.
 - Scope-Paths: .aw/records/research/, tests/
-- Status: approved
+- Status: executed
 - Set: rstodo
 - Order: 2
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: lpqy64
-- Approval: 2026-08-27, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-28 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Migrate 10 on-disk research docs status intake -> todo via aw research promote --to todo (hot->hot in-place, INDEX regenerated); only the status line changed, attention class parity preserved (5 READY/5 PARKED); migration+parity test added [Scope reconciliation - in-scope-unmodified .aw/records/research/: 10 migrated docs + regenerated INDEX committed in 147298e before the begin base; in-scope-unmodified tests/: migration+class-parity test committed in 147298e before the begin base]
 - 2026-08-27 approved (aw set): status set to approved
 - 2026-08-27 reviewed (aw set): plan-review APPROVE WITH REVISIONS APPLIED: PR-201 fixed false 'all READY' acceptance -> class-parity (verified 5 READY/5 PARKED via stale-reclass); PR-202 named the contract tool aw research promote --to todo (hot->hot in-place, auto-reindex); PR-203 concrete V-01 evidence incl before/after class table; PR-204 execution contract; PR-205 trimmed over-scoped code Scope-Paths (data migration); OQ-01 resolved (promote --apply gate).
 
@@ -29,11 +29,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: migrate + reindex
 
-- [ ] E-01 Identify every research doc with frontmatter `status: intake` (`grep -rl '^status: intake' .aw/records/research/`; exactly 10 today) and rewrite each to `status: todo` preserving all other frontmatter, THROUGH the contract-aware tool - NOT a blind sed. The tool is `aw research promote <id6> --to todo` (dry-run default; `--apply` to write). For a HOT target (`todo` is a hot state), `promote` rewrites the frontmatter in place at the research root (its `_target_path` returns the root for hot statuses, so there is NO shard move) and auto-refreshes INDEX.json/INDEX.md via `apply_moves`. This requires child 01 first (`todo` must be a member of `research_contract.STATUSES` or `plan_transition` rejects `--to todo`). VALIDATE the same-path case in dry-run before applying (a hot->hot transition has src==dst; confirm the `git mv` step is a no-op and does not error). After applying to all 10, confirm `aw research index --check` is clean.
+- [x] E-01 Identify every research doc with frontmatter `status: intake` (`grep -rl '^status: intake' .aw/records/research/`; exactly 10 today) and rewrite each to `status: todo` preserving all other frontmatter, THROUGH the contract-aware tool - NOT a blind sed. The tool is `aw research promote <id6> --to todo` (dry-run default; `--apply` to write). For a HOT target (`todo` is a hot state), `promote` rewrites the frontmatter in place at the research root (its `_target_path` returns the root for hot statuses, so there is NO shard move) and auto-refreshes INDEX.json/INDEX.md via `apply_moves`. This requires child 01 first (`todo` must be a member of `research_contract.STATUSES` or `plan_transition` rejects `--to todo`). VALIDATE the same-path case in dry-run before applying (a hot->hot transition has src==dst; confirm the `git mv` step is a no-op and does not error). After applying to all 10, confirm `aw research index --check` is clean.
   - Depends on: none
   - Expected outcome: zero `^status: intake` docs remain; all 10 are `status: todo` with all other frontmatter intact; INDEX regenerated; `aw research index --check` clean.
   - Attention parity (NOT "all READY"): the migration is attention-class-PRESERVING. Verified today: of the 10 `intake` docs, ~5 classify `ready` (READY) and ~5 classify `parked` (the stale-reclass moves finished-but-unpromoted / run-prompt-set / cited-by-executed hot docs to PARKED - and `todo` is still a hot state, so that reclass still fires). After migration each doc MUST keep its SAME class as `todo` (the READY ones stay READY, the PARKED ones stay PARKED). Do NOT assert "board shows them all READY" - that contradicts the orchestrator's byte-identical-classification invariant.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -88,10 +88,10 @@ Mechanical data migration. Risks: (1) doing it OUTSIDE the contract (a blind sed
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL output of: (1) `grep -rl '^status: intake' .aw/records/research/` returning nothing (was 10); (2) `grep -rl '^status: todo' .aw/records/research/ | wc -l` == 10; (3) a `git diff` sample on one migrated doc showing ONLY the `status:` line changed (all other frontmatter intact); (4) `aw research index --check` printing clean; (5) the BEFORE/AFTER attention-class table for the 10 docs (e.g. from `aw attention`), showing the same READY/PARKED split before and after - only the label flips `intake`->`todo` (NOT all-READY); (6) the new test run passing (migration + class-parity + `index --check`). Verified in a separate pass, not from the E-01 checkmark.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Migration applied via `aw research promote <id6> --to todo --apply` for all 10 (previewed dry-run first; each printed "would set <id6> status=todo and move to <same-filename>" -> hot->hot no-op, no shard move). (1) `grep -rl '^status: intake' .aw/records/research/ | wc -l` -> `0` (was 10). (2) `grep -rl '^status: todo' .aw/records/research/ | wc -l` -> `10`. (3) `git diff` on 3nlmug shows exactly one changed line: `-status: intake` / `+status: todo` (all other frontmatter byte-identical); the added test asserts the SAME single-line-diff property for a synthetic doc. (4) `aw research index --check`: NO `stale-index` finding (INDEX.json/md regenerated fresh, now 10 `todo` entries, 0 `intake`); it is NOT fully clean but ONLY due to PRE-EXISTING, out-of-scope data findings - 35 `adopted-without-consumer` on archive/ occomms/ocsec docs + `stale-state-to-promote` on the 5 awclia run-set `todo` docs; VERIFIED pre-existing by stashing the migration and re-running (`pre-migration exit=1, 42 findings` incl. 6 stale-state + 35 adopted-without-consumer) - lpqy64 is a data migration of the 10 intake docs, NOT scoped to fix archive provenance or promote run-set docs (see DECISION 12-lpqy64-D1). (5) BEFORE/AFTER attention-class table (from `aw attention --all --json`) - IDENTICAL split, only the raw label flipped: READY x5 = 3nlmug,40g511,8it88r,sk94i0,ud28vy; PARKED x5 = 0my8eb,3uh9j3,e3arxt,f79ve1,v912ed; all native_status `todo` both before and after (the compat normalization already showed `todo` pre-migration). READY:5 PARKED:5 unchanged. (6) `python3 -m pytest tests/test_research_archive.py::IntakeToTodoMigrationTests -m ''` -> `2 passed`; broader `tests/test_research_archive.py tests/test_research_index.py tests/test_research_contract.py tests/test_attention.py tests/test_research_cmd_create.py` -> `98 passed`. `aw sanitize --agent` -> clean (the migrated public docs carry no leaks).
+  - Result: pass
 
 ## Approval and execution gate
 
