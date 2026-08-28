@@ -195,8 +195,9 @@ def run_checked(
         stderr=subprocess.PIPE,
     )
     if result.returncode != 0:
+        details = (result.stderr.strip() + "\n" + result.stdout.strip()).strip()
         raise DriverError(
-            f"Command failed ({result.returncode}): {shlex.join(argv)}\n{result.stderr.strip()}"
+            f"Command failed ({result.returncode}): {shlex.join(argv)}\n{details}"
         )
     return result.stdout.strip()
 

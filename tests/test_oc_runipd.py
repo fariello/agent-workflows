@@ -1258,38 +1258,38 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             )
 
             fake = root / "fake_opencode"
-            fake.write_text(
-                textwrap.dedent(
-                    """\
-                    #!/usr/bin/env python3
-                    import json, pathlib, re, sys
-                    args = sys.argv[1:]
-                    prompt = args[args.index('--') + 1] if '--' in args else ""
-                    session = args[args.index('--session') + 1] if '--session' in args else ("ses" + "_" + "fullauto")
-
-                    if prompt.startswith("/plan-review"):
-                        target_file = prompt.split()[-1]
-                        p = pathlib.Path(target_file)
-                        if not p.is_absolute():
-                            p = pathlib.Path.cwd() / p
-                        if p.is_file():
-                            content = p.read_text()
-                            content = content.replace("- Status: to-review", "- Status: reviewed")
-                            content += "\\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects. Readiness: GO - PENDING HUMAN APPROVAL.\\n"
-                            p.write_text(content)
-                        print(json.dumps({'type':'text','sessionID':session,'part':{'text':'review done'}}))
-                    else:
-                        outcome = pathlib.Path(re.search(r'Required JSON outcome: (.+)', prompt).group(1).strip())
-                        plan = pathlib.Path(re.search(r'Plan file at launch: (.+)', prompt).group(1).strip())
-                        executed = pathlib.Path(str(plan).replace('/pending/', '/executed/'))
-                        executed.parent.mkdir(parents=True, exist_ok=True)
-                        plan.rename(executed)
-                        outcome.write_text(json.dumps({'schema_version':1,'id6':'fa0001','disposition':'executed','pushed':False}))
-                        print(json.dumps({'type':'text','sessionID':session,'part':{'text':'exec done'}}))
-                    """
-                ),
-                encoding="utf-8",
+            history_line = repr(
+                "\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects. Readiness: GO - PENDING HUMAN APPROVAL.\n"
             )
+            fake_lines = [
+                "#!/usr/bin/env python3",
+                "import json, pathlib, re, sys",
+                "args = sys.argv[1:]",
+                'prompt = args[args.index("--") + 1] if "--" in args else ""',
+                'session = args[args.index("--session") + 1] if "--session" in args else ("ses_" + "fullauto")',
+                'if prompt.startswith("/plan-review"):',
+                "    target_file = prompt.split()[-1]",
+                "    p = pathlib.Path(target_file)",
+                "    if not p.is_absolute():",
+                "        p = pathlib.Path.cwd() / p",
+                "    if p.is_file():",
+                "        content = p.read_text()",
+                '        content = content.replace("- Status: to-review", "- Status: reviewed")',
+                f"        content += {history_line}",
+                "        p.write_text(content)",
+                '    print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "review done"}}))',
+                'elif "Required JSON outcome:" in prompt:',
+                '    outcome = pathlib.Path(re.search(r"Required JSON outcome: (.+)", prompt).group(1).strip())',
+                '    plan = pathlib.Path(re.search(r"Plan file at launch: (.+)", prompt).group(1).strip())',
+                '    executed = pathlib.Path(str(plan).replace("/pending/", "/executed/"))',
+                "    executed.parent.mkdir(parents=True, exist_ok=True)",
+                "    plan.rename(executed)",
+                '    outcome.write_text(json.dumps({"schema_version": 1, "id6": "fa0001", "disposition": "executed", "pushed": False}))',
+                '    print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "exec done"}}))',
+                "else:",
+                '    print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "verify done"}}))',
+            ]
+            fake.write_text("\n".join(fake_lines) + "\n", encoding="utf-8")
             fake.chmod(0o755)
 
             result = subprocess.run(
