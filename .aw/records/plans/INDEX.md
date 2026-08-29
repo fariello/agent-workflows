@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
+
+## ocsync
+
+- `g7hljt` [pending] 01 pending/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
 
 ## assessdocs
 
@@ -18,6 +22,17 @@ Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 - `bja8og` [executed] 01 executed/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md
 - `4f1j25` [pending] 02 pending/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md
 - `jolfpj` [pending] 03 pending/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md
+
+## wtiso
+
+- `bl9q3d` [pending] 00 pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
+- `8zgybk` [pending] 01 pending/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
+- `qcqhj7` [pending] 02 pending/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md
+- `rchpms` [pending] 03 pending/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md
+- `7p9n2v` [pending] 04 pending/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md
+- `58ha43` [pending] 05 pending/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md
+- `2c122z` [pending] 06 pending/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md
+- `1o4eif` [pending] 07 pending/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md
 
 ## driverfin
 
@@ -216,45 +231,6 @@ Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 - `8su0r3` [executed] 03 executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
 - `10jpsa` [executed] 04 executed/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
 - `e8hu4s` [executed] 05 executed/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
-
-## highpbacklog0822
-
-- `wot0nc` [executed] 00 executed/20260822-highpbacklog0822-00-wot0nc-high-priority-backlog-2026-08-22-program.ipd.md
-- `n5kvff` [executed] 02 executed/20260822-highpbacklog0822-02-n5kvff-fix-agy-run-py-false-error-on-sandboxed-write-to-file-reject.ipd.md
-- `h4e9yi` [executed] 03 executed/20260822-highpbacklog0822-03-h4e9yi-deprecation-warning-for-per-workflow-slash-command-aliases.ipd.md
-- `89bby9` [executed] 04 executed/20260822-highpbacklog0822-04-89bby9-empty-loading-and-error-state-ux-shared-helper-and-conventio.ipd.md
-- `4ug8xp` [executed] 05 executed/20260822-highpbacklog0822-05-4ug8xp-empty-and-error-state-ux-surface-wide-rollout-and-tests.ipd.md
-- `por1hi` [executed] 06 executed/20260822-highpbacklog0822-06-por1hi-ipd-right-sizing-rubric-in-review-workflows-and-authoring-gu.ipd.md
-- `wb045s` [executed] 07 executed/20260822-highpbacklog0822-07-wb045s-ipd-right-sizing-mechanical-lint-heuristic.ipd.md
-
-## awoptimize
-
-- `p070c8` [executed] 00 executed/20260821-awoptimize-00-p070c8-agent-workflows-optimal-architecture-program.ipd.md
-- `nmwy3m` [executed] 01 executed/20260821-awoptimize-01-nmwy3m-canonical-workflow-schema-and-compiler.ipd.md
-- `viuzu4` [executed] 02 executed/20260821-awoptimize-02-viuzu4-ledger-and-evidence-record-schemas-and-requirement-freeze.ipd.md
-- `7qs57e` [superseded] 02 superseded/20260821-awoptimize-02-7qs57e-run-ledger-and-evidence-contract.ipd.md
-- `6psux0` [executed] 03 executed/20260821-awoptimize-03-6psux0-append-only-tamper-evident-run-ledger-store.ipd.md
-- `7cqbel` [superseded] 03 superseded/20260821-awoptimize-03-7cqbel-deterministic-workflow-runtime.ipd.md
-- `yndh7k` [executed] 04 executed/20260821-awoptimize-04-yndh7k-evidence-capture-validators-completion-predicates-and-run-in.ipd.md
-- `mcubhc` [superseded] 04 superseded/20260821-awoptimize-04-mcubhc-independent-verification-and-orchestration.ipd.md
-- `b1v3wl` [executed] 05 executed/20260821-awoptimize-05-b1v3wl-deterministic-run-state-machine-and-single-writer-engine.ipd.md
-- `5elu0u` [superseded] 05 superseded/20260821-awoptimize-05-5elu0u-host-adapters-skills-and-capability-registry.ipd.md
-- `ptsfjn` [executed] 06 executed/20260821-awoptimize-06-ptsfjn-bounded-step-packets-outcome-envelopes-and-human-decision-ga.ipd.md
-- `ozlus1` [superseded] 06 superseded/20260821-awoptimize-06-ozlus1-behavioral-benchmark-and-regression-harness.ipd.md
-- `7yqm1v` [executed] 07 executed/20260821-awoptimize-07-7yqm1v-retry-correction-resume-cancel-crash-recovery-and-run-lifecy.ipd.md
-- `01iuql` [superseded] 07 superseded/20260821-awoptimize-07-01iuql-workflow-family-migration.ipd.md
-- `5hu6bd` [executed] 08 executed/20260821-awoptimize-08-5hu6bd-verifier-roles-clean-packet-procedures-and-corrective-routin.ipd.md
-- `kk41rr` [superseded] 08 superseded/20260821-awoptimize-08-kk41rr-compatibility-documentation-and-cutover.ipd.md
-- `1m5ob8` [executed] 09 executed/20260821-awoptimize-09-1m5ob8-isolation-hierarchy-concurrency-eligibility-and-merge-revali.ipd.md
-- `4fttzq` [executed] 10 executed/20260821-awoptimize-10-4fttzq-host-capability-evidence-registry-and-isolated-probes.ipd.md
-- `bmd1ur` [executed] 11 executed/20260821-awoptimize-11-bmd1ur-generated-skills-host-adapters-and-agy-fresh-verifier.ipd.md
-- `1jfxvo` [executed] 12 executed/20260821-awoptimize-12-1jfxvo-benchmark-corpus-seeded-tasks-and-preregistered-scoring.ipd.md
-- `9ihhzr` [executed] 13 executed/20260821-awoptimize-13-9ihhzr-benchmark-runners-ablations-metrics-and-reports-offline.ipd.md
-- `h1d5aa` [executed] 14 executed/20260821-awoptimize-14-h1d5aa-migration-disposition-inventory-and-shared-family-migration.ipd.md
-- `kh91or` [executed] 15 executed/20260821-awoptimize-15-kh91or-complex-orchestrated-workflow-migration.ipd.md
-- `g6zjao` [executed] 16 executed/20260821-awoptimize-16-g6zjao-compact-workflow-migration-generated-shims-and-promotion-gat.ipd.md
-- `gnfkh8` [executed] 17 executed/20260821-awoptimize-17-gnfkh8-compatibility-contract-migration-rollback-and-deprecation.ipd.md
-- `0zst62` [executed] 18 executed/20260821-awoptimize-18-0zst62-documentation-security-hardening-lifecycle-fixtures-and-rele.ipd.md
 
 ## (singletons: no Set)
 
