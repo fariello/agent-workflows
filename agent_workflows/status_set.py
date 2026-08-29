@@ -137,6 +137,15 @@ _GATE_KIND_RE = re.compile(r"^-\s*Gate-Kind:\s*(\S+)\s*$", re.MULTILINE)
 _GATE_REF_RE = re.compile(r"^-\s*Gate-Ref:\s*(.+?)\s*$", re.MULTILINE)
 _GATE_SUMMARY_RE = re.compile(r"^-\s*Gate-Summary:\s*(.+?)\s*$", re.MULTILINE)
 
+# The ONE status per record type in which a typed `Gate-Kind`/`Gate-Ref` pair is valid. A gate is
+# valid IFF the record sits in that status, so ANY transition to a different status must clear it,
+# for every gate-carrying tree and not just specs (bug `43p53n`). Plans and prompts carry no gate
+# fields, so they are absent here and no clearing applies to them.
+_GATE_STATUS_BY_TYPE: dict[str, str] = {
+    "specs": "deferred",
+    "backlog": "blocked",
+}
+
 
 @dataclass
 class ArtifactRecord:
@@ -569,9 +578,16 @@ def apply_status_change(
                 res_lines.insert(0, f"- Status: {norm_status}")
             new_lines = res_lines
 
-    # Handle gate fields if moving away from deferred/blocked
-    if rec.record_type == "specs":
-        if norm_status != "deferred":
+    # Gate fields: clear them on any transition OUT of the gate-carrying status. This is
+    # record-type-agnostic in the SAME way the Blocks-Release write below is (bug 61qk4a): the guard
+    # used to read `rec.record_type == "specs"`, so `aw backlog set open <id6>` moved a blocked item
+    # to open while LEAVING its Gate-Kind/Gate-Ref behind. `aw backlog check` then reported
+    # `backlog.gate-unexpected`, and the only way out was the hand-edit the house rules forbid
+    # (bug 43p53n). `backlog.run_set` already cleared correctly, but the positional
+    # `aw backlog set <status> <selector>` form routes here instead, so that fix was unreachable.
+    gate_status = _GATE_STATUS_BY_TYPE.get(rec.record_type)
+    if gate_status is not None:
+        if norm_status != gate_status:
             new_lines = [
                 line_item
                 for line_item in new_lines

@@ -983,5 +983,183 @@ class BlocksReleaseSetterTests(StatusSetTestBase):
         self.assertEqual(orig_text, after_text)
 
 
+class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
+    """Bug 43p53n: leaving the gate-carrying status MUST clear `Gate-Kind`/`Gate-Ref`.
+
+    The gate-clearing branch used to be guarded by `rec.record_type == "specs"`, so
+    `aw backlog set open <id6>` moved a blocked item out of `blocked` while leaving its gate fields
+    behind. `aw backlog check` then reported `backlog.gate-unexpected`, and the only remedy was the
+    untooled hand-edit the house rules forbid. `backlog.run_set` cleared correctly, but the
+    positional `aw backlog set <status> <selector>` form routes through `status_set` instead, so
+    that correct code was unreachable. This is the same class of bug as 61qk4a (the Blocks-Release
+    write trapped inside the same specs-only guard).
+    """
+
+    def create_blocked_backlog(
+        self,
+        filename: str,
+        id6: str,
+        set_id: str,
+        gate_kind: str = "artifact",
+        gate_ref: str = "path/to/x.md",
+    ) -> Path:
+        d = self.repo_root / ".aw" / "records" / "backlog" / "blocked"
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / filename
+        # Mirrors the real `aw backlog new` output exactly (no H1; gate bullets after Summary), so
+        # the parser sees a conformant record and `backlog check` findings are about the gate alone.
+        p.write_text(
+            f"""- Id: {id6}
+- Status: blocked
+- Set: {set_id}
+- Priority: high
+- Kind: bug
+- Summary: Test blocked backlog item
+- Gate-Kind: {gate_kind}
+- Gate-Ref: {gate_ref}
+
+## Workflow history
+- 2026-08-22 created (aw backlog): created.
+""",
+            encoding="utf-8",
+        )
+        return p
+
+    def _moved_path(self, id6: str, status: str) -> Path:
+        matches = list(
+            (self.repo_root / ".aw" / "records" / "backlog" / status).glob(
+                f"*{id6}*.md"
+            )
+        )
+        self.assertEqual(
+            len(matches), 1, f"expected exactly one {id6} item in {status}/"
+        )
+        return matches[0]
+
+    def test_backlog_leaving_blocked_clears_gate_fields(self):
+        """The exact reported repro: blocked-with-gate -> open must strip both gate lines."""
+        self.create_blocked_backlog(
+            "20260828-gateclear-01-bk0001-probe.backlog.md", "bk0001", "gateclear"
+        )
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "open",
+                "bk0001",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        text = self._moved_path("bk0001", "open").read_text(encoding="utf-8")
+        self.assertIn("- Status: open", text)
+        self.assertNotIn("Gate-Kind", text)
+        self.assertNotIn("Gate-Ref", text)
+
+    def test_backlog_leaving_blocked_leaves_check_clean(self):
+        """The HARM the bug caused: the setter left a record its own checker rejects."""
+        self.create_blocked_backlog(
+            "20260828-gateclear-01-bk0002-probe.backlog.md", "bk0002", "gateclear"
+        )
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "parked",
+                "bk0002",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            check_rc = cli.main(["backlog", "check", "--dir", str(self.repo_root)])
+        out = buf.getvalue()
+        self.assertNotIn("gate-unexpected", out)
+        self.assertEqual(check_rc, 0, f"backlog check was not clean: {out}")
+
+    def test_backlog_staying_blocked_retains_gate_fields(self):
+        """ADVERSARIAL: over-eager clearing would strip a gate that is still valid."""
+        self.create_blocked_backlog(
+            "20260828-gateclear-01-bk0003-probe.backlog.md",
+            "bk0003",
+            "gateclear",
+            gate_kind="decision",
+            gate_ref="D42",
+        )
+        rc = cli.main(
+            [
+                "backlog",
+                "set",
+                "blocked",
+                "bk0003",
+                "--gate-kind",
+                "decision",
+                "--gate-ref",
+                "D42",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        text = self._moved_path("bk0003", "blocked").read_text(encoding="utf-8")
+        self.assertIn("- Gate-Kind: decision", text)
+        self.assertIn("- Gate-Ref: D42", text)
+
+    def test_spec_leaving_deferred_still_clears_gate(self):
+        """The pre-existing specs behaviour must survive being generalized."""
+        spec = self.create_spec(
+            "20260822-sp0001-01-sp0001-test-spec.spec.md", "sp0001", "specset"
+        )
+        spec.write_text(
+            spec.read_text(encoding="utf-8").replace(
+                "- Status: draft",
+                "- Status: deferred\n- Gate-Kind: decision\n- Gate-Ref: D7",
+            ),
+            encoding="utf-8",
+        )
+        rc = cli.main(
+            ["spec", "set", "draft", "sp0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        text = spec.read_text(encoding="utf-8")
+        self.assertIn("- Status: draft", text)
+        self.assertNotIn("Gate-Kind", text)
+        self.assertNotIn("Gate-Ref", text)
+
+    def test_plan_transition_is_unaffected_by_gate_clearing(self):
+        """Plans carry no gate fields; the generalized branch must not touch their metadata."""
+        plan = self.create_plan(
+            "20260822-gateclear-01-pl0301-test-plan.ipd.md",
+            "pl0301",
+            "gateclear",
+            "draft",
+        )
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["set", "to-review", "pl0301", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        after = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: to-review", after)
+
+        # Every metadata bullet other than Status is byte-identical.
+        def bullets(t):
+            return [
+                ln
+                for ln in t.splitlines()
+                if ln.startswith("- ")
+                and not ln.startswith("- Status:")
+                and not ln.startswith("- 2026")
+            ]
+
+        self.assertEqual(bullets(before), bullets(after))
+
+
 if __name__ == "__main__":
     unittest.main()
