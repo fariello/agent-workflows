@@ -95,7 +95,7 @@ Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
 
 - `ryvoi5` [pending] 00 pending/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md
 - `dg28i9` [executed] 01 executed/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md
-- `puot79` [pending] 02 pending/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md
+- `puot79` [executed] 02 executed/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md
 
 ## selfcommit
 

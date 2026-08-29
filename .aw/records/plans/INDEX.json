@@ -3292,6 +3292,16 @@
   {
     "date": "2026-08-25",
     "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md",
+    "plan_id": "puot79",
+    "set_id": "runnernorm",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md",
@@ -3546,16 +3556,6 @@
     "order": 0,
     "path": "pending/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md",
     "plan_id": "ryvoi5",
-    "set_id": "runnernorm",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md",
-    "plan_id": "puot79",
     "set_id": "runnernorm",
     "status": "approved"
   },
