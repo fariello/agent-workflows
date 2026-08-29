@@ -3470,6 +3470,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md",
+    "plan_id": "4f1j25",
+    "set_id": "tabcomp",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3566,16 +3576,6 @@
     "order": 0,
     "path": "pending/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md",
     "plan_id": "e6h1p3",
-    "set_id": "tabcomp",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md",
-    "plan_id": "4f1j25",
     "set_id": "tabcomp",
     "status": "approved"
   },
