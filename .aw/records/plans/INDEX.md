@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 151 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 152 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
 - `w0ln4q` [pending] 01 pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
+
+## bklgrad
+
+- `v58bvy` [pending] 01 pending/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
 
 ## fullauto
 
@@ -223,10 +227,6 @@ Showing the 40 most-recent of 151 Sets; the full manifest is INDEX.json.
 ## proclint
 
 - `79li67` [executed] 01 executed/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md
-
-## renametypes
-
-- `53yczi` [executed] 01 executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
 
 ## (singletons: no Set)
 
