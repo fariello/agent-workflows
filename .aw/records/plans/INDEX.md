@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 149 Sets; the full manifest is INDEX.json.
+
+## fullauto
+
+- `97df1z` [pending] 01 pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
 
 ## ocsync
 
@@ -222,15 +226,6 @@ Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
 - `3cmnfc` [executed] 03 executed/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
 - `52zgqr` [executed] 04 executed/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
 - `9a655p` [executed] 05 executed/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md
-
-## awcliux
-
-- `r0brcg` [executed] 00 executed/20260822-awcliux-00-r0brcg-aw-cli-dual-audience-output-program.ipd.md
-- `hd3kln` [executed] 01 executed/20260822-awcliux-01-hd3kln-output-mode-contract-and-renderer-boundary.ipd.md
-- `czw99i` [executed] 02 executed/20260822-awcliux-02-czw99i-human-tty-information-design-and-256-color-system.ipd.md
-- `8su0r3` [executed] 03 executed/20260822-awcliux-03-8su0r3-token-efficient-agent-protocol-and-evidence-receipts.ipd.md
-- `10jpsa` [executed] 04 executed/20260822-awcliux-04-10jpsa-full-command-surface-migration-and-compatibility.ipd.md
-- `e8hu4s` [executed] 05 executed/20260822-awcliux-05-e8hu4s-output-conformance-harness-documentation-and-rollout.ipd.md
 
 ## (singletons: no Set)
 
