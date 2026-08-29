@@ -965,6 +965,61 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
             raise DriverError(f"Set {setid} contains plans assigned elsewhere: {wrong}")
 
 
+def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
+    """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
+    r = repo or Path(".")
+    try:
+        from agent_workflows import selectors
+
+        for rtype in selectors.KNOWN_PRIMARY_TYPES:
+            if rtype == "plans":
+                continue
+            res = selectors.resolve(r, rtype, sel_str)
+            if res.is_match:
+                rel_paths = []
+                for p in res.paths:
+                    try:
+                        rel_paths.append(str(p.resolve().relative_to(r.resolve())))
+                    except ValueError:
+                        rel_paths.append(str(p))
+                joined_paths = ", ".join(rel_paths)
+                type_label = {
+                    "backlog": "backlog item",
+                    "specs": "spec",
+                    "research": "research document",
+                    "releases": "release record",
+                    "walkthroughs": "walkthrough",
+                    "roadmaps": "roadmap document",
+                    "prompts": "prompt document",
+                    "comms": "comms message",
+                }.get(rtype, f"{rtype} record")
+                return (
+                    f"'{sel_str}' is a {type_label} ({joined_paths}), not an IPD plan."
+                )
+    except Exception:
+        pass
+
+    fc = Path(sel_str)
+    rfc = r / sel_str if not fc.is_absolute() else fc
+    if fc.is_file() or rfc.is_file():
+        target = fc if fc.is_file() else rfc
+        try:
+            rel_target = str(target.resolve().relative_to(r.resolve()))
+        except ValueError:
+            rel_target = str(target)
+        return (
+            f"File '{sel_str}' exists ({rel_target}) but is not a valid IPD plan "
+            "(missing front-matter or invalid format)."
+        )
+    if "/" in sel_str or "\\" in sel_str or sel_str.endswith(".md"):
+        return f"Plan file not found: '{sel_str}'"
+
+    if ID6_RE.fullmatch(sel_str):
+        return f"No IPD plan found with id6 '{sel_str}' under .aw/records/plans/."
+
+    return f"No IPD plan, Set, or file matching '{sel_str}' found under .aw/records/plans/."
+
+
 def expand_selectors(
     manifest: dict[str, Any],
     selectors: Iterable[str],
@@ -1085,7 +1140,7 @@ def expand_selectors(
                         f"Ambiguous filename selector: {sel_str} matches multiple plans: {matching_plans}"
                     )
                 else:
-                    raise DriverError(f"Unknown id6/Set/file selector: {sel_str}")
+                    raise DriverError(describe_unresolved_plan_selector(repo, sel_str))
 
         if matched_set is not None and not candidates:
             raise DriverError(

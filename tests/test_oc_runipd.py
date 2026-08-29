@@ -545,6 +545,55 @@ class SelectorErrorTests(unittest.TestCase):
             "At least one id6 or Set selector is required", str(ctx.exception)
         )
 
+    def test_unresolved_selector_identifies_backlog_item(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            backlog_dir = repo / ".aw" / "records" / "backlog" / "open"
+            backlog_dir.mkdir(parents=True)
+            (backlog_dir / "20260829-test-01-item01.backlog.md").write_text(
+                "- Id: item01\n- Status: open\n", encoding="utf-8"
+            )
+            manifest = {"schema_version": 1, "plans": {}, "sets": {}}
+            with self.assertRaises(driver.DriverError) as ctx:
+                driver.expand_selectors(manifest, ["item01"], repo=repo)
+            msg = str(ctx.exception)
+            self.assertIn("'item01' is a backlog item", msg)
+            self.assertIn(
+                ".aw/records/backlog/open/20260829-test-01-item01.backlog.md", msg
+            )
+            self.assertIn("not an IPD plan", msg)
+
+    def test_unresolved_selector_identifies_spec(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            specs_dir = repo / ".aw" / "records" / "specs"
+            specs_dir.mkdir(parents=True)
+            (specs_dir / "20260829-0001-01-myspec.spec.md").write_text(
+                "- Id: spec01\n- Status: approved\n", encoding="utf-8"
+            )
+            manifest = {"schema_version": 1, "plans": {}, "sets": {}}
+            with self.assertRaises(driver.DriverError) as ctx:
+                driver.expand_selectors(manifest, ["spec01"], repo=repo)
+            msg = str(ctx.exception)
+            self.assertIn("'spec01' is a spec", msg)
+            self.assertIn("not an IPD plan", msg)
+
+    def test_unresolved_selector_identifies_missing_file_or_id6(self):
+        manifest = {"schema_version": 1, "plans": {}, "sets": {}}
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, ["abc123"])
+        self.assertIn("No IPD plan found with id6 'abc123'", str(ctx.exception))
+
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, ["some/path.ipd.md"])
+        self.assertIn("Plan file not found: 'some/path.ipd.md'", str(ctx.exception))
+
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, ["unknown_set"])
+        self.assertIn(
+            "No IPD plan, Set, or file matching 'unknown_set'", str(ctx.exception)
+        )
+
 
 class ProgressRendererTests(unittest.TestCase):
     def setUp(self) -> None:
