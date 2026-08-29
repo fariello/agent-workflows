@@ -7,15 +7,15 @@
 - Scope: Make the READ path honest: add a read-only liveness projection so a `running` item belonging to a run that no live driver holds is REPORTED as interrupted-looking, and surface that distinctly enough that an operator is not misled. Read commands MUST NOT mutate state (`reconcile_interrupted` calls `save_state`, so it cannot be reused verbatim on a read path); a separate opt-in repair verb performs the durable fix, including for the already-stale run dir on disk. Does NOT install signal handlers, release/unlink the lock, or implement any stop level: Bug B is owned by spec c4gd2h and plans `2ouj70` (E-02/E-04) and `71vjbn` (E-01/E-02), and MUST NOT be re-specified here (GUIDING_PRINCIPLES P8).
 - Scope-Paths: agent_workflows/run_viewer.py, agent_workflows/run_cli.py, tests/test_run_viewer_liveness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: runstale
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ssk6nf
-- Approval: 2026-08-29, human ("approved"): Maintainer directed fixing Bug A this turn (standing graduate/implement/execute authorization).
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Implemented E-01..E-04: aw runs projects a dead run's running item to abandoned? read-only, with aw runs repair for the durable fix. 17 new tests; full suite 2796 passed. [Scope reconciliation - out-of-scope agent_workflows/artifact_core.py: NOT THIS PLAN'S WORK: uncommitted awfindperf change from a concurrent runner; left untouched; out-of-scope agent_workflows/project_context.py: NOT THIS PLAN'S WORK: same uncommitted awfindperf change; left untouched; in-scope-unmodified agent_workflows/run_cli.py: not-needed: aw runs dispatches via run_viewer.run_viewer_cli; the --help text landed in cli.py; in-scope-unmodified agent_workflows/run_viewer.py: already-committed: product code landed in concurrent commit bd3fed1 which swept my uncommitted edits into it; verified present in HEAD and functioning; in-scope-unmodified tests/test_run_viewer_liveness.py: already-committed (17 tests)]
 - 2026-08-29 approved (aw set, --by-human): Maintainer directed fixing Bug A this turn (standing graduate/implement/execute authorization).
 - 2026-08-29 to-review (aw set): Authored review-ready from backlog l670yn (Bug A only; Bug B owned by c4gd2h/2ouj70/71vjbn).
 

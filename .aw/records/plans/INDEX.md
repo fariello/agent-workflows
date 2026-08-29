@@ -26,7 +26,7 @@ Showing the 40 most-recent of 155 Sets; the full manifest is INDEX.json.
 
 ## runstale
 
-- `ssk6nf` [pending] 01 pending/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
+- `ssk6nf` [executed] 01 executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
 
 ## runstop
 
