@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 157 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -27,6 +27,10 @@ Showing the 40 most-recent of 157 Sets; the full manifest is INDEX.json.
 ## ocsync
 
 - `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
+
+## runnamecollapse
+
+- `0soncw` [pending] 01 pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md
 
 ## runstale
 
@@ -210,15 +214,6 @@ Showing the 40 most-recent of 157 Sets; the full manifest is INDEX.json.
 ## doctorremedy
 
 - `tdlspr` [executed] 01 executed/20260823-doctorremedy-01-tdlspr-doctor-actionable-remediation-commands-and-targeted-fixes.ipd.md
-
-## execset
-
-- `5ahblp` [executed] 00 executed/20260823-execset-00-5ahblp-autonomous-ipd-set-execution-program.ipd.md
-- `iy1a2g` [executed] 01 executed/20260823-execset-01-iy1a2g-ipd-set-graph-compiler-and-execution-manifest.ipd.md
-- `3m4e54` [executed] 02 executed/20260823-execset-02-3m4e54-deferred-questions-autonomous-decisions-and-skip-records.ipd.md
-- `m2wwns` [executed] 03 executed/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md
-- `31744f` [executed] 04 executed/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md
-- `2h7777` [executed] 05 executed/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md
 
 ## (singletons: no Set)
 

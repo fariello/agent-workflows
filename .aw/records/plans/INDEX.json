@@ -3752,6 +3752,16 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md",
+    "plan_id": "0soncw",
+    "set_id": "runnamecollapse",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",

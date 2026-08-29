@@ -1,11 +1,12 @@
 - Id: q5pdiy
-- Status: open
+- Status: graduated
 - Set: runnamecollapse
 - Priority: medium
 - Kind: chore
 - Summary: aw run list duplicates aw runs byte-for-byte; collapse run inspection under aw runs and retire the aw run noun
 
 ## Workflow history
+- 2026-08-29 graduated (aw set): Graduated into plan 0soncw (.aw/records/plans/pending/20260829-runnamecollapse-01-0soncw-...ipd.md), which carries - From-Backlog: q5pdiy and is to-review with an 8-item E/V bijection. Design handed off; no code written yet.
 - 2026-08-29 created (aw backlog): aw run list duplicates aw runs byte-for-byte; collapse run inspection under aw runs and retire the aw run noun
 
 DEFECT (verified live at HEAD 477569a). `aw run list` and `aw runs` emit BYTE-IDENTICAL output: both
