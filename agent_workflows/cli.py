@@ -12,6 +12,18 @@ for the judgment layer.
 All output goes through `term.Term` for accessible, degrade-when-piped styling (AC-15).
 """
 
+# PYTHON_ARGCOMPLETE_OK
+# tabcomp Order 02 (4f1j25) E-03: the argcomplete global-completion marker. It MUST be a real `#`
+# comment within the first 1024 bytes of the INVOKED script and cannot live inside the docstring
+# above (argcomplete scans for a bare comment token). HONEST SCOPE: the `aw`/`agentwf`/
+# `agent-workflows` entrypoints are pip/hatchling-generated console-script wrappers (pyproject.toml
+# [project.scripts]) that do NOT carry this marker, so `activate-global-python-argcomplete` will not
+# auto-discover them from this file. This marker covers the marker-bearing invocation `python -m
+# agent_workflows` (and any wrapper that carries it) and the explicit `register-python-argcomplete`
+# path; the PRIMARY completion mechanism for the aliases is the child-01 native scripts calling
+# `aw __complete` (see completion.complete_query / _run_dunder_complete). argcomplete is an OPTIONAL,
+# best-effort enhancement only - there is NO new runtime dependency (see the soft import in `main`).
+
 from __future__ import annotations
 
 import argparse
@@ -3221,6 +3233,22 @@ EXAMPLES
         metavar="bash|zsh|fish",
         help="Shell to generate for (default: detect from $SHELL, else bash). tabcomp-03 will "
         "additively accept install|uninstall here without reshaping the parser.",
+    )
+
+    # tabcomp Order 02 (4f1j25) E-02: the HIDDEN `__complete` shell callback. help=SUPPRESS keeps it
+    # out of `--help` AND out of child 01's static completion output (introspect_cli_tree's
+    # `_visible_subcommands` drops any subparser whose help is argparse.SUPPRESS). WIRE PROTOCOL (the
+    # exact shape child 01's generated bash/zsh/fish scripts invoke): the current command tokens are
+    # passed AFTER a literal `--` separator so option-like tokens are never mis-parsed as flags -
+    #   aw __complete --cword <N> -- <tok0> <tok1> ...
+    # `<N>` is the index of the word being completed; candidates print newline-delimited to stdout;
+    # empty output means no candidates; the query ALWAYS exits 0 (a completion query never errors the
+    # shell). `--` + REMAINDER is required so a leading `-x` token in the completed line is data, not
+    # a flag of `__complete` itself.
+    p_dunder_complete = sub.add_parser("__complete", help=argparse.SUPPRESS)
+    p_dunder_complete.add_argument("--cword", type=int, default=0)
+    p_dunder_complete.add_argument(
+        "words", nargs=argparse.REMAINDER, metavar="-- <tokens>"
     )
 
     _apply_descriptions(parser)
@@ -7610,8 +7638,96 @@ def _run_completion(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_dunder_complete(args: argparse.Namespace) -> int:
+    """`aw __complete --cword N -- <tokens>` -> newline-delimited candidates, always exit 0 (E-02).
+
+    This is the shell callback child 01's generated scripts invoke to get dynamic, repository-state
+    completions. It NEVER raises into the shell: any failure yields no candidates and exit 0. The
+    `words` list already has argparse's REMAINDER leading `--` stripped."""
+    from agent_workflows import completion as _completion
+
+    words = list(getattr(args, "words", None) or [])
+    # argparse REMAINDER keeps the literal `--` separator as the first captured token; drop it so
+    # `words` is exactly the completed command line (`["aw", "ipd", "lint", "b"]`).
+    if words and words[0] == "--":
+        words = words[1:]
+    cword = int(getattr(args, "cword", 0) or 0)
+    try:
+        candidates = _completion.complete_query(words, cword, repo_root=Path.cwd())
+    except Exception:
+        candidates = []
+    if candidates:
+        sys.stdout.write("\n".join(candidates) + "\n")
+    return 0
+
+
+def _argcomplete_completer(prefix, parsed_args=None, **_kwargs):
+    """A custom argcomplete completer delegating to `completion.complete_query` (E-03).
+
+    argcomplete exposes the full line it is completing via the `COMP_LINE`/`COMP_POINT` environment
+    it sets up; we reconstruct the token stream from `COMP_LINE` and defer to the same query engine
+    the `__complete` path uses, so argcomplete-driven and script-driven completion agree. Best-effort
+    only: any failure yields no suggestions."""
+    from agent_workflows import completion as _completion
+
+    try:
+        line = os.environ.get("COMP_LINE", "")
+        words = line.split()
+        if line.endswith(" "):
+            words.append("")
+        cword = max(len(words) - 1, 0)
+        cands = _completion.complete_query(words, cword, repo_root=Path.cwd())
+        return [c for c in cands if c.startswith(prefix or "")]
+    except Exception:
+        return []
+
+
+def _maybe_argcomplete(parser: argparse.ArgumentParser) -> None:
+    """Soft-import argcomplete and, if present, run its completion hook (E-03).
+
+    ZERO hard dependency: `argcomplete` is optional; if it is not installed the import fails and
+    normal execution proceeds unchanged. When present, `autocomplete` is a no-op unless argcomplete's
+    completion environment is set (i.e. only fires during an actual shell completion request), so
+    calling it on every invocation is safe. A custom completer delegating to `complete_query` is
+    attached to the artifact/Set positionals so argcomplete offers dynamic candidates too. See the
+    `# PYTHON_ARGCOMPLETE_OK` marker + honest-scope note at the top of this module."""
+    try:
+        import argcomplete  # type: ignore
+    except Exception:
+        return
+    try:
+        # Attach the dynamic completer to free-form artifact/Set/target positionals across the tree.
+        _attach_argcomplete_completers(parser)
+        argcomplete.autocomplete(parser)
+    except Exception:
+        # Never let an optional enhancement break the real CLI.
+        return
+
+
+def _attach_argcomplete_completers(parser: argparse.ArgumentParser) -> None:
+    """Attach `_argcomplete_completer` to positional actions likely to accept an artifact selector,
+    Set id, run id, or status token, recursing into subparsers. Best-effort and side-effect-free on
+    behavior (argparse ignores an unknown `.completer` attribute)."""
+    seen: set = set()
+
+    def walk(p: argparse.ArgumentParser) -> None:
+        if id(p) in seen:
+            return
+        seen.add(id(p))
+        for action in p._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for sub in action.choices.values():
+                    walk(sub)
+            elif not action.option_strings:
+                # A positional: give it the dynamic completer (argcomplete reads `.completer`).
+                action.completer = _argcomplete_completer  # type: ignore[attr-defined]
+
+    walk(parser)
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
+    _maybe_argcomplete(parser)
     # awcmdsurf Order 05 (hard cutover): the `aw plans <verb>` -> `plans-<verb>` alias shim was
     # removed with the plan-family verbs; the grammar is now `aw <verb> plans` (index/find/...).
     # awhelparg Order 01: a bare `help` token becomes `--help` (natural `aw ipd help` UX).
@@ -7698,6 +7814,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
     if args.command == "completion":
         return _run_completion(args)
+
+    if args.command == "__complete":
+        return _run_dunder_complete(args)
 
     if args.command == "project":
         project_cmd = getattr(args, "project_command", None)

@@ -9,16 +9,32 @@ aliases (``aw``, ``agentwf``, ``agent-workflows``). Every token that originates 
 shell before interpolation, because this CLI's help text contains shell-special characters
 (backticks and ``$``); no emitted script can be broken or injected by help text.
 
-Dynamic repository-artifact completion (Set/plan/spec/run ids, status enums) is child 02
-(tabcomp-02); drop-in install/uninstall is child 03 (tabcomp-03). This module is stdlib-only
-(``argparse``/``shlex``); it does NOT import third-party completion libraries.
+tabcomp Order 02 (4f1j25): DYNAMIC contextual completion. ``complete_query`` answers a live
+"complete this token stream" query from the CURRENT repository state - subcommands/flags in command
+position, then contextual artifact tokens (plan/spec/backlog ``id6`` handles, Set ids, run ids) and
+the per-type status vocabularies - and is exposed to the shells via the hidden ``aw __complete``
+subcommand (see ``cli._run_dunder_complete``). It reuses the existing artifact authorities
+(``agent_workflows.selectors``, ``.plans_index``, ``.artifact_core``, ``.artifact_naming``,
+``.ipd_schema``, ``.attention_contract``, ``.backlog``) rather than re-scanning ad hoc. Two verified
+shape facts drive the implementation: ``selectors.resolve_selectors`` needs a ``record_type`` and
+returns ``pathlib.Path`` objects (NOT bare id6 tokens, so this module extracts the id6 from each
+path via the naming grammar), and the CLI status arguments are free-form ``nargs="+"`` (NOT argparse
+``choices``, so the status vocabularies come from ``ipd_schema``/``attention_contract``/``backlog``).
+A hard latency budget (<50ms) forbids the unscoped resolver sweep (measured ~500ms over the full
+``executed/`` history); dynamic scans are therefore scoped to ACTIVE dispositions (``pending``/
+``reusable`` plans, live specs/backlog) and capped.
+
+Drop-in install/uninstall is child 03 (tabcomp-03). This module is stdlib-only
+(``argparse``/``shlex``/``pathlib``); it does NOT import third-party completion libraries, and the
+``argcomplete`` ecosystem hook lives in ``cli`` behind a soft import (no new runtime dependency).
 """
 
 from __future__ import annotations
 
 import argparse
 import shlex
-from typing import Any, Dict, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # The three console-script entrypoints (pyproject.toml [project.scripts]). Completion binds all three.
 ENTRYPOINTS = ("aw", "agentwf", "agent-workflows")
@@ -320,3 +336,297 @@ _GENERATORS = {
 def generate(shell: str) -> str:
     """Generate the completion script for ``shell`` (bash|zsh|fish); raises KeyError otherwise."""
     return _GENERATORS[shell]()
+
+
+# ======================================================================================
+# tabcomp Order 02 (4f1j25): dynamic, repository-state contextual completion.
+#
+# `complete_query(words, cword, repo_root)` is the single query engine the shells reach through
+# `aw __complete` (cli._run_dunder_complete). It returns BARE prefix-matching candidate tokens for
+# the word at index `cword`, reusing the artifact authorities. Everything here is stdlib-only and
+# fails SOFT: any lookup error yields [] (a completion query must never raise into a live shell).
+# ======================================================================================
+
+# The maximum number of dynamic candidates returned for one query. Interactive completion never
+# needs a huge list, and a cap keeps a pathological repository from blowing the latency budget.
+_MAX_DYNAMIC = 200
+
+# Entity subcommands whose id6-bearing positionals we complete, mapped to the `selectors`
+# record_type used to enumerate their active artifacts. `find` accepts a leading record-type token
+# and is handled specially in `_entity_record_type`.
+_ENTITY_RECORD_TYPE: Dict[str, str] = {
+    "ipd": "plans",
+    "specs": "specs",
+    "spec": "specs",  # argparse alias of `specs`
+    "backlog": "backlog",
+}
+
+# Plan-status directories that are ACTIVE (a user completes an id6 against these; the terminal
+# executed/superseded/not-executed history is excluded to honor the <50ms budget - a full-history
+# resolver sweep measured ~500ms, vs ~5ms for a pending-scoped scan).
+_ACTIVE_PLAN_DISPOSITIONS = ("pending", "reusable")
+
+
+def _repo_root(repo_root: Optional[Path]) -> Path:
+    return Path(repo_root) if repo_root is not None else Path.cwd()
+
+
+def _id6_of_path(p: Path) -> Optional[str]:
+    """Extract the artifact's own id6 from its filename via the naming grammar (NOT a substring
+    scan of the whole stem, which would pick up incidental 6-char words like ``wizard``)."""
+    from agent_workflows import artifact_naming as _an
+
+    m = _an.parse_clustered(p.name) or _an.parse_uniform_permissive(p.name)
+    if m:
+        try:
+            return m.group("id6")
+        except IndexError:  # pragma: no cover - defensive
+            return None
+    return None
+
+
+def _prefix_filter(candidates: List[str], prefix: str) -> List[str]:
+    """Deduped, sorted, capped prefix match (empty prefix matches all)."""
+    seen: Dict[str, None] = {}
+    for c in candidates:
+        if c and c.startswith(prefix) and c not in seen:
+            seen[c] = None
+    return sorted(seen)[:_MAX_DYNAMIC]
+
+
+def plan_id6_candidates(repo_root: Optional[Path] = None) -> List[str]:
+    """Active plan ``id6`` handles (pending + reusable only, per the latency budget).
+
+    Uses the plan front-matter ``Id:`` (authoritative) via a directory-scoped ``scan_plans`` over
+    each active disposition dir, NOT the full-history resolver sweep.
+    """
+    from agent_workflows import plans_index
+
+    root = _repo_root(repo_root)
+    plans_dir = root / ".aw" / "records" / "plans"
+    out: List[str] = []
+    for disp in _ACTIVE_PLAN_DISPOSITIONS:
+        try:
+            entries, _ = plans_index.scan_plans(plans_dir / disp)
+        except Exception:
+            continue
+        for e in entries:
+            if e.plan_id:
+                out.append(e.plan_id)
+    return out
+
+
+def set_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
+    """Active Set ids, derived from the ``- Set:`` front matter of active plans (NOT a `selectors`
+    record type). Terse id only (``plans_index.set_terse_id`` semantics, already applied by
+    ``scan_plans``)."""
+    from agent_workflows import plans_index
+
+    root = _repo_root(repo_root)
+    plans_dir = root / ".aw" / "records" / "plans"
+    out: List[str] = []
+    for disp in _ACTIVE_PLAN_DISPOSITIONS:
+        try:
+            entries, _ = plans_index.scan_plans(plans_dir / disp)
+        except Exception:
+            continue
+        for e in entries:
+            if e.set_id:
+                out.append(e.set_id)
+    return out
+
+
+def run_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
+    """Run ids: the directory names directly under ``.aw/records/runs/`` (NOT a `selectors` record
+    type - runs are enumerated straight from the filesystem)."""
+    root = _repo_root(repo_root)
+    runs_dir = root / ".aw" / "records" / "runs"
+    out: List[str] = []
+    try:
+        for child in runs_dir.iterdir():
+            if child.is_dir() and not child.name.startswith("."):
+                out.append(child.name)
+    except OSError:
+        pass
+    return out
+
+
+def entity_id6_candidates(
+    record_type: str, repo_root: Optional[Path] = None
+) -> List[str]:
+    """Active ``id6`` handles for a `selectors` record type (``plans``/``specs``/``backlog``),
+    returned as BARE id6 tokens extracted from each resolved path's name via the naming grammar.
+
+    Plans are scoped to the active dispositions (latency budget); specs/backlog are enumerated via
+    ``selectors.record_dirs`` (their trees are small - status subdirs, not a 300+ history).
+    """
+    if record_type == "plans":
+        return plan_id6_candidates(repo_root)
+
+    from agent_workflows import selectors
+
+    root = _repo_root(repo_root)
+    out: List[str] = []
+    try:
+        dirs = selectors.record_dirs(root, record_type)
+    except Exception:
+        return out
+    for d in dirs:
+        try:
+            for p in d.rglob("*.md"):
+                i = _id6_of_path(p)
+                if i:
+                    out.append(i)
+        except OSError:
+            continue
+    return out
+
+
+def status_candidates(record_type: str) -> List[str]:
+    """The status vocabulary VALID for ``record_type`` (plan vs. spec vs. backlog differ), sourced
+    from the real single-source-of-truth modules - NOT a hardcoded global list and NOT argparse
+    ``choices`` (the CLI status args are free-form ``nargs="+"``)."""
+    if record_type == "plans":
+        from agent_workflows import ipd_schema
+
+        return sorted(ipd_schema.RECOGNIZED_STATUS)
+    if record_type == "specs":
+        from agent_workflows import attention_contract
+
+        return sorted(attention_contract.SPEC_STATUSES)
+    if record_type == "backlog":
+        from agent_workflows import backlog
+
+        return sorted(backlog.STATUSES)
+    return []
+
+
+def _entity_record_type(words: List[str], cword: int) -> Optional[str]:
+    """Map the command context to a `selectors` record_type for id6 completion, or None.
+
+    `aw ipd <...>`   -> plans      `aw specs/spec <...>` -> specs
+    `aw backlog <...>` -> backlog  `aw find <type> <...>` -> that <type> if it names one.
+    """
+    if cword < 2:
+        return None
+    cmd = words[1]
+    if cmd == "find":
+        # `aw find <record_type> <selector...>`: the record type is words[2].
+        if cword >= 3 and len(words) > 2:
+            rt = words[2]
+            if rt in ("plans", "specs", "backlog", "research"):
+                return rt
+        return None
+    return _ENTITY_RECORD_TYPE.get(cmd)
+
+
+def _is_status_position(words: List[str], cword: int) -> Optional[str]:
+    """If the word at `cword` is a STATUS argument position, return the record_type whose status
+    vocabulary applies; else None.
+
+    The recognized shapes (verified against the real CLI):
+      * ``aw ipd set <status> <selector...>``        -> plan statuses at cword 3
+      * ``aw specs set --status <status>``           -> spec statuses right after ``--status``
+      * ``aw specs set <path> --status <status>``    (same)
+      * ``aw backlog set <selector> --status <s>``   -> backlog statuses after ``--status``
+    We complete a status when the PREVIOUS token is ``--status``, or in the ``ipd set`` positional
+    slot (index 3, i.e. the token right after ``set``).
+    """
+    if cword >= 1 and words[cword - 1] == "--status":
+        # Find the owning entity command earlier in the line.
+        if len(words) > 1:
+            rt = _ENTITY_RECORD_TYPE.get(words[1])
+            if rt:
+                return rt
+    # `aw ipd set <status>` positional (status is the first positional after `set`).
+    if cword == 3 and len(words) > 2 and words[1] == "ipd" and words[2] == "set":
+        return "plans"
+    return None
+
+
+def _subcommand_candidates(words: List[str], cword: int) -> List[str]:
+    """Static subcommand/flag candidates for the command position, reusing the introspected tree.
+
+    Position 1 -> top-level commands; position 2 -> the first command's subcommands; a word starting
+    with ``-`` -> that context's flags. This mirrors the generated static scripts so `__complete`
+    and the offline scripts agree on the static layer.
+    """
+    tree = introspect_cli_tree(_lazy_parser())
+    cur = words[cword] if cword < len(words) else ""
+
+    # Flag context: offer flags of the current subcommand path.
+    if cur.startswith("-"):
+        node = tree
+        for tok in words[1:cword]:
+            sub = node.get("subcommands", {}).get(tok)
+            if sub is None:
+                break
+            node = sub
+        return [f["flag"] for f in node.get("flags", [])]
+
+    if cword <= 1:
+        return list(tree.get("subcommands", {}).keys())
+
+    # Nested subcommand: walk to words[cword-1]'s node and offer its subcommands.
+    node = tree
+    for tok in words[1:cword]:
+        sub = node.get("subcommands", {}).get(tok)
+        if sub is None:
+            return []
+        node = sub
+    return list(node.get("subcommands", {}).keys())
+
+
+def complete_query(
+    words: List[str], cword: int, repo_root: Optional[Path] = None
+) -> List[str]:
+    """Return prefix-matching completion candidates for the token at ``cword`` (tabcomp-02 E-01).
+
+    ``words`` is the full command token list (``["aw", "ipd", "lint", "b"]``); ``cword`` is the index
+    of the word being completed. Returns BARE tokens (subcommands, flags, ``id6`` handles, Set ids,
+    run ids, status enums) matching the current prefix, evaluated against the CURRENT repository
+    state. Never raises: any failure yields the best static answer (or []).
+
+    Layering (first match wins for the DYNAMIC layer, then merged with static subcommands):
+      1. If completing a STATUS position, return that record type's status vocabulary.
+      2. Else if in an entity command's id6 position, return that type's active id6 handles.
+      3. Else if completing ``aw run``/``aw runs`` targets, return Set ids + run ids.
+      4. Always fall back to / include the static subcommand-or-flag candidates for the position.
+    """
+    if cword < 0:
+        return []
+    prefix = words[cword] if cword < len(words) else ""
+
+    # A flag prefix is always a static-flag query (never an artifact).
+    if prefix.startswith("-"):
+        return _prefix_filter(_subcommand_candidates(words, cword), prefix)
+
+    # 1. Status positions -> ONLY that record type's status vocabulary (a pure dynamic answer; the
+    #    static subcommand layer is deliberately skipped, both for correctness - subcommand names are
+    #    not valid there - and to avoid the parser-build cost inside the <50ms budget).
+    status_rt = _is_status_position(words, cword)
+    if status_rt is not None:
+        return _prefix_filter(status_candidates(status_rt), prefix)
+
+    # 2. Entity id6 positions (aw ipd/specs/backlog/find ...). Only when PAST the subcommand slot
+    #    (cword >= 3 so a real selector/positional is being typed, e.g. `aw ipd lint <id6>`); the
+    #    token in the subcommand slot itself is completed by the static layer (step 4). This is a
+    #    pure dynamic answer for the same correctness + latency reasons as step 1.
+    entity_rt = _entity_record_type(words, cword)
+    if entity_rt is not None and cword >= 3:
+        try:
+            return _prefix_filter(entity_id6_candidates(entity_rt, repo_root), prefix)
+        except Exception:
+            return []
+
+    # 3. run / runs targets -> Set ids + run ids (pure dynamic answer).
+    if cword >= 2 and words[1] in ("run", "runs"):
+        try:
+            return _prefix_filter(
+                set_id_candidates(repo_root) + run_id_candidates(repo_root), prefix
+            )
+        except Exception:
+            return []
+
+    # 4. Static subcommand / flag layer (command names / flags in the command position).
+    return _prefix_filter(_subcommand_candidates(words, cword), prefix)
