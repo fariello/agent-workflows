@@ -1655,15 +1655,43 @@ class VerifierPromptTests(unittest.TestCase):
             self.assertIn("Never push", prompt)
 
     def test_no_audit_flag_sets_option(self):
-        args = driver.build_parser().parse_args(
-            ["start", "demo", "--repo", ".", "--no-audit"]
+        # Default is validate=False
+        args_default = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", "."]
         )
-        self.assertTrue(args.no_audit)
-        # --no-verify is an accepted alias for the same dest
-        args2 = driver.build_parser().parse_args(
+        self.assertFalse(args_default.validate)
+
+        # --validate, --verify, --audit opt in
+        args_val = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--validate"]
+        )
+        self.assertTrue(args_val.validate)
+
+        args_ver = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--verify"]
+        )
+        self.assertTrue(args_ver.validate)
+
+        args_aud = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--audit"]
+        )
+        self.assertTrue(args_aud.validate)
+
+        # --no-validate, --no-verify, --no-audit explicitly opt out
+        args_noval = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--no-validate"]
+        )
+        self.assertFalse(args_noval.validate)
+
+        args_nover = driver.build_parser().parse_args(
             ["start", "demo", "--repo", ".", "--no-verify"]
         )
-        self.assertTrue(args2.no_audit)
+        self.assertFalse(args_nover.validate)
+
+        args_noaud = driver.build_parser().parse_args(
+            ["start", "demo", "--repo", ".", "--no-audit"]
+        )
+        self.assertFalse(args_noaud.validate)
 
     def test_verify_log_and_prompt_use_distinct_suffix(self):
         with tempfile.TemporaryDirectory() as temp:

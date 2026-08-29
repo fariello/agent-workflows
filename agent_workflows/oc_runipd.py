@@ -1328,7 +1328,8 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "output_mode": getattr(args, "output_mode", "clean"),
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
-            "no_audit": getattr(args, "no_audit", False),
+            "validate": getattr(args, "validate", False),
+            "no_audit": not getattr(args, "validate", False),
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
         },
@@ -2116,14 +2117,16 @@ def execute_item(
     # Turn 2: independent skeptical verification in a fresh session. After a successful
     # execution turn, audit the work in a clean session (no inherited context); if the
     # verifier finds unmet criteria, downgrade the disposition so it is not falsely
-    # reported as executed. Opt out with --no-audit / --no-verify.
+    # reported as executed. Opt in with --validate / --verify / --audit.
     verify_disp = None
     opts = state.get("options", {})
-    no_verify = opts.get("no_verify") or opts.get("no_audit")
+    validate = opts.get("validate", False)
+    if "validate" not in opts:
+        validate = not (opts.get("no_verify") or opts.get("no_audit"))
     if (
         not is_review
         and disposition in ("executed", "substantially-complete")
-        and not no_verify
+        and validate
     ):
         # driverfin-02: when isolated, resolve the plan from the WORKTREE (the agent's commits +
         # the plan itself live there); the verifier turn also runs in the worktree.
@@ -2854,11 +2857,13 @@ AUTOMATIC STATUS ROUTING:
         help="Automatically approve reviewed plans with 'GO - PENDING HUMAN APPROVAL' verdict and execute them immediately",
     )
     start.add_argument(
-        "--no-audit",
-        "--no-verify",
-        dest="no_audit",
-        action="store_true",
-        help="Skip the turn-2 independent clean-session verification of executed plans",
+        "--validate",
+        "--verify",
+        "--audit",
+        dest="validate",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Run the turn-2 independent clean-session verification of executed plans (default: false; pass --validate to enable)",
     )
     start.add_argument(
         "--no-self-finalize",
@@ -2909,6 +2914,15 @@ AUTOMATIC STATUS ROUTING:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Override full-auto mode (auto-approve and execute reviewed plans with GO verdict)",
+    )
+    resume.add_argument(
+        "--validate",
+        "--verify",
+        "--audit",
+        dest="validate",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Override turn-2 independent verification of executed plans",
     )
     _add_output_mode_flags(resume)
 
@@ -2988,6 +3002,11 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "full_auto", None) is not None:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["full_auto"] = args.full_auto
+                save_state(run_dir, state)
+            if getattr(args, "validate", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["validate"] = args.validate
+                state["options"]["no_audit"] = not args.validate
                 save_state(run_dir, state)
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)

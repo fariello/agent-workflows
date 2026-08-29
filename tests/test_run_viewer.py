@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import TestCase
@@ -1035,33 +1036,59 @@ class RunViewerTests(TestCase):
             self.assertIn("no", tbl)
 
     def test_run_viewer_cli_issues_flag(self):
-        ns = argparse.Namespace(
-            dir=".",
-            target=[],
-            set=None,
-            ipd=None,
-            status=None,
-            failed=False,
-            active=False,
-            latest=False,
-            last=1,
-            since=None,
-            detail=False,
-            short=False,
-            summary_only=False,
-            latest_only=False,
-            issues=True,
-            json=False,
-            agent=False,
-            no_color=True,
-        )
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            code = run_viewer.run_viewer_cli(ns)
-        self.assertEqual(code, 0)
-        out = buf.getvalue()
-        self.assertIn("Artifact & Status Discrepancies", out)
-        self.assertNotIn("pid:", out)
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending_dir = root / ".aw" / "records" / "plans" / "pending"
+            pending_dir.mkdir(parents=True)
+            p1 = pending_dir / "20260829-test-01-item01.ipd.md"
+            p1.write_text("- Id: item01\n- Status: approved\n")
+
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-111111"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260829T000000Z-111111",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "item01",
+                        "setid": "test",
+                        "action": "execute",
+                        "status": "complete",
+                        "configured_file": "",
+                        "stem": "20260829-test-01-item01",
+                    }
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state))
+
+            ns = argparse.Namespace(
+                dir=str(root),
+                target=[],
+                set=None,
+                ipd=None,
+                status=None,
+                failed=False,
+                active=False,
+                latest=False,
+                last=1,
+                since=None,
+                detail=False,
+                short=False,
+                summary_only=False,
+                latest_only=False,
+                issues=True,
+                json=False,
+                agent=False,
+                no_color=True,
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run_viewer.run_viewer_cli(ns)
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+            self.assertIn("Artifact & Status Discrepancies", out)
+            self.assertIn("20260829-test-01-item01", out)
+            self.assertNotIn("pid:", out)
 
     def test_run_viewer_cli_issues_conflict(self):
         ns = argparse.Namespace(
