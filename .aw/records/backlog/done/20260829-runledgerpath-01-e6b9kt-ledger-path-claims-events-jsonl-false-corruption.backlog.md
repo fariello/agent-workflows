@@ -1,11 +1,12 @@
 - Id: e6b9kt
-- Status: open
+- Status: done
 - Set: runledgerpath
 - Priority: high
 - Kind: bug
 - Summary: aw run ledger resolution claims the runner's events.jsonl and misdiagnoses it as a corrupt ledger
 
 ## Workflow history
+- 2026-08-29 done (aw set): Fixed in 99111c4: run-id resolution no longer claims events.jsonl (a ledger owns only LEDGER_FILENAME='ledger.jsonl'), and a new NotALedgerError (NOT a LedgerCorruption subclass) gives wrong-format files a distinct verdict on exit code 7 with not_a_ledger:true/corrupted:false. Adversarial tests prove the shape check cannot mask tampering: tampered prev_hash, deleted middle record, and schema-invalid envelope all still raise corruption at both store and CLI boundaries. Full suite: 2865 passed, 3 skipped, 4 xfailed.
 - 2026-08-29 created (aw backlog): aw run ledger resolution claims the runner's events.jsonl and misdiagnoses it as a corrupt ledger
 
 Two coupled defects, both reproduced live on this checkout at HEAD 477569a.
