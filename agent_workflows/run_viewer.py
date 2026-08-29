@@ -1213,7 +1213,7 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         lines.append("")
         st_hdr = "  Breakdown by Status:"
         lines.append(
-            term.color256(st_hdr, "bold") if getattr(term, "color", False) else st_hdr
+            term.colorize(st_hdr, "bold") if getattr(term, "color", False) else st_hdr
         )
 
         blank = ""
@@ -1265,7 +1265,7 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             lines.append("")
             act_hdr = "  Breakdown by Action:"
             lines.append(
-                term.color256(act_hdr, "bold")
+                term.colorize(act_hdr, "bold")
                 if getattr(term, "color", False)
                 else act_hdr
             )

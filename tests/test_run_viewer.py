@@ -630,7 +630,7 @@ class RunViewerTests(TestCase):
         )
         self.assertEqual(summary_dict["by_action"]["execute"]["avg_cost_per_run"], 5.00)
 
-        # Check format_multi_run_summary text
+        # Check format_multi_run_summary text with color=False
         text = run_viewer.format_multi_run_summary([run1, run2], term)
         self.assertIn("Summary across 2 runs (4 steps)", text)
         self.assertIn(
@@ -645,6 +645,14 @@ class RunViewerTests(TestCase):
         self.assertIn("10.00/step", text)
         self.assertIn("queued", text)
         self.assertIn("no cost data", text)
+
+        # Check format_multi_run_summary text with color=True
+        color_term = Term(color=True)
+        color_text = run_viewer.format_multi_run_summary([run1, run2], color_term)
+        self.assertIn("Summary across 2 runs (4 steps)", color_text)
+        self.assertIn("Total Cost:", color_text)
+        self.assertIn("Breakdown by Status:", color_text)
+        self.assertIn("Breakdown by Action:", color_text)
 
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(
