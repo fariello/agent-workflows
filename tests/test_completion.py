@@ -17,10 +17,12 @@ argcomplete is absent).
 
 from __future__ import annotations
 
+import argparse
 import io
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -28,7 +30,10 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 from agent_workflows import cli, completion
+from agent_workflows.term import Term
 
 
 def _run(argv):
@@ -437,6 +442,554 @@ class ArgcompleteSoftImportTests(unittest.TestCase):
         parser = cli._build_parser()
         with mock.patch.object(builtins, "__import__", _no_argcomplete):
             cli._maybe_argcomplete(parser)  # must not raise
+
+
+# --------------------------------------------------------------------------------------
+# tabcomp Order 03 (jolfpj): drop-in auto-discovery installation.
+# --------------------------------------------------------------------------------------
+
+
+class _DropInFixture(unittest.TestCase):
+    """A REAL temp HOME + XDG bases (not a mock), so `mkdir(parents=True)`, symlink creation, and
+    the dotfile-untouched assertion exercise actual filesystem behavior."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.home = self.root / "home"
+        self.home.mkdir()
+        self.xdg_data = self.root / "xdg-data"
+        self.xdg_config = self.root / "xdg-config"
+        self._env = mock.patch.dict(
+            os.environ,
+            {
+                "HOME": str(self.home),
+                "XDG_DATA_HOME": str(self.xdg_data),
+                "XDG_CONFIG_HOME": str(self.xdg_config),
+            },
+        )
+        self._env.start()
+        self.addCleanup(self._env.stop)
+        self.addCleanup(self._tmp.cleanup)
+
+    def dotfile_paths(self):
+        return [
+            self.home / ".bashrc",
+            self.home / ".bash_profile",
+            self.home / ".zshrc",
+            self.home / ".profile",
+            self.xdg_config / "fish" / "config.fish",
+        ]
+
+    def assert_no_dotfile_touched(self) -> None:
+        """The CORE PROMISE: no user rc/dotfile is ever created or modified."""
+        for path in self.dotfile_paths():
+            self.assertFalse(
+                path.exists(),
+                f"{path} must never be created or modified by completion install/uninstall",
+            )
+
+
+class ResolveCompletionDirTests(_DropInFixture):
+    """E-01: XDG-first directory resolution with the ~/.local/share, ~/.config fallbacks."""
+
+    def test_xdg_env_vars_win(self) -> None:
+        self.assertEqual(
+            completion.resolve_completion_dir("bash"),
+            self.xdg_data / "bash-completion/completions",
+        )
+        self.assertEqual(
+            completion.resolve_completion_dir("zsh"),
+            self.xdg_data / "zsh/site-functions",
+        )
+        self.assertEqual(
+            completion.resolve_completion_dir("fish"),
+            self.xdg_config / "fish/completions",
+        )
+
+    def test_fallbacks_when_xdg_unset(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("XDG_DATA_HOME", None)
+            os.environ.pop("XDG_CONFIG_HOME", None)
+            self.assertEqual(
+                completion.resolve_completion_dir("bash"),
+                self.home / ".local/share/bash-completion/completions",
+            )
+            self.assertEqual(
+                completion.resolve_completion_dir("zsh"),
+                self.home / ".local/share/zsh/site-functions",
+            )
+            self.assertEqual(
+                completion.resolve_completion_dir("fish"),
+                self.home / ".config/fish/completions",
+            )
+
+    def test_custom_dir_overrides_everything(self) -> None:
+        custom = self.root / "elsewhere"
+        self.assertEqual(
+            completion.resolve_completion_dir("bash", custom_dir=custom), custom
+        )
+
+    def test_unsupported_shell_raises(self) -> None:
+        with self.assertRaises(completion.CompletionInstallError):
+            completion.resolve_completion_dir("tcsh")
+
+    def test_xdg_precedence_matches_config_module(self) -> None:
+        # The convention must be the SAME one config.config_dir uses (XDG env var, else ~/.config),
+        # not a second invented one.
+        from agent_workflows import config as _config
+
+        self.assertEqual(_config.config_dir().parent, self.xdg_config)
+        self.assertEqual(
+            completion.resolve_completion_dir("fish").parent.parent, self.xdg_config
+        )
+
+
+class InstallShellCompletionTests(_DropInFixture):
+    """E-01: drop-in writes, per-shell alias binding, sentinel, idempotency, no-clobber, uninstall."""
+
+    def test_bash_writes_command_name_files_for_each_alias(self) -> None:
+        result = completion.install_shell_completion("bash")
+        directory = self.xdg_data / "bash-completion/completions"
+        self.assertEqual(result["dir"], directory)
+        primary = directory / "aw"
+        self.assertTrue(primary.is_file())
+        # BASH dispatches completion BY COMMAND NAME, so each alias needs its own entry.
+        for alias in ("agentwf", "agent-workflows"):
+            link = directory / alias
+            self.assertTrue(
+                link.exists(), f"bash needs a command-name file for {alias}"
+            )
+            self.assertEqual(os.readlink(link), "aw")
+        self.assert_no_dotfile_touched()
+
+    def test_zsh_writes_single_compdef_bound_file_only(self) -> None:
+        completion.install_shell_completion("zsh")
+        directory = self.xdg_data / "zsh/site-functions"
+        primary = directory / "_aw"
+        self.assertTrue(primary.is_file())
+        # ZSH binds all three aliases from the ONE file's `#compdef` line, so per-alias files must
+        # NOT be created (that would be wrong, not merely redundant).
+        self.assertEqual(sorted(p.name for p in directory.iterdir()), ["_aw"])
+        first_line = primary.read_text(encoding="utf-8").split("\n")[0]
+        self.assertEqual(first_line, "#compdef aw agentwf agent-workflows")
+        self.assert_no_dotfile_touched()
+
+    def test_fish_writes_single_file_with_multi_complete_c(self) -> None:
+        completion.install_shell_completion("fish")
+        directory = self.xdg_config / "fish/completions"
+        primary = directory / "aw.fish"
+        self.assertTrue(primary.is_file())
+        self.assertEqual(sorted(p.name for p in directory.iterdir()), ["aw.fish"])
+        body = primary.read_text(encoding="utf-8")
+        # FISH binds each alias via its own `complete -c <name>` lines inside the one file.
+        for alias in ("aw", "agentwf", "agent-workflows"):
+            self.assertIn(f"complete -c {alias} ", body)
+        self.assert_no_dotfile_touched()
+
+    def test_sentinel_present_in_every_written_file(self) -> None:
+        for shell in ("bash", "zsh", "fish"):
+            result = completion.install_shell_completion(shell)
+            primary = result["paths"][0]
+            head = primary.read_text(encoding="utf-8").split("\n")[:3]
+            self.assertIn(completion.INSTALL_SENTINEL, head, shell)
+
+    def test_zsh_sentinel_does_not_displace_compdef_first_line(self) -> None:
+        # zsh's compinit only honors `#compdef` on line 1, so the sentinel must go BELOW it.
+        result = completion.install_shell_completion("zsh")
+        lines = result["paths"][0].read_text(encoding="utf-8").split("\n")
+        self.assertTrue(lines[0].startswith("#compdef"))
+        self.assertEqual(lines[1], completion.INSTALL_SENTINEL)
+
+    def test_creates_missing_parent_directories(self) -> None:
+        # OQ-01: mkdir(parents=True) so a fresh machine with no completion dir works.
+        directory = self.xdg_data / "bash-completion/completions"
+        self.assertFalse(directory.exists())
+        completion.install_shell_completion("bash")
+        self.assertTrue(directory.is_dir())
+
+    def test_install_is_idempotent(self) -> None:
+        first = completion.install_shell_completion("bash")
+        body = first["paths"][0].read_text(encoding="utf-8")
+        second = completion.install_shell_completion("bash")
+        self.assertEqual(second["paths"], first["paths"])
+        self.assertEqual(second["paths"][0].read_text(encoding="utf-8"), body)
+        self.assertTrue(completion.is_completion_installed("bash"))
+
+    def test_refuses_to_clobber_foreign_completion(self) -> None:
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True)
+        foreign = directory / "aw"
+        foreign.write_text("# someone else's aw completion\n", encoding="utf-8")
+        with self.assertRaises(completion.CompletionInstallError):
+            completion.install_shell_completion("bash")
+        # The foreign file is left EXACTLY as it was, and no alias links were created.
+        self.assertEqual(
+            foreign.read_text(encoding="utf-8"), "# someone else's aw completion\n"
+        )
+        self.assertFalse((directory / "agentwf").exists())
+
+    def test_refuses_when_a_foreign_alias_file_exists(self) -> None:
+        # Fail closed BEFORE writing anything: a foreign alias entry aborts the whole install.
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True)
+        (directory / "agentwf").write_text("# foreign alias\n", encoding="utf-8")
+        with self.assertRaises(completion.CompletionInstallError):
+            completion.install_shell_completion("bash")
+        self.assertFalse((directory / "aw").exists())
+
+    def test_dry_run_writes_nothing(self) -> None:
+        result = completion.install_shell_completion("bash", dry_run=True)
+        self.assertTrue(result["dry_run"])
+        self.assertTrue(result["paths"])
+        for path in result["paths"]:
+            self.assertFalse(path.exists())
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+
+    def test_symlink_to_unexpected_target_is_treated_as_foreign(self) -> None:
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True)
+        outside = self.root / "outside.bash"
+        outside.write_text("# not ours\n", encoding="utf-8")
+        (directory / "aw").symlink_to(outside)
+        with self.assertRaises(completion.CompletionInstallError):
+            completion.install_shell_completion("bash")
+        # We must NOT have written THROUGH the link into the unexpected target.
+        self.assertEqual(outside.read_text(encoding="utf-8"), "# not ours\n")
+
+
+class UninstallShellCompletionTests(_DropInFixture):
+    """E-01: uninstall removes ONLY tool-created files."""
+
+    def test_removes_only_our_files(self) -> None:
+        completion.install_shell_completion("bash")
+        directory = self.xdg_data / "bash-completion/completions"
+        foreign = directory / "other-tool"
+        foreign.write_text("# foreign\n", encoding="utf-8")
+
+        result = completion.uninstall_shell_completion("bash")
+        self.assertEqual(
+            sorted(p.name for p in result["removed"]),
+            ["agent-workflows", "agentwf", "aw"],
+        )
+        self.assertFalse((directory / "aw").exists())
+        self.assertFalse((directory / "agentwf").exists())
+        self.assertTrue(foreign.is_file())  # untouched
+        self.assertFalse(completion.is_completion_installed("bash"))
+        self.assert_no_dotfile_touched()
+
+    def test_leaves_foreign_aw_file_intact_and_reports_it(self) -> None:
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True)
+        foreign = directory / "aw"
+        foreign.write_text("# foreign aw completion\n", encoding="utf-8")
+        result = completion.uninstall_shell_completion("bash")
+        self.assertEqual(result["removed"], [])
+        self.assertEqual([p.name for p in result["skipped"]], ["aw"])
+        self.assertTrue(foreign.is_file())
+
+    def test_uninstall_when_nothing_installed_is_a_noop(self) -> None:
+        result = completion.uninstall_shell_completion("fish")
+        self.assertEqual(result["removed"], [])
+        self.assertEqual(result["skipped"], [])
+
+    def test_dry_run_removes_nothing(self) -> None:
+        completion.install_shell_completion("zsh")
+        primary = self.xdg_data / "zsh/site-functions/_aw"
+        result = completion.uninstall_shell_completion("zsh", dry_run=True)
+        self.assertEqual([p.name for p in result["removed"]], ["_aw"])
+        self.assertTrue(primary.is_file())
+
+    def test_roundtrip_touches_no_dotfile(self) -> None:
+        for shell in ("bash", "zsh", "fish"):
+            completion.install_shell_completion(shell)
+            completion.uninstall_shell_completion(shell)
+        self.assert_no_dotfile_touched()
+
+
+class CompletionInstallCliTests(_DropInFixture):
+    """E-02: the `aw completion install|uninstall` CLI, additive on child 01's parser shape."""
+
+    def test_install_and_uninstall_exit0(self) -> None:
+        rc, out = _run(["completion", "install", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        directory = self.xdg_data / "bash-completion/completions"
+        self.assertTrue((directory / "aw").is_file())
+        self.assertIn(str(directory / "aw"), out)
+
+        rc, out = _run(["completion", "uninstall", "--shell", "bash"])
+        self.assertEqual(rc, 0, out)
+        self.assertFalse((directory / "aw").exists())
+        self.assert_no_dotfile_touched()
+
+    def test_dry_run_previews_paths_without_creating_files(self) -> None:
+        rc, out = _run(["completion", "install", "--shell", "fish", "--dry-run"])
+        self.assertEqual(rc, 0, out)
+        self.assertIn("[dry-run]", out)
+        self.assertIn("aw.fish", out)
+        self.assertFalse((self.xdg_config / "fish/completions/aw.fish").exists())
+
+    def test_custom_dir_flag(self) -> None:
+        custom = self.root / "custom-dir"
+        rc, out = _run(
+            ["completion", "install", "--shell", "zsh", "--dir", str(custom)]
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertTrue((custom / "_aw").is_file())
+
+    def test_shell_defaults_to_detected_shell(self) -> None:
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/fish"}):
+            rc, out = _run(["completion", "install"])
+        self.assertEqual(rc, 0, out)
+        self.assertTrue((self.xdg_config / "fish/completions/aw.fish").is_file())
+
+    def test_foreign_file_refusal_exits_1(self) -> None:
+        directory = self.xdg_data / "bash-completion/completions"
+        directory.mkdir(parents=True)
+        (directory / "aw").write_text("# foreign\n", encoding="utf-8")
+        rc, out = _run(["completion", "install", "--shell", "bash"])
+        self.assertEqual(rc, 1, out)
+        self.assertEqual((directory / "aw").read_text(encoding="utf-8"), "# foreign\n")
+
+    def test_child01_script_output_still_works(self) -> None:
+        # REGRESSION GUARD: adding the install/uninstall verbs must EXTEND child 01's parser, not
+        # redesign it - `aw completion <shell>` must still stream the raw script to stdout.
+        for shell, needle in (
+            ("bash", "# bash completion for aw"),
+            ("zsh", "#compdef aw agentwf agent-workflows"),
+            ("fish", "complete -c aw "),
+        ):
+            rc, out = _run(["completion", shell])
+            self.assertEqual(rc, 0, shell)
+            self.assertIn(needle, out)
+        # And bare `aw completion` still detects the shell rather than being read as a verb.
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            rc, out = _run(["completion"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.startswith("# bash completion for aw"))
+
+
+class SetupCompletionPromptTests(_DropInFixture):
+    """E-03: the HOST-LEVEL `_run_setup`/`_configure_completion` prompt (not install_wizard.py)."""
+
+    def _args(self, **kw):
+        base = dict(completion=None, yes=False)
+        base.update(kw)
+        return argparse.Namespace(**base)
+
+    def test_prompt_installs_on_accept(self) -> None:
+        term = Term(color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, return_value="y"),
+            mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}),
+        ):
+            cli._configure_completion(self._args(), term)
+        self.assertTrue((self.xdg_data / "bash-completion/completions/aw").is_file())
+        self.assert_no_dotfile_touched()
+
+    def test_prompt_installs_nothing_on_reject(self) -> None:
+        term = Term(color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, return_value="n"),
+            mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}),
+        ):
+            cli._configure_completion(self._args(), term)
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+        self.assert_no_dotfile_touched()
+
+    def test_skipped_non_interactively(self) -> None:
+        term = Term(color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=False),
+            mock.patch.object(cli, "input", create=True) as m_input,
+        ):
+            cli._configure_completion(self._args(), term)
+        m_input.assert_not_called()
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+
+    def test_skipped_under_yes(self) -> None:
+        term = Term(color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True) as m_input,
+        ):
+            cli._configure_completion(self._args(yes=True), term)
+        m_input.assert_not_called()
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+
+    def test_no_prompt_when_already_installed(self) -> None:
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            completion.install_shell_completion("bash")
+            term = Term(color=False)
+            with (
+                mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+                mock.patch.object(cli, "input", create=True) as m_input,
+            ):
+                cli._configure_completion(self._args(), term)
+        m_input.assert_not_called()
+
+    def test_explicit_none_never_prompts(self) -> None:
+        term = Term(color=False)
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True) as m_input,
+        ):
+            cli._configure_completion(self._args(completion="none"), term)
+        m_input.assert_not_called()
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+
+    def test_prompt_lives_in_cli_not_install_wizard(self) -> None:
+        # The reviewed integration point: the per-user completion prompt belongs to the host-level
+        # setup flow, NOT the per-target-repo project-policy wizard.
+        from agent_workflows import install_wizard
+
+        wizard_src = Path(install_wizard.__file__).read_text(encoding="utf-8")
+        for needle in (
+            "install_shell_completion",
+            "resolve_completion_dir",
+            "completion install",
+        ):
+            self.assertNotIn(
+                needle,
+                wizard_src,
+                "install_wizard.py (per-repo policy wizard) must not carry the "
+                "per-user completion prompt",
+            )
+        cli_src = Path(cli.__file__).read_text(encoding="utf-8")
+        self.assertIn("_configure_completion(args, term)", cli_src)
+
+    def test_install_failure_does_not_break_setup(self) -> None:
+        # An optional convenience must never fail the host setup flow.
+        term = Term(color=False)
+        with mock.patch.object(
+            completion,
+            "install_shell_completion",
+            side_effect=completion.CompletionInstallError("boom"),
+        ):
+            cli._configure_completion(self._args(completion="bash"), term)  # no raise
+
+
+class InstallCompletionFlagTests(_DropInFixture):
+    """E-04: `--completion [auto|bash|zsh|fish|none]` resolution and the discovery tip."""
+
+    def test_flag_is_registered_on_install_and_setup(self) -> None:
+        parser = cli._build_parser()
+        for verb, extra in (("install", []), ("setup", [])):
+            args = parser.parse_args([verb, *extra, "--completion", "zsh"])
+            self.assertEqual(args.completion, "zsh")
+        for choice in ("auto", "bash", "zsh", "fish", "none"):
+            args = parser.parse_args(["install", "--completion", choice])
+            self.assertEqual(args.completion, choice)
+
+    def test_resolve_choice(self) -> None:
+        ns = argparse.Namespace
+        self.assertIsNone(cli._resolve_completion_choice(ns(completion=None)))
+        self.assertIsNone(cli._resolve_completion_choice(ns(completion="none")))
+        self.assertEqual(cli._resolve_completion_choice(ns(completion="zsh")), "zsh")
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/fish"}):
+            self.assertEqual(
+                cli._resolve_completion_choice(ns(completion="auto")), "fish"
+            )
+
+    def test_explicit_shell_installs_without_prompting(self) -> None:
+        term = Term(color=False)
+        with mock.patch.object(cli, "input", create=True) as m_input:
+            cli._configure_completion(
+                argparse.Namespace(completion="bash", yes=True), term
+            )
+        m_input.assert_not_called()  # explicit flag => no question
+        self.assertTrue((self.xdg_data / "bash-completion/completions/aw").is_file())
+
+    def test_yes_without_flag_installs_nothing(self) -> None:
+        term = Term(color=False)
+        cli._configure_completion(argparse.Namespace(completion=None, yes=True), term)
+        self.assertFalse((self.xdg_data / "bash-completion").exists())
+        self.assertFalse((self.xdg_config / "fish").exists())
+        self.assert_no_dotfile_touched()
+
+    def test_auto_detects_shell(self) -> None:
+        term = Term(color=False)
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/zsh"}):
+            cli._configure_completion(
+                argparse.Namespace(completion="auto", yes=True), term
+            )
+        self.assertTrue((self.xdg_data / "zsh/site-functions/_aw").is_file())
+
+    def test_tip_shown_when_unconfigured_and_hidden_once_installed(self) -> None:
+        buf = io.StringIO()
+        term = Term(stream=buf, color=False)
+        with mock.patch.dict(os.environ, {"SHELL": "/usr/bin/bash"}):
+            cli._completion_tip(term)
+            self.assertIn("aw completion install", buf.getvalue())
+
+            completion.install_shell_completion("bash")
+            buf2 = io.StringIO()
+            cli._completion_tip(Term(stream=buf2, color=False))
+            self.assertEqual(buf2.getvalue(), "")
+
+
+# The only test here that SPAWNS the CLI, so it carries the `slow` marker (pyproject.toml:108-109);
+# the rest of this module is fast in-process and stays in the default suite.
+@pytest.mark.slow
+class CompletionInstallSubprocessTests(_DropInFixture):
+    """E-04/E-02 end-to-end through a real subprocess (marked slow per pyproject.toml)."""
+
+    def test_module_cli_install_then_uninstall(self) -> None:
+        env = dict(os.environ)
+        env["XDG_DATA_HOME"] = str(self.xdg_data)
+        env["XDG_CONFIG_HOME"] = str(self.xdg_config)
+        env["HOME"] = str(self.home)
+        primary = self.xdg_data / "bash-completion/completions/aw"
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "completion",
+                "install",
+                "--shell",
+                "bash",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(self.root),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(primary.is_file())
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "agent_workflows",
+                "completion",
+                "uninstall",
+                "--shell",
+                "bash",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=str(self.root),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse(primary.exists())
+        self.assert_no_dotfile_touched()
+
+
+class ReadmeCompletionDocsTests(unittest.TestCase):
+    """E-05: README documents the feature."""
+
+    def test_readme_has_shell_tab_completion_section(self) -> None:
+        readme = Path(__file__).resolve().parents[1] / "README.md"
+        body = readme.read_text(encoding="utf-8")
+        self.assertIn("Shell Tab Completion", body)
+        self.assertIn("aw completion install", body)
+        self.assertIn("source <(aw completion bash)", body)
 
 
 if __name__ == "__main__":

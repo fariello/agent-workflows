@@ -57,6 +57,44 @@ Re-run `aw install <dir>` any time to UPDATE an installed repo to the current ve
 idempotent and no-clobber (your own edits are never overwritten), so it doubles as the updater.
 There is no separate "update" command.
 
+### Shell Tab Completion
+
+`aw` ships native tab-completion for Bash, Zsh, and Fish with no external dependencies. It
+completes commands and flags, plus live repository artifacts (plan/spec/backlog `id6` handles,
+Set ids, run ids, and the status words valid for each artifact type).
+
+One command installs it:
+
+```bash
+aw completion install          # detects your shell from $SHELL
+aw completion install --shell zsh --dry-run   # preview the exact paths first
+aw completion uninstall        # remove it again
+```
+
+This writes a single drop-in file into the directory your shell already auto-discovers, so it
+**never edits `~/.bashrc`, `~/.zshrc`, or `config.fish`**:
+
+| Shell | Drop-in file |
+|---|---|
+| Bash | `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/aw` |
+| Zsh | `${XDG_DATA_HOME:-~/.local/share}/zsh/site-functions/_aw` |
+| Fish | `${XDG_CONFIG_HOME:-~/.config}/fish/completions/aw.fish` |
+
+Start a new shell afterwards to pick it up. All three console aliases (`aw`, `agentwf`,
+`agent-workflows`) are completed. Installing is idempotent, and it refuses to overwrite an `aw`
+completion file it did not write; uninstall removes only its own files.
+
+You can also enable it during install or setup, or print the script and source it directly
+without installing anything:
+
+```bash
+aw install . --completion auto   # or --completion bash|zsh|fish; default is none
+source <(aw completion bash)     # one-off for the current shell only
+```
+
+`aw setup` also offers completion with a single confirmation when run interactively. Batch and
+`--yes` runs write nothing to your completion directories unless you pass `--completion`.
+
 ### The `.aw/` Physical Layout and Four Roots
 
 Fresh installations create the canonical `.aw/` directory structure with four dedicated roots:

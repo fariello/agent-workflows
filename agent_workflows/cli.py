@@ -680,6 +680,15 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
     )
+    # tabcomp Order 03 (jolfpj) E-04: opt-in shell-completion setup during install. Default `none`
+    # keeps a non-interactive/batch install non-destructive toward the user's completion dirs.
+    p_install.add_argument(
+        "--completion",
+        choices=["auto", "bash", "zsh", "fish", "none"],
+        default=None,
+        help="Also install drop-in shell completion ('auto' detects $SHELL). Default: none "
+        "(non-interactively nothing is written; interactively you are asked).",
+    )
 
     p_setup = sub.add_parser(
         "setup", parents=[common], help="Guided first-run setup wizard."
@@ -729,6 +738,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--keep-legacy",
         action="store_true",
         help="Keep updating a detected legacy .agents/ layout in place with deprecation notice without migrating.",
+    )
+    # tabcomp Order 03 (jolfpj) E-04: same opt-in completion flag on the setup verb.
+    p_setup.add_argument(
+        "--completion",
+        choices=["auto", "bash", "zsh", "fish", "none"],
+        default=None,
+        help="Also install drop-in shell completion ('auto' detects $SHELL). Default: none "
+        "(non-interactively nothing is written; interactively you are asked).",
     )
 
     p_uninstall = sub.add_parser(
@@ -3278,6 +3295,9 @@ EXAMPLES
     # handler): today it accepts a shell name (or is omitted -> $SHELL detection, OQ-01 bash
     # fallback); tabcomp-03 can additively accept `install`/`uninstall` as the first token WITHOUT
     # reshaping this parser. Do NOT convert `target` to a fixed-choices positional.
+    # Single source of truth for the supported shell vocabulary (stdlib-only, cheap import).
+    from agent_workflows import completion as completion_mod
+
     p_completion = sub.add_parser(
         "completion",
         parents=[common],
@@ -3288,9 +3308,29 @@ EXAMPLES
         "target",
         nargs="?",
         default=None,
-        metavar="bash|zsh|fish",
-        help="Shell to generate for (default: detect from $SHELL, else bash). tabcomp-03 will "
-        "additively accept install|uninstall here without reshaping the parser.",
+        metavar="bash|zsh|fish|install|uninstall",
+        help="Shell to generate for (default: detect from $SHELL, else bash), or the verb "
+        "'install'/'uninstall' to manage the drop-in auto-discovery file.",
+    )
+    # tabcomp Order 03 (jolfpj) E-02: the install/uninstall verbs are ADDITIVE on child 01's
+    # free-form `target` positional (see the shape note above) - `aw completion <shell>` output is
+    # unchanged. These flags only apply when `target` is install|uninstall.
+    p_completion.add_argument(
+        "--shell",
+        choices=list(completion_mod.SUPPORTED_SHELLS),
+        default=None,
+        help="Shell to install/uninstall completion for (default: detect from $SHELL, else bash).",
+    )
+    p_completion.add_argument(
+        "--dir",
+        dest="completion_dir",
+        default=None,
+        help="Override the drop-in directory (default: the shell's XDG auto-discovery dir).",
+    )
+    p_completion.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show the drop-in paths that would be written/removed without touching the filesystem.",
     )
 
     # tabcomp Order 02 (4f1j25) E-02: the HIDDEN `__complete` shell callback. help=SUPPRESS keeps it
@@ -3970,6 +4010,11 @@ def _run_install(args: argparse.Namespace, term: Term) -> int:
         # Shared per-repo shell (install + summary + commit-offer, SystemExit-isolated).
         if _install_one(repo_root, source_root, args, term) == "failed":
             returncode = 1
+
+    # tabcomp Order 03 (jolfpj) E-04: host-level completion setup + discovery tip, ONCE per
+    # invocation (not per repo) because completion is a per-user/per-machine concern.
+    _configure_completion(args, term)
+    _completion_tip(term)
     return returncode
 
 
@@ -4034,7 +4079,98 @@ def _install_all(args: argparse.Namespace, term: Term) -> int:
     term.kv("Summary", summary)
     if ok:
         _teach(term)
+    # jolfpj E-04: once per invocation for the `install all` batch path too (parity with the
+    # single-repo path); still a per-user concern, so it is NOT inside the per-repo loop.
+    _configure_completion(args, term)
+    _completion_tip(term)
     return 1 if failed else 0
+
+
+def _completion_configured() -> bool:
+    """True when OUR drop-in completion is already installed for the detected shell (jolfpj E-04)."""
+    try:
+        from agent_workflows import completion as _completion
+
+        return _completion.is_completion_installed(_detect_shell())
+    except Exception:
+        return False
+
+
+def _completion_tip(term: Term) -> None:
+    """Print the tab-completion discovery tip when completion is not yet configured (jolfpj E-04).
+
+    A per-user/per-machine hint, so it is printed ONCE per command invocation (not once per repo in
+    a batch install) and stays silent when completion is already in place.
+    """
+    if _completion_configured():
+        return
+    term.line()
+    term.status("ok", "Tip: Enable tab-completion with 'aw completion install'")
+
+
+def _resolve_completion_choice(args: argparse.Namespace) -> Optional[str]:
+    """Resolve `--completion [auto|bash|zsh|fish|none]` to a shell name, or None for 'do nothing'.
+
+    `auto` detects from $SHELL (bash fallback). `none` (and an absent flag) yield None; the absent
+    case is then handled by the interactive prompt in `_run_setup` (E-03), which is skipped
+    non-interactively so a batch/`--yes` run touches no completion directory (the safe default).
+    """
+    choice = getattr(args, "completion", None)
+    if choice in (None, "none"):
+        return None
+    return _detect_shell() if choice == "auto" else choice
+
+
+def _configure_completion(args: argparse.Namespace, term: Term) -> None:
+    """Install shell completion per `--completion`, else offer it interactively (jolfpj E-03/E-04).
+
+    HOST-LEVEL, once-per-user concern: this lives on the `aw setup`/`aw install` host flow, NOT in
+    `install_wizard.py` (the per-target-repo project-policy wizard), so it does not re-prompt on
+    every repo install. Explicit `--completion <shell>|auto` installs without asking. With no flag,
+    a single confirm is offered ONLY on an interactive TTY without `--yes`; non-interactive and
+    `--yes` runs install nothing (safe, non-destructive default). Never edits an rc/dotfile.
+    """
+    from agent_workflows import completion as _completion
+
+    shell = _resolve_completion_choice(args)
+    explicit = shell is not None
+
+    if not explicit:
+        if getattr(args, "completion", None) == "none":
+            return  # explicit opt-out: do not prompt.
+        if getattr(args, "yes", False) or not sys.stdin.isatty():
+            return  # non-interactive / batch: safe default is to touch nothing.
+        shell = _detect_shell()
+        if _completion.is_completion_installed(shell):
+            return  # already ours; nothing to offer.
+        term.line()
+        term.heading("Shell tab-completion")
+        term.line(
+            f"Enable tab-completion for aw in {shell}? This writes one file to "
+            f"{_completion.resolve_completion_dir(shell)} "
+            "and does NOT modify your ~/.bashrc, ~/.zshrc, or config.fish."
+        )
+        try:
+            answer = input("  Install shell completion? [y/N] ").strip().lower()
+        except EOFError:
+            return
+        if answer not in ("y", "yes"):
+            term.status(
+                "skip", "Skipped; enable it later with 'aw completion install'."
+            )
+            return
+
+    try:
+        result = _completion.install_shell_completion(shell)
+    except (_completion.CompletionInstallError, OSError) as exc:
+        # Never fail a setup/install over an optional convenience feature.
+        term.status("warn", f"Shell completion not installed: {exc}")
+        return
+    term.status(
+        "ok",
+        f"{shell} completion installed in {result['dir']} (no rc/dotfile modified). "
+        f"Start a new {shell} shell to pick it up.",
+    )
 
 
 def _teach(term: Term) -> None:
@@ -5082,7 +5218,13 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
             _handle_legacy_migration(Path(repo), args, term)
             _install_one(repo, source_root, args, term)
 
+    # tabcomp Order 03 (jolfpj) E-03/E-04: the HOST-LEVEL, once-per-user completion step. It runs
+    # here (after the per-repo installs, before orientation) rather than inside install_wizard.py,
+    # which is the per-target-repo project-policy wizard and would re-prompt on every repo.
+    _configure_completion(args, term)
+
     _orient(term)
+    _completion_tip(term)
     return 0
 
 
@@ -7674,25 +7816,90 @@ def _detect_shell() -> str:
     return name if name in ("bash", "zsh", "fish") else "bash"
 
 
-def _run_completion(args: argparse.Namespace) -> int:
-    """`aw completion [bash|zsh|fish]` -> stream the native completion script to stdout (bja8og E-03).
+def _run_completion(args: argparse.Namespace, term: Optional[Term] = None) -> int:
+    """`aw completion [bash|zsh|fish|install|uninstall]` (bja8og E-03 + jolfpj E-02).
 
-    Bare invocation detects the shell from $SHELL (bash fallback, OQ-01). Clean stdout only (the raw
-    script), so `source <(aw completion bash)` works. tabcomp-03 will additively route an
-    install/uninstall `target` here without reshaping the parser."""
+    A shell-name (or omitted) `target` streams the native completion script to stdout - clean stdout
+    only (the raw script), so `source <(aw completion bash)` works; bare invocation detects the shell
+    from $SHELL (bash fallback, OQ-01). The `install`/`uninstall` verbs are routed ADDITIVELY here
+    (jolfpj E-02) on child 01's free-form `target` positional; the script-output path is unchanged."""
     from agent_workflows import completion as _completion
 
     target = getattr(args, "target", None)
+    if target in ("install", "uninstall"):
+        return _run_completion_install(args, verb=target, term=term)
     shell = target if target else _detect_shell()
     if shell not in ("bash", "zsh", "fish"):
         print(
             f"agent-workflows: error: unknown completion target {shell!r} "
-            "(expected bash|zsh|fish).",
+            "(expected bash|zsh|fish|install|uninstall).",
             file=sys.stderr,
         )
         print("Next  aw completion --help", file=sys.stderr)
         return 2
     sys.stdout.write(_completion.generate(shell))
+    return 0
+
+
+def _run_completion_install(
+    args: argparse.Namespace, *, verb: str, term: Optional[Term] = None
+) -> int:
+    """`aw completion install|uninstall` -> manage the drop-in auto-discovery file (jolfpj E-02).
+
+    Writes/removes ONLY inside the shell's own auto-discovery directory (XDG-first). Never edits a
+    user rc/dotfile. Refuses to clobber or delete a completion file this tool did not create
+    (sentinel-gated), reporting that as exit 1 rather than silently overwriting someone else's file.
+    Exit 0 ok, 1 refusal, 2 usage error."""
+    from agent_workflows import completion as _completion
+
+    term = term or Term(color=False if getattr(args, "no_color", False) else None)
+    shell = getattr(args, "shell", None) or _detect_shell()
+    raw_dir = getattr(args, "completion_dir", None)
+    target_dir = Path(raw_dir).expanduser() if raw_dir else None
+    dry_run = bool(getattr(args, "dry_run", False))
+    prefix = "[dry-run] " if dry_run else ""
+
+    try:
+        if verb == "install":
+            result = _completion.install_shell_completion(
+                shell, target_dir=target_dir, dry_run=dry_run
+            )
+            for path in result["paths"]:
+                term.status("ok", f"{prefix}completion file: {path}")
+            term.status(
+                "ok",
+                f"{prefix}{shell} completion "
+                f"{'would be installed' if dry_run else 'installed'} in {result['dir']} "
+                "(no rc/dotfile modified).",
+            )
+            if not dry_run:
+                term.line(
+                    f"Next  start a new {shell} shell (or run `exec {shell}`) to pick it up."
+                )
+        else:
+            result = _completion.uninstall_shell_completion(
+                shell, target_dir=target_dir, dry_run=dry_run
+            )
+            for path in result["removed"]:
+                term.status("ok", f"{prefix}removed: {path}")
+            for path in result["skipped"]:
+                term.status(
+                    "skip",
+                    f"{path}: not created by agent-workflows; left untouched.",
+                )
+            if not result["removed"]:
+                term.status(
+                    "ok",
+                    f"{prefix}no agent-workflows {shell} completion file found in "
+                    f"{result['dir']}; nothing to remove.",
+                )
+    except _completion.CompletionInstallError as exc:
+        term.status("fail", str(exc))
+        print("Next  aw completion --help", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        term.status("fail", f"{verb} failed: {exc}")
+        return 1
     return 0
 
 
@@ -7881,7 +8088,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return 0
 
     if args.command == "completion":
-        return _run_completion(args)
+        return _run_completion(args, term)
 
     if args.command == "__complete":
         return _run_dunder_complete(args)

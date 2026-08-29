@@ -24,14 +24,23 @@ A hard latency budget (<50ms) forbids the unscoped resolver sweep (measured ~500
 ``executed/`` history); dynamic scans are therefore scoped to ACTIVE dispositions (``pending``/
 ``reusable`` plans, live specs/backlog) and capped.
 
-Drop-in install/uninstall is child 03 (tabcomp-03). This module is stdlib-only
-(``argparse``/``shlex``/``pathlib``); it does NOT import third-party completion libraries, and the
-``argcomplete`` ecosystem hook lives in ``cli`` behind a soft import (no new runtime dependency).
+tabcomp Order 03 (jolfpj): DROP-IN installation. ``resolve_completion_dir`` /
+``install_shell_completion`` / ``uninstall_shell_completion`` write the generated script into the
+shell's own auto-discovery directory (XDG-first, matching ``config.config_dir``'s precedence), bind
+the console-script aliases per SHELL-SPECIFIC rules (bash command-name files, one ``#compdef``-bound
+zsh ``_aw``, fish's in-file multi-``complete -c``), and never touch ``~/.bashrc``/``~/.zshrc``/
+``config.fish``. Every written file carries ``INSTALL_SENTINEL`` so install refuses to clobber a
+foreign completion and uninstall removes only what this tool created.
+
+This module is stdlib-only (``argparse``/``os``/``shlex``/``pathlib``); it does NOT import
+third-party completion libraries, and the ``argcomplete`` ecosystem hook lives in ``cli`` behind a
+soft import (no new runtime dependency).
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -630,3 +639,255 @@ def complete_query(
 
     # 4. Static subcommand / flag layer (command names / flags in the command position).
     return _prefix_filter(_subcommand_candidates(words, cword), prefix)
+
+
+# ======================================================================================
+# tabcomp Order 03 (jolfpj) E-01: DROP-IN auto-discovery installation.
+#
+# The core promise: we NEVER edit `~/.bashrc`, `~/.zshrc`, or `config.fish`. Instead we write the
+# generated script into the shell's own auto-discovery directory, which every modern bash-completion
+# / zsh `fpath` / fish `completions` setup loads on demand:
+#
+#   bash  ${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/aw
+#   zsh   ${XDG_DATA_HOME:-~/.local/share}/zsh/site-functions/_aw
+#   fish  ${XDG_CONFIG_HOME:-~/.config}/fish/completions/aw.fish
+#
+# XDG precedence matches `agent_workflows.config.config_dir` (XDG env var first, then the
+# `~/.local/share` / `~/.config` fallback), so this feature does not invent a second convention.
+#
+# ALIAS BINDING IS SHELL-SPECIFIC (a verified correctness constraint - do NOT blanket-symlink all
+# three names in all three shells):
+#   - BASH loads a completion file BY COMMAND NAME, so `agentwf` and `agent-workflows` each need
+#     their own command-name entry (created as symlinks to the `aw` file).
+#   - ZSH binds every alias from the SINGLE `_aw` file's `#compdef aw agentwf agent-workflows`
+#     first line, so extra `_agentwf`/`_agent-workflows` files are unnecessary (and would be wrong).
+#   - FISH binds every alias from the `complete -c aw` / `-c agentwf` / `-c agent-workflows` lines
+#     already inside the one generated `aw.fish`, so no per-alias fish file is needed.
+#
+# SAFETY: a shared user directory may already hold someone else's `aw` completion. Every file we
+# write carries a self-identifying SENTINEL line; we refuse to clobber a file that lacks it, we
+# never write or delete THROUGH a symlink pointing somewhere unexpected, and uninstall removes ONLY
+# files/symlinks this tool created (sentinel-identified).
+# ======================================================================================
+
+# The self-identifying marker written into every file this tool creates. Its presence is the ONLY
+# license to overwrite or remove a file in a shared completion directory.
+INSTALL_SENTINEL = "# installed-by: agent-workflows (aw completion install)"
+
+SUPPORTED_SHELLS = ("bash", "zsh", "fish")
+
+# Per-shell drop-in layout: (XDG env var, fallback dir relative to $HOME, subdir, primary filename).
+_DROPIN_LAYOUT: Dict[str, Any] = {
+    "bash": ("XDG_DATA_HOME", ".local/share", "bash-completion/completions", "aw"),
+    "zsh": ("XDG_DATA_HOME", ".local/share", "zsh/site-functions", "_aw"),
+    "fish": ("XDG_CONFIG_HOME", ".config", "fish/completions", "aw.fish"),
+}
+
+
+class CompletionInstallError(RuntimeError):
+    """A drop-in install/uninstall could not be performed safely (e.g. a foreign file present)."""
+
+
+def resolve_completion_dir(shell: str, custom_dir: Optional[Path] = None) -> Path:
+    """Return the drop-in auto-discovery directory for ``shell`` (jolfpj E-01).
+
+    ``custom_dir`` overrides everything (``--dir``). Otherwise the shell's XDG base env var wins
+    (``XDG_DATA_HOME`` for bash/zsh, ``XDG_CONFIG_HOME`` for fish) and falls back to
+    ``~/.local/share`` / ``~/.config`` - the same precedence as ``config.config_dir``.
+    """
+    if shell not in _DROPIN_LAYOUT:
+        raise CompletionInstallError(
+            f"unsupported shell {shell!r} (expected one of {', '.join(SUPPORTED_SHELLS)})"
+        )
+    if custom_dir is not None:
+        return Path(custom_dir).expanduser()
+    env_var, fallback, subdir, _name = _DROPIN_LAYOUT[shell]
+    raw = os.environ.get(env_var)
+    base = Path(raw).expanduser() if raw else Path.home() / fallback
+    return base / subdir
+
+
+def completion_filename(shell: str) -> str:
+    """The primary drop-in filename for ``shell`` (``aw`` / ``_aw`` / ``aw.fish``)."""
+    if shell not in _DROPIN_LAYOUT:
+        raise CompletionInstallError(f"unsupported shell {shell!r}")
+    return _DROPIN_LAYOUT[shell][3]
+
+
+def _alias_filenames(shell: str) -> List[str]:
+    """Extra command-name files needed to bind the console-script aliases, per shell.
+
+    BASH only: it dispatches completion by command name. Zsh binds all aliases from the single
+    ``_aw`` file's ``#compdef`` line and fish from the in-file ``complete -c <name>`` lines, so both
+    return an empty list (creating per-alias files there would be wrong, not merely redundant).
+    """
+    if shell == "bash":
+        return [name for name in ENTRYPOINTS if name != "aw"]
+    return []
+
+
+def _script_with_sentinel(shell: str) -> str:
+    """The generated completion script carrying the self-identifying sentinel line.
+
+    The sentinel goes on line 1 EXCEPT when the script opens with zsh's ``#compdef`` tag: zsh's
+    ``compinit`` autoload only honors ``#compdef`` when it is the FIRST line of the file, so
+    prepending anything above it would silently break the alias binding. In that case the sentinel
+    becomes line 2 (``_is_ours`` scans the first few lines, so detection is unaffected).
+    """
+    body = generate(shell)
+    lines = body.split("\n")
+    if lines and lines[0].startswith("#compdef"):
+        return "\n".join([lines[0], INSTALL_SENTINEL, *lines[1:]])
+    return f"{INSTALL_SENTINEL}\n{body}"
+
+
+def _is_ours(path: Path) -> bool:
+    """True when ``path`` is a file this tool wrote (carries the sentinel) or one of our symlinks.
+
+    A symlink is "ours" when it resolves to a sentinel-bearing file inside the same directory (the
+    alias links we create). A dangling or foreign-target symlink is NOT ours, so we never delete or
+    write through a link pointing somewhere unexpected.
+    """
+    try:
+        if path.is_symlink():
+            target = path.parent / os.readlink(path)
+            return target.is_file() and _is_ours(target)
+        if not path.is_file():
+            return False
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            for _ in range(5):  # the sentinel is line 1; allow a little slack.
+                line = fh.readline()
+                if not line:
+                    break
+                if line.strip() == INSTALL_SENTINEL:
+                    return True
+        return False
+    except OSError:
+        return False
+
+
+def _foreign(path: Path) -> bool:
+    """True when something exists at ``path`` that this tool did not create."""
+    return (path.exists() or path.is_symlink()) and not _is_ours(path)
+
+
+def install_shell_completion(
+    shell: str,
+    target_dir: Optional[Path] = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Write the drop-in completion file (+ per-shell alias binding) for ``shell`` (jolfpj E-01).
+
+    Creates the auto-discovery directory if needed, writes the generated script prefixed with
+    ``INSTALL_SENTINEL``, and adds the bash command-name alias symlinks (zsh/fish bind their aliases
+    from inside the single generated file). Idempotent: re-running rewrites OUR file and leaves the
+    result identical. NO user rc/dotfile is ever read or written.
+
+    Raises ``CompletionInstallError`` when a FOREIGN (non-sentinel) file or an unexpected symlink
+    already occupies a target path - we never clobber another tool's or the user's completion.
+
+    Returns ``{"shell", "dir", "paths", "aliases", "dry_run"}`` where ``paths`` lists every path
+    written (or that WOULD be written under ``dry_run``).
+    """
+    if shell not in _DROPIN_LAYOUT:
+        raise CompletionInstallError(
+            f"unsupported shell {shell!r} (expected one of {', '.join(SUPPORTED_SHELLS)})"
+        )
+    directory = resolve_completion_dir(shell, target_dir)
+    primary = directory / completion_filename(shell)
+    aliases = [directory / name for name in _alias_filenames(shell)]
+
+    # Fail closed BEFORE writing anything: a foreign file at any target aborts the whole install.
+    for path in [primary, *aliases]:
+        if _foreign(path):
+            raise CompletionInstallError(
+                f"refusing to overwrite {path}: it was not created by agent-workflows "
+                f"(no {INSTALL_SENTINEL!r} marker). Remove it or pass a different --dir."
+            )
+
+    if dry_run:
+        return {
+            "shell": shell,
+            "dir": directory,
+            "paths": [primary, *aliases],
+            "aliases": aliases,
+            "dry_run": True,
+        }
+
+    directory.mkdir(parents=True, exist_ok=True)
+    # Write the real file (never through a symlink: any pre-existing entry here is ours, and we
+    # unlink it first so a stale link can never redirect the write).
+    if primary.is_symlink():
+        primary.unlink()
+    primary.write_text(_script_with_sentinel(shell), encoding="utf-8")
+    primary.chmod(0o644)
+
+    written = [primary]
+    for link in aliases:
+        if link.exists() or link.is_symlink():
+            link.unlink()
+        try:
+            link.symlink_to(primary.name)
+        except OSError:
+            # A filesystem without symlink support still gets working completion via a real copy.
+            link.write_text(_script_with_sentinel(shell), encoding="utf-8")
+        written.append(link)
+
+    return {
+        "shell": shell,
+        "dir": directory,
+        "paths": written,
+        "aliases": aliases,
+        "dry_run": False,
+    }
+
+
+def uninstall_shell_completion(
+    shell: str,
+    target_dir: Optional[Path] = None,
+    dry_run: bool = False,
+) -> Dict[str, Any]:
+    """Remove ONLY the drop-in files this tool created for ``shell`` (jolfpj E-01).
+
+    Sentinel-gated: a file or symlink we did not create is left untouched and reported under
+    ``skipped``, never deleted. No rc/dotfile is read or written. Returns
+    ``{"shell", "dir", "removed", "skipped", "dry_run"}``.
+    """
+    if shell not in _DROPIN_LAYOUT:
+        raise CompletionInstallError(
+            f"unsupported shell {shell!r} (expected one of {', '.join(SUPPORTED_SHELLS)})"
+        )
+    directory = resolve_completion_dir(shell, target_dir)
+    candidates = [directory / completion_filename(shell)] + [
+        directory / name for name in _alias_filenames(shell)
+    ]
+
+    removed: List[Path] = []
+    skipped: List[Path] = []
+    # Remove alias links before the primary so an "ours" link is still resolvable when checked.
+    for path in reversed(candidates):
+        if not (path.exists() or path.is_symlink()):
+            continue
+        if not _is_ours(path):
+            skipped.append(path)
+            continue
+        removed.append(path)
+        if not dry_run:
+            path.unlink()
+
+    return {
+        "shell": shell,
+        "dir": directory,
+        "removed": list(reversed(removed)),
+        "skipped": skipped,
+        "dry_run": dry_run,
+    }
+
+
+def is_completion_installed(shell: str, target_dir: Optional[Path] = None) -> bool:
+    """True when OUR drop-in completion file is already present for ``shell``."""
+    try:
+        primary = resolve_completion_dir(shell, target_dir) / completion_filename(shell)
+    except CompletionInstallError:
+        return False
+    return _is_ours(primary)
