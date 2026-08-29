@@ -1334,68 +1334,61 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
 
         # Status Table
         by_status = summary_data["by_status"]
-        headers_st = [
-            "Status",
-            "Steps",
-            "Total Cost",
-            "Avg/Step",
-            "Avg/Run",
-            "Total Tok",
-            "In",
-            "Out",
-            "Cached",
-        ]
-        aligns_st = [
-            "left",
-            "left",
-            "right",
-            "right",
-            "right",
-            "right",
-            "right",
-            "right",
-            "right",
-        ]
+        headers_st = ["Status", "Type", "Cost", "Tokens", "In", "Out", "Cached"]
+        aligns_st = ["left", "left", "right", "right", "right", "right", "right"]
         rows_st = []
         for st, data in sorted(
             by_status.items(),
             key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
         ):
-            tot_cnt = data["count"]
             c_cnt = data["steps_with_cost"]
             st_disp = "complete" if st == "substantially-complete" else st
             st_styled = (
                 term.status_256(st_disp) if getattr(term, "color", False) else st_disp
             )
-            cnt_desc = (
-                f"{tot_cnt} ({c_cnt} cost)"
-                if (c_cnt and c_cnt != tot_cnt)
-                else str(tot_cnt)
-            )
+            td = data.get("tokens", {})
+            avg_td = data.get("avg_tokens_per_step", {})
+
             if c_cnt > 0:
                 c_tot = f"${data['total_cost']:.2f}"
-                avg_step = f"${data['avg_cost_per_step']:.2f}"
-                avg_run = f"${data['avg_cost_per_run']:.2f}"
-                td = data.get("tokens", {})
-                t_tot = format_tokens(td.get("total", 0))
-                t_in = format_tokens(td.get("input", 0))
-                t_out = format_tokens(td.get("output", 0))
-                t_cache = format_tokens(td.get("cache", 0))
+                c_avg = f"${data['avg_cost_per_step']:.2f}"
+                t_tot = format_tokens(td.get("total", 0)) if td.get("total") else "-"
+                t_avg = (
+                    format_tokens(avg_td.get("total", 0))
+                    if avg_td.get("total")
+                    else "-"
+                )
+                in_tot = format_tokens(td.get("input", 0)) if td.get("input") else "-"
+                in_avg = (
+                    format_tokens(avg_td.get("input", 0))
+                    if avg_td.get("input")
+                    else "-"
+                )
+                out_tot = (
+                    format_tokens(td.get("output", 0)) if td.get("output") else "-"
+                )
+                out_avg = (
+                    format_tokens(avg_td.get("output", 0))
+                    if avg_td.get("output")
+                    else "-"
+                )
+                cache_tot = (
+                    format_tokens(td.get("cache", 0)) if td.get("cache") else "-"
+                )
+                cache_avg = (
+                    format_tokens(avg_td.get("cache", 0))
+                    if avg_td.get("cache")
+                    else "-"
+                )
             else:
-                c_tot = avg_step = avg_run = t_tot = t_in = t_out = t_cache = "-"
+                c_tot = c_avg = t_tot = t_avg = in_tot = in_avg = out_tot = out_avg = (
+                    cache_tot
+                ) = cache_avg = "-"
+
             rows_st.append(
-                [
-                    st_styled,
-                    cnt_desc,
-                    c_tot,
-                    avg_step,
-                    avg_run,
-                    t_tot,
-                    t_in,
-                    t_out,
-                    t_cache,
-                ]
+                [st_styled, "Total", c_tot, t_tot, in_tot, out_tot, cache_tot]
             )
+            rows_st.append(["", "Avg", c_avg, t_avg, in_avg, out_avg, cache_avg])
 
         lines.append("")
         lines.append(
@@ -1407,67 +1400,64 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         # Action Table
         by_action = summary_data["by_action"]
         if len(by_action) > 1:
-            headers_act = [
-                "Action",
-                "Steps",
-                "Total Cost",
-                "Avg/Step",
-                "Avg/Run",
-                "Total Tok",
-                "In",
-                "Out",
-                "Cached",
-            ]
-            aligns_act = [
-                "left",
-                "left",
-                "right",
-                "right",
-                "right",
-                "right",
-                "right",
-                "right",
-                "right",
-            ]
+            headers_act = ["Action", "Type", "Cost", "Tokens", "In", "Out", "Cached"]
+            aligns_act = ["left", "left", "right", "right", "right", "right", "right"]
             rows_act = []
             for act, data in sorted(
                 by_action.items(),
                 key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
             ):
+                c_cnt = data["steps_with_cost"]
                 act_styled = (
                     term.color256(act, 226) if getattr(term, "color", False) else act
                 )
-                tot_cnt = data["count"]
-                c_cnt = data["steps_with_cost"]
-                cnt_desc = (
-                    f"{tot_cnt} ({c_cnt} cost)"
-                    if (c_cnt and c_cnt != tot_cnt)
-                    else str(tot_cnt)
-                )
+                td = data.get("tokens", {})
+                avg_td = data.get("avg_tokens_per_step", {})
+
                 if c_cnt > 0:
                     c_tot = f"${data['total_cost']:.2f}"
-                    avg_step = f"${data['avg_cost_per_step']:.2f}"
-                    avg_run = f"${data['avg_cost_per_run']:.2f}"
-                    td = data.get("tokens", {})
-                    t_tot = format_tokens(td.get("total", 0))
-                    t_in = format_tokens(td.get("input", 0))
-                    t_out = format_tokens(td.get("output", 0))
-                    t_cache = format_tokens(td.get("cache", 0))
+                    c_avg = f"${data['avg_cost_per_step']:.2f}"
+                    t_tot = (
+                        format_tokens(td.get("total", 0)) if td.get("total") else "-"
+                    )
+                    t_avg = (
+                        format_tokens(avg_td.get("total", 0))
+                        if avg_td.get("total")
+                        else "-"
+                    )
+                    in_tot = (
+                        format_tokens(td.get("input", 0)) if td.get("input") else "-"
+                    )
+                    in_avg = (
+                        format_tokens(avg_td.get("input", 0))
+                        if avg_td.get("input")
+                        else "-"
+                    )
+                    out_tot = (
+                        format_tokens(td.get("output", 0)) if td.get("output") else "-"
+                    )
+                    out_avg = (
+                        format_tokens(avg_td.get("output", 0))
+                        if avg_td.get("output")
+                        else "-"
+                    )
+                    cache_tot = (
+                        format_tokens(td.get("cache", 0)) if td.get("cache") else "-"
+                    )
+                    cache_avg = (
+                        format_tokens(avg_td.get("cache", 0))
+                        if avg_td.get("cache")
+                        else "-"
+                    )
                 else:
-                    c_tot = avg_step = avg_run = t_tot = t_in = t_out = t_cache = "-"
+                    c_tot = c_avg = t_tot = t_avg = in_tot = in_avg = out_tot = (
+                        out_avg
+                    ) = cache_tot = cache_avg = "-"
+
                 rows_act.append(
-                    [
-                        act_styled,
-                        cnt_desc,
-                        c_tot,
-                        avg_step,
-                        avg_run,
-                        t_tot,
-                        t_in,
-                        t_out,
-                        t_cache,
-                    ]
+                    [act_styled, "Total", c_tot, t_tot, in_tot, out_tot, cache_tot]
                 )
+                rows_act.append(["", "Avg", c_avg, t_avg, in_avg, out_avg, cache_avg])
 
             lines.append("")
             lines.append(
