@@ -954,3 +954,78 @@ class RunViewerTests(TestCase):
         self.assertIn(
             "$5.50, 50.00K tok (40.00K in, 10.00K out, 30.00K cached)", lines[3]
         )
+
+    def test_audit_step_artifact_and_summary(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending_dir = root / ".aw" / "records" / "plans" / "pending"
+            executed_dir = root / ".aw" / "records" / "plans" / "executed"
+            pending_dir.mkdir(parents=True)
+            executed_dir.mkdir(parents=True)
+
+            # Plan 1: In pending with status approved, but step is complete (loc & status mismatch)
+            p1 = pending_dir / "20260829-test-01-item01.ipd.md"
+            p1.write_text("- Id: item01\n- Status: approved\n")
+
+            # Plan 2: In executed with status executed, step executed (clean)
+            p2 = executed_dir / "20260829-test-02-item02.ipd.md"
+            p2.write_text("- Id: item02\n- Status: executed\n")
+
+            st1 = run_viewer.StepSummary(
+                position=1,
+                id6="item01",
+                setid="test",
+                action="execute",
+                status="complete",
+                configured_file="",
+                stem="20260829-test-01-item01",
+            )
+            st2 = run_viewer.StepSummary(
+                position=2,
+                id6="item02",
+                setid="test",
+                action="execute",
+                status="executed",
+                configured_file="",
+                stem="20260829-test-02-item02",
+            )
+            st3 = run_viewer.StepSummary(
+                position=3,
+                id6="item03",
+                setid="test",
+                action="execute",
+                status="queued",
+                configured_file="",
+                stem="20260829-test-03-item03",
+            )
+
+            a1 = run_viewer.audit_step_artifact(st1, repo_root=root)
+            self.assertTrue(a1.location_mismatch)
+            self.assertTrue(a1.status_mismatch)
+            self.assertFalse(a1.missing_entirely)
+            self.assertEqual(a1.actual_dir, "pending")
+            self.assertEqual(a1.expected_dir, "executed")
+            self.assertEqual(a1.file_status, "approved")
+
+            a2 = run_viewer.audit_step_artifact(st2, repo_root=root)
+            self.assertFalse(a2.location_mismatch)
+            self.assertFalse(a2.status_mismatch)
+            self.assertFalse(a2.missing_entirely)
+
+            a3 = run_viewer.audit_step_artifact(st3, repo_root=root)
+            self.assertTrue(a3.missing_entirely)
+
+            term = Term(color=False)
+            sum_txt = run_viewer.format_artifact_audit_summary([a1, a2, a3], term)
+            self.assertIn("--- Artifact & Status Discrepancies (2 items) ---", sum_txt)
+            self.assertIn("! 20260829-test-03-item03: MISSING ENTIRELY", sum_txt)
+            self.assertIn("location: in pending/ (expected executed/)", sum_txt)
+            self.assertIn("status: file 'approved' != run 'complete'", sum_txt)
+
+            # Check table rendering decoration
+            tbl = run_viewer.render_steps_table([st1, st2, st3], term, repo_root=root)
+            self.assertIn("[MISSING]", tbl)
+            self.assertIn("[in pending/]", tbl)
+            self.assertIn("[file: approved]", tbl)

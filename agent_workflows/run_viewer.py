@@ -341,6 +341,204 @@ def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
     return None
 
 
+_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
+
+
+@dataclass
+class StepArtifactAudit:
+    step_id6: str
+    stem: str
+    run_status: str
+    missing_entirely: bool = False
+    location_mismatch: bool = False
+    status_mismatch: bool = False
+    actual_dir: str | None = None
+    expected_dir: str | None = None
+    file_status: str | None = None
+    actual_path: Path | None = None
+
+
+def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
+    """Search the repository for an artifact markdown file matching id6 or stem."""
+    if not id6 and not stem:
+        return None
+    search_dirs = [
+        repo_root / ".aw" / "records" / "plans" / "pending",
+        repo_root / ".aw" / "records" / "plans" / "executed",
+        repo_root / ".aw" / "records" / "plans" / "superseded",
+        repo_root / ".aw" / "records" / "plans" / "not-executed",
+        repo_root / ".aw" / "records" / "plans" / "reusable",
+        repo_root / ".aw" / "records" / "plans" / "archive",
+        repo_root / ".aw" / "records" / "specs",
+        repo_root / ".agents" / "plans" / "pending",
+        repo_root / ".agents" / "plans" / "executed",
+    ]
+    for d in search_dirs:
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*.md"):
+            if id6 and id6 in p.name:
+                return p
+            if stem and stem in p.name:
+                return p
+    return None
+
+
+def audit_step_artifact(
+    step: StepSummary, repo_root: Path = Path(".")
+) -> StepArtifactAudit:
+    """Audit a step's artifact location and status on disk."""
+    id6 = step.id6
+    stem = step.stem or (f"{step.setid}-{step.id6}" if step.setid else step.id6)
+    cfg = step.configured_file
+    st = "complete" if step.status == "substantially-complete" else step.status
+
+    if st in ("executed", "complete"):
+        expected_dir_name = "executed"
+    elif st == "superseded":
+        expected_dir_name = "superseded"
+    elif st == "not-executed":
+        expected_dir_name = "not-executed"
+    elif st == "reusable":
+        expected_dir_name = "reusable"
+    else:
+        expected_dir_name = "pending"
+
+    actual_file = None
+    if cfg and (repo_root / cfg).is_file():
+        actual_file = repo_root / cfg
+    else:
+        actual_file = find_artifact_file(repo_root, id6, stem)
+
+    if actual_file is None:
+        return StepArtifactAudit(
+            step_id6=id6,
+            stem=stem,
+            run_status=st,
+            missing_entirely=True,
+            location_mismatch=False,
+            status_mismatch=False,
+            actual_dir=None,
+            expected_dir=expected_dir_name,
+            file_status=None,
+            actual_path=None,
+        )
+
+    actual_dir_name = actual_file.parent.name
+    loc_mismatch = actual_dir_name != expected_dir_name
+
+    file_status = None
+    status_mismatch = False
+    try:
+        txt = actual_file.read_text(encoding="utf-8", errors="ignore")
+        m = _STATUS_LINE_RE.search(txt)
+        if m:
+            file_status = m.group(1).strip()
+            f_norm = (
+                "complete" if file_status == "substantially-complete" else file_status
+            )
+            if st in ("executed", "complete"):
+                if f_norm not in ("executed", "complete"):
+                    status_mismatch = True
+            elif st == "reviewed":
+                if f_norm not in ("reviewed", "approved"):
+                    status_mismatch = True
+            elif st in ("queued", "running", "dependency-blocked", "blocked"):
+                if f_norm not in (
+                    "approved",
+                    "to-review",
+                    "draft",
+                    "reviewed",
+                    "queued",
+                    "running",
+                ):
+                    status_mismatch = True
+            else:
+                if f_norm != st:
+                    status_mismatch = True
+    except Exception:
+        pass
+
+    return StepArtifactAudit(
+        step_id6=id6,
+        stem=stem,
+        run_status=st,
+        missing_entirely=False,
+        location_mismatch=loc_mismatch,
+        status_mismatch=status_mismatch,
+        actual_dir=actual_dir_name,
+        expected_dir=expected_dir_name,
+        file_status=file_status,
+        actual_path=actual_file,
+    )
+
+
+def format_artifact_audit_summary(
+    audits: list[StepArtifactAudit],
+    term: Term,
+) -> str:
+    """Format a summary of artifact location and status discrepancies."""
+    seen: set[str] = set()
+    discrepancies: list[StepArtifactAudit] = []
+    for a in audits:
+        key = a.step_id6 or a.stem
+        if key in seen:
+            continue
+        seen.add(key)
+        if a.missing_entirely or a.location_mismatch or a.status_mismatch:
+            discrepancies.append(a)
+
+    if not discrepancies:
+        return ""
+
+    cnt = len(discrepancies)
+    header = (
+        term.colorize(
+            f"--- Artifact & Status Discrepancies ({cnt} item{'s' if cnt != 1 else ''}) ---",
+            "bold",
+        )
+        if getattr(term, "color", False)
+        else f"--- Artifact & Status Discrepancies ({cnt} item{'s' if cnt != 1 else ''}) ---"
+    )
+    lines = [header]
+
+    for a in discrepancies:
+        item_id = a.stem or a.step_id6
+        if a.missing_entirely:
+            tag = (
+                term.color256("!", 196, bold=True)
+                if getattr(term, "color", False)
+                else "!"
+            )
+            msg = (
+                term.color256(
+                    "MISSING ENTIRELY (no artifact file found in repository)",
+                    196,
+                    bold=True,
+                )
+                if getattr(term, "color", False)
+                else "MISSING ENTIRELY (no artifact file found in repository)"
+            )
+            lines.append(f"  {tag} {item_id}: {msg}")
+        else:
+            tag = (
+                term.color256("*", 214, bold=True)
+                if getattr(term, "color", False)
+                else "*"
+            )
+            parts = []
+            if a.location_mismatch and a.actual_dir and a.expected_dir:
+                parts.append(
+                    f"location: in {a.actual_dir}/ (expected {a.expected_dir}/)"
+                )
+            if a.status_mismatch and a.file_status:
+                parts.append(f"status: file '{a.file_status}' != run '{a.run_status}'")
+            desc = ", ".join(parts) if parts else "discrepancy detected"
+            lines.append(f"  {tag} {item_id}: {desc}")
+
+    return "\n".join(lines)
+
+
 def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, int]]:
     """Extract cumulative cost and token counts from a session JSONL file."""
     p = Path(log_path)
@@ -981,6 +1179,7 @@ def render_steps_table(
     steps: list[StepSummary],
     term: Term,
     short: bool = False,
+    repo_root: Path = Path("."),
 ) -> str:
     """Render a list of steps in a rounded box table."""
     if not steps:
@@ -1009,13 +1208,38 @@ def render_steps_table(
         ]
     rows = []
     for step in steps:
+        audit = audit_step_artifact(step, repo_root)
         st_disp = "complete" if step.status == "substantially-complete" else step.status
         st_styled = (
             term.status_256(st_disp) if getattr(term, "color", False) else st_disp
         )
+        if audit.status_mismatch and audit.file_status:
+            diff_badge = f"[file: {audit.file_status}]"
+            diff_styled = (
+                term.color256(diff_badge, 220)
+                if getattr(term, "color", False)
+                else diff_badge
+            )
+            st_styled = f"{st_styled} {diff_styled}"
+
         item_disp = step.stem or (
             f"{step.setid}-{step.id6}" if step.setid else step.id6
         )
+        if audit.missing_entirely:
+            badge = "[MISSING]"
+            badge_styled = (
+                term.color256(badge, 196, bold=True)
+                if getattr(term, "color", False)
+                else badge
+            )
+            item_disp = f"{item_disp} {badge_styled}"
+        elif audit.location_mismatch and audit.actual_dir:
+            badge = f"[in {audit.actual_dir}/]"
+            badge_styled = (
+                term.color256(badge, 214) if getattr(term, "color", False) else badge
+            )
+            item_disp = f"{item_disp} {badge_styled}"
+
         att_disp = str(step.attempts_count) if step.attempts_count else "-"
         cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
         tok_disp = (
@@ -1114,6 +1338,7 @@ def format_run_human(
     term: Term,
     detail: bool = False,
     short: bool = False,
+    repo_root: Path = Path("."),
 ) -> str:
     """Format a RunSummary as human terminal text."""
     lines = []
@@ -1174,7 +1399,7 @@ def format_run_human(
         lines.append(f"  {cost_val_str}")
 
     if run.steps:
-        tbl = render_steps_table(run.steps, term, short=short)
+        tbl = render_steps_table(run.steps, term, short=short, repo_root=repo_root)
         if tbl:
             lines.append(tbl)
         if detail:
@@ -1188,6 +1413,7 @@ def format_latest_only_human(
     term: Term,
     detail: bool = False,
     short: bool = False,
+    repo_root: Path = Path("."),
 ) -> str:
     """Format the deduplicated latest step records across matched runs."""
     latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
@@ -1206,10 +1432,12 @@ def format_latest_only_human(
         single_run = next(
             (r for r in summaries if r.run_id in contributing_runs), summaries[0]
         )
-        return format_run_human(single_run, term, detail=detail, short=short)
+        return format_run_human(
+            single_run, term, detail=detail, short=short, repo_root=repo_root
+        )
 
     lines = [f"Data from {len(contributing_runs)} runs"]
-    tbl = render_steps_table(steps, term, short=short)
+    tbl = render_steps_table(steps, term, short=short, repo_root=repo_root)
     if tbl:
         lines.append(tbl)
     if detail:
@@ -1696,9 +1924,24 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         term.line("no matching runs found")
         return 0
 
+    # Collect artifact audits across displayed steps
+    all_audits: list[StepArtifactAudit] = []
+    if latest_only:
+        latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
+        for s in summaries:
+            for step in s.steps:
+                key = step.id6 or step.stem or step.item
+                latest_steps_dict[key] = (s, step)
+        for _, st in latest_steps_dict.values():
+            all_audits.append(audit_step_artifact(st, repo_root))
+    else:
+        for s in summaries:
+            for st in s.steps:
+                all_audits.append(audit_step_artifact(st, repo_root))
+
     if is_json:
         if latest_only:
-            latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
+            latest_steps_dict = {}
             for s in summaries:
                 for step in s.steps:
                     key = step.id6 or step.stem or step.item
@@ -1718,6 +1961,18 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 r_dict["run_dir"] = str(r_dict["run_dir"])
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
+
+        disc = [
+            asdict(a)
+            for a in all_audits
+            if a.missing_entirely or a.location_mismatch or a.status_mismatch
+        ]
+        for d in disc:
+            if d.get("actual_path"):
+                d["actual_path"] = str(d["actual_path"])
+        if disc:
+            payload["artifact_discrepancies"] = disc
+
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
@@ -1743,20 +1998,41 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     # Human display
     if latest_only:
-        term.line(format_latest_only_human(summaries, term, detail=detail, short=short))
+        term.line(
+            format_latest_only_human(
+                summaries, term, detail=detail, short=short, repo_root=repo_root
+            )
+        )
+        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        if audit_summary_txt:
+            term.line("")
+            term.line(audit_summary_txt)
         return 0
 
     if summary_only:
         term.line(format_multi_run_summary(summaries, term))
+        audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+        if audit_summary_txt:
+            term.line("")
+            term.line(audit_summary_txt)
         return 0
 
     for idx, summary in enumerate(summaries):
         if idx > 0:
             term.line("")
-        term.line(format_run_human(summary, term, detail=detail, short=short))
+        term.line(
+            format_run_human(
+                summary, term, detail=detail, short=short, repo_root=repo_root
+            )
+        )
 
     if len(summaries) > 1 and not short:
         term.line("")
         term.line(format_multi_run_summary(summaries, term))
+
+    audit_summary_txt = format_artifact_audit_summary(all_audits, term)
+    if audit_summary_txt:
+        term.line("")
+        term.line(audit_summary_txt)
 
     return 0
