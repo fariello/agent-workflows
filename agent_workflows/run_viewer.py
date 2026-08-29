@@ -466,16 +466,22 @@ def _clean_timestamp(ts: str | None) -> str:
     return clean[:19]
 
 
-def format_step_line(step: StepSummary, term: Term, long: bool = False) -> str:
+def format_step_line(
+    step: StepSummary,
+    term: Term,
+    long: bool = False,
+    status_width: int = 18,
+    stem_width: int = 0,
+) -> str:
     """Format a single step summary line aligned with aw att / aw ipd lint style."""
     status_word = step.status
     if status_word == "substantially-complete":
         status_word = "complete"
 
     status_padded = (
-        term.status_256(status_word, width=15)
+        term.status_256(status_word, width=status_width)
         if getattr(term, "color", False)
-        else status_word.ljust(15)
+        else status_word.ljust(status_width)
     )
 
     lead = "   "
@@ -485,7 +491,7 @@ def format_step_line(step: StepSummary, term: Term, long: bool = False) -> str:
         if getattr(term, "color", False)
         else type_word
     )
-    type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
+    type_prefix = type_txt + (" " * max(0, 8 - len(type_word))) + "  "
 
     stem = step.stem
     if not stem:
@@ -524,7 +530,10 @@ def format_step_line(step: StepSummary, term: Term, long: bool = False) -> str:
         )
         disp_txt = f"  {disp_styled}"
 
-    return f"- {lead}{status_padded} {type_prefix}{stem}{badge_txt}{disp_txt}"
+    stem_padded = (
+        stem.ljust(stem_width) if (stem_width and (badge_txt or disp_txt)) else stem
+    )
+    return f"- {lead}{status_padded}  {type_prefix}{stem_padded}{badge_txt}{disp_txt}"
 
 
 def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
@@ -558,8 +567,33 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
 
     lines.append(f"{run_id_txt}{set_txt}{date_txt}{count_summary}")
 
+    status_width = max(
+        18,
+        max(
+            (
+                len("complete" if s.status == "substantially-complete" else s.status)
+                for s in run.steps
+            ),
+            default=18,
+        ),
+    )
+    stem_width = max(
+        (
+            len(s.stem or (f"{s.setid}-{s.id6}" if s.setid else s.id6))
+            for s in run.steps
+        ),
+        default=0,
+    )
+
     for step in run.steps:
-        lines.append(format_step_line(step, term))
+        lines.append(
+            format_step_line(
+                step,
+                term,
+                status_width=status_width,
+                stem_width=stem_width,
+            )
+        )
         if detail:
             if step.incomplete_requirements:
                 for req in step.incomplete_requirements:
