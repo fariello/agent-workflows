@@ -182,6 +182,60 @@ class RunViewerTests(TestCase):
         self.assertNotIn("Summary across", out)
         self.assertNotIn("Breakdown by Status:", out)
 
+    def test_run_viewer_cli_summary_only(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=2,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("Summary across", out)
+        self.assertIn("Breakdown by Status:", out)
+        self.assertNotIn("pid:", out)
+
+    def test_run_viewer_cli_short_and_summary_only_conflict(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=2,
+            since=None,
+            detail=False,
+            short=True,
+            summary_only=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 2)
+        out = buf.getvalue()
+        self.assertIn("error: --summary-only/-S cannot be used with --short/-s", out)
+
     def test_run_viewer_cli_json(self):
         ns = argparse.Namespace(
             dir=".",

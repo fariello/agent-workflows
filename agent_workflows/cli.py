@@ -1611,6 +1611,13 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="short",
         help="Show short table with status, item, action, and verified columns only.",
     )
+    p_run_list.add_argument(
+        "--summary-only",
+        "-S",
+        action="store_true",
+        dest="summary_only",
+        help="Show only the aggregate summary breakdown tables (omits individual runs).",
+    )
 
     p_runs = sub.add_parser(
         "runs",
@@ -1632,6 +1639,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
             "  aw runs --detail                 # include incomplete items and step summaries\n"
             "  aw runs --short                  # short table without cost/token columns\n"
+            "  aw runs --summary-only           # summary breakdown only\n"
         ),
     )
     p_runs.add_argument(
@@ -1697,6 +1705,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="short",
         help="Show short table with status, item, action, and verified columns only.",
+    )
+    p_runs.add_argument(
+        "--summary-only",
+        "-S",
+        action="store_true",
+        dest="summary_only",
+        help="Show only the aggregate summary breakdown tables (omits individual runs).",
     )
 
     p_research = sub.add_parser(

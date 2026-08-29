@@ -1570,11 +1570,20 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     since_spec = getattr(args, "since", None)
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
     short = getattr(args, "short", False)
+    summary_only = getattr(args, "summary_only", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
 
     term = Term(color=False if no_color else None)
+
+    if short and summary_only:
+        err_msg = "error: --summary-only/-S cannot be used with --short/-s"
+        if is_agent or is_json:
+            print(json.dumps({"error": err_msg, "exit_code": 2}))
+        else:
+            term.line(err_msg)
+        return 2
 
     since_dt = None
     if since_spec:
@@ -1637,15 +1646,22 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     if is_json:
-        payload = {"runs": [asdict(s) for s in summaries]}
-        for r_dict in payload["runs"]:
-            r_dict["run_dir"] = str(r_dict["run_dir"])
-        if len(summaries) > 1:
-            payload["summary"] = build_multi_run_summary_dict(summaries)
+        if summary_only:
+            payload = {"summary": build_multi_run_summary_dict(summaries)}
+        else:
+            payload = {"runs": [asdict(s) for s in summaries]}
+            for r_dict in payload["runs"]:
+                r_dict["run_dir"] = str(r_dict["run_dir"])
+            if len(summaries) > 1:
+                payload["summary"] = build_multi_run_summary_dict(summaries)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
     if is_agent:
+        if summary_only:
+            s_dict = build_multi_run_summary_dict(summaries)
+            print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
+            return 0
         for s in summaries:
             s_dict = asdict(s)
             s_dict["run_dir"] = str(s_dict["run_dir"])
@@ -1653,6 +1669,10 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     # Human display
+    if summary_only:
+        term.line(format_multi_run_summary(summaries, term))
+        return 0
+
     for idx, summary in enumerate(summaries):
         if idx > 0:
             term.line("")
