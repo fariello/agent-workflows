@@ -3704,10 +3704,30 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md",
+    "plan_id": "e32j35",
+    "set_id": "findidx",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md",
     "plan_id": "97df1z",
     "set_id": "fullauto",
     "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
+    "plan_id": "ssk6nf",
+    "set_id": "runstale",
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3717,7 +3737,7 @@
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
     "set_id": "runstop",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -3727,7 +3747,7 @@
     "path": "pending/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
     "plan_id": "2ouj70",
     "set_id": "runstop",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -3737,7 +3757,7 @@
     "path": "pending/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md",
     "plan_id": "gq6m2u",
     "set_id": "runstop",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -3747,7 +3767,7 @@
     "path": "pending/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
     "plan_id": "1qxuke",
     "set_id": "runstop",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -3787,7 +3807,7 @@
     "path": "pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md",
     "plan_id": "kaga7s",
     "set_id": "stallfp",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

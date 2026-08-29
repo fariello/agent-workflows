@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 153 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 155 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -12,6 +12,10 @@ Showing the 40 most-recent of 153 Sets; the full manifest is INDEX.json.
 
 - `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
 
+## findidx
+
+- `e32j35` [pending] 01 pending/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md
+
 ## fullauto
 
 - `97df1z` [pending] 01 pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
@@ -19,6 +23,10 @@ Showing the 40 most-recent of 153 Sets; the full manifest is INDEX.json.
 ## ocsync
 
 - `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
+
+## runstale
+
+- `ssk6nf` [pending] 01 pending/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
 
 ## runstop
 
@@ -211,22 +219,6 @@ Showing the 40 most-recent of 153 Sets; the full manifest is INDEX.json.
 ## indexoutput
 
 - `3br8p0` [executed] 01 executed/20260823-indexoutput-01-3br8p0-enhance-aw-index-cli-output-with-path-location-change-awaren.ipd.md
-
-## ipdfidelity
-
-- `39fz2x` [superseded] 01 superseded/20260823-ipdfidelity-01-39fz2x-corrective-enforce-single-ipd-lifecycle-and-scope-gates.ipd.md
-
-## ipdgates
-
-- `do64fh` [executed] 00 executed/20260823-ipdgates-00-do64fh-enforce-single-ipd-lifecycle-and-scope-gates-fail-closed.ipd.md
-- `v6zie5` [executed] 01 executed/20260823-ipdgates-01-v6zie5-own-and-regression-test-the-p7dqwz-xdg-config-isolation-resi.ipd.md
-- `oorry1` [executed] 02 executed/20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md
-- `xjbvu2` [executed] 03 executed/20260823-ipdgates-03-xjbvu2-aw-ipd-begin-fail-closed-execution-start-receipt.ipd.md
-- `v7e88a` [executed] 04 executed/20260823-ipdgates-04-v7e88a-aw-ipd-finalize-atomic-terminal-transaction.ipd.md
-- `qmt3yk` [executed] 05 executed/20260823-ipdgates-05-qmt3yk-finalize-two-way-scope-reconciliation-unexpected-path-reason.ipd.md
-- `3xh53a` [executed] 06 executed/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
-- `wezhxg` [executed] 07 executed/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
-- `dulzpy` [executed] 08 executed/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md
 
 ## (singletons: no Set)
 
