@@ -3754,10 +3754,60 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md",
+    "plan_id": "rygds7",
+    "set_id": "gatestale",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md",
     "plan_id": "j4v6ga",
     "set_id": "lanename",
-    "status": "to-review"
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md",
+    "plan_id": "y0gg8o",
+    "set_id": "lanetruth",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md",
+    "plan_id": "af7i6p",
+    "set_id": "lanetruth",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md",
+    "plan_id": "z2isfg",
+    "set_id": "lanetruth",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md",
+    "plan_id": "8guhs0",
+    "set_id": "lanetruth",
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3854,10 +3904,20 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md",
+    "plan_id": "ntf6sx",
+    "set_id": "terseout",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md",
     "plan_id": "uyd3lw",
     "set_id": "testinvoke",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3867,7 +3927,7 @@
     "path": "pending/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md",
     "plan_id": "i79rgh",
     "set_id": "testinvoke",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",

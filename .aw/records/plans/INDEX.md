@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 160 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -24,9 +24,20 @@ Showing the 40 most-recent of 160 Sets; the full manifest is INDEX.json.
 
 - `97df1z` [pending] 01 pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
 
+## gatestale
+
+- `rygds7` [pending] 01 pending/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md
+
 ## lanename
 
 - `j4v6ga` [pending] 01 pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
+
+## lanetruth
+
+- `y0gg8o` [pending] 00 pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md
+- `af7i6p` [pending] 01 pending/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md
+- `z2isfg` [pending] 02 pending/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md
+- `8guhs0` [pending] 03 pending/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md
 
 ## ocsync
 
@@ -53,6 +64,10 @@ Showing the 40 most-recent of 160 Sets; the full manifest is INDEX.json.
 ## stallfp
 
 - `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
+
+## terseout
+
+- `ntf6sx` [pending] 01 pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
 
 ## testinvoke
 
@@ -200,21 +215,6 @@ Showing the 40 most-recent of 160 Sets; the full manifest is INDEX.json.
 ## runipdwd
 
 - `iw793a` [executed] 01 executed/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md
-
-## vwios6ipd
-
-- `uvsmmy` [executed] 00 executed/20260824-vwios6ipd-00-uvsmmy-ipd-blocks-release-parity-schema-setter-and-check-validation.ipd.md
-- `si3mmt` [executed] 01 executed/20260824-vwios6ipd-01-si3mmt-add-blocks-release-to-ipd-schema-recognized-fields.ipd.md
-- `efnn74` [executed] 02 executed/20260824-vwios6ipd-02-efnn74-aw-ipd-set-blocks-release-and-shared-setter-fix-for-plans-an.ipd.md
-- `7mw7m5` [executed] 03 executed/20260824-vwios6ipd-03-7mw7m5-aw-check-validates-plan-blocks-release-and-attention-surfaci.ipd.md
-
-## archiveage
-
-- `kjdtf5` [executed] 01 executed/20260823-archiveage-01-kjdtf5-support-age-duration-grammar-and-set-cohesive-archiving-swee.ipd.md
-
-## artifactenginefix
-
-- `p7dqwz` [executed] 01 executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md
 
 ## (singletons: no Set)
 

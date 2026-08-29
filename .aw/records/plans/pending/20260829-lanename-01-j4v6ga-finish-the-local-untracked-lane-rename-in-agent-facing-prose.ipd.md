@@ -6,15 +6,17 @@
 - Scope: Retire the last live `local/` lane references in agent-facing workflow instructions, shipped templates/READMEs, user-facing docs, and the misleading `*_LOCAL_SUBDIR` constant names. Prose, templates, and identifier renames only; no lane behavior change (the runtime values are already `untracked`). Also normalize the stale on-disk `local/` lane and its hand-written `.gitignore` through the EXISTING `aw normalize-lanes` verb rather than a raw delete. Immutable history (executed IPDs, research reports, DECISIONS.md, CHANGELOG) is explicitly NOT rewritten.
 - Scope-Paths: .aw/system/workflows/handoff/handoff.md, .aw/system/workflows/handoff/README.md, .aw/system/workflows/whatnext/whatnext.md, .aw/system/workflows/index.md, .aw/system/workflows/templates/prompts-README.md, .aw/records/prompts/README.md, .aw/records/comms/README.md, README.md, ARCHITECTURE.md, tools/README.md, agent_workflows/engine.py, agent_workflows/comms.py, tests/test_untracked_lane_migration.py, tests/test_dir_readmes.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: lanename
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: j4v6ga
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
 - 2026-08-29 to-review (opencode (its_direct/pt3-claude-opus-5-1m-us)): authored as a CORRECTIVE plan after the maintainer observed remnant `local/` references, including a recently re-added `.aw/records/prompts/.gitignore`. Per the execution contract, the already-executed rename IPDs (`20260818-awuntracked-01-c32roo`, and the `awuntrackedfix`/`awgitignore` orders) are NOT edited in place; this new plan closes the post-execution gap.
