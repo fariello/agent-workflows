@@ -72,7 +72,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - MATCH_PATH/MATCH_STEM/MATCH_SUBSTRING need no content at all, yet they are served from `_files()` which has already paired each path with header text. That is pure waste today and is fixed by E-04 independently of any index work.
 - INDEX-ONLY WOULD BE WRONG, and this is the plan's central design constraint. Index drift is not hypothetical: on 2026-08-29 `aw check plans` reported 'Manifest index is missing or out of date' TWICE in one day - once after a plan was created by another agent, once after one was created by this session. An index-only `find` would have been blind to both plans. The fallback is therefore a correctness requirement, not defensive padding.
 - Because the index has no freshness marker, 'is it stale?' is currently unanswerable cheaply. E-01 adds that signal; without it, index-first resolution would either be unsafe (trust blindly) or pointless (recompute everything to check).
-- Expected win: with a fresh index, an id6 query becomes O(1) index parse + a dict lookup and opens zero record files. The residual ~0.8s of `aw find` is dominated by CLI import startup, NOT search, so this plan should be judged on FILE OPENS and on type-scoped latency, not on wall-clock of the generic query alone (see Required tests).
+- Expected win: with a fresh index, an id6 query becomes O(1) index parse + a dict lookup and opens zero record files. MEASURED BUDGET (corrected 2026-08-29 after awfindperf follow-ups ea8c3c2): `aw find` is now ~0.61s total, of which ~0.38s is process startup (bare python 0.05s; `import agent_workflows.cli` 0.33s; `aw --version` 0.38s) and only ~0.2s is search. An earlier draft of this plan claimed the whole residual was import cost; that was WRONG and was disproved by direct measurement, which found ~1.0s of real search work (30 forked `git ls-files` subprocesses at 0.92s, plus 978 redundant `repo_root.resolve()` calls). Those two are now fixed. So the remaining search budget this plan can attack is ~0.2s, not ~0.8s: judge it primarily on FILE OPENS (the zero-open assertions), with wall-clock as a secondary signal.
 
 ## Proposed changes (ordered, validatable)
 
@@ -88,7 +88,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - Building indexes for the eight types that lack one: much larger scope, and unnecessary - they keep the filesystem scan, which is correct if slower.
 - Auto-refreshing a stale index during `find`: deliberately NOT done. `find` is a read verb; silently rewriting a manifest as a side effect of a query would surprise callers and could race concurrent agents. Detecting stale and falling back is the safe behavior; refreshing stays an explicit `aw index <type>`.
 - Changing selector precedence or matching semantics: frozen contract.
-- The <100ms wall-clock target for generic `aw find`: not reachable here because the residual cost is CLI import startup, not search. Tracked separately if wanted.
+- The <100ms wall-clock target for generic `aw find`: NOT reachable by this plan, but for a measured reason rather than the wrong one first recorded. Of the current ~0.61s, ~0.38s is process startup (interpreter + the `agent_workflows.cli` import graph) which no index change can touch; the ~0.2s search remainder is what this plan addresses. Getting under 100ms would additionally require attacking import cost (lazy imports, a trimmed import graph, or a persistent daemon), which is a separate concern and deliberately out of scope here.
 - `aw search`: unchanged; content search is legitimately its job.
 
 ## Scope check
@@ -109,7 +109,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation command: `python3 -m pytest tests/test_selectors.py tests/test_plans_index.py tests/test_research_index.py -q` plus the new freshness/zero-open tests, and a full default suite `python3 -m pytest -p no:randomly` (paste ACTUAL output; never claim success unrun).
 
-Benchmark to report (not a pass/fail gate, since wall clock is dominated by CLI import): record file OPENS and type-scoped latency before/after, e.g. `aw find plans <id6>` and `aw find backlog <id6>`.
+Benchmark to report (informational, not a pass/fail gate): record file OPENS before/after (the primary signal), plus type-scoped latency e.g. `aw find plans <id6>` and `aw find backlog <id6>`. State the startup floor alongside any wall-clock figure (~0.38s as measured on 2026-08-29) so a reader can tell search cost from process cost and is not misled into judging the change by total wall clock.
 
 ## Spec / documentation sync
 
