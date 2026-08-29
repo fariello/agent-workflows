@@ -8,14 +8,16 @@
 - Scope: ORCHESTRATOR - authors NO product code. Its own execution work is (E-01) whole-Set verification only. The children carry all implementation. This plan owns the child table + dependency chain, the shared anti-greenwash execution contract every child inherits, the Set completion criteria, and the cross-IPD no-drift checks. It cites spec c4gd2h as binding and each child names the spec requirement ids (R1-R23) and acceptance criteria (A1-A10) it implements.
 - Scope-Paths: .aw/records/plans/pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md, .aw/records/walkthroughs/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: zpbx7o
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001..PR-008. Found the Set built on two unverified premises about the existing code and recorded both with evidence in the owning orchestrator: (1) an automatic requeue-and-resume path ALREADY exists (`run_queue` -> `reconcile_interrupted` -> `requeue_interrupted`, oc_runipd.py:2474-2476, :2448-2464) that flips every interrupted item back to `queued` with no operator gate, so Phase 4's spec-R19 resume refusal is a MODIFICATION of that path rather than new code beside it, and two existing tests pin today's behavior and must be consciously updated; (2) `fcntl` is imported unconditionally at driver top level (oc_runipd.py:17, agy_runipd.py:18), verified empirically to make the module unimportable without it, so spec A10's "portable subset still provides level 1" cannot hold on Windows while CI does run windows-latest - raised as new BLOCKING OQ-02 since `71vjbn` E-07 and its own Deferred section contradict each other, and `wtiso` Phase 5 already owns `platform_lock` (P8). Fixed a false Scope-check claim: A8 (the SIGKILL-bypass criterion proving the shared routine covers crash, spec R5's other half) is claimed by NO child; E-01 now owns verifying it or recording it UNVERIFIED. Corrected the completion criteria's validation command: a bare `python -m pytest -q` silently deselects the `slow` marker (pyproject.toml:122), which is exactly where this Set's real-subprocess signal tests live; now `make test-all`. Corrected a stale factual claim that backlog kjzlgw is `open` (it is already `graduated`, keeping its release gate) and recorded the verified spec-transition mechanics (`approved -> implemented` is refused; needs `implementing` first plus resolvable `--evidence`). Added `.aw/records/walkthroughs/` to Scope-Paths, since E-01 had no legal path to write its own verification record. Added CID-4 (refusal wired into the real requeue path) and CID-5 (no second lock abstraction or reaper), and hardened CID-1/CID-3 after verifying the two drivers carry byte-identical duplicate `terminate_process` copies, which a per-file "one cleanup routine" check would pass.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

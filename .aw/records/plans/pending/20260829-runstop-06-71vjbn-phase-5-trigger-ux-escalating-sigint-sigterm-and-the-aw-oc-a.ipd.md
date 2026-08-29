@@ -8,14 +8,16 @@
 - Scope: Add the signal handlers (SIGINT with escalation, SIGTERM) in BOTH drivers, the `stop` subcommand on both runners, the per-request progress reporting (spec R16), the unknown/finished-run error path (R17), and the budget-breach escalation enforcement (R11, A7). Also document the portable subset for platforms without POSIX signal semantics (R14/A10). Does NOT change any level's behavior (Phases 2-4 own that) and does NOT add `stop --all` (spec OQ-02, deferred).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_runner_stop_triggers.py
 - Item-Dependencies: executed:m0z0ti
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 6
 - Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 71vjbn
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-601..PR-608. Verdict is NOT approve because orchestrator OQ-02 remains open and now explicitly blocks two items here. Three defects were found by exercising the real code. (1) BLOCKER: `main()`'s implicit-start shim rewrites `argv = ["start"] + argv` for any first token outside a HARDCODED set (`oc_runipd.py:2905-2914`; `agy_runipd.py:2921-2930`), and the shim lives in `main()` not `build_parser()`, so adding a `stop` subparser alone leaves `stop <run-id> --now` silently rewritten to `start stop <run-id> --now` - evaluated directly - turning an operator's stop request into a run LAUNCH with the literal selector `stop`. E-03 now owns updating that set, with a test in both drivers. (2) BLOCKER: registering a SIGINT handler is a MODIFICATION, not additive - it suppresses the default `KeyboardInterrupt` that `main`'s exit-130 path (:2972-2974) and `execute_item`'s item-level `interrupted`/`ipd-interrupted` bookkeeping (:2011-2019) both depend on, and Phases 3-4 rely on that item being recorded interrupted; E-01 must now preserve or deliberately replace both. (3) HIGH: R17's "already-finished" case had no defined probe, and the obvious `driver.lock`-exists check is provably not liveness (the `2ouj70` review measured a stale lock outliving its holder with the flock already free), so E-04 now mandates a non-blocking `flock` probe. Also SPLIT the A10 work: the original E-07 was unexecutable (both drivers `import fcntl` unconditionally, so with it masked the module raises `ModuleNotFoundError` and no portable subset exists) AND its test method could not detect that (patching `sys.platform` at test time cannot undo an import-time failure), so the DECISION is now blocked item E-08 and the platform CLAIM is blocked item E-07, which also cleared an `IPD-Z602` density advisory the linter raised on my first attempt. Additionally: E-01 must use `gq6m2u`'s handler-safe entry rather than the plain locked write (that review measured a handler deadlock and a ~50% lost-escalation race), recorded the verified favorable fact that the child is in its own process group (`start_new_session=True`) so terminal Ctrl-C reaches only the driver, reconciled the `fcntl` Deferred entry that contradicted A10, and switched full-suite evidence to `make test-all`.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

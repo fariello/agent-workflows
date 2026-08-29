@@ -8,14 +8,16 @@
 - Scope: Implement levels 1 and 2 in BOTH drivers: consult the Phase-1 poll at the between-item checkpoint, and when a level 1 or 2 request is present, stop dequeuing at the correct boundary (next item for level 1; next SET for level 2) and end in the Phase-0 `clean_shutdown`. Record the deliberate stop in the ledger as a non-failure. Does NOT interrupt a running turn (Phases 3-4), install signal handlers, or add the CLI verb (Phase 5).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_runner_stop_levels12.py
 - Item-Dependencies: executed:gq6m2u
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 3
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 1qxuke
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-306. Two BLOCKERs, both verified by running the real code rather than reading it. (1) The plan demanded "exit 0" four times (spec A1/A4), but `run_queue` ends `return 0 if all(item["status"] in SUCCESS_STATES ...) else 1` (`oc_runipd.py:2653`, `SUCCESS_STATES` at :90) and a deliberate stop intentionally leaves items `queued`; evaluated directly, `['executed','queued','queued']` returns 1, so no E-item made the plan's own acceptance criteria reachable. Added E-05/V-05 owning an honest deliberate-stop exit path, with V-05 requiring the queue to STILL show `queued` next to the 0 so the exit cannot be bought by laundering statuses (spec R22). (2) E-02 treated "the rest of THIS set" as self-evident, but the runtime dequeue is DEPENDENCY-ordered, not set-ordered (`:2500-2505` scans the whole queue), so sets interleave: demonstrated against the real `dependency_status` that with set A's next item blocked, the driver's next pick is a set-B item, meaning the in-flight set jumps A -> B while A still has queued work. E-02 now captures the current `setid` at request-observation time and leaves other-set items queued even when runnable, with the interleaved case pinned in its expected outcome and recorded as resolved OQ-02. Also pinned the ledger substrate concretely (`events.jsonl` via `append_jsonl`, NOT `run_ledger_store.py`, which neither driver imports), corrected the R4 invariant assertion to match `2ouj70`'s observe-and-report semantics (unchanged tree, not clean tree), switched full-suite evidence to `make test-all` since a bare `pytest -q` deselects the `slow` subprocess class these tests belong to, and replaced the false "Under-scope: none".
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

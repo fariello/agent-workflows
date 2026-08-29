@@ -9,14 +9,16 @@
 - From-Backlog: ackme8
 - Blocks-Release: next
 - Priority: medium
-- Status: reviewed
+- Status: approved
 - Set: ackme8
 - Order: 1
 - Highest E allocated: 05
 - Author: Antigravity
 - Id: w0ln4q
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 fixed; readiness GO - PENDING HUMAN APPROVAL. PR-001 get_release_blockers must REUSE attention.release_blockers (attention.py:582) not re-scan; PR-002 dropped the duplicate 'releases check' subcommand (aw check releases already validates via check_engine.py:489, verified CONFORMS) and added a test asserting it is not reintroduced; PR-003 replaced all five un-falsifiable V-items (which said only 'tests passing'/'100% verification') with exact commands plus required strings, set-equality and adversarial assertions; also hardened the execution gate with a scope fence, honesty rule, and reuse rule.
 
 - 2026-08-29 to-review (Antigravity): graduated from backlog ackme8; fully authored plan with 5 E/V pairs covering 'aw releases' owner verb.

@@ -3727,7 +3727,7 @@
     "path": "pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md",
     "plan_id": "w0ln4q",
     "set_id": "ackme8",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3757,7 +3757,7 @@
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3767,7 +3767,7 @@
     "path": "pending/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
     "plan_id": "2ouj70",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3777,7 +3777,7 @@
     "path": "pending/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md",
     "plan_id": "gq6m2u",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3787,7 +3787,7 @@
     "path": "pending/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
     "plan_id": "1qxuke",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3797,7 +3797,7 @@
     "path": "pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md",
     "plan_id": "foi1b3",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3807,7 +3807,7 @@
     "path": "pending/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md",
     "plan_id": "m0z0ti",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3817,7 +3817,7 @@
     "path": "pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md",
     "plan_id": "71vjbn",
     "set_id": "runstop",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",

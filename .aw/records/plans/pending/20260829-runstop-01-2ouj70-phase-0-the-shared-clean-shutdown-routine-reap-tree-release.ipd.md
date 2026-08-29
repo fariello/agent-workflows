@@ -8,14 +8,16 @@
 - Scope: Add ONE shared clean-shutdown routine in a new module and make the existing driver teardown call it, in BOTH drivers. Also add characterization tests that PIN today's broken behavior so the later phases prove a real change rather than a re-assertion. Does NOT add any stop level, flag, poll, signal handler, or CLI verb (Phases 1-5 own those); this child only establishes the always-clean endpoint and its proof harness.
 - Scope-Paths: agent_workflows/runner_shutdown.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shutdown.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 2ouj70
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-108. Fixed a BLOCKER layering error in E-04: the named call site `oc_runipd.py:1785-1799` is inside `run_opencode` (def :1679), which holds no lock (`run_lock` is taken in `main` at :2926/:2958), runs PER TURN (called :2001, :2106), and has no queue authority, so three of the four spec invariants (R2 lock, R3 ledger, R4 tree) were unreachable from it; the full `clean_shutdown` now goes at the lock-holding `main` layer with a reap-only call left at the per-turn handlers, and all FIVE handler sites are enumerated (oc :1786, :1798; agy :1835, :1856, :1868) instead of "one counterpart" each. Rewrote E-03, which would have auto-stashed a user's uncommitted work at stop time: the house policy for un-owned dirty paths is REFUSE-AND-REPORT (`dirty_tree_overlap`, :516-545, :578-587) and `wtiso` Phase 5 requires "never auto-stash/reset/overwrite a dirty user main", so R4 is now observe-and-report with before/after proof that the tree was NOT modified (GUIDING_PRINCIPLES 10). Measured and corrected the plan's central R2 premise: a stale `driver.lock` is COSMETIC, not a liveness bug - verified by holding the lock, SIGKILLing the holder, and re-acquiring successfully (`re-acquire: SUCCEEDS (flock auto-released by OS)`), so E-05 is now forbidden from pinning the false "stale lock blocks the next run" defect and must assert file-presence AND lock-freeness. Corrected the validation command (a bare `pytest -q` deselects `slow` per `pyproject.toml:122`, exactly this child's subprocess tests) to `make test-all`. Corrected two false convention claims (no `pytest-randomly` in this repo; `run_lock` is at :739 and acquired in `main`, not in the turn path). Corrected the `fcntl` deferral: `platform_lock` is already owned by `wtiso` `2c122z`, not by Phase 5 of this Set. Bounded the under-scope R3 claim and recorded the verified spec-transition mechanic (`approved -> implemented` is refused; use `implementing`).
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

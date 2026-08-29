@@ -8,14 +8,16 @@
 - Scope: Add the durable stop-request record (write/read/escalate) and the driver-side POLL that consults it at cooperative checkpoints, in BOTH drivers. Requests are durable, idempotent, and MONOTONIC (a request may only raise the level). Also add the per-level wind-down budget accounting (R11) that a later phase's escalation uses. Does NOT implement any level's behavior, any signal handler, or the CLI verb (Phases 2-5 own those): this child makes a request expressible and observable, nothing more.
 - Scope-Paths: agent_workflows/runner_stop.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_stop.py
 - Item-Dependencies: executed:2ouj70
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: gq6m2u
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-207. Two findings were established by MEASUREMENT, not reading. (1) BLOCKER: E-02 specified monotonicity via `tempfile.mkstemp` + `os.replace` alone, which makes each WRITE atomic but leaves the read-compare-write racy; a 200-trial two-writer harness (levels 4 vs 1) LOST the higher level in 100/200 trials (50%), so E-02 could not have passed its own V-02, and the failure mode is exactly the silent downgrade spec R9 exists to prevent. Serializing the read-modify-write under a short-lived SIDECAR lock measured 0/200 lost; E-02 now requires that, explicitly not a lock on the record file (which `os.replace` swaps). V-02 now demands >= 100 trials, since a single-trial test passes half the time by luck. (2) BLOCKER: that lock creates a signal-handler deadlock for Phase 5, which calls this writer from SIGINT/SIGTERM handlers - verified directly, the handler entered and hung until a 10s timeout killed it (exit 124), while a non-blocking-then-defer-to-poll path exits 0 with the request preserved. Added E-06/V-06 owning the handler-safe entry point, since the hazard is created here, not by the caller. Also corrected the per-line poll citation (:1774-1775 -> :1775-1776, plus the agy counterpart at :1844-1845), named the previously-vague between-item checkpoint concretely (`run_queue`'s dequeue loop, :2494-2500), recorded that `run_dir` is already in scope at both sites so no signature change is needed, fenced off reusing the run-long `run_lock` for this purpose, corrected the validation command (a bare `pytest -q` deselects the `slow` class these concurrency/signal tests belong to) to `make test-all`, measured the per-poll cost (~5 us absent, ~20 us present) to confirm the per-line placement needs no caching, and replaced the false "Under-scope: none" with the two real gaps.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

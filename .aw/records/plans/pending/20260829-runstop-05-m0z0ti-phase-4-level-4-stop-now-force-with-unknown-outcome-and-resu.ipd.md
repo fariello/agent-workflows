@@ -8,14 +8,16 @@
 - Scope: Implement level 4 in BOTH drivers: interrupt the turn immediately (reusing Phase 0's existing process-group escalation, never a bare kill), record the item `unknown_outcome` with the observed git state, end in the Phase-0 `clean_shutdown`, and make a subsequent run REFUSE to blindly resume such an item (reconcile or require explicit operator action) reusing the research ud28vy reconciliation model. Does NOT add signal handlers or the CLI verb (Phase 5), and does NOT redesign crash recovery (consumed, not re-specified).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_runner_stop_level4.py, tests/test_oc_runipd.py
 - Item-Dependencies: executed:foi1b3
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 5
 - Highest E allocated: 05
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: m0z0ti
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-507. This child carried the orchestrator's pre-existing fact 1 and cited NONE of it (verified: zero references to `requeue_interrupted`/`reconcile_interrupted`/`run_queue`), so three obligations were unimplementable as written. (1) BLOCKER, R19: the refusal was described as a gate for "a new run", but `initialize_run` mints a fresh run_id/run_dir and builds a FRESH queue (:1214-1218), so a new run has no memory of the prior item and nothing to refuse; meanwhile `run_queue` unconditionally calls `reconcile_interrupted` then `requeue_interrupted` on every start/resume (:2481-2483) and the latter flips every `interrupted` item back to `queued` with no operator gate (:2448-2464). E-04 now targets `resume`, wires the refusal INTO `requeue_interrupted`, covers `--retry-incomplete` as the second requeue route, and V-04 fails on helper-only evidence. (2) BLOCKER, R18/R19: no E-item chose a status representation, and both naive options are broken - a new `unknown_outcome` status is absent from `TERMINAL_STATES` (:71-85) and invisible to `reconcile_interrupted` (which only inspects `running`, :2411), `requeue_interrupted` (only `interrupted`, :2451) and the dequeue (only `queued`, :2497), making the item INERT; reusing `interrupted` gets it silently requeued. E-02 now mandates an explicit `certainty: "indeterminate"` flag alongside a status the machinery handles. (3) BLOCKER, R22: nothing owned the pre-existing laundering vector where `reconcile_interrupted` sets `status = "executed"` purely from `plan_bucket(path) == "executed"` (:2422-2432) - for a force-cut turn that records a success the driver never established, which is precisely what this level exists to prevent. Added E-05/V-05 to gate it, with a control case so a legitimate promotion is not simply disabled. Also added `tests/test_oc_runipd.py` to Scope-Paths (E-04 must consciously update the two tests pinning today's auto-requeue at :421-427 and :1043, per CID-4), noted that a level-4 cut usually leaves no outcome JSON so its absence must not be read as information, aligned the R4 assertion with `2ouj70`'s observe-and-report semantics, required the reap be observed through `clean_shutdown`, and switched full-suite evidence to `make test-all`.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).

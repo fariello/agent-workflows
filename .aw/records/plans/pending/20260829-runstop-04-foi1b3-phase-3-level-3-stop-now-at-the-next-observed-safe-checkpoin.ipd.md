@@ -8,14 +8,16 @@
 - Scope: Implement level 3 in BOTH drivers: define a SAFE CHECKPOINT as the instant after a completed tool/step event and before the next is dispatched (observable from the existing stream loop, spec R10), stop the turn there, record the interrupted item with KNOWN certainty, and end in the Phase-0 `clean_shutdown`. Does NOT implement the immediate interrupt or `unknown_outcome` (Phase 4), signal handlers, or the CLI verb (Phase 5).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_runner_stop_level3.py
 - Item-Dependencies: executed:1qxuke
-- Status: reviewed
+- Status: approved
 - Set: runstop
 - Order: 4
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: foi1b3
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-401..PR-407. Confirmed the spec OQ-01 evidence is REAL by parsing the cited session file (135 `tool_use`, every one carrying `part.state.status == "completed"`, plus 122 `step_start`, 122 `step_finish`, 85 `text`), so completion is an observed field and `step_finish` is the cleaner boundary. Then found two BLOCKERs. (1) Nothing owned the disposition path: a level-3 stop leaves NO outcome JSON (the runbook has the agent write it at turn end), the plan is not in `executed/`, and the terminated child exits nonzero, so `reconcile_disposition` falls through to `return ("partial" if exit_code == 0 else "failed-safely")` (`oc_runipd.py:1848`) and records a DELIBERATE operator stop as `failed-safely` - the exact crash-versus-intent conflation spec R21 forbids and a verdict R22 forbids. E-03 now owns intercepting it, and V-03 FAILS on a pasted `failed-safely`/`partial` and additionally requires a control case proving genuine failures still reconcile normally. (2) E-01 pinned checkpoint detection to `render_event`, which is invoked ONLY under `output_mode == "clean"` (:1780-1781), so the whole feature would silently never fire under `raw`/`quiet`; E-01 now requires mode-independent parsing and V-01 requires all three modes. Also corrected the honesty of the mechanism: the child is a one-shot `opencode run` with no stop channel and the cited `StallWatchdog` precedent calls `terminate_process` (:159-169), so level 3 is termination at an observed boundary and shares its mechanism with level 4, differing only in timing - "KNOWN" means no previously observed operation was cut mid-flight, not that the agent finished tidily. Recorded the oc-vs-agy event-schema asymmetry (`tool_use`/`state.status` vs `step_update`/`DONE`) for CID-3, noted that a blocking `for line in process.stdout` cannot notice a deadline so E-04 needs the out-of-band watchdog shape, required a short injected deadline so V-04 cannot pass by waiting out a real budget, fixed the off-by-one poll citation (:1774-1775 -> :1775-1776), aligned the R4 assertion with `2ouj70`'s observe-and-report semantics, and switched full-suite evidence to `make test-all`.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): Authored review-ready from spec c4gd2h (graduation of backlog kjzlgw).
