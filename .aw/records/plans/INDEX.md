@@ -72,7 +72,7 @@ Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
 ## wtiso
 
 - `bl9q3d` [pending] 00 pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
-- `8zgybk` [pending] 01 pending/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
+- `8zgybk` [executed] 01 executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
 - `qcqhj7` [pending] 02 pending/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md
 - `rchpms` [pending] 03 pending/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md
 - `7p9n2v` [pending] 04 pending/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md
