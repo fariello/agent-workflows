@@ -8,7 +8,7 @@
 - Scope: Add a `graduated` backlog status between `open` and `done` (enum, directory, attention class, close-legitimacy handling), document the graduate/implement/execute contract in AGENTS.md so agents produce review-ready IPDs without being told, and let a SPEC carrying `From-Backlog` + a matching `Blocks-Release` satisfy the HANDOFF gate. Does NOT change the plan or spec lifecycles, does NOT auto-transition existing items, and does NOT alter what `done` means.
 - Scope-Paths: agent_workflows/backlog.py, agent_workflows/ipd_schema.py, agent_workflows/attention_contract.py, agent_workflows/attention.py, agent_workflows/check_engine.py, AGENTS.md, .aw/records/backlog/README.md, tests/test_backlog_graduated.py, tests/test_check_engine_spec_handoff.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: executed
 - Set: bklgrad
 - Order: 1
 - Highest E allocated: 08
@@ -16,6 +16,8 @@
 - Id: v58bvy
 
 ## Workflow history
+- 2026-08-29 executed (opencode (its_direct/pt3-claude-opus-5-1m-us)): Implemented E-01..E-08; graduated status live (kjzlgw open -> graduated, still a 2.0.0 blocker); 37 new tests; full suite 2773 passed. E-01 extended at execution to two further hardcoded status copies in status_set.py (both live bugs: the setter refused the transition, the mover would silently not relocate the file). [Scope reconciliation - out-of-scope agent_workflows/project_context.py: NOT THIS PLAN'S WORK: uncommitted awfindperf change from a concurrent runner in the shared checkout; left untouched and excluded from my commit 9f5a04e; out-of-scope agent_workflows/selectors.py: NOT THIS PLAN'S WORK: same uncommitted awfindperf change from a concurrent runner; left untouched and excluded from my commit 9f5a04e; in-scope-unmodified .aw/records/backlog/README.md: committed-in-9f5a04e; in-scope-unmodified AGENTS.md: committed-in-9f5a04e; in-scope-unmodified agent_workflows/attention.py: not-needed: attention.py already derives the vocabulary from backlog.STATUSES and resolves the class via attention_contract.class_of, so no edit was required; in-scope-unmodified agent_workflows/attention_contract.py: committed-in-9f5a04e; in-scope-unmodified agent_workflows/backlog.py: committed-in-9f5a04e; in-scope-unmodified agent_workflows/check_engine.py: committed-in-9f5a04e; in-scope-unmodified agent_workflows/ipd_schema.py: committed-in-9f5a04e; in-scope-unmodified tests/test_backlog_graduated.py: committed-in-9f5a04e; in-scope-unmodified tests/test_check_engine_spec_handoff.py: committed-in-9f5a04e]
+- 2026-08-29 approved (aw set, --by-human): Human approved in session 2026-08-29 after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER + 3 others fixed).
 - 2026-08-29 /plan-review (opencode / its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER), PR-002, PR-003, PR-004 all FIXED; no open questions; readiness GO - PENDING HUMAN APPROVAL.
 - 2026-08-29 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (incl. a BLOCKER: second hardcoded status set at ipd_schema.py:527).
 - 2026-08-29 to-review (aw set): Authored review-ready: graduated status + graduate/implement/execute contract + spec-as-gate-carrier.
@@ -32,44 +34,44 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the `graduated` status
 
-- [ ] E-01 Add `graduated` to the backlog status vocabulary in `agent_workflows/backlog.py`: extend `STATUS_DIRS` (currently `("open", "blocked", "parked", "done")`, backlog.py:51) and therefore `STATUSES` (:52), and ensure the `.aw/records/backlog/graduated/` directory exists when first used. Ordering in `STATUS_DIRS` must place `graduated` between `open` and `done` to reflect the lifecycle. Note (verified at review): the setter already creates a missing destination directory on demand (`backlog.py:393`, `:557`) and `_iter_items` (:233-242) globs each `STATUS_DIRS` entry so an ABSENT or EMPTY directory is harmless; `blocked/` is exactly that case today (present locally, untracked by git, no keepfile). So do NOT add a keepfile or special-case an empty dir: match the existing pattern.
+- [x] E-01 Add `graduated` to the backlog status vocabulary in `agent_workflows/backlog.py`: extend `STATUS_DIRS` (currently `("open", "blocked", "parked", "done")`, backlog.py:51) and therefore `STATUSES` (:52), and ensure the `.aw/records/backlog/graduated/` directory exists when first used. Ordering in `STATUS_DIRS` must place `graduated` between `open` and `done` to reflect the lifecycle. Note (verified at review): the setter already creates a missing destination directory on demand (`backlog.py:393`, `:557`) and `_iter_items` (:233-242) globs each `STATUS_DIRS` entry so an ABSENT or EMPTY directory is harmless; `blocked/` is exactly that case today (present locally, untracked by git, no keepfile). So do NOT add a keepfile or special-case an empty dir: match the existing pattern.
   - Depends on: none
   - Expected outcome: `aw backlog new --status graduated` and `aw backlog set graduated <id6>` are accepted; the item file moves into `graduated/`; `aw backlog check` accepts it; an unknown status is still rejected with the full valid list.
-  - Execution state: pending
-- [ ] E-08 Update the SECOND hardcoded backlog-status set at `ipd_schema.py:527` (`"backlog": frozenset(("open", "blocked", "done", "parked"))`), which gates `Item-Dependencies` `state:` edges. Without it a plan cannot declare `state:backlog:graduated:<id6>` (verified: that status is rejected today), so the new status would be undeclarable as a dependency. Prefer importing `backlog.STATUSES` over adding a third literal, so the vocabulary has ONE source of truth (GUIDING_PRINCIPLES P8).
+  - Execution state: performed
+- [x] E-08 Update the SECOND hardcoded backlog-status set at `ipd_schema.py:527` (`"backlog": frozenset(("open", "blocked", "done", "parked"))`), which gates `Item-Dependencies` `state:` edges. Without it a plan cannot declare `state:backlog:graduated:<id6>` (verified: that status is rejected today), so the new status would be undeclarable as a dependency. Prefer importing `backlog.STATUSES` over adding a third literal, so the vocabulary has ONE source of truth (GUIDING_PRINCIPLES P8).
   - Depends on: E-01
   - Expected outcome: `state:backlog:graduated:<id6>` parses and validates as a legal `Item-Dependencies` edge; a test asserts the schema's accepted backlog set equals `backlog.STATUSES` so the two can never drift again.
-  - Execution state: pending
-- [ ] E-02 Map `graduated` onto an `aw attention` cross-tree class in `attention_contract.py`/`attention.py`. It is NOT `ready` (no fresh action is needed on the ITEM; the action lives on its plans), NOT `done` (nothing is implemented), and NOT `parked` (it is intentionally ACTIVE work). Map it to `active` per the contract's definition "work is EXPLICITLY in progress (a native state says so); never inferred" (attention_contract.py:24), since a graduated item explicitly asserts in-progress work.
+  - Execution state: performed
+- [x] E-02 Map `graduated` onto an `aw attention` cross-tree class in `attention_contract.py`/`attention.py`. It is NOT `ready` (no fresh action is needed on the ITEM; the action lives on its plans), NOT `done` (nothing is implemented), and NOT `parked` (it is intentionally ACTIVE work). Map it to `active` per the contract's definition "work is EXPLICITLY in progress (a native state says so); never inferred" (attention_contract.py:24), since a graduated item explicitly asserts in-progress work.
   - Depends on: E-01
   - Expected outcome: `aw attention` shows a graduated item under `active`, not `ready`/`done`/`parked`; `aw attention --check` stays valid; a graduated item carrying `Blocks-Release` still appears in the release-blocker set (it is not yet delivered).
-  - Execution state: pending
-- [ ] E-03 Handle `graduated` in the close-legitimacy predicate (`check_engine.evaluate_blocking_close`): transitioning a release-gated item to `graduated` is LEGITIMATE without evidence (it is not a close and drops no gate), but MUST NOT be treatable as a substitute for `done`. Keep `done`'s existing three fixes (HANDOFF/SATISFIED/DE-GATED) unchanged.
+  - Execution state: performed
+- [x] E-03 Handle `graduated` in the close-legitimacy predicate (`check_engine.evaluate_blocking_close`): transitioning a release-gated item to `graduated` is LEGITIMATE without evidence (it is not a close and drops no gate), but MUST NOT be treatable as a substitute for `done`. Keep `done`'s existing three fixes (HANDOFF/SATISFIED/DE-GATED) unchanged.
   - Depends on: E-01
   - Expected outcome: `aw backlog set graduated <gated-item>` succeeds with an ok verdict; `aw backlog set done` on that same item still fails closed unless one of the three existing fixes applies; a test asserts `graduated` did not silently become a close.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the agent contract in AGENTS.md
 
-- [ ] E-04 Document the graduate/implement/execute contract in AGENTS.md so an agent does not need to be told per-request: acting on a backlog item MUST produce REVIEW-READY artifacts (plans born `to-review`, not `draft`), MUST carry `From-Backlog: <id6>` and inherit any `Blocks-Release`, MUST resolve blocking open questions from repository evidence rather than stopping to ask when the evidence exists, and MUST move the item to `graduated` (never `done`) when design is handed off but code is not written.
+- [x] E-04 Document the graduate/implement/execute contract in AGENTS.md so an agent does not need to be told per-request: acting on a backlog item MUST produce REVIEW-READY artifacts (plans born `to-review`, not `draft`), MUST carry `From-Backlog: <id6>` and inherit any `Blocks-Release`, MUST resolve blocking open questions from repository evidence rather than stopping to ask when the evidence exists, and MUST move the item to `graduated` (never `done`) when design is handed off but code is not written.
   - Depends on: E-01
   - Expected outcome: AGENTS.md states the contract in the backlog/plan section; a fresh reader can determine the required end state (item `graduated`, plans `to-review`, gate inherited) without asking; no em/en dashes are introduced into user-facing prose per the repo rule.
-  - Execution state: pending
-- [ ] E-05 Update `.aw/records/backlog/README.md`'s status table and three-tier prose to include `graduated`, its directory, and its attention class, so the README and the code agree (single source of truth; the README currently lists only open/blocked/parked/done at :14-17).
+  - Execution state: performed
+- [x] E-05 Update `.aw/records/backlog/README.md`'s status table and three-tier prose to include `graduated`, its directory, and its attention class, so the README and the code agree (single source of truth; the README currently lists only open/blocked/parked/done at :14-17).
   - Depends on: E-01, E-02
   - Expected outcome: the README's status list, directory table, and attention-class mapping include `graduated` and match `STATUS_DIRS` exactly; a test or check comparing the documented list to `STATUSES` passes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: spec as a gate carrier
 
-- [ ] E-06 Extend the HANDOFF check so a SPEC can carry a release gate: `check_engine.find_from_backlog_plans` currently iterates plan IPDs only (`_iter_plan_ipds`), so a spec with `From-Backlog: <id6>` and a matching `Blocks-Release` is invisible and cannot satisfy HANDOFF. Add spec scanning (a sibling finder, or generalize to artifact scanning) so a spec-first graduation is closable, keeping the existing plan behavior byte-identical.
+- [x] E-06 Extend the HANDOFF check so a SPEC can carry a release gate: `check_engine.find_from_backlog_plans` currently iterates plan IPDs only (`_iter_plan_ipds`), so a spec with `From-Backlog: <id6>` and a matching `Blocks-Release` is invisible and cannot satisfy HANDOFF. Add spec scanning (a sibling finder, or generalize to artifact scanning) so a spec-first graduation is closable, keeping the existing plan behavior byte-identical.
   - Depends on: none
   - Expected outcome: given ONLY a spec carrying `From-Backlog: X` + `Blocks-Release: R` and no plan, `evaluate_blocking_close` on item X returns legitimate with route HANDOFF; with a MISMATCHED `Blocks-Release` it still fails closed; existing plan-based HANDOFF results are unchanged.
-  - Execution state: pending
-- [ ] E-07 Extend the corresponding `aw check` consistency rules to specs so the checker and the setter cannot diverge: `check.from-backlog-dangling` must flag a spec whose `From-Backlog` resolves to no item, and `check.from-backlog-gate-mismatch` must flag a spec whose gate disagrees with its item, mirroring the plan rules (AGENTS.md:80-95 describes the plan-side contract).
+  - Execution state: performed
+- [x] E-07 Extend the corresponding `aw check` consistency rules to specs so the checker and the setter cannot diverge: `check.from-backlog-dangling` must flag a spec whose `From-Backlog` resolves to no item, and `check.from-backlog-gate-mismatch` must flag a spec whose gate disagrees with its item, mirroring the plan rules (AGENTS.md:80-95 describes the plan-side contract).
   - Depends on: E-06
   - Expected outcome: a spec with a dangling `From-Backlog` is flagged; a spec whose `Blocks-Release` disagrees with its item is flagged; `aw check` on the current repo reports no NEW findings introduced by this change.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,38 +181,146 @@ A trap worth naming: `graduated` must not become a soft `done`. If it were accep
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted pytest output showing `aw backlog new --status graduated` and `aw backlog set graduated <id6>` succeed, the file lands in `.aw/records/backlog/graduated/`, `aw backlog check` accepts it, and an invalid status is still rejected with the full valid list including `graduated`.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-08 validates E-08
+  - Observed evidence: `python3 -m unittest tests.test_backlog_graduated -v` (VocabularyTests, 5/5 ok):
+    ```
+    test_graduated_in_statuses ... ok
+    test_ordering_places_graduated_between_open_and_done ... ok
+    test_existing_statuses_preserved ... ok
+    test_graduated_item_is_discovered_and_typed ... ok
+    test_unknown_status_still_rejected ... ok
+    ```
+    Live end-to-end on the real motivating item (`aw backlog set graduated kjzlgw`):
+    ```
+    - >  backlog     20260827-runnerstop-01-kjzlgw  [high]  [blocking]  open -> graduated
+    ```
+    File moved and metadata updated:
+    ```
+    .aw/records/backlog/graduated/20260827-runnerstop-01-kjzlgw-...backlog.md
+    - Id: kjzlgw
+    - Status: graduated
+    - Blocks-Release: next
+    ```
+    `aw backlog check` reports only 3 PRE-EXISTING violations on unrelated items (`awagyfalseerror`, `awhistignore`, `awinstallfix` summary-unsafe); `kjzlgw` is clean.
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: pasted pytest output showing (a) `state:backlog:graduated:<id6>` now parses/validates as a legal `Item-Dependencies` edge where it previously failed, and (b) an assertion that `ipd_schema`'s accepted backlog status set EQUALS `backlog.STATUSES` (a drift guard, not a duplicated literal). Prose that the schema "was updated" fails this item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: DependencySchemaTests, 4/4 ok:
+    ```
+    Before E-08 this token was rejected, making the new status undeclarable. ... ok
+    The drift guard: same object, not a re-listed literal. ... ok
+    Proves the derived set really governs the parser for all five statuses. ... ok
+    test_bogus_backlog_status_edge_still_rejected ... ok
+    ```
+    Direct confirmation that the two sets are the SAME OBJECT, so drift is structurally impossible:
+    ```
+    schema backlog set: ['blocked', 'done', 'graduated', 'open', 'parked']
+    backlog.STATUSES  : ['blocked', 'done', 'graduated', 'open', 'parked']
+    IDENTICAL by construction: True
+    ```
+    SCOPE NOTE (found during execution, beyond the reviewed plan): TWO MORE hardcoded copies existed and both were real bugs, so E-01 was extended to them. `status_set.TYPE_STATUSES["backlog"]` refused the transition outright (`Status 'graduated' is not valid for backlog (valid: ['blocked', 'done', 'open', 'parked'])`), and `status_set.py`'s mover gated on a hardcoded `("open", "blocked", "parked", "done")` tuple, which would have silently DECLINED TO MOVE a file whose source directory was the new status, leaving the directory and the `- Status:` line disagreeing. Both now derive from `backlog.STATUS_DIRS`/`STATUSES`, and a new `NoDuplicateVocabularyTests` class pins all four consumers (setter, dependency schema, completion, attention map) to the single source of truth:
+    ```
+    test_status_set_setter_vocabulary_is_derived   ... ok
+    test_dependency_schema_vocabulary_is_derived   ... ok
+    test_completion_vocabulary_is_derived          ... ok
+    test_attention_map_covers_every_status         ... ok
+    ```
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted `aw attention` output (or its JSON) showing a graduated item classified `active` and absent from `ready`/`done`/`parked`; plus pasted `aw attention --check` exit 0; plus evidence a graduated item carrying `Blocks-Release` STILL appears in the release-blocker set.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `aw attention` on the live repo after the transition:
+    ```
+    ## active (2)
+    - [backlog] .aw/records/backlog/graduated/20260827-runnerstop-01-kjzlgw-...backlog.md (graduated)
+    - [research] .aw/records/research/20260813-awnamespace-04-2bodwq-...reconciliation-report.md (active)
+    --
+    ## release-blockers for 2.0.0 (f33nrj) (27)
+    - [backlog] .aw/records/backlog/graduated/20260827-runnerstop-01-kjzlgw-...backlog.md (graduated)
+    ```
+    The graduated item is classified `active` AND still counted as a 2.0.0 release blocker, which is the load-bearing property. `aw attention --check` exit code:
+    ```
+    exit=0
+    ```
+    Unit evidence (AttentionClassTests, 4/4 ok):
+    ```
+    test_graduated_maps_to_active ... ok
+    test_graduated_is_not_done_or_ready_or_parked ... ok
+    test_class_map_is_total_over_the_enum ... ok
+    test_existing_mappings_unchanged ... ok
+    ```
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted pytest output showing (a) `set graduated` on a release-gated item returns an ok verdict, and (b) `set done` on that SAME item still fails closed with the three-fixes message. The negative case is the load-bearing one: without it `graduated` could silently become a close.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m unittest tests.test_backlog_graduated -v` (CloseLegitimacyTests, 3/3 ok), including the load-bearing negative:
+    ```
+    test_graduated_is_legitimate_for_a_gated_item ... ok
+    LOAD-BEARING: a gated item must still fail closed on `done`. ... ok
+    test_ungated_item_unaffected ... ok
+    ```
+    Direct predicate output on a gated fixture item with NO carrier:
+    ```
+    graduated: True  ok    :: graduated preserves gate 'next' (item stays a release blocker; `done` still requires handoff, evidence, or explicit de-gating)
+    done     : False error :: backlog item carries Blocks-Release 'next'; closing it `done` would silently drop that release gate
+    ```
+    So `graduated` is legitimate and drops nothing, while `done` remains fail-closed.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: the pasted AGENTS.md diff showing the contract text (review-ready plans, `From-Backlog` + gate inheritance, resolve-from-evidence, end state `graduated` not `done`), plus a check that no em or en dash was introduced into that user-facing prose.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: AGENTS.md gained a `### Acting on a backlog item (graduate / implement / execute)` section with five numbered obligations: (1) write the spec without a stop-and-approve round trip, (2) write REVIEW-READY IPDs every time (`to-review`, never `draft`, `aw ipd lint` conforming), (3) carry `From-Backlog` and inherit `Blocks-Release`, (4) resolve blocking questions from repository evidence and ask only for genuinely human decisions, (5) set the item to `graduated`, not `done`. The attention line was also updated to `` `graduated`->`active` (design handed off to a plan/spec, code not yet written)``. Automated verification (DocumentationAgreementTests, 4/4 ok):
+    ```
+    test_agents_md_documents_the_contract ... ok
+    Repo rule: no em/en dashes in user-facing prose we author. ... ok
+    test_readme_status_list_matches_statuses ... ok
+    test_readme_documents_graduated_directory ... ok
+    ```
+    The dash test asserts U+2014 and U+2013 are both absent from the authored section rather than relying on a manual read.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted README diff plus pasted output of a check comparing the README's documented status list against `backlog.STATUSES` and finding them equal (a manual read fails this item).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: `.aw/records/backlog/README.md` now documents the `graduated/` directory and its class in the layout block, updates the committed-tier prose, adds a paragraph explaining why the middle state exists, and lists `- Status: open | graduated | blocked | parked | done`. The equality is machine-checked, not eyeballed (`test_readme_status_list_matches_statuses`): it parses the README's `- Status:` line and asserts the set EQUALS `backlog.STATUSES`.
+    ```
+    test_readme_status_list_matches_statuses ... ok
+    test_readme_documents_graduated_directory ... ok
+    ```
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted pytest output for three cases: a spec-only HANDOFF returns legitimate with route HANDOFF; a spec with a MISMATCHED `Blocks-Release` still fails closed; an existing plan-based HANDOFF returns exactly as before (regression guard). Plus the live `kjzlgw` check re-run showing the spec `c4gd2h` now counts.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-07 validates E-07
+  - Observed evidence: `python3 -m pytest tests/test_check_engine_spec_handoff.py` -> `13 passed`, covering all three required cases plus the finder-level behavior:
+    ```
+    SpecHandoffVerdictTests::test_spec_only_handoff_is_legitimate          PASS
+    SpecHandoffVerdictTests::test_spec_with_mismatched_gate_still_fails_closed PASS
+    SpecHandoffVerdictTests::test_spec_with_no_gate_still_fails_closed     PASS
+    SpecHandoffVerdictTests::test_plan_handoff_verdict_unchanged (REGRESSION GUARD) PASS
+    SpecHandoffVerdictTests::test_no_carrier_at_all_fails_closed           PASS
+    SpecFinderTests::test_plans_finder_still_ignores_specs                PASS
+    ```
+    Live repo confirmation that spec `c4gd2h` is now a recognized carrier for `kjzlgw`:
+    ```
+    plans  carrying From-Backlog kjzlgw: 8
+    specs  carrying From-Backlog kjzlgw: 1
+       spec: 20260829-c4gd2h-01-c4gd2h-runner-lifecycle-graceful-qui | gate: next
+    artifacts total: 9
+    ```
+    And the resulting verdict now names both carrier kinds:
+    ```
+    done legitimate: True :: gate 'next' handed off to a From-Backlog plan or spec
+    ```
+  - Result: pass
+- [x] V-07 validates E-07
   - Required evidence: pasted pytest output showing a spec with a dangling `From-Backlog` is flagged `check.from-backlog-dangling` and a spec with a disagreeing gate is flagged `check.from-backlog-gate-mismatch`; plus pasted `aw check specs`/`aw check backlog` output on the real repo showing no NEW findings introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the gate-mismatch half is newly covered for specs (SpecGateMismatchRuleTests, 4/4 pass):
+    ```
+    test_spec_gate_mismatch_is_flagged            PASS
+    test_matching_spec_gate_is_not_flagged        PASS
+    test_plan_gate_mismatch_still_flagged         PASS
+    test_mismatch_detail_names_the_artifact_kind  PASS
+    ```
+    The detail string now names the artifact kind (`From-Backlog spec's Blocks-Release ... does not match ...`) so a finding is attributable. VERIFIED at execution that the DANGLING half needed no change: `releases.py:311` already iterates `("plans", "specs", "backlog")`, so a spec with an unresolvable `From-Backlog` was always flagged; this is recorded rather than duplicated (P8). Live repo, no new findings:
+    ```
+    gate-consistency findings: 0
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

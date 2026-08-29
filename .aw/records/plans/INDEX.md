@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 152 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 153 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -10,7 +10,7 @@ Showing the 40 most-recent of 152 Sets; the full manifest is INDEX.json.
 
 ## bklgrad
 
-- `v58bvy` [pending] 01 pending/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
+- `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
 
 ## fullauto
 
@@ -29,6 +29,10 @@ Showing the 40 most-recent of 152 Sets; the full manifest is INDEX.json.
 - `foi1b3` [pending] 04 pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
 - `m0z0ti` [pending] 05 pending/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
 - `71vjbn` [pending] 06 pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
+
+## stallfp
+
+- `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
 
 ## assessdocs
 
@@ -223,10 +227,6 @@ Showing the 40 most-recent of 152 Sets; the full manifest is INDEX.json.
 - `3xh53a` [executed] 06 executed/20260823-ipdgates-06-3xh53a-aw-ipd-finalize-rollback-and-failure-semantics.ipd.md
 - `wezhxg` [executed] 07 executed/20260823-ipdgates-07-wezhxg-remove-raw-terminal-transition-bypasses-and-strengthen-histo.ipd.md
 - `dulzpy` [executed] 08 executed/20260823-ipdgates-08-dulzpy-local-pre-commit-gate-on-plan-executed-transitions-verify-fi.ipd.md
-
-## proclint
-
-- `79li67` [executed] 01 executed/20260823-proclint-01-79li67-detect-process-violations-in-aw-check-and-aw-doctor-untooled.ipd.md
 
 ## (singletons: no Set)
 
