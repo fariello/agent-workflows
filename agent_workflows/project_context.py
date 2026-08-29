@@ -13,6 +13,7 @@ Invariants:
 from __future__ import annotations
 
 import json
+import functools
 import os
 import re
 from pathlib import Path
@@ -89,6 +90,57 @@ def _is_safe_subpath(child_path: str, parent_path: str) -> bool:
         return False
 
 
+def _git_index_stamp(repo_abs: str) -> tuple:
+    """Cheap fingerprint of the Git index: (mtime_ns, size) of .git/index, or () if absent.
+
+    This is the CACHE KEY for the tracked-file listing. `git add` rewrites .git/index, so the
+    stamp changes and the cache misses -- which is why the policy gate still fires on a newly
+    staged forbidden file (tests/test_project_layout.py::test_e01 asserts exactly that).
+    """
+    idx = os.path.join(repo_abs, ".git", "index")
+    try:
+        st = os.stat(idx)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return ()
+
+
+@functools.lru_cache(maxsize=32)
+def _git_cached_entries(repo_abs: str, _stamp: tuple):
+    """Parsed `git ls-files -s --cached` as [(rel_path, is_symlink)], or None if git failed.
+
+    PERF (awfindperf): the policy gate runs ~30x per command (once per artifact type per
+    read-path lookup) and each run forked a `git ls-files` subprocess -- ~0.9s of `aw find`.
+    The listing is identical for an unchanged index, so it is cached on the index stamp.
+    `_stamp` participates in the cache KEY only, to force invalidation; the body ignores it.
+    `-s` yields the mode so symlinks (120000) are identifiable: a symlink may resolve to a
+    forbidden target under an unrelated basename and must always be canonicalized.
+    """
+    import subprocess
+
+    res = subprocess.run(
+        ["git", "ls-files", "-s", "--cached"],
+        cwd=repo_abs,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if res.returncode != 0:
+        return None
+    entries: List[tuple] = []
+    for line in res.stdout.splitlines():
+        if not line:
+            continue
+        meta, sep, path_part = line.partition(chr(9))
+        if not path_part:
+            entries.append((line, True))
+            continue
+        mode = meta.split(" ", 1)[0] if meta else ""
+        entries.append((path_part, mode == "120000"))
+    return entries
+
+
 def validate_physical_git_policy(
     target_repo: str, physical_classes: Dict[str, str]
 ) -> None:
@@ -103,32 +155,8 @@ def validate_physical_git_policy(
         return
 
     try:
-        import subprocess
-
-        # `-s` gives us the mode, so we can tell which entries are SYMLINKS (mode 120000).
-        # A symlink may point AT a forbidden target under an unrelated basename, so it must be
-        # canonicalized to be judged; regular files cannot alias, so they take the cheap path.
-        res = subprocess.run(
-            ["git", "ls-files", "-s", "--cached"],
-            cwd=repo_abs,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
-        if res.returncode == 0:
-            # `git ls-files -s` lines are: "<mode> <oid> <stage>\t<path>".
-            cached_entries: List[tuple] = []
-            for line in res.stdout.splitlines():
-                if not line:
-                    continue
-                meta, _, path_part = line.partition("\t")
-                if not path_part:
-                    # Unexpected shape; treat the whole line as a path and assume it may alias.
-                    cached_entries.append((line, True))
-                    continue
-                mode = meta.split(" ", 1)[0] if meta else ""
-                cached_entries.append((path_part, mode == "120000"))
+        cached_entries = _git_cached_entries(repo_abs, _git_index_stamp(repo_abs))
+        if cached_entries is not None:
             # PERF (awfindperf): canonicalize the two forbidden TARGETS once, then compare each
             # tracked file by string. The previous form called _canonical_path()
             # (Path.resolve() -> lstat) and _is_safe_subpath() for EVERY tracked file; on a

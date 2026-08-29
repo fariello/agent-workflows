@@ -20,6 +20,7 @@ here (research-org DECISIONS D123; plans-adopter spec 20260808-0004-01 Section 4
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 import secrets
@@ -222,6 +223,21 @@ def get_ignored_dirs(repo_root: Path) -> set[str]:
     return ignored
 
 
+@functools.lru_cache(maxsize=64)
+def _resolved_root_str(root: str) -> str:
+    """Memoized `Path(root).resolve()` as a string, keyed on the raw path.
+
+    Safe to cache: a repo root's canonical location does not change within a process, and the
+    key is the literal argument, so a different root gets a different entry. Only the RESOLUTION
+    is cached, never any decision derived from it.
+    """
+    return Path(root).resolve().as_posix()
+
+
+def _resolved_root(root: Path) -> Path:
+    return Path(_resolved_root_str(str(root)))
+
+
 def is_ignored_path(
     path: Path,
     repo_root: Path,
@@ -230,7 +246,10 @@ def is_ignored_path(
 ) -> bool:
     """Return True if path is within an ignored directory or matches ignore rules."""
     try:
-        rel_path = path.resolve().relative_to(repo_root.resolve())
+        # PERF: repo_root.resolve() is loop-invariant but was recomputed on EVERY call
+        # (978 calls per `aw find`, each an lstat chain over every path component). Memoize
+        # the root resolution; `path` still resolves per call because it genuinely varies.
+        rel_path = path.resolve().relative_to(_resolved_root(repo_root))
     except (ValueError, OSError):
         try:
             rel_path = path.relative_to(repo_root)
