@@ -96,6 +96,16 @@ reason: backlog item carries Blocks-Release 'next'; closing it `done` would sile
 
 And after the 7 plans landed, the same predicate returned `legitimate: True, route: HANDOFF`, confirming the gate mechanism works for PLANS. The gap is that a spec cannot do the same, which is why a spec-first graduation is unclosable today (E-06 fixes that).
 
+Downstream artifact that must be reconciled (recorded 2026-08-29): research `ig9bai`
+(`.aw/records/research/20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md`,
+an externally-authored deterministic run-and-verify design) specifies in its section 4.9 a
+`BACKLOG-DONE-LEGITIMACY` check whose pass criterion is "Backlog changed `open -> done` through the
+setter only after the IPD handoff commit", with `aw backlog set open <id6>` as the recovery. That
+encodes the BINARY lifecycle this plan replaces. If 4.9 is implemented verbatim it will re-encode the
+exact defect described above. E-04's AGENTS.md contract text is therefore the authority, and any
+adoption of `ig9bai` must treat `graduated` as the legitimate post-handoff state and reserve `done`
+for implemented work. The conflict is recorded as C-1 in that research doc so it cannot be lost.
+
 A trap worth naming: `graduated` must not become a soft `done`. If it were accepted as satisfying a release gate, a maintainer could ship 2.0.0 with every blocker merely `graduated` and nothing implemented. E-03 therefore keeps `done`'s three fixes untouched and a V-item asserts a graduated blocker still counts as outstanding.
 
 ## Proposed changes (ordered, validatable)

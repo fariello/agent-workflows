@@ -903,6 +903,27 @@
   },
   {
     "consumed_by": [],
+    "created": "20260829",
+    "date": "20260829",
+    "id6": "ig9bai",
+    "kind": "reference-research",
+    "model": "gpt56",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md",
+    "priority": "high",
+    "set_id": "runverify",
+    "status": "todo",
+    "summary": "Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.",
+    "topic": [
+      "runner",
+      "verification",
+      "lifecycle",
+      "dependencies"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260712",
     "date": "20260712",
     "id6": "itntmu",

@@ -19,6 +19,20 @@
 - **OUTCOME CERTAINTY**: whether the interrupted item's disposition is KNOWN (stopped at a defined checkpoint) or INDETERMINATE (`unknown_outcome`, needs reconciliation before resume). This is what separates level 3 from level 4, not cleanliness.
 - **DELIBERATE stop vs CRASH**: a stop is requested and cooperative; a crash is unrequested. Both converge on the same reconciliation routine.
 
+## 0.0 Term ownership: `unknown_outcome` (recorded 2026-08-29)
+
+THIS SPEC OWNS the term `unknown_outcome`: the disposition of a work item whose turn was interrupted
+immediately (level 4) so its result is INDETERMINATE, requiring reconciliation before resume (R18-R19),
+reusing the model from research `ud28vy`.
+
+Research `ig9bai`
+(`.aw/records/research/20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md`)
+independently defines the same token for an unproven EXTERNAL side effect. The two meanings are
+compatible in spirit (both mean "indeterminate, reconcile before resume") but two definitions of one
+term violate GUIDING_PRINCIPLES P8. Per that document's recorded conflict C-2, any adoption of
+`ig9bai` MUST reference this definition rather than restate it. If the external-side-effect case needs
+a distinct disposition, it must be given a distinct name, not a second meaning for this one.
+
 ## 0.1 Users / actors and scenarios
 
 - **Maintainer at the controlling terminal**: presses Ctrl-C once to wind down after the current agent turn; presses again when in a hurry. Must never have to reason about whether cleanup happened.
