@@ -1,5 +1,5 @@
 - Id: xd9sll
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: lanesess
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Session reuse across lanes pins a turn to the PREVIOUS lane's worktree: session is per-set but worktrees are per-item, so lanes 2..N run in the wrong tree and stall at the external_directory gate
 
 ## Workflow history
+- 2026-08-29 done (aw set): Fixed in c0e9599: an isolated lane turn now always gets a fresh session in BOTH drivers (oc_runipd.run_opencode + agy_runipd.execute_item, which also clears use_continue), and the post-turn writeback only promotes a session to the set/run keys for a non-isolated turn. 6 new tests in tests/test_lane_session_isolation.py, each proven to FAIL without the fix (reverting the launch guard reproduces '--session ses_LANE1' alongside '--dir <lane>'; reverting the agy half fails the symmetry test). Verified live: run-20260829T190308Z-4123955 lane 8zgybk worked through 7 external_directory asks with 86,276 bytes of session output, where the pre-fix run stalled at 600s with 0 bytes.
 - 2026-08-29 open (aw set): status set to open
 - 2026-08-29 created (aw backlog): Filed from live evidence in run-20260829T153858Z-3207626 (qcqhj7): --dir was correct but the reused session dragged 8zgybk's directory back in; trigger for qyaime's deadlock, distinct from dh0uno
 
