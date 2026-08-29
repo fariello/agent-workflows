@@ -12,9 +12,11 @@
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 7kbtkw
-- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
+- 2026-08-29 executed (aw oc run model=its_direct/pt3-claude-opus-4.8-1m-us): driverfin-03 (7kbtkw): fail-closed dirty-tree guard + merge-back conflict handling; 95 tests pass [Scope reconciliation - in-scope-unmodified agent_workflows/worktree_lease.py: not-needed-dirty-check-reads-git-status-directly]
 - 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (re-expressed E-02 to consume child-02's `execute_merge_and_revalidate_gate` result instead of forking a live `git merge --abort` path, corrected the overstated committed cross-set-overlap-analysis claim, added `render_stream.py` to Scope-Paths for the two new `TERMINAL_STATES` colors, deferred the optional warn/serialize with a stated no-data-source reason, added agy parity coverage, completed execution contract). GO - PENDING HUMAN APPROVAL (gated on child-02 emus4n executed).
 - 2026-08-28 to-review (aw set): status set to to-review
@@ -34,17 +36,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: dirty-tree integration guard
 
-- [ ] E-01 In `execute_item` (both `oc_runipd.py` and `agy_runipd.py`), BEFORE invoking child-02's integration gate for a verified branch, inspect the MAIN tree via `git status --short` and assert it has no un-owned dirty paths overlapping the incoming change's `changed_files`; if it does, REFUSE (set item status `integration-blocked` added to `TERMINAL_STATES`, emit an `integration-blocked` event, preserve the verified branch + worktree, continue independent items). Never run the integration gate against a contaminated base.
+- [x] E-01 In `execute_item` (both `oc_runipd.py` and `agy_runipd.py`), BEFORE invoking child-02's integration gate for a verified branch, inspect the MAIN tree via `git status --short` and assert it has no un-owned dirty paths overlapping the incoming change's `changed_files`; if it does, REFUSE (set item status `integration-blocked` added to `TERMINAL_STATES`, emit an `integration-blocked` event, preserve the verified branch + worktree, continue independent items). Never run the integration gate against a contaminated base.
   - Depends on: none
   - Expected outcome: with a dirty overlapping main tree, integration is refused cleanly (status `integration-blocked`) and the verified branch/worktree are preserved; main is untouched.
-  - Execution state: pending
+  - Done: added `dirty_tree_overlap(repo, changed_files)` (using `git status --short --untracked-files=all` so untracked files inside a new dir are listed individually) to both `oc_runipd.py` and `agy_runipd.py`; `integrate_lane_branch` calls it BEFORE the gate and returns kind `integration-blocked` on overlap. `execute_item` maps that kind to item status `integration-blocked` (added to `TERMINAL_STATES` in both files + `_STATUS_COLOR` in `render_stream.py`/`agy_runipd.py`), emits an `ipd-integration-blocked` event, and preserves the branch/worktree.
+  - Execution state: performed
 
 ### Task group 2: merge-back conflict handling + completion honesty
 
-- [ ] E-02 Handle a NON-passing integration-gate result from child-02: when `execute_merge_and_revalidate_gate` returns an `IntegrationGateResult` with `passed == False` (`INTEGRATION_FAILED_CONFLICT`/`INTEGRATION_FAILED_STALE_BASE`/`INTEGRATION_FAILED_COMBINED_RED`/scope violation), leave main UNTOUCHED (the gate is diff-based, so there is no partial merge to abort - if a real `git merge` was performed in the apply step and left markers/index state, `git merge --abort` it), set item status `merge-conflict` (added to `TERMINAL_STATES`) recording the failing `IntegrationFinding` messages/paths + the preserved `aw/lane/<id6>` branch, and mark the IPD not-integrated (NOT executed on main); never leave conflict markers/partial merge. A set is finished only when all children integrated cleanly (a conflicted/blocked child leaves its orchestrator unfinalized, per 801dd28 - no new code needed, just do not falsely stamp executed).
+- [x] E-02 Handle a NON-passing integration-gate result from child-02: when `execute_merge_and_revalidate_gate` returns an `IntegrationGateResult` with `passed == False` (`INTEGRATION_FAILED_CONFLICT`/`INTEGRATION_FAILED_STALE_BASE`/`INTEGRATION_FAILED_COMBINED_RED`/scope violation), leave main UNTOUCHED (the gate is diff-based, so there is no partial merge to abort - if a real `git merge` was performed in the apply step and left markers/index state, `git merge --abort` it), set item status `merge-conflict` (added to `TERMINAL_STATES`) recording the failing `IntegrationFinding` messages/paths + the preserved `aw/lane/<id6>` branch, and mark the IPD not-integrated (NOT executed on main); never leave conflict markers/partial merge. A set is finished only when all children integrated cleanly (a conflicted/blocked child leaves its orchestrator unfinalized, per 801dd28 - no new code needed, just do not falsely stamp executed).
   - Depends on: E-01
   - Expected outcome: a non-passing gate result leaves main pristine (no markers), the child is recorded `merge-conflict` with the gate's paths + preserved branch, and its set is NOT reported finished.
-  - Execution state: pending
+  - Done: `integrate_lane_branch` now returns kind `merge-conflict` for a non-passing gate result (formatting the failing `IntegrationFinding` `check_name[lane]: message` into the reason) and for a real `git merge` conflict (already `git merge --abort`ed, leaving main clean). `execute_item` maps kind `merge-conflict` to item status `merge-conflict` (added to `TERMINAL_STATES` + colors), emits `ipd-merge-conflict`, records the reason in `integration_deferral`, preserves the `aw/lane/<id6>` branch, and does NOT fake executed - so the orchestrator's all-children-executed rule (801dd28) leaves the set unfinished. Both driver copies changed in lockstep; `--retry-incomplete` also re-queues both new states.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -103,15 +107,15 @@ Validation command: `python -m pytest tests/test_oc_runipd.py tests/test_agy_run
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Tests in `tests/test_oc_runipd.py` AND `tests/test_agy_runipd_cli.py` proving that if the main repository has unstaged or untracked changes overlapping an incoming branch's `changed_files`, the integration gate is NOT invoked, the item status is `integration-blocked`, an `integration-blocked` event is emitted, and the main working tree remains unmodified with the verified branch/worktree preserved.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_dirty_overlapping_base_refuses_integration` and `::test_dirty_tree_overlap_helper_reports_only_overlap`, plus the agy parity `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_dirty_overlapping_base_refuses_integration` and `::test_dirty_tree_overlap_helper_reports_only_overlap`. They assert the spy gate was invoked 0 times, `item["status"] == "integration-blocked"`, `integration_deferral` names `src/demo.txt`, MAIN's `src/demo.txt` still holds the un-owned `"un-owned dirt\n"` (no clobber), the plan is NOT in `executed/`, `preserved_branch == aw/lane/<id6>` with the worktree still present, and `events.jsonl` contains `ipd-integration-blocked`. Runner output (targeted selection, both drivers): `8 passed in 4.71s`. Full command output below.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Tests in `tests/test_oc_runipd.py` AND `tests/test_agy_runipd_cli.py` asserting that when `execute_merge_and_revalidate_gate` returns a non-passing `IntegrationGateResult` (e.g. `INTEGRATION_FAILED_CONFLICT`), main is left with NO conflict markers/partial merge, the item status is `merge-conflict` recording the gate's failing paths + preserved `aw/lane/<id6>` branch, the event is recorded in `events.jsonl`, and the orchestrator plan remains unfinalized (set not reported finished).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_oc_runipd.py::FailClosedIntegrationGuardTests::test_non_passing_gate_records_merge_conflict_main_pristine` and the refined `WorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed`, plus the agy parity `tests/test_agy_runipd_cli.py::AgyFailClosedIntegrationGuardTests::test_non_passing_gate_records_merge_conflict_main_pristine` and `AgyWorktreeIsolationTests::test_non_passing_gate_defers_not_faked_executed`. They force the gate revalidation to fail (`INTEGRATION_FAILED_COMBINED_RED`) and assert `item["status"] == "merge-conflict"`, MAIN HEAD unchanged, `git status --short` empty (no markers/partial merge), `.git/MERGE_HEAD` absent, the plan NOT in `executed/` (so the orchestrator's all-children-executed rule leaves the set unfinished), `preserved_branch == aw/lane/<id6>`, and `events.jsonl` contains `ipd-merge-conflict`. Full validation command `python -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py`: `95 passed in 4.66s`.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -2499,7 +2499,9 @@ class WorktreeIsolationTests(unittest.TestCase):
     def test_non_passing_gate_defers_not_faked_executed(self):
         # V-02 (non-passing case): if the integration gate does NOT pass (e.g. combined-red via an
         # injected failing validation runner), the child is left NOT integrated with a recorded
-        # reason, is NOT faked executed, and the worktree is preserved for child-03.
+        # reason, is NOT faked executed, and the worktree is preserved. driverfin-03 (7kbtkw) E-02
+        # refines the recorded state from the interim `substantially-complete` to the dedicated
+        # fail-closed terminal state `merge-conflict`.
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             plan = _init_repo_with_conforming_plan(repo, "wir001")
@@ -2522,16 +2524,253 @@ class WorktreeIsolationTests(unittest.TestCase):
             ):
                 driver.execute_item(run_dir, state, item, recovery=False)
 
-            # NOT faked executed; recorded as substantially-complete with a deferral reason.
-            self.assertEqual(item["status"], "substantially-complete")
+            # NOT faked executed; recorded as merge-conflict (driverfin-03 E-02) with a reason.
+            self.assertEqual(item["status"], "merge-conflict")
             self.assertIn("integration_deferral", item)
             # Plan did NOT move to main's executed/ (integration did not happen on main).
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
             )
-            # The worktree/branch is preserved (attributable) for child-03.
+            # The worktree/branch is preserved (attributable) for a human/serial resolution.
             self.assertIn("preserved_branch", item)
             self.assertEqual(item["preserved_branch"], "aw/lane/wir001")
+
+
+class FailClosedIntegrationGuardTests(unittest.TestCase):
+    """driverfin-03 (7kbtkw): fail-closed dirty-tree guard (E-01) + merge-back conflict handling
+    (E-02). Integration into a contaminated base is refused (`integration-blocked`); a non-passing
+    integration gate leaves main pristine and records `merge-conflict`; both preserve the verified
+    lane branch/worktree and never fake the child executed (its set is therefore not finished)."""
+
+    def _state_and_item(self, repo: Path, plan: Path) -> tuple[dict, dict]:
+        item = {
+            "position": 1,
+            "id6": "wir001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "opencode": "/bin/true",
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_audit": False,
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo: Path) -> Path:
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def _fake_agent_commits_in_worktree(self, run_dir: Path):
+        def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("fresh_session"):
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["oc"]
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "demo: create src/demo.txt"],
+                cwd=wt,
+                check=True,
+            )
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+        return fake_run
+
+    def _fake_agent_also_dirties_main(self, run_dir: Path, repo: Path):
+        """Like _fake_agent_commits_in_worktree, but on the execute turn ALSO leaves an un-owned dirty
+        edit in MAIN on the overlapping path (src/demo.txt). This models the base becoming
+        contaminated AFTER `aw ipd begin` (e.g. a concurrent agent), so begin does not refuse but the
+        integration-time dirty-tree guard (E-01) must."""
+
+        def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("fresh_session"):
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["oc"]
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "demo: create src/demo.txt"],
+                cwd=wt,
+                check=True,
+            )
+            # Contaminate MAIN on the overlapping path AFTER begin (un-owned, uncommitted).
+            (repo / "src").mkdir(parents=True, exist_ok=True)
+            (repo / "src" / "demo.txt").write_text("un-owned dirt\n", encoding="utf-8")
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+        return fake_run
+
+    def test_dirty_overlapping_base_refuses_integration(self):
+        # V-01: if MAIN has an un-owned dirty path overlapping the incoming lane's changed_files, the
+        # integration gate is NOT invoked, the item status is `integration-blocked`, an
+        # `integration-blocked` event is emitted, MAIN stays unmodified apart from the un-owned dirty
+        # edit, and the verified branch/worktree are preserved.
+        from agent_workflows import orchestrate_isolation
+
+        gate_calls = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            with (
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    self._fake_agent_also_dirties_main(run_dir, repo),
+                ),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # The gate was NEVER invoked against the contaminated base.
+            self.assertEqual(
+                len(gate_calls), 0, "gate must not run against a dirty overlapping base"
+            )
+            # Item recorded integration-blocked, NOT executed.
+            self.assertEqual(item["status"], "integration-blocked")
+            self.assertIn("integration_deferral", item)
+            self.assertIn("src/demo.txt", item["integration_deferral"])
+            # Plan did NOT move to main's executed/.
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            # MAIN's working tree still holds ONLY the un-owned edit (no clobber).
+            self.assertEqual(
+                (repo / "src" / "demo.txt").read_text(encoding="utf-8"),
+                "un-owned dirt\n",
+            )
+            # Verified lane branch/worktree preserved.
+            self.assertIn("preserved_branch", item)
+            self.assertEqual(item["preserved_branch"], "aw/lane/wir001")
+            self.assertTrue((repo / ".aw" / "worktrees" / "wir001").exists())
+            # The fail-closed event was recorded.
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-integration-blocked", events)
+
+    def test_non_passing_gate_records_merge_conflict_main_pristine(self):
+        # V-02: a non-passing integration-gate result leaves MAIN with NO conflict markers/partial
+        # merge, records `merge-conflict` with the gate's failing paths + preserved branch, emits the
+        # event, and leaves the plan un-integrated (set not finished).
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            main_head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+
+            # Force the gate's full revalidation to fail -> INTEGRATION_FAILED_COMBINED_RED.
+            def failing_runner_factory(*a, **k):
+                return lambda _diff, _files: False
+
+            with (
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    driver, "make_integration_validation_runner", failing_runner_factory
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # merge-conflict recorded, NOT executed.
+            self.assertEqual(item["status"], "merge-conflict")
+            self.assertIn("integration_deferral", item)
+            # MAIN is pristine: HEAD unchanged, working tree clean (no markers/partial merge).
+            main_head_after = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(main_head_before, main_head_after)
+            main_status = subprocess.run(
+                ["git", "status", "--short"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(main_status, "", "MAIN must stay clean (no partial merge)")
+            self.assertFalse((repo / ".git" / "MERGE_HEAD").exists())
+            # Plan did NOT move to main's executed/.
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            # Preserved lane branch recorded + the fail-closed event emitted.
+            self.assertEqual(item.get("preserved_branch"), "aw/lane/wir001")
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-merge-conflict", events)
+
+    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
+        # Unit coverage of the E-01 helper: only paths that are BOTH dirty in main AND incoming are
+        # reported; a rename's origin+destination both count; disjoint dirt is ignored.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "wir001")
+            # Dirty an un-owned file that does NOT overlap.
+            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
+            self.assertEqual(driver.dirty_tree_overlap(repo, ["src/x.py"]), [])
+            # Dirty a file that DOES overlap the incoming change.
+            (repo / "src").mkdir(parents=True, exist_ok=True)
+            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
+            self.assertEqual(
+                driver.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
+                ["src/x.py"],
+            )
+            # No incoming files -> never blocked.
+            self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
 
 
 if __name__ == "__main__":

@@ -57,6 +57,10 @@ _STATUS_COLOR = {
     "interrupted": "yellow",
     "running": "cyan",
     "queued": "gray",
+    # driverfin-03 (7kbtkw): fail-closed integration outcomes (dirty-base refusal / merge conflict);
+    # rendered red because they leave the child NOT integrated and its set NOT finished.
+    "integration-blocked": "red",
+    "merge-conflict": "red",
 }
 
 
