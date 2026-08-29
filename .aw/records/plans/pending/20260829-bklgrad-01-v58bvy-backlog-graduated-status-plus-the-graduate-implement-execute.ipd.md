@@ -6,16 +6,18 @@
 - From-Backlog: kjzlgw
 - Concern: Backlog status is binary in practice (`open` or `done`), which forces a FALSE choice once an item's design work is finished but its code is not: the item still reads `open`, indistinguishable from something nobody has touched, and the only way to change that is `done`, which would be a lie and would drop the release gate. This was hit live on 2026-08-29 with item `kjzlgw`: an approved spec (`c4gd2h`) plus 7 review-ready IPDs existed, yet the item read `open`. Two adjacent defects made it worse: (1) NOTHING in AGENTS.md tells an agent that acting on a backlog item must produce REVIEW-READY IPDs, so the obligation lives only in the maintainer's head; (2) `check_engine.find_from_backlog_plans` scans plan IPDs ONLY, so a spec carrying `From-Backlog` + a matching `Blocks-Release` cannot satisfy the HANDOFF gate, making a spec-first graduation unclosable by construction.
 - Scope: Add a `graduated` backlog status between `open` and `done` (enum, directory, attention class, close-legitimacy handling), document the graduate/implement/execute contract in AGENTS.md so agents produce review-ready IPDs without being told, and let a SPEC carrying `From-Backlog` + a matching `Blocks-Release` satisfy the HANDOFF gate. Does NOT change the plan or spec lifecycles, does NOT auto-transition existing items, and does NOT alter what `done` means.
-- Scope-Paths: agent_workflows/backlog.py, agent_workflows/attention_contract.py, agent_workflows/attention.py, agent_workflows/check_engine.py, AGENTS.md, .aw/records/backlog/README.md, tests/test_backlog_graduated.py, tests/test_check_engine_spec_handoff.py
+- Scope-Paths: agent_workflows/backlog.py, agent_workflows/ipd_schema.py, agent_workflows/attention_contract.py, agent_workflows/attention.py, agent_workflows/check_engine.py, AGENTS.md, .aw/records/backlog/README.md, tests/test_backlog_graduated.py, tests/test_check_engine_spec_handoff.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: bklgrad
 - Order: 1
-- Highest E allocated: 07
+- Highest E allocated: 08
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: v58bvy
 
 ## Workflow history
+- 2026-08-29 /plan-review (opencode / its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001 (BLOCKER), PR-002, PR-003, PR-004 all FIXED; no open questions; readiness GO - PENDING HUMAN APPROVAL.
+- 2026-08-29 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 fixed (incl. a BLOCKER: second hardcoded status set at ipd_schema.py:527).
 - 2026-08-29 to-review (aw set): Authored review-ready: graduated status + graduate/implement/execute contract + spec-as-gate-carrier.
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
@@ -30,9 +32,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the `graduated` status
 
-- [ ] E-01 Add `graduated` to the backlog status vocabulary in `agent_workflows/backlog.py`: extend `STATUS_DIRS` (currently `("open", "blocked", "parked", "done")`, backlog.py:51) and therefore `STATUSES` (:52), and create the `.aw/records/backlog/graduated/` directory so the directory-backed model stays consistent. Ordering in `STATUS_DIRS` must place `graduated` between `open` and `done` to reflect the lifecycle.
+- [ ] E-01 Add `graduated` to the backlog status vocabulary in `agent_workflows/backlog.py`: extend `STATUS_DIRS` (currently `("open", "blocked", "parked", "done")`, backlog.py:51) and therefore `STATUSES` (:52), and ensure the `.aw/records/backlog/graduated/` directory exists when first used. Ordering in `STATUS_DIRS` must place `graduated` between `open` and `done` to reflect the lifecycle. Note (verified at review): the setter already creates a missing destination directory on demand (`backlog.py:393`, `:557`) and `_iter_items` (:233-242) globs each `STATUS_DIRS` entry so an ABSENT or EMPTY directory is harmless; `blocked/` is exactly that case today (present locally, untracked by git, no keepfile). So do NOT add a keepfile or special-case an empty dir: match the existing pattern.
   - Depends on: none
   - Expected outcome: `aw backlog new --status graduated` and `aw backlog set graduated <id6>` are accepted; the item file moves into `graduated/`; `aw backlog check` accepts it; an unknown status is still rejected with the full valid list.
+  - Execution state: pending
+- [ ] E-08 Update the SECOND hardcoded backlog-status set at `ipd_schema.py:527` (`"backlog": frozenset(("open", "blocked", "done", "parked"))`), which gates `Item-Dependencies` `state:` edges. Without it a plan cannot declare `state:backlog:graduated:<id6>` (verified: that status is rejected today), so the new status would be undeclarable as a dependency. Prefer importing `backlog.STATUSES` over adding a third literal, so the vocabulary has ONE source of truth (GUIDING_PRINCIPLES P8).
+  - Depends on: E-01
+  - Expected outcome: `state:backlog:graduated:<id6>` parses and validates as a legal `Item-Dependencies` edge; a test asserts the schema's accepted backlog set equals `backlog.STATUSES` so the two can never drift again.
   - Execution state: pending
 - [ ] E-02 Map `graduated` onto an `aw attention` cross-tree class in `attention_contract.py`/`attention.py`. It is NOT `ready` (no fresh action is needed on the ITEM; the action lives on its plans), NOT `done` (nothing is implemented), and NOT `parked` (it is intentionally ACTIVE work). Map it to `active` per the contract's definition "work is EXPLICITLY in progress (a native state says so); never inferred" (attention_contract.py:24), since a graduated item explicitly asserts in-progress work.
   - Depends on: E-01
@@ -68,6 +74,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - Backlog status is DIRECTORY-BACKED: `STATUS_DIRS = ("open", "blocked", "parked", "done")` (`backlog.py:51`) with `STATUSES = frozenset(STATUS_DIRS)` (:52), and the parent directory name is how status is read (`:130`, `return parent if parent in STATUSES else None`). Adding a status therefore requires the directory too, not just the enum.
+- Discovery iterates `STATUS_DIRS` and globs `*.md` per status dir (`backlog.py:233-242`), and the setter creates a missing destination dir on demand (`:393`, `:557`), so a new status needs no keepfile and an empty dir is not an error. `blocked/` is the precedent: present locally, untracked, empty.
+- CRITICAL second copy of the vocabulary: `ipd_schema.py:527` hardcodes `"backlog": frozenset(("open", "blocked", "done", "parked"))`, which gates `Item-Dependencies` `state:` edges. Verified live that `state:backlog:graduated:<id6>` is REJECTED today. E-08 fixes this; prefer importing `backlog.STATUSES` there rather than adding a third literal.
 - Validation reads the same set (`:144-149`), `new` (:307-309) and `set` (:434) both gate on it, so one enum edit propagates to all three surfaces; the error messages already print `sorted(STATUSES)` so they stay correct automatically.
 - The attention contract defines exactly five classes with explicit meanings (`attention_contract.py:23-27`, constants at :47-51). `active` is documented as "work is EXPLICITLY in progress (a native state says so); never inferred", which is precisely what a `graduated` item asserts.
 - `check_engine.find_from_backlog_plans` iterates `_iter_plan_ipds(repo_root)` and returns `[(path, blocks_release_or_'')]`; `evaluate_blocking_close` compares `plan_br == blocks_release` for the HANDOFF route. Extending to specs means adding a scanner, not changing the comparison.
@@ -105,6 +113,13 @@ encodes the BINARY lifecycle this plan replaces. If 4.9 is implemented verbatim 
 exact defect described above. E-04's AGENTS.md contract text is therefore the authority, and any
 adoption of `ig9bai` must treat `graduated` as the legitimate post-handoff state and reserve `done`
 for implemented work. The conflict is recorded as C-1 in that research doc so it cannot be lost.
+
+Verified basis for the anti-abuse guarantee (checked at review, `attention.py:582-599`): the
+release-blocker scan skips an item only when its attention class is `done`. Because E-02 maps
+`graduated` to `active`, a graduated blocker REMAINS in the outstanding set with no extra code, and the
+only way to leave that set is a real `done` (which still requires HANDOFF/SATISFIED/DE-GATED). Also
+verified that `class_of("backlog", "graduated")` currently raises `UnknownNativeStatus`, so E-02 is
+mandatory rather than cosmetic and the failure mode before it lands is loud, not silent.
 
 A trap worth naming: `graduated` must not become a soft `done`. If it were accepted as satisfying a release gate, a maintainer could ship 2.0.0 with every blocker merely `graduated` and nothing implemented. E-03 therefore keeps `done`'s three fixes untouched and a V-item asserts a graduated blocker still counts as outstanding.
 
@@ -151,7 +166,7 @@ A trap worth naming: `graduated` must not become a soft `done`. If it were accep
 - Blocking: no
 - Status: resolved
 - Owner: human maintainer
-- Resolution or deferral rationale: `active`. The contract defines `active` as "work is EXPLICITLY in progress (a native state says so); never inferred" (`attention_contract.py:24`), and a graduated item explicitly asserts that implementation work exists in linked plans. `ready` is wrong (no action is needed on the item itself), `done` is false (nothing implemented), and `parked` is wrong (the work is intentionally live). Resolved from the contract's own definitions.
+- Resolution or deferral rationale: `active`. The contract defines `active` as "work is EXPLICITLY in progress (a native state says so); never inferred" (`attention_contract.py:24`), and a graduated item explicitly asserts that implementation work exists in linked plans. `ready` is wrong (no action is needed on the item itself), `done` is false (nothing implemented), and `parked` is wrong (the work is intentionally live). VERIFIED at review that this choice also preserves the release gate for free: `attention.release_blockers` (`attention.py:582-599`) excludes an item ONLY when `it.attention_class == A.DONE`, so any non-done class (including `active`) keeps a `Blocks-Release` item in the blocker set. Mapping to `done` would have silently dropped it from that set, which is precisely the abuse E-03 forbids. Resolved from the contract's definitions plus the verified blocker-set predicate.
 
 ### OQ-02: Should `graduated` be reachable directly from `blocked`?
 
@@ -166,6 +181,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-01 validates E-01
   - Required evidence: pasted pytest output showing `aw backlog new --status graduated` and `aw backlog set graduated <id6>` succeed, the file lands in `.aw/records/backlog/graduated/`, `aw backlog check` accepts it, and an invalid status is still rejected with the full valid list including `graduated`.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-08 validates E-08
+  - Required evidence: pasted pytest output showing (a) `state:backlog:graduated:<id6>` now parses/validates as a legal `Item-Dependencies` edge where it previously failed, and (b) an assertion that `ipd_schema`'s accepted backlog status set EQUALS `backlog.STATUSES` (a drift guard, not a duplicated literal). Prose that the schema "was updated" fails this item.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
