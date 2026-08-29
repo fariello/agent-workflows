@@ -33,10 +33,10 @@ This orchestrator authors no direct feature code; children 01, 02, and 03 carry 
 
 ### Task group 1: Whole-Set Verification
 
-- [ ] E-01 After children 01, 02, and 03 execute, run end-to-end set verification covering shell completion script generation, dynamic artifact completion queries, drop-in installer operations, and full test suite validation.
+- [x] E-01 After children 01, 02, and 03 execute, run end-to-end set verification covering shell completion script generation, dynamic artifact completion queries, drop-in installer operations, and full test suite validation.
   - Depends on: none
   - Expected outcome: End-to-end tab completion functions cleanly across all supported shells with full test suite passing.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -99,10 +99,10 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: After children 01, 02, and 03 execute, paste: (a) test output from `pytest tests/test_completion.py -v` showing all tests passing; (b) output of `aw completion bash` showing valid completion functions for `aw`, `agentwf`, `agent-workflows`; (c) output of `aw completion install --dry-run` showing XDG-aware drop-in target paths; (d) full test suite runner output showing green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three children are in executed/ (bja8og script generators, 4f1j25 dynamic contextual completion, jolfpj drop-in installer). (a) `python3 -m pytest tests/test_completion.py -q -o addopts=""` -> `78 passed, 2 skipped in 2.93s`. (b) `aw completion bash` emits `_aw_completion()` (line 3) and binds ALL THREE command names in one statement at line 57: `complete -F _aw_completion aw agentwf agent-workflows`. (c) `aw completion install --dry-run` -> exit 0 with XDG-aware targets and per-alias bash files: `/home/<user>/.local/share/bash-completion/completions/{aw,agentwf,agent-workflows}` plus `bash completion would be installed in .../bash-completion/completions (no rc/dotfile modified)` - the no-rc-edit promise is stated in the output. XDG overrides verified honored: `XDG_DATA_HOME=<tmp> aw completion install --dry-run --shell zsh` -> `<tmp>/zsh/site-functions/_aw` (a SINGLE _aw file, per the zsh compdef design, not per-alias symlinks), and `XDG_CONFIG_HOME=<tmp> aw completion install --dry-run --shell fish` -> `<tmp>/fish/completions/aw.fish`. (d) full default suite `python3 -m pytest -p no:randomly` -> `2722 passed, 3 skipped in 29.07s`. Dynamic artifact completion spot-checked live: `aw __complete --cword 3 -- aw ipd set approved` -> `approved`; `aw __complete --cword 2 -- aw backlog set` -> `set`.
+  - Result: pass
 
 ## Approval and execution gate
 
