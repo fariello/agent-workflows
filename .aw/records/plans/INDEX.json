@@ -3282,6 +3282,16 @@
   {
     "date": "2026-08-25",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md",
+    "plan_id": "ryvoi5",
+    "set_id": "runnernorm",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-25",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md",
@@ -3548,16 +3558,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-25",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md",
-    "plan_id": "ryvoi5",
-    "set_id": "runnernorm",
-    "status": "approved"
   },
   {
     "date": "2026-08-27",
