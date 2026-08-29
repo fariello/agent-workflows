@@ -107,6 +107,11 @@ class RunSummary:
     counts: dict[str, int] = field(default_factory=dict)
     total_cost: float | None = None
     total_tokens: dict[str, int] = field(default_factory=dict)
+    pid: int | None = None
+    pid_state: str | None = None
+    is_live: bool = False
+    runtime_seconds: float | None = None
+    runtime_str: str | None = None
 
     @property
     def timestamp_dt(self) -> datetime | None:
@@ -136,6 +141,106 @@ class RunSummary:
                 except (ValueError, TypeError):
                     pass
         return None
+
+
+def format_duration(seconds: float | None) -> str:
+    """Format duration seconds into a human-readable string (e.g. '12.4s', '4m 12s', '1h 04m 12s')."""
+    if seconds is None or seconds < 0:
+        return "0s"
+    if seconds < 60:
+        return f"{seconds:.1f}s" if seconds < 10 else f"{int(seconds)}s"
+    mins = int(seconds // 60)
+    rem_secs = int(seconds % 60)
+    if mins < 60:
+        return f"{mins}m {rem_secs:02d}s"
+    hrs = int(mins // 60)
+    rem_mins = int(mins % 60)
+    return f"{hrs}h {rem_mins:02d}m {rem_secs:02d}s"
+
+
+def inspect_run_pid_and_runtime(
+    run_dir: Path,
+    created_at: str | None,
+    updated_at: str | None,
+    timestamp_dt: datetime | None,
+) -> tuple[int | None, str | None, bool, float | None, str | None]:
+    """Inspect PID liveness, process state, and elapsed runtime for a run."""
+    holder = driver_holder_state(run_dir)
+    pid: int | None = None
+    lock_p = run_dir / "driver.lock"
+    if lock_p.is_file():
+        try:
+            m = re.search(
+                r"pid=(\d+)",
+                lock_p.read_text(encoding="utf-8", errors="ignore"),
+            )
+            if m:
+                pid = int(m.group(1))
+        except OSError:
+            pass
+    if pid is None:
+        m = re.search(r"-(\d+)$", run_dir.name)
+        if m:
+            try:
+                pid = int(m.group(1))
+            except ValueError:
+                pass
+
+    proc_state = None
+    if pid is not None:
+        proc_file = Path(f"/proc/{pid}/status")
+        if proc_file.is_file():
+            try:
+                for line in proc_file.read_text(
+                    encoding="utf-8", errors="ignore"
+                ).splitlines():
+                    if line.startswith("State:"):
+                        proc_state = line.split(":", 1)[1].strip()
+            except OSError:
+                pass
+
+    if holder == HOLDER_LIVE:
+        is_live = True
+        pid_state = f"live: {proc_state}" if proc_state else "live"
+    elif holder == HOLDER_NONE:
+        is_live = False
+        pid_state = "exited"
+    else:
+        if proc_state:
+            is_live = True
+            pid_state = f"live: {proc_state}"
+        else:
+            is_live = False
+            pid_state = "exited"
+
+    # Runtime calculation
+    start_dt = timestamp_dt
+    end_dt = None
+    if is_live:
+        end_dt = datetime.now(timezone.utc)
+    else:
+        if updated_at:
+            try:
+                cleaned = updated_at.replace("Z", "+00:00")
+                end_dt = datetime.fromisoformat(cleaned)
+                if end_dt.tzinfo is None:
+                    end_dt = end_dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                pass
+        if not end_dt and (run_dir / "state.json").is_file():
+            try:
+                st = (run_dir / "state.json").stat()
+                end_dt = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
+            except OSError:
+                pass
+
+    runtime_seconds = None
+    runtime_str = None
+    if start_dt and end_dt:
+        runtime_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+        runtime_str = format_duration(runtime_seconds)
+
+    return pid, pid_state, is_live, runtime_seconds, runtime_str
 
 
 def parse_since_timestamp(spec: str, now: datetime | None = None) -> datetime:
@@ -594,6 +699,17 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
             for k, v in s.tokens.items():
                 total_tokens[k] = total_tokens.get(k, 0) + v
 
+    dummy = RunSummary(
+        run_id=run_id,
+        run_dir=run_dir,
+        created_at=created_at,
+        updated_at=updated_at,
+    )
+    start_dt = dummy.timestamp_dt
+    pid, pid_state, is_live, runtime_seconds, runtime_str = inspect_run_pid_and_runtime(
+        run_dir, created_at, updated_at, start_dt
+    )
+
     return RunSummary(
         run_id=run_id,
         run_dir=run_dir,
@@ -606,6 +722,11 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
         counts=counts,
         total_cost=round(total_cost, 4) if total_cost is not None else None,
         total_tokens=total_tokens if total_tokens else {},
+        pid=pid,
+        pid_state=pid_state,
+        is_live=is_live,
+        runtime_seconds=runtime_seconds,
+        runtime_str=runtime_str,
     )
 
 
@@ -807,29 +928,45 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     date_str = _clean_timestamp(run.created_at or run.updated_at)
     date_txt = f"  {date_str}" if date_str else ""
 
+    # PID and runtime info
+    meta_parts = []
+    if run.pid is not None:
+        p_state = run.pid_state or "unknown"
+        if getattr(term, "color", False) and run.is_live:
+            p_state_txt = term.color256(f"[{p_state}]", 40, bold=True)
+        else:
+            p_state_txt = f"[{p_state}]"
+        meta_parts.append(f"pid: {run.pid} {p_state_txt}")
+    if run.runtime_str:
+        meta_parts.append(f"runtime: {run.runtime_str}")
+
+    meta_txt = f"  ({', '.join(meta_parts)})" if meta_parts else ""
+
+    # Line 1: identity, targets, date, pid & runtime
+    lines.append(f"{run_id_txt}{set_txt}{date_txt}{meta_txt}")
+
+    # Line 2: Step count and status tally
     tally_parts = []
     for st, cnt in sorted(run.counts.items()):
         st_display = "complete" if st == "substantially-complete" else st
         tally_parts.append(f"{cnt} {st_display}")
     tally_str = ", ".join(tally_parts) if tally_parts else f"{len(run.steps)} steps"
+    lines.append(f"  {len(run.steps)} steps: {tally_str}")
 
-    cost_part = f", ${run.total_cost:.2f}" if run.total_cost is not None else ""
+    # Line 3: Cost and token usage (if present)
+    cost_val_str = f"${run.total_cost:.2f}" if run.total_cost is not None else None
     if run.total_tokens.get("total"):
         tot_str = format_tokens(run.total_tokens["total"])
         in_str = format_tokens(run.total_tokens.get("input", 0))
         out_str = format_tokens(run.total_tokens.get("output", 0))
         cache_str = format_tokens(run.total_tokens.get("cache", 0))
-        tok_part = f", {tot_str} tok ({in_str} in, {out_str} out, {cache_str} cached)"
-    else:
-        tok_part = ""
-
-    count_summary = (
-        f"  ({len(run.steps)} steps: {tally_str}{cost_part}{tok_part})"
-        if tally_parts
-        else f"  ({len(run.steps)} steps{cost_part}{tok_part})"
-    )
-
-    lines.append(f"{run_id_txt}{set_txt}{date_txt}{count_summary}")
+        tok_str = f"{tot_str} tok ({in_str} in, {out_str} out, {cache_str} cached)"
+        if cost_val_str is not None:
+            lines.append(f"  {cost_val_str}, {tok_str}")
+        else:
+            lines.append(f"  {tok_str}")
+    elif cost_val_str is not None:
+        lines.append(f"  {cost_val_str}")
 
     status_width = max(
         18,

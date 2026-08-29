@@ -673,3 +673,66 @@ class RunViewerTests(TestCase):
         self.assertEqual(parsed["summary"]["runs_count"], 2)
         self.assertIn("by_status", parsed["summary"])
         self.assertIn("by_action", parsed["summary"])
+
+    def test_format_duration(self):
+        self.assertEqual(run_viewer.format_duration(None), "0s")
+        self.assertEqual(run_viewer.format_duration(-5), "0s")
+        self.assertEqual(run_viewer.format_duration(5.4), "5.4s")
+        self.assertEqual(run_viewer.format_duration(45), "45s")
+        self.assertEqual(run_viewer.format_duration(125), "2m 05s")
+        self.assertEqual(run_viewer.format_duration(3665), "1h 01m 05s")
+
+    def test_inspect_run_pid_and_runtime(self):
+        import tempfile
+        from datetime import datetime, timezone
+
+        with tempfile.TemporaryDirectory() as td:
+            rd = Path(td) / "run-20260829T100000Z-99999"
+            rd.mkdir()
+            (rd / "driver.lock").write_text(
+                "pid=99999 started=2026-08-29T10:00:00+00:00"
+            )
+            (rd / "state.json").write_text(
+                json.dumps({"updated_at": "2026-08-29T10:05:30+00:00"})
+            )
+
+            dt = datetime(2026, 8, 29, 10, 0, 0, tzinfo=timezone.utc)
+            pid, pid_state, is_live, runtime_secs, runtime_str = (
+                run_viewer.inspect_run_pid_and_runtime(
+                    rd, "2026-08-29T10:00:00Z", "2026-08-29T10:05:30Z", dt
+                )
+            )
+            self.assertEqual(pid, 99999)
+            self.assertEqual(runtime_secs, 330.0)
+            self.assertEqual(runtime_str, "5m 30s")
+
+    def test_format_run_human_pid_and_runtime(self):
+        term = Term(color=False)
+        run = run_viewer.RunSummary(
+            run_id="run-20260829T100000Z-12345",
+            run_dir=Path("."),
+            created_at="2026-08-29T10:00:00+00:00",
+            setids=["myset"],
+            steps=[],
+            counts={"executed": 2},
+            total_cost=5.50,
+            total_tokens={
+                "total": 50000,
+                "input": 40000,
+                "output": 10000,
+                "cache": 30000,
+            },
+            pid=12345,
+            pid_state="exited",
+            is_live=False,
+            runtime_seconds=125.0,
+            runtime_str="2m 05s",
+        )
+        out = run_viewer.format_run_human(run, term)
+        lines = out.splitlines()
+        self.assertIn("pid: 12345 [exited]", lines[0])
+        self.assertIn("runtime: 2m 05s", lines[0])
+        self.assertIn("0 steps: 2 executed", lines[1])
+        self.assertIn(
+            "$5.50, 50.00K tok (40.00K in, 10.00K out, 30.00K cached)", lines[2]
+        )
