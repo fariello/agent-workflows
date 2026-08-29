@@ -241,8 +241,17 @@ _RESEARCH_MAP: Dict[str, str] = {
 # Backlog (attention-visible backlog tier; spec 20260813-1833-01). open -> ready (committed,
 # actionable), blocked -> blocked (committed but gated; carries a typed Gate-Kind/Gate-Ref),
 # parked -> parked (uncommitted "maybe"; auto-hidden from the default board), done -> done.
+# bklgrad Order 01 (v58bvy) E-02: graduated -> ACTIVE. The item's design was handed off to a
+# plan/spec and implementation work explicitly exists, which is exactly this contract's definition of
+# `active` ("work is EXPLICITLY in progress (a native state says so); never inferred"). It is NOT
+# `ready` (no action is owed on the ITEM; the action lives on its linked plans), NOT `done` (nothing is
+# implemented), and NOT `parked` (the work is intentionally live). This choice also PRESERVES the
+# release gate for free: `attention.release_blockers` skips an item only when its class is `done`, so a
+# graduated item carrying `Blocks-Release` stays in the outstanding blocker set. Mapping it to `done`
+# would have silently dropped it from that set.
 _BACKLOG_MAP: Dict[str, str] = {
     "open": READY,
+    "graduated": ACTIVE,
     "blocked": BLOCKED,
     "parked": PARKED,
     "done": DONE,

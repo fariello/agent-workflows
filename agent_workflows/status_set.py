@@ -27,6 +27,7 @@ from pathlib import Path
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import backlog as _backlog_mod
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
 from agent_workflows.result_types import Change
@@ -71,12 +72,10 @@ TYPE_STATUSES: dict[str, set[str]] = {
         "parked",
         "superseded",
     },
-    "backlog": {
-        "open",
-        "blocked",
-        "parked",
-        "done",
-    },
+    # bklgrad Order 01 (v58bvy) E-01: DERIVED from `backlog.STATUSES`, never re-listed. This copy is
+    # what refused `aw backlog set graduated` after the vocabulary grew, so it is now identical by
+    # construction (GUIDING_PRINCIPLES P8) and a future status cannot desync the setter.
+    "backlog": set(_backlog_mod.STATUSES),
     "releases": {
         "planned",
         "blocked",
@@ -738,8 +737,12 @@ def apply_status_change(
             dest_path = base_dir / disposition / rec.path.name
 
     elif rec.record_type == "backlog":
+        # bklgrad Order 01 (v58bvy) E-01: derived from `backlog.STATUS_DIRS`, not a re-listed tuple.
+        # With a hardcoded list this silently DECLINED TO MOVE a file whose source dir was the new
+        # status (the parent name would not be in the list), leaving the record's directory and its
+        # `- Status:` line disagreeing.
         if (
-            rec.path.parent.name in ("open", "blocked", "parked", "done")
+            rec.path.parent.name in _backlog_mod.STATUS_DIRS
             and rec.path.parent.name != norm_status
         ):
             dest_path = rec.path.parent.parent / norm_status / rec.path.name

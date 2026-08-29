@@ -48,7 +48,15 @@ from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
 
 BACKLOG_ROOTS = (".agents/backlog", ".aw/records/backlog")
-STATUS_DIRS = ("open", "blocked", "parked", "done")
+# bklgrad Order 01 (v58bvy) E-01: `graduated` sits between `open` and `done` and means the item's
+# DESIGN work was handed off to artifacts (a plan/spec carrying `From-Backlog`) while its code is NOT
+# yet written. Without it the lifecycle is effectively binary and an item whose spec + plans exist
+# still reads `open` (indistinguishable from untouched work), with `done` the only alternative - a
+# false claim of implementation that also drops any release gate. `graduated` is deliberately NOT a
+# release-gate satisfier: `aw attention` maps it to `active` (not `done`), so a graduated blocker stays
+# in the outstanding release-blocker set, and closing to `done` still requires the HANDOFF / SATISFIED
+# / DE-GATED legitimacy fixes in `check_engine.evaluate_blocking_close`.
+STATUS_DIRS = ("open", "graduated", "blocked", "parked", "done")
 STATUSES = frozenset(STATUS_DIRS)
 PRIORITIES = frozenset(("high", "medium", "low"))
 KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))

@@ -326,7 +326,13 @@ class CompleteQueryStatusTests(_DynamicRepoFixture):
         got = completion.complete_query(
             ["aw", "backlog", "set", "def456", "--status", ""], 5, self.root
         )
-        self.assertEqual(sorted(got), ["blocked", "done", "open", "parked"])
+        # bklgrad Order 01 (v58bvy) E-01: assert against the SOURCE OF TRUTH rather than a hardcoded
+        # list, which went stale the moment `graduated` joined the vocabulary. Completion derives from
+        # `backlog.STATUSES` (completion.py:509), so this stays correct for any future status too.
+        from agent_workflows import backlog as _backlog
+
+        self.assertEqual(sorted(got), sorted(_backlog.STATUSES))
+        self.assertIn("graduated", got)
 
 
 class CompleteQueryLatencyTests(_DynamicRepoFixture):

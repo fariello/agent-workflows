@@ -20,6 +20,7 @@ import re
 from typing import Dict, FrozenSet, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as _core
+from agent_workflows import backlog as _backlog
 from agent_workflows import plans as _plans
 
 # --------------------------------------------------------------------------------------
@@ -524,7 +525,11 @@ _ITEM_DEP_STATE_STATUSES: Dict[str, FrozenSet[str]] = {
             "superseded",
         )
     ),
-    "backlog": frozenset(("open", "blocked", "done", "parked")),
+    # bklgrad Order 01 (v58bvy) E-08: DERIVED from `backlog.STATUSES`, never re-listed. A second
+    # hardcoded copy here is what made `state:backlog:graduated:<id6>` unparseable when `graduated`
+    # was added to the backlog vocabulary, so the two sets are now provably identical by construction
+    # (GUIDING_PRINCIPLES P8) and a future status addition cannot silently desync this gate.
+    "backlog": _backlog.STATUSES,
 }
 # Kind rank for canonical ordering: executed < exists < state, then type, then status, then id6.
 _ITEM_DEP_KIND_RANK: Dict[str, int] = {"executed": 0, "exists": 1, "state": 2}

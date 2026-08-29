@@ -11,15 +11,23 @@ This is a `records`-class sub-tree: it materializes here at `.aw/records/backlog
 
 ```
 backlog/
-  open/      committed, actionable now        -> aw attention class: ready
-  blocked/   committed but gated              -> blocked  (requires a typed Gate-Kind/Gate-Ref)
-  parked/    uncommitted "maybes"             -> parked   (hidden from the default board; --all to show)
-  done/      completed/closed                 -> done
+  open/       committed, actionable now        -> aw attention class: ready
+  graduated/  design handed off to a plan/spec -> active   (code not yet written; still a release blocker)
+  blocked/    committed but gated              -> blocked  (requires a typed Gate-Kind/Gate-Ref)
+  parked/     uncommitted "maybes"             -> parked   (hidden from the default board; --all to show)
+  done/       completed/closed                 -> done
 ```
 
-Committed (`open`/`blocked`) items show in `aw attention`; uncommitted `parked` maybes are tracked
-but hidden until `aw attention --all`. This is the three-tier model: committed work needs attention;
-maybes stay quiet; pure context/notes are NOT backlog items (they stay in `TODO.md`'s Notes).
+Committed (`open`/`graduated`/`blocked`) items show in `aw attention`; uncommitted `parked` maybes are
+tracked but hidden until `aw attention --all`. This is the three-tier model: committed work needs
+attention; maybes stay quiet; pure context/notes are NOT backlog items (they stay in `TODO.md`'s Notes).
+
+`graduated` is the honest middle state for an item whose DESIGN is finished and handed off (a plan or
+spec carrying `- From-Backlog: <id6>`) but whose code is not yet written. Without it the lifecycle is
+effectively binary: such an item would either sit at `open`, indistinguishable from work nobody has
+touched, or be closed `done`, which falsely claims implementation and drops any release gate. A
+`graduated` item deliberately still counts as an outstanding release blocker, and reaching `done` still
+requires a handoff, cited evidence, or an explicit de-gate.
 
 ## Item format
 
@@ -28,7 +36,7 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 
 ```markdown
 - Id: <id6>
-- Status: open | blocked | parked | done
+- Status: open | graduated | blocked | parked | done
 - Set: <terse-id>
 - Priority: high | medium | low
 - Kind: bug | feature | chore | security | followup

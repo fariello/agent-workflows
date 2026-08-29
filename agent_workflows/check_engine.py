@@ -1286,6 +1286,31 @@ def _iter_plan_ipds(repo_root: Path):
                 continue
 
 
+def _iter_spec_records(repo_root: Path):
+    """Yield (path, text) for every spec under either layout's specs tree, skipping ignored dirs.
+
+    bklgrad Order 01 (v58bvy) E-06: mirrors ``_iter_plan_ipds`` so a spec can participate in the
+    ``From-Backlog`` handoff scan. Kept as its own iterator (rather than widening the plan one) so the
+    plan-only callers keep their exact current behavior.
+    """
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    for base in (
+        Path(repo_root) / ".aw" / "records" / "specs",
+        Path(repo_root) / ".agents" / "specs",
+    ):
+        if not base.is_dir() or _core.is_ignored_path(base, repo_root, ignored_dirs):
+            continue
+        for p in sorted(base.rglob("*.spec.md")):
+            if p.name in _SKIP_NAMES or _core.is_ignored_path(
+                p, repo_root, ignored_dirs
+            ):
+                continue
+            try:
+                yield p, p.read_text(encoding="utf-8")
+            except OSError:
+                continue
+
+
 def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, str]]:
     """Every plan whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
     out: List[Tuple[Path, str]] = []
@@ -1295,6 +1320,33 @@ def find_from_backlog_plans(repo_root: Path, item_id6: str) -> List[Tuple[Path, 
             mbr = _META_BLOCKS_RELEASE_RE.search(text)
             out.append((p, mbr.group(1) if mbr else ""))
     return out
+
+
+def find_from_backlog_specs(repo_root: Path, item_id6: str) -> List[Tuple[Path, str]]:
+    """Every spec whose `- From-Backlog:` names `item_id6`. Returns [(path, blocks_release_or_'')]."""
+    out: List[Tuple[Path, str]] = []
+    for p, text in _iter_spec_records(repo_root):
+        mfb = _META_FROM_BACKLOG_RE.search(text)
+        if mfb and mfb.group(1) == item_id6:
+            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+            out.append((p, mbr.group(1) if mbr else ""))
+    return out
+
+
+def find_from_backlog_artifacts(
+    repo_root: Path, item_id6: str
+) -> List[Tuple[Path, str]]:
+    """Every PLAN or SPEC whose `- From-Backlog:` names ``item_id6``.
+
+    bklgrad Order 01 (v58bvy) E-06: the HANDOFF route previously scanned plan IPDs ONLY, so a
+    spec-first graduation (a spec carrying `From-Backlog` plus the SAME `Blocks-Release`) was invisible
+    and its backlog item could never legitimately close. A spec preserves the gate exactly as well as a
+    plan does, so both are accepted here. Plans are yielded first so an existing plan-based handoff
+    keeps producing the identical verdict it did before.
+    """
+    return list(find_from_backlog_plans(repo_root, item_id6)) + list(
+        find_from_backlog_specs(repo_root, item_id6)
+    )
 
 
 class CloseVerdict(NamedTuple):
@@ -1356,14 +1408,16 @@ def evaluate_blocking_close(
             return CloseVerdict(
                 True, "ok", "no release gate to preserve", (), "DE-GATED"
             )
-        # HANDOFF: a From-Backlog plan with the SAME Blocks-Release inherited the gate.
+        # HANDOFF: a From-Backlog PLAN OR SPEC with the SAME Blocks-Release inherited the gate.
+        # bklgrad Order 01 (v58bvy) E-06: this scanned plans only, which made a spec-first graduation
+        # unclosable by construction even though a spec preserves the gate identically.
         if item_id6:
-            for _p, plan_br in find_from_backlog_plans(repo_root, item_id6):
-                if plan_br == blocks_release:
+            for _p, carrier_br in find_from_backlog_artifacts(repo_root, item_id6):
+                if carrier_br == blocks_release:
                     return CloseVerdict(
                         True,
                         "ok",
-                        f"gate {blocks_release!r} handed off to a From-Backlog plan",
+                        f"gate {blocks_release!r} handed off to a From-Backlog plan or spec",
                         (),
                         "HANDOFF",
                     )
@@ -1390,6 +1444,25 @@ def evaluate_blocking_close(
                 "cite satisfying evidence: `aw backlog set done <item> --evidence <in-tree artifact path>`",
                 "explicitly release the gate first: `aw backlog set done <item> --blocks-release -`",
             ),
+            None,
+        )
+
+    # bklgrad Order 01 (v58bvy) E-03: `graduated` is EXPLICITLY legitimate for a release-gated item and
+    # drops nothing: the item keeps its `Blocks-Release` field, and `aw attention` maps `graduated` to
+    # `active` (not `done`), so it stays in the outstanding release-blocker set. This is stated as its
+    # own branch rather than left to the trailing "unchecked" fall-through so it cannot be mistaken for
+    # an oversight. Critically, `graduated` is NOT a substitute for `done`: reaching `done` still
+    # requires HANDOFF / SATISFIED / DE-GATED above, so a release can never ship with its blockers
+    # merely graduated.
+    if target_status == "graduated" and blocks_release:
+        return CloseVerdict(
+            True,
+            "ok",
+            (
+                f"graduated preserves gate {blocks_release!r} (item stays a release blocker; "
+                f"`done` still requires handoff, evidence, or explicit de-gating)"
+            ),
+            (),
             None,
         )
 
@@ -1530,27 +1603,31 @@ def check_release_gate_consistency(repo_root: Path) -> List[_core.Drift]:
         mbr = _META_BLOCKS_RELEASE_RE.search(text)
         if mid and mbr:
             item_gate[mid.group(1)] = (mbr.group(1), str(f))
-    for p, text in _iter_plan_ipds(repo_root):
-        mfb = _META_FROM_BACKLOG_RE.search(text)
-        if not mfb:
-            continue
-        target_id6 = mfb.group(1)
-        if target_id6 not in item_gate:
-            continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
-        item_br, _item_path = item_gate[target_id6]
-        mbr = _META_BLOCKS_RELEASE_RE.search(text)
-        plan_br = mbr.group(1) if mbr else None
-        if plan_br != item_br:
-            drift.append(
-                _core.Drift(
-                    str(p),
-                    "check.from-backlog-gate-mismatch",
-                    (
-                        f"From-Backlog plan's Blocks-Release {plan_br!r} does not match backlog item "
-                        f"{target_id6}'s Blocks-Release {item_br!r}"
-                    ),
+    # bklgrad Order 01 (v58bvy) E-07: scan PLANS AND SPECS. A spec is now an accepted HANDOFF gate
+    # carrier (E-06), so the consistency rule must cover it too or the checker and the setter diverge:
+    # a spec could carry a mismatched gate, be accepted as a carrier by nothing, and never be flagged.
+    for kind, iterator in (("plan", _iter_plan_ipds), ("spec", _iter_spec_records)):
+        for p, text in iterator(repo_root):
+            mfb = _META_FROM_BACKLOG_RE.search(text)
+            if not mfb:
+                continue
+            target_id6 = mfb.group(1)
+            if target_id6 not in item_gate:
+                continue  # dangling From-Backlog is check.from-backlog-dangling's job (ku93tn)
+            item_br, _item_path = item_gate[target_id6]
+            mbr = _META_BLOCKS_RELEASE_RE.search(text)
+            carrier_br = mbr.group(1) if mbr else None
+            if carrier_br != item_br:
+                drift.append(
+                    _core.Drift(
+                        str(p),
+                        "check.from-backlog-gate-mismatch",
+                        (
+                            f"From-Backlog {kind}'s Blocks-Release {carrier_br!r} does not match "
+                            f"backlog item {target_id6}'s Blocks-Release {item_br!r}"
+                        ),
+                    )
                 )
-            )
     return drift
 
 
