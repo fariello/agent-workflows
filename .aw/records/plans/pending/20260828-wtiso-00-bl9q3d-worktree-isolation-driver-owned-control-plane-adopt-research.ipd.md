@@ -4,10 +4,11 @@
 - Kind: orchestrator
 - Concern: Worktree isolation (emus4n) shipped, but the runner leaves per-machine control state (`.aw/state`, `.aw/records/runs`) in-repo and cwd-relative, and its prompt forces the in-lane agent to touch main-repo paths. This produces three live failures, all diagnosed this session and captured as backlog: qyaime (external_directory permission prompt deadlocks a non-interactive --auto turn forever), xmqv5l (begin freezes a whole-file plan_content_digest so a normal self-execution goes stale and finalize/merge-back refuses), dh0uno (inner aw resolves state relative to the worktree, forking a second receipt/run tree the driver cannot see and teardown destroys). Research x03wgn (.aw/records/research/20260828-wtiso-00-x03wgn) establishes these are one architecture problem and prescribes a driver-owned control plane vs lane-owned product data plane, out-of-repo machine state keyed by git-common-dir, driver-performed lifecycle (so a FORGETFUL agent that runs no aw tools still completes safely), a layered permission-deadlock defense, and real candidate-merge integration. This orchestrator sequences the 7-child migration adopting x03wgn.
 - Scope: ORCHESTRATOR - authors NO product code. Its own execution work is (E-01) whole-Set verification only. The children carry all implementation. This plan owns: the child table + dependency chain, the shared anti-greenwash execution contract every child inherits, the Set completion criteria, and the cross-IPD no-drift checks. It cites research x03wgn as the binding design and each child names the exact x03wgn section(s) it implements.
-- Scope-Paths: .aw/records/plans/pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
+- Scope-Paths: .aw/records/plans/pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md, .aw/records/walkthroughs/
 - Item-Dependencies: none
 - From-Backlog: qyaime
-- Status: to-review
+- Blocks-Release: next
+- Status: reviewed
 - Set: wtiso
 - Order: 0
 - Highest E allocated: 01
@@ -15,6 +16,8 @@
 - Id: bl9q3d
 
 ## Workflow history
+- 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Fixed a dangling `V-02` referenced three times (including in the gate's own "verify V-01+V-02") when only V-01 exists - the contract check is V-01 part (2), so an executor could have blocked on a nonexistent item or skipped the check. Restored the 5 x03wgn acceptance criteria the completion list had silently dropped (tracked-but-uncommitted refusal, verified local artifact manifest, SECRETS-never-in-Git, protected-ref/git-common-dir mutation blocking, default/hardened external-write denial), numbered all 15, and attributed each to its owning child. Reconciled the E-01-vs-OQ-01 contradiction over whether wtiso-07 must be executed, and made criteria 9/10 explicitly PARTIALLY VERIFIED when Phase 6 is parked instead of silently unverified. Fixed real exit-blocking release-gate drift: this plan carried `From-Backlog: qyaime` with NO `Blocks-Release`, firing `check.from-backlog-gate-mismatch` (verified live: 5 findings before, 4 after) - added `Blocks-Release: next` and cross-referenced the 4 sibling children that still mismatch and must fix it in their own files. Added `.aw/records/walkthroughs/` to Scope-Paths, since E-01 required writing a verification record with no legal path inside its own scope fence. Named the ONE shared predicate library concretely (`agent_workflows/lane_status.py` from rchpms) with a real grep command, as the no-drift check was unverifiable as written. Hardened the gate (named full-suite command, scope fence, no `--no-verify`/tag/release) and added V-01 part (4) requiring a zero-finding release-gate check.
+- 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): status set to to-review
 
 - 2026-08-28 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): created.
@@ -29,16 +32,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: whole-Set verification (orchestrator authors no code)
 
-- [ ] E-01 After ALL children (wtiso-01..07) are in `executed/`, run the whole-Set verification: confirm every child's V-items were satisfied with pasted evidence, confirm the acceptance criteria in x03wgn Section (implementation acceptance criteria) hold against the real repo, and confirm no cross-IPD drift (see Cross-IPD validation). Author no product code here.
+- [ ] E-01 Once children wtiso-01..06 are ALL in `executed/` AND wtiso-07 is either `executed/` or explicitly parked per OQ-01, run the whole-Set verification: confirm every child's V-items were satisfied with pasted evidence, confirm EACH of the 15 numbered completion criteria below holds against the real repo (recording criteria 9 and 10 as PARTIALLY VERIFIED if 07 is parked), and confirm no cross-IPD drift (see Cross-IPD validation, including a re-run of the release-gate checker). Write the verification record to `.aw/records/walkthroughs/` (see Scope-Paths). Author no product code here.
   - Depends on: none
-  - Expected outcome: a single verification record demonstrating each acceptance criterion holds, with pasted command evidence; any failing criterion blocks the Set (orchestrator stays not-executed).
+  - Expected outcome: a single verification record at the declared `.aw/records/walkthroughs/` path demonstrating each of the 15 criteria with pasted command evidence (criteria 9/10 partially, with the parked child cited, if 07 is parked); any unconditional criterion that fails blocks the Set (orchestrator stays not-executed).
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
 ## The shared anti-greenwash execution contract (every child inherits this verbatim)
 
-This contract is the Set's defining property. Each child IPD MUST embed it in its own Approval-and-execution gate; this orchestrator is the source of truth, and cross-IPD validation V-02 checks each child carries it.
+This contract is the Set's defining property. Each child IPD MUST embed it in its own Approval-and-execution gate; this orchestrator is the source of truth, and V-01 part (2) checks each child carries it.
 
 1. **Prose is never evidence.** No E-item is complete on an assertion. Each E-item names ONE observable action; each paired V-item names FALSIFIABLE evidence: an exact command to run plus the specific string/exit-code/file-state that must appear. "Tests pass", "done", "verified", "should work" are forbidden as evidence.
 2. **Paste real output (HARD MUST).** Every V-item's Observed evidence MUST be the ACTUAL pasted stdout/stderr + exit code of the named command, run in this repo at execution time. Fabricated, summarized, remembered, or "expected" output is a validation failure and a GP2 honesty violation. A V-item whose command was not run stays `Result: pending`.
@@ -67,25 +70,33 @@ Each child depends on the prior via `Item-Dependencies: executed:<id6>` (strict 
 
 ## Completion criteria (the whole Set is done only when)
 
-Each criterion is an x03wgn "implementation acceptance criterion" and must be shown with pasted evidence in E-01's verification record:
+This list is the COMPLETE x03wgn "Implementation acceptance criteria" set (research Section 9, 15 criteria) - it is reproduced in full deliberately, because a partial copy would let the Set "pass" while an approved criterion went unverified. Each must be shown with pasted evidence in E-01's verification record. `owner` names the child that implements it, so a parked child makes its criteria explicitly unverified rather than silently dropped (see the Phase-6 conditionality note below).
 
-- Two concurrent lanes + every inner read-only `aw` resolve the SAME checkout identity but DISTINCT lane roots (test output).
-- A lane that uses NO custom tools still completes safely and yields an accurate driver report (adversarial test).
-- A task needing an approved untracked input gets a digest-verified lane copy and NEVER needs live original-checkout access.
-- A request for a missing original-checkout file is denied, classified, materialized-if-safe, resumed with NO interactive prompt.
-- A permission ask cannot leave a headless root OR child session waiting indefinitely (killed + recorded).
-- A lane cannot silently create authoritative receipts/reports/decisions/locks/journals/integration records.
-- Killing the worker at any point preserves and classifies all work (crash-injection tests).
-- Integration tests run on the EXACT merged candidate; target movement forces rebuild.
-- Recovery explains every retained worktree/branch/lock/receipt/transaction/candidate WITHOUT a model.
-- Removing a lane is always preceded by a durable event proving its content was integrated, abandoned, or preserved.
+1. Two concurrent lanes + every inner read-only `aw` resolve the SAME checkout identity but DISTINCT lane roots (test output). [owner: 7p9n2v]
+2. A lane that uses NO custom tools still completes safely and yields an accurate driver report (adversarial test). [owner: rchpms]
+3. A task needing an approved untracked input gets a digest-verified lane copy and NEVER needs live original-checkout access. [owner: qcqhj7]
+4. A request for a missing original-checkout file is denied, classified, materialized-if-safe, resumed with NO interactive prompt. [owner: qcqhj7]
+5. Tracked-but-uncommitted main content can never be silently omitted: default mode REFUSES it before launch, and any future snapshot mode records it separately from the agent delta. [owner: qcqhj7 clean-base gate]
+6. Tracked product changes and sanitized durable AW records survive through Git, while useful nontracked outputs survive through a VERIFIED local artifact manifest. [owner: rchpms five-way classifier + verified harvest; 2c122z publication projection]
+7. Secrets never enter Git or ordinary reports/artifact bundles; unknown ignored files PREVENT teardown. [owner: rchpms secret-local class + unknown-blocks-teardown]
+8. A lane cannot silently create authoritative receipts/reports/decisions/locks/journals/integration records. [owner: rchpms worker-role refusal]
+9. Unexpected mutations to protected refs, Git configuration/hooks, or other worktree administration BLOCK integration; hardened workers cannot write the Git common directory. [owner: 2c122z integration block; hardened-worker half is 1o4eif E-04/E-09 - PHASE-6 CONDITIONAL]
+10. In default mode, accidental external writes are denied or detected; in hardened mode, the OS denies them. [owner: qcqhj7 default-mode deny/detect; OS-denial half is 1o4eif E-05/E-08 - PHASE-6 CONDITIONAL]
+11. A permission ask cannot leave a headless root OR child session waiting indefinitely (killed + recorded). [owner: qcqhj7 watchdogs]
+12. Killing the worker at any point preserves and classifies all work (crash-injection tests). [owner: 2c122z]
+13. Integration tests run on the EXACT merged candidate; target movement forces rebuild. [owner: 2c122z]
+14. Recovery explains every retained worktree/branch/lock/receipt/transaction/candidate WITHOUT a model. [owner: 2c122z aw recover/doctor --lanes]
+15. Removing a lane is always preceded by a durable event proving its content was integrated, abandoned, or preserved. [owner: rchpms teardown gate + 2c122z durable events]
+
+PHASE-6 CONDITIONALITY (reconciles E-01 with OQ-01): criteria 9 and 10 each have a hardened-mode half owned by `1o4eif` (Phase 6), which OQ-01 permits parking. If 07 is parked, E-01 MUST record criteria 9 and 10 as PARTIALLY VERIFIED - default-mode half demonstrated, hardened-mode half explicitly deferred with the parked child cited - and MUST NOT mark them satisfied. All other 13 criteria are unconditional and must be fully demonstrated regardless.
 
 ## Cross-IPD validation
 
-- No-drift: hook, `aw lane status`, driver, finalize, and integration all call ONE pure gate/predicate library (grep shows a single import site set; no duplicated rule logic).
-- Every child embeds the shared anti-greenwash contract verbatim (checked in V-02).
-- The Item-Dependencies chain is strictly linear 01->02->...->07 and `aw ipd dependencies`/lint report it consistently.
+- No-drift: hook, `aw lane status`, driver, finalize, and integration all call ONE pure gate/predicate library, which is `agent_workflows/lane_status.py` as introduced by child `rchpms` (Phase 2). Verification is concrete: `grep -rn "import lane_status\|from agent_workflows.lane_status" agent_workflows/` shows the driver/finalize/integration/`aw lane status` call sites resolving to that ONE module, and no second copy of a classification/receipt/scope rule exists elsewhere. If a later child needs a predicate the module lacks, it EXTENDS `lane_status.py`; it does not fork a parallel rule implementation.
+- Every child embeds the shared anti-greenwash contract verbatim (checked in V-01 part (2)).
+- The Item-Dependencies chain is strictly linear 01->02->...->07 and `aw ipd dependencies`/lint report it consistently. (Verified at review time: `8zgybk` none -> `qcqhj7` -> `rchpms` -> `7p9n2v` -> `58ha43` -> `2c122z` -> `1o4eif`.)
 - No child re-forks a second path resolver (after Phase 3, an AST guard forbids raw `.aw/state`/`.aw/records/runs` construction outside the resolver + bounded migration code).
+- RELEASE-GATE CONSISTENCY (added at review; currently FAILING for 4 children): every plan carrying `- From-Backlog: <id6>` MUST also carry a `- Blocks-Release:` value MATCHING that backlog item's, or the deterministic `check.from-backlog-gate-mismatch` rule fires and is EXIT-BLOCKING (`check_engine.check_release_gate_consistency`). All three source items (qyaime, xmqv5l, dh0uno) carry `Blocks-Release: next` (the `planned` 2.0.0 release f33nrj), so each From-Backlog plan needs `- Blocks-Release: next`. At review time this orchestrator was FIXED, but FOUR children still mismatch and MUST each be corrected in their OWN file (scope fence: this orchestrator may not edit them): `qcqhj7` (qyaime), `rchpms` (xmqv5l), `7p9n2v` (dh0uno), `58ha43` (dh0uno) - set with `aw ipd set <status> <id6> --blocks-release next`. E-01 MUST re-run the checker and show ZERO `check.from-backlog-gate-mismatch` findings before the Set is complete; a nonzero count blocks the Set. Rationale: without this, the release blockers these plans inherit could be closed while 2.0.0 silently lost its gate.
 
 ## Deferred / out of scope (with reason)
 
@@ -116,7 +127,7 @@ Each criterion is an x03wgn "implementation acceptance criterion" and must be sh
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: A whole-Set verification record (path cited) with THREE parts, each pasted from real execution: (1) for EACH completion criterion above, the ACTUAL output of the command/test proving it holds against the real repo, plus a `python3 -m pytest -p no:randomly -q` full-suite result; (2) the anti-greenwash-property check - grep/inspection showing each child wtiso-01..07 embeds the shared anti-greenwash execution contract AND that hook/`aw lane status`/driver/finalize/integration import ONE shared predicate library (no duplicated rule logic); (3) the AST/static guard (added by Phase 3) rejecting raw `.aw/state`/`.aw/records/runs` construction outside the resolver, shown BOTH passing on the clean tree AND failing on a planted violation. Any part without pasted passing evidence leaves this pending and the orchestrator not-executed.
+  - Required evidence: A whole-Set verification record at a cited `.aw/records/walkthroughs/<...>-walkthrough.md` path with FOUR parts, each pasted from real execution: (1) for EACH of the 15 NUMBERED completion criteria above, the ACTUAL output of the command/test proving it holds against the real repo, naming the criterion number and its owning child, plus a `python3 -m pytest -p no:randomly -q` full-suite result - and if wtiso-07 is parked, criteria 9 and 10 are recorded as PARTIALLY VERIFIED (default-mode half pasted, hardened-mode half deferred citing the parked child), never as satisfied; (2) the anti-greenwash-property check - grep/inspection showing each child wtiso-01..07 embeds the shared anti-greenwash execution contract AND that `grep -rn "import lane_status\|from agent_workflows.lane_status" agent_workflows/` proves hook/`aw lane status`/driver/finalize/integration resolve to the ONE `agent_workflows/lane_status.py` predicate library with no duplicated rule logic; (3) the AST/static guard (added by Phase 3) rejecting raw `.aw/state`/`.aw/records/runs` construction outside the resolver, shown BOTH passing on the clean tree AND failing on a planted violation (paste both runs); (4) the release-gate check - pasted output of the `check.from-backlog-gate-mismatch` rule showing ZERO findings across all wtiso plans (i.e. every `From-Backlog` plan carries a matching `Blocks-Release`), e.g. via `aw attention --check` or `python3 -c "from pathlib import Path; from agent_workflows import check_engine as ce; print(ce.check_release_gate_consistency(Path('.')))"`. Any part without pasted passing evidence leaves this pending and the orchestrator not-executed.
   - Observed evidence:
   - Result: pending
 
@@ -128,9 +139,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 Execution contract (orchestrator):
 
 1. Open questions: OQ-01 resolved; execution requires explicit human approval of the Set.
-2. This orchestrator authors NO product code. Its only E-item (E-01) is whole-Set verification AFTER all children are executed. Do NOT finalize this orchestrator until wtiso-01..07 (or 01..06 with 07 explicitly parked) are in executed/.
-3. Honesty rule (HARD MUST): E-01's verification record pastes ACTUAL command output for every acceptance criterion; never claim a criterion holds without running its check.
-4. Commit ONLY this plan file, path-scoped; never push.
-5. Lifecycle move on completion: verify V-01+V-02 with pasted evidence, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize` this orchestrator. An orchestrator finalizes only after its children are terminal.
+2. This orchestrator authors NO product code. Its only E-item (E-01) is whole-Set verification AFTER the children are terminal. Do NOT finalize this orchestrator until wtiso-01..06 are in executed/ and 07 is executed/ or explicitly parked per OQ-01.
+3. Honesty rule (HARD MUST): E-01's verification record pastes the ACTUAL stdout/stderr + exit code of every check, run in this repo at execution time, for all 15 numbered criteria plus the full-suite run `python3 -m pytest -p no:randomly -q`. Never claim a criterion holds without running its check; a criterion whose check was not run stays unsatisfied and the orchestrator stays not-executed. Fabricated, summarized, remembered, or "expected" output is a validation failure and a GP2 honesty violation.
+4. Scope fence: touch ONLY this plan file and the E-01 verification record under `.aw/records/walkthroughs/` (the declared Scope-Paths). Do NOT edit sibling children (including to fix their `Blocks-Release`; that is each child's own file), the research report, or any product code. If the work seems to need more, STOP and report.
+5. Commit ONLY the files in Scope-Paths, path-scoped (`git commit -m msg -- <paths>`); never `git add -A`/bare/`-a`; never push; never `--no-verify`; never create a git tag, GitHub Release, or registry upload.
+6. Lifecycle move on completion: verify V-01 (ALL FOUR parts) with pasted evidence, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize` this orchestrator. An orchestrator finalizes only after its children are terminal. (This orchestrator has exactly ONE E-item and therefore exactly ONE V-item; there is no V-02. The anti-greenwash-property, AST-guard, and release-gate checks are V-01 parts (2), (3), and (4), not separate V-items.)
 
 The shared anti-greenwash execution contract (above) is the authority every child copies into its own gate; do not weaken it per child.
