@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 150 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 151 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -15,6 +15,16 @@ Showing the 40 most-recent of 150 Sets; the full manifest is INDEX.json.
 ## ocsync
 
 - `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
+
+## runstop
+
+- `zpbx7o` [pending] 00 pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md
+- `2ouj70` [pending] 01 pending/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md
+- `gq6m2u` [pending] 02 pending/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md
+- `1qxuke` [pending] 03 pending/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md
+- `foi1b3` [pending] 04 pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
+- `m0z0ti` [pending] 05 pending/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
+- `71vjbn` [pending] 06 pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
 
 ## assessdocs
 
@@ -217,10 +227,6 @@ Showing the 40 most-recent of 150 Sets; the full manifest is INDEX.json.
 ## renametypes
 
 - `53yczi` [executed] 01 executed/20260823-renametypes-01-53yczi-universal-artifact-type-support-in-aw-rename.ipd.md
-
-## shardmonth
-
-- `nhbgcc` [executed] 01 executed/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md
 
 ## (singletons: no Set)
 

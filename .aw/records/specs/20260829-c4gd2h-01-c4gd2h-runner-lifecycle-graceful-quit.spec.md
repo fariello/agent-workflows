@@ -1,7 +1,7 @@
 # Spec: Runner lifecycle: graceful-quit protocol and stop-state reconciliation
 
 - Date: 2026-08-29
-- Status: to-review
+- Status: approved
 - Id: c4gd2h
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - From-Backlog: kjzlgw
@@ -10,7 +10,7 @@
 
 ## Workflow history
 
-- 2026-08-29 to-review (aw specs):
+- 2026-08-29 approved (aw specs, --by-human): Approved by maintainer instruction 2026-08-29: 'graduate/implement/execute <backlog>' must write specs as approved without a separate stop-and-approve round trip; all blocking OQs resolved from repository evidence.
 ## 0. Concepts (kept distinct)
 
 - **STOP LEVEL**: how much in-flight work is permitted to COMPLETE before shutdown begins. This is the ONLY axis on which the four levels differ.
@@ -125,9 +125,9 @@ The only difference between 3 and 4 is outcome CERTAINTY, not cleanliness.
 ### OQ-01: Does level 3's "next safe checkpoint" require agent cooperation, or can the driver alone determine it?
 
 - Blocking: yes (it determines whether level 3 is implementable without changing the agent prompt/protocol)
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Notes: If the driver can only observe process and filesystem state, "safe checkpoint" may be limited to between-tool-call boundaries it can detect. If the agent must cooperate (emit a checkpoint marker), that is a prompt/protocol change with its own compatibility cost, and level 3 may degrade to level 4 for agents that do not cooperate. Resolve before implementation planning.
+- Resolution (2026-08-29, from repository evidence; NO agent cooperation required): the driver ALREADY consumes the child's structured event stream line-by-line, so it can observe turn-internal boundaries itself. `oc_runipd.py:1765-1786` spawns the child with `--format json` and iterates `for line in process.stdout`, dispatching each line to `render_event(...)`; the captured session JSONL for a live run contains discrete `{"type":"step_start",...}` and `{"type":"tool_use",...}` records (verified against `.aw/records/runs/run-20260829T053827Z-2084502/sessions/01-jolfpj-attempt-1.jsonl`). A SAFE CHECKPOINT is therefore DEFINED as the instant after a completed `tool_use`/step event and before the next one is dispatched, which the driver detects unilaterally. This satisfies R10 (observable state, not elapsed time) with no prompt/protocol change and no per-agent capability negotiation. Consequence: level 3 does NOT degrade to level 4 for a non-cooperating agent. The existing `StallWatchdog` (`oc_runipd.py:1769`) is the precedent that the driver may act on stream observation alone.
 
 ### OQ-02: Should `stop` be able to target ALL live runs at once (e.g. `--all`)?
 
@@ -139,9 +139,9 @@ The only difference between 3 and 4 is outcome CERTAINTY, not cleanliness.
 ### OQ-03: Where does the stop-request flag live?
 
 - Blocking: yes (it interacts directly with `wtiso` Phase 4, which relocates machine state out of the repo)
-- Status: open
+- Status: resolved
 - Owner: human maintainer
-- Notes: Putting it in `.aw/state` conflicts with `wtiso`'s out-of-repo relocation; putting it in the run directory makes it worktree-relative, which is the `dh0uno` defect. Must be decided jointly with `wtiso` Phase 3/4 (`7p9n2v`, `58ha43`) so the two do not disagree. This spec deliberately does not pick a path.
+- Resolution (2026-08-29, follow `wtiso`, do not invent a third location): the stop-request flag is per-machine CONTROL state, exactly the category `wtiso` Phase 4 relocates, so it lives at `platform_state.checkout_state_root(<checkout-id>)/runs/<run-id>/stop-request.json`, out of the repo and keyed by the Phase-3 canonical git-common-dir checkout-id. Evidence: `wtiso-05` (`58ha43`) E-01/E-02 define `state_home()` and `checkout_state_root(checkout_id)` under `$XDG_STATE_HOME/agent-workflows/checkouts/<checkout-id>/`, and E-04 routes the driver run root so `run_dir` resolves to `checkout_state_root(<checkout-id>)/runs/<run-id>`; the flag simply rides inside that already-relocated run dir. This is why it must NOT go in `<repo>/.aw/state` (the root Phase 4 moves) and must NOT be resolved from a worktree-relative path (backlog `dh0uno`: an inner `aw` forks a second state tree the driver cannot see and teardown destroys). Sequencing consequence recorded in the plans: the out-of-repo path REQUIRES `wtiso` Phase 3+4 (`7p9n2v`, `58ha43`) to be executed first; until then the flag resolves through the same accessor so no second resolver is introduced (the `wtiso` Phase 3 AST guard forbids new raw `.aw/state` construction).
 
 ### OQ-04: Is `unknown_outcome` reconciliation automatic or operator-gated?
 
