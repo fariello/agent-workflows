@@ -2,46 +2,48 @@
 
 This directory contains standalone utility scripts for repository maintenance, workflow execution, and migration.
 
-## `agy_run.py`
+## `aw agy exec` (was `agy_run.py`)
 
-`tools/agy_run.py` is a unified multi-mode runner and skeptical validator for Antigravity (Gemini 3.7 Flash High). It runs a primary task turn with calibrated diligence framing, followed automatically by an evidence-backed skeptical validation turn in the exact same conversation session.
+`aw agy exec` is a unified multi-mode runner and skeptical validator for Antigravity (Gemini 3.7 Flash High). It runs a primary task turn with calibrated diligence framing, followed automatically by an evidence-backed skeptical validation turn in the exact same conversation session.
+
+The logic is packaged as `agent_workflows.agy_run` and the canonical surface is `aw agy exec`. `tools/agy_run.py` is a thin compat shim that forwards to the packaged core, so existing `python3 tools/agy_run.py ...` invocations keep working. Note the surface is `aw agy exec`, NOT `aw agy run`: `aw agy run` (and `runagy`) remain aliases of the separate multi-IPD queue driver `aw agy runipd`, which is a genuinely distinct tool.
 
 ### Execution Modes
 
 1. **IPD Mode**:
    ```bash
-   python3 tools/agy_run.py 7cvh9t
-   python3 tools/agy_run.py --ipd .agents/plans/pending/20260816-test.md
+   aw agy exec 7cvh9t            # or: python3 tools/agy_run.py 7cvh9t
+   aw agy exec --ipd .agents/plans/pending/20260816-test.md
    ```
    Executes the pending Implementation Plan Document, then runs a skeptical self-audit verifying falsifiable tests, code path wiring, and actual command outputs.
 
 2. **Spec-to-IPD Mode**:
    ```bash
-   python3 tools/agy_run.py --spec .agents/docs/specs/example.spec.md
+   aw agy exec --spec .agents/docs/specs/example.spec.md
    ```
    Authors a conformant IPD from a specification document using `aw ipd scaffold`, assigns IDs with `aw ipd sync`, verifies with `aw ipd lint`, and audits complete requirement coverage.
 
 3. **Prompt File Mode**:
    ```bash
-   python3 tools/agy_run.py --file .agents/prompts/local/brief.md
-   python3 tools/agy_run.py -f .agents/prompts/local/brief.md
+   aw agy exec --file .agents/prompts/local/brief.md
+   aw agy exec -f .agents/prompts/local/brief.md
    ```
    Executes an external prompt brief with post-run verification.
 
 4. **Raw Prompt Mode**:
    ```bash
-   python3 tools/agy_run.py -p "refactor installer error handling in engine.py"
-   python3 tools/agy_run.py --prompt "add unit tests for resolve_target_layout"
+   aw agy exec -p "refactor installer error handling in engine.py"
+   aw agy exec --prompt "add unit tests for resolve_target_layout"
    ```
    Provides convenient `agy -c -p` ergonomics with two-turn skeptical validation.
 
 ### Session Continuity and Isolation
 
-- Resume project conversation (default): `python3 tools/agy_run.py -p "..."`
-- Attach to specific conversation ID: `python3 tools/agy_run.py -s <session_id> -p "..."`
-- Force clean slate without inheriting context: `python3 tools/agy_run.py --new-session 7cvh9t`
-- List sessions for this workspace: `python3 tools/agy_run.py --list-sessions`
-- Skip verification turn: `python3 tools/agy_run.py --no-audit -p "..."`
+- Resume project conversation (default): `aw agy exec -p "..."`
+- Attach to specific conversation ID: `aw agy exec -s <session_id> -p "..."`
+- Force clean slate without inheriting context: `aw agy exec --new-session 7cvh9t`
+- List sessions for this workspace: `aw agy exec --list-sessions`
+- Skip verification turn: `aw agy exec --no-audit -p "..."`
 
 ## `aw agy sessions` (was `agy_sessions.py`)
 
@@ -83,7 +85,7 @@ aw agy view --match tool --raw path/to/log.jsonl
 
 ## `antigravity_execute_ipd.py`
 
-`tools/antigravity_execute_ipd.py` is a backwards-compatible wrapper that delegates directly to `tools/agy_run.py` in IPD mode. Existing invocations continue to work without modification.
+`tools/antigravity_execute_ipd.py` is a backwards-compatible wrapper that delegates directly to `tools/agy_run.py` (now the compat shim, which re-exports the packaged `agent_workflows.agy_run` core) in IPD mode. Existing invocations continue to work without modification.
 
 ## `untrack-workflow-artifacts.py`
 

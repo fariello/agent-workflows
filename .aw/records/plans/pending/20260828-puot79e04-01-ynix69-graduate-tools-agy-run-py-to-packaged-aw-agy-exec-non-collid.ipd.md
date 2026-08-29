@@ -13,9 +13,11 @@
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: ynix69
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
+- Approval: 2026-08-29, human ("approved"): status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set, --by-human): status set to approved
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): graduate agy_run.py -> aw agy exec (packaged core + full-re-export compat shim); migrate tests + invert puot79 assertions; docs [Scope reconciliation - in-scope-unmodified agent_workflows/agy_run.py: changed in execution commit 4579ba8 (before begin base); new packaged core; in-scope-unmodified agent_workflows/cli.py: changed in 4579ba8; added aw agy exec subparser + both dispatch sites; in-scope-unmodified tests/: changed in 4579ba8; tests/test_agy_tools_graduation.py inversions + exec/shim/no-collision tests; in-scope-unmodified tools/README.md: changed in 4579ba8; documented aw agy exec + shim; in-scope-unmodified tools/agy_run.py: changed in 4579ba8; reduced to full-re-export compat shim; in-scope-unmodified tools/test_agy_run.py: changed in 4579ba8; migrated to packaged surface, kept antigravity_execute_ipd compat]
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-28 reviewed (aw set): status set to reviewed
 - 2026-08-28 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Added E-05 (invert three contradicted puot79 assertions - draft missed test_no_agy_exec_surface_yet), E-06 + tools/README.md scope (doc sync), corrected build_parser->parse_args, added import agy_sessions fixup, dual dispatch-site wiring, antigravity_execute_ipd re-export chain preservation, and V-05/V-06. Status -> reviewed.
@@ -34,37 +36,43 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: package + expose the runner
 
-- [ ] E-01 Create packaged core `agent_workflows/agy_run.py` by moving the logic from `tools/agy_run.py` (`prog="agy_run.py"`), preserving its CLI surface (`--ipd/--spec/--file/--prompt`, two-turn skeptical protocol, session-continuity flags), its public functions (`parse_args`, `main`, `run`, `ScriptError`, `AgyResult`, `repository_root`, `resolve_ipd`, `stable_id_from_filename`, `relative_posix`, `resolve_agy`, `run_agy`, `build_turn1_prompt`, `build_turn2_prompt`), and a `main()` entry. Fix the internal `import agy_sessions` (tools/agy_run.py:809, used by `--list-sessions`) to `from agent_workflows import agy_sessions` so it resolves from the package, not from `tools/` on `sys.path`.
+- [x] E-01 Create packaged core `agent_workflows/agy_run.py` by moving the logic from `tools/agy_run.py` (`prog="agy_run.py"`), preserving its CLI surface (`--ipd/--spec/--file/--prompt`, two-turn skeptical protocol, session-continuity flags), its public functions (`parse_args`, `main`, `run`, `ScriptError`, `AgyResult`, `repository_root`, `resolve_ipd`, `stable_id_from_filename`, `relative_posix`, `resolve_agy`, `run_agy`, `build_turn1_prompt`, `build_turn2_prompt`), and a `main()` entry. Fix the internal `import agy_sessions` (tools/agy_run.py:809, used by `--list-sessions`) to `from agent_workflows import agy_sessions` so it resolves from the package, not from `tools/` on `sys.path`.
   - Depends on: none
   - Expected outcome: `agent_workflows/agy_run.py` importable; `agy_run.parse_args([...])` and `agy_run.main([...])` work; `--list-sessions` resolves the packaged `agy_sessions`; behavior parity with the pre-move tool. (NOTE: the tool exposes `parse_args`, NOT `build_parser`.)
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: created agent_workflows/agy_run.py (moved logic, fixed `import agy_sessions`->`from agent_workflows import agy_sessions`, and set `_PROMPT_DIR = Path(__file__).resolve().parent.parent / "tools" / "awphysical"` so the prompt files still resolve; see DECISION 01-ynix69-D1).
 
-- [ ] E-02 Expose it as `aw agy exec` in `cli.py`: add an `exec` subparser to the `agy_sub` group (currently defined at cli.py:2606, alongside the `sessions`/`view` parsers at 2623/2633, capturing `nargs=REMAINDER` verbatim), AND wire BOTH dispatch sites the other agy subcommands use - the early fast-path forwarder (cli.py:7610-7635, where `sessions`/`view` are matched) AND the argparse dispatch (cli.py:7799-7817, the `if args.command in ("agy","antigravity")` block) - forwarding to `agent_workflows.agy_run.main`. Do NOT register `aw agy run` (that alias stays mapped to `agy_runipd`).
+- [x] E-02 Expose it as `aw agy exec` in `cli.py`: add an `exec` subparser to the `agy_sub` group (currently defined at cli.py:2606, alongside the `sessions`/`view` parsers at 2623/2633, capturing `nargs=REMAINDER` verbatim), AND wire BOTH dispatch sites the other agy subcommands use - the early fast-path forwarder (cli.py:7610-7635, where `sessions`/`view` are matched) AND the argparse dispatch (cli.py:7799-7817, the `if args.command in ("agy","antigravity")` block) - forwarding to `agent_workflows.agy_run.main`. Do NOT register `aw agy run` (that alias stays mapped to `agy_runipd`).
   - Depends on: E-01
   - Expected outcome: `aw agy exec --help` shows the runner usage from BOTH invocation forms; `aw agy run`/`runagy`/`runipd` still route to `agy_runipd`.
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: added the `exec` subparser to `agy_sub` (nargs=REMAINDER as `exec_args`), the fast-path forwarder branch (`argv[1]=="exec"` -> `agy_run.main`), and the argparse-dispatch branch (`agy_cmd=="exec"` -> `agy_run.main`). Left `run`/`runagy`/`runipd` mapped to `agy_runipd` unchanged.
 
 ### Task group 2: shim + test migration + inversion + docs
 
-- [ ] E-03 Reduce `tools/agy_run.py` to a thin compat shim that re-exports ALL module attributes of `agent_workflows.agy_run` (the `for _k,_v in vars(...).items()` pattern from tools/agy_sessions.py) and forwards `main` to it, preserving `python3 tools/agy_run.py ...` behavior. The full re-export is REQUIRED because `tools/antigravity_execute_ipd.py` does `import agy_run` and re-exports `ScriptError`/`AgyResult`/`resolve_ipd`/`run_agy`/etc. off it, and the `agy-run-entry-points` compat surface (compat_migration.py:272) asserts the import surface is unchanged - do NOT edit `antigravity_execute_ipd.py`; the shim's re-export must keep its chain resolving.
+- [x] E-03 Reduce `tools/agy_run.py` to a thin compat shim that re-exports ALL module attributes of `agent_workflows.agy_run` (the `for _k,_v in vars(...).items()` pattern from tools/agy_sessions.py) and forwards `main` to it, preserving `python3 tools/agy_run.py ...` behavior. The full re-export is REQUIRED because `tools/antigravity_execute_ipd.py` does `import agy_run` and re-exports `ScriptError`/`AgyResult`/`resolve_ipd`/`run_agy`/etc. off it, and the `agy-run-entry-points` compat surface (compat_migration.py:272) asserts the import surface is unchanged - do NOT edit `antigravity_execute_ipd.py`; the shim's re-export must keep its chain resolving.
   - Depends on: E-01
   - Expected outcome: `tools/agy_run.py` is a shim; invoking it forwards to the packaged core with identical behavior; with `tools/` on `sys.path`, `import antigravity_execute_ipd` still resolves `resolve_ipd`/`run_agy`/etc.
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: rewrote tools/agy_run.py as a thin shim (adds repo root to sys.path, `from agent_workflows import agy_run`, full `vars()` re-export, delegates `main`), mirroring tools/agy_sessions.py. antigravity_execute_ipd.py left untouched; its `import agy_run` chain now resolves the packaged symbols through the shim.
 
-- [ ] E-04 Migrate `tools/test_agy_run.py` (834 lines; it covers BOTH `agy_run` AND `antigravity_execute_ipd` backward-compat, e.g. the `antigravity_execute_ipd` re-export asserts at tools/test_agy_run.py:449-461) to exercise the packaged surface while KEEPING the `antigravity_execute_ipd` compat coverage, and add to `tests/test_agy_tools_graduation.py`: an invocation test (`aw agy exec` runs the packaged core), a shim-forwarding test (`tools/agy_run.py` re-exports `agent_workflows.agy_run`), and a no-collision test (`aw agy run`/`runagy`/`runipd` -> `agy_runipd`, never `agy_run`).
+- [x] E-04 Migrate `tools/test_agy_run.py` (834 lines; it covers BOTH `agy_run` AND `antigravity_execute_ipd` backward-compat, e.g. the `antigravity_execute_ipd` re-export asserts at tools/test_agy_run.py:449-461) to exercise the packaged surface while KEEPING the `antigravity_execute_ipd` compat coverage, and add to `tests/test_agy_tools_graduation.py`: an invocation test (`aw agy exec` runs the packaged core), a shim-forwarding test (`tools/agy_run.py` re-exports `agent_workflows.agy_run`), and a no-collision test (`aw agy run`/`runagy`/`runipd` -> `agy_runipd`, never `agy_run`).
   - Depends on: E-02, E-03
   - Expected outcome: migrated + new tests pass; no-collision invariant proven; `antigravity_execute_ipd` backward-compat still verified.
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: migrated tools/test_agy_run.py to import the packaged `agent_workflows.agy_run` (so mocks land on the real functions the runner calls), kept the `antigravity_execute_ipd` compat coverage (repointed its delegation mock at `antigravity_execute_ipd.agy_run` - the shim module it actually calls - and added a shim->packaged-core resolution assert), and added AgyExecSurfaceTests (invocation) + AgyRunGraduatedTests.test_agy_run_shim_reexports_and_delegates (shim) + NoAgyRunCollisionTests/AgyExecSurfaceTests.test_exec_does_not_route_to_runipd (no-collision) to tests/test_agy_tools_graduation.py.
 
-- [ ] E-05 Invert the puot79 assertions in `tests/test_agy_tools_graduation.py` that this graduation contradicts (they WILL fail after E-01/E-02 otherwise): `NoAgyRunCollisionTests.test_no_agy_exec_surface_yet` (line 110, asserts `aw agy exec` does NOT exist), `AgyRunUntouchedTests.test_agy_run_tool_still_present_as_standalone` (line 155, asserts `prog="agy_run.py"` still in the tool), and `test_no_packaged_agy_run_core_yet` (line 162, asserts no packaged core). Rewrite each to the post-graduation expectation (exec surface EXISTS; tool is a shim; packaged core EXISTS). Keep `test_agy_run_still_routes_to_runipd` (line 99) UNCHANGED - it is the no-collision invariant that must still pass.
+- [x] E-05 Invert the puot79 assertions in `tests/test_agy_tools_graduation.py` that this graduation contradicts (they WILL fail after E-01/E-02 otherwise): `NoAgyRunCollisionTests.test_no_agy_exec_surface_yet` (line 110, asserts `aw agy exec` does NOT exist), `AgyRunUntouchedTests.test_agy_run_tool_still_present_as_standalone` (line 155, asserts `prog="agy_run.py"` still in the tool), and `test_no_packaged_agy_run_core_yet` (line 162, asserts no packaged core). Rewrite each to the post-graduation expectation (exec surface EXISTS; tool is a shim; packaged core EXISTS). Keep `test_agy_run_still_routes_to_runipd` (line 99) UNCHANGED - it is the no-collision invariant that must still pass.
   - Depends on: E-02, E-03
   - Expected outcome: the three inverted assertions reflect the post-graduation state and pass; the no-collision invariant test is preserved and passes.
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: inverted `test_no_agy_exec_surface_yet`->`test_agy_exec_surface_exists` (exec `--help` now succeeds), and rewrote `AgyRunUntouchedTests`->`AgyRunGraduatedTests` with `test_agy_run_tool_reduced_to_shim` (no `prog="agy_run.py"` in the tool; it re-exports the core) and `test_packaged_agy_run_core_exists` (core present with the parser). `NoAgyRunCollisionTests.test_agy_run_still_routes_to_runipd` left UNCHANGED and green.
 
-- [ ] E-06 Update `tools/README.md`: revise the `agy_run.py` section (line 5) to note the canonical `aw agy exec` surface and the `tools/agy_run.py` compat shim (mirroring the `aw agy sessions`/`aw agy view` sections), keep the `antigravity_execute_ipd.py` note (line 86) accurate given the shim, and note `aw agy run` remains the runipd alias.
+- [x] E-06 Update `tools/README.md`: revise the `agy_run.py` section (line 5) to note the canonical `aw agy exec` surface and the `tools/agy_run.py` compat shim (mirroring the `aw agy sessions`/`aw agy view` sections), keep the `antigravity_execute_ipd.py` note (line 86) accurate given the shim, and note `aw agy run` remains the runipd alias.
   - Depends on: E-02, E-03
   - Expected outcome: `tools/README.md` documents `aw agy exec` and the shim; no stale claim that `tools/agy_run.py` holds the logic.
-  - Execution state: pending
+  - Execution state: performed
+  - Notes: retitled the section to "`aw agy exec` (was `agy_run.py`)", added the packaged-core + compat-shim + not-`aw agy run` note (mirroring the sessions/view sections), switched the mode/session examples to `aw agy exec`, and updated the `antigravity_execute_ipd.py` note to reflect the shim.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -132,35 +140,35 @@ Validation command: `python3 -m pytest tools/test_agy_run.py tests/test_agy_tool
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output showing `python3 -c "import agent_workflows.agy_run as m; m.parse_args(['7cvh9t'])"` succeeds (the packaged core exposes `parse_args`/`main` and the `--ipd/--spec/--file/--prompt` surface) AND that `--list-sessions` resolves the packaged `agy_sessions` (the `from agent_workflows import agy_sessions` fixup applied, not a bare `import agy_sessions`); behavior-parity assertion against the pre-move tool.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -c "import agent_workflows.agy_run as m; ..."` printed: `parse_args OK target= 7cvh9t` / `has main: True` / `list-sessions uses packaged agy_sessions: OK` (source of `m.run` contains `from agent_workflows import agy_sessions`, no bare `import agy_sessions`) / `PROMPT_DIR resolves to tools/awphysical: True`. The `--ipd/--spec/--file/--prompt` surface parses (`surface ok: x y f p`). Behavior parity is further covered by the migrated tools/test_agy_run.py (AgyRunArgParseTests/TargetResolution/PromptBuilder/ExecutionEngine) all passing against the packaged core (63/63 in the targeted run below).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Pasted `aw agy exec --help` output (packaged runner usage) AND a test asserting `cli.main(["agy","run"|"runagy"|"runipd", ...])` routes to `agy_runipd.main` (never `agy_run`) - the no-collision invariant.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m agent_workflows agy exec --help` printed `usage: agy_run.py [-h] [--ipd IPD] [--spec SPEC] [--file FILE] [--prompt TEXT] ... [target]` and `Unified multi-mode runner and skeptical validator for Antigravity (Gemini 3.7 Flash High).` No-collision: `NoAgyRunCollisionTests.test_agy_run_still_routes_to_runipd` (unchanged) and `AgyExecSurfaceTests.test_exec_does_not_route_to_runipd` both `ok` (unittest -v); an ad-hoc check showed for run/runagy/runipd: `runipd called=True, agy_run called=False` each.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Pasted test output where the `tools/agy_run.py` shim re-exports/forwards to `agent_workflows.agy_run`, `python3 tools/agy_run.py --help` still works, AND (with `tools/` on `sys.path`) `import antigravity_execute_ipd` still resolves `resolve_ipd`/`run_agy` off the shim's re-export - proving `antigravity_execute_ipd.py` was not broken and did not need editing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `shim.main is pkg.main: True`; `antigravity_execute_ipd.resolve_ipd is pkg.resolve_ipd: True`; `antigravity_execute_ipd.run_agy is pkg.run_agy: True`; `python3 tools/agy_run.py --help exit: 0`. Backed by tests `AgyRunGraduatedTests.test_agy_run_shim_reexports_and_delegates`, `AntigravityExecuteIpdCompatibilityTests.test_re_exports_and_interface_parity`, `test_delegation_to_agy_run`, and `test_delegates_through_compat_shim_to_packaged_core` (all pass). antigravity_execute_ipd.py was NOT edited.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Pasted `python3 -m pytest tools/test_agy_run.py tests/test_agy_tools_graduation.py -q` output (migrated tests pass, incl. the retained `antigravity_execute_ipd` compat coverage; new invocation/shim/no-collision tests pass) AND a full-suite `python3 -m pytest -p no:randomly -q` result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Targeted `python3 -m pytest tools/test_agy_run.py tests/test_agy_tools_graduation.py -p no:randomly` -> `63 passed in 1.57s`. Full suite `python3 -m pytest -p no:randomly -q` -> only tests/test_run_viewer.py fails (10 failed) because its untracked FIXTURE run dir `run-20260827T212958Z-2367239` is absent in this fresh worktree (`.aw/records/runs/` does not exist; the fixture is not git-tracked) - pre-existing, environment-dependent, and unrelated to this plan's files (run_viewer is untouched); see DECISION 01-ynix69-D2. Excluding ONLY that env-dependent file: `python3 -m pytest -p no:randomly --deselect tests/test_run_viewer.py` -> `2596 passed, 3 skipped in 23.32s`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: Pasted test output showing the three inverted assertions pass in their post-graduation form (`aw agy exec` surface EXISTS; `tools/agy_run.py` is a shim; packaged `agent_workflows/agy_run.py` EXISTS) AND that `NoAgyRunCollisionTests.test_agy_run_still_routes_to_runipd` (line 99) remains UNCHANGED and green.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m unittest -v tests.test_agy_tools_graduation.AgyRunGraduatedTests tests.test_agy_tools_graduation.NoAgyRunCollisionTests tests.test_agy_tools_graduation.AgyExecSurfaceTests` printed `ok` for: `test_agy_exec_surface_exists` (exec surface EXISTS), `test_agy_run_tool_reduced_to_shim` (tool is a shim), `test_packaged_agy_run_core_exists` (packaged core EXISTS), `test_agy_run_shim_reexports_and_delegates`, and `test_agy_run_still_routes_to_runipd` (the UNCHANGED no-collision invariant) - ending `OK`.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: Pasted diff/excerpt of `tools/README.md` showing the `agy_run.py` section now documents `aw agy exec` and the compat shim, and the `antigravity_execute_ipd.py` note remains accurate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `git diff tools/README.md` shows the heading changed to `## `aw agy exec` (was `agy_run.py`)`, a new paragraph "The logic is packaged as `agent_workflows.agy_run` and the canonical surface is `aw agy exec`. `tools/agy_run.py` is a thin compat shim ... Note the surface is `aw agy exec`, NOT `aw agy run`: `aw agy run` (and `runagy`) remain aliases of the separate multi-IPD queue driver `aw agy runipd` ...", all examples switched to `aw agy exec`, and the `antigravity_execute_ipd.py` note updated to "delegates directly to `tools/agy_run.py` (now the compat shim, which re-exports the packaged `agent_workflows.agy_run` core)".
+  - Result: pass
 
 ## Approval and execution gate
 

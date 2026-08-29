@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Tests for tools/agy_run.py and tools/antigravity_execute_ipd.py."""
+"""Tests for the graduated agy_run runner and tools/antigravity_execute_ipd.py.
+
+The runner logic was graduated (runnernorm follow-up puot79e04) into the packaged
+core ``agent_workflows.agy_run`` (exposed as ``aw agy exec``); ``tools/agy_run.py`` is
+now a thin compat shim that re-exports it. These tests exercise the PACKAGED surface
+(``agent_workflows.agy_run``) - the canonical implementation - so that mock patches
+land on the real functions the runner calls. They also retain coverage that
+``tools/antigravity_execute_ipd.py`` (which does ``import agy_run`` off ``tools/``)
+still resolves its re-exported symbols and delegates through the shim.
+"""
 
 from __future__ import annotations
 
@@ -13,12 +22,15 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-# Ensure tools directory is in sys.path
+# The runner is now the packaged core; import it as the canonical surface under test.
+from agent_workflows import agy_run  # noqa: E402
+
+# Ensure the tools directory is on sys.path so the tools/ compat shims
+# (antigravity_execute_ipd, agy_sessions) resolve when imported by name below.
 TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
-import agy_run  # noqa: E402
 import antigravity_execute_ipd  # noqa: E402
 
 
@@ -457,10 +469,24 @@ class AntigravityExecuteIpdCompatibilityTests(unittest.TestCase):
         self.assertTrue(hasattr(antigravity_execute_ipd, "run"))
 
     def test_delegation_to_agy_run(self):
-        with mock.patch.object(agy_run, "run", return_value=0) as mock_run:
+        # antigravity_execute_ipd delegates to the agy_run module it imported off tools/
+        # (the compat shim). Patch on THAT module object so the delegation is observed.
+        with mock.patch.object(
+            antigravity_execute_ipd.agy_run, "run", return_value=0
+        ) as mock_run:
             rc = antigravity_execute_ipd.run(["7cvh9t"])
             self.assertEqual(rc, 0)
             mock_run.assert_called_once_with(["7cvh9t"])
+
+    def test_delegates_through_compat_shim_to_packaged_core(self):
+        # The tools/ agy_run that antigravity_execute_ipd imports is the compat shim, and the
+        # shim re-exports the packaged core's symbols (proving the import chain resolves through
+        # the graduation without editing antigravity_execute_ipd.py).
+        self.assertIs(antigravity_execute_ipd.agy_run.ScriptError, agy_run.ScriptError)
+        self.assertIs(antigravity_execute_ipd.agy_run.resolve_ipd, agy_run.resolve_ipd)
+        self.assertIs(antigravity_execute_ipd.agy_run.run_agy, agy_run.run_agy)
+        self.assertIs(antigravity_execute_ipd.resolve_ipd, agy_run.resolve_ipd)
+        self.assertIs(antigravity_execute_ipd.run_agy, agy_run.run_agy)
 
 
 class AgySessionsTests(unittest.TestCase):

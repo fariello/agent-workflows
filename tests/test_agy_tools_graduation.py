@@ -1,20 +1,23 @@
-"""Tests for runnernorm Order 02 (puot79): graduate agy sessions/view + pwatch.
+"""Tests for runnernorm Order 02 (puot79) + follow-up (puot79e04): graduate the agy tools.
 
-The three unambiguous source-checkout tools were graduated under the awocrunner
+The unambiguous source-checkout tools were graduated under the awocrunner
 packaged-core + host-subcommand + compat-shim pattern:
   - tools/agy_sessions.py         -> agent_workflows.agy_sessions  -> `aw agy sessions`
   - tools/view-antigravity-jsonl.py -> agent_workflows.agy_view    -> `aw agy view`
   - tools/pwatch.py               -> agent_workflows.pwatch        -> `aw pwatch`
 
+The follow-up (puot79e04) graduated the remaining tool under a NON-colliding surface:
+  - tools/agy_run.py              -> agent_workflows.agy_run        -> `aw agy exec`
+
 These tests assert:
 1. Each `aw` surface forwards the raw argv tail verbatim to the packaged core's main().
-2. `aw agy run`/`aw agy runagy` STILL resolve to the runipd driver (no collision from
-   the new `sessions`/`view` subcommands) - the OQ-02 invariant.
+2. `aw agy run`/`aw agy runagy`/`runipd` STILL resolve to the runipd driver (no collision
+   from the `sessions`/`view`/`exec` subcommands) - the OQ-02 invariant.
 3. Each `tools/*.py` compat shim forwards to its packaged core and re-exports its symbols.
 
-agy_run.py is dispositioned per OQ-02 as genuinely distinct (graduation split to a
-follow-up plan); it is intentionally NOT graduated here, so there is no `aw agy exec`
-surface yet and `tools/agy_run.py` is untouched.
+agy_run.py was dispositioned per OQ-02 as genuinely distinct from the multi-IPD queue
+driver, so it is graduated as `aw agy exec` (NOT `aw agy run`, which stays aliased to
+runipd), tools/agy_run.py is a compat shim, and agent_workflows/agy_run.py is the core.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from pathlib import Path
 from unittest import mock
 
-from agent_workflows import agy_runipd, agy_sessions, agy_view, cli, pwatch
+from agent_workflows import agy_run, agy_runipd, agy_sessions, agy_view, cli, pwatch
 from tests.support import REPO_ROOT
 
 
@@ -107,13 +110,43 @@ class NoAgyRunCollisionTests(unittest.TestCase):
             m_sess.assert_not_called()
             m_view.assert_not_called()
 
-    def test_no_agy_exec_surface_yet(self):
-        # agy_run.py graduation is deferred (OQ-02 disposition B, split to follow-up);
-        # there must be no `aw agy exec` surface in this turn.
+    def test_agy_exec_surface_exists(self):
+        # puot79e04 graduated agy_run.py under the non-colliding `aw agy exec` surface;
+        # its `--help` must now succeed and show the runner usage (NOT an invalid-choice error).
         rc, out, err = _run_cli(["agy", "exec", "--help"])
         combined = out + err
-        self.assertNotEqual(rc, 0)
-        self.assertIn("invalid choice", combined.lower())
+        self.assertEqual(rc, 0, combined)
+        self.assertIn("agy_run.py", combined)
+        self.assertNotIn("invalid choice", combined.lower())
+
+
+class AgyExecSurfaceTests(unittest.TestCase):
+    """puot79e04: `aw agy exec` forwards to the packaged agy_run core (both invocation forms)."""
+
+    def test_forwarding_delegates_to_packaged_core(self):
+        with mock.patch.object(agy_run, "main", return_value=0) as m:
+            rc = cli.main(["agy", "exec", "-p", "do the thing"])
+        self.assertEqual(rc, 0)
+        m.assert_called_once_with(["-p", "do the thing"])
+
+    def test_antigravity_alias_delegates_identically(self):
+        with mock.patch.object(agy_run, "main", return_value=0) as m:
+            cli.main(["antigravity", "exec", "7cvh9t"])
+        m.assert_called_once_with(["7cvh9t"])
+
+    def test_help_forwards_to_core(self):
+        rc, out, err = _run_cli(["agy", "exec", "--help"])
+        combined = out + err
+        self.assertEqual(rc, 0, combined)
+        self.assertIn("agy_run.py", combined)
+
+    def test_exec_does_not_route_to_runipd(self):
+        # exec is a distinct surface: it must NOT reach the multi-IPD queue driver.
+        with mock.patch.object(agy_run, "main", return_value=0) as m_run:
+            with mock.patch.object(agy_runipd, "main", return_value=0) as m_ipd:
+                cli.main(["agy", "exec", "-p", "x"])
+        m_run.assert_called_once_with(["-p", "x"])
+        m_ipd.assert_not_called()
 
 
 def _load_shim(path: Path, name: str):
@@ -149,18 +182,32 @@ class CompatShimForwardingTests(unittest.TestCase):
         self.assertIs(shim.build_parser, pwatch.build_parser)
 
 
-class AgyRunUntouchedTests(unittest.TestCase):
-    """agy_run.py is intentionally NOT graduated this turn (OQ-02 -> follow-up plan)."""
+class AgyRunGraduatedTests(unittest.TestCase):
+    """puot79e04: agy_run.py is graduated - tool reduced to a shim, packaged core added."""
 
-    def test_agy_run_tool_still_present_as_standalone(self):
+    def test_agy_run_tool_reduced_to_shim(self):
         agy_run_path = REPO_ROOT / "tools" / "agy_run.py"
         self.assertTrue(agy_run_path.is_file())
         text = agy_run_path.read_text(encoding="utf-8")
-        # Still the standalone multi-mode runner, not reduced to a shim.
-        self.assertIn('prog="agy_run.py"', text)
+        # The tool is now a thin compat shim: it re-exports the packaged core and holds no
+        # tool logic (so the standalone parser `prog="agy_run.py"` no longer lives here).
+        self.assertNotIn('prog="agy_run.py"', text)
+        self.assertIn("from agent_workflows import agy_run", text)
 
-    def test_no_packaged_agy_run_core_yet(self):
-        self.assertFalse((REPO_ROOT / "agent_workflows" / "agy_run.py").exists())
+    def test_packaged_agy_run_core_exists(self):
+        core = REPO_ROOT / "agent_workflows" / "agy_run.py"
+        self.assertTrue(core.exists())
+        # The parser (prog="agy_run.py") now lives in the packaged core.
+        self.assertIn('prog="agy_run.py"', core.read_text(encoding="utf-8"))
+
+    def test_agy_run_shim_reexports_and_delegates(self):
+        shim = _load_shim(REPO_ROOT / "tools" / "agy_run.py", "shim_agy_run")
+        self.assertIs(shim.agy_run, agy_run)
+        self.assertIs(shim.ScriptError, agy_run.ScriptError)
+        self.assertIs(shim.AgyResult, agy_run.AgyResult)
+        self.assertIs(shim.resolve_ipd, agy_run.resolve_ipd)
+        self.assertIs(shim.run_agy, agy_run.run_agy)
+        self.assertIs(shim.main, agy_run.main)
 
 
 if __name__ == "__main__":
