@@ -514,6 +514,16 @@ class _AwArgumentParser(argparse.ArgumentParser):
         self.exit(2)
 
 
+def _positive_int(value: str) -> int:
+    try:
+        val = int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+    if val <= 0:
+        raise argparse.ArgumentTypeError(f"'{value}' must be a positive integer (> 0)")
+    return val
+
+
 def _add_commit_flags(parser: argparse.ArgumentParser) -> None:
     """selfcommit jgcm68 E-01: register the SHARED ``--commit``/``--no-commit`` arg group on a
     records-mutating parser. ``--commit`` commits the verb's own path-scoped changes without
@@ -1520,9 +1530,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Target Git repository root (default: current directory).",
     )
     p_run_list.add_argument(
+        "--last",
         "--latest",
-        action="store_true",
-        help="Show only the most recent run.",
+        dest="last",
+        nargs="?",
+        const=1,
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="Show only the last N runs (default: 1).",
     )
     p_run_list.add_argument(
         "--active",
@@ -1572,7 +1588,8 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "EXAMPLES\n"
             "  aw runs                          # summary of all execution runs\n"
-            "  aw runs --latest                 # summary of the most recent run\n"
+            "  aw runs --last                   # summary of the most recent run\n"
+            "  aw runs --last 5                 # summary of the last 5 runs\n"
             "  aw runs --since 1d               # summary of runs in the last day\n"
             "  aw runs <run-id-or-path>         # summary of a specific run\n"
             "  aw runs --set <setid>            # filter runs by Set ID\n"
@@ -1592,9 +1609,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Target Git repository root (default: current directory).",
     )
     p_runs.add_argument(
+        "--last",
         "--latest",
-        action="store_true",
-        help="Show only the most recent run.",
+        dest="last",
+        nargs="?",
+        const=1,
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help="Show only the last N runs (default: 1).",
     )
     p_runs.add_argument(
         "--active",

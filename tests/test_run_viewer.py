@@ -237,23 +237,58 @@ class RunViewerTests(TestCase):
         self.assertIn("partial", out)
 
     def test_aw_cli_entry_points(self):
-        # aw runs --latest
+        # aw runs --last
         buf = io.StringIO()
         with redirect_stdout(buf):
             try:
-                cli.main(["runs", "--latest", "--no-color"])
+                cli.main(["runs", "--last", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf.getvalue())
 
-        # aw run list --latest
+        # aw runs --last 2
+        buf_n = io.StringIO()
+        with redirect_stdout(buf_n):
+            try:
+                cli.main(["runs", "--last", "2", "--json"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
+        data = json.loads(buf_n.getvalue())
+        self.assertLessEqual(len(data["runs"]), 2)
+
+        # aw runs --latest (backwards-compat)
+        buf_compat = io.StringIO()
+        with redirect_stdout(buf_compat):
+            try:
+                cli.main(["runs", "--latest", "--no-color"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
+        self.assertIn("run-", buf_compat.getvalue())
+
+        # aw run list --last
         buf2 = io.StringIO()
         with redirect_stdout(buf2):
             try:
-                cli.main(["run", "list", "--latest", "--no-color"])
+                cli.main(["run", "list", "--last", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf2.getvalue())
+
+        # aw run list --last 2
+        buf3 = io.StringIO()
+        with redirect_stdout(buf3):
+            try:
+                cli.main(["run", "list", "--last", "2", "--json"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
+        data3 = json.loads(buf3.getvalue())
+        self.assertLessEqual(len(data3["runs"]), 2)
+
+        # aw runs --last 0 (validation error)
+        with redirect_stdout(io.StringIO()):
+            with self.assertRaises(SystemExit) as exc_ctx:
+                cli.main(["runs", "--last", "0"])
+            self.assertEqual(exc_ctx.exception.code, 2)
 
     def test_parse_since_timestamp_relative(self):
         from datetime import datetime, timezone

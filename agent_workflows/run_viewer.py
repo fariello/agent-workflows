@@ -598,7 +598,17 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     status_filter = getattr(args, "status", None)
     failed_only = getattr(args, "failed", False)
     active_only = getattr(args, "active", False)
-    latest_only = getattr(args, "latest", False)
+    last_n = getattr(args, "last", None)
+    if last_n is None:
+        if getattr(args, "latest", False):
+            last_n = 1
+    elif isinstance(last_n, bool):
+        last_n = 1 if last_n else None
+    elif isinstance(last_n, str):
+        try:
+            last_n = int(last_n)
+        except ValueError:
+            last_n = None
     since_spec = getattr(args, "since", None)
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
     is_json = getattr(args, "json", False)
@@ -654,8 +664,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
         summaries.append(summary)
 
-    if latest_only and summaries:
-        summaries = [summaries[-1]]
+    if last_n is not None and summaries:
+        if last_n > 0:
+            summaries = summaries[-last_n:]
+        else:
+            summaries = []
 
     if not summaries:
         if is_agent or is_json:
