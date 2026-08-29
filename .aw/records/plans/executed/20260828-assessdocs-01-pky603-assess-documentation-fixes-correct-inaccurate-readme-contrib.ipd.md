@@ -6,15 +6,15 @@
 - Scope: the project's tracked user-facing documentation only - README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md. Out of scope: `.aw/system/workflows/` (framework tooling), `workflow-artifacts/` (run records), and the `docs/` reference tree (verified accurate this run - no changes). No code/behavior changes: these are doc-accuracy corrections, so the fix is to make the docs match the code, never the reverse.
 - Scope-Paths: README.md, CONTRIBUTING.md, ARCHITECTURE.md, TODO.md, CHANGELOG.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: assessdocs
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: pky603
-- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Finalize pky603 (assessdocs doc fixes): implemented+verified this run (855254b/ffe4394); lifecycle move stranded by the pre-isolation race. Docs scope committed. [Scope reconciliation - in-scope-unmodified ARCHITECTURE.md: already-committed; in-scope-unmodified CHANGELOG.md: already-committed; in-scope-unmodified CONTRIBUTING.md: already-committed; in-scope-unmodified README.md: already-committed; in-scope-unmodified TODO.md: already-committed]
 - 2026-08-28 approved (aw set): status set to approved
 
 - 2026-08-28 to-review (/assess documentation, opencode its_direct/pt3-claude-opus-4.8-1m-us): assessed the documentation concern for accuracy across README/CONTRIBUTING/ARCHITECTURE/TODO/CHANGELOG + the docs/ tree; proposed 5 changes (2 High, 3 Medium/Low). docs/ verified accurate (no changes). Run record: workflow-artifacts/assess-documentation/20260828-165500/.

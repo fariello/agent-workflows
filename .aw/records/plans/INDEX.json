@@ -3450,6 +3450,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md",
+    "plan_id": "pky603",
+    "set_id": "assessdocs",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3527,16 +3537,6 @@
     "path": "pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md",
     "plan_id": "u5vyye",
     "set_id": "xprio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md",
-    "plan_id": "pky603",
-    "set_id": "assessdocs",
     "status": "approved"
   },
   {

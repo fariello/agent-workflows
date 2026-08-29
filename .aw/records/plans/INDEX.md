@@ -6,7 +6,7 @@ Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 
 ## assessdocs
 
-- `pky603` [pending] 01 pending/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
+- `pky603` [executed] 01 executed/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
 
 ## puot79e04
 
