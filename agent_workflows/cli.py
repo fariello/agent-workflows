@@ -1561,6 +1561,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_run_list.add_argument(
         "--last",
         "--latest",
+        "-l",
         dest="last",
         nargs="?",
         const=1,
@@ -1633,6 +1634,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs                          # summary of all execution runs\n"
             "  aw runs --last                   # summary of the most recent run\n"
             "  aw runs --last 5                 # summary of the last 5 runs\n"
+            "  aw runs -l 5                     # summary of the last 5 runs\n"
             "  aw runs --since 1d               # summary of runs in the last day\n"
             "  aw runs <run-id-or-path>         # summary of a specific run\n"
             "  aw runs --set <setid>            # filter runs by Set ID\n"
@@ -1656,6 +1658,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_runs.add_argument(
         "--last",
         "--latest",
+        "-l",
         dest="last",
         nargs="?",
         const=1,

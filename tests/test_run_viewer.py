@@ -339,6 +339,25 @@ class RunViewerTests(TestCase):
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf.getvalue())
 
+        # aw runs -l
+        buf_l = io.StringIO()
+        with redirect_stdout(buf_l):
+            try:
+                cli.main(["runs", "-l", "--no-color"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
+        self.assertIn("run-", buf_l.getvalue())
+
+        # aw runs -l 2
+        buf_l2 = io.StringIO()
+        with redirect_stdout(buf_l2):
+            try:
+                cli.main(["runs", "-l", "2", "--json"])
+            except SystemExit as exc:
+                self.assertEqual(exc.code, 0)
+        data_l2 = json.loads(buf_l2.getvalue())
+        self.assertLessEqual(len(data_l2["runs"]), 2)
+
         # aw runs --last 2
         buf_n = io.StringIO()
         with redirect_stdout(buf_n):
