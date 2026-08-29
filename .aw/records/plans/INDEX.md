@@ -24,7 +24,7 @@ Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 - `yt93ir` [pending] 00 pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md
 - `p7peqf` [executed] 01 executed/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md
 - `emus4n` [executed] 02 executed/20260827-driverfin-02-emus4n-per-run-worktree-isolation-execute-each-ipd-in-its-own-git-w.ipd.md
-- `7kbtkw` [pending] 03 pending/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md
+- `7kbtkw` [executed] 03 executed/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md
 
 ## ipddeps
 
