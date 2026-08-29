@@ -2617,7 +2617,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "oc",
         aliases=["opencode"],
         parents=[common],
-        help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver. Alias: 'aw opencode'.",
+        help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver; 'aw oc update-models' syncs provider models/pricing from your configured gateways. Alias: 'aw opencode'.",
     )
     oc_sub = p_oc.add_subparsers(dest="oc_command")
     p_oc_runipd = oc_sub.add_parser(
@@ -2630,6 +2630,49 @@ def _build_parser() -> argparse.ArgumentParser:
         "runipd_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runipd driver (start/resume/status/report ...).",
+    )
+    # ocsync Order 01 (g7hljt): `aw oc update-models` refreshes each OpenAI-compatible provider's
+    # models/pricing from the gateway declared in the user's OWN OpenCode config (no hardcoded host).
+    # Unlike `runipd` this verb has STRUCTURED flags, so it is declared here and dispatched from the
+    # parsed namespace rather than forwarded as argparse.REMAINDER.
+    p_oc_models = oc_sub.add_parser(
+        "update-models",
+        aliases=["sync-models"],
+        parents=[common],
+        help="Sync provider models + pricing from the gateways in your OpenCode config (preview unless --apply).",
+        description=(
+            "Refresh OpenCode provider model lists and pricing from the gateways declared in your "
+            "own OpenCode config. Previews by default; pass --apply to write. Pricing is read from "
+            "a provider's LiteLLM endpoints (/model/info, /model_group/info) and converted to $ per "
+            "million tokens; providers without a pricing endpoint (plain OpenAI, Google) are "
+            "reported as skipped and left untouched. --apply rewrites the file with normalized JSON "
+            "formatting: the existing indent width is detected and reused, but byte-for-byte "
+            "formatting is not preserved. Credentials are sent over https only and are never printed."
+        ),
+    )
+    p_oc_models.add_argument(
+        "--config",
+        help="Path to opencode.json (default: the config OpenCode itself would load).",
+    )
+    p_oc_models.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the changes (default: preview only).",
+    )
+    p_oc_models.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Explicit synonym for the default preview behavior.",
+    )
+    p_oc_models.add_argument(
+        "--no-backup",
+        action="store_true",
+        help="Do not write a timestamped .bak beside the config before applying.",
+    )
+    p_oc_models.add_argument(
+        "--allow-insecure",
+        action="store_true",
+        help="Permit a non-https baseURL, and only for a loopback host.",
     )
 
     p_agy = sub.add_parser(
@@ -7960,8 +8003,23 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
             return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        # ocsync Order 01 (g7hljt): structured verb, so rebuild argv from the parsed namespace.
+        if oc_cmd in ("update-models", "sync-models"):
+            from agent_workflows import oc_models
+
+            forwarded = []
+            if getattr(args, "config", None):
+                forwarded += ["--config", str(args.config)]
+            for flag in ("apply", "dry_run", "no_backup", "allow_insecure"):
+                if getattr(args, flag, False):
+                    forwarded.append("--" + flag.replace("_", "-"))
+            return oc_models.run(forwarded)
         return _show_family_help(
-            parser, "oc", "aw oc runipd status <run-id>", term, context
+            parser,
+            "oc",
+            "aw oc runipd status <run-id> | aw oc update-models",
+            term,
+            context,
         )
     if args.command in ("agy", "antigravity"):
         agy_cmd = getattr(args, "agy_command", None)
