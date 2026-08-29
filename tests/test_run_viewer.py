@@ -120,6 +120,16 @@ class RunViewerTests(TestCase):
         self.assertIn("! incomplete:", formatted_detail)
         self.assertIn("* summary:", formatted_detail)
 
+        # Test short mode
+        formatted_short = run_viewer.format_run_human(summary, term, short=True)
+        self.assertIn("│ Status", formatted_short)
+        self.assertIn("Item", formatted_short)
+        self.assertIn("Action", formatted_short)
+        self.assertIn("Verified", formatted_short)
+        self.assertNotIn("Attempts", formatted_short)
+        self.assertNotIn("Total Cost", formatted_short)
+        self.assertNotIn("Total Tok", formatted_short)
+
     def test_run_viewer_cli_target_human(self):
         ns = argparse.Namespace(
             dir=".",
@@ -131,6 +141,7 @@ class RunViewerTests(TestCase):
             active=False,
             latest=False,
             detail=False,
+            short=False,
             json=False,
             agent=False,
             no_color=True,
@@ -142,6 +153,30 @@ class RunViewerTests(TestCase):
         out = buf.getvalue()
         self.assertIn("run-20260827T212958Z-2367239", out)
         self.assertIn("runnernorm", out)
+
+    def test_run_viewer_cli_short(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=["run-20260827T212958Z-2367239"],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            detail=False,
+            short=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("Verified", out)
+        self.assertNotIn("Total Tok", out)
 
     def test_run_viewer_cli_json(self):
         ns = argparse.Namespace(

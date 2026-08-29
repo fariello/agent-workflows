@@ -977,7 +977,12 @@ def render_box_table(
     return "\n".join(lines)
 
 
-def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
+def format_run_human(
+    run: RunSummary,
+    term: Term,
+    detail: bool = False,
+    short: bool = False,
+) -> str:
     """Format a RunSummary as human terminal text."""
     lines = []
 
@@ -1037,16 +1042,28 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
         lines.append(f"  {cost_val_str}")
 
     if run.steps:
-        headers = [
-            "Status",
-            "Item",
-            "Action",
-            "Attempts",
-            "Cost",
-            "Total Tok",
-            "Verified",
-        ]
-        aligns = ["left", "left", "left", "right", "right", "right", "left"]
+        if short:
+            headers = ["Status", "Item", "Action", "Verified"]
+            aligns = ["left", "left", "left", "left"]
+        else:
+            headers = [
+                "Status",
+                "Item",
+                "Action",
+                "Attempts",
+                "Cost",
+                "Total Tok",
+                "Verified",
+            ]
+            aligns = [
+                "left",
+                "left",
+                "left",
+                "right",
+                "right",
+                "right",
+                "left",
+            ]
         rows = []
         for step in run.steps:
             st_disp = (
@@ -1065,32 +1082,36 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
                 if step.tokens.get("total")
                 else "-"
             )
-            v_disp = step.verification_status or (
-                step.disposition if step.disposition else "-"
-            )
-            if v_disp == "verified":
+            v_val = step.verification_status or step.disposition
+            if v_val == "verified":
                 v_disp = (
-                    term.color256("[verified]", 46, bold=True)
+                    term.color256("yes", 46, bold=True)
                     if getattr(term, "color", False)
-                    else "[verified]"
+                    else "yes"
                 )
-            elif v_disp in ("unverified", "verify-failed"):
+            elif v_val in ("unverified", "verify-failed", "failed"):
                 v_disp = (
-                    term.color256(f"[{v_disp}]", 196, bold=True)
+                    term.color256("no", 196, bold=True)
                     if getattr(term, "color", False)
-                    else f"[{v_disp}]"
+                    else "no"
                 )
-            rows.append(
-                [
-                    st_styled,
-                    item_disp,
-                    step.action,
-                    att_disp,
-                    cost_disp,
-                    tok_disp,
-                    v_disp,
-                ]
-            )
+            else:
+                v_disp = "-"
+
+            if short:
+                rows.append([st_styled, item_disp, step.action, v_disp])
+            else:
+                rows.append(
+                    [
+                        st_styled,
+                        item_disp,
+                        step.action,
+                        att_disp,
+                        cost_disp,
+                        tok_disp,
+                        v_disp,
+                    ]
+                )
         lines.append(render_box_table("", headers, rows, term, aligns))
 
         if detail:
@@ -1548,6 +1569,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             last_n = None
     since_spec = getattr(args, "since", None)
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
+    short = getattr(args, "short", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
@@ -1634,7 +1656,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     for idx, summary in enumerate(summaries):
         if idx > 0:
             term.line("")
-        term.line(format_run_human(summary, term, detail=detail))
+        term.line(format_run_human(summary, term, detail=detail, short=short))
 
     if len(summaries) > 1:
         term.line("")

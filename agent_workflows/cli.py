@@ -1604,6 +1604,13 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="detail",
         help="Show detailed incomplete requirements and step summaries.",
     )
+    p_run_list.add_argument(
+        "--short",
+        "-s",
+        action="store_true",
+        dest="short",
+        help="Show short table with status, item, action, and verified columns only.",
+    )
 
     p_runs = sub.add_parser(
         "runs",
@@ -1624,6 +1631,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs --set <setid>            # filter runs by Set ID\n"
             "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
             "  aw runs --detail                 # include incomplete items and step summaries\n"
+            "  aw runs --short                  # short table without cost/token columns\n"
         ),
     )
     p_runs.add_argument(
@@ -1682,6 +1690,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="detail",
         help="Show detailed incomplete requirements and step summaries.",
+    )
+    p_runs.add_argument(
+        "--short",
+        "-s",
+        action="store_true",
+        dest="short",
+        help="Show short table with status, item, action, and verified columns only.",
     )
 
     p_research = sub.add_parser(
