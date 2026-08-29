@@ -1,11 +1,13 @@
 - Id: xd9sll
 - Status: open
+- Blocks-Release: next
 - Set: lanesess
 - Priority: high
 - Kind: bug
 - Summary: Session reuse across lanes pins a turn to the PREVIOUS lane's worktree: session is per-set but worktrees are per-item, so lanes 2..N run in the wrong tree and stall at the external_directory gate
 
 ## Workflow history
+- 2026-08-29 open (aw set): status set to open
 - 2026-08-29 created (aw backlog): Filed from live evidence in run-20260829T153858Z-3207626 (qcqhj7): --dir was correct but the reused session dragged 8zgybk's directory back in; trigger for qyaime's deadlock, distinct from dh0uno
 
 ROOT CAUSE (in-tree, verified): the driver reuses ONE opencode session per SET, but allocates worktrees per ITEM. `oc_runipd.run_opencode` (oc_runipd.py:1725-1731) selects the session as `state["session_id"] or state["set_sessions"][item["setid"]] or options["session"]`, and after each turn both keys are rewritten from the observed session (oc_runipd.py:2070-2078). So lane 1 of a set mints the session, and lanes 2..N are launched with `--session <lane-1's session>`. opencode's session carries its own project/`directory` binding, which then OVERRIDES the correct `--dir`, and the turn executes with cwd pinned to the PREVIOUS lane's worktree.

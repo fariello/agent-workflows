@@ -1,11 +1,13 @@
 - Id: tfx39h
 - Status: open
+- Blocks-Release: next
 - Set: lanetool
 - Priority: high
 - Kind: bug
 - Summary: Nested aw invoked inside a lane worktree executes the LANE BRANCH's copy of agent_workflows, so lifecycle fixes are void in lanes and unreviewed lane tool code runs the driver's own transitions
 
 ## Workflow history
+- 2026-08-29 open (aw set): status set to open
 - 2026-08-29 created (aw backlog): Filed from run-20260829T153858Z-3207626: the 18:06:42Z finalize scope prompt was NOT a g40w37 regression (6332a04 landed 17:55:25Z); the lane ran a pre-fix copy of the tool. Measured in .aw/worktrees/8zgybk: -m resolves to the lane package, version g5e78e33, AW_NONINTERACTIVE guard absent
 
 ROOT CAUSE (tool-integrity hole, verified): under `isolate_worktree` the driver runs nested `aw` with `cwd` set to the LANE WORKTREE, invoked as `[sys.executable, "-m", "agent_workflows", ...]`. Python puts the cwd first on `sys.path` for `-m`, so `agent_workflows` resolves to the LANE BRANCH's checked-out copy of the package, NOT the installed/main-tree one the driver itself is running. `oc_runipd.driver_finalize` (oc_runipd.py:425-446) builds that argv and passes `cwd=str(repo)`, and the caller hands it `finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo` (oc_runipd.py:2198, called at :2212-2214). Same shape at the other nested-`aw` call sites (oc_runipd.py:248, :317, :356; agy_runipd.py:421, :481, :548).
