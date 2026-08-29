@@ -31,10 +31,10 @@ This orchestrator authors NO code; the children carry the work. Its only executi
 
 ### Task group 1: whole-Set verification
 
-- [ ] E-01 After children 01-02 execute, confirm runipd uses the shared renderer (no inline duplicate) and each graduated tool runs via `aw agy sessions/view` / `aw pwatch` with a working compat shim, `agy_run.py` is dispositioned per OQ-02 with NO `aw agy run` alias collision, and the full suite is green.
+- [x] E-01 After children 01-02 execute, confirm runipd uses the shared renderer (no inline duplicate) and each graduated tool runs via `aw agy sessions/view` / `aw pwatch` with a working compat shim, `agy_run.py` is dispositioned per OQ-02 with NO `aw agy run` alias collision, and the full suite is green.
   - Depends on: none
   - Expected outcome: shared renderer has a single definition consumed by runipd; `aw agy sessions/view` and `aw pwatch` invoke the packaged cores; shims forward; `agy_run.py` disposition matches the OQ-02 resolution (no colliding subcommand); suite green.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -93,10 +93,10 @@ Aggregate of children: renderer unit tests + a golden runipd-output test proving
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Pasted output of the repo's real test runner showing (a) the shared renderer's unit tests + the golden runipd-output test pass (byte-identical output for a fixed event stream) and that `render_event`/`Palette`/`Heartbeat` have a single definition (no inline duplicate in `oc_runipd.py`); (b) `aw agy sessions`, `aw agy view`, and `aw pwatch` invoke the packaged cores and their `tools/*.py` shims forward; (c) the `agy_run.py` disposition per OQ-02 (either a shim/retire with no new subcommand, or a non-colliding surface) with a test asserting no `aw agy run` collision; and (d) the full suite green (paste the actual pass/fail summary line). Also paste `aw ipd lint --phase pre-transition --agent <child>` conforming for children 01 and 02.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) SHARED RENDERER - `grep -rn '^def render_event|^class Palette|^class Heartbeat' agent_workflows/*.py` shows the canonical definitions in `agent_workflows/render_stream.py` (`Palette:67`, `render_event:135`, `Heartbeat:228`) and `oc_runipd.py` CONSUMES them via `from agent_workflows.render_stream import (...)` at `oc_runipd.py:39` with an explicit re-export comment at `:53` (NO inline duplicate in oc_runipd). Renderer tests: `python3 -m pytest tests/test_render_stream.py -q -o addopts=""` -> `23 passed in 0.35s`. HONEST CAVEAT (out of this Set's declared scope, recorded not hidden): `agy_runipd.py` still carries its OWN `Palette:125` and `Heartbeat:247` and does not import `render_stream`; child dg28i9's Scope-Paths were `render_stream.py, oc_runipd.py, tests/` only, so the agy-side de-duplication was never in scope for this Set. It is a real remaining gap and is covered by the separate unify-runners backlog item (dhuape). (b) GRADUATED TOOLS - `aw agy sessions` -> `usage: agy sessions [-h] [-a] [--json] [directory]`; `aw agy view` -> `usage: agy view [-h] [--match TEXT] [--raw] [log]`; `aw pwatch` -> `usage: aw pwatch [-h] [-M STRING] ...`; shim-forwarding + invocation tests `python3 -m pytest tests/test_agy_tools_graduation.py tests/test_pwatch.py -q -o addopts=""` -> `30 passed in 1.36s`. (c) AGY_RUN DISPOSITION (OQ-02 option B, delivered by follow-up plan ynix69, executed) - `aw agy run --help` -> `usage: runagy [-h] {start,resume,status,report} ...` (STILL the runipd driver, no collision) while `aw agy exec --help` -> `usage: agy_run.py [-h] [--ipd IPD] [--spec SPEC] ...` (the graduated single-target runner); `tools/agy_run.py` reduced 886 -> 41 lines (compat shim); no-collision tests `-k "Collision or collision"` -> `2 passed, 18 deselected in 0.29s`. (d) FULL SUITE - `python3 -m pytest -p no:randomly` -> `2680 passed, 3 skipped in 25.05s`. Child lint: both children are in executed/ and `aw ipd lint --phase pre-transition` reports `legacy/not evaluated` for them (the linter does not re-evaluate terminal plans), so their conformance was established at their own finalize time (dg28i9 and puot79 both finalized through the gate; puot79 at 1f3e46b).
+  - Result: pass
 
 ## Approval and execution gate
 
