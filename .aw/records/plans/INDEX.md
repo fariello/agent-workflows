@@ -21,7 +21,7 @@ Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
 - `e6h1p3` [pending] 00 pending/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md
 - `bja8og` [executed] 01 executed/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md
 - `4f1j25` [executed] 02 executed/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md
-- `jolfpj` [pending] 03 pending/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md
+- `jolfpj` [executed] 03 executed/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md
 
 ## wtiso
 

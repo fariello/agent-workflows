@@ -3540,6 +3540,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md",
+    "plan_id": "jolfpj",
+    "set_id": "tabcomp",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
@@ -3586,16 +3596,6 @@
     "order": 0,
     "path": "pending/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md",
     "plan_id": "e6h1p3",
-    "set_id": "tabcomp",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md",
-    "plan_id": "jolfpj",
     "set_id": "tabcomp",
     "status": "approved"
   },
