@@ -3522,6 +3522,16 @@
   {
     "date": "2026-08-28",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md",
+    "plan_id": "e6h1p3",
+    "set_id": "tabcomp",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md",
@@ -3588,16 +3598,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md",
-    "plan_id": "e6h1p3",
-    "set_id": "tabcomp",
-    "status": "approved"
   },
   {
     "date": "2026-08-28",
