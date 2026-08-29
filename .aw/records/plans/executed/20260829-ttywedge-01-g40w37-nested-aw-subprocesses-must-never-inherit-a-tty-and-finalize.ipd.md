@@ -8,15 +8,15 @@
 - Scope: Two layers, both required. CALLER: pass `stdin=subprocess.DEVNULL` on every driver-spawned nested `aw` invocation in both drivers, so an inherited terminal can never make a child believe it is interactive. CALLEE: make `run_finalize` fail closed by additionally requiring `sys.stdout.isatty()` (a piped stdout means nobody can read the prompt) and by honouring an explicit `AW_NONINTERACTIVE`/`CI` signal. Does NOT touch the currently-wedged process or any live run (maintainer instruction); the change affects only FUTURE invocations. Does NOT redesign the scope-reconciliation prompt itself, and does NOT address backlog `qyaime` (the host agent's own permission prompt), which is a different cause in the same family.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_nested_tty_noninteractive.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: ttywedge
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: g40w37
-- Approval: 2026-08-29, human ("approved"): Maintainer authorized fixing anything not currently running.
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Implemented E-01..E-04: nested aw denied a TTY at 6 call sites; finalize requires stdout tty + honours AW_NONINTERACTIVE/CI. 16 new tests; full suite 2843 passed. [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: already-committed in 6332a04; in-scope-unmodified agent_workflows/ipd_lifecycle.py: already-committed in 6332a04; in-scope-unmodified agent_workflows/oc_runipd.py: already-committed in 6332a04; in-scope-unmodified tests/test_nested_tty_noninteractive.py: already-committed in 6332a04]
 - 2026-08-29 approved (aw set, --by-human): Maintainer authorized fixing anything not currently running.
 - 2026-08-29 to-review (aw set): Authored review-ready from backlog v1ex5z.
 

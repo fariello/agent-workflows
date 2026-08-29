@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 156 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 157 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -45,6 +45,10 @@ Showing the 40 most-recent of 156 Sets; the full manifest is INDEX.json.
 ## stallfp
 
 - `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
+
+## ttywedge
+
+- `g40w37` [executed] 01 executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md
 
 ## assessdocs
 
@@ -215,10 +219,6 @@ Showing the 40 most-recent of 156 Sets; the full manifest is INDEX.json.
 - `m2wwns` [executed] 03 executed/20260823-execset-03-m2wwns-parallel-scheduler-worktree-integration-and-model-routing.ipd.md
 - `31744f` [executed] 04 executed/20260823-execset-04-31744f-host-session-adapters-and-capability-gated-launchers.ipd.md
 - `2h7777` [executed] 05 executed/20260823-execset-05-2h7777-exec-set-workflow-skill-shims-and-conformance-tests.ipd.md
-
-## grouptypes
-
-- `o2ygf3` [executed] 01 executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
 
 ## (singletons: no Set)
 
