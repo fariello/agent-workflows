@@ -814,11 +814,14 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     tally_str = ", ".join(tally_parts) if tally_parts else f"{len(run.steps)} steps"
 
     cost_part = f", ${run.total_cost:.2f}" if run.total_cost is not None else ""
-    tok_part = (
-        f", {format_tokens(run.total_tokens['total'])} tok"
-        if run.total_tokens.get("total")
-        else ""
-    )
+    if run.total_tokens.get("total"):
+        tot_str = format_tokens(run.total_tokens["total"])
+        in_str = format_tokens(run.total_tokens.get("input", 0))
+        out_str = format_tokens(run.total_tokens.get("output", 0))
+        cache_str = format_tokens(run.total_tokens.get("cache", 0))
+        tok_part = f", {tot_str} tok ({in_str} in, {out_str} out, {cache_str} cached)"
+    else:
+        tok_part = ""
 
     count_summary = (
         f"  ({len(run.steps)} steps: {tally_str}{cost_part}{tok_part})"
@@ -910,60 +913,109 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
     total_cost = 0.0
     has_any_cost = False
     cost_steps_count = 0
-    total_tokens: dict[str, int] = {}
+    total_tokens: dict[str, int] = defaultdict(int)
 
     by_status: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"count": 0, "cost_count": 0, "total_cost": 0.0, "total_tokens": 0}
+        lambda: {
+            "count": 0,
+            "steps_with_cost": 0,
+            "total_cost": 0.0,
+            "tokens": defaultdict(int),
+            "runs_present": set(),
+        }
     )
     by_action: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {"count": 0, "cost_count": 0, "total_cost": 0.0, "total_tokens": 0}
+        lambda: {
+            "count": 0,
+            "steps_with_cost": 0,
+            "total_cost": 0.0,
+            "tokens": defaultdict(int),
+            "runs_present": set(),
+        }
     )
 
-    for s in summaries:
+    for run_idx, s in enumerate(summaries):
         for step in s.steps:
             st = step.status
             act = step.action
             by_status[st]["count"] += 1
+            by_status[st]["runs_present"].add(run_idx)
             by_action[act]["count"] += 1
+            by_action[act]["runs_present"].add(run_idx)
+
             if step.cost is not None:
                 has_any_cost = True
                 cost_steps_count += 1
                 total_cost += step.cost
-                by_status[st]["cost_count"] += 1
+                by_status[st]["steps_with_cost"] += 1
                 by_status[st]["total_cost"] = round(
                     by_status[st]["total_cost"] + step.cost, 4
                 )
-                by_action[act]["cost_count"] += 1
+                by_action[act]["steps_with_cost"] += 1
                 by_action[act]["total_cost"] = round(
                     by_action[act]["total_cost"] + step.cost, 4
                 )
             if step.tokens:
-                tot = step.tokens.get("total", 0)
-                by_status[st]["total_tokens"] += tot
-                by_action[act]["total_tokens"] += tot
                 for k, v in step.tokens.items():
-                    total_tokens[k] = total_tokens.get(k, 0) + v
+                    total_tokens[k] += v
+                    by_status[st]["tokens"][k] += v
+                    by_action[act]["tokens"][k] += v
+
+    avg_cost_per_run = (
+        round(total_cost / total_runs, 4) if (total_runs > 0 and has_any_cost) else None
+    )
+    avg_tokens_per_run = (
+        {k: int(v / total_runs) for k, v in total_tokens.items()}
+        if (total_runs > 0 and total_tokens)
+        else {}
+    )
 
     status_summary = {}
     for st, data in by_status.items():
-        c_cnt = data["cost_count"]
-        entry: dict[str, Any] = {"count": data["count"], "steps_with_cost": c_cnt}
+        c_cnt = data["steps_with_cost"]
+        runs_cnt = len(data["runs_present"])
+        entry: dict[str, Any] = {
+            "count": data["count"],
+            "steps_with_cost": c_cnt,
+            "runs_count": runs_cnt,
+        }
         if c_cnt > 0:
-            entry["total_cost"] = round(data["total_cost"], 4)
-            entry["avg_cost"] = round(data["total_cost"] / c_cnt, 4)
-            entry["total_tokens"] = data["total_tokens"]
-            entry["avg_tokens"] = int(data["total_tokens"] / c_cnt)
+            c_tot = data["total_cost"]
+            tok_dict = dict(data["tokens"])
+            entry["total_cost"] = round(c_tot, 4)
+            entry["avg_cost_per_step"] = round(c_tot / c_cnt, 4)
+            entry["avg_cost_per_run"] = round(c_tot / total_runs, 4)
+            entry["tokens"] = tok_dict
+            entry["avg_tokens_per_step"] = {
+                k: int(v / c_cnt) for k, v in tok_dict.items()
+            }
+            entry["avg_tokens_per_run"] = {
+                k: int(v / total_runs) for k, v in tok_dict.items()
+            }
         status_summary[st] = entry
 
     action_summary = {}
     for act, data in by_action.items():
-        c_cnt = data["cost_count"]
-        entry = {"count": data["count"], "steps_with_cost": c_cnt}
+        c_cnt = data["steps_with_cost"]
+        runs_cnt = len(data["runs_present"])
+        entry = {
+            "count": data["count"],
+            "steps_with_cost": c_cnt,
+            "runs_count": runs_cnt,
+        }
         if c_cnt > 0:
-            entry["total_cost"] = round(data["total_cost"], 4)
-            entry["avg_cost"] = round(data["total_cost"] / c_cnt, 4)
-            entry["total_tokens"] = data["total_tokens"]
-            entry["avg_tokens"] = int(data["total_tokens"] / c_cnt)
+            c_tot = data["total_cost"]
+            tok_dict = dict(data["tokens"])
+            entry["total_cost"] = round(c_tot, 4)
+            entry["avg_cost_per_step"] = round(c_tot / c_cnt, 4)
+            entry["avg_cost_per_run"] = round(c_tot / total_runs, 4)
+            entry["tokens"] = tok_dict
+            entry["avg_tokens_per_step"] = {
+                k: int(v / c_cnt) for k, v in tok_dict.items()
+            }
+            entry["avg_tokens_per_run"] = {
+                k: int(v / total_runs) for k, v in tok_dict.items()
+            }
         action_summary[act] = entry
 
     return {
@@ -971,7 +1023,9 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
         "steps_count": total_steps,
         "steps_with_cost": cost_steps_count,
         "total_cost": round(total_cost, 4) if has_any_cost else None,
-        "total_tokens": total_tokens if total_tokens else {},
+        "avg_cost_per_run": avg_cost_per_run,
+        "total_tokens": dict(total_tokens) if total_tokens else {},
+        "avg_tokens_per_run": avg_tokens_per_run,
         "by_status": status_summary,
         "by_action": action_summary,
     }
@@ -985,7 +1039,9 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
     has_any_cost = summary_data["total_cost"] is not None
     cost_steps_count = summary_data["steps_with_cost"]
     total_cost = summary_data["total_cost"] or 0.0
+    avg_cost_per_run = summary_data["avg_cost_per_run"] or 0.0
     total_toks = summary_data["total_tokens"] or {}
+    avg_toks_run = summary_data["avg_tokens_per_run"] or {}
 
     lines = []
     header_title = f"--- Summary across {total_runs} runs ({total_steps} steps) ---"
@@ -997,22 +1053,23 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
 
     if has_any_cost:
         cost_str = f"${total_cost:.2f}"
-        tok_str = format_tokens(total_toks.get("total", 0))
-        in_str = format_tokens(total_toks.get("input", 0))
-        out_str = format_tokens(total_toks.get("output", 0))
-        cache_str = format_tokens(total_toks.get("cache", 0))
-
         cost_val_str = (
             term.color256(cost_str, 220, bold=True)
             if getattr(term, "color", False)
             else cost_str
         )
+        avg_run_cost_str = f"${avg_cost_per_run:.2f}"
         lines.append(
-            f"  Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with recorded usage)"
+            f"  Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with usage; avg {avg_run_cost_str}/run)"
         )
         if total_toks.get("total"):
+            tok_str = format_tokens(total_toks.get("total", 0))
+            in_str = format_tokens(total_toks.get("input", 0))
+            out_str = format_tokens(total_toks.get("output", 0))
+            cache_str = format_tokens(total_toks.get("cache", 0))
+            avg_tok_run_str = format_tokens(avg_toks_run.get("total", 0))
             lines.append(
-                f"  Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cache)"
+                f"  Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cached; avg {avg_tok_run_str}/run)"
             )
 
         lines.append("")
@@ -1021,6 +1078,7 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             term.color256(st_hdr, "bold") if getattr(term, "color", False) else st_hdr
         )
 
+        blank = ""
         by_status = summary_data["by_status"]
         for st, data in sorted(
             by_status.items(),
@@ -1036,21 +1094,33 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             )
             if c_cnt > 0:
                 c_total = data["total_cost"]
-                avg_cost = data["avg_cost"]
-                avg_tok = data.get("avg_tokens", 0)
+                avg_step_cost = data["avg_cost_per_step"]
+                avg_run_cost = data["avg_cost_per_run"]
+                tok_dict = data.get("tokens", {})
+
                 cnt_desc = (
                     f"{tot_cnt} steps"
                     if c_cnt == tot_cnt
                     else f"{tot_cnt} steps ({c_cnt} with cost)"
                 )
                 cost_part = f"${c_total:7.2f} total"
-                avg_part = f"avg ${avg_cost:6.2f}/step"
-                tok_part = f" ({format_tokens(avg_tok)} tok/step)" if avg_tok else ""
+                avg_cost_part = (
+                    f"avg ${avg_step_cost:5.2f}/step (${avg_run_cost:5.2f}/run)"
+                )
+
+                tok_tot_str = format_tokens(tok_dict.get("total", 0))
+                in_tot_str = format_tokens(tok_dict.get("input", 0))
+                out_tot_str = format_tokens(tok_dict.get("output", 0))
+                cache_tot_str = format_tokens(tok_dict.get("cache", 0))
+                tok_breakdown = f"{tok_tot_str} tok ({in_tot_str} in, {out_tot_str} out, {cache_tot_str} cached)"
+
                 lines.append(
-                    f"    - {st_txt} {cnt_desc:<22} | {cost_part} | {avg_part}{tok_part}"
+                    f"    - {st_txt} {cnt_desc:<22} | {cost_part} | {avg_cost_part} | {tok_breakdown}"
                 )
             else:
-                lines.append(f"    - {st_txt} {tot_cnt} steps{'':<15} | no cost data")
+                lines.append(
+                    f"    - {st_txt} {tot_cnt} steps {blank:<15} | no cost data"
+                )
 
         by_action = summary_data["by_action"]
         if len(by_action) > 1:
@@ -1074,24 +1144,32 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
                 )
                 if c_cnt > 0:
                     c_total = data["total_cost"]
-                    avg_cost = data["avg_cost"]
-                    avg_tok = data.get("avg_tokens", 0)
+                    avg_step_cost = data["avg_cost_per_step"]
+                    avg_run_cost = data["avg_cost_per_run"]
+                    tok_dict = data.get("tokens", {})
+
                     cnt_desc = (
                         f"{tot_cnt} steps"
                         if c_cnt == tot_cnt
                         else f"{tot_cnt} steps ({c_cnt} with cost)"
                     )
                     cost_part = f"${c_total:7.2f} total"
-                    avg_part = f"avg ${avg_cost:6.2f}/step"
-                    tok_part = (
-                        f" ({format_tokens(avg_tok)} tok/step)" if avg_tok else ""
+                    avg_cost_part = (
+                        f"avg ${avg_step_cost:5.2f}/step (${avg_run_cost:5.2f}/run)"
                     )
+
+                    tok_tot_str = format_tokens(tok_dict.get("total", 0))
+                    in_tot_str = format_tokens(tok_dict.get("input", 0))
+                    out_tot_str = format_tokens(tok_dict.get("output", 0))
+                    cache_tot_str = format_tokens(tok_dict.get("cache", 0))
+                    tok_breakdown = f"{tok_tot_str} tok ({in_tot_str} in, {out_tot_str} out, {cache_tot_str} cached)"
+
                     lines.append(
-                        f"    - {act_txt} {cnt_desc:<22} | {cost_part} | {avg_part}{tok_part}"
+                        f"    - {act_txt} {cnt_desc:<22} | {cost_part} | {avg_cost_part} | {tok_breakdown}"
                     )
                 else:
                     lines.append(
-                        f"    - {act_txt} {tot_cnt} steps{'':<15} | no cost data"
+                        f"    - {act_txt} {tot_cnt} steps {blank:<15} | no cost data"
                     )
     else:
         lines.append("  No recorded cost/token data for the selected runs.")

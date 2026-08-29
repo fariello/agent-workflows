@@ -602,24 +602,39 @@ class RunViewerTests(TestCase):
         self.assertEqual(summary_dict["steps_count"], 4)
         self.assertEqual(summary_dict["steps_with_cost"], 3)
         self.assertEqual(summary_dict["total_cost"], 24.00)
+        self.assertEqual(summary_dict["avg_cost_per_run"], 12.00)
 
         # Check by_status
         self.assertEqual(summary_dict["by_status"]["executed"]["total_cost"], 10.00)
-        self.assertEqual(summary_dict["by_status"]["executed"]["avg_cost"], 10.00)
+        self.assertEqual(
+            summary_dict["by_status"]["executed"]["avg_cost_per_step"], 10.00
+        )
+        self.assertEqual(
+            summary_dict["by_status"]["executed"]["avg_cost_per_run"], 5.00
+        )
         self.assertEqual(summary_dict["by_status"]["reviewed"]["total_cost"], 14.00)
-        self.assertEqual(summary_dict["by_status"]["reviewed"]["avg_cost"], 7.00)
+        self.assertEqual(
+            summary_dict["by_status"]["reviewed"]["avg_cost_per_step"], 7.00
+        )
+        self.assertEqual(
+            summary_dict["by_status"]["reviewed"]["avg_cost_per_run"], 7.00
+        )
         self.assertEqual(summary_dict["by_status"]["queued"]["count"], 1)
         self.assertEqual(summary_dict["by_status"]["queued"]["steps_with_cost"], 0)
 
         # Check by_action
-        self.assertEqual(summary_dict["by_action"]["review"]["avg_cost"], 7.00)
-        self.assertEqual(summary_dict["by_action"]["execute"]["avg_cost"], 10.00)
+        self.assertEqual(summary_dict["by_action"]["review"]["avg_cost_per_step"], 7.00)
+        self.assertEqual(summary_dict["by_action"]["review"]["avg_cost_per_run"], 7.00)
+        self.assertEqual(
+            summary_dict["by_action"]["execute"]["avg_cost_per_step"], 10.00
+        )
+        self.assertEqual(summary_dict["by_action"]["execute"]["avg_cost_per_run"], 5.00)
 
         # Check format_multi_run_summary text
         text = run_viewer.format_multi_run_summary([run1, run2], term)
         self.assertIn("Summary across 2 runs (4 steps)", text)
         self.assertIn(
-            "Total Cost:   $24.00 (across 3/4 steps with recorded usage)", text
+            "Total Cost:   $24.00 (across 3/4 steps with usage; avg $12.00/run)", text
         )
         self.assertIn("Breakdown by Status:", text)
         self.assertIn("reviewed", text)
