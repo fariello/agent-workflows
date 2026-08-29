@@ -1690,14 +1690,23 @@ class VerifierPromptTests(unittest.TestCase):
         verify_prompt = driver.build_verifier_prompt(
             item, state, Path("/tmp/run"), Path("/tmp/plan.md")
         )
-        expected = (
-            "## Concurrent Work\n\n"
-            "Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.\n\n"
-            "Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.\n\n"
-            "Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work."
-        )
-        self.assertIn(expected, exec_prompt)
-        self.assertIn(expected, verify_prompt)
+        # coauthor Order 01 (a5ni7v): assert the REQUIRED PROPERTIES of this section rather than a
+        # frozen blob. The previous form pinned the exact prose (including a curly apostrophe), so
+        # adding the mandatory staged-set verification step broke it for no substantive reason.
+        for prompt in (exec_prompt, verify_prompt):
+            self.assertIn("## Concurrent Work", prompt)
+            self.assertIn(
+                "Other agents may modify this repository concurrently", prompt
+            )
+            self.assertIn(
+                "Do not alter, revert, stage, or commit another agent's work", prompt
+            )
+            self.assertIn("never use `git add .` or `git add -A`", prompt)
+            # The rule must be ACTIONABLE, not just a prohibition (a5ni7v E-03).
+            self.assertIn("git diff --cached --name-only", prompt)
+            self.assertIn("git restore --staged", prompt)
+            self.assertIn("ALREADY STAGED", prompt)
+            self.assertIn("Never discard their work", prompt)
 
     def test_resolve_plan_path_handles_transition_to_executed(self):
         with tempfile.TemporaryDirectory() as temp:

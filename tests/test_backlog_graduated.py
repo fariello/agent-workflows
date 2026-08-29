@@ -221,7 +221,9 @@ class DocumentationAgreementTests(unittest.TestCase):
     def test_agents_md_documents_the_contract(self):
         text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("graduated`->`active", text.replace(" ", ""))
-        for phrase in ("REVIEW-READY IPDs", "From-Backlog", "not `done`"):
+        # coauthor a5ni7v: the canonical wording now lives in engine.py's installed block
+        # ("REVIEW-READY plans" / "`graduated`, NOT `done`"), so assert against that phrasing.
+        for phrase in ("REVIEW-READY plans", "From-Backlog", "`graduated`, NOT `done`"):
             self.assertIn(phrase, text, f"AGENTS.md must state: {phrase}")
 
     def test_agents_md_contract_has_no_em_or_en_dash(self):

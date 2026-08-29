@@ -1574,7 +1574,9 @@ Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
 
 Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
 
-Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.
+Do not alter, revert, stage, or commit another agent's work. Stage only your files; never use `git add .` or `git add -A`.
+
+Before EVERY commit, verify what you are actually about to commit: run `git diff --cached --name-only` and confirm every path listed is one YOU modified for this task; `git restore --staged <path>` anything that is not yours. Path-scoping is NOT by itself sufficient, because `git commit -- <paths>` still commits whatever is ALREADY STAGED for those paths, including a co-worker's edits to the same file.
 
 Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
 
@@ -1648,7 +1650,9 @@ Verification Outcome JSON to write: `{verify_outcome}`
 
 Other agents may modify this repository concurrently. Work only on files required for your task. Ignore unrelated changes, commits, and untracked files.
 
-Do not alter, revert, stage, or commit another agent’s work. Stage only your files; never use `git add .` or `git add -A`.
+Do not alter, revert, stage, or commit another agent's work. Stage only your files; never use `git add .` or `git add -A`.
+
+Before EVERY commit, verify what you are actually about to commit: run `git diff --cached --name-only` and confirm every path listed is one YOU modified for this task; `git restore --staged <path>` anything that is not yours. Path-scoping is NOT by itself sufficient, because `git commit -- <paths>` still commits whatever is ALREADY STAGED for those paths, including a co-worker's edits to the same file.
 
 Stop only if another agent changes a file you are editing or must edit and the changes cannot be safely combined. Never discard their work.
 
