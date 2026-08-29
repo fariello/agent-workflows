@@ -6,15 +6,15 @@
 - Scope: Wrap the child-01 begin/execute/finalize pipeline in per-IPD worktree isolation: (1) before the agent turn, `allocate_worktree` a fresh worktree on a run/<id6> branch (via worktree_lease) and point the agent at it (`--dir <worktree>`); (2) begin/execute/verify/finalize all happen IN that worktree, so the main tree is untouched during the turn; (3) after finalize succeeds in the worktree, INTEGRATE the verified branch back to main (fast-forward if possible; else a controlled merge of only that IPD's commits); (4) `teardown_worktree` on success. Run-ledger + begin receipts remain anchored to the main repo's gitignored `.aw/` keyed by run-id (OQ from orchestrator) so finalize/state is findable regardless of worktree. This child delivers isolation + happy-path integration; the fail-closed guard + merge-CONFLICT handling is child 03. Reuse worktree_lease; do not fork worktree logic.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/
 - Item-Dependencies: executed:p7peqf
-- Status: approved
+- Status: executed
 - Set: driverfin
 - Order: 2
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: emus4n
-- Approval: 2026-08-28, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 executed (aw oc run model=its_direct/pt3-claude-opus-4.8-1m-us): driverfin-02 emus4n: per-run worktree isolation + integrate-back implemented and verified (code committed 1407330); E-01/E-02 performed, V-01/V-02 pass (89 passed Scope-Paths tests, 2607 passed full suite). Unblocks child-03 7kbtkw. [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: already-committed in 1407330 (agy parity); in-scope-unmodified agent_workflows/oc_runipd.py: already-committed in 1407330 (worktree alloc/integrate/teardown wiring); in-scope-unmodified agent_workflows/worktree_lease.py: reused verbatim, not modified (allocate/teardown); in-scope-unmodified tests/: already-committed in 1407330 (WorktreeIsolationTests + AgyWorktreeIsolationTests)]
 - 2026-08-28 approved (aw set): status set to approved
 - 2026-08-28 reviewed (/plan-review opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed (corrected worktree path `.aw/worktrees/<lane>` + branch `aw/lane/<id6>`, resolved the plan-move vs worker path-fence architecture via OQ-02, routed E-02 through the reused `execute_merge_and_revalidate_gate`, added agy parity coverage, completed execution contract). GO - PENDING HUMAN APPROVAL (gated on child-01 p7peqf executed).
 - 2026-08-28 to-review (aw set): status set to to-review
@@ -34,17 +34,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: isolate the turn
 
-- [ ] E-01 In `execute_item` (both `oc_runipd.py` and `agy_runipd.py`), before the child-01 begin/execute pipeline, call `worktree_lease.allocate_worktree(repo, lane_id=<id6>)` (auto-branch `aw/lane/<id6>` under `.aw/worktrees/<id6>`) and run the agent with `--dir <handle.path>` (replacing the `--dir <repo>` at `oc_runipd.py:1333`); begin/execute/verify/finalize occur in the worktree. Anchor run-ledger + begin receipts to the MAIN repo's gitignored `.aw/state/`+`.aw/records/runs/` keyed by run-id (pass the main `repo` to begin/finalize, `--dir <worktree>` only to the agent) so state is findable from either tree.
+- [x] E-01 In `execute_item` (both `oc_runipd.py` and `agy_runipd.py`), before the child-01 begin/execute pipeline, call `worktree_lease.allocate_worktree(repo, lane_id=<id6>)` (auto-branch `aw/lane/<id6>` under `.aw/worktrees/<id6>`) and run the agent with `--dir <handle.path>` (replacing the `--dir <repo>` at `oc_runipd.py:1333`); begin/execute/verify/finalize occur in the worktree. Anchor run-ledger + begin receipts to the MAIN repo's gitignored `.aw/state/`+`.aw/records/runs/` keyed by run-id (pass the main `repo` to begin/finalize, `--dir <worktree>` only to the agent) so state is findable from either tree.
   - Depends on: none
   - Expected outcome: the agent edits/commits only in its worktree; `git status` on the main tree is clean during the turn; the begin receipt is written under the main repo's `.aw/state/ipd-lifecycle/`.
-  - Execution state: pending
+  - Done note: Added `allocate_isolation_worktree`/`teardown_isolation_worktree`/`sync_receipt_into_worktree` (reusing `worktree_lease.allocate_worktree`, branch `aw/lane/<id6>`, dir `.aw/worktrees/<id6>`) to BOTH drivers. Added a `work_dir` param to `run_opencode`/`run_agy_turn` (sets both `--dir <worktree>` and the subprocess `cwd`). In each `execute_item`, after begin succeeds, allocate the worktree (gated on `self_finalize and not is_review and isolate`; opt out via new `--no-isolate-worktree` flag / `isolate_worktree` option); the agent turn + verifier resolve the plan from and run inside the worktree; begin runs against MAIN (receipt under the main repo's gitignored `.aw/state/`). Per DECISION 01-emus4n-D1, finalize also runs INSIDE the worktree (receipt copied in via `sync_receipt_into_worktree`) so the plan-move commits on the lane branch. A worktree allocation failure blocks the child cleanly (no agent turn).
+  - Execution state: performed
 
 ### Task group 2: integrate back + teardown
 
-- [ ] E-02 After finalize succeeds in the worktree, integrate the verified `aw/lane/<id6>` branch into main by REUSING `orchestrate_isolation.execute_merge_and_revalidate_gate` (do NOT fork ff/merge logic): build one `LaneOutcome` (base_commit = worktree base, head_commit = post-finalize HEAD, changed_files from the branch diff) and call the gate with `merge_order=[lane_id]` and the driver's full-validation runner. On `IntegrationGateResult.passed` -> commits land on main, then `teardown_worktree`. On a conflict/stale-base/lane-failure result -> leave NOT integrated with a recorded reason (deferred to child-03), do NOT teardown-force-away the branch, do NOT fake executed. Conflict DETECTION comes from the gate; conflict RESOLUTION is child-03.
+- [x] E-02 After finalize succeeds in the worktree, integrate the verified `aw/lane/<id6>` branch into main by REUSING `orchestrate_isolation.execute_merge_and_revalidate_gate` (do NOT fork ff/merge logic): build one `LaneOutcome` (base_commit = worktree base, head_commit = post-finalize HEAD, changed_files from the branch diff) and call the gate with `merge_order=[lane_id]` and the driver's full-validation runner. On `IntegrationGateResult.passed` -> commits land on main, then `teardown_worktree`. On a conflict/stale-base/lane-failure result -> leave NOT integrated with a recorded reason (deferred to child-03), do NOT teardown-force-away the branch, do NOT fake executed. Conflict DETECTION comes from the gate; conflict RESOLUTION is child-03.
   - Depends on: E-01
   - Expected outcome: a verified child's commits (including child-01's plan-move to executed/) land on main via the reused integration gate; the worktree is removed on success; a non-passing integration is recorded and deferred, not faked.
-  - Execution state: pending
+  - Done note: Added `build_lane_outcome` (base=worktree base, head=lane-branch HEAD, changed_files+diff from `git diff base..branch`), `make_integration_validation_runner`, and `integrate_lane_branch` to BOTH drivers. `integrate_lane_branch` calls `orchestrate_isolation.execute_merge_and_revalidate_gate(merge_order=[lane_id], ...)` (the REUSED gate; no forked merge logic). Per DECISION 01-emus4n-D2, since the gate DETECTS+REVALIDATES but does not itself touch git, on `IntegrationGateResult.passed` the driver performs the real integration onto main (`git merge --ff-only`, controlled `--no-ff` fallback; a git conflict aborts + defers to child-03) then `teardown_isolation_worktree`. A non-passing gate result (e.g. `INTEGRATION_FAILED_COMBINED_RED`) or a merge-back conflict leaves the child `substantially-complete` with `integration_deferral`/`preserved_branch` recorded, the worktree preserved (NOT torn away), and NEVER faked executed.
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -110,15 +112,15 @@ Validation command: `python -m pytest tests/test_oc_runipd.py tests/test_agy_run
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Unit tests in `tests/test_oc_runipd.py` AND `tests/test_agy_runipd_cli.py` (both drivers in Scope-Paths) asserting that during a simulated child execution the MAIN git working tree has an empty `git status` while mutations occur only within the allocated worktree at `repo/.aw/worktrees/<id6>` (the real `WORKTREES_SUBDIR` path), the worktree branch is `aw/lane/<id6>`, and the begin receipt is written under the MAIN repo's `.aw/state/ipd-lifecycle/<id6>.receipt.json`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `WorktreeIsolationTests::test_main_tree_clean_during_turn_and_receipt_under_main` (OC) and `AgyWorktreeIsolationTests::test_main_tree_clean_during_turn_and_receipt_under_main` (AGY) assert (a) `git status --short` on the MAIN tree is empty (`""`) DURING the agent turn, (b) the agent's `work_dir` == `repo/.aw/worktrees/<id6>` (the real `WORKTREES_SUBDIR`), (c) the worktree branch is `aw/lane/<id6>`, and (d) `ipd_lifecycle.receipt_path_for(repo, <id6>).is_file()` under the MAIN repo's `.aw/state/`. Targeted run: `python -m pytest tests/test_oc_runipd.py::WorktreeIsolationTests tests/test_agy_runipd_cli.py::AgyWorktreeIsolationTests -o addopts="" -p no:randomly -v` -> `6 passed in 5.25s` (both `test_main_tree_clean_during_turn_and_receipt_under_main` cases PASSED, listed individually).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Tests in `tests/test_oc_runipd.py` AND `tests/test_agy_runipd_cli.py` demonstrating that on a verified turn the driver builds a `LaneOutcome` and calls `orchestrate_isolation.execute_merge_and_revalidate_gate` (not a forked merge), a `passed` result lands the child's commits (including the child-01 plan-move to executed/) on main and `teardown_worktree` removes the worktree, AND a non-passing `IntegrationGateResult` (e.g. `INTEGRATION_FAILED_CONFLICT`) leaves the child NOT integrated with a recorded reason and does not fake executed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASSED case: `WorktreeIsolationTests::test_verified_child_integrates_to_main_and_worktree_removed` (OC) + `AgyWorktreeIsolationTests::test_verified_child_integrates_to_main_and_worktree_removed` (AGY) spy on `orchestrate_isolation.execute_merge_and_revalidate_gate` and assert it is called EXACTLY once (routes through the reused gate, not a forked merge), then assert the plan-move landed in main's `.aw/records/plans/executed/<plan>` (the child-01 plan-move integrated to main), the agent's product file `src/demo.txt` is on main, the worktree `repo/.aw/worktrees/<id6>` was removed, `item["status"]=="executed"`, and the MAIN `git status` is empty after integration. NON-PASSING case: `...::test_non_passing_gate_defers_not_faked_executed` (both drivers) patch `make_integration_validation_runner` to a failing runner -> `INTEGRATION_FAILED_COMBINED_RED`; assert `item["status"]=="substantially-complete"`, `integration_deferral` recorded, the plan NOT in main's executed/, and `preserved_branch=="aw/lane/<id6>"` (worktree preserved, not faked executed). Targeted run: `python -m pytest tests/test_oc_runipd.py::WorktreeIsolationTests tests/test_agy_runipd_cli.py::AgyWorktreeIsolationTests -o addopts="" -p no:randomly -v` -> `6 passed in 5.25s`. Full Scope-Paths run: `python -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` -> `89 passed in 4.10s`. Full suite: `python -m pytest tests/` -> `2607 passed, 3 skipped in 22.56s`.
+  - Result: pass
 
 ## Approval and execution gate
 
