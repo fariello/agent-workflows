@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 160 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -23,6 +23,10 @@ Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
 ## fullauto
 
 - `97df1z` [pending] 01 pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
+
+## lanename
+
+- `j4v6ga` [pending] 01 pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
 
 ## ocsync
 
@@ -49,6 +53,11 @@ Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
 ## stallfp
 
 - `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
+
+## testinvoke
+
+- `uyd3lw` [pending] 01 pending/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md
+- `i79rgh` [pending] 02 pending/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md
 
 ## ttywedge
 
@@ -206,14 +215,6 @@ Showing the 40 most-recent of 158 Sets; the full manifest is INDEX.json.
 ## artifactenginefix
 
 - `p7dqwz` [executed] 01 executed/20260823-artifactenginefix-01-p7dqwz-corrective-parameterized-artifact-engine-stale-research-inde.ipd.md
-
-## autoindex
-
-- `hszr72` [executed] 01 executed/20260823-autoindex-01-hszr72-automatic-manifest-index-refresh-on-status-transitions-and-a.ipd.md
-
-## doctorremedy
-
-- `tdlspr` [executed] 01 executed/20260823-doctorremedy-01-tdlspr-doctor-actionable-remediation-commands-and-targeted-fixes.ipd.md
 
 ## (singletons: no Set)
 

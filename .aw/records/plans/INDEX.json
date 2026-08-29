@@ -3754,10 +3754,20 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md",
+    "plan_id": "j4v6ga",
+    "set_id": "lanename",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md",
     "plan_id": "0soncw",
     "set_id": "runnamecollapse",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -3838,6 +3848,26 @@
     "plan_id": "kaga7s",
     "set_id": "stallfp",
     "status": "reviewed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md",
+    "plan_id": "uyd3lw",
+    "set_id": "testinvoke",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md",
+    "plan_id": "i79rgh",
+    "set_id": "testinvoke",
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
