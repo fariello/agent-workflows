@@ -236,6 +236,92 @@ class RunViewerTests(TestCase):
         out = buf.getvalue()
         self.assertIn("error: --summary-only/-S cannot be used with --short/-s", out)
 
+    def test_run_viewer_cli_latest_only(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=3,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=False,
+            latest_only=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("Data from", out)
+        self.assertIn("Verified", out)
+        self.assertNotIn("Summary across", out)
+
+    def test_run_viewer_cli_latest_only_single_run(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=1,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=False,
+            latest_only=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("run-", out)
+        self.assertNotIn("Data from", out)
+
+    def test_run_viewer_cli_latest_only_conflict(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=2,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=True,
+            latest_only=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 2)
+        out = buf.getvalue()
+        self.assertIn(
+            "error: --latest-only/-L cannot be used with --summary-only/-S", out
+        )
+
     def test_run_viewer_cli_json(self):
         ns = argparse.Namespace(
             dir=".",

@@ -977,6 +977,138 @@ def render_box_table(
     return "\n".join(lines)
 
 
+def render_steps_table(
+    steps: list[StepSummary],
+    term: Term,
+    short: bool = False,
+) -> str:
+    """Render a list of steps in a rounded box table."""
+    if not steps:
+        return ""
+    if short:
+        headers = ["Status", "Item", "Action", "Verified"]
+        aligns = ["left", "left", "left", "left"]
+    else:
+        headers = [
+            "Status",
+            "Item",
+            "Action",
+            "Attempts",
+            "Cost",
+            "Total Tok",
+            "Verified",
+        ]
+        aligns = [
+            "left",
+            "left",
+            "left",
+            "right",
+            "right",
+            "right",
+            "left",
+        ]
+    rows = []
+    for step in steps:
+        st_disp = "complete" if step.status == "substantially-complete" else step.status
+        st_styled = (
+            term.status_256(st_disp) if getattr(term, "color", False) else st_disp
+        )
+        item_disp = step.stem or (
+            f"{step.setid}-{step.id6}" if step.setid else step.id6
+        )
+        att_disp = str(step.attempts_count) if step.attempts_count else "-"
+        cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
+        tok_disp = (
+            format_tokens(step.tokens.get("total", 0))
+            if step.tokens.get("total")
+            else "-"
+        )
+        v_val = step.verification_status or step.disposition
+        if v_val == "verified":
+            v_disp = (
+                term.color256("yes", 46, bold=True)
+                if getattr(term, "color", False)
+                else "yes"
+            )
+        elif v_val in ("unverified", "verify-failed", "failed"):
+            v_disp = (
+                term.color256("no", 196, bold=True)
+                if getattr(term, "color", False)
+                else "no"
+            )
+        else:
+            v_disp = "-"
+
+        if short:
+            rows.append([st_styled, item_disp, step.action, v_disp])
+        else:
+            rows.append(
+                [
+                    st_styled,
+                    item_disp,
+                    step.action,
+                    att_disp,
+                    cost_disp,
+                    tok_disp,
+                    v_disp,
+                ]
+            )
+    return render_box_table("", headers, rows, term, aligns)
+
+
+def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
+    """Render detail lines for a list of steps."""
+    lines = []
+    for step in steps:
+        details = []
+        if step.incomplete_requirements:
+            for req in step.incomplete_requirements:
+                details.append(
+                    term.color256(f"  ! incomplete: {req}", 214)
+                    if getattr(term, "color", False)
+                    else f"  ! incomplete: {req}"
+                )
+        if step.summary:
+            sum_text = step.summary.strip().replace("\n", " ")
+            if len(sum_text) > 120:
+                sum_text = sum_text[:117] + "..."
+            details.append(
+                term.color256(f"  * summary: {sum_text}", 245)
+                if getattr(term, "color", False)
+                else f"  * summary: {sum_text}"
+            )
+        if step.cost is not None:
+            details.append(
+                term.color256(f"  $ cost: ${step.cost:.2f}", 220)
+                if getattr(term, "color", False)
+                else f"  $ cost: ${step.cost:.2f}"
+            )
+        if step.tokens:
+            tok_parts = []
+            if step.tokens.get("total"):
+                tok_parts.append(f"{format_tokens(step.tokens['total'])} tot")
+            if step.tokens.get("input"):
+                tok_parts.append(f"{format_tokens(step.tokens['input'])} in")
+            if step.tokens.get("output"):
+                tok_parts.append(f"{format_tokens(step.tokens['output'])} out")
+            if step.tokens.get("cache"):
+                tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
+            if tok_parts:
+                tok_str = ", ".join(tok_parts)
+                details.append(
+                    term.color256(f"  * tokens: {tok_str}", 245)
+                    if getattr(term, "color", False)
+                    else f"  * tokens: {tok_str}"
+                )
+        if details:
+            item_id = step.stem or (
+                f"{step.setid}-{step.id6}" if step.setid else step.id6
+            )
+            lines.append(f"\nDetails for {item_id}:")
+            lines.extend(details)
+    return lines
+
+
 def format_run_human(
     run: RunSummary,
     term: Term,
@@ -1042,126 +1174,46 @@ def format_run_human(
         lines.append(f"  {cost_val_str}")
 
     if run.steps:
-        if short:
-            headers = ["Status", "Item", "Action", "Verified"]
-            aligns = ["left", "left", "left", "left"]
-        else:
-            headers = [
-                "Status",
-                "Item",
-                "Action",
-                "Attempts",
-                "Cost",
-                "Total Tok",
-                "Verified",
-            ]
-            aligns = [
-                "left",
-                "left",
-                "left",
-                "right",
-                "right",
-                "right",
-                "left",
-            ]
-        rows = []
-        for step in run.steps:
-            st_disp = (
-                "complete" if step.status == "substantially-complete" else step.status
-            )
-            st_styled = (
-                term.status_256(st_disp) if getattr(term, "color", False) else st_disp
-            )
-            item_disp = step.stem or (
-                f"{step.setid}-{step.id6}" if step.setid else step.id6
-            )
-            att_disp = str(step.attempts_count) if step.attempts_count else "-"
-            cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
-            tok_disp = (
-                format_tokens(step.tokens.get("total", 0))
-                if step.tokens.get("total")
-                else "-"
-            )
-            v_val = step.verification_status or step.disposition
-            if v_val == "verified":
-                v_disp = (
-                    term.color256("yes", 46, bold=True)
-                    if getattr(term, "color", False)
-                    else "yes"
-                )
-            elif v_val in ("unverified", "verify-failed", "failed"):
-                v_disp = (
-                    term.color256("no", 196, bold=True)
-                    if getattr(term, "color", False)
-                    else "no"
-                )
-            else:
-                v_disp = "-"
-
-            if short:
-                rows.append([st_styled, item_disp, step.action, v_disp])
-            else:
-                rows.append(
-                    [
-                        st_styled,
-                        item_disp,
-                        step.action,
-                        att_disp,
-                        cost_disp,
-                        tok_disp,
-                        v_disp,
-                    ]
-                )
-        lines.append(render_box_table("", headers, rows, term, aligns))
-
+        tbl = render_steps_table(run.steps, term, short=short)
+        if tbl:
+            lines.append(tbl)
         if detail:
-            for step in run.steps:
-                details = []
-                if step.incomplete_requirements:
-                    for req in step.incomplete_requirements:
-                        details.append(
-                            term.color256(f"  ! incomplete: {req}", 214)
-                            if getattr(term, "color", False)
-                            else f"  ! incomplete: {req}"
-                        )
-                if step.summary:
-                    sum_text = step.summary.strip().replace("\n", " ")
-                    if len(sum_text) > 120:
-                        sum_text = sum_text[:117] + "..."
-                    details.append(
-                        term.color256(f"  * summary: {sum_text}", 245)
-                        if getattr(term, "color", False)
-                        else f"  * summary: {sum_text}"
-                    )
-                if step.cost is not None:
-                    details.append(
-                        term.color256(f"  $ cost: ${step.cost:.2f}", 220)
-                        if getattr(term, "color", False)
-                        else f"  $ cost: ${step.cost:.2f}"
-                    )
-                if step.tokens:
-                    tok_parts = []
-                    if step.tokens.get("total"):
-                        tok_parts.append(f"{format_tokens(step.tokens['total'])} tot")
-                    if step.tokens.get("input"):
-                        tok_parts.append(f"{format_tokens(step.tokens['input'])} in")
-                    if step.tokens.get("output"):
-                        tok_parts.append(f"{format_tokens(step.tokens['output'])} out")
-                    if step.tokens.get("cache"):
-                        tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
-                    if tok_parts:
-                        tok_str = ", ".join(tok_parts)
-                        details.append(
-                            term.color256(f"  * tokens: {tok_str}", 245)
-                            if getattr(term, "color", False)
-                            else f"  * tokens: {tok_str}"
-                        )
-                if details:
-                    item_id = step.stem or (
-                        f"{step.setid}-{step.id6}" if step.setid else step.id6
-                    )
-                    lines.append(f"\nDetails for {item_id}:")
-                    lines.extend(details)
+            lines.extend(render_step_details(run.steps, term))
+
+    return "\n".join(lines)
+
+
+def format_latest_only_human(
+    summaries: list[RunSummary],
+    term: Term,
+    detail: bool = False,
+    short: bool = False,
+) -> str:
+    """Format the deduplicated latest step records across matched runs."""
+    latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
+    for s in summaries:
+        for step in s.steps:
+            key = step.id6 or step.stem or step.item
+            latest_steps_dict[key] = (s, step)
+
+    if not latest_steps_dict:
+        return "no steps found in matched runs"
+
+    contributing_runs = {r.run_id for r, _ in latest_steps_dict.values()}
+    steps = [st for _, st in latest_steps_dict.values()]
+
+    if len(summaries) == 1 or len(contributing_runs) <= 1:
+        single_run = next(
+            (r for r in summaries if r.run_id in contributing_runs), summaries[0]
+        )
+        return format_run_human(single_run, term, detail=detail, short=short)
+
+    lines = [f"Data from {len(contributing_runs)} runs"]
+    tbl = render_steps_table(steps, term, short=short)
+    if tbl:
+        lines.append(tbl)
+    if detail:
+        lines.extend(render_step_details(steps, term))
 
     return "\n".join(lines)
 
@@ -1561,6 +1613,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     detail = getattr(args, "detail", False) or getattr(args, "long", False)
     short = getattr(args, "short", False)
     summary_only = getattr(args, "summary_only", False)
+    latest_only = getattr(args, "latest_only", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
@@ -1569,6 +1622,14 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if short and summary_only:
         err_msg = "error: --summary-only/-S cannot be used with --short/-s"
+        if is_agent or is_json:
+            print(json.dumps({"error": err_msg, "exit_code": 2}))
+        else:
+            term.line(err_msg)
+        return 2
+
+    if latest_only and summary_only:
+        err_msg = "error: --latest-only/-L cannot be used with --summary-only/-S"
         if is_agent or is_json:
             print(json.dumps({"error": err_msg, "exit_code": 2}))
         else:
@@ -1636,7 +1697,20 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     if is_json:
-        if summary_only:
+        if latest_only:
+            latest_steps_dict: dict[str, tuple[RunSummary, StepSummary]] = {}
+            for s in summaries:
+                for step in s.steps:
+                    key = step.id6 or step.stem or step.item
+                    latest_steps_dict[key] = (s, step)
+            contributing = list({r.run_id for r, _ in latest_steps_dict.values()})
+            steps_list = [asdict(st) for _, st in latest_steps_dict.values()]
+            payload = {
+                "runs_count": len(contributing),
+                "runs": contributing,
+                "steps": steps_list,
+            }
+        elif summary_only:
             payload = {"summary": build_multi_run_summary_dict(summaries)}
         else:
             payload = {"runs": [asdict(s) for s in summaries]}
@@ -1648,6 +1722,15 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     if is_agent:
+        if latest_only:
+            latest_steps_dict = {}
+            for s in summaries:
+                for step in s.steps:
+                    key = step.id6 or step.stem or step.item
+                    latest_steps_dict[key] = (s, step)
+            for _, st in latest_steps_dict.values():
+                print(json.dumps(asdict(st), separators=(",", ":"), ensure_ascii=False))
+            return 0
         if summary_only:
             s_dict = build_multi_run_summary_dict(summaries)
             print(json.dumps(s_dict, separators=(",", ":"), ensure_ascii=False))
@@ -1659,6 +1742,10 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     # Human display
+    if latest_only:
+        term.line(format_latest_only_human(summaries, term, detail=detail, short=short))
+        return 0
+
     if summary_only:
         term.line(format_multi_run_summary(summaries, term))
         return 0

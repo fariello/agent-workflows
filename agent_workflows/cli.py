@@ -1619,6 +1619,13 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="summary_only",
         help="Show only the aggregate summary breakdown tables (omits individual runs).",
     )
+    p_run_list.add_argument(
+        "--latest-only",
+        "-L",
+        action="store_true",
+        dest="latest_only",
+        help="Show only the latest state for each item across matched runs in one table.",
+    )
 
     p_runs = sub.add_parser(
         "runs",
@@ -1635,6 +1642,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs --last                   # summary of the most recent run\n"
             "  aw runs --last 5                 # summary of the last 5 runs\n"
             "  aw runs -l 5                     # summary of the last 5 runs\n"
+            "  aw runs -L                       # unified table of latest item states\n"
             "  aw runs --since 1d               # summary of runs in the last day\n"
             "  aw runs <run-id-or-path>         # summary of a specific run\n"
             "  aw runs --set <setid>            # filter runs by Set ID\n"
@@ -1642,6 +1650,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs --detail                 # include incomplete items and step summaries\n"
             "  aw runs --short                  # short table without cost/token columns\n"
             "  aw runs --summary-only           # summary breakdown only\n"
+            "  aw runs --latest-only            # latest status per item in unified table\n"
         ),
     )
     p_runs.add_argument(
@@ -1715,6 +1724,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="summary_only",
         help="Show only the aggregate summary breakdown tables (omits individual runs).",
+    )
+    p_runs.add_argument(
+        "--latest-only",
+        "-L",
+        action="store_true",
+        dest="latest_only",
+        help="Show only the latest state for each item across matched runs in one table.",
     )
 
     p_research = sub.add_parser(
