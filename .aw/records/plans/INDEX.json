@@ -3464,6 +3464,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md",
+    "plan_id": "ynix69",
+    "set_id": "puot79e04",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md",
     "plan_id": "bja8og",
     "set_id": "tabcomp",
@@ -3547,16 +3557,6 @@
     "path": "pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md",
     "plan_id": "u5vyye",
     "set_id": "xprio",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md",
-    "plan_id": "ynix69",
-    "set_id": "puot79e04",
     "status": "approved"
   },
   {

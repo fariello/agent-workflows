@@ -6,16 +6,16 @@
 - Scope: Following the awocrunner packaged-core + host-subcommand + compat-shim pattern (as puot79 did for the three unambiguous tools): (1) move tools/agy_run.py logic into a packaged core agent_workflows/agy_run.py, fixing its internal `import agy_sessions` to `from agent_workflows import agy_sessions` (see Findings); (2) expose it as `aw agy exec` via cli.py (extend the existing `aw agy` group - CURRENTLY at cli.py:2600, `agy_sub` at 2606 - and wire BOTH dispatch sites the other agy subcommands use: the early fast-path forwarder at cli.py:7610-7635 AND the argparse dispatch at cli.py:7799-7817) - MUST NOT use `aw agy run` (keeps aliasing runipd); (3) reduce tools/agy_run.py to a thin compat shim that re-exports ALL of the packaged core's symbols (like tools/agy_sessions.py) and forwards to the packaged entry, so `tools/antigravity_execute_ipd.py`'s `import agy_run` re-export chain and the `agy-run-entry-points` compat surface keep resolving; (4) migrate tools/test_agy_run.py (which ALSO covers tools/antigravity_execute_ipd.py backward-compat) to exercise the packaged surface, keeping behavior coverage for BOTH; (5) add an invocation test (`aw agy exec` runs the packaged core), a shim-forwarding test, and a no-collision test asserting `aw agy run`/`runagy`/`runipd` still route to agy_runipd (not agy_run). Do NOT change agy_runipd or the runipd aliases.
 - Scope-Paths: agent_workflows/agy_run.py, agent_workflows/cli.py, tools/agy_run.py, tools/test_agy_run.py, tools/README.md, tests/
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - From-Backlog: czrlef
 - Set: puot79e04
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: ynix69
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): graduate agy_run.py -> aw agy exec (packaged core + full-re-export compat shim); migrate tests + invert puot79 assertions; docs [Scope reconciliation - in-scope-unmodified agent_workflows/agy_run.py: changed in execution commit 4579ba8 (before begin base); new packaged core; in-scope-unmodified agent_workflows/cli.py: changed in 4579ba8; added aw agy exec subparser + both dispatch sites; in-scope-unmodified tests/: changed in 4579ba8; tests/test_agy_tools_graduation.py inversions + exec/shim/no-collision tests; in-scope-unmodified tools/README.md: changed in 4579ba8; documented aw agy exec + shim; in-scope-unmodified tools/agy_run.py: changed in 4579ba8; reduced to full-re-export compat shim; in-scope-unmodified tools/test_agy_run.py: changed in 4579ba8; migrated to packaged surface, kept antigravity_execute_ipd compat]
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-28 reviewed (aw set): status set to reviewed
 - 2026-08-28 /plan-review (opencode its_direct/pt3-claude-opus-4.8-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Added E-05 (invert three contradicted puot79 assertions - draft missed test_no_agy_exec_surface_yet), E-06 + tools/README.md scope (doc sync), corrected build_parser->parse_args, added import agy_sessions fixup, dual dispatch-site wiring, antigravity_execute_ipd re-export chain preservation, and V-05/V-06. Status -> reviewed.

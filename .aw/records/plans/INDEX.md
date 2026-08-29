@@ -10,7 +10,7 @@ Showing the 40 most-recent of 146 Sets; the full manifest is INDEX.json.
 
 ## puot79e04
 
-- `ynix69` [pending] 01 pending/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md
+- `ynix69` [executed] 01 executed/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md
 
 ## tabcomp
 
