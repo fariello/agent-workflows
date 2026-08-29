@@ -730,9 +730,10 @@ class RunViewerTests(TestCase):
         )
         out = run_viewer.format_run_human(run, term)
         lines = out.splitlines()
-        self.assertIn("pid: 12345 [exited]", lines[0])
-        self.assertIn("runtime: 2m 05s", lines[0])
-        self.assertIn("0 steps: 2 executed", lines[1])
+        self.assertIn("run-20260829T100000Z-12345", lines[0])
+        self.assertIn("pid: 12345 [exited]", lines[1])
+        self.assertIn("runtime: 2m 05s", lines[1])
+        self.assertIn("0 steps: 2 executed", lines[2])
         self.assertIn(
-            "$5.50, 50.00K tok (40.00K in, 10.00K out, 30.00K cached)", lines[2]
+            "$5.50, 50.00K tok (40.00K in, 10.00K out, 30.00K cached)", lines[3]
         )

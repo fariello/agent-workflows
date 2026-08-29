@@ -928,7 +928,10 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     date_str = _clean_timestamp(run.created_at or run.updated_at)
     date_txt = f"  {date_str}" if date_str else ""
 
-    # PID and runtime info
+    # Line 1: identity, targets, start timestamp
+    lines.append(f"{run_id_txt}{set_txt}{date_txt}")
+
+    # Line 2: PID and runtime info (if present)
     meta_parts = []
     if run.pid is not None:
         p_state = run.pid_state or "unknown"
@@ -940,12 +943,10 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     if run.runtime_str:
         meta_parts.append(f"runtime: {run.runtime_str}")
 
-    meta_txt = f"  ({', '.join(meta_parts)})" if meta_parts else ""
+    if meta_parts:
+        lines.append(f"  {', '.join(meta_parts)}")
 
-    # Line 1: identity, targets, date, pid & runtime
-    lines.append(f"{run_id_txt}{set_txt}{date_txt}{meta_txt}")
-
-    # Line 2: Step count and status tally
+    # Line 3: Step count and status tally
     tally_parts = []
     for st, cnt in sorted(run.counts.items()):
         st_display = "complete" if st == "substantially-complete" else st
