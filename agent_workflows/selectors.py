@@ -11,6 +11,7 @@ the Order 01 naming authority (for bare-stem parsing); the naming authority neve
 from __future__ import annotations
 
 import contextlib
+import os
 import re
 from pathlib import Path
 from typing import List, NamedTuple, Optional
@@ -189,8 +190,46 @@ def _read_setid(text: str) -> str | None:
     return m.group(1).split("(")[0].strip().split()[0] if m.group(1).strip() else None
 
 
+# PERF (awfindperf): selector matching only ever consults the front-matter bullets
+# (`- Id:`, `- Status:`, `- Set:`) via _read_id/_read_status/_read_setid, which live in the
+# first handful of lines. Reading whole files (some are multi-hundred-KB records) dominated
+# `aw find`. We read a bounded header instead. The cap is generous enough to cover a long
+# metadata block plus a `## Workflow history` preamble.
+_HEADER_BYTES = 4096
+
+
+def _read_header(p: Path) -> str | None:
+    """Read at most _HEADER_BYTES of a record file; None if unreadable.
+
+    Front-matter bullets are always near the top, so a bounded read is sufficient for
+    id6/status/setid extraction and avoids paging in large record bodies.
+    """
+    try:
+        with p.open("r", encoding="utf-8", errors="replace") as fh:
+            return fh.read(_HEADER_BYTES)
+    except OSError:
+        return None
+
+
+def _iter_md(base: Path):
+    """Walk `base` yielding *.md files while PRUNING excluded dirs before descending.
+
+    `Path.rglob` cannot prune, so it descends into `.git/`, `runs/`, `tmp/`, `scratch/`,
+    `__pycache__/` and similar before we get a chance to skip their contents. os.walk lets us
+    drop those subtrees from `dirnames` in place, so they are never traversed at all.
+    """
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_RECORD_DIRS]
+        for fn in filenames:
+            if fn.endswith(".md"):
+                yield Path(dirpath) / fn
+
+
 def _iter_files(repo_root: Path, record_type: str):
-    """Yield (path, text) for every non-index *.md record file of the type, de-duplicated by path."""
+    """Yield (path, text) for every non-index *.md record file of the type, de-duplicated by path.
+
+    `text` is a BOUNDED header read (see _read_header), sufficient for every selector rule.
+    """
     seen: set = set()
     if record_type == "other":
         known_dirs = {
@@ -201,7 +240,7 @@ def _iter_files(repo_root: Path, record_type: str):
         for base in (repo_root / ".aw" / "records", repo_root / ".agents"):
             if not base.is_dir():
                 continue
-            for p in base.rglob("*.md"):
+            for p in _iter_md(base):
                 if p.name in _SKIP_NAMES:
                     continue
                 try:
@@ -220,24 +259,22 @@ def _iter_files(repo_root: Path, record_type: str):
                 if rp in seen:
                     continue
                 seen.add(rp)
-                try:
-                    text = p.read_text(encoding="utf-8")
-                except OSError:
+                text = _read_header(p)
+                if text is None:
                     continue
                 yield p, text
         return
 
     for d in record_dirs(repo_root, record_type):
-        for p in d.rglob("*.md"):
+        for p in _iter_md(d):
             if p.name in _SKIP_NAMES:
                 continue
             rp = str(p.resolve())
             if rp in seen:
                 continue
             seen.add(rp)
-            try:
-                text = p.read_text(encoding="utf-8")
-            except OSError:
+            text = _read_header(p)
+            if text is None:
                 continue
             yield p, text
 
