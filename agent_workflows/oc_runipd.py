@@ -199,6 +199,8 @@ def run_checked(
         cwd=str(cwd) if cwd else None,
         env=merged_env,
         text=True,
+        # ttywedge Order 01 (g40w37): deny an inherited terminal (see driver_finalize).
+        stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -363,7 +365,15 @@ def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
         str(repo),
     ]
     result = subprocess.run(
-        cmd, cwd=str(repo), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        cmd,
+        cwd=str(repo),
+        text=True,
+        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
+        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
+        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     return result.returncode, (result.stderr or result.stdout or "").strip()
 
@@ -431,7 +441,15 @@ def driver_finalize(
     for path, note in acks.items():
         cmd.extend(["--scope-ack", f"{path}={note}"])
     result = subprocess.run(
-        cmd, cwd=str(repo), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        cmd,
+        cwd=str(repo),
+        text=True,
+        # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
+        # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
+        # while its prompt goes into the pipe below. Verified: a finalize wedged 1h49m this way.
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
     return result.returncode, (result.stderr or result.stdout or "").strip()
 

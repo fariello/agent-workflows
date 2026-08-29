@@ -1938,12 +1938,36 @@ def run_finalize(args) -> int:
     scope_reasons = _parse_scope_reason_flags(getattr(args, "scope_reason", None))
     scope_acks = _parse_scope_ack_flags(getattr(args, "scope_ack", None))
     # Interactive ONLY on a real TTY in the human (non-agent/json) output mode.
+    #
+    # ttywedge Order 01 (g40w37): stdin.isatty() ALONE is not consent. A driver spawns this command
+    # with stdout/stderr piped but stdin INHERITED, so the child sees the operator's terminal, decides
+    # it may prompt, and blocks on input() forever for an answer nobody can type, because the prompt
+    # itself went into a pipe. That wedged a real finalize for 1h49m holding its run lock, leaving the
+    # plan `approved` in pending/ while the run reported `complete`. Hence two extra conditions:
+    #   - stdout must ALSO be a TTY: if the prompt is not readable by a human, do not ask.
+    #   - an explicit AW_NONINTERACTIVE/CI signal forces non-interactive regardless of the streams.
+    # These only ADD conditions, so a genuine human terminal session still prompts exactly as before.
+    # Non-interactive here is fail-CLOSED: finalize returns the scope-reconciliation refusal naming the
+    # required --scope-reason/--scope-ack flags, which is recoverable, instead of hanging, which is not.
+    import os as _os
     import sys as _sys
 
+    def _is_tty(stream: object) -> bool:
+        try:
+            return bool(getattr(stream, "isatty", None) and stream.isatty())  # type: ignore[union-attr]
+        except (ValueError, OSError):
+            # A detached/closed stream is not a terminal.
+            return False
+
+    forced_noninteractive = any(
+        str(_os.environ.get(var, "")).strip().lower() not in ("", "0", "false", "no")
+        for var in ("AW_NONINTERACTIVE", "CI")
+    )
     interactive = (
         not (ctx.is_agent or ctx.is_json)
-        and hasattr(_sys.stdin, "isatty")
-        and _sys.stdin.isatty()
+        and not forced_noninteractive
+        and _is_tty(_sys.stdin)
+        and _is_tty(_sys.stdout)
     )
     prompt = _tty_scope_prompt if interactive else None
 
