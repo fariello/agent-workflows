@@ -1,5 +1,5 @@
 - Id: 43p53n
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: gateclear
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw backlog set (leaving blocked) must clear the Gate-Kind/Gate-Ref fields; today it moves status but leaves stale gate fields, so aw backlog check then fails gate-unexpected and forces a hand-edit
 
 ## Workflow history
+- 2026-08-29 done (aw set): Fixed in 6a90e37. Root cause: the gate-clearing branch in status_set.py was guarded by rec.record_type == 'specs', so backlog items never entered it; backlog.run_set cleared correctly but the positional 'aw backlog set <status> <selector>' form routes through status_set instead, making that code unreachable. Same class as 61qk4a (Blocks-Release trapped in the same guard). Replaced with _GATE_STATUS_BY_TYPE (specs->deferred, backlog->blocked); a gate is valid IFF the record is in that status, so any other transition clears it. Regression tests in tests/test_status_set.py::TestGateFieldClearingOnStatusChange cover the repro, the harm (backlog check clean), and three over-correction guards. Adversarial proof: reverting the fix makes exactly the two backlog tests fail reproducing backlog.gate-unexpected, while the three no-regression tests still pass. Suite: 2874 passed, 3 skipped, 4 xfailed.
 - 2026-08-28 created (aw backlog): aw backlog set (leaving blocked) must clear the Gate-Kind/Gate-Ref fields; today it moves status but leaves stale gate fields, so aw backlog check then fails gate-unexpected and forces a hand-edit
 
 BUG: 'aw backlog set open <id6>' (or any transition OUT of blocked) changes Status but does NOT remove the item's '- Gate-Kind:'/'- Gate-Ref:' lines. The result fails 'aw backlog check' with 'backlog.gate-unexpected: gate fields present on a non-blocked item', forcing the operator to hand-edit the file to delete the gate lines - exactly the untooled hand-edit the house rules forbid.
