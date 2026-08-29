@@ -637,14 +637,22 @@ class RunViewerTests(TestCase):
             "Total Cost:   $24.00 (across 3/4 steps with usage; avg $12.00/run)", text
         )
         self.assertIn("Breakdown by Status:", text)
+        self.assertIn("┌", text)
+        self.assertIn("│ Status", text)
+        self.assertIn("Total Cost", text)
+        self.assertIn("Avg/Step", text)
+        self.assertIn("Avg/Run", text)
+        self.assertIn("Total Tok", text)
+        self.assertIn("In", text)
+        self.assertIn("Out", text)
+        self.assertIn("Cached", text)
         self.assertIn("reviewed", text)
-        self.assertIn("14.00 total", text)
-        self.assertIn("7.00/step", text)
+        self.assertIn("$14.00", text)
+        self.assertIn("$7.00", text)
         self.assertIn("executed", text)
-        self.assertIn("10.00 total", text)
-        self.assertIn("10.00/step", text)
+        self.assertIn("$10.00", text)
         self.assertIn("queued", text)
-        self.assertIn("no cost data", text)
+        self.assertIn("└", text)
 
         # Check format_multi_run_summary text with color=True
         color_term = Term(color=True)
@@ -653,6 +661,8 @@ class RunViewerTests(TestCase):
         self.assertIn("Total Cost:", color_text)
         self.assertIn("Breakdown by Status:", color_text)
         self.assertIn("Breakdown by Action:", color_text)
+        self.assertIn("┌", color_text)
+        self.assertIn("└", color_text)
 
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(

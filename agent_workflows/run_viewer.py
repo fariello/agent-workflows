@@ -18,7 +18,7 @@ from typing import Any
 
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
 from agent_workflows.render_stream import format_tokens
-from agent_workflows.term import Term
+from agent_workflows.term import Term, strip_ansi
 
 
 # runstale Order 01 (ssk6nf) E-01/E-03: the DISPLAY-ONLY status a `running` step is projected to when
@@ -1169,6 +1169,73 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
     }
 
 
+def render_box_table(
+    title: str,
+    headers: Sequence[str],
+    rows: Sequence[Sequence[str]],
+    term: Term,
+    alignments: Sequence[str] | None = None,
+) -> str:
+    """Render a table with box art borders and headers, with no horizontal borders between data rows."""
+    use_unicode = getattr(term, "unicode", True)
+    if use_unicode:
+        tl, tm, tr = "┌", "┬", "┐"
+        ml, mm, mr = "├", "┼", "┤"
+        bl, bm, br = "└", "┴", "┘"
+        vl, hl = "│", "─"
+    else:
+        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
+        vl, hl = "|", "-"
+
+    num_cols = len(headers)
+    aligns = list(alignments) if alignments else ["left"] * num_cols
+
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            raw_len = len(strip_ansi(str(cell)))
+            col_widths[idx] = max(col_widths[idx], raw_len)
+
+    top_border = tl + tm.join(hl * (w + 2) for w in col_widths) + tr
+    sep_border = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
+    bot_border = bl + bm.join(hl * (w + 2) for w in col_widths) + br
+
+    lines = []
+    if title:
+        lines.append(
+            term.colorize(title, "bold") if getattr(term, "color", False) else title
+        )
+    lines.append(top_border)
+
+    hdr_cells = []
+    for idx, (h, w, align) in enumerate(zip(headers, col_widths, aligns)):
+        h_styled = term.colorize(h, "bold") if getattr(term, "color", False) else h
+        pad = w - len(h)
+        spaces = " " * pad
+        if align == "right":
+            hdr_cells.append(f" {spaces}{h_styled} ")
+        else:
+            hdr_cells.append(f" {h_styled}{spaces} ")
+    lines.append(vl + vl.join(hdr_cells) + vl)
+    lines.append(sep_border)
+
+    for row in rows:
+        row_cells = []
+        for idx, (cell, w, align) in enumerate(zip(row, col_widths, aligns)):
+            cell_str = str(cell)
+            raw_len = len(strip_ansi(cell_str))
+            pad = w - raw_len
+            spaces = " " * pad
+            if align == "right":
+                row_cells.append(f" {spaces}{cell_str} ")
+            else:
+                row_cells.append(f" {cell_str}{spaces} ")
+        lines.append(vl + vl.join(row_cells) + vl)
+
+    lines.append(bot_border)
+    return "\n".join(lines)
+
+
 def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
     """Format an aggregate summary across multiple runs for terminal display."""
     summary_data = build_multi_run_summary_dict(summaries)
@@ -1198,7 +1265,7 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         )
         avg_run_cost_str = f"${avg_cost_per_run:.2f}"
         lines.append(
-            f"  Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with usage; avg {avg_run_cost_str}/run)"
+            f"Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with usage; avg {avg_run_cost_str}/run)"
         )
         if total_toks.get("total"):
             tok_str = format_tokens(total_toks.get("total", 0))
@@ -1207,17 +1274,34 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             cache_str = format_tokens(total_toks.get("cache", 0))
             avg_tok_run_str = format_tokens(avg_toks_run.get("total", 0))
             lines.append(
-                f"  Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cached; avg {avg_tok_run_str}/run)"
+                f"Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cached; avg {avg_tok_run_str}/run)"
             )
 
-        lines.append("")
-        st_hdr = "  Breakdown by Status:"
-        lines.append(
-            term.colorize(st_hdr, "bold") if getattr(term, "color", False) else st_hdr
-        )
-
-        blank = ""
+        # Status Table
         by_status = summary_data["by_status"]
+        headers_st = [
+            "Status",
+            "Steps",
+            "Total Cost",
+            "Avg/Step",
+            "Avg/Run",
+            "Total Tok",
+            "In",
+            "Out",
+            "Cached",
+        ]
+        aligns_st = [
+            "left",
+            "left",
+            "right",
+            "right",
+            "right",
+            "right",
+            "right",
+            "right",
+            "right",
+        ]
+        rows_st = []
         for st, data in sorted(
             by_status.items(),
             key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
@@ -1225,92 +1309,123 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             tot_cnt = data["count"]
             c_cnt = data["steps_with_cost"]
             st_disp = "complete" if st == "substantially-complete" else st
-            st_txt = (
-                term.status_256(st_disp, width=20)
-                if getattr(term, "color", False)
-                else f"{st_disp:<20}"
+            st_styled = (
+                term.status_256(st_disp) if getattr(term, "color", False) else st_disp
+            )
+            cnt_desc = (
+                f"{tot_cnt} ({c_cnt} cost)"
+                if (c_cnt and c_cnt != tot_cnt)
+                else str(tot_cnt)
             )
             if c_cnt > 0:
-                c_total = data["total_cost"]
-                avg_step_cost = data["avg_cost_per_step"]
-                avg_run_cost = data["avg_cost_per_run"]
-                tok_dict = data.get("tokens", {})
-
-                cnt_desc = (
-                    f"{tot_cnt} steps"
-                    if c_cnt == tot_cnt
-                    else f"{tot_cnt} steps ({c_cnt} with cost)"
-                )
-                cost_part = f"${c_total:7.2f} total"
-                avg_cost_part = (
-                    f"avg ${avg_step_cost:5.2f}/step (${avg_run_cost:5.2f}/run)"
-                )
-
-                tok_tot_str = format_tokens(tok_dict.get("total", 0))
-                in_tot_str = format_tokens(tok_dict.get("input", 0))
-                out_tot_str = format_tokens(tok_dict.get("output", 0))
-                cache_tot_str = format_tokens(tok_dict.get("cache", 0))
-                tok_breakdown = f"{tok_tot_str} tok ({in_tot_str} in, {out_tot_str} out, {cache_tot_str} cached)"
-
-                lines.append(
-                    f"    - {st_txt} {cnt_desc:<22} | {cost_part} | {avg_cost_part} | {tok_breakdown}"
-                )
+                c_tot = f"${data['total_cost']:.2f}"
+                avg_step = f"${data['avg_cost_per_step']:.2f}"
+                avg_run = f"${data['avg_cost_per_run']:.2f}"
+                td = data.get("tokens", {})
+                t_tot = format_tokens(td.get("total", 0))
+                t_in = format_tokens(td.get("input", 0))
+                t_out = format_tokens(td.get("output", 0))
+                t_cache = format_tokens(td.get("cache", 0))
             else:
-                lines.append(
-                    f"    - {st_txt} {tot_cnt} steps {blank:<15} | no cost data"
-                )
+                c_tot = avg_step = avg_run = t_tot = t_in = t_out = t_cache = "-"
+            rows_st.append(
+                [
+                    st_styled,
+                    cnt_desc,
+                    c_tot,
+                    avg_step,
+                    avg_run,
+                    t_tot,
+                    t_in,
+                    t_out,
+                    t_cache,
+                ]
+            )
 
+        lines.append("")
+        lines.append(
+            render_box_table(
+                "Breakdown by Status:", headers_st, rows_st, term, aligns_st
+            )
+        )
+
+        # Action Table
         by_action = summary_data["by_action"]
         if len(by_action) > 1:
-            lines.append("")
-            act_hdr = "  Breakdown by Action:"
-            lines.append(
-                term.colorize(act_hdr, "bold")
-                if getattr(term, "color", False)
-                else act_hdr
-            )
+            headers_act = [
+                "Action",
+                "Steps",
+                "Total Cost",
+                "Avg/Step",
+                "Avg/Run",
+                "Total Tok",
+                "In",
+                "Out",
+                "Cached",
+            ]
+            aligns_act = [
+                "left",
+                "left",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+            ]
+            rows_act = []
             for act, data in sorted(
                 by_action.items(),
                 key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
             ):
+                act_styled = (
+                    term.color256(act, 226) if getattr(term, "color", False) else act
+                )
                 tot_cnt = data["count"]
                 c_cnt = data["steps_with_cost"]
-                act_txt = (
-                    term.color256(f"{act:<20}", 226)
-                    if getattr(term, "color", False)
-                    else f"{act:<20}"
+                cnt_desc = (
+                    f"{tot_cnt} ({c_cnt} cost)"
+                    if (c_cnt and c_cnt != tot_cnt)
+                    else str(tot_cnt)
                 )
                 if c_cnt > 0:
-                    c_total = data["total_cost"]
-                    avg_step_cost = data["avg_cost_per_step"]
-                    avg_run_cost = data["avg_cost_per_run"]
-                    tok_dict = data.get("tokens", {})
-
-                    cnt_desc = (
-                        f"{tot_cnt} steps"
-                        if c_cnt == tot_cnt
-                        else f"{tot_cnt} steps ({c_cnt} with cost)"
-                    )
-                    cost_part = f"${c_total:7.2f} total"
-                    avg_cost_part = (
-                        f"avg ${avg_step_cost:5.2f}/step (${avg_run_cost:5.2f}/run)"
-                    )
-
-                    tok_tot_str = format_tokens(tok_dict.get("total", 0))
-                    in_tot_str = format_tokens(tok_dict.get("input", 0))
-                    out_tot_str = format_tokens(tok_dict.get("output", 0))
-                    cache_tot_str = format_tokens(tok_dict.get("cache", 0))
-                    tok_breakdown = f"{tok_tot_str} tok ({in_tot_str} in, {out_tot_str} out, {cache_tot_str} cached)"
-
-                    lines.append(
-                        f"    - {act_txt} {cnt_desc:<22} | {cost_part} | {avg_cost_part} | {tok_breakdown}"
-                    )
+                    c_tot = f"${data['total_cost']:.2f}"
+                    avg_step = f"${data['avg_cost_per_step']:.2f}"
+                    avg_run = f"${data['avg_cost_per_run']:.2f}"
+                    td = data.get("tokens", {})
+                    t_tot = format_tokens(td.get("total", 0))
+                    t_in = format_tokens(td.get("input", 0))
+                    t_out = format_tokens(td.get("output", 0))
+                    t_cache = format_tokens(td.get("cache", 0))
                 else:
-                    lines.append(
-                        f"    - {act_txt} {tot_cnt} steps {blank:<15} | no cost data"
-                    )
+                    c_tot = avg_step = avg_run = t_tot = t_in = t_out = t_cache = "-"
+                rows_act.append(
+                    [
+                        act_styled,
+                        cnt_desc,
+                        c_tot,
+                        avg_step,
+                        avg_run,
+                        t_tot,
+                        t_in,
+                        t_out,
+                        t_cache,
+                    ]
+                )
+
+            lines.append("")
+            lines.append(
+                render_box_table(
+                    "Breakdown by Action:",
+                    headers_act,
+                    rows_act,
+                    term,
+                    aligns_act,
+                )
+            )
     else:
-        lines.append("  No recorded cost/token data for the selected runs.")
+        lines.append("No recorded cost/token data for the selected runs.")
 
     return "\n".join(lines)
 
