@@ -910,11 +910,78 @@ def format_step_line(
     return f"- {lead}{status_padded}  {type_prefix}{stem_padded}{badge_txt}{disp_txt}"
 
 
+def render_box_table(
+    title: str,
+    headers: Sequence[str],
+    rows: Sequence[Sequence[str]],
+    term: Term,
+    alignments: Sequence[str] | None = None,
+) -> str:
+    """Render a table with rounded box art borders and headers, with no horizontal borders between data rows."""
+    use_unicode = getattr(term, "unicode", True)
+    if use_unicode:
+        tl, tm, tr = "╭", "┬", "╮"
+        ml, mm, mr = "├", "┼", "┤"
+        bl, bm, br = "╰", "┴", "╯"
+        vl, hl = "│", "─"
+    else:
+        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
+        vl, hl = "|", "-"
+
+    num_cols = len(headers)
+    aligns = list(alignments) if alignments else ["left"] * num_cols
+
+    col_widths = [len(h) for h in headers]
+    for row in rows:
+        for idx, cell in enumerate(row):
+            raw_len = len(strip_ansi(str(cell)))
+            col_widths[idx] = max(col_widths[idx], raw_len)
+
+    top_border = tl + tm.join(hl * (w + 2) for w in col_widths) + tr
+    sep_border = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
+    bot_border = bl + bm.join(hl * (w + 2) for w in col_widths) + br
+
+    lines = []
+    if title:
+        lines.append(
+            term.colorize(title, "bold") if getattr(term, "color", False) else title
+        )
+    lines.append(top_border)
+
+    hdr_cells = []
+    for idx, (h, w, align) in enumerate(zip(headers, col_widths, aligns)):
+        h_styled = term.colorize(h, "bold") if getattr(term, "color", False) else h
+        pad = w - len(h)
+        spaces = " " * pad
+        if align == "right":
+            hdr_cells.append(f" {spaces}{h_styled} ")
+        else:
+            hdr_cells.append(f" {h_styled}{spaces} ")
+    lines.append(vl + vl.join(hdr_cells) + vl)
+    lines.append(sep_border)
+
+    for row in rows:
+        row_cells = []
+        for idx, (cell, w, align) in enumerate(zip(row, col_widths, aligns)):
+            cell_str = str(cell)
+            raw_len = len(strip_ansi(cell_str))
+            pad = w - raw_len
+            spaces = " " * pad
+            if align == "right":
+                row_cells.append(f" {spaces}{cell_str} ")
+            else:
+                row_cells.append(f" {cell_str}{spaces} ")
+        lines.append(vl + vl.join(row_cells) + vl)
+
+    lines.append(bot_border)
+    return "\n".join(lines)
+
+
 def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     """Format a RunSummary as human terminal text."""
     lines = []
 
-    # Header line: run_id [setid] timestamp (summary counts)
+    # Header line: run_id [setid] timestamp
     run_id_txt = (
         term.color256(run.run_id, 33, bold=True)
         if getattr(term, "color", False)
@@ -954,7 +1021,7 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     tally_str = ", ".join(tally_parts) if tally_parts else f"{len(run.steps)} steps"
     lines.append(f"  {len(run.steps)} steps: {tally_str}")
 
-    # Line 3: Cost and token usage (if present)
+    # Line 4: Cost and token usage (if present)
     cost_val_str = f"${run.total_cost:.2f}" if run.total_cost is not None else None
     if run.total_tokens.get("total"):
         tot_str = format_tokens(run.total_tokens["total"])
@@ -969,77 +1036,111 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
     elif cost_val_str is not None:
         lines.append(f"  {cost_val_str}")
 
-    status_width = max(
-        18,
-        max(
-            (
-                len("complete" if s.status == "substantially-complete" else s.status)
-                for s in run.steps
-            ),
-            default=18,
-        ),
-    )
-    stem_width = max(
-        (
-            len(s.stem or (f"{s.setid}-{s.id6}" if s.setid else s.id6))
-            for s in run.steps
-        ),
-        default=0,
-    )
-
-    for step in run.steps:
-        lines.append(
-            format_step_line(
-                step,
-                term,
-                status_width=status_width,
-                stem_width=stem_width,
+    if run.steps:
+        headers = [
+            "Status",
+            "Item",
+            "Action",
+            "Attempts",
+            "Cost",
+            "Total Tok",
+            "Verified",
+        ]
+        aligns = ["left", "left", "left", "right", "right", "right", "left"]
+        rows = []
+        for step in run.steps:
+            st_disp = (
+                "complete" if step.status == "substantially-complete" else step.status
             )
-        )
+            st_styled = (
+                term.status_256(st_disp) if getattr(term, "color", False) else st_disp
+            )
+            item_disp = step.stem or (
+                f"{step.setid}-{step.id6}" if step.setid else step.id6
+            )
+            att_disp = str(step.attempts_count) if step.attempts_count else "-"
+            cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
+            tok_disp = (
+                format_tokens(step.tokens.get("total", 0))
+                if step.tokens.get("total")
+                else "-"
+            )
+            v_disp = step.verification_status or (
+                step.disposition if step.disposition else "-"
+            )
+            if v_disp == "verified":
+                v_disp = (
+                    term.color256("[verified]", 46, bold=True)
+                    if getattr(term, "color", False)
+                    else "[verified]"
+                )
+            elif v_disp in ("unverified", "verify-failed"):
+                v_disp = (
+                    term.color256(f"[{v_disp}]", 196, bold=True)
+                    if getattr(term, "color", False)
+                    else f"[{v_disp}]"
+                )
+            rows.append(
+                [
+                    st_styled,
+                    item_disp,
+                    step.action,
+                    att_disp,
+                    cost_disp,
+                    tok_disp,
+                    v_disp,
+                ]
+            )
+        lines.append(render_box_table("", headers, rows, term, aligns))
+
         if detail:
-            if step.incomplete_requirements:
-                for req in step.incomplete_requirements:
-                    req_txt = (
-                        term.color256(f"     ! incomplete: {req}", 214)
+            for step in run.steps:
+                details = []
+                if step.incomplete_requirements:
+                    for req in step.incomplete_requirements:
+                        details.append(
+                            term.color256(f"  ! incomplete: {req}", 214)
+                            if getattr(term, "color", False)
+                            else f"  ! incomplete: {req}"
+                        )
+                if step.summary:
+                    sum_text = step.summary.strip().replace("\n", " ")
+                    if len(sum_text) > 120:
+                        sum_text = sum_text[:117] + "..."
+                    details.append(
+                        term.color256(f"  * summary: {sum_text}", 245)
                         if getattr(term, "color", False)
-                        else f"     ! incomplete: {req}"
+                        else f"  * summary: {sum_text}"
                     )
-                    lines.append(req_txt)
-            if step.summary:
-                sum_text = step.summary.strip().replace("\n", " ")
-                if len(sum_text) > 120:
-                    sum_text = sum_text[:117] + "..."
-                sum_txt = (
-                    term.color256(f"     * summary: {sum_text}", 245)
-                    if getattr(term, "color", False)
-                    else f"     * summary: {sum_text}"
-                )
-                lines.append(sum_txt)
-            if step.cost is not None:
-                cost_txt = (
-                    term.color256(f"     $ cost: ${step.cost:.2f}", 220)
-                    if getattr(term, "color", False)
-                    else f"     $ cost: ${step.cost:.2f}"
-                )
-                lines.append(cost_txt)
-            if step.tokens:
-                tok_parts = []
-                if step.tokens.get("total"):
-                    tok_parts.append(f"{format_tokens(step.tokens['total'])} tot")
-                if step.tokens.get("input"):
-                    tok_parts.append(f"{format_tokens(step.tokens['input'])} in")
-                if step.tokens.get("output"):
-                    tok_parts.append(f"{format_tokens(step.tokens['output'])} out")
-                if step.tokens.get("cache"):
-                    tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
-                if tok_parts:
-                    tok_str = ", ".join(tok_parts)
-                    tok_txt = (
-                        term.color256(f"     * tokens: {tok_str}", 245)
+                if step.cost is not None:
+                    details.append(
+                        term.color256(f"  $ cost: ${step.cost:.2f}", 220)
                         if getattr(term, "color", False)
-                        else f"     * tokens: {tok_str}"
+                        else f"  $ cost: ${step.cost:.2f}"
                     )
-                    lines.append(tok_txt)
+                if step.tokens:
+                    tok_parts = []
+                    if step.tokens.get("total"):
+                        tok_parts.append(f"{format_tokens(step.tokens['total'])} tot")
+                    if step.tokens.get("input"):
+                        tok_parts.append(f"{format_tokens(step.tokens['input'])} in")
+                    if step.tokens.get("output"):
+                        tok_parts.append(f"{format_tokens(step.tokens['output'])} out")
+                    if step.tokens.get("cache"):
+                        tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
+                    if tok_parts:
+                        tok_str = ", ".join(tok_parts)
+                        details.append(
+                            term.color256(f"  * tokens: {tok_str}", 245)
+                            if getattr(term, "color", False)
+                            else f"  * tokens: {tok_str}"
+                        )
+                if details:
+                    item_id = step.stem or (
+                        f"{step.setid}-{step.id6}" if step.setid else step.id6
+                    )
+                    lines.append(f"\nDetails for {item_id}:")
+                    lines.extend(details)
 
     return "\n".join(lines)
 
@@ -1167,73 +1268,6 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
         "by_status": status_summary,
         "by_action": action_summary,
     }
-
-
-def render_box_table(
-    title: str,
-    headers: Sequence[str],
-    rows: Sequence[Sequence[str]],
-    term: Term,
-    alignments: Sequence[str] | None = None,
-) -> str:
-    """Render a table with box art borders and headers, with no horizontal borders between data rows."""
-    use_unicode = getattr(term, "unicode", True)
-    if use_unicode:
-        tl, tm, tr = "┌", "┬", "┐"
-        ml, mm, mr = "├", "┼", "┤"
-        bl, bm, br = "└", "┴", "┘"
-        vl, hl = "│", "─"
-    else:
-        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
-        vl, hl = "|", "-"
-
-    num_cols = len(headers)
-    aligns = list(alignments) if alignments else ["left"] * num_cols
-
-    col_widths = [len(h) for h in headers]
-    for row in rows:
-        for idx, cell in enumerate(row):
-            raw_len = len(strip_ansi(str(cell)))
-            col_widths[idx] = max(col_widths[idx], raw_len)
-
-    top_border = tl + tm.join(hl * (w + 2) for w in col_widths) + tr
-    sep_border = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
-    bot_border = bl + bm.join(hl * (w + 2) for w in col_widths) + br
-
-    lines = []
-    if title:
-        lines.append(
-            term.colorize(title, "bold") if getattr(term, "color", False) else title
-        )
-    lines.append(top_border)
-
-    hdr_cells = []
-    for idx, (h, w, align) in enumerate(zip(headers, col_widths, aligns)):
-        h_styled = term.colorize(h, "bold") if getattr(term, "color", False) else h
-        pad = w - len(h)
-        spaces = " " * pad
-        if align == "right":
-            hdr_cells.append(f" {spaces}{h_styled} ")
-        else:
-            hdr_cells.append(f" {h_styled}{spaces} ")
-    lines.append(vl + vl.join(hdr_cells) + vl)
-    lines.append(sep_border)
-
-    for row in rows:
-        row_cells = []
-        for idx, (cell, w, align) in enumerate(zip(row, col_widths, aligns)):
-            cell_str = str(cell)
-            raw_len = len(strip_ansi(cell_str))
-            pad = w - raw_len
-            spaces = " " * pad
-            if align == "right":
-                row_cells.append(f" {spaces}{cell_str} ")
-            else:
-                row_cells.append(f" {cell_str}{spaces} ")
-        lines.append(vl + vl.join(row_cells) + vl)
-
-    lines.append(bot_border)
-    return "\n".join(lines)
 
 
 def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:

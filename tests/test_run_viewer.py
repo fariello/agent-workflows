@@ -526,10 +526,10 @@ class RunViewerTests(TestCase):
         formatted = run_viewer.format_run_human(run, term, detail=True)
         self.assertIn("$15.75", formatted)
         self.assertIn("150.00K tok", formatted)
-        self.assertIn("[$10.50]", formatted)
-        self.assertIn("[$5.25]", formatted)
+        self.assertIn("$10.50", formatted)
+        self.assertIn("$5.25", formatted)
         self.assertIn("$ cost: $10.50", formatted)
-        self.assertIn("* tokens: 100.00K tot, 80.00K in, 20.00K out", formatted)
+        self.assertIn("* tokens: 100.00K tot", formatted)
 
     def test_multi_run_summary_dict_and_format(self):
         term = Term(color=False)
@@ -637,7 +637,7 @@ class RunViewerTests(TestCase):
             "Total Cost:   $24.00 (across 3/4 steps with usage; avg $12.00/run)", text
         )
         self.assertIn("Breakdown by Status:", text)
-        self.assertIn("┌", text)
+        self.assertIn("╭", text)
         self.assertIn("│ Status", text)
         self.assertIn("Total Cost", text)
         self.assertIn("Avg/Step", text)
@@ -652,7 +652,7 @@ class RunViewerTests(TestCase):
         self.assertIn("executed", text)
         self.assertIn("$10.00", text)
         self.assertIn("queued", text)
-        self.assertIn("└", text)
+        self.assertIn("╰", text)
 
         # Check format_multi_run_summary text with color=True
         color_term = Term(color=True)
@@ -661,8 +661,8 @@ class RunViewerTests(TestCase):
         self.assertIn("Total Cost:", color_text)
         self.assertIn("Breakdown by Status:", color_text)
         self.assertIn("Breakdown by Action:", color_text)
-        self.assertIn("┌", color_text)
-        self.assertIn("└", color_text)
+        self.assertIn("╭", color_text)
+        self.assertIn("╰", color_text)
 
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(
