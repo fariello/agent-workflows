@@ -1570,6 +1570,28 @@
   },
   {
     "consumed_by": [],
+    "created": "20260829",
+    "date": "20260829",
+    "id6": "x0spmh",
+    "kind": "research-report",
+    "model": "gpt56",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260829-sessalloc-00-x0spmh-agent-runner-session-allocation.gpt56.research-report.md",
+    "priority": "high",
+    "set_id": "sessalloc",
+    "status": "todo",
+    "summary": "GPT-5.6 evidence-based session-allocation policy for aw oc run: fresh session per isolated execute turn, workspace-bound sessions, and context-pack compilation as the real cost lever",
+    "topic": [
+      "session-allocation",
+      "cost-model",
+      "prompt-caching",
+      "multi-agent-runner",
+      "orchestration"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260722",
     "date": "20260722",
     "id6": "x41kw0",

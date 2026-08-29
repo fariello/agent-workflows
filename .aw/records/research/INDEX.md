@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 65 hot docs (archive excluded).
+Showing the most-recent 40 of 66 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -17,11 +17,13 @@ Showing the most-recent 40 of 65 hot docs (archive excluded).
 - `v912ed` 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
 - `3nlmug` 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
 - `ig9bai` 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
+- `x0spmh` 20260829-sessalloc-00-x0spmh-agent-runner-session-allocation.gpt56.research-report.md - GPT-5.6 evidence-based session-allocation policy for aw oc run: fresh session per isolated execute turn, workspace-bound sessions, and context-pack compilation as the real cost lever
 - `x03wgn` 20260828-wtiso-00-x03wgn-worktree-isolation-state-model.gpt56.research-report.md - GPT-5.6 architecture for isolating concurrent agent lanes with a driver-owned control plane and out-of-repo machine state
 
 ## Most recent
 
 - `ig9bai` [todo] 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
+- `x0spmh` [todo] 20260829-sessalloc-00-x0spmh-agent-runner-session-allocation.gpt56.research-report.md - GPT-5.6 evidence-based session-allocation policy for aw oc run: fresh session per isolated execute turn, workspace-bound sessions, and context-pack compilation as the real cost lever
 - `x03wgn` [todo] 20260828-wtiso-00-x03wgn-worktree-isolation-state-model.gpt56.research-report.md - GPT-5.6 architecture for isolating concurrent agent lanes with a driver-owned control plane and out-of-repo machine state
 - `ud28vy` [todo] 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 - `sk94i0` [todo] 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
@@ -60,4 +62,3 @@ Showing the most-recent 40 of 65 hot docs (archive excluded).
 - `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
 - `80eqy0` [reference] 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md - Migrated from 20260731-chkplace-03-80eqy0-checklist-placement-and-instruction-audit-report.sonnet5.research-report.md.
 - `e4k1m0` [reference] 20260731-chkplace-01-e4k1m0-checklist-placement-and-instruction-audit-report.gemini31pro.research-report.md - Migrated from 20260731-chkplace-01-e4k1m0-checklist-placement-and-instruction-audit-report.gemini31pro.research-report.md.
-- `fpt0dg` [reference] 20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md - Migrated from 20260731-chkplace-06-fpt0dg-ipd-structure-and-linting-change-rationale.research-report.md.
