@@ -443,6 +443,7 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
 
     def test_non_passing_gate_defers_not_faked_executed(self):
         # V-02 (agy, non-passing): combined-red -> NOT integrated, recorded, worktree preserved.
+        # driverfin-03 (7kbtkw) E-02 refines the recorded state to the dedicated `merge-conflict`.
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / "repo"
             plan = _init_repo_with_conforming_plan(repo, "agy001")
@@ -466,13 +467,214 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             ):
                 agy_runipd.execute_item(run_dir, state, item, recovery=False)
 
-            self.assertEqual(item["status"], "substantially-complete")
+            self.assertEqual(item["status"], "merge-conflict")
             self.assertIn("integration_deferral", item)
             self.assertFalse(
                 (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
             )
             self.assertIn("preserved_branch", item)
             self.assertEqual(item["preserved_branch"], "aw/lane/agy001")
+
+
+class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
+    """driverfin-03 (7kbtkw) parity for the agy driver: fail-closed dirty-tree guard (E-01) +
+    merge-back conflict handling (E-02)."""
+
+    def _state_and_item(self, repo, plan):
+        item = {
+            "position": 1,
+            "id6": "agy001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_verify": False,
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo):
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def _fake_agent_commits_in_worktree(self, run_dir):
+        def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("log_suffix") == "verify":
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["agy"]
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+        return fake_turn
+
+    def _fake_agent_also_dirties_main(self, run_dir, repo):
+        def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("log_suffix") == "verify":
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["agy"]
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+            # Contaminate MAIN on the overlapping path AFTER begin (un-owned, uncommitted).
+            (repo / "src").mkdir(parents=True, exist_ok=True)
+            (repo / "src" / "demo.txt").write_text("un-owned dirt\n", encoding="utf-8")
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+        return fake_turn
+
+    def test_dirty_overlapping_base_refuses_integration(self):
+        # V-01 (agy): a dirty overlapping MAIN base refuses integration (integration-blocked); gate
+        # not invoked; MAIN's un-owned edit intact; verified branch/worktree preserved.
+        from agent_workflows import orchestrate_isolation
+
+        gate_calls = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            with (
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    self._fake_agent_also_dirties_main(run_dir, repo),
+                ),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(len(gate_calls), 0)
+            self.assertEqual(item["status"], "integration-blocked")
+            self.assertIn("integration_deferral", item)
+            self.assertIn("src/demo.txt", item["integration_deferral"])
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            self.assertEqual(
+                (repo / "src" / "demo.txt").read_text(encoding="utf-8"),
+                "un-owned dirt\n",
+            )
+            self.assertEqual(item.get("preserved_branch"), "aw/lane/agy001")
+            self.assertTrue((repo / ".aw" / "worktrees" / "agy001").exists())
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-integration-blocked", events)
+
+    def test_non_passing_gate_records_merge_conflict_main_pristine(self):
+        # V-02 (agy): a non-passing gate leaves MAIN pristine (HEAD unchanged, no markers), records
+        # merge-conflict + preserved branch, emits the event, and does not integrate.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            head_before = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+
+            def failing_runner_factory(*a, **k):
+                return lambda _diff, _files: False
+
+            with (
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    agy_runipd,
+                    "make_integration_validation_runner",
+                    failing_runner_factory,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "merge-conflict")
+            self.assertIn("integration_deferral", item)
+            head_after = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(head_before, head_after)
+            main_status = subprocess.run(
+                ["git", "status", "--short"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(main_status, "")
+            self.assertFalse((repo / ".git" / "MERGE_HEAD").exists())
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            self.assertEqual(item.get("preserved_branch"), "aw/lane/agy001")
+            events = (run_dir / "events.jsonl").read_text(encoding="utf-8")
+            self.assertIn("ipd-merge-conflict", events)
+
+    def test_dirty_tree_overlap_helper_reports_only_overlap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            (repo / "unrelated.txt").write_text("dirt\n", encoding="utf-8")
+            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, ["src/x.py"]), [])
+            (repo / "src").mkdir(parents=True, exist_ok=True)
+            (repo / "src" / "x.py").write_text("dirt\n", encoding="utf-8")
+            self.assertEqual(
+                agy_runipd.dirty_tree_overlap(repo, ["src/x.py", "src/y.py"]),
+                ["src/x.py"],
+            )
+            self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
 
 
 if __name__ == "__main__":

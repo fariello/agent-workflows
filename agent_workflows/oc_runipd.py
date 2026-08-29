@@ -28,7 +28,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable, NamedTuple, TextIO
+from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
 # The interactive streaming render layer (Palette/render_event/Heartbeat and the
 # coupled ANSI/status helpers) lives in the shared ``render_stream`` module so it is
@@ -78,6 +78,14 @@ TERMINAL_STATES = {
     "dependency-blocked",
     "failed-safely",
     "not-attempted",
+    # driverfin-03 (7kbtkw): fail-closed integration outcomes. `integration-blocked` = the main tree
+    # had un-owned dirty paths overlapping the incoming change, so the integration gate was REFUSED
+    # (never run against a contaminated base). `merge-conflict` = the reused integration gate returned
+    # a non-passing result (conflict/stale-base/combined-red/scope) or a real merge left a conflict;
+    # main is left untouched and the verified lane branch/worktree is preserved for a human/serial
+    # resolution. Both leave the child NOT integrated and its set NOT finished (never faked executed).
+    "integration-blocked",
+    "merge-conflict",
 }
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
@@ -505,26 +513,79 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     )
 
 
+def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
+    """driverfin-03 (7kbtkw) E-01: report the MAIN tree's un-owned dirty paths that overlap an
+    incoming lane's ``changed_files``.
+
+    Inspect ``git status --short`` in the MAIN repo (working tree + index) and return the sorted set
+    of paths that are BOTH dirty in main AND part of the incoming change. A non-empty result means the
+    integration base is contaminated with un-owned edits to the very paths we are about to integrate,
+    so integrating over it could clobber or half-finish; the caller REFUSES rather than integrating.
+
+    The porcelain short format is `XY<space>path` (renames use `orig -> dest`); we take the last
+    path token so both the origin and destination of a rename are considered dirty.
+    """
+    incoming = {p for p in changed_files if p.strip()}
+    if not incoming:
+        return []
+    _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
+    dirty: set[str] = set()
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
+        entry = line[3:] if len(line) > 3 else line.strip()
+        # A rename/copy renders as `orig -> dest`; treat both endpoints as dirty.
+        if " -> " in entry:
+            orig, dest = entry.split(" -> ", 1)
+            dirty.add(orig.strip())
+            dirty.add(dest.strip())
+        else:
+            dirty.add(entry.strip())
+    return sorted(incoming & dirty)
+
+
 def integrate_lane_branch(
     repo: Path, handle: Any, id6: str, validation_runner: Any
-) -> tuple[bool, str]:
-    """Integrate a verified lane branch back to main behind the REUSED integration gate.
+) -> tuple[bool, str, str]:
+    """Integrate a verified lane branch back to main behind the REUSED integration gate, failing
+    closed on a contaminated base or a non-passing gate result.
 
+    0. driverfin-03 (7kbtkw) E-01 DIRTY-TREE GUARD: BEFORE invoking the gate, assert the MAIN tree has
+       no un-owned dirty paths overlapping the incoming lane's `changed_files`. If it does, REFUSE:
+       do not run the gate, do not touch main, return kind ``"integration-blocked"`` so the caller
+       preserves the verified branch/worktree.
     1. Build a LaneOutcome and call `orchestrate_isolation.execute_merge_and_revalidate_gate`
        (DETECTS conflict/stale-base/lane-failure + REVALIDATES the combined diff). Conflict DETECTION
-       is the gate's job; conflict RESOLUTION is child-03.
+       is the gate's job; conflict RESOLUTION is a human/serial ordering.
     2. On `IntegrationGateResult.passed`, the driver performs the actual git integration onto main:
        `git merge --ff-only` (the clean serial case), falling back to a controlled `--no-ff` merge if
-       main advanced; a real git conflict aborts the merge (leaving main clean) and is treated as a
-       non-passing integration.
-    3. On a non-passing gate result (or a git conflict) leave the child NOT integrated with a recorded
-       reason and do NOT fake executed; child-03 owns resolution.
+       main advanced; a real git conflict aborts the merge (leaving main clean, no markers/partial
+       merge) and is treated as a non-passing integration.
+    3. driverfin-03 (7kbtkw) E-02: on a NON-passing gate result (or a real git conflict) leave main
+       UNTOUCHED, return kind ``"merge-conflict"`` with the failing paths/reason, and do NOT fake
+       executed; a human/serial ordering owns resolution via the preserved lane branch.
 
-    Returns (integrated, reason). ``integrated=True`` means the lane's commits are on main.
+    Returns ``(integrated, reason, kind)`` where ``kind`` is one of ``"integrated"``,
+    ``"integration-blocked"``, or ``"merge-conflict"``. ``integrated=True`` (kind ``"integrated"``)
+    means the lane's commits are on main.
     """
     from agent_workflows import orchestrate_isolation
 
     lane = build_lane_outcome(repo, handle, id6)
+
+    # E-01: fail closed on a contaminated integration base BEFORE running the gate.
+    overlap = dirty_tree_overlap(repo, lane.changed_files)
+    if overlap:
+        return (
+            False,
+            (
+                "integration refused: main tree has un-owned dirty paths overlapping the incoming "
+                f"change: {', '.join(overlap)}"
+            ),
+            "integration-blocked",
+        )
+
     result = orchestrate_isolation.execute_merge_and_revalidate_gate(
         integration_base_commit=handle.base_commit,
         lane_outcomes=[lane],
@@ -532,15 +593,22 @@ def integrate_lane_branch(
         full_validation_runner=validation_runner,
     )
     if not result.passed:
+        # E-02: a non-passing gate result is diff-based (no partial merge to abort). Record the gate's
+        # failing findings + paths so a human/serial ordering can resolve the preserved lane branch.
+        failing = "; ".join(
+            f"{f.check_name}[{f.lane_id}]: {f.message}" for f in result.findings
+        )
+        detail = failing or result.message
         return (
             False,
-            f"integration gate did not pass ({result.status}): {result.message}",
+            f"integration gate did not pass ({result.status}): {detail}",
+            "merge-conflict",
         )
 
     # Gate passed (conflict-free, revalidated). Perform the real integration onto main.
     rc, _out, err = _run_git(repo, ["merge", "--ff-only", handle.branch])
     if rc == 0:
-        return True, "fast-forward integrated to main"
+        return True, "fast-forward integrated to main", "integrated"
     # main advanced past the lane base: attempt a controlled non-ff merge of ONLY this branch.
     rc, _out, err2 = _run_git(
         repo,
@@ -554,10 +622,15 @@ def integrate_lane_branch(
         ],
     )
     if rc == 0:
-        return True, "controlled non-ff merge integrated to main"
-    # A real merge conflict: abort so main stays clean; defer resolution to child-03.
+        return True, "controlled non-ff merge integrated to main", "integrated"
+    # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
+    # ordering resolves it via the preserved lane branch (E-02).
     _run_git(repo, ["merge", "--abort"])
-    return False, f"merge-back conflict (deferred to child-03): {(err2 or err).strip()}"
+    return (
+        False,
+        f"merge-back conflict: {(err2 or err).strip()}",
+        "merge-conflict",
+    )
 
 
 def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
@@ -2118,26 +2191,43 @@ def execute_item(
             # deferred to child-03) and do NOT fake executed.
             integrated = True
             integ_reason = "in-place (no isolation)"
+            integ_kind = "integrated"
             if wt_handle is not None:
-                integrated, integ_reason = integrate_lane_branch(
+                integrated, integ_reason, integ_kind = integrate_lane_branch(
                     repo,
                     wt_handle,
                     item["id6"],
                     make_integration_validation_runner(state, run_dir, item),
                 )
             if not integrated:
-                attempt["disposition"] = "substantially-complete"
+                # driverfin-03 (7kbtkw) E-01/E-02: fail closed. A contaminated base yields
+                # `integration-blocked`; a non-passing gate result / real merge conflict yields
+                # `merge-conflict`. Either way main is left UNTOUCHED (the gate is diff-based and any
+                # real merge was aborted), the verified lane branch/worktree is PRESERVED for a
+                # human/serial resolution, and the child is NOT faked executed (its set therefore is
+                # NOT reported finished - the orchestrator only finalizes when all children executed).
+                fail_status = (
+                    "integration-blocked"
+                    if integ_kind == "integration-blocked"
+                    else "merge-conflict"
+                )
+                fail_event = (
+                    "ipd-integration-blocked"
+                    if fail_status == "integration-blocked"
+                    else "ipd-merge-conflict"
+                )
+                attempt["disposition"] = fail_status
                 attempt["finalized"] = True
                 attempt["integration_deferred"] = integ_reason
-                item["status"] = "substantially-complete"
+                item["status"] = fail_status
                 item["integration_deferral"] = integ_reason
-                # Leave the worktree/branch in place (NOT torn down) so child-03 can resolve it.
+                # Leave the worktree/branch in place (NOT torn down) for a later human/serial fix.
                 save_state(run_dir, state)
                 append_jsonl(
                     run_dir / "events.jsonl",
                     {
                         "at": utc_now(),
-                        "event": "ipd-integration-deferred",
+                        "event": fail_event,
                         "id6": item["id6"],
                         "setid": item["setid"],
                         "detail": integ_reason,
@@ -2148,12 +2238,12 @@ def execute_item(
                 print(
                     pal(
                         f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
-                        f"integrated to main (deferred to child-03): {integ_reason}",
+                        f"integrated to main ({fail_status}): {integ_reason}",
                         "yellow",
                     ),
                     file=sys.stderr,
                 )
-                disposition = "substantially-complete"
+                disposition = fail_status
             else:
                 if wt_handle is not None:
                     with contextlib.suppress(Exception):
@@ -2393,6 +2483,10 @@ def run_queue(
                 "failed-safely",
                 "blocked",
                 "dependency-blocked",
+                # driverfin-03 (7kbtkw): a fail-closed integration outcome is retryable once the base
+                # is clean / the conflict is resolved on the preserved lane branch.
+                "integration-blocked",
+                "merge-conflict",
             }:
                 item["status"] = "queued"
                 item["recovery_next"] = True
