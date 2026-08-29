@@ -1626,6 +1626,13 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="latest_only",
         help="Show only the latest state for each item across matched runs in one table.",
     )
+    p_run_list.add_argument(
+        "--issues",
+        "-i",
+        action="store_true",
+        dest="issues",
+        help="Show only the artifact location and status discrepancies table.",
+    )
 
     p_runs = sub.add_parser(
         "runs",
@@ -1731,6 +1738,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="latest_only",
         help="Show only the latest state for each item across matched runs in one table.",
+    )
+    p_runs.add_argument(
+        "--issues",
+        "-i",
+        action="store_true",
+        dest="issues",
+        help="Show only the artifact location and status discrepancies table.",
     )
 
     p_research = sub.add_parser(

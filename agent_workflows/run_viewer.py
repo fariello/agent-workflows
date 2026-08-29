@@ -473,72 +473,6 @@ def audit_step_artifact(
     )
 
 
-def format_artifact_audit_summary(
-    audits: list[StepArtifactAudit],
-    term: Term,
-) -> str:
-    """Format a summary of artifact location and status discrepancies."""
-    seen: set[str] = set()
-    discrepancies: list[StepArtifactAudit] = []
-    for a in audits:
-        key = a.step_id6 or a.stem
-        if key in seen:
-            continue
-        seen.add(key)
-        if a.missing_entirely or a.location_mismatch or a.status_mismatch:
-            discrepancies.append(a)
-
-    if not discrepancies:
-        return ""
-
-    cnt = len(discrepancies)
-    header = (
-        term.colorize(
-            f"--- Artifact & Status Discrepancies ({cnt} item{'s' if cnt != 1 else ''}) ---",
-            "bold",
-        )
-        if getattr(term, "color", False)
-        else f"--- Artifact & Status Discrepancies ({cnt} item{'s' if cnt != 1 else ''}) ---"
-    )
-    lines = [header]
-
-    for a in discrepancies:
-        item_id = a.stem or a.step_id6
-        if a.missing_entirely:
-            tag = (
-                term.color256("!", 196, bold=True)
-                if getattr(term, "color", False)
-                else "!"
-            )
-            msg = (
-                term.color256(
-                    "MISSING ENTIRELY (no artifact file found in repository)",
-                    196,
-                    bold=True,
-                )
-                if getattr(term, "color", False)
-                else "MISSING ENTIRELY (no artifact file found in repository)"
-            )
-            lines.append(f"  {tag} {item_id}: {msg}")
-        else:
-            tag = (
-                term.color256("*", 214, bold=True)
-                if getattr(term, "color", False)
-                else "*"
-            )
-            parts = []
-            if a.location_mismatch and a.actual_dir and a.expected_dir:
-                parts.append(
-                    f"location: in {a.actual_dir}/ (expected {a.expected_dir}/)"
-                )
-            if a.status_mismatch and a.file_status:
-                parts.append(f"status: file '{a.file_status}' != run '{a.run_status}'")
-            desc = ", ".join(parts) if parts else "discrepancy detected"
-            lines.append(f"  {tag} {item_id}: {desc}")
-
-    return "\n".join(lines)
-
-
 def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, int]]:
     """Extract cumulative cost and token counts from a session JSONL file."""
     p = Path(log_path)
@@ -1129,7 +1063,12 @@ def render_box_table(
     num_cols = len(headers)
     aligns = list(alignments) if alignments else ["left"] * num_cols
 
-    col_widths = [len(h) for h in headers]
+    hdr_lines_list = [str(h).splitlines() if str(h) else [""] for h in headers]
+    max_hdr_lines = max((len(lines) for lines in hdr_lines_list), default=1)
+
+    col_widths = [
+        max((len(line) for line in lines), default=0) for lines in hdr_lines_list
+    ]
     for row in rows:
         for idx, cell in enumerate(row):
             raw_len = len(strip_ansi(str(cell)))
@@ -1146,16 +1085,24 @@ def render_box_table(
         )
     lines.append(top_border)
 
-    hdr_cells = []
-    for idx, (h, w, align) in enumerate(zip(headers, col_widths, aligns)):
-        h_styled = term.colorize(h, "bold") if getattr(term, "color", False) else h
-        pad = w - len(h)
-        spaces = " " * pad
-        if align == "right":
-            hdr_cells.append(f" {spaces}{h_styled} ")
-        else:
-            hdr_cells.append(f" {h_styled}{spaces} ")
-    lines.append(vl + vl.join(hdr_cells) + vl)
+    for l_idx in range(max_hdr_lines):
+        hdr_cells = []
+        for c_idx, (h_lines, w, align) in enumerate(
+            zip(hdr_lines_list, col_widths, aligns)
+        ):
+            h_line = h_lines[l_idx] if l_idx < len(h_lines) else ""
+            h_styled = (
+                term.colorize(h_line, "bold")
+                if (h_line and getattr(term, "color", False))
+                else h_line
+            )
+            pad = w - len(h_line)
+            spaces = " " * pad
+            if align == "right":
+                hdr_cells.append(f" {spaces}{h_styled} ")
+            else:
+                hdr_cells.append(f" {h_styled}{spaces} ")
+        lines.append(vl + vl.join(hdr_cells) + vl)
     lines.append(sep_border)
 
     for row in rows:
@@ -1175,6 +1122,86 @@ def render_box_table(
     return "\n".join(lines)
 
 
+def format_artifact_audit_summary(
+    audits: list[StepArtifactAudit],
+    term: Term,
+) -> str:
+    """Format a table of artifact location and status discrepancies."""
+    seen: set[str] = set()
+    discrepancies: list[StepArtifactAudit] = []
+    for a in audits:
+        key = a.step_id6 or a.stem
+        if key in seen:
+            continue
+        seen.add(key)
+        if a.missing_entirely or a.location_mismatch or a.status_mismatch:
+            discrepancies.append(a)
+
+    if not discrepancies:
+        return ""
+
+    headers = [
+        "Item",
+        "Expected\nLocation",
+        "Actual\nLocation",
+        "Expected\nStatus",
+        "Actual\nStatus",
+    ]
+    aligns = ["left", "left", "left", "left", "left"]
+    rows = []
+
+    for a in discrepancies:
+        item_id = a.stem or a.step_id6
+        exp_loc = f"{a.expected_dir}/" if a.expected_dir else "-"
+        if a.missing_entirely:
+            act_loc_disp = (
+                term.color256("missing", 196, bold=True)
+                if getattr(term, "color", False)
+                else "missing"
+            )
+        else:
+            act_loc_raw = f"{a.actual_dir}/" if a.actual_dir else "-"
+            if a.location_mismatch:
+                act_loc_disp = (
+                    term.color256(act_loc_raw, 196, bold=True)
+                    if getattr(term, "color", False)
+                    else act_loc_raw
+                )
+            else:
+                act_loc_disp = (
+                    term.color256(act_loc_raw, 46)
+                    if getattr(term, "color", False)
+                    else act_loc_raw
+                )
+
+        exp_st = a.run_status or "-"
+        if a.missing_entirely:
+            act_st_disp = (
+                term.color256("-", 196, bold=True)
+                if getattr(term, "color", False)
+                else "-"
+            )
+        else:
+            act_st_raw = a.file_status or "-"
+            if a.status_mismatch:
+                act_st_disp = (
+                    term.color256(act_st_raw, 196, bold=True)
+                    if getattr(term, "color", False)
+                    else act_st_raw
+                )
+            else:
+                act_st_disp = (
+                    term.color256(act_st_raw, 46)
+                    if getattr(term, "color", False)
+                    else act_st_raw
+                )
+
+        rows.append([item_id, exp_loc, act_loc_disp, exp_st, act_st_disp])
+
+    title = "Artifact & Status Discrepancies"
+    return render_box_table(title, headers, rows, term, aligns)
+
+
 def render_steps_table(
     steps: list[StepSummary],
     term: Term,
@@ -1185,8 +1212,8 @@ def render_steps_table(
     if not steps:
         return ""
     if short:
-        headers = ["Status", "Item", "Action", "Verified"]
-        aligns = ["left", "left", "left", "left"]
+        headers = ["Status", "Item", "Action", "Verified", "Issue"]
+        aligns = ["left", "left", "left", "left", "left"]
     else:
         headers = [
             "Status",
@@ -1196,6 +1223,7 @@ def render_steps_table(
             "Cost",
             "Total Tok",
             "Verified",
+            "Issue",
         ]
         aligns = [
             "left",
@@ -1205,6 +1233,7 @@ def render_steps_table(
             "right",
             "right",
             "left",
+            "left",
         ]
     rows = []
     for step in steps:
@@ -1213,32 +1242,10 @@ def render_steps_table(
         st_styled = (
             term.status_256(st_disp) if getattr(term, "color", False) else st_disp
         )
-        if audit.status_mismatch and audit.file_status:
-            diff_badge = f"[file: {audit.file_status}]"
-            diff_styled = (
-                term.color256(diff_badge, 220)
-                if getattr(term, "color", False)
-                else diff_badge
-            )
-            st_styled = f"{st_styled} {diff_styled}"
 
         item_disp = step.stem or (
             f"{step.setid}-{step.id6}" if step.setid else step.id6
         )
-        if audit.missing_entirely:
-            badge = "[MISSING]"
-            badge_styled = (
-                term.color256(badge, 196, bold=True)
-                if getattr(term, "color", False)
-                else badge
-            )
-            item_disp = f"{item_disp} {badge_styled}"
-        elif audit.location_mismatch and audit.actual_dir:
-            badge = f"[in {audit.actual_dir}/]"
-            badge_styled = (
-                term.color256(badge, 214) if getattr(term, "color", False) else badge
-            )
-            item_disp = f"{item_disp} {badge_styled}"
 
         att_disp = str(step.attempts_count) if step.attempts_count else "-"
         cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
@@ -1263,8 +1270,22 @@ def render_steps_table(
         else:
             v_disp = "-"
 
+        has_issue = (
+            audit.missing_entirely or audit.location_mismatch or audit.status_mismatch
+        )
+        if has_issue:
+            issue_disp = (
+                term.color256("YES", 196, bold=True)
+                if getattr(term, "color", False)
+                else "YES"
+            )
+        else:
+            issue_disp = (
+                term.color256("no", 46) if getattr(term, "color", False) else "no"
+            )
+
         if short:
-            rows.append([st_styled, item_disp, step.action, v_disp])
+            rows.append([st_styled, item_disp, step.action, v_disp, issue_disp])
         else:
             rows.append(
                 [
@@ -1275,6 +1296,7 @@ def render_steps_table(
                     cost_disp,
                     tok_disp,
                     v_disp,
+                    issue_disp,
                 ]
             )
     return render_box_table("", headers, rows, term, aligns)
@@ -1842,6 +1864,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     short = getattr(args, "short", False)
     summary_only = getattr(args, "summary_only", False)
     latest_only = getattr(args, "latest_only", False)
+    issues_only = getattr(args, "issues", False)
     is_json = getattr(args, "json", False)
     is_agent = getattr(args, "agent", False) or getattr(args, "as_agent", False)
     no_color = getattr(args, "no_color", False)
@@ -1858,6 +1881,14 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
 
     if latest_only and summary_only:
         err_msg = "error: --latest-only/-L cannot be used with --summary-only/-S"
+        if is_agent or is_json:
+            print(json.dumps({"error": err_msg, "exit_code": 2}))
+        else:
+            term.line(err_msg)
+        return 2
+
+    if issues_only and summary_only:
+        err_msg = "error: --issues/-i cannot be used with --summary-only/-S"
         if is_agent or is_json:
             print(json.dumps({"error": err_msg, "exit_code": 2}))
         else:
@@ -1917,7 +1948,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         else:
             summaries = []
 
-    if not summaries:
+    if not summaries and not issues_only:
         if is_agent or is_json:
             print(json.dumps({"runs": []}, indent=2 if is_json else None))
             return 0
@@ -1940,6 +1971,20 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 all_audits.append(audit_step_artifact(st, repo_root))
 
     if is_json:
+        disc = [
+            asdict(a)
+            for a in all_audits
+            if a.missing_entirely or a.location_mismatch or a.status_mismatch
+        ]
+        for d in disc:
+            if d.get("actual_path"):
+                d["actual_path"] = str(d["actual_path"])
+
+        if issues_only:
+            payload = {"artifact_discrepancies": disc}
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return 0
+
         if latest_only:
             latest_steps_dict = {}
             for s in summaries:
@@ -1962,14 +2007,6 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             if len(summaries) > 1:
                 payload["summary"] = build_multi_run_summary_dict(summaries)
 
-        disc = [
-            asdict(a)
-            for a in all_audits
-            if a.missing_entirely or a.location_mismatch or a.status_mismatch
-        ]
-        for d in disc:
-            if d.get("actual_path"):
-                d["actual_path"] = str(d["actual_path"])
         if disc:
             payload["artifact_discrepancies"] = disc
 
@@ -1977,6 +2014,17 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     if is_agent:
+        if issues_only:
+            disc = [
+                asdict(a)
+                for a in all_audits
+                if a.missing_entirely or a.location_mismatch or a.status_mismatch
+            ]
+            for d in disc:
+                if d.get("actual_path"):
+                    d["actual_path"] = str(d["actual_path"])
+                print(json.dumps(d, separators=(",", ":"), ensure_ascii=False))
+            return 0
         if latest_only:
             latest_steps_dict = {}
             for s in summaries:
@@ -1997,6 +2045,18 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         return 0
 
     # Human display
+    if issues_only:
+        disc = [
+            a
+            for a in all_audits
+            if a.missing_entirely or a.location_mismatch or a.status_mismatch
+        ]
+        if not disc:
+            term.line("no artifact or status discrepancies found")
+            return 0
+        term.line(format_artifact_audit_summary(all_audits, term))
+        return 0
+
     if latest_only:
         term.line(
             format_latest_only_human(

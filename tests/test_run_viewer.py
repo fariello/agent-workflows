@@ -1019,13 +1019,74 @@ class RunViewerTests(TestCase):
 
             term = Term(color=False)
             sum_txt = run_viewer.format_artifact_audit_summary([a1, a2, a3], term)
-            self.assertIn("--- Artifact & Status Discrepancies (2 items) ---", sum_txt)
-            self.assertIn("! 20260829-test-03-item03: MISSING ENTIRELY", sum_txt)
-            self.assertIn("location: in pending/ (expected executed/)", sum_txt)
-            self.assertIn("status: file 'approved' != run 'complete'", sum_txt)
+            self.assertIn("Artifact & Status Discrepancies", sum_txt)
+            self.assertIn("Expected", sum_txt)
+            self.assertIn("Actual", sum_txt)
+            self.assertIn("20260829-test-01-item01", sum_txt)
+            self.assertIn("pending/", sum_txt)
+            self.assertIn("approved", sum_txt)
+            self.assertIn("20260829-test-03-item03", sum_txt)
+            self.assertIn("missing", sum_txt)
 
             # Check table rendering decoration
             tbl = run_viewer.render_steps_table([st1, st2, st3], term, repo_root=root)
-            self.assertIn("[MISSING]", tbl)
-            self.assertIn("[in pending/]", tbl)
-            self.assertIn("[file: approved]", tbl)
+            self.assertIn("Issue", tbl)
+            self.assertIn("YES", tbl)
+            self.assertIn("no", tbl)
+
+    def test_run_viewer_cli_issues_flag(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=1,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=False,
+            latest_only=False,
+            issues=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn("Artifact & Status Discrepancies", out)
+        self.assertNotIn("pid:", out)
+
+    def test_run_viewer_cli_issues_conflict(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=1,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=True,
+            latest_only=False,
+            issues=True,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 2)
+        out = buf.getvalue()
+        self.assertIn("error: --issues/-i cannot be used with --summary-only/-S", out)
