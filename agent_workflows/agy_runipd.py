@@ -2058,6 +2058,15 @@ def execute_item(
             try:
                 wt_handle = allocate_isolation_worktree(repo, item["id6"])
                 work_dir = str(wt_handle.path)
+                # lanesess (xd9sll): this turn now runs in its OWN tree, so it must NOT inherit a
+                # session bound to a DIFFERENT tree. Sessions were keyed per SET while worktrees are
+                # per ITEM, so lanes 2..N inherited lane 1's conversation and, with it, lane 1's
+                # directory, silently executing in the wrong worktree. Drop the inherited session and
+                # do NOT fall back to `--continue` (which resumes the previous conversation and would
+                # reintroduce the same carryover). Kept symmetric with oc_runipd.run_opencode; a
+                # one-driver-only fix is asserted against in tests.
+                session_id = None
+                use_continue = False
                 attempt["worktree"] = work_dir
                 attempt["worktree_branch"] = wt_handle.branch
                 save_state(run_dir, state)
@@ -2155,12 +2164,14 @@ def execute_item(
         return
 
     if captured_session:
-        existing = state.setdefault("set_sessions", {}).get(item["setid"])
-        if existing and existing != captured_session:
-            pass
-        state["set_sessions"][item["setid"]] = captured_session
-        state["session_id"] = captured_session
+        # lanesess (xd9sll): keep the observed conversation on the ATTEMPT (audit trail), but only
+        # PROMOTE it to the set/run-wide keys for a non-isolated turn. An isolated lane deliberately
+        # runs in a fresh conversation, so promoting it would re-arm the cross-tree carryover this
+        # fixes. Kept symmetric with oc_runipd.
         attempt["session_id"] = captured_session
+        if not work_dir:
+            state.setdefault("set_sessions", {})[item["setid"]] = captured_session
+            state["session_id"] = captured_session
 
     attempt.update(
         {

@@ -1720,9 +1720,19 @@ def run_opencode(
 
     # A verifier turn (fresh_session=True) runs in a clean session with no inherited
     # context, so it audits the executed work independently.
+    #
+    # lanesess (xd9sll): a session must NEVER be carried into a DIFFERENT tree. Sessions were keyed
+    # per SET while worktrees are allocated per ITEM, so lanes 2..N of a set were launched with lane
+    # 1's session; an opencode session carries its own project/`directory` binding, which then
+    # OVERRIDES `--dir` and silently runs the turn in the PREVIOUS lane's worktree. Every main-repo
+    # path is then "external", so the external_directory gate (qyaime) asks with no answerer and the
+    # turn dies at the stall watchdog. Measured: qcqhj7 booted in its own lane, then re-bootstrapped
+    # 8zgybk's and streamed under 8zgybk's session; four consecutive lanes were lost this way.
+    # Therefore an isolated turn (work_dir set) is ALWAYS a fresh session, exactly like the verifier.
+    isolated_turn = bool(work_dir)
     session = (
         None
-        if fresh_session
+        if (fresh_session or isolated_turn)
         else (
             state.get("session_id")
             or state.get("set_sessions", {}).get(item["setid"])
@@ -2068,14 +2078,20 @@ def execute_item(
         return
 
     if session_id:
-        existing = state.setdefault("set_sessions", {}).get(item["setid"])
-        if existing and existing != session_id:
-            raise DriverError(
-                f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
-            )
-        state["set_sessions"][item["setid"]] = session_id
-        state["session_id"] = session_id
+        # lanesess (xd9sll): record the observed session on the ATTEMPT always (it is the audit
+        # trail), but only PROMOTE it to the set/run-wide keys for a non-isolated turn. An isolated
+        # lane deliberately gets a fresh session (see run_opencode), so promoting it would re-arm the
+        # exact carryover this fixes and would make the set-consistency check below fire on every
+        # lane after the first ("changed session unexpectedly"), aborting the run.
         attempt["session_id"] = session_id
+        if not work_dir:
+            existing = state.setdefault("set_sessions", {}).get(item["setid"])
+            if existing and existing != session_id:
+                raise DriverError(
+                    f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
+                )
+            state["set_sessions"][item["setid"]] = session_id
+            state["session_id"] = session_id
 
     attempt.update(
         {
