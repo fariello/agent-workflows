@@ -1658,7 +1658,7 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             term.line("")
         term.line(format_run_human(summary, term, detail=detail, short=short))
 
-    if len(summaries) > 1:
+    if len(summaries) > 1 and not short:
         term.line("")
         term.line(format_multi_run_summary(summaries, term))
 

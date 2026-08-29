@@ -157,13 +157,15 @@ class RunViewerTests(TestCase):
     def test_run_viewer_cli_short(self):
         ns = argparse.Namespace(
             dir=".",
-            target=["run-20260827T212958Z-2367239"],
+            target=[],
             set=None,
             ipd=None,
             status=None,
             failed=False,
             active=False,
             latest=False,
+            last=2,
+            since=None,
             detail=False,
             short=True,
             json=False,
@@ -177,6 +179,8 @@ class RunViewerTests(TestCase):
         out = buf.getvalue()
         self.assertIn("Verified", out)
         self.assertNotIn("Total Tok", out)
+        self.assertNotIn("Summary across", out)
+        self.assertNotIn("Breakdown by Status:", out)
 
     def test_run_viewer_cli_json(self):
         ns = argparse.Namespace(
