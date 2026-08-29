@@ -3607,7 +3607,7 @@
     "path": "pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md",
     "plan_id": "bl9q3d",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3617,7 +3617,7 @@
     "path": "pending/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md",
     "plan_id": "8zgybk",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3627,7 +3627,7 @@
     "path": "pending/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md",
     "plan_id": "qcqhj7",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3637,7 +3637,7 @@
     "path": "pending/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md",
     "plan_id": "rchpms",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3647,7 +3647,7 @@
     "path": "pending/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md",
     "plan_id": "7p9n2v",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3657,7 +3657,7 @@
     "path": "pending/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md",
     "plan_id": "58ha43",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3667,7 +3667,7 @@
     "path": "pending/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md",
     "plan_id": "2c122z",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-28",
@@ -3677,7 +3677,17 @@
     "path": "pending/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md",
     "plan_id": "1o4eif",
     "set_id": "wtiso",
-    "status": "reviewed"
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md",
+    "plan_id": "w0ln4q",
+    "set_id": "ackme8",
+    "status": "to-review"
   },
   {
     "date": "2026-08-29",

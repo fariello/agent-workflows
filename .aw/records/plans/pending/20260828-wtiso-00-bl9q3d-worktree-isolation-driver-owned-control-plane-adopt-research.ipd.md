@@ -8,14 +8,16 @@
 - Item-Dependencies: none
 - From-Backlog: qyaime
 - Blocks-Release: next
-- Status: reviewed
+- Status: approved
 - Set: wtiso
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: bl9q3d
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Fixed a dangling `V-02` referenced three times (including in the gate's own "verify V-01+V-02") when only V-01 exists - the contract check is V-01 part (2), so an executor could have blocked on a nonexistent item or skipped the check. Restored the 5 x03wgn acceptance criteria the completion list had silently dropped (tracked-but-uncommitted refusal, verified local artifact manifest, SECRETS-never-in-Git, protected-ref/git-common-dir mutation blocking, default/hardened external-write denial), numbered all 15, and attributed each to its owning child. Reconciled the E-01-vs-OQ-01 contradiction over whether wtiso-07 must be executed, and made criteria 9/10 explicitly PARTIALLY VERIFIED when Phase 6 is parked instead of silently unverified. Fixed real exit-blocking release-gate drift: this plan carried `From-Backlog: qyaime` with NO `Blocks-Release`, firing `check.from-backlog-gate-mismatch` (verified live: 5 findings before, 4 after) - added `Blocks-Release: next` and cross-referenced the 4 sibling children that still mismatch and must fix it in their own files. Added `.aw/records/walkthroughs/` to Scope-Paths, since E-01 required writing a verification record with no legal path inside its own scope fence. Named the ONE shared predicate library concretely (`agent_workflows/lane_status.py` from rchpms) with a real grep command, as the no-drift check was unverifiable as written. Hardened the gate (named full-suite command, scope fence, no `--no-verify`/tag/release) and added V-01 part (4) requiring a zero-finding release-gate check.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): status set to to-review

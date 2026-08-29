@@ -8,14 +8,16 @@
 - Item-Dependencies: executed:8zgybk
 - From-Backlog: qyaime
 - Blocks-Release: next
-- Status: reviewed
+- Status: approved
 - Set: wtiso
 - Order: 2
 - Highest E allocated: 11
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: qcqhj7
+- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007. Found TWO defects that would each have left qyaime reproducible after a "successful" Phase 1. (1) IMPOSSIBLE SEQUENCING (PR-002): E-01 required lane-relative prompt paths "when the turn is isolated", but `build_prompt` takes no `work_dir` and, verified in `execute_item`, is CALLED at oc_runipd.py:1867 and PERSISTED by `write_prompt` at :1869 - 87 lines BEFORE `allocate_isolation_worktree` at :1954. The lane does not exist when the prompt is built, so E-01 was unexecutable as written; added E-11 (numbered above the watermark per ipd-structure-and-linting 5.6, ordered first via `Depends on:`) to move allocation before prompt-build and thread `work_dir`, with V-11 asserting both the new parameter and the source-order inversion. (2) MISSED SECOND BOUNDARY CROSSING (PR-003): E-02 fixed only the runbook `--file`, but `run_opencode` emits TWO `--file` args - the runbook (:1735) and `str(plan_path)` (:1741), where `plan_path` comes from `resolve_plan_path(repo, ...)` and is an ABSOLUTE main-repo path (confirmed live). Fixing one would leave the other as an independent `external_directory` trigger; E-02 and V-02 now cover both and V-02 requires `len(file_args) >= 2`. Also: added the missing `Blocks-Release: next` (PR-001) that made this plan fire the exit-blocking `check.from-backlog-gate-mismatch` rule against its own `From-Backlog: qyaime` (verified: repo-wide drift 4 -> 3); required E-04 to CREATE the child `env` (verified `popen_kwargs` has no `env` key today, so the child inherits the parent env) and to record the OBSERVED effective policy because managed config outranks `OPENCODE_CONFIG_CONTENT` (PR-004, x03wgn R9); pinned E-05's (b) clause to the verified unconditional `watchdog.touch()` at :1776 that lets spinner noise reset the 600s bound, and directed reuse of the existing `interrupt_reason`/`failed-safely` seams (PR-005); recorded that E-09 must reuse the existing `dirty_tree_overlap` porcelain parser rather than fork a second one, with an explicit note on how whole-tree-pre-launch differs from overlap-at-integration (PR-006, contract rule 4); and corrected ~14 stale `file:line` citations against snapshot drift of ~70-80 lines, adding a citation-basis note (PR-007). OQ-01 RESOLVED as design: the nested-ask question is third-party behavior unanswerable from repo evidence (opencode 1.18.25 installed), but the E-05/E-06 bounds were VERIFIED driver-side (`terminate_process` os.killpg on a timer) hence independent of any opencode permission decision, so the phase needs the answer KNOWN and RECORDED, not correct - E-04/V-04 now require the observed effective policy or an explicit `effective_policy_unverified` marker.
 - 2026-08-29 reviewed (aw set): status set to reviewed
 - 2026-08-29 to-review (aw set): status set to to-review

@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 149 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 150 Sets; the full manifest is INDEX.json.
+
+## ackme8
+
+- `w0ln4q` [pending] 01 pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
 
 ## fullauto
 
@@ -217,15 +221,6 @@ Showing the 40 most-recent of 149 Sets; the full manifest is INDEX.json.
 ## shardmonth
 
 - `nhbgcc` [executed] 01 executed/20260823-shardmonth-01-nhbgcc-transition-cold-archival-shards-from-weekly-to-monthly-yyyym.ipd.md
-
-## unifyfileio
-
-- `g6mbht` [executed] 00 executed/20260823-unifyfileio-00-g6mbht-unify-artifact-file-finding-reference-matching-and-naming-on.ipd.md
-- `o6b8l3` [executed] 01 executed/20260823-unifyfileio-01-o6b8l3-canonical-artifact-naming-and-filename-grammar-authority.ipd.md
-- `laykok` [executed] 02 executed/20260823-unifyfileio-02-laykok-unified-selector-to-file-resolver.ipd.md
-- `3cmnfc` [executed] 03 executed/20260823-unifyfileio-03-3cmnfc-unified-reference-matcher-rewriter-and-consistent-dangling-c.ipd.md
-- `52zgqr` [executed] 04 executed/20260823-unifyfileio-04-52zgqr-additive-rename-and-regroup-history-ledger-on-the-workflow-s.ipd.md
-- `9a655p` [executed] 05 executed/20260823-unifyfileio-05-9a655p-enforce-filename-identity-slot-id6-uniqueness-in-aw-check-an.ipd.md
 
 ## (singletons: no Set)
 
