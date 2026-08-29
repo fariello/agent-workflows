@@ -2664,6 +2664,21 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the agy view tool.",
     )
+    # runnernorm follow-up (puot79e04): graduate tools/agy_run.py (single-target multi-mode
+    # runner + two-turn skeptical protocol) under the NON-colliding `aw agy exec` surface. It is
+    # genuinely distinct from the multi-IPD queue driver that `run`/`runagy`/`runipd` alias, so it
+    # must NOT reuse `aw agy run`. Captures REMAINDER verbatim and forwards to the packaged core's
+    # main(), so the runner's own parser (incl. --help) drives behavior with exact parity.
+    p_agy_exec = agy_sub.add_parser(
+        "exec",
+        help="Execute an IPD/spec/prompt-file/prompt with Antigravity + two-turn skeptical audit.",
+        add_help=False,
+    )
+    p_agy_exec.add_argument(
+        "exec_args",
+        nargs=argparse.REMAINDER,
+        help="Arguments forwarded verbatim to the agy exec runner.",
+    )
 
     # runnernorm Order 02 (puot79): top-level `aw pwatch` graduates tools/pwatch.py.
     p_pwatch = sub.add_parser(
@@ -7654,6 +7669,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_view
 
         return agy_view.main(list(argv_list[2:]))
+    # runnernorm follow-up (puot79e04): forward `aw agy exec ...` VERBATIM to the packaged
+    # agy_run core's own parser (incl. its `--help`), matching the sessions/view forwarding above.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("agy", "antigravity")
+        and argv_list[1] == "exec"
+    ):
+        from agent_workflows import agy_run
+
+        return agy_run.main(list(argv_list[2:]))
     if len(argv_list) >= 1 and argv_list[0] == "pwatch":
         from agent_workflows import pwatch
 
@@ -7836,6 +7861,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             from agent_workflows import agy_view
 
             return agy_view.main(list(getattr(args, "view_args", []) or []))
+        # runnernorm follow-up (puot79e04): graduated single-target multi-mode runner.
+        if agy_cmd == "exec":
+            from agent_workflows import agy_run
+
+            return agy_run.main(list(getattr(args, "exec_args", []) or []))
         return _show_family_help(
             parser, "agy", "aw agy runipd status <run-id>", term, context
         )
