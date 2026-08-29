@@ -6,15 +6,15 @@
 - Scope: (1) DIRTY-TREE GUARD: before running child-02's integration gate for a verified branch, assert the main tree has no un-owned dirty paths overlapping the incoming change; if it does, REFUSE (record `integration-blocked`, leave the verified branch + worktree preserved, continue independent items) rather than integrating over a dirty base. (2) CONFLICT HANDLING ON THE GATE RESULT: layer on child-02's `execute_merge_and_revalidate_gate` result - a non-passing `IntegrationGateResult` (conflict/stale-base/combined-red/scope) leaves main untouched (diff-based gate = no partial merge; abort any real merge left in the apply step), records `merge-conflict` with the failing paths + preserved branch, and marks the IPD not-integrated (NOT executed on main); never conflict markers or a partial merge. Do NOT fork a separate live-merge path. (3) SET COMPLETION HONESTY: a set is "finished" only when all children integrated cleanly; a child blocked on dirty/conflict leaves its orchestrator unfinalized (consistent with 801dd28's all-children-executed rule; no new code, just do not falsely stamp executed). This is the safety layer over 01+02; it does NOT auto-resolve conflicts (a human/serial ordering does). The optional cross-set warn/serialize is DEFERRED (no committed overlap data source; see Deferred).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/render_stream.py, tests/
 - Item-Dependencies: executed:emus4n
-- Status: approved
+- Status: executed
 - Set: driverfin
 - Order: 3
 - Highest E allocated: 02
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 7kbtkw
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Finalize 7kbtkw: driverfin-03 dirty-tree guard + merge-back conflict handling; recovered from lane, product merged (db38c00), 95 tests pass (test_oc_runipd + test_agy_runipd_cli). [Scope reconciliation - in-scope-unmodified agent_workflows/agy_runipd.py: merged-from-lane; in-scope-unmodified agent_workflows/oc_runipd.py: merged-from-lane; in-scope-unmodified agent_workflows/render_stream.py: merged-from-lane; in-scope-unmodified agent_workflows/worktree_lease.py: merged-from-lane; in-scope-unmodified tests/: merged-from-lane]
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 executed (aw oc run model=its_direct/pt3-claude-opus-4.8-1m-us): driverfin-03 (7kbtkw): fail-closed dirty-tree guard + merge-back conflict handling; 95 tests pass [Scope reconciliation - in-scope-unmodified agent_workflows/worktree_lease.py: not-needed-dirty-check-reads-git-status-directly]
 - 2026-08-28 approved (aw set): status set to approved

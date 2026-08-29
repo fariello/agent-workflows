@@ -3352,6 +3352,16 @@
   {
     "date": "2026-08-27",
     "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md",
+    "plan_id": "7kbtkw",
+    "set_id": "driverfin",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md",
@@ -3546,16 +3556,6 @@
     "order": 0,
     "path": "pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md",
     "plan_id": "yt93ir",
-    "set_id": "driverfin",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md",
-    "plan_id": "7kbtkw",
     "set_id": "driverfin",
     "status": "approved"
   },
