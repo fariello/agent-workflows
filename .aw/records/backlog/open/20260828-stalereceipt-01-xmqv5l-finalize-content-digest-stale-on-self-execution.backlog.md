@@ -7,6 +7,7 @@
 - Summary: aw ipd finalize self-execution deadlock: begin freezes a whole-file plan_content_digest, but executing an IPD REQUIRES editing that same file (mark E performed / fill V evidence), so the digest always goes stale and finalize/merge-back refuses 'stale receipt' on every self-finalizing run
 
 ## Workflow history
+- 2026-08-28 basis (manual): Basis: research x03wgn (20260828-wtiso-00). Facet of the driver-owned-control-plane architecture: driver-owned receipts, no copy-into-lane, digest bound to requirements not whole-file. To be implemented via the orchestrated wtiso Set. (Hand-added: aw backlog set --message is a no-op when status is unchanged; see tooling gap.)
 - 2026-08-28 created (aw backlog): aw ipd finalize self-execution deadlock: begin freezes a whole-file plan_content_digest, but executing an IPD REQUIRES editing that same file (mark E performed / fill V evidence), so the digest always goes stale and finalize/merge-back refuses 'stale receipt' on every self-finalizing run
 
 ROOT CAUSE: ipd_lifecycle.receipt_is_current (ipd_lifecycle.py:580-586) invalidates a begin receipt when receipt['plan_content_digest'] != plan_content_digest(current_text), and plan_content_digest (:254-256) is a sha256 over the plan's EXACT bytes. begin() (:594+, receipt written :729-730) freezes BOTH a requirement_digest (scope/requirements) AND this whole-file content digest.
