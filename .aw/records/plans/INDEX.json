@@ -3560,6 +3560,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md",
+    "plan_id": "8zgybk",
+    "set_id": "wtiso",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
@@ -3646,16 +3656,6 @@
     "order": 0,
     "path": "pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md",
     "plan_id": "bl9q3d",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md",
-    "plan_id": "8zgybk",
     "set_id": "wtiso",
     "status": "approved"
   },
