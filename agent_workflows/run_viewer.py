@@ -9,13 +9,62 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
+from agent_workflows.render_stream import format_tokens
 from agent_workflows.term import Term
+
+
+# runstale Order 01 (ssk6nf) E-01/E-03: the DISPLAY-ONLY status a `running` step is projected to when
+# no live driver holds its run. Deliberately NOT the bare word `interrupted`: a persisted `interrupted`
+# is a fact `oc_runipd.reconcile_interrupted` recorded after resolving the plan, whereas this is an
+# inference from "nobody holds the lock" that has inspected nothing. Collapsing the two would let the
+# viewer assert a reconciliation that never happened.
+ABANDONED = "abandoned?"
+
+# Liveness of the driver that owns a run directory.
+HOLDER_LIVE = "live"
+HOLDER_NONE = "none"
+HOLDER_UNKNOWN = "unknown"
+
+
+def driver_holder_state(run_dir: Path) -> str:
+    """Is a LIVE driver holding ``run_dir``? Read-only; never writes, never unlinks.
+
+    Returns ``HOLDER_LIVE`` / ``HOLDER_NONE`` / ``HOLDER_UNKNOWN``.
+
+    Uses ``flock(LOCK_EX|LOCK_NB)`` acquirability rather than the ``pid=`` recorded inside
+    ``driver.lock``, for two measured reasons: the OS releases an ``flock`` when its holder dies (so
+    acquirability is authoritative), and a recorded PID can be REUSED by an unrelated process (so a
+    ``kill(pid, 0)`` probe can report a live driver that is really something else). A missing lock file
+    means no holder. Anything we cannot determine (no ``fcntl`` on this platform, or any OSError) is
+    ``HOLDER_UNKNOWN``, never ``HOLDER_NONE``: failing to prove a driver is alive is not proof it is
+    dead, and only a proven-dead run may be projected (ssk6nf E-01).
+    """
+    lock_path = Path(run_dir) / "driver.lock"
+    if not lock_path.is_file():
+        return HOLDER_NONE
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - POSIX-only primitive
+        return HOLDER_UNKNOWN
+    try:
+        with lock_path.open("a+") as handle:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return HOLDER_LIVE
+            # Acquired, so nothing else holds it. Release immediately and leave the file in place.
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            return HOLDER_NONE
+    except OSError:
+        return HOLDER_UNKNOWN
 
 
 @dataclass
@@ -33,6 +82,16 @@ class StepSummary:
     disposition: str | None = None
     summary: str | None = None
     incomplete_requirements: list[str] = field(default_factory=list)
+    # ssk6nf E-02: the status as PERSISTED, kept whenever `status` is a projection so a caller can
+    # still see what the driver actually recorded. None means `status` is the recorded value.
+    persisted_status: str | None = None
+    cost: float | None = None
+    tokens: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def is_projected(self) -> bool:
+        """True when ``status`` was derived from driver liveness rather than read from state."""
+        return self.persisted_status is not None
 
 
 @dataclass
@@ -46,6 +105,8 @@ class RunSummary:
     setids: list[str] = field(default_factory=list)
     steps: list[StepSummary] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
+    total_cost: float | None = None
+    total_tokens: dict[str, int] = field(default_factory=dict)
 
     @property
     def timestamp_dt(self) -> datetime | None:
@@ -175,6 +236,148 @@ def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
     return None
 
 
+def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, int]]:
+    """Extract cumulative cost and token counts from a session JSONL file."""
+    p = Path(log_path)
+    if not p.is_file():
+        return None, {}
+    total_cost = 0.0
+    has_cost = False
+    tokens_agg = {"total": 0, "input": 0, "output": 0, "cache": 0, "reasoning": 0}
+    has_tokens = False
+    try:
+        with open(p, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get("type") == "step_finish":
+                    part = ev.get("part") or {}
+                    c = part.get("cost")
+                    if c is not None:
+                        try:
+                            total_cost += float(c)
+                            has_cost = True
+                        except (ValueError, TypeError):
+                            pass
+                    toks = part.get("tokens") or {}
+                    if isinstance(toks, dict):
+                        has_tokens = True
+                        inp = toks.get("input") or 0
+                        out = toks.get("output") or 0
+                        reasoning = toks.get("reasoning") or 0
+                        cache_raw = toks.get("cache") or 0
+                        if isinstance(cache_raw, dict):
+                            cache_val = (cache_raw.get("read") or 0) + (
+                                cache_raw.get("write") or 0
+                            )
+                        elif isinstance(cache_raw, (int, float)):
+                            cache_val = int(cache_raw)
+                        else:
+                            cache_val = 0
+                        tot = toks.get("total")
+                        if tot is None:
+                            tot = inp + out + cache_val
+                        tokens_agg["total"] += int(tot)
+                        tokens_agg["input"] += int(inp)
+                        tokens_agg["output"] += int(out)
+                        tokens_agg["cache"] += int(cache_val)
+                        tokens_agg["reasoning"] += int(reasoning)
+                elif ev.get("type") == "agent_response" or "usage" in ev:
+                    usage = ev.get("usage") or {}
+                    if isinstance(usage, dict):
+                        has_tokens = True
+                        tot = usage.get("total_tokens") or 0
+                        inp = (
+                            usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+                        )
+                        out = (
+                            usage.get("completion_tokens")
+                            or usage.get("output_tokens")
+                            or 0
+                        )
+                        tokens_agg["total"] += int(tot)
+                        tokens_agg["input"] += int(inp)
+                        tokens_agg["output"] += int(out)
+                    c = ev.get("cost")
+                    if c is not None:
+                        try:
+                            total_cost += float(c)
+                            has_cost = True
+                        except (ValueError, TypeError):
+                            pass
+    except Exception:
+        pass
+
+    cost_res = round(total_cost, 4) if has_cost else None
+    tok_res = {k: v for k, v in tokens_agg.items() if v > 0} if has_tokens else {}
+    return cost_res, tok_res
+
+
+def extract_step_usage(
+    item: dict[str, Any], run_dir: Path
+) -> tuple[float | None, dict[str, int]]:
+    """Extract cumulative cost and token counts for a queue item across its attempts."""
+    step_cost: float | None = None
+    step_tokens: dict[str, int] = {}
+
+    attempts = item.get("attempts") or []
+    for att in attempts:
+        if not isinstance(att, dict):
+            continue
+        att_cost = att.get("cost")
+        att_toks = att.get("tokens")
+        if att_cost is not None or att_toks:
+            if att_cost is not None:
+                step_cost = (step_cost or 0.0) + float(att_cost)
+            if isinstance(att_toks, dict):
+                for k, v in att_toks.items():
+                    step_tokens[k] = step_tokens.get(k, 0) + int(v)
+        else:
+            log_path = att.get("log")
+            if log_path:
+                p = Path(log_path)
+                if not p.is_file() and not p.is_absolute():
+                    p = run_dir / p
+                if not p.is_file():
+                    alt = run_dir / "sessions" / p.name
+                    if alt.is_file():
+                        p = alt
+                if p.is_file():
+                    c, t = extract_log_metrics(p)
+                    if c is not None:
+                        step_cost = (step_cost or 0.0) + c
+                    if t:
+                        for k, v in t.items():
+                            step_tokens[k] = step_tokens.get(k, 0) + v
+
+    # Fallback to scanning run_dir / "sessions" if no attempts had logs
+    if step_cost is None and not step_tokens and run_dir.is_dir():
+        pos = item.get("position", 0)
+        id6 = item.get("id6", "")
+        sessions_dir = run_dir / "sessions"
+        if sessions_dir.is_dir() and id6:
+            candidates = list(sessions_dir.glob(f"{pos:02d}-{id6}*.jsonl"))
+            if not candidates:
+                candidates = list(sessions_dir.glob(f"*{id6}*.jsonl"))
+            for sess_file in candidates:
+                c, t = extract_log_metrics(sess_file)
+                if c is not None:
+                    step_cost = (step_cost or 0.0) + c
+                if t:
+                    for k, v in t.items():
+                        step_tokens[k] = step_tokens.get(k, 0) + v
+
+    cost_res = round(step_cost, 4) if step_cost is not None else None
+    tok_res = {k: v for k, v in step_tokens.items() if v > 0}
+    return cost_res, tok_res
+
+
 def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary | None:
     """Load a RunSummary from a run directory."""
     if not run_dir.is_dir():
@@ -215,6 +418,12 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
             queue = state.get("queue") or []
             set_set = set()
+            # ssk6nf E-02: a `running` status is only trustworthy while a driver is alive to update it.
+            # `oc_runipd.reconcile_interrupted` fixes it durably, but it is reached ONLY from
+            # `run_queue` (a resume), so a run killed by SIGKILL/OOM/crash/suspend keeps claiming
+            # `running` forever. Probe the holder ONCE per run (not per item) and project below.
+            # DISPLAY-ONLY: nothing here writes state; the durable fix is `aw runs repair`.
+            holder = driver_holder_state(run_dir)
             for idx, item in enumerate(queue, start=1):
                 pos = item.get("position", idx)
                 id6 = item.get("id6", "")
@@ -223,6 +432,12 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     set_set.add(setid)
                 action = item.get("action", "execute")
                 status = item.get("status", "queued")
+                persisted_status = None
+                # Only a PROVEN-dead holder projects. HOLDER_UNKNOWN deliberately does not: failing to
+                # prove liveness is not proof of death.
+                if status == "running" and holder == HOLDER_NONE:
+                    persisted_status = status
+                    status = ABANDONED
                 counts[status] = counts.get(status, 0) + 1
 
                 cfg_file = item.get("configured_file", "")
@@ -258,6 +473,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     if isinstance(raw_incomplete, list):
                         incomplete = [str(r) for r in raw_incomplete]
 
+                step_cost, step_toks = extract_step_usage(item, run_dir)
+
                 steps.append(
                     StepSummary(
                         position=pos,
@@ -267,12 +484,15 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         status=status,
                         configured_file=cfg_file,
                         stem=stem,
+                        persisted_status=persisted_status,
                         verification_status=v_status,
                         attempts_count=att_count,
                         session_id=session_id,
                         disposition=disposition,
                         summary=summary_text,
                         incomplete_requirements=incomplete,
+                        cost=step_cost,
+                        tokens=step_toks,
                     )
                 )
 
@@ -342,6 +562,10 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         )
                         counts[status] = counts.get(status, 0) + 1
 
+                        step_cost, step_toks = extract_step_usage(
+                            {"position": pos, "id6": id6}, run_dir
+                        )
+
                         steps.append(
                             StepSummary(
                                 position=pos,
@@ -354,10 +578,21 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                                 verification_status=v_status,
                                 attempts_count=attempts,
                                 session_id=session_id,
+                                cost=step_cost,
+                                tokens=step_toks,
                             )
                         )
         except (OSError, ValueError, IndexError):
             pass
+
+    total_cost: float | None = None
+    total_tokens: dict[str, int] = {}
+    for s in steps:
+        if s.cost is not None:
+            total_cost = (total_cost or 0.0) + s.cost
+        if s.tokens:
+            for k, v in s.tokens.items():
+                total_tokens[k] = total_tokens.get(k, 0) + v
 
     return RunSummary(
         run_id=run_id,
@@ -369,6 +604,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
         setids=setids,
         steps=steps,
         counts=counts,
+        total_cost=round(total_cost, 4) if total_cost is not None else None,
+        total_tokens=total_tokens if total_tokens else {},
     )
 
 
@@ -500,6 +737,15 @@ def format_step_line(
     badges = []
     if step.attempts_count > 0:
         badges.append(f"[attempts: {step.attempts_count}]")
+    # ssk6nf E-03: attribute a PROJECTED status so an operator can tell "no live driver holds this run"
+    # from "the driver recorded this". Names the persisted value so nothing is hidden.
+    if step.is_projected:
+        badge = f"[no live driver; recorded {step.persisted_status}]"
+        badges.append(
+            term.color256(badge, 208, bold=True)
+            if getattr(term, "color", False)
+            else badge
+        )
     if step.verification_status == "verified":
         badges.append(
             term.color256("[verified]", 46, bold=True)
@@ -511,6 +757,13 @@ def format_step_line(
             term.color256("[verify-failed]", 196, bold=True)
             if getattr(term, "color", False)
             else "[verify-failed]"
+        )
+    if step.cost is not None:
+        cost_str = f"${step.cost:.2f}"
+        badges.append(
+            term.color256(f"[{cost_str}]", 220)
+            if getattr(term, "color", False)
+            else f"[{cost_str}]"
         )
     if step.action == "review":
         badges.append(
@@ -559,10 +812,18 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
         st_display = "complete" if st == "substantially-complete" else st
         tally_parts.append(f"{cnt} {st_display}")
     tally_str = ", ".join(tally_parts) if tally_parts else f"{len(run.steps)} steps"
+
+    cost_part = f", ${run.total_cost:.2f}" if run.total_cost is not None else ""
+    tok_part = (
+        f", {format_tokens(run.total_tokens['total'])} tok"
+        if run.total_tokens.get("total")
+        else ""
+    )
+
     count_summary = (
-        f"  ({len(run.steps)} steps: {tally_str})"
+        f"  ({len(run.steps)} steps: {tally_str}{cost_part}{tok_part})"
         if tally_parts
-        else f"  ({len(run.steps)} steps)"
+        else f"  ({len(run.steps)} steps{cost_part}{tok_part})"
     )
 
     lines.append(f"{run_id_txt}{set_txt}{date_txt}{count_summary}")
@@ -613,16 +874,293 @@ def format_run_human(run: RunSummary, term: Term, detail: bool = False) -> str:
                     else f"     * summary: {sum_text}"
                 )
                 lines.append(sum_txt)
+            if step.cost is not None:
+                cost_txt = (
+                    term.color256(f"     $ cost: ${step.cost:.2f}", 220)
+                    if getattr(term, "color", False)
+                    else f"     $ cost: ${step.cost:.2f}"
+                )
+                lines.append(cost_txt)
+            if step.tokens:
+                tok_parts = []
+                if step.tokens.get("total"):
+                    tok_parts.append(f"{format_tokens(step.tokens['total'])} tot")
+                if step.tokens.get("input"):
+                    tok_parts.append(f"{format_tokens(step.tokens['input'])} in")
+                if step.tokens.get("output"):
+                    tok_parts.append(f"{format_tokens(step.tokens['output'])} out")
+                if step.tokens.get("cache"):
+                    tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
+                if tok_parts:
+                    tok_str = ", ".join(tok_parts)
+                    tok_txt = (
+                        term.color256(f"     * tokens: {tok_str}", 245)
+                        if getattr(term, "color", False)
+                        else f"     * tokens: {tok_str}"
+                    )
+                    lines.append(tok_txt)
 
     return "\n".join(lines)
+
+
+def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
+    """Compute aggregate and category breakdown summary across multiple runs."""
+    total_runs = len(summaries)
+    total_steps = sum(len(s.steps) for s in summaries)
+    total_cost = 0.0
+    has_any_cost = False
+    cost_steps_count = 0
+    total_tokens: dict[str, int] = {}
+
+    by_status: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"count": 0, "cost_count": 0, "total_cost": 0.0, "total_tokens": 0}
+    )
+    by_action: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"count": 0, "cost_count": 0, "total_cost": 0.0, "total_tokens": 0}
+    )
+
+    for s in summaries:
+        for step in s.steps:
+            st = step.status
+            act = step.action
+            by_status[st]["count"] += 1
+            by_action[act]["count"] += 1
+            if step.cost is not None:
+                has_any_cost = True
+                cost_steps_count += 1
+                total_cost += step.cost
+                by_status[st]["cost_count"] += 1
+                by_status[st]["total_cost"] = round(
+                    by_status[st]["total_cost"] + step.cost, 4
+                )
+                by_action[act]["cost_count"] += 1
+                by_action[act]["total_cost"] = round(
+                    by_action[act]["total_cost"] + step.cost, 4
+                )
+            if step.tokens:
+                tot = step.tokens.get("total", 0)
+                by_status[st]["total_tokens"] += tot
+                by_action[act]["total_tokens"] += tot
+                for k, v in step.tokens.items():
+                    total_tokens[k] = total_tokens.get(k, 0) + v
+
+    status_summary = {}
+    for st, data in by_status.items():
+        c_cnt = data["cost_count"]
+        entry: dict[str, Any] = {"count": data["count"], "steps_with_cost": c_cnt}
+        if c_cnt > 0:
+            entry["total_cost"] = round(data["total_cost"], 4)
+            entry["avg_cost"] = round(data["total_cost"] / c_cnt, 4)
+            entry["total_tokens"] = data["total_tokens"]
+            entry["avg_tokens"] = int(data["total_tokens"] / c_cnt)
+        status_summary[st] = entry
+
+    action_summary = {}
+    for act, data in by_action.items():
+        c_cnt = data["cost_count"]
+        entry = {"count": data["count"], "steps_with_cost": c_cnt}
+        if c_cnt > 0:
+            entry["total_cost"] = round(data["total_cost"], 4)
+            entry["avg_cost"] = round(data["total_cost"] / c_cnt, 4)
+            entry["total_tokens"] = data["total_tokens"]
+            entry["avg_tokens"] = int(data["total_tokens"] / c_cnt)
+        action_summary[act] = entry
+
+    return {
+        "runs_count": total_runs,
+        "steps_count": total_steps,
+        "steps_with_cost": cost_steps_count,
+        "total_cost": round(total_cost, 4) if has_any_cost else None,
+        "total_tokens": total_tokens if total_tokens else {},
+        "by_status": status_summary,
+        "by_action": action_summary,
+    }
+
+
+def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
+    """Format an aggregate summary across multiple runs for terminal display."""
+    summary_data = build_multi_run_summary_dict(summaries)
+    total_runs = summary_data["runs_count"]
+    total_steps = summary_data["steps_count"]
+    has_any_cost = summary_data["total_cost"] is not None
+    cost_steps_count = summary_data["steps_with_cost"]
+    total_cost = summary_data["total_cost"] or 0.0
+    total_toks = summary_data["total_tokens"] or {}
+
+    lines = []
+    header_title = f"--- Summary across {total_runs} runs ({total_steps} steps) ---"
+    lines.append(
+        term.color256(header_title, 33, bold=True)
+        if getattr(term, "color", False)
+        else header_title
+    )
+
+    if has_any_cost:
+        cost_str = f"${total_cost:.2f}"
+        tok_str = format_tokens(total_toks.get("total", 0))
+        in_str = format_tokens(total_toks.get("input", 0))
+        out_str = format_tokens(total_toks.get("output", 0))
+        cache_str = format_tokens(total_toks.get("cache", 0))
+
+        cost_val_str = (
+            term.color256(cost_str, 220, bold=True)
+            if getattr(term, "color", False)
+            else cost_str
+        )
+        lines.append(
+            f"  Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with recorded usage)"
+        )
+        if total_toks.get("total"):
+            lines.append(
+                f"  Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cache)"
+            )
+
+        lines.append("")
+        st_hdr = "  Breakdown by Status:"
+        lines.append(
+            term.color256(st_hdr, "bold") if getattr(term, "color", False) else st_hdr
+        )
+
+        by_status = summary_data["by_status"]
+        for st, data in sorted(
+            by_status.items(),
+            key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
+        ):
+            tot_cnt = data["count"]
+            c_cnt = data["steps_with_cost"]
+            st_disp = "complete" if st == "substantially-complete" else st
+            st_txt = (
+                term.status_256(st_disp, width=20)
+                if getattr(term, "color", False)
+                else f"{st_disp:<20}"
+            )
+            if c_cnt > 0:
+                c_total = data["total_cost"]
+                avg_cost = data["avg_cost"]
+                avg_tok = data.get("avg_tokens", 0)
+                cnt_desc = (
+                    f"{tot_cnt} steps"
+                    if c_cnt == tot_cnt
+                    else f"{tot_cnt} steps ({c_cnt} with cost)"
+                )
+                cost_part = f"${c_total:7.2f} total"
+                avg_part = f"avg ${avg_cost:6.2f}/step"
+                tok_part = f" ({format_tokens(avg_tok)} tok/step)" if avg_tok else ""
+                lines.append(
+                    f"    - {st_txt} {cnt_desc:<22} | {cost_part} | {avg_part}{tok_part}"
+                )
+            else:
+                lines.append(f"    - {st_txt} {tot_cnt} steps{'':<15} | no cost data")
+
+        by_action = summary_data["by_action"]
+        if len(by_action) > 1:
+            lines.append("")
+            act_hdr = "  Breakdown by Action:"
+            lines.append(
+                term.color256(act_hdr, "bold")
+                if getattr(term, "color", False)
+                else act_hdr
+            )
+            for act, data in sorted(
+                by_action.items(),
+                key=lambda x: (-x[1].get("total_cost", 0.0), -x[1]["count"]),
+            ):
+                tot_cnt = data["count"]
+                c_cnt = data["steps_with_cost"]
+                act_txt = (
+                    term.color256(f"{act:<20}", 226)
+                    if getattr(term, "color", False)
+                    else f"{act:<20}"
+                )
+                if c_cnt > 0:
+                    c_total = data["total_cost"]
+                    avg_cost = data["avg_cost"]
+                    avg_tok = data.get("avg_tokens", 0)
+                    cnt_desc = (
+                        f"{tot_cnt} steps"
+                        if c_cnt == tot_cnt
+                        else f"{tot_cnt} steps ({c_cnt} with cost)"
+                    )
+                    cost_part = f"${c_total:7.2f} total"
+                    avg_part = f"avg ${avg_cost:6.2f}/step"
+                    tok_part = (
+                        f" ({format_tokens(avg_tok)} tok/step)" if avg_tok else ""
+                    )
+                    lines.append(
+                        f"    - {act_txt} {cnt_desc:<22} | {cost_part} | {avg_part}{tok_part}"
+                    )
+                else:
+                    lines.append(
+                        f"    - {act_txt} {tot_cnt} steps{'':<15} | no cost data"
+                    )
+    else:
+        lines.append("  No recorded cost/token data for the selected runs.")
+
+    return "\n".join(lines)
+
+
+def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
+    """ssk6nf E-04: durably reconcile a run abandoned without a terminal status.
+
+    Delegates to ``oc_runipd.reconcile_interrupted``, the SINGLE reconciler (it resolves each running
+    item's plan, promotes one that genuinely reached ``executed``, else marks it ``interrupted``).
+    Deliberately does not reimplement that logic (GUIDING_PRINCIPLES P8).
+
+    REFUSES while a live driver holds the run: repairing under a running driver would race its writer.
+    A run with nothing to reconcile is a no-op. Returns ``(exit_code, message)``.
+    """
+    run_dir = Path(run_dir)
+    if not (run_dir / "state.json").is_file():
+        return 2, f"not a run directory: {run_dir}"
+
+    holder = driver_holder_state(run_dir)
+    if holder == HOLDER_LIVE:
+        return 1, (
+            f"refusing to repair {run_dir.name}: a live driver still holds this run "
+            "(stop it first, then repair)"
+        )
+    if holder == HOLDER_UNKNOWN:
+        return 1, (
+            f"refusing to repair {run_dir.name}: could not prove no driver holds it "
+            "(flock unavailable on this platform)"
+        )
+
+    from agent_workflows import oc_runipd
+
+    state = oc_runipd.load_state(run_dir)
+    stale = [
+        i.get("id6", "") for i in state.get("queue", []) if i.get("status") == "running"
+    ]
+    if not stale:
+        return 0, f"{run_dir.name}: nothing to repair (no running steps)"
+
+    oc_runipd.reconcile_interrupted(run_dir, state)
+
+    after = oc_runipd.load_state(run_dir)
+    by_id = {i.get("id6", ""): i.get("status") for i in after.get("queue", [])}
+    changes = ", ".join(f"{i} running -> {by_id.get(i)}" for i in stale)
+    return 0, f"{run_dir.name}: reconciled {len(stale)} step(s): {changes}"
 
 
 def run_viewer_cli(args: argparse.Namespace) -> int:
     """CLI entry point for `aw runs` / run viewer."""
     repo_root = Path(getattr(args, "dir", None) or ".")
+    # ssk6nf E-04: `aw runs repair <run-id>` is an opt-in MUTATING verb on an otherwise read-only
+    # surface, routed from the first target token so every read path stays side-effect free.
     raw_targets = getattr(args, "target", None) or getattr(args, "targets", None) or []
     if isinstance(raw_targets, str):
         raw_targets = [raw_targets]
+    if raw_targets and raw_targets[0] == "repair":
+        targets = list(raw_targets[1:])
+        if not targets:
+            print("error: aw runs repair needs a run id (or a run directory path)")
+            return 2
+        rc = 0
+        for run_dir in resolve_target_runs(targets, repo_root):
+            code, message = repair_run(run_dir, repo_root)
+            print(message)
+            rc = rc or code
+        return rc
 
     run_dirs = resolve_target_runs(raw_targets, repo_root)
 
@@ -715,6 +1253,8 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         payload = {"runs": [asdict(s) for s in summaries]}
         for r_dict in payload["runs"]:
             r_dict["run_dir"] = str(r_dict["run_dir"])
+        if len(summaries) > 1:
+            payload["summary"] = build_multi_run_summary_dict(summaries)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
@@ -730,5 +1270,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         if idx > 0:
             term.line("")
         term.line(format_run_human(summary, term, detail=detail))
+
+    if len(summaries) > 1:
+        term.line("")
+        term.line(format_multi_run_summary(summaries, term))
 
     return 0

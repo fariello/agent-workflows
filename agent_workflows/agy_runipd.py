@@ -2151,6 +2151,13 @@ def execute_item(
             "argv": argv,
         }
     )
+    from agent_workflows.run_viewer import extract_log_metrics
+
+    att_cost, att_toks = extract_log_metrics(log_file)
+    if att_cost is not None:
+        attempt["cost"] = att_cost
+    if att_toks:
+        attempt["tokens"] = att_toks
 
     disposition, outcome = reconcile_disposition(repo, item, run_dir, rc)
 

@@ -404,3 +404,257 @@ class RunViewerTests(TestCase):
         with redirect_stdout(buf_bad):
             code_bad = run_viewer.run_viewer_cli(ns_bad)
         self.assertEqual(code_bad, 2)
+
+    def test_extract_log_metrics_opencode(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            log_p = Path(td) / "session.jsonl"
+            lines = [
+                json.dumps(
+                    {
+                        "type": "step_finish",
+                        "part": {
+                            "tokens": {
+                                "input": 1000,
+                                "output": 200,
+                                "total": 1200,
+                                "cache": {"read": 50, "write": 10},
+                            },
+                            "cost": 0.052,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "type": "step_finish",
+                        "part": {
+                            "tokens": {
+                                "input": 2000,
+                                "output": 300,
+                                "total": 2300,
+                            },
+                            "cost": 0.081,
+                        },
+                    }
+                ),
+            ]
+            log_p.write_text("\n".join(lines), encoding="utf-8")
+            cost, toks = run_viewer.extract_log_metrics(log_p)
+            self.assertAlmostEqual(cost, 0.133, places=3)
+            self.assertEqual(toks["total"], 3500)
+            self.assertEqual(toks["input"], 3000)
+            self.assertEqual(toks["output"], 500)
+            self.assertEqual(toks["cache"], 60)
+
+    def test_extract_log_metrics_usage_shape(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            log_p = Path(td) / "session.jsonl"
+            lines = [
+                json.dumps(
+                    {
+                        "type": "agent_response",
+                        "usage": {
+                            "total_tokens": 500,
+                            "input_tokens": 400,
+                            "output_tokens": 100,
+                        },
+                        "cost": 0.015,
+                    }
+                )
+            ]
+            log_p.write_text("\n".join(lines), encoding="utf-8")
+            cost, toks = run_viewer.extract_log_metrics(log_p)
+            self.assertAlmostEqual(cost, 0.015, places=3)
+            self.assertEqual(toks["total"], 500)
+            self.assertEqual(toks["input"], 400)
+            self.assertEqual(toks["output"], 100)
+
+    def test_format_step_line_cost_badge(self):
+        term = Term(color=False)
+        step = run_viewer.StepSummary(
+            position=1,
+            id6="abc123",
+            setid="testset",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="testset-abc123",
+            cost=12.3456,
+            tokens={"total": 50000},
+        )
+        line = run_viewer.format_step_line(step, term)
+        self.assertIn("[$12.35]", line)
+        self.assertIn("executed", line)
+
+    def test_format_run_human_with_cost_and_detail(self):
+        term = Term(color=False)
+        step1 = run_viewer.StepSummary(
+            position=1,
+            id6="abc123",
+            setid="testset",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="testset-abc123",
+            cost=10.50,
+            tokens={"total": 100000, "input": 80000, "output": 20000},
+        )
+        step2 = run_viewer.StepSummary(
+            position=2,
+            id6="def456",
+            setid="testset",
+            action="review",
+            status="reviewed",
+            configured_file="",
+            stem="testset-def456",
+            cost=5.25,
+            tokens={"total": 50000, "input": 40000, "output": 10000},
+        )
+        run = run_viewer.RunSummary(
+            run_id="run-20260829T000000Z-111111",
+            run_dir=Path("."),
+            created_at="2026-08-29T00:00:00+00:00",
+            setids=["testset"],
+            steps=[step1, step2],
+            counts={"executed": 1, "reviewed": 1},
+            total_cost=15.75,
+            total_tokens={"total": 150000, "input": 120000, "output": 30000},
+        )
+        formatted = run_viewer.format_run_human(run, term, detail=True)
+        self.assertIn("$15.75", formatted)
+        self.assertIn("150.00K tok", formatted)
+        self.assertIn("[$10.50]", formatted)
+        self.assertIn("[$5.25]", formatted)
+        self.assertIn("$ cost: $10.50", formatted)
+        self.assertIn("* tokens: 100.00K tot, 80.00K in, 20.00K out", formatted)
+
+    def test_multi_run_summary_dict_and_format(self):
+        term = Term(color=False)
+        step1 = run_viewer.StepSummary(
+            position=1,
+            id6="a1",
+            setid="s1",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="s1-a1",
+            cost=10.00,
+            tokens={"total": 100000},
+        )
+        step2 = run_viewer.StepSummary(
+            position=2,
+            id6="a2",
+            setid="s1",
+            action="review",
+            status="reviewed",
+            configured_file="",
+            stem="s1-a2",
+            cost=6.00,
+            tokens={"total": 60000},
+        )
+        step3 = run_viewer.StepSummary(
+            position=1,
+            id6="b1",
+            setid="s2",
+            action="review",
+            status="reviewed",
+            configured_file="",
+            stem="s2-b1",
+            cost=8.00,
+            tokens={"total": 80000},
+        )
+        step4 = run_viewer.StepSummary(
+            position=2,
+            id6="b2",
+            setid="s2",
+            action="execute",
+            status="queued",
+            configured_file="",
+            stem="s2-b2",
+            cost=None,
+            tokens={},
+        )
+        run1 = run_viewer.RunSummary(
+            run_id="run-1",
+            run_dir=Path("."),
+            created_at="2026-08-29T00:00:00Z",
+            setids=["s1"],
+            steps=[step1, step2],
+            counts={"executed": 1, "reviewed": 1},
+            total_cost=16.00,
+            total_tokens={"total": 160000},
+        )
+        run2 = run_viewer.RunSummary(
+            run_id="run-2",
+            run_dir=Path("."),
+            created_at="2026-08-29T01:00:00Z",
+            setids=["s2"],
+            steps=[step3, step4],
+            counts={"reviewed": 1, "queued": 1},
+            total_cost=8.00,
+            total_tokens={"total": 80000},
+        )
+        summary_dict = run_viewer.build_multi_run_summary_dict([run1, run2])
+        self.assertEqual(summary_dict["runs_count"], 2)
+        self.assertEqual(summary_dict["steps_count"], 4)
+        self.assertEqual(summary_dict["steps_with_cost"], 3)
+        self.assertEqual(summary_dict["total_cost"], 24.00)
+
+        # Check by_status
+        self.assertEqual(summary_dict["by_status"]["executed"]["total_cost"], 10.00)
+        self.assertEqual(summary_dict["by_status"]["executed"]["avg_cost"], 10.00)
+        self.assertEqual(summary_dict["by_status"]["reviewed"]["total_cost"], 14.00)
+        self.assertEqual(summary_dict["by_status"]["reviewed"]["avg_cost"], 7.00)
+        self.assertEqual(summary_dict["by_status"]["queued"]["count"], 1)
+        self.assertEqual(summary_dict["by_status"]["queued"]["steps_with_cost"], 0)
+
+        # Check by_action
+        self.assertEqual(summary_dict["by_action"]["review"]["avg_cost"], 7.00)
+        self.assertEqual(summary_dict["by_action"]["execute"]["avg_cost"], 10.00)
+
+        # Check format_multi_run_summary text
+        text = run_viewer.format_multi_run_summary([run1, run2], term)
+        self.assertIn("Summary across 2 runs (4 steps)", text)
+        self.assertIn(
+            "Total Cost:   $24.00 (across 3/4 steps with recorded usage)", text
+        )
+        self.assertIn("Breakdown by Status:", text)
+        self.assertIn("reviewed", text)
+        self.assertIn("14.00 total", text)
+        self.assertIn("7.00/step", text)
+        self.assertIn("executed", text)
+        self.assertIn("10.00 total", text)
+        self.assertIn("10.00/step", text)
+        self.assertIn("queued", text)
+        self.assertIn("no cost data", text)
+
+    def test_multi_run_cli_json_summary(self):
+        ns = argparse.Namespace(
+            dir=".",
+            target=[],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=2,
+            since=None,
+            detail=False,
+            json=True,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        self.assertEqual(code, 0)
+        parsed = json.loads(buf.getvalue())
+        self.assertIn("runs", parsed)
+        self.assertIn("summary", parsed)
+        self.assertEqual(parsed["summary"]["runs_count"], 2)
+        self.assertIn("by_status", parsed["summary"])
+        self.assertIn("by_action", parsed["summary"])
