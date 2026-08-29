@@ -3332,6 +3332,16 @@
   {
     "date": "2026-08-27",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md",
+    "plan_id": "yt93ir",
+    "set_id": "driverfin",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-27",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md",
@@ -3554,16 +3564,6 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
-    "path": "pending/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md",
-    "plan_id": "yt93ir",
-    "set_id": "driverfin",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-27",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
     "path": "pending/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md",
     "plan_id": "u5vyye",
     "set_id": "xprio",
@@ -3677,7 +3677,7 @@
     "path": "pending/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
     "plan_id": "g7hljt",
     "set_id": "ocsync",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",
