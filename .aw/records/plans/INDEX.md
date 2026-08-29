@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 155 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 156 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -11,6 +11,10 @@ Showing the 40 most-recent of 155 Sets; the full manifest is INDEX.json.
 ## bklgrad
 
 - `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
+
+## coauthor
+
+- `a5ni7v` [executed] 01 executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md
 
 ## findidx
 
@@ -215,10 +219,6 @@ Showing the 40 most-recent of 155 Sets; the full manifest is INDEX.json.
 ## grouptypes
 
 - `o2ygf3` [executed] 01 executed/20260823-grouptypes-01-o2ygf3-universal-artifact-type-support-in-aw-group.ipd.md
-
-## indexoutput
-
-- `3br8p0` [executed] 01 executed/20260823-indexoutput-01-3br8p0-enhance-aw-index-cli-output-with-path-location-change-awaren.ipd.md
 
 ## (singletons: no Set)
 

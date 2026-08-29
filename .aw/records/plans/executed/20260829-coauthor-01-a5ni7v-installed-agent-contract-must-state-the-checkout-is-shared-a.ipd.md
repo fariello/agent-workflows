@@ -7,15 +7,15 @@
 - Scope: Add a shared-checkout section plus a MANDATORY pre-commit verification step to the INSTALLED `AGENTS.md` block in `engine.py`, so every managed repo receives it on install/update; align both driver prompts (`oc_runipd.py`, `agy_runipd.py`) with the same rule so runner and interactive sessions agree; fix the curly apostrophe in the delivered prompt text; and regenerate this repo's own `AGENTS.md` block from `engine.py` so source and delivered copy do not drift. Documentation/prose only. Does NOT add a pre-commit hook, does NOT change git behavior, and does NOT attempt to attribute file edits to a session (rejected: a hook is local, uncloned, `--no-verify`-skippable, and cannot reliably know which agent edited a file, so it would produce false refusals).
 - Scope-Paths: agent_workflows/engine.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, AGENTS.md, tests/test_shared_checkout_contract.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: coauthor
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: a5ni7v
-- Approval: 2026-08-29, human ("approved"): Maintainer directed this fix (update the agent-workflows files so it installs).
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Implemented E-01..E-05: shared-checkout rule + mandatory staged-set verification now ship in the installed AGENTS block; both driver prompts aligned; ASCII fixed; AGENTS.md byte-equal to generated. 19 new tests; full suite 2819 passed. [Scope reconciliation - in-scope-unmodified AGENTS.md: already-committed in the product commit for this plan; in-scope-unmodified agent_workflows/agy_runipd.py: already-committed in the product commit for this plan; in-scope-unmodified agent_workflows/engine.py: already-committed in the product commit for this plan; in-scope-unmodified agent_workflows/oc_runipd.py: already-committed in the product commit for this plan; in-scope-unmodified tests/test_shared_checkout_contract.py: already-committed in the product commit for this plan]
 - 2026-08-29 approved (aw set, --by-human): Maintainer directed this fix (update the agent-workflows files so it installs).
 - 2026-08-29 to-review (aw set): Authored review-ready from backlog suugsf.
 

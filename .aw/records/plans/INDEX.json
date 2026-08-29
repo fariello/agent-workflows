@@ -3574,6 +3574,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md",
+    "plan_id": "a5ni7v",
+    "set_id": "coauthor",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
     "plan_id": "g7hljt",
     "set_id": "ocsync",
@@ -3797,7 +3807,7 @@
     "path": "pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md",
     "plan_id": "71vjbn",
     "set_id": "runstop",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
