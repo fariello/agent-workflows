@@ -2219,6 +2219,15 @@ def execute_item(
                 tracker=tracker,
                 work_dir=work_dir,
             )
+            if _v_log:
+                attempt["verify_log"] = str(_v_log)
+                from agent_workflows.run_viewer import extract_log_metrics
+
+                v_cost, v_toks = extract_log_metrics(_v_log)
+                if v_cost is not None:
+                    attempt["verify_cost"] = v_cost
+                if v_toks:
+                    attempt["verify_tokens"] = v_toks
             v_outcome_file = (
                 run_dir
                 / "outcomes"

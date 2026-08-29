@@ -864,6 +864,82 @@ class RunViewerTests(TestCase):
         self.assertIn("╭", color_text)
         self.assertIn("╰", color_text)
 
+    def test_multi_run_summary_breakdown_with_verification(self):
+        term = Term(color=False)
+        step1 = run_viewer.StepSummary(
+            position=1,
+            id6="a1",
+            setid="s1",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="s1-a1",
+            cost=10.00,
+            tokens={"total": 100000, "input": 10000, "output": 5000, "cache": 85000},
+            exec_cost=7.00,
+            exec_tokens={"total": 70000, "input": 7000, "output": 3500, "cache": 59500},
+            verify_cost=3.00,
+            verify_tokens={
+                "total": 30000,
+                "input": 3000,
+                "output": 1500,
+                "cache": 25500,
+            },
+        )
+        run1 = run_viewer.RunSummary(
+            run_id="run-1",
+            run_dir=Path("."),
+            created_at="2026-08-29T00:00:00Z",
+            setids=["s1"],
+            steps=[step1],
+            counts={"executed": 1},
+            total_cost=10.00,
+            total_tokens={
+                "total": 100000,
+                "input": 10000,
+                "output": 5000,
+                "cache": 85000,
+            },
+            exec_cost=7.00,
+            exec_tokens={"total": 70000, "input": 7000, "output": 3500, "cache": 59500},
+            verify_cost=3.00,
+            verify_tokens={
+                "total": 30000,
+                "input": 3000,
+                "output": 1500,
+                "cache": 25500,
+            },
+        )
+
+        # Single run format
+        run_txt = run_viewer.format_run_human(run1, term)
+        self.assertIn("Total:        $10.00, 100.00K tok", run_txt)
+        self.assertIn("- Execute:  $7.00, 70.00K tok", run_txt)
+        self.assertIn("- Verify:   $3.00, 30.00K tok", run_txt)
+
+        # Step details format
+        details = run_viewer.render_step_details([step1], term)
+        details_txt = "\n".join(details)
+        self.assertIn("$ cost: $10.00 (exec: $7.00, verify: $3.00)", details_txt)
+        self.assertIn("[exec: 70.00K, verify: 30.00K]", details_txt)
+
+        # Multi-run summary format
+        summary_dict = run_viewer.build_multi_run_summary_dict([run1])
+        self.assertIn("by_phase", summary_dict)
+        self.assertEqual(summary_dict["by_phase"]["execution"]["total_cost"], 7.00)
+        self.assertEqual(summary_dict["by_phase"]["verification"]["total_cost"], 3.00)
+
+        sum_txt = run_viewer.format_multi_run_summary([run1], term)
+        self.assertIn("Total Cost:   $10.00", sum_txt)
+        self.assertIn("- Execute:  $7.00 (avg $7.00/run)", sum_txt)
+        self.assertIn("- Verify:   $3.00 (avg $3.00/run)", sum_txt)
+        self.assertIn("Total Tokens: 100.00K", sum_txt)
+        self.assertIn("- Execute:  70.00K (avg 70.00K/run)", sum_txt)
+        self.assertIn("- Verify:   30.00K (avg 30.00K/run)", sum_txt)
+        self.assertIn("Breakdown by Phase:", sum_txt)
+        self.assertIn("execution", sum_txt)
+        self.assertIn("verification", sum_txt)
+
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(
             dir=".",

@@ -87,6 +87,10 @@ class StepSummary:
     persisted_status: str | None = None
     cost: float | None = None
     tokens: dict[str, int] = field(default_factory=dict)
+    exec_cost: float | None = None
+    exec_tokens: dict[str, int] = field(default_factory=dict)
+    verify_cost: float | None = None
+    verify_tokens: dict[str, int] = field(default_factory=dict)
 
     @property
     def is_projected(self) -> bool:
@@ -107,6 +111,10 @@ class RunSummary:
     counts: dict[str, int] = field(default_factory=dict)
     total_cost: float | None = None
     total_tokens: dict[str, int] = field(default_factory=dict)
+    exec_cost: float | None = None
+    exec_tokens: dict[str, int] = field(default_factory=dict)
+    verify_cost: float | None = None
+    verify_tokens: dict[str, int] = field(default_factory=dict)
     pid: int | None = None
     pid_state: str | None = None
     is_live: bool = False
@@ -558,23 +566,38 @@ def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, i
 
 def extract_step_usage(
     item: dict[str, Any], run_dir: Path
-) -> tuple[float | None, dict[str, int]]:
-    """Extract cumulative cost and token counts for a queue item across its attempts."""
-    step_cost: float | None = None
-    step_tokens: dict[str, int] = {}
+) -> tuple[
+    float | None,
+    dict[str, int],
+    float | None,
+    dict[str, int],
+    float | None,
+    dict[str, int],
+]:
+    """Extract cumulative execution, verification, and total cost/token metrics for a queue item."""
+    exec_cost: float | None = None
+    exec_tokens: dict[str, int] = {}
+    verify_cost: float | None = None
+    verify_tokens: dict[str, int] = {}
 
     attempts = item.get("attempts") or []
-    for att in attempts:
+    pos = item.get("position", 0)
+    id6 = item.get("id6", "")
+
+    for att_idx, att in enumerate(attempts):
         if not isinstance(att, dict):
             continue
+        att_num = att.get("attempt") or (att_idx + 1)
+
+        # Execution metrics
         att_cost = att.get("cost")
         att_toks = att.get("tokens")
         if att_cost is not None or att_toks:
             if att_cost is not None:
-                step_cost = (step_cost or 0.0) + float(att_cost)
+                exec_cost = (exec_cost or 0.0) + float(att_cost)
             if isinstance(att_toks, dict):
                 for k, v in att_toks.items():
-                    step_tokens[k] = step_tokens.get(k, 0) + int(v)
+                    exec_tokens[k] = exec_tokens.get(k, 0) + int(v)
         else:
             log_path = att.get("log")
             if log_path:
@@ -588,31 +611,104 @@ def extract_step_usage(
                 if p.is_file():
                     c, t = extract_log_metrics(p)
                     if c is not None:
-                        step_cost = (step_cost or 0.0) + c
+                        exec_cost = (exec_cost or 0.0) + c
                     if t:
                         for k, v in t.items():
-                            step_tokens[k] = step_tokens.get(k, 0) + v
+                            exec_tokens[k] = exec_tokens.get(k, 0) + v
+
+        # Verification metrics
+        v_cost = att.get("verify_cost")
+        v_toks = att.get("verify_tokens")
+        if v_cost is not None or v_toks:
+            if v_cost is not None:
+                verify_cost = (verify_cost or 0.0) + float(v_cost)
+            if isinstance(v_toks, dict):
+                for k, v in v_toks.items():
+                    verify_tokens[k] = verify_tokens.get(k, 0) + int(v)
+        else:
+            v_log_path = att.get("verify_log")
+            v_file = None
+            if v_log_path:
+                vp = Path(v_log_path)
+                if not vp.is_file() and not vp.is_absolute():
+                    vp = run_dir / vp
+                if vp.is_file():
+                    v_file = vp
+            if not v_file and run_dir.is_dir():
+                sessions_dir = run_dir / "sessions"
+                if sessions_dir.is_dir() and id6:
+                    cand = (
+                        sessions_dir / f"{pos:02d}-{id6}-attempt-{att_num}-verify.jsonl"
+                    )
+                    if cand.is_file():
+                        v_file = cand
+                    else:
+                        matches = list(
+                            sessions_dir.glob(f"*{id6}*attempt-{att_num}*verify*.jsonl")
+                        )
+                        if matches:
+                            v_file = matches[0]
+            if v_file and v_file.is_file():
+                c, t = extract_log_metrics(v_file)
+                if c is not None:
+                    verify_cost = (verify_cost or 0.0) + c
+                if t:
+                    for k, v in t.items():
+                        verify_tokens[k] = verify_tokens.get(k, 0) + v
 
     # Fallback to scanning run_dir / "sessions" if no attempts had logs
-    if step_cost is None and not step_tokens and run_dir.is_dir():
-        pos = item.get("position", 0)
-        id6 = item.get("id6", "")
+    if (
+        exec_cost is None
+        and not exec_tokens
+        and verify_cost is None
+        and not verify_tokens
+        and run_dir.is_dir()
+    ):
         sessions_dir = run_dir / "sessions"
         if sessions_dir.is_dir() and id6:
             candidates = list(sessions_dir.glob(f"{pos:02d}-{id6}*.jsonl"))
             if not candidates:
                 candidates = list(sessions_dir.glob(f"*{id6}*.jsonl"))
             for sess_file in candidates:
-                c, t = extract_log_metrics(sess_file)
-                if c is not None:
-                    step_cost = (step_cost or 0.0) + c
-                if t:
-                    for k, v in t.items():
-                        step_tokens[k] = step_tokens.get(k, 0) + v
+                if "verify" in sess_file.name:
+                    c, t = extract_log_metrics(sess_file)
+                    if c is not None:
+                        verify_cost = (verify_cost or 0.0) + c
+                    if t:
+                        for k, v in t.items():
+                            verify_tokens[k] = verify_tokens.get(k, 0) + v
+                else:
+                    c, t = extract_log_metrics(sess_file)
+                    if c is not None:
+                        exec_cost = (exec_cost or 0.0) + c
+                    if t:
+                        for k, v in t.items():
+                            exec_tokens[k] = exec_tokens.get(k, 0) + v
 
-    cost_res = round(step_cost, 4) if step_cost is not None else None
-    tok_res = {k: v for k, v in step_tokens.items() if v > 0}
-    return cost_res, tok_res
+    total_cost: float | None = None
+    if exec_cost is not None or verify_cost is not None:
+        total_cost = round((exec_cost or 0.0) + (verify_cost or 0.0), 4)
+
+    total_tokens: dict[str, int] = {}
+    for k, v in exec_tokens.items():
+        total_tokens[k] = total_tokens.get(k, 0) + v
+    for k, v in verify_tokens.items():
+        total_tokens[k] = total_tokens.get(k, 0) + v
+
+    e_cost_res = round(exec_cost, 4) if exec_cost is not None else None
+    v_cost_res = round(verify_cost, 4) if verify_cost is not None else None
+    e_tok_res = {k: v for k, v in exec_tokens.items() if v > 0}
+    v_tok_res = {k: v for k, v in verify_tokens.items() if v > 0}
+    tot_tok_res = {k: v for k, v in total_tokens.items() if v > 0}
+
+    return (
+        total_cost,
+        tot_tok_res,
+        e_cost_res,
+        e_tok_res,
+        v_cost_res,
+        v_tok_res,
+    )
 
 
 def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary | None:
@@ -655,11 +751,6 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
             queue = state.get("queue") or []
             set_set = set()
-            # ssk6nf E-02: a `running` status is only trustworthy while a driver is alive to update it.
-            # `oc_runipd.reconcile_interrupted` fixes it durably, but it is reached ONLY from
-            # `run_queue` (a resume), so a run killed by SIGKILL/OOM/crash/suspend keeps claiming
-            # `running` forever. Probe the holder ONCE per run (not per item) and project below.
-            # DISPLAY-ONLY: nothing here writes state; the durable fix is `aw runs repair`.
             holder = driver_holder_state(run_dir)
             for idx, item in enumerate(queue, start=1):
                 pos = item.get("position", idx)
@@ -670,8 +761,6 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                 action = item.get("action", "execute")
                 status = item.get("status", "queued")
                 persisted_status = None
-                # Only a PROVEN-dead holder projects. HOLDER_UNKNOWN deliberately does not: failing to
-                # prove liveness is not proof of death.
                 if status == "running" and holder == HOLDER_NONE:
                     persisted_status = status
                     status = ABANDONED
@@ -710,7 +799,14 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     if isinstance(raw_incomplete, list):
                         incomplete = [str(r) for r in raw_incomplete]
 
-                step_cost, step_toks = extract_step_usage(item, run_dir)
+                (
+                    step_cost,
+                    step_toks,
+                    step_e_cost,
+                    step_e_toks,
+                    step_v_cost,
+                    step_v_toks,
+                ) = extract_step_usage(item, run_dir)
 
                 steps.append(
                     StepSummary(
@@ -730,6 +826,10 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         incomplete_requirements=incomplete,
                         cost=step_cost,
                         tokens=step_toks,
+                        exec_cost=step_e_cost,
+                        exec_tokens=step_e_toks,
+                        verify_cost=step_v_cost,
+                        verify_tokens=step_v_toks,
                     )
                 )
 
@@ -799,9 +899,14 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         )
                         counts[status] = counts.get(status, 0) + 1
 
-                        step_cost, step_toks = extract_step_usage(
-                            {"position": pos, "id6": id6}, run_dir
-                        )
+                        (
+                            step_cost,
+                            step_toks,
+                            step_e_cost,
+                            step_e_toks,
+                            step_v_cost,
+                            step_v_toks,
+                        ) = extract_step_usage({"position": pos, "id6": id6}, run_dir)
 
                         steps.append(
                             StepSummary(
@@ -817,6 +922,10 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                                 session_id=session_id,
                                 cost=step_cost,
                                 tokens=step_toks,
+                                exec_cost=step_e_cost,
+                                exec_tokens=step_e_toks,
+                                verify_cost=step_v_cost,
+                                verify_tokens=step_v_toks,
                             )
                         )
         except (OSError, ValueError, IndexError):
@@ -824,12 +933,27 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 
     total_cost: float | None = None
     total_tokens: dict[str, int] = {}
+    exec_cost: float | None = None
+    exec_tokens: dict[str, int] = {}
+    verify_cost: float | None = None
+    verify_tokens: dict[str, int] = {}
+
     for s in steps:
         if s.cost is not None:
             total_cost = (total_cost or 0.0) + s.cost
         if s.tokens:
             for k, v in s.tokens.items():
                 total_tokens[k] = total_tokens.get(k, 0) + v
+        if s.exec_cost is not None:
+            exec_cost = (exec_cost or 0.0) + s.exec_cost
+        if s.exec_tokens:
+            for k, v in s.exec_tokens.items():
+                exec_tokens[k] = exec_tokens.get(k, 0) + v
+        if s.verify_cost is not None:
+            verify_cost = (verify_cost or 0.0) + s.verify_cost
+        if s.verify_tokens:
+            for k, v in s.verify_tokens.items():
+                verify_tokens[k] = verify_tokens.get(k, 0) + v
 
     dummy = RunSummary(
         run_id=run_id,
@@ -854,6 +978,10 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
         counts=counts,
         total_cost=round(total_cost, 4) if total_cost is not None else None,
         total_tokens=total_tokens if total_tokens else {},
+        exec_cost=round(exec_cost, 4) if exec_cost is not None else None,
+        exec_tokens=exec_tokens if exec_tokens else {},
+        verify_cost=round(verify_cost, 4) if verify_cost is not None else None,
+        verify_tokens=verify_tokens if verify_tokens else {},
         pid=pid,
         pid_state=pid_state,
         is_live=is_live,
@@ -1324,10 +1452,14 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                 else f"  * summary: {sum_text}"
             )
         if step.cost is not None:
+            if step.verify_cost is not None:
+                c_details = f" (exec: ${step.exec_cost or 0:.2f}, verify: ${step.verify_cost:.2f})"
+            else:
+                c_details = ""
             details.append(
-                term.color256(f"  $ cost: ${step.cost:.2f}", 220)
+                term.color256(f"  $ cost: ${step.cost:.2f}{c_details}", 220)
                 if getattr(term, "color", False)
-                else f"  $ cost: ${step.cost:.2f}"
+                else f"  $ cost: ${step.cost:.2f}{c_details}"
             )
         if step.tokens:
             tok_parts = []
@@ -1341,6 +1473,10 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                 tok_parts.append(f"{format_tokens(step.tokens['cache'])} cache")
             if tok_parts:
                 tok_str = ", ".join(tok_parts)
+                if step.verify_tokens.get("total"):
+                    e_t = format_tokens(step.exec_tokens.get("total", 0))
+                    v_t = format_tokens(step.verify_tokens.get("total", 0))
+                    tok_str += f" [exec: {e_t}, verify: {v_t}]"
                 details.append(
                     term.color256(f"  * tokens: {tok_str}", 245)
                     if getattr(term, "color", False)
@@ -1406,19 +1542,45 @@ def format_run_human(
     lines.append(f"  {len(run.steps)} steps: {tally_str}")
 
     # Line 4: Cost and token usage (if present)
-    cost_val_str = f"${run.total_cost:.2f}" if run.total_cost is not None else None
-    if run.total_tokens.get("total"):
-        tot_str = format_tokens(run.total_tokens["total"])
-        in_str = format_tokens(run.total_tokens.get("input", 0))
-        out_str = format_tokens(run.total_tokens.get("output", 0))
-        cache_str = format_tokens(run.total_tokens.get("cache", 0))
-        tok_str = f"{tot_str} tok ({in_str} in, {out_str} out, {cache_str} cached)"
-        if cost_val_str is not None:
-            lines.append(f"  {cost_val_str}, {tok_str}")
-        else:
-            lines.append(f"  {tok_str}")
-    elif cost_val_str is not None:
-        lines.append(f"  {cost_val_str}")
+    has_verification = run.verify_cost is not None or (
+        bool(run.verify_tokens) and run.verify_tokens.get("total", 0) > 0
+    )
+
+    if not has_verification:
+        cost_val_str = f"${run.total_cost:.2f}" if run.total_cost is not None else None
+        if run.total_tokens.get("total"):
+            tot_str = format_tokens(run.total_tokens["total"])
+            in_str = format_tokens(run.total_tokens.get("input", 0))
+            out_str = format_tokens(run.total_tokens.get("output", 0))
+            cache_str = format_tokens(run.total_tokens.get("cache", 0))
+            tok_str = f"{tot_str} tok ({in_str} in, {out_str} out, {cache_str} cached)"
+            if cost_val_str is not None:
+                lines.append(f"  {cost_val_str}, {tok_str}")
+            else:
+                lines.append(f"  {tok_str}")
+        elif cost_val_str is not None:
+            lines.append(f"  {cost_val_str}")
+    else:
+
+        def _fmt_cost_tok(c: float | None, toks: dict[str, int]) -> str:
+            c_str = f"${c:.2f}" if c is not None else "$0.00"
+            if toks.get("total"):
+                tot_s = format_tokens(toks["total"])
+                in_s = format_tokens(toks.get("input", 0))
+                out_s = format_tokens(toks.get("output", 0))
+                cache_s = format_tokens(toks.get("cache", 0))
+                return (
+                    f"{c_str}, {tot_s} tok ({in_s} in, {out_s} out, {cache_s} cached)"
+                )
+            return c_str
+
+        tot_line = _fmt_cost_tok(run.total_cost, run.total_tokens)
+        exec_line = _fmt_cost_tok(run.exec_cost, run.exec_tokens)
+        ver_line = _fmt_cost_tok(run.verify_cost, run.verify_tokens)
+
+        lines.append(f"  Total:        {tot_line}")
+        lines.append(f"    - Execute:  {exec_line}")
+        lines.append(f"    - Verify:   {ver_line}")
 
     if run.steps:
         tbl = render_steps_table(run.steps, term, short=short, repo_root=repo_root)
@@ -1477,6 +1639,18 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
     cost_steps_count = 0
     total_tokens: dict[str, int] = defaultdict(int)
 
+    total_exec_cost = 0.0
+    has_exec_cost = False
+    exec_tokens: dict[str, int] = defaultdict(int)
+    exec_steps_count = 0
+    exec_runs_present: set[int] = set()
+
+    total_verify_cost = 0.0
+    has_verify_cost = False
+    verify_tokens: dict[str, int] = defaultdict(int)
+    verify_steps_count = 0
+    verify_runs_present: set[int] = set()
+
     by_status: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
             "count": 0,
@@ -1522,6 +1696,37 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
                     total_tokens[k] += v
                     by_status[st]["tokens"][k] += v
                     by_action[act]["tokens"][k] += v
+
+            ec = (
+                step.exec_cost
+                if step.exec_cost is not None
+                else (step.cost if step.verify_cost is None else None)
+            )
+            et = (
+                step.exec_tokens
+                if step.exec_tokens
+                else (step.tokens if not step.verify_tokens else {})
+            )
+            vc = step.verify_cost
+            vt = step.verify_tokens
+
+            if ec is not None:
+                has_exec_cost = True
+                exec_steps_count += 1
+                exec_runs_present.add(run_idx)
+                total_exec_cost += ec
+            if et:
+                for k, v in et.items():
+                    exec_tokens[k] += v
+
+            if vc is not None:
+                has_verify_cost = True
+                verify_steps_count += 1
+                verify_runs_present.add(run_idx)
+                total_verify_cost += vc
+            if vt:
+                for k, v in vt.items():
+                    verify_tokens[k] += v
 
     avg_cost_per_run = (
         round(total_cost / total_runs, 4) if (total_runs > 0 and has_any_cost) else None
@@ -1580,6 +1785,61 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
             }
         action_summary[act] = entry
 
+    by_phase = {
+        "execution": {
+            "steps_with_cost": exec_steps_count,
+            "runs_count": len(exec_runs_present),
+            "total_cost": round(total_exec_cost, 4) if has_exec_cost else None,
+            "avg_cost_per_step": (
+                round(total_exec_cost / exec_steps_count, 4)
+                if exec_steps_count > 0
+                else None
+            ),
+            "avg_cost_per_run": (
+                round(total_exec_cost / total_runs, 4)
+                if (total_runs > 0 and has_exec_cost)
+                else None
+            ),
+            "tokens": dict(exec_tokens) if exec_tokens else {},
+            "avg_tokens_per_step": (
+                {k: int(v / exec_steps_count) for k, v in exec_tokens.items()}
+                if exec_steps_count > 0
+                else {}
+            ),
+            "avg_tokens_per_run": (
+                {k: int(v / total_runs) for k, v in exec_tokens.items()}
+                if total_runs > 0
+                else {}
+            ),
+        },
+        "verification": {
+            "steps_with_cost": verify_steps_count,
+            "runs_count": len(verify_runs_present),
+            "total_cost": round(total_verify_cost, 4) if has_verify_cost else None,
+            "avg_cost_per_step": (
+                round(total_verify_cost / verify_steps_count, 4)
+                if verify_steps_count > 0
+                else None
+            ),
+            "avg_cost_per_run": (
+                round(total_verify_cost / total_runs, 4)
+                if (total_runs > 0 and has_verify_cost)
+                else None
+            ),
+            "tokens": dict(verify_tokens) if verify_tokens else {},
+            "avg_tokens_per_step": (
+                {k: int(v / verify_steps_count) for k, v in verify_tokens.items()}
+                if verify_steps_count > 0
+                else {}
+            ),
+            "avg_tokens_per_run": (
+                {k: int(v / total_runs) for k, v in verify_tokens.items()}
+                if total_runs > 0
+                else {}
+            ),
+        },
+    }
+
     return {
         "runs_count": total_runs,
         "steps_count": total_steps,
@@ -1590,6 +1850,7 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
         "avg_tokens_per_run": avg_tokens_per_run,
         "by_status": status_summary,
         "by_action": action_summary,
+        "by_phase": by_phase,
     }
 
 
@@ -1624,6 +1885,28 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         lines.append(
             f"Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with usage; avg {avg_run_cost_str}/run)"
         )
+        has_verify = summary_data.get("by_phase", {}).get("verification", {}).get(
+            "total_cost"
+        ) is not None or bool(
+            summary_data.get("by_phase", {})
+            .get("verification", {})
+            .get("tokens", {})
+            .get("total")
+        )
+        if has_verify:
+            e_cost_val = summary_data["by_phase"]["execution"].get("total_cost") or 0.0
+            e_avg_run = (
+                summary_data["by_phase"]["execution"].get("avg_cost_per_run") or 0.0
+            )
+            v_cost_val = (
+                summary_data["by_phase"]["verification"].get("total_cost") or 0.0
+            )
+            v_avg_run = (
+                summary_data["by_phase"]["verification"].get("avg_cost_per_run") or 0.0
+            )
+            lines.append(f"  - Execute:  ${e_cost_val:.2f} (avg ${e_avg_run:.2f}/run)")
+            lines.append(f"  - Verify:   ${v_cost_val:.2f} (avg ${v_avg_run:.2f}/run)")
+
         if total_toks.get("total"):
             tok_str = format_tokens(total_toks.get("total", 0))
             in_str = format_tokens(total_toks.get("input", 0))
@@ -1632,6 +1915,95 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             avg_tok_run_str = format_tokens(avg_toks_run.get("total", 0))
             lines.append(
                 f"Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cached; avg {avg_tok_run_str}/run)"
+            )
+            if has_verify:
+                e_tok_tot = format_tokens(
+                    summary_data["by_phase"]["execution"]
+                    .get("tokens", {})
+                    .get("total", 0)
+                )
+                e_tok_avg = format_tokens(
+                    summary_data["by_phase"]["execution"]
+                    .get("avg_tokens_per_run", {})
+                    .get("total", 0)
+                )
+                v_tok_tot = format_tokens(
+                    summary_data["by_phase"]["verification"]
+                    .get("tokens", {})
+                    .get("total", 0)
+                )
+                v_tok_avg = format_tokens(
+                    summary_data["by_phase"]["verification"]
+                    .get("avg_tokens_per_run", {})
+                    .get("total", 0)
+                )
+                lines.append(f"  - Execute:  {e_tok_tot} (avg {e_tok_avg}/run)")
+                lines.append(f"  - Verify:   {v_tok_tot} (avg {v_tok_avg}/run)")
+
+        # Phase Table (if verification present)
+        if has_verify:
+            headers_ph = ["Phase", "Type", "Cost", "Tokens", "In", "Out", "Cached"]
+            aligns_ph = ["left", "left", "right", "right", "right", "right", "right"]
+            rows_ph = []
+            for phase_name in ("execution", "verification"):
+                p_data = summary_data["by_phase"][phase_name]
+                p_styled = (
+                    term.color256(phase_name, 226)
+                    if getattr(term, "color", False)
+                    else phase_name
+                )
+                td = p_data.get("tokens", {})
+                avg_td = p_data.get("avg_tokens_per_step", {})
+                if p_data.get("total_cost") is not None or td:
+                    c_tot = f"${(p_data.get('total_cost') or 0.0):.2f}"
+                    c_avg = f"${(p_data.get('avg_cost_per_step') or 0.0):.2f}"
+                    t_tot = (
+                        format_tokens(td.get("total", 0)) if td.get("total") else "-"
+                    )
+                    t_avg = (
+                        format_tokens(avg_td.get("total", 0))
+                        if avg_td.get("total")
+                        else "-"
+                    )
+                    in_tot = (
+                        format_tokens(td.get("input", 0)) if td.get("input") else "-"
+                    )
+                    in_avg = (
+                        format_tokens(avg_td.get("input", 0))
+                        if avg_td.get("input")
+                        else "-"
+                    )
+                    out_tot = (
+                        format_tokens(td.get("output", 0)) if td.get("output") else "-"
+                    )
+                    out_avg = (
+                        format_tokens(avg_td.get("output", 0))
+                        if avg_td.get("output")
+                        else "-"
+                    )
+                    cache_tot = (
+                        format_tokens(td.get("cache", 0)) if td.get("cache") else "-"
+                    )
+                    cache_avg = (
+                        format_tokens(avg_td.get("cache", 0))
+                        if avg_td.get("cache")
+                        else "-"
+                    )
+                else:
+                    c_tot = c_avg = t_tot = t_avg = in_tot = in_avg = out_tot = (
+                        out_avg
+                    ) = cache_tot = cache_avg = "-"
+
+                rows_ph.append(
+                    [p_styled, "Total", c_tot, t_tot, in_tot, out_tot, cache_tot]
+                )
+                rows_ph.append(["", "Avg", c_avg, t_avg, in_avg, out_avg, cache_avg])
+
+            lines.append("")
+            lines.append(
+                render_box_table(
+                    "Breakdown by Phase:", headers_ph, rows_ph, term, aligns_ph
+                )
             )
 
         # Status Table
