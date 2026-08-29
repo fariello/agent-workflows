@@ -2324,6 +2324,21 @@ def _build_parser() -> argparse.ArgumentParser:
                 nargs="*",
                 help="Selector / search pattern / args for the verb.",
             )
+        if _verb == "find":
+            # Traversal guard escape hatches. By default `.git/`, `runs/`, `tmp/`, `temp/`,
+            # `scratch/`, `.system_generated/` and `__pycache__/` are never descended into.
+            _p.add_argument(
+                "--include-ignored",
+                action="store_true",
+                help="Also search normally-skipped directories (.git, runs, tmp, temp, scratch, .system_generated, __pycache__). Slower.",
+            )
+            _p.add_argument(
+                "--max-depth",
+                type=int,
+                default=None,
+                metavar="N",
+                help="Limit search to N directory levels below each record root (0 = the root itself).",
+            )
         else:
             _p.add_argument(
                 "type",
@@ -6442,6 +6457,14 @@ def _run_noun_verb(
     if verb == "check":
         return _run_check(args, term, context=context)
     if verb == "find":
+        # Honor the traversal-guard escape hatches for this invocation only.
+        _inc = bool(getattr(args, "include_ignored", False))
+        _depth = getattr(args, "max_depth", None)
+        if _inc or _depth is not None:
+            from agent_workflows import selectors as _sel
+
+            with _sel.search_limits(include_ignored=_inc, max_depth=_depth):
+                return _run_find(args, term, context=context)
         return _run_find(args, term, context=context)
     types = _nv_resolve_types(args, term, verb)
     if types is None:

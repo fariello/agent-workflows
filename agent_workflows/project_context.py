@@ -105,8 +105,11 @@ def validate_physical_git_policy(
     try:
         import subprocess
 
+        # `-s` gives us the mode, so we can tell which entries are SYMLINKS (mode 120000).
+        # A symlink may point AT a forbidden target under an unrelated basename, so it must be
+        # canonicalized to be judged; regular files cannot alias, so they take the cheap path.
         res = subprocess.run(
-            ["git", "ls-files", "--cached"],
+            ["git", "ls-files", "-s", "--cached"],
             cwd=repo_abs,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -114,7 +117,18 @@ def validate_physical_git_policy(
             check=False,
         )
         if res.returncode == 0:
-            cached_files = res.stdout.splitlines()
+            # `git ls-files -s` lines are: "<mode> <oid> <stage>\t<path>".
+            cached_entries: List[tuple] = []
+            for line in res.stdout.splitlines():
+                if not line:
+                    continue
+                meta, _, path_part = line.partition("\t")
+                if not path_part:
+                    # Unexpected shape; treat the whole line as a path and assume it may alias.
+                    cached_entries.append((line, True))
+                    continue
+                mode = meta.split(" ", 1)[0] if meta else ""
+                cached_entries.append((path_part, mode == "120000"))
             # PERF (awfindperf): canonicalize the two forbidden TARGETS once, then compare each
             # tracked file by string. The previous form called _canonical_path()
             # (Path.resolve() -> lstat) and _is_safe_subpath() for EVERY tracked file; on a
@@ -138,14 +152,17 @@ def validate_physical_git_policy(
             # basename (config_local), or which lies under the runtime dir's basename, can match.
             cl_base = os.path.basename(cl_canon) if cl_canon else None
             sr_base = os.path.basename(sr_canon.rstrip("/")) if sr_canon else None
-            for rel_path in cached_files:
+            for rel_path, is_symlink in cached_entries:
                 rel_norm = rel_path.replace(os.sep, "/")
                 base = rel_norm.rsplit("/", 1)[-1]
                 may_be_config = cl_base is not None and base == cl_base
                 may_be_runtime = sr_base is not None and (
                     f"/{sr_base}/" in f"/{rel_norm}" or rel_norm.endswith(f"/{sr_base}")
                 )
-                if not may_be_config and not may_be_runtime:
+                # A SYMLINK can resolve to a forbidden target under any basename, so the cheap
+                # basename prefilter is not sound for it: always canonicalize a symlink. Regular
+                # files cannot alias another path, so the prefilter is sound for them.
+                if not is_symlink and not may_be_config and not may_be_runtime:
                     continue
                 abs_path = _canonical_path(os.path.join(repo_abs, rel_path))
                 if cl_canon and abs_path == cl_canon:

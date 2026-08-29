@@ -211,15 +211,65 @@ def _read_header(p: Path) -> str | None:
         return None
 
 
-def _iter_md(base: Path):
+# Opt-in escape hatch for the traversal guard. Default False: `.git/`, `runs/`, `tmp/`, `temp/`,
+# `scratch/`, `.system_generated/` and `__pycache__/` are never descended into, which is both a
+# correctness guard (they hold scratch copies, not records) and the bulk of the traversal win.
+# `aw find --include-ignored` flips this for one invocation when a user genuinely needs to look
+# inside those trees (e.g. hunting a record stranded in a run directory).
+_INCLUDE_IGNORED_DIRS: bool = False
+_MAX_DEPTH: Optional[int] = None
+
+
+@contextlib.contextmanager
+def search_limits(include_ignored: bool = False, max_depth: Optional[int] = None):
+    """Scope both traversal overrides for the duration of the block."""
+    global _INCLUDE_IGNORED_DIRS, _MAX_DEPTH
+    prev_inc, prev_depth = _INCLUDE_IGNORED_DIRS, _MAX_DEPTH
+    _INCLUDE_IGNORED_DIRS = bool(include_ignored)
+    _MAX_DEPTH = max_depth
+    try:
+        yield
+    finally:
+        _INCLUDE_IGNORED_DIRS, _MAX_DEPTH = prev_inc, prev_depth
+
+
+@contextlib.contextmanager
+def include_ignored_dirs(enabled: bool = True):
+    """Scope the traversal guard off (or on) for the duration of the block.
+
+    A context manager rather than a threaded parameter because the call chain
+    (cli -> _find_type_records -> resolve_selectors -> resolve -> _iter_files -> _iter_md) is deep
+    and every layer would otherwise need a pass-through argument it does not use.
+    """
+    global _INCLUDE_IGNORED_DIRS
+    prev = _INCLUDE_IGNORED_DIRS
+    _INCLUDE_IGNORED_DIRS = bool(enabled)
+    try:
+        yield
+    finally:
+        _INCLUDE_IGNORED_DIRS = prev
+
+
+def _iter_md(base: Path, max_depth: Optional[int] = None):
     """Walk `base` yielding *.md files while PRUNING excluded dirs before descending.
 
     `Path.rglob` cannot prune, so it descends into `.git/`, `runs/`, `tmp/`, `scratch/`,
     `__pycache__/` and similar before we get a chance to skip their contents. os.walk lets us
     drop those subtrees from `dirnames` in place, so they are never traversed at all.
+
+    Pruning is skipped when `_INCLUDE_IGNORED_DIRS` is set (see `include_ignored_dirs`).
+    `max_depth`, when given, limits how many directory levels below `base` are descended
+    (0 = only `base` itself).
     """
+    if max_depth is None:
+        max_depth = _MAX_DEPTH
+    base_depth = len(base.parts)
     for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = [d for d in dirnames if d not in EXCLUDED_RECORD_DIRS]
+        if not _INCLUDE_IGNORED_DIRS:
+            dirnames[:] = [d for d in dirnames if d not in EXCLUDED_RECORD_DIRS]
+        if max_depth is not None:
+            if len(Path(dirpath).parts) - base_depth >= max_depth:
+                dirnames[:] = []
         for fn in filenames:
             if fn.endswith(".md"):
                 yield Path(dirpath) / fn
