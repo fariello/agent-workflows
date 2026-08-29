@@ -6,7 +6,7 @@ Showing the 40 most-recent of 148 Sets; the full manifest is INDEX.json.
 
 ## ocsync
 
-- `g7hljt` [pending] 01 pending/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
+- `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
 
 ## assessdocs
 

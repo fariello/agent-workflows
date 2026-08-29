@@ -3540,6 +3540,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
+    "plan_id": "g7hljt",
+    "set_id": "ocsync",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -3668,16 +3678,6 @@
     "plan_id": "1o4eif",
     "set_id": "wtiso",
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
-    "plan_id": "g7hljt",
-    "set_id": "ocsync",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",

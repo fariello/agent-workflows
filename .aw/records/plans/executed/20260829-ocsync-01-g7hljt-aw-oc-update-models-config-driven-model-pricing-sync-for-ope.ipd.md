@@ -6,15 +6,15 @@
 - Scope: Add a generic, config-driven `aw oc update-models` (alias `sync-models`) subcommand that resolves the user's OpenCode config the way OpenCode does, discovers each OpenAI-compatible provider from that config (no hardcoded hosts), probes each provider's baseURL for a LiteLLM-style pricing endpoint, and strict-syncs the `models` block (ids, `input`/`output`/`cache_read`/`cache_write` in $/M tokens) for providers that expose pricing while leaving providers that do not (plain OpenAI, Google, etc.) untouched. Preview by default; `--apply` writes with a timestamped backup.
 - Scope-Paths: agent_workflows/oc_models.py, agent_workflows/cli.py, tests/test_oc_models.py, tests/test_oc_models_cli.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: ocsync
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: g7hljt
-- Approval: 2026-08-29, human ("approved"): Human approved in session after /plan-review (APPROVE WITH REVISIONS APPLIED, 6/6 findings fixed).
 
 ## Workflow history
+- 2026-08-29 executed (opencode its_direct/pt3-claude-opus-4.8-1m-us): Finalize ocsync-01: aw oc update-models config-driven pricing sync; product committed 68dbf78; 43 tests pass. [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: already-committed; in-scope-unmodified agent_workflows/oc_models.py: already-committed; in-scope-unmodified tests/test_oc_models.py: already-committed; in-scope-unmodified tests/test_oc_models_cli.py: already-committed]
 - 2026-08-29 approved (aw set, --by-human): Human approved in session after /plan-review (APPROVE WITH REVISIONS APPLIED, 6/6 findings fixed).
 - 2026-08-29 /plan-review (opencode / its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001, PR-002, PR-003, PR-004, PR-005, PR-006 all FIXED; no open questions; readiness GO - PENDING HUMAN APPROVAL.
 - 2026-08-29 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 fixed.
