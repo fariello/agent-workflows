@@ -76,7 +76,9 @@ def _init_repo_with_conforming_plan(repo: Path, id6: str = "agy001") -> Path:
         ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
     )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
-    (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(
+        ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+    )
     pending = repo / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True)
     plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
@@ -150,6 +152,9 @@ class AgySelfFinalizeTests(unittest.TestCase):
                 "model": "opus",
                 "self_finalize": self_finalize,
                 "no_verify": True,
+                # p7peqf wiring parity tests run in the MAIN tree; driverfin-02 isolation is covered
+                # by AgyWorktreeIsolationTests below.
+                "isolate_worktree": False,
             },
         }
         return state, item
@@ -269,6 +274,205 @@ class AgySelfFinalizeTests(unittest.TestCase):
             self.assertEqual(item["status"], "substantially-complete")
             self.assertIn("finalize_refusal", item)
             self.assertTrue(plan.is_file(), "plan must not move on finalize refusal")
+
+
+class AgyWorktreeIsolationTests(unittest.TestCase):
+    """driverfin-02 (emus4n) parity for the agy driver: each execute child runs in its own worktree;
+    the main tree stays clean during the turn; a verified child integrates back to main via the
+    REUSED gate; a non-passing gate defers rather than faking executed."""
+
+    def _state_and_item(self, repo, plan):
+        item = {
+            "position": 1,
+            "id6": "agy001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_verify": False,
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo):
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def _fake_agent_commits_in_worktree(self, run_dir):
+        def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("log_suffix") == "verify":
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["agy"]
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+        return fake_turn
+
+    def test_main_tree_clean_during_turn_and_receipt_under_main(self):
+        # V-01 (agy): main tree clean during the turn; worktree at repo/.aw/worktrees/agy001 on
+        # aw/lane/agy001; begin receipt under MAIN repo's .aw/state/.
+        from agent_workflows import ipd_lifecycle
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+            observed = {}
+
+            def fake_turn(state, rd, item, prompt_path, attempt_no, **kwargs):
+                work_dir = kwargs.get("work_dir")
+                if kwargs.get("log_suffix") == "verify":
+                    (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}-verification.json"
+                    ).write_text(
+                        json.dumps({"verdict": "CONFORMING"}), encoding="utf-8"
+                    )
+                    return 0, "vses", str(run_dir / "vlog"), ["agy"]
+                observed["main_status"] = subprocess.run(
+                    ["git", "status", "--short"],
+                    cwd=repo,
+                    text=True,
+                    capture_output=True,
+                ).stdout
+                observed["work_dir"] = work_dir
+                observed["wt_expected"] = str(
+                    (repo / ".aw" / "worktrees" / "agy001").resolve()
+                )
+                observed["wt_branch"] = subprocess.run(
+                    ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+                    cwd=work_dir,
+                    text=True,
+                    capture_output=True,
+                ).stdout.strip()
+                wt = Path(work_dir)
+                (wt / "src").mkdir(parents=True, exist_ok=True)
+                (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                (
+                    run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+                ).write_text(
+                    json.dumps({"disposition": "executed", "pushed": False}),
+                    encoding="utf-8",
+                )
+                return 0, "ses1", str(run_dir / "log"), ["agy"]
+
+            with mock.patch.object(agy_runipd, "run_agy_turn", fake_turn):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(observed["main_status"].strip(), "")
+            self.assertEqual(observed["work_dir"], observed["wt_expected"])
+            self.assertEqual(observed["wt_branch"], "aw/lane/agy001")
+            self.assertTrue(ipd_lifecycle.receipt_path_for(repo, "agy001").is_file())
+
+    def test_verified_child_integrates_to_main_and_worktree_removed(self):
+        # V-02 (agy, passed): routes through the reused gate, integrates to main, tears down worktree.
+        from agent_workflows import orchestrate_isolation
+
+        gate_calls = []
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            with (
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(len(gate_calls), 1, "must route through the reused gate")
+            self.assertEqual(item["status"], "executed")
+            executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+            self.assertTrue(executed.is_file())
+            self.assertTrue((repo / "src" / "demo.txt").is_file())
+            self.assertFalse((repo / ".aw" / "worktrees" / "agy001").exists())
+            main_status = subprocess.run(
+                ["git", "status", "--short"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(main_status, "")
+
+    def test_non_passing_gate_defers_not_faked_executed(self):
+        # V-02 (agy, non-passing): combined-red -> NOT integrated, recorded, worktree preserved.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "agy001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            def failing_runner_factory(*a, **k):
+                return lambda _diff, _files: False
+
+            with (
+                mock.patch.object(
+                    agy_runipd,
+                    "run_agy_turn",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    agy_runipd,
+                    "make_integration_validation_runner",
+                    failing_runner_factory,
+                ),
+            ):
+                agy_runipd.execute_item(run_dir, state, item, recovery=False)
+
+            self.assertEqual(item["status"], "substantially-complete")
+            self.assertIn("integration_deferral", item)
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            self.assertIn("preserved_branch", item)
+            self.assertEqual(item["preserved_branch"], "aw/lane/agy001")
 
 
 if __name__ == "__main__":

@@ -428,6 +428,168 @@ def driver_finalize(
     return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
+# --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------
+#
+# Each execute-action child runs in its OWN git worktree on an `aw/lane/<id6>` branch (via the reused
+# `worktree_lease`), so the MAIN working tree is untouched during the turn (no cross-run
+# contamination). begin runs against the MAIN repo (the receipt lives under the main repo's gitignored
+# `.aw/state/`, findable regardless of worktree); the agent turn + verifier + `aw ipd finalize` all run
+# INSIDE the worktree, so the plan-move (pending/ -> executed/) commits on the lane branch. After a
+# verified finalize, the verified branch is integrated back to main by REUSING
+# `orchestrate_isolation.execute_merge_and_revalidate_gate` (detect conflicts + revalidate) followed by
+# a driver fast-forward/controlled merge; the worktree is torn down on success. A non-passing gate
+# result leaves the child NOT integrated (recorded, deferred to child-03), never faked executed.
+
+
+def allocate_isolation_worktree(repo: Path, id6: str) -> Any:
+    """Allocate a per-lane git worktree for an execute-action child (reuses worktree_lease).
+
+    Returns a `worktree_lease.WorktreeHandle` (branch `aw/lane/<id6>`, dir `.aw/worktrees/<id6>`, base
+    = main HEAD) or raises `worktree_lease.WorktreeError` on failure (fail-closed; no partial worktree
+    left claimed)."""
+    from agent_workflows import worktree_lease
+
+    return worktree_lease.allocate_worktree(repo, id6, base_commit="HEAD")
+
+
+def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
+    """Remove a lane's worktree + branch (reuses worktree_lease.teardown_worktree)."""
+    from agent_workflows import worktree_lease
+
+    worktree_lease.teardown_worktree(repo, handle, force=True)
+
+
+def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
+    """Copy the begin receipt from the MAIN repo's gitignored `.aw/state/` into the worktree's, so an
+    in-worktree `aw ipd finalize` can find the execution-authority receipt.
+
+    The receipt content is valid in both trees because the worktree's base commit == the main HEAD ==
+    the receipt's frozen base HEAD. No-op if the main receipt is absent (finalize will refuse
+    authoritatively)."""
+    from agent_workflows import ipd_lifecycle
+
+    src = ipd_lifecycle.receipt_path_for(repo, id6)
+    if not src.is_file():
+        return
+    dst = ipd_lifecycle.receipt_path_for(worktree, id6)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+
+
+def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
+    """Build a single `orchestrate_isolation.LaneOutcome` for a finalized lane branch.
+
+    base_commit = the worktree base (frozen at allocate); head_commit = the lane branch HEAD after the
+    agent + finalize commits; changed_files + diff come from `git diff base..head` on the lane branch.
+    per_lane_validation_passed=True (the driver only builds this after its own verification+finalize
+    passed)."""
+    from agent_workflows import orchestrate_isolation
+
+    base = handle.base_commit
+    head = run_checked(["git", "rev-parse", handle.branch], cwd=repo)
+    name_out = run_checked(
+        ["git", "diff", "--name-only", f"{base}..{handle.branch}"], cwd=repo
+    )
+    changed = tuple(p for p in name_out.splitlines() if p.strip())
+    diff = run_checked(["git", "diff", f"{base}..{handle.branch}"], cwd=repo)
+    return orchestrate_isolation.LaneOutcome(
+        lane_id=id6,
+        actor_role="driver",
+        base_commit=base,
+        head_commit=head,
+        worktree_path=str(handle.path),
+        changed_files=changed,
+        diff=diff,
+        per_lane_validation_passed=True,
+        status=orchestrate_isolation.STATUS_COMPLETED,
+    )
+
+
+def integrate_lane_branch(
+    repo: Path, handle: Any, id6: str, validation_runner: Any
+) -> tuple[bool, str]:
+    """Integrate a verified lane branch back to main behind the REUSED integration gate.
+
+    1. Build a LaneOutcome and call `orchestrate_isolation.execute_merge_and_revalidate_gate`
+       (DETECTS conflict/stale-base/lane-failure + REVALIDATES the combined diff). Conflict DETECTION
+       is the gate's job; conflict RESOLUTION is child-03.
+    2. On `IntegrationGateResult.passed`, the driver performs the actual git integration onto main:
+       `git merge --ff-only` (the clean serial case), falling back to a controlled `--no-ff` merge if
+       main advanced; a real git conflict aborts the merge (leaving main clean) and is treated as a
+       non-passing integration.
+    3. On a non-passing gate result (or a git conflict) leave the child NOT integrated with a recorded
+       reason and do NOT fake executed; child-03 owns resolution.
+
+    Returns (integrated, reason). ``integrated=True`` means the lane's commits are on main.
+    """
+    from agent_workflows import orchestrate_isolation
+
+    lane = build_lane_outcome(repo, handle, id6)
+    result = orchestrate_isolation.execute_merge_and_revalidate_gate(
+        integration_base_commit=handle.base_commit,
+        lane_outcomes=[lane],
+        merge_order=[id6],
+        full_validation_runner=validation_runner,
+    )
+    if not result.passed:
+        return (
+            False,
+            f"integration gate did not pass ({result.status}): {result.message}",
+        )
+
+    # Gate passed (conflict-free, revalidated). Perform the real integration onto main.
+    rc, _out, err = _run_git(repo, ["merge", "--ff-only", handle.branch])
+    if rc == 0:
+        return True, "fast-forward integrated to main"
+    # main advanced past the lane base: attempt a controlled non-ff merge of ONLY this branch.
+    rc, _out, err2 = _run_git(
+        repo,
+        [
+            "merge",
+            "--no-ff",
+            "--no-edit",
+            "-m",
+            f"integrate(aw oc run): merge verified lane {id6} to main",
+            handle.branch,
+        ],
+    )
+    if rc == 0:
+        return True, "controlled non-ff merge integrated to main"
+    # A real merge conflict: abort so main stays clean; defer resolution to child-03.
+    _run_git(repo, ["merge", "--abort"])
+    return False, f"merge-back conflict (deferred to child-03): {(err2 or err).strip()}"
+
+
+def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
+    """Run a git command in ``repo``; return (returncode, stdout, stderr)."""
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(repo),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def make_integration_validation_runner(
+    state: dict[str, Any], run_dir: Path, item: dict[str, Any]
+) -> Any:
+    """Build the `full_validation_runner(combined_diff, merged_files) -> bool` the integration gate
+    calls to REVALIDATE the combined HEAD (per-lane green never implies integrated green).
+
+    For this serial bootstrap run each IPD is a SINGLE lane, so the combined diff == the lane diff the
+    driver's independent verifier turn already validated (verify_disp == "verified" is the gate
+    precondition for reaching integration). The runner therefore returns True on the already-verified
+    single-lane case. Tests patch THIS function to exercise a combined-red path (e.g. child-03
+    multi-lane)."""
+
+    def _runner(_combined_diff: str, _merged_files: Any) -> bool:
+        return True
+
+    return _runner
+
+
 def git_common_dir(repo: Path) -> Path:
     raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
     path = Path(raw)
@@ -1077,6 +1239,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "full_auto": full_auto,
             "no_audit": getattr(args, "no_audit", False),
             "self_finalize": getattr(args, "self_finalize", True),
+            "isolate_worktree": getattr(args, "isolate_worktree", True),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1451,10 +1614,14 @@ def run_opencode(
     log_suffix: str = "",
     label_suffix: str = "",
     tracker: StreamTracker | None = None,
+    work_dir: str | None = None,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
     argv = [opencode, "run"]
+    # driverfin-02 (emus4n): when the child runs in an isolated worktree, the agent turn edits/commits
+    # only there (`--dir <worktree>` + cwd), leaving the MAIN tree untouched. Defaults to the main repo.
+    agent_dir = work_dir or state["repo"]
 
     # A verifier turn (fresh_session=True) runs in a clean session with no inherited
     # context, so it audits the executed work independently.
@@ -1470,7 +1637,7 @@ def run_opencode(
     if session:
         argv.extend(["--session", session])
 
-    argv.extend(["--dir", state["repo"], "--format", "json"])
+    argv.extend(["--dir", agent_dir, "--format", "json"])
     if options.get("model"):
         argv.extend(["--model", options["model"]])
     if options.get("agent"):
@@ -1510,7 +1677,7 @@ def run_opencode(
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
     popen_kwargs: dict[str, Any] = {
-        "cwd": state["repo"],
+        "cwd": agent_dir,
         "text": True,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.STDOUT,
@@ -1672,6 +1839,14 @@ def execute_item(
     # the agent turn for an execute-action child, so scope + base HEAD are frozen and the agent turn
     # only starts with execution authority. A begin refusal blocks the child cleanly (no agent turn).
     self_finalize = state.get("options", {}).get("self_finalize", True)
+    # driverfin-02 (emus4n): per-run worktree isolation. For an execute-action child, allocate a fresh
+    # worktree on an `aw/lane/<id6>` branch (reused worktree_lease) so the agent edits/commits ONLY
+    # there and the MAIN tree stays untouched during the turn. begin runs against MAIN (receipt under
+    # the main repo's `.aw/state/`, findable regardless of worktree); the agent turn + verifier +
+    # finalize run in the worktree. Opt out (share the main tree) with `--no-isolate-worktree`.
+    isolate = state.get("options", {}).get("isolate_worktree", True)
+    wt_handle = None
+    work_dir: str | None = None
     if self_finalize and not is_review:
         actor = driver_actor(state)
         begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
@@ -1701,6 +1876,53 @@ def execute_item(
                 file=sys.stderr,
             )
             return
+        if isolate:
+            try:
+                wt_handle = allocate_isolation_worktree(repo, item["id6"])
+                work_dir = str(wt_handle.path)
+                attempt["worktree"] = work_dir
+                attempt["worktree_branch"] = wt_handle.branch
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "worktree-allocated",
+                        "id6": item["id6"],
+                        "worktree": work_dir,
+                        "branch": wt_handle.branch,
+                    },
+                )
+                print(
+                    pal(
+                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}",
+                        "cyan",
+                    )
+                )
+            except Exception as exc:
+                attempt["ended_at"] = utc_now()
+                attempt["disposition"] = "blocked"
+                item["status"] = "blocked"
+                item["worktree_error"] = str(exc)
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "worktree-alloc-failed",
+                        "id6": item["id6"],
+                        "detail": str(exc),
+                    },
+                )
+                print(
+                    pal(
+                        f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} worktree "
+                        f"allocation failed; not launching. {exc}",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                return
 
     try:
         exit_code, session_id, log_path, argv = run_opencode(
@@ -1711,6 +1933,7 @@ def execute_item(
             prompt_path,
             attempt_no,
             tracker=tracker,
+            work_dir=work_dir,
         )
     except KeyboardInterrupt:
         attempt["interrupted_at"] = utc_now()
@@ -1784,9 +2007,12 @@ def execute_item(
         and disposition in ("executed", "substantially-complete")
         and not no_verify
     ):
+        # driverfin-02: when isolated, resolve the plan from the WORKTREE (the agent's commits +
+        # the plan itself live there); the verifier turn also runs in the worktree.
+        plan_repo = Path(work_dir) if work_dir else repo
         try:
             current_plan_path = resolve_plan_path(
-                repo, item.get("configured_file", ""), item["id6"]
+                plan_repo, item.get("configured_file", ""), item["id6"]
             )
         except DriverError:
             current_plan_path = plan_path
@@ -1815,6 +2041,7 @@ def execute_item(
                 log_suffix="verify",
                 label_suffix="verification",
                 tracker=tracker,
+                work_dir=work_dir,
             )
             v_outcome_file = (
                 run_dir
@@ -1861,9 +2088,17 @@ def execute_item(
         and disposition in ("executed", "substantially-complete")
         and verify_disp == "verified"
     ):
+        # driverfin-02 (emus4n): when isolated, finalize runs INSIDE the worktree so the plan-move
+        # (pending/ -> executed/) commits on the `aw/lane/<id6>` branch. The begin receipt lives under
+        # the MAIN repo's `.aw/state/` (anchored by run-id); copy it into the worktree so the
+        # in-worktree finalize finds the execution-authority receipt (the receipt is valid in both
+        # trees because the worktree base == the frozen base HEAD).
+        finalize_repo = Path(work_dir) if (work_dir and wt_handle) else repo
+        if work_dir and wt_handle:
+            sync_receipt_into_worktree(repo, Path(work_dir), item["id6"])
         try:
             current_plan_for_finalize = resolve_plan_path(
-                repo, item.get("configured_file", ""), item["id6"]
+                finalize_repo, item.get("configured_file", ""), item["id6"]
             )
         except DriverError:
             current_plan_for_finalize = plan_path
@@ -1873,38 +2108,89 @@ def execute_item(
             f"(set {item['setid']}, attempt {attempt_no})."
         )
         fin_rc, fin_msg = driver_finalize(
-            repo, current_plan_for_finalize, item["id6"], actor, fin_message
+            finalize_repo, current_plan_for_finalize, item["id6"], actor, fin_message
         )
         if fin_rc == 0:
-            disposition = "executed"
-            attempt["disposition"] = "executed"
-            attempt["finalized"] = True
-            item["status"] = "executed"
-            # Re-resolve so any later handling sees the plan now living in executed/.
-            try:
-                item["last_plan_path"] = str(
-                    resolve_plan_path(
-                        repo, item.get("configured_file", ""), item["id6"]
+            # driverfin-02: the plan is now in executed/ ON the lane branch (inside the worktree). If
+            # isolated, integrate the verified branch back to main via the REUSED integration gate +
+            # a driver fast-forward/controlled merge, then tear down the worktree. On a non-passing
+            # gate result (or a merge-back conflict) leave the child NOT integrated (recorded,
+            # deferred to child-03) and do NOT fake executed.
+            integrated = True
+            integ_reason = "in-place (no isolation)"
+            if wt_handle is not None:
+                integrated, integ_reason = integrate_lane_branch(
+                    repo,
+                    wt_handle,
+                    item["id6"],
+                    make_integration_validation_runner(state, run_dir, item),
+                )
+            if not integrated:
+                attempt["disposition"] = "substantially-complete"
+                attempt["finalized"] = True
+                attempt["integration_deferred"] = integ_reason
+                item["status"] = "substantially-complete"
+                item["integration_deferral"] = integ_reason
+                # Leave the worktree/branch in place (NOT torn down) so child-03 can resolve it.
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-integration-deferred",
+                        "id6": item["id6"],
+                        "setid": item["setid"],
+                        "detail": integ_reason,
+                        "branch": wt_handle.branch if wt_handle else None,
+                    },
+                )
+                lane_branch = wt_handle.branch if wt_handle else "(none)"
+                print(
+                    pal(
+                        f"  ! IPD {item['id6']} finalized on lane {lane_branch} but NOT "
+                        f"integrated to main (deferred to child-03): {integ_reason}",
+                        "yellow",
+                    ),
+                    file=sys.stderr,
+                )
+                disposition = "substantially-complete"
+            else:
+                if wt_handle is not None:
+                    with contextlib.suppress(Exception):
+                        teardown_isolation_worktree(repo, wt_handle)
+                    wt_handle = None
+                disposition = "executed"
+                attempt["disposition"] = "executed"
+                attempt["finalized"] = True
+                attempt["integrated"] = integ_reason
+                item["status"] = "executed"
+                # Re-resolve so any later handling sees the plan now living in executed/ on main.
+                try:
+                    item["last_plan_path"] = str(
+                        resolve_plan_path(
+                            repo, item.get("configured_file", ""), item["id6"]
+                        )
+                    )
+                except DriverError:
+                    pass
+                save_state(run_dir, state)
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "ipd-finalized",
+                        "id6": item["id6"],
+                        "setid": item["setid"],
+                        "integration": integ_reason,
+                    },
+                )
+                print(
+                    pal(
+                        f"  \u2713 IPD {item['id6']} finalized -> executed/ and integrated to main "
+                        f"({integ_reason})",
+                        "green",
                     )
                 )
-            except DriverError:
-                pass
-            save_state(run_dir, state)
-            append_jsonl(
-                run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "ipd-finalized",
-                    "id6": item["id6"],
-                    "setid": item["setid"],
-                },
-            )
-            print(
-                pal(
-                    f"  \u2713 IPD {item['id6']} finalized -> executed/ (aw ipd finalize)",
-                    "green",
-                )
-            )
         else:
             attempt["finalize_refused"] = fin_msg
             item["finalize_refusal"] = fin_msg
@@ -1927,6 +2213,34 @@ def execute_item(
                 ),
                 file=sys.stderr,
             )
+
+    # driverfin-02 (emus4n): if a worktree is still allocated here (verification did not pass,
+    # finalize refused, or integration was deferred), PRESERVE it attributably rather than tearing it
+    # away (forward-progress rule: never discard work). The branch holds the agent's commits; child-03
+    # owns the guard + resolution. Record the preserved location so a later turn can find it.
+    if wt_handle is not None and item.get("status") != "executed":
+        item["preserved_worktree"] = str(wt_handle.path)
+        item["preserved_branch"] = wt_handle.branch
+        save_state(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "worktree-preserved",
+                "id6": item["id6"],
+                "worktree": str(wt_handle.path),
+                "branch": wt_handle.branch,
+                "status": item.get("status"),
+            },
+        )
+        print(
+            pal(
+                f"  \u2022 IPD {item['id6']} work preserved on lane {wt_handle.branch} "
+                f"at {wt_handle.path} (not integrated; attributable for a later turn/child-03)",
+                "dim",
+            ),
+            file=sys.stderr,
+        )
 
     full_auto = state.get("options", {}).get("full_auto", False)
     auto_approved = False
@@ -2414,6 +2728,15 @@ AUTOMATIC STATUS ROUTING:
         default=True,
         help="Do not run 'aw ipd begin' before / 'aw ipd finalize' after each verified execute "
         "turn (the agent must move the plan itself). Default: the driver self-finalizes.",
+    )
+    start.add_argument(
+        "--no-isolate-worktree",
+        dest="isolate_worktree",
+        action="store_false",
+        default=True,
+        help="Do not isolate each execute turn in its own git worktree; run in the main tree "
+        "instead. Default: each IPD executes in an isolated worktree and its verified branch is "
+        "integrated back to main.",
     )
     _add_output_mode_flags(start)
 

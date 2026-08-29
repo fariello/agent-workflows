@@ -1931,7 +1931,10 @@ def _init_repo_with_conforming_plan(repo: Path, id6: str = "slf001") -> Path:
         ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
     )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
-    (repo / ".gitignore").write_text(".aw/state/\n", encoding="utf-8")
+    # Match a production install's ignore set: run state, worktrees, and receipts are gitignored.
+    (repo / ".gitignore").write_text(
+        ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+    )
     pending = repo / ".aw" / "records" / "plans" / "pending"
     pending.mkdir(parents=True)
     plan = pending / f"20260828-demo-01-{id6}-demo.ipd.md"
@@ -2044,6 +2047,9 @@ class SelfFinalizeWiringTests(unittest.TestCase):
                 "model": "opus",
                 "self_finalize": self_finalize,
                 "no_audit": True,  # skip turn-2 verify unless a test overrides
+                # These p7peqf wiring tests exercise the begin/finalize wiring in the MAIN tree;
+                # the driverfin-02 worktree isolation is covered by WorktreeIsolationTests below.
+                "isolate_worktree": False,
             },
         }
         return state, item
@@ -2278,6 +2284,254 @@ class SelfFinalizeWiringTests(unittest.TestCase):
             self.assertEqual(
                 fin_calls, [], "finalize must be skipped with --no-self-finalize"
             )
+
+
+class WorktreeIsolationTests(unittest.TestCase):
+    """driverfin-02 (emus4n): each execute-action child runs in its OWN git worktree; the main tree
+    stays clean during the turn; a verified child's commits integrate back to main via the REUSED
+    integration gate; a non-passing gate leaves the child NOT integrated (deferred, not faked)."""
+
+    def _state_and_item(self, repo: Path, plan: Path) -> tuple[dict, dict]:
+        item = {
+            "position": 1,
+            "id6": "wir001",
+            "setid": "demo",
+            "status": "queued",
+            "configured_file": str(plan.relative_to(repo)),
+            "action": "execute",
+        }
+        state = {
+            "run_id": "run-test",
+            "created_at": "2026-08-28T00:00:00+00:00",
+            "updated_at": "2026-08-28T00:00:00+00:00",
+            "selectors": ["demo"],
+            "repo": str(repo),
+            "queue": [item],
+            "set_sessions": {},
+            "session_id": None,
+            "options": {
+                "opencode": "/bin/true",
+                "model": "opus",
+                "self_finalize": True,
+                "isolate_worktree": True,
+                "no_audit": False,  # exercise the verify->finalize->integrate path
+            },
+        }
+        return state, item
+
+    def _mk_run_dir(self, repo: Path) -> Path:
+        run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+        (run_dir / "outcomes").mkdir(parents=True)
+        (run_dir / "prompts").mkdir(parents=True)
+        return run_dir
+
+    def _fake_agent_commits_in_worktree(self, run_dir: Path):
+        """A fake run_opencode: on the FIRST (execute) turn it writes+commits an in-scope file INSIDE
+        the worktree (the `work_dir` kwarg) and writes the outcome JSON to the main run_dir; on the
+        verify turn it only writes the verification verdict. Asserts nothing itself."""
+        state_calls = {"n": 0}
+
+        def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+            work_dir = kwargs.get("work_dir")
+            if kwargs.get("fresh_session"):
+                # verifier turn -> record CONFORMING verdict.
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["oc"]
+            # execute turn -> commit an in-scope change in the WORKTREE.
+            wt = Path(work_dir)
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "demo: create src/demo.txt"],
+                cwd=wt,
+                check=True,
+            )
+            (
+                run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
+            ).write_text(
+                json.dumps({"disposition": "executed", "pushed": False}),
+                encoding="utf-8",
+            )
+            state_calls["n"] += 1
+            return 0, "ses1", str(run_dir / "log"), ["oc"]
+
+        return fake_run
+
+    def test_main_tree_clean_during_turn_and_receipt_under_main(self):
+        # V-01: during the isolated turn the MAIN git tree stays clean; the agent's mutations happen
+        # in repo/.aw/worktrees/<id6> on branch aw/lane/<id6>; the begin receipt is under the MAIN
+        # repo's .aw/state/ipd-lifecycle/<id6>.receipt.json.
+        from agent_workflows import ipd_lifecycle
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            observed = {}
+
+            def fake_run(state, rd, item, plan_path, prompt_path, attempt_no, **kwargs):
+                work_dir = kwargs.get("work_dir")
+                if not kwargs.get("fresh_session"):
+                    # ASSERT the main tree is clean while the worktree is where edits go.
+                    main_status = subprocess.run(
+                        ["git", "status", "--short"],
+                        cwd=repo,
+                        text=True,
+                        capture_output=True,
+                    ).stdout
+                    observed["main_status_during_turn"] = main_status
+                    observed["work_dir"] = work_dir
+                    # The worktree is at repo/.aw/worktrees/wir001 on aw/lane/wir001.
+                    observed["wt_expected"] = str(
+                        (repo / ".aw" / "worktrees" / "wir001").resolve()
+                    )
+                    br = subprocess.run(
+                        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
+                        cwd=work_dir,
+                        text=True,
+                        capture_output=True,
+                    ).stdout.strip()
+                    observed["wt_branch"] = br
+                    # commit an in-scope change in the worktree
+                    wt = Path(work_dir)
+                    (wt / "src").mkdir(parents=True, exist_ok=True)
+                    (wt / "src" / "demo.txt").write_text("demo\n", encoding="utf-8")
+                    subprocess.run(["git", "add", "src/demo.txt"], cwd=wt, check=True)
+                    subprocess.run(["git", "commit", "-qm", "demo"], cwd=wt, check=True)
+                    (
+                        run_dir
+                        / "outcomes"
+                        / f"{item['position']:02d}-{item['id6']}.json"
+                    ).write_text(
+                        json.dumps({"disposition": "executed", "pushed": False}),
+                        encoding="utf-8",
+                    )
+                    return 0, "ses1", str(run_dir / "log"), ["oc"]
+                (
+                    run_dir
+                    / "outcomes"
+                    / f"{item['position']:02d}-{item['id6']}-verification.json"
+                ).write_text(json.dumps({"verdict": "CONFORMING"}), encoding="utf-8")
+                return 0, "vses", str(run_dir / "vlog"), ["oc"]
+
+            with mock.patch.object(driver, "run_opencode", fake_run):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # V-01 assertions:
+            self.assertEqual(
+                observed["main_status_during_turn"].strip(),
+                "",
+                "MAIN tree must be clean during the isolated turn",
+            )
+            self.assertEqual(observed["work_dir"], observed["wt_expected"])
+            self.assertEqual(observed["wt_branch"], "aw/lane/wir001")
+            receipt = ipd_lifecycle.receipt_path_for(repo, "wir001")
+            self.assertTrue(
+                receipt.is_file(),
+                f"begin receipt must be under MAIN repo's .aw/state at {receipt}",
+            )
+
+    def test_verified_child_integrates_to_main_and_worktree_removed(self):
+        # V-02 (passed case): a verified child's commits (incl. the plan-move to executed/) land on
+        # main via the REUSED execute_merge_and_revalidate_gate, and the worktree is torn down.
+        gate_calls = []
+        real_gate = None
+        from agent_workflows import orchestrate_isolation
+
+        real_gate = orchestrate_isolation.execute_merge_and_revalidate_gate
+
+        def spy_gate(*a, **k):
+            gate_calls.append((a, k))
+            return real_gate(*a, **k)
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            with (
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    orchestrate_isolation,
+                    "execute_merge_and_revalidate_gate",
+                    spy_gate,
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # The REUSED gate was called (not a forked merge).
+            self.assertEqual(len(gate_calls), 1, "must route through the reused gate")
+            # Child marked executed.
+            self.assertEqual(item["status"], "executed")
+            # The plan-move landed on MAIN: plan is now in executed/ on the main tree.
+            executed = repo / ".aw" / "records" / "plans" / "executed" / plan.name
+            self.assertTrue(
+                executed.is_file(), "plan-move must be integrated to main's executed/"
+            )
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "pending" / plan.name).is_file()
+            )
+            # The agent's product file landed on main too.
+            self.assertTrue((repo / "src" / "demo.txt").is_file())
+            # The worktree was torn down.
+            self.assertFalse(
+                (repo / ".aw" / "worktrees" / "wir001").exists(),
+                "worktree must be removed on successful integration",
+            )
+            # Main tree is clean after integration.
+            main_status = subprocess.run(
+                ["git", "status", "--short"], cwd=repo, text=True, capture_output=True
+            ).stdout.strip()
+            self.assertEqual(main_status, "")
+
+    def test_non_passing_gate_defers_not_faked_executed(self):
+        # V-02 (non-passing case): if the integration gate does NOT pass (e.g. combined-red via an
+        # injected failing validation runner), the child is left NOT integrated with a recorded
+        # reason, is NOT faked executed, and the worktree is preserved for child-03.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = self._mk_run_dir(repo)
+            state, item = self._state_and_item(repo, plan)
+
+            # Force the gate's full revalidation to fail -> INTEGRATION_FAILED_COMBINED_RED.
+            def failing_runner_factory(*a, **k):
+                return lambda _diff, _files: False
+
+            with (
+                mock.patch.object(
+                    driver,
+                    "run_opencode",
+                    self._fake_agent_commits_in_worktree(run_dir),
+                ),
+                mock.patch.object(
+                    driver, "make_integration_validation_runner", failing_runner_factory
+                ),
+            ):
+                driver.execute_item(run_dir, state, item, recovery=False)
+
+            # NOT faked executed; recorded as substantially-complete with a deferral reason.
+            self.assertEqual(item["status"], "substantially-complete")
+            self.assertIn("integration_deferral", item)
+            # Plan did NOT move to main's executed/ (integration did not happen on main).
+            self.assertFalse(
+                (repo / ".aw" / "records" / "plans" / "executed" / plan.name).is_file()
+            )
+            # The worktree/branch is preserved (attributable) for child-03.
+            self.assertIn("preserved_branch", item)
+            self.assertEqual(item["preserved_branch"], "aw/lane/wir001")
 
 
 if __name__ == "__main__":
