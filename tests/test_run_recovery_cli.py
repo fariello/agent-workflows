@@ -818,5 +818,118 @@ class TestRebuildableIndex(unittest.TestCase):
         self.assertEqual(lines, lines2)
 
 
+class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
+    """`e6b9kt`: the ledger must not claim `events.jsonl`, and wrong-format is not corruption.
+
+    Before this fix, `aw run show <any-real-run-id>` resolved to the driver's own `events.jsonl` and
+    printed `ledger corruption detected` with eight RL-E010 findings about a perfectly healthy file.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.run_id = RUN_ID
+        self.run_dir = self.tmp / ".aw" / "records" / "runs" / self.run_id
+        self.run_dir.mkdir(parents=True)
+        # The RUNNER's own event log: healthy, and NOT a ledger.
+        (self.run_dir / "events.jsonl").write_text(
+            json.dumps({"at": "2026-08-24T14:01:12Z", "event": "run_start", "queue": 3})
+            + "\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _cli(self, *argv: str) -> "tuple[int, str]":
+        with patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = cli.main(list(argv))
+        return rc, out.getvalue()
+
+    # ---- resolution ---------------------------------------------------------------------------
+
+    def test_run_id_does_not_resolve_to_the_drivers_event_log(self) -> None:
+        resolved = run_cli.resolve_ledger_path(self.run_id, self.tmp)
+        self.assertIsNone(
+            resolved,
+            "a bare run id must not resolve to events.jsonl, which the ledger does not own",
+        )
+
+    def test_run_id_resolves_to_a_real_ledger_when_one_exists(self) -> None:
+        ledger = self.run_dir / ledger_store.LEDGER_FILENAME
+        store = ledger_store.RunLedgerStore(ledger)
+        store.append(_run_record())
+        resolved = run_cli.resolve_ledger_path(self.run_id, self.tmp)
+        self.assertEqual(resolved, ledger.resolve())
+
+    def test_explicit_path_is_still_honoured_verbatim(self) -> None:
+        """An operator pointing at an explicit file keeps working; the shape check judges it."""
+        odd = self.tmp / "somewhere-else.jsonl"
+        odd.write_text("{}\n", encoding="utf-8")
+        self.assertEqual(run_cli.resolve_ledger_path(str(odd), self.tmp), odd.resolve())
+
+    # ---- the verdict --------------------------------------------------------------------------
+
+    def test_show_on_a_real_run_id_reports_missing_not_corrupt(self) -> None:
+        rc, out = self._cli("run", "show", self.run_id, "--dir", str(self.tmp))
+        self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
+        self.assertNotIn("corruption", out.lower())
+
+    def test_show_on_the_event_log_path_is_wrong_format_not_corruption(self) -> None:
+        rc, out = self._cli("run", "show", str(self.run_dir / "events.jsonl"))
+        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
+        self.assertIn("not a run ledger", out.lower())
+        self.assertNotIn("corrupt", out.lower())
+
+    def test_verify_ledger_on_the_event_log_is_wrong_format(self) -> None:
+        rc, out = self._cli("run", "verify-ledger", str(self.run_dir / "events.jsonl"))
+        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
+        self.assertNotIn("corrupt", out.lower())
+
+    def test_evidence_on_the_event_log_is_wrong_format(self) -> None:
+        rc, out = self._cli("run", "evidence", str(self.run_dir / "events.jsonl"))
+        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
+        self.assertNotIn("corrupt", out.lower())
+
+    def test_status_on_the_event_log_is_wrong_format(self) -> None:
+        """The mutating family shares the verdict through `_build_engine`."""
+        rc, out = self._cli("run", "status", str(self.run_dir / "events.jsonl"))
+        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
+        self.assertNotIn("corrupt", out.lower())
+
+    def test_machine_output_flags_not_a_ledger_and_denies_corruption(self) -> None:
+        rc, out = self._cli(
+            "run", "show", str(self.run_dir / "events.jsonl"), "--agent"
+        )
+        self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
+        payload = json.loads(out.strip().splitlines()[-1])
+        self.assertTrue(payload["not_a_ledger"])
+        self.assertFalse(payload["corrupted"])
+        self.assertEqual(payload["exit_code"], run_cli.EXIT_NOT_A_LEDGER)
+        self.assertNotIn("\x1b[", out)
+
+    # ---- ADVERSARIAL: real corruption must still be reported as corruption ---------------------
+
+    def test_tampered_ledger_still_reported_as_corruption_via_cli(self) -> None:
+        """The new wrong-format path must not swallow real tamper evidence at the CLI boundary."""
+        ledger = self.run_dir / ledger_store.LEDGER_FILENAME
+        store = ledger_store.RunLedgerStore(ledger)
+        store.append(_run_record())
+        store.append(_requirement_set(["R-01"]))
+        lines = ledger.read_text(encoding="utf-8").splitlines(keepends=True)
+        tampered = json.loads(lines[1])
+        tampered["prev_hash"] = "f" * 64
+        lines[1] = json.dumps(tampered, sort_keys=True) + "\n"
+        ledger.write_text("".join(lines), encoding="utf-8")
+
+        rc, out = self._cli("run", "show", str(ledger))
+        self.assertNotEqual(
+            rc,
+            run_cli.EXIT_NOT_A_LEDGER,
+            "a tampered ledger must never be excused as a wrong-format file",
+        )
+        self.assertIn("corruption", out.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,6 +7,8 @@ Covers:
 - E-04 / V-04: Explicit typed corruption refusal (BrokenChainError, SequenceGapError, UnparseableLineError, SchemaInvalidRecordError).
 - E-05 / V-05: Redaction hooks (pre-append redaction, secrets kept off disk, chain valid over redacted bytes).
 - E-06 / V-06: Focused test suite passes, no shallow assertions.
+- e6b9kt: Wrong-format vs corrupt are DISTINCT diagnoses (NotALedgerError, never LedgerCorruption),
+  including the adversarial case proving the new shape check cannot mask real tampering.
 """
 
 from __future__ import annotations
@@ -459,6 +461,173 @@ class TestRedactionHooks(unittest.TestCase):
         records = ledger_store.read_records()
         self.assertEqual(len(records), 2)
         self.assertEqual(records[1]["token"], "[REDACTED_SECRET]")
+
+
+class TestWrongFormatIsNotCorruption(unittest.TestCase):
+    """`e6b9kt`: a healthy non-ledger JSONL file must be diagnosed as WRONG FORMAT, not as corrupt.
+
+    The regression being locked down: `resolve_ledger_path` used to resolve a bare run id to the
+    drivers' own `events.jsonl`, whose lines look like `{"at":..., "event":..., "run_id":...}`. The
+    store parsed that healthy file as a ledger and raised `SchemaInvalidRecordError`, so the CLI
+    accused good data of being corrupt.
+    """
+
+    def setUp(self) -> None:
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.tmp = Path(self.tmp_dir.name)
+
+    def tearDown(self) -> None:
+        self.tmp_dir.cleanup()
+
+    def _write_driver_event_log(self, name: str = "events.jsonl") -> Path:
+        """Write a byte-faithful sample of the RUNNER's own event log (a real, healthy file)."""
+        p = self.tmp / name
+        lines = [
+            {
+                "at": "2026-08-24T14:01:12Z",
+                "event": "run_start",
+                "queue": 3,
+                "run_id": "run-x",
+            },
+            {
+                "at": "2026-08-24T14:01:13Z",
+                "event": "attempt",
+                "attempt": 1,
+                "id6": "abc123",
+            },
+            {"at": "2026-08-24T14:02:00Z", "event": "step_done", "id6": "abc123"},
+        ]
+        p.write_text(
+            "".join(json.dumps(line, sort_keys=True) + "\n" for line in lines),
+            encoding="utf-8",
+        )
+        return p
+
+    def _write_valid_ledger(self) -> Path:
+        """Write a genuinely valid, chain-clean ledger through the store's own append path."""
+        p = self.tmp / store.LEDGER_FILENAME
+        s = store.RunLedgerStore(p)
+        s.append(_sample_record(kind="run"))
+        s.append(_sample_record(kind="step_attempt"))
+        return p
+
+    # ---- the shape predicate -----------------------------------------------------------------
+
+    def test_driver_event_lines_are_not_ledger_shaped(self) -> None:
+        for line in (
+            {"at": "2026-08-24T14:01:12Z", "event": "run_start", "run_id": "run-x"},
+            {"at": "2026-08-24T14:01:13Z", "event": "attempt", "id6": "abc123"},
+        ):
+            self.assertFalse(store.is_ledger_shaped(line))
+
+    def test_real_ledger_records_are_ledger_shaped(self) -> None:
+        self.assertTrue(store.is_ledger_shaped(_sample_record(kind="run")))
+        self.assertTrue(store.is_ledger_shaped({"seq": 0}))
+        self.assertTrue(store.is_ledger_shaped({"prev_hash": store.GENESIS_HASH}))
+
+    def test_non_mapping_is_not_ledger_shaped(self) -> None:
+        for value in ([], "run", 7, None):
+            self.assertFalse(store.is_ledger_shaped(value))
+
+    def test_classify_distinguishes_every_case(self) -> None:
+        self.assertEqual(
+            store.classify_jsonl_file(self.tmp / "absent.jsonl"), "missing"
+        )
+        empty = self.tmp / "empty.jsonl"
+        empty.write_text("", encoding="utf-8")
+        self.assertEqual(store.classify_jsonl_file(empty), "empty")
+        garbage = self.tmp / "garbage.jsonl"
+        garbage.write_text("this is not json at all\n", encoding="utf-8")
+        self.assertEqual(store.classify_jsonl_file(garbage), "unparseable")
+        self.assertEqual(
+            store.classify_jsonl_file(self._write_driver_event_log()), "not-a-ledger"
+        )
+        self.assertEqual(
+            store.classify_jsonl_file(self._write_valid_ledger()), "ledger"
+        )
+
+    # ---- the verdict: wrong format, NOT corruption --------------------------------------------
+
+    def test_read_records_raises_not_a_ledger_not_corruption(self) -> None:
+        s = store.RunLedgerStore(self._write_driver_event_log())
+        with self.assertRaises(store.NotALedgerError) as ctx:
+            s.read_records(verify=True)
+        # The whole point: this must NOT be classified as corruption by an `except` clause upstream.
+        self.assertNotIsInstance(ctx.exception, store.LedgerCorruption)
+        self.assertNotIn("corrupt", str(ctx.exception).lower())
+
+    def test_verify_chain_raises_not_a_ledger_regardless_of_raise_flag(self) -> None:
+        s = store.RunLedgerStore(self._write_driver_event_log())
+        # `raise_on_error=False` selects how a corruption VERDICT is reported; no verdict applies to
+        # a file that is not a ledger, so it must still refuse rather than return clean=False.
+        with self.assertRaises(store.NotALedgerError):
+            s.verify_chain(raise_on_error=False)
+        with self.assertRaises(store.NotALedgerError):
+            s.verify_chain(raise_on_error=True)
+
+    def test_unverified_read_still_returns_the_raw_lines(self) -> None:
+        """`verify=False` is an explicit 'do not judge' read and must stay usable."""
+        s = store.RunLedgerStore(self._write_driver_event_log())
+        records = s.read_records(verify=False)
+        self.assertEqual(len(records), 3)
+        self.assertEqual(records[0]["event"], "run_start")
+
+    # ---- ADVERSARIAL: the guard must not mask real tampering ----------------------------------
+
+    def test_tampered_ledger_is_still_corruption_not_wrong_format(self) -> None:
+        """A ledger-shaped file with a TAMPERED hash chain must still be reported as CORRUPTION.
+
+        This is the adversarial case for the new shape check: if `_require_ledger_shape` were too
+        eager it would relabel real tampering as a benign 'wrong format' and silently disarm the
+        tamper-evidence guarantee.
+        """
+        ledger = self._write_valid_ledger()
+        lines = ledger.read_text(encoding="utf-8").splitlines(keepends=True)
+        self.assertEqual(len(lines), 2)
+        tampered = json.loads(lines[1])
+        tampered["prev_hash"] = "f" * 64  # break the chain, keep the envelope intact
+        lines[1] = json.dumps(tampered, sort_keys=True) + "\n"
+        ledger.write_text("".join(lines), encoding="utf-8")
+
+        s = store.RunLedgerStore(ledger)
+        with self.assertRaises(store.BrokenChainError):
+            s.read_records(verify=True)
+        self.assertIsInstance(
+            store.RunLedgerStore(ledger).verify_chain(raise_on_error=False).break_info,
+            store.ChainBreak,
+        )
+        self.assertFalse(s.verify_chain(raise_on_error=False).clean)
+
+    def test_ledger_shaped_but_schema_invalid_is_still_corruption(self) -> None:
+        """A line carrying an envelope marker but missing required fields stays a corruption case."""
+        p = self.tmp / store.LEDGER_FILENAME
+        # `kind` present (so it IS ledger-shaped) but the rest of the envelope is absent.
+        p.write_text(
+            json.dumps({"kind": "run", "seq": 0, "prev_hash": store.GENESIS_HASH})
+            + "\n",
+            encoding="utf-8",
+        )
+        s = store.RunLedgerStore(p)
+        with self.assertRaises(store.SchemaInvalidRecordError):
+            s.read_records(verify=True)
+
+    def test_deleted_record_in_ledger_still_detected(self) -> None:
+        """Deleting a middle record must remain a corruption verdict (seq gap), not wrong-format."""
+        p = self.tmp / store.LEDGER_FILENAME
+        s = store.RunLedgerStore(p)
+        s.append(_sample_record(kind="run"))
+        s.append(_sample_record(kind="step_attempt"))
+        s.append(_sample_record(kind="tool_event"))
+        lines = p.read_text(encoding="utf-8").splitlines(keepends=True)
+        p.write_text(lines[0] + lines[2], encoding="utf-8")
+        with self.assertRaises(store.LedgerCorruption):
+            store.RunLedgerStore(p).read_records(verify=True)
+
+    # ---- the filename the ledger owns --------------------------------------------------------
+
+    def test_ledger_filename_is_not_the_drivers_event_log(self) -> None:
+        self.assertEqual(store.LEDGER_FILENAME, "ledger.jsonl")
+        self.assertNotEqual(store.LEDGER_FILENAME, "events.jsonl")
 
 
 if __name__ == "__main__":

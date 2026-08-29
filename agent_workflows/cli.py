@@ -1489,7 +1489,11 @@ def _build_parser() -> argparse.ArgumentParser:
             _r_sub, parents=[common], help=_r_help, description=_r_desc
         )
         _pr.add_argument(
-            "target", help="Run ID (run-<hex>) or path to events.jsonl ledger file."
+            "target",
+            help=(
+                "Run ID (run-<hex>) or path to a ledger.jsonl file. NOTE: a run id resolves only to "
+                "a ledger.jsonl; the drivers' own events.jsonl is a different format."
+            ),
         )
         _pr.add_argument(
             "--dir",

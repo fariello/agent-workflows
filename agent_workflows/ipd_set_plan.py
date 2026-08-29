@@ -728,17 +728,27 @@ def _run_resume_report(args: object, run_id: str, *, agent: bool = False) -> int
     from pathlib import Path as _Path
 
     repo_root, _plans_dir = _resolve_repo_and_plans(args)
-    ledger = _Path(repo_root) / ".aw" / "records" / "runs" / run_id / "events.jsonl"
+    try:
+        from agent_workflows import run_ledger_store, run_engine, set_lifecycle
+    except Exception as exc:  # pragma: no cover - import guard
+        print("error: cannot load recovery runtime: {0}".format(exc), flush=True)
+        return 2
+
+    # A ledger owns `ledger.jsonl`, never the runner's own `events.jsonl` in the same dir: reading
+    # that foreign format as a ledger reported healthy data as corrupt (`e6b9kt`).
+    ledger = (
+        _Path(repo_root)
+        / ".aw"
+        / "records"
+        / "runs"
+        / run_id
+        / run_ledger_store.LEDGER_FILENAME
+    )
     if not ledger.is_file():
         print(
             "error: no run ledger found for {0} ({1})".format(run_id, ledger),
             flush=True,
         )
-        return 2
-    try:
-        from agent_workflows import run_ledger_store, run_engine, set_lifecycle
-    except Exception as exc:  # pragma: no cover - import guard
-        print("error: cannot load recovery runtime: {0}".format(exc), flush=True)
         return 2
     store = run_ledger_store.RunLedgerStore(ledger)
     engine = run_engine.RunEngine(

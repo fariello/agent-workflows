@@ -44,6 +44,20 @@ from agent_workflows.run_ledger_schema import Finding
 GENESIS_HASH: str = "0" * 64
 DEFAULT_LOCK_TIMEOUT: float = 10.0
 
+# The ONLY filename a run ledger owns. The drivers' own append-only event log is `events.jsonl` and is
+# a DIFFERENT format (see `is_ledger_shaped`); a ledger must never claim that name (`e6b9kt`).
+LEDGER_FILENAME: str = "ledger.jsonl"
+
+# Envelope fields that identify a line as a ledger record at all. A driver event line
+# (`{"at":..., "event":..., "run_id":...}`) carries NONE of these, which is what makes wrong-format
+# distinguishable from corrupt.
+LEDGER_ENVELOPE_MARKERS: Tuple[str, ...] = (
+    "schema_version",
+    "kind",
+    "seq",
+    "prev_hash",
+)
+
 
 # ---- exception hierarchy (fail closed) -----------------------------------------------------------
 
@@ -100,6 +114,24 @@ class SchemaInvalidRecordError(LedgerCorruption):
         super().__init__(msg)
 
 
+class NotALedgerError(Exception):
+    """Raised when a file is healthy JSONL but is NOT a run ledger at all (wrong format).
+
+    Deliberately NOT a `LedgerCorruption` subclass. Wrong-format and corrupt are DIFFERENT diagnoses:
+    calling a healthy driver event log 'corrupt' accuses good data of damage it does not have
+    (`e6b9kt`). Corruption means 'this IS a ledger and it has been damaged or tampered with'; this
+    means 'this is not a ledger, so no verdict about its integrity is being made'.
+    """
+
+    def __init__(self, path: Union[str, Path], detail: str = "") -> None:
+        self.path = Path(path)
+        self.detail = detail
+        msg = f"{self.path} is not a run ledger file"
+        if detail:
+            msg = f"{msg}: {detail}"
+        super().__init__(msg)
+
+
 class LedgerLockError(Exception):
     """Raised when the single-writer lock cannot be acquired within timeout or is lost."""
 
@@ -129,6 +161,46 @@ class RecoveryResult(NamedTuple):
 
 
 # ---- hash calculation ----------------------------------------------------------------------------
+
+
+def is_ledger_shaped(rec: Any) -> bool:
+    """True when a parsed line carries the ledger envelope markers, i.e. it IS a ledger record.
+
+    Deliberately SHALLOW: it asks 'is this the right KIND of file' and says nothing about integrity.
+    A record that is ledger-shaped but damaged (tampered `prev_hash`, seq gap, bad per-kind field)
+    stays the corruption checker's business, so this predicate can never mask real tampering.
+    """
+    if not isinstance(rec, Mapping):
+        return False
+    return any(marker in rec for marker in LEDGER_ENVELOPE_MARKERS)
+
+
+def classify_jsonl_file(path: Union[str, Path]) -> str:
+    """Classify a JSONL file WITHOUT judging ledger integrity.
+
+    Returns one of: `missing`, `empty`, `unparseable` (not JSON at all), `not-a-ledger` (valid JSON
+    lines carrying none of the ledger envelope markers), or `ledger` (the first line is
+    ledger-shaped, so integrity verification is the right next question).
+    """
+    p = Path(path)
+    if not p.exists() or not p.is_file():
+        return "missing"
+    try:
+        raw = p.read_bytes()
+    except OSError:
+        return "missing"
+    if not raw.strip():
+        return "empty"
+    for raw_line in raw.splitlines():
+        stripped = raw_line.decode("utf-8", errors="replace").strip()
+        if not stripped:
+            continue
+        try:
+            rec = json.loads(stripped)
+        except json.JSONDecodeError:
+            return "unparseable"
+        return "ledger" if is_ledger_shaped(rec) else "not-a-ledger"
+    return "empty"
 
 
 def compute_record_hash(rec_or_line: Union[Mapping[str, Any], str, bytes]) -> str:
@@ -285,6 +357,24 @@ class RunLedgerStore:
                     pass
             self._process_lock.release()
 
+    def _require_ledger_shape(self) -> None:
+        """Fail with `NotALedgerError` when this file is valid JSONL of a NON-ledger format.
+
+        Only the wholesale case is caught (the first non-blank line carries no envelope marker at
+        all). A ledger-shaped-but-damaged file falls straight through to the corruption checks.
+        """
+        classification = classify_jsonl_file(self._path)
+        if classification == "not-a-ledger":
+            # The wording deliberately makes NO claim about the file's integrity, and a test asserts
+            # the message never contains the word 'corrupt': the file is healthy, just not a ledger.
+            raise NotALedgerError(
+                self._path,
+                "the file is valid JSONL but carries none of the ledger envelope fields "
+                f"({', '.join(LEDGER_ENVELOPE_MARKERS)}). A run ledger is named "
+                f"'{LEDGER_FILENAME}'; the drivers' own event log 'events.jsonl' is a different "
+                "format and is read with `aw runs`. The file itself looks intact",
+            )
+
     def _get_tail_state(self) -> Tuple[int, str]:
         """Inspect ledger tail to find next seq and prev_hash. Must be called under writer_lock."""
         if not self._path.exists() or self._path.stat().st_size == 0:
@@ -367,9 +457,16 @@ class RunLedgerStore:
             return rec_to_write
 
     def read_records(self, *, verify: bool = True) -> List[Dict[str, Any]]:
-        """Read all records from ledger. If verify=True, fails closed on any corruption."""
+        """Read all records from ledger. If verify=True, fails closed on any corruption.
+
+        Raises `NotALedgerError` (NOT a corruption error) when the file is healthy JSONL of some other
+        format, so a caller reports 'wrong format' rather than accusing good data of being corrupt.
+        """
         if not self._path.exists() or self._path.stat().st_size == 0:
             return []
+
+        if verify:
+            self._require_ledger_shape()
 
         raw_bytes = self._path.read_bytes()
         lines = raw_bytes.splitlines(keepends=True)
@@ -430,9 +527,15 @@ class RunLedgerStore:
         return records
 
     def verify_chain(self, *, raise_on_error: bool = False) -> ChainVerification:
-        """Walk the ledger and verify sequence continuity and SHA-256 hash chaining."""
+        """Walk the ledger and verify sequence continuity and SHA-256 hash chaining.
+
+        Raises `NotALedgerError` when the file is not a ledger at all, REGARDLESS of `raise_on_error`:
+        that flag chooses how to report a corruption VERDICT, and no verdict is being made here.
+        """
         if not self._path.exists() or self._path.stat().st_size == 0:
             return ChainVerification(clean=True, break_info=None, count=0)
+
+        self._require_ledger_shape()
 
         raw_bytes = self._path.read_bytes()
         lines = raw_bytes.splitlines(keepends=True)

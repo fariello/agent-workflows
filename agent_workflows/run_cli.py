@@ -10,7 +10,11 @@ Inspection CLI layer over run ledger and evidence verification:
 Contract:
   * exit 0 = success / clean / complete;
     exit 1 = incomplete / invalid evidence / unsatisfied requirements;
-    exit 2 = invocation error, missing ledger, or corrupted hash chain / unparseable JSON.
+    exit 2 = invocation error, missing ledger, or corrupted hash chain / unparseable JSON;
+    exit 7 = the target is healthy JSONL of some OTHER format, i.e. not a ledger at all.
+  * WRONG-FORMAT IS NOT CORRUPTION. A file that carries none of the ledger envelope fields gets a
+    'not a run ledger file' verdict (exit 7), never a corruption verdict: reporting healthy driver
+    event logs as corrupt accused good data of damage it did not have (`e6b9kt`).
   * `--agent` and `--json` emit machine-readable output with NO ANSI; human mode is the default.
   * Read-only: makes NO filesystem writes, ever.
   * Redacts sensitive values in both human and machine outputs.
@@ -41,6 +45,9 @@ EXIT_OPERATIONAL: int = (
     6  # operational failure (lock contention, illegal transition, unauthorized)
 )
 EXIT_INVALID_INVOCATION: int = 2  # bad invocation / missing ledger
+EXIT_NOT_A_LEDGER: int = (
+    7  # the target is healthy JSONL but is NOT a ledger (wrong format, NOT corruption)
+)
 
 
 def run_cli(args: argparse.Namespace) -> int:
@@ -178,10 +185,44 @@ def _emit_machine(args: argparse.Namespace, payload: Any) -> None:
         print(json.dumps(sanitized, sort_keys=True, indent=2, ensure_ascii=False))
 
 
+def _emit_not_a_ledger(args: argparse.Namespace, exc: "store.NotALedgerError") -> int:
+    """Report a WRONG-FORMAT target and return `EXIT_NOT_A_LEDGER`.
+
+    Kept separate from every corruption path on purpose: the message must not contain the word
+    corrupt, and machine consumers get `corrupted: false` plus an explicit `not_a_ledger: true` so a
+    healthy foreign file is never mistaken for a damaged ledger (`e6b9kt`).
+    """
+    err_msg = f"error: not a run ledger: {exc}"
+    if _machine(args):
+        _emit_machine(
+            args,
+            {
+                "ok": False,
+                "error": err_msg,
+                "corrupted": False,
+                "not_a_ledger": True,
+                "path": str(exc.path),
+                "exit_code": EXIT_NOT_A_LEDGER,
+            },
+        )
+    else:
+        print(err_msg)
+    return EXIT_NOT_A_LEDGER
+
+
 def resolve_ledger_path(
     target: str, repo_root: Optional[Union[str, Path]] = None
 ) -> Optional[Path]:
-    """Resolve a target argument (run id or path) to a concrete ledger JSONL path."""
+    """Resolve a target argument (run id or path) to a concrete ledger JSONL path.
+
+    A run ledger owns exactly ONE filename, `store.LEDGER_FILENAME` (`ledger.jsonl`). It must NEVER
+    resolve a bare run id to `<...>/runs/<target>/events.jsonl`: that file exists for every real
+    driver run but is the RUNNER's own event log in a different format, so claiming it made
+    `aw run show <any-real-run>` parse healthy data as a ledger and report it corrupt (`e6b9kt`).
+
+    An EXPLICIT path argument is still honoured verbatim, whatever it is named, so an operator can
+    point the reader at a ledger stored anywhere; the shape check downstream decides what it is.
+    """
     if not target:
         return None
 
@@ -194,10 +235,10 @@ def resolve_ledger_path(
         path_obj,
         root / target,
         root / f"{target}.jsonl",
-        root / ".aw" / "state" / "runs" / target / "events.jsonl",
-        root / ".aw" / "records" / "runs" / target / "events.jsonl",
+        root / ".aw" / "state" / "runs" / target / store.LEDGER_FILENAME,
+        root / ".aw" / "records" / "runs" / target / store.LEDGER_FILENAME,
         root / ".aw" / "state" / "runs" / target,
-        root / ".aw" / "runs" / target / "events.jsonl",
+        root / ".aw" / "runs" / target / store.LEDGER_FILENAME,
     ]
     for c in candidates:
         if c.is_file():
@@ -232,6 +273,8 @@ def _run_show(args: argparse.Namespace) -> int:
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
         records = ledger_store.read_records(verify=True)
+    except store.NotALedgerError as exc:
+        return _emit_not_a_ledger(args, exc)
     except store.LedgerCorruption as exc:
         err_msg = f"error: ledger corruption detected: {exc}"
         if machine:
@@ -336,6 +379,8 @@ def _run_evidence(args: argparse.Namespace) -> int:
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
         records = ledger_store.read_records(verify=True)
+    except store.NotALedgerError as exc:
+        return _emit_not_a_ledger(args, exc)
     except store.LedgerCorruption as exc:
         err_msg = f"error: ledger corruption detected: {exc}"
         if machine:
@@ -455,7 +500,10 @@ def _run_verify_ledger(args: argparse.Namespace) -> int:
         return 2
 
     ledger_store = store.RunLedgerStore(ledger_file)
-    chain_ver = ledger_store.verify_chain(raise_on_error=False)
+    try:
+        chain_ver = ledger_store.verify_chain(raise_on_error=False)
+    except store.NotALedgerError as exc:
+        return _emit_not_a_ledger(args, exc)
 
     if not chain_ver.clean:
         break_info = chain_ver.break_info
@@ -628,6 +676,8 @@ def _build_engine(
     ledger_store = store.RunLedgerStore(ledger_file)
     try:
         records = ledger_store.read_records(verify=True)
+    except store.NotALedgerError as exc:
+        return None, [], _emit_not_a_ledger(args, exc)
     except store.LedgerCorruption as exc:
         return (
             None,
