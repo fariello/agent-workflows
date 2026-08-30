@@ -112,7 +112,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## scopeattrib
 
-- `lbgzxg` [pending] 01 pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md
+- `lbgzxg` [executed] 01 executed/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md
 
 ## stallfp
 
