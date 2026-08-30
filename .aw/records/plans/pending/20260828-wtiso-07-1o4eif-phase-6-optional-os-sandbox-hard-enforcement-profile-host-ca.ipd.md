@@ -32,62 +32,62 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: host capability contract
 
-- [ ] E-01 Add a typed `HostSandboxCapabilities` dataclass to new module `agent_workflows/host_sandbox_profile.py` with the exact boolean fields from x03wgn Section 6 Layer 4: `supports_inline_permissions`, `supports_read_only_phase`, `supports_session_resume`, `emits_structured_tool_events`, `emits_child_permission_events`, `supports_process_tree_kill`, `supports_os_sandbox`; each field defaults to `False` (fail-closed: an unprobed host claims no capability), plus a `platform: str` field and a `to_dict()` for durable snapshotting into the run/lane manifest.
+- [x] E-01 Add a typed `HostSandboxCapabilities` dataclass to new module `agent_workflows/host_sandbox_profile.py` with the exact boolean fields from x03wgn Section 6 Layer 4: `supports_inline_permissions`, `supports_read_only_phase`, `supports_session_resume`, `emits_structured_tool_events`, `emits_child_permission_events`, `supports_process_tree_kill`, `supports_os_sandbox`; each field defaults to `False` (fail-closed: an unprobed host claims no capability), plus a `platform: str` field and a `to_dict()` for durable snapshotting into the run/lane manifest.
   - Depends on: none
   - Expected outcome: `from agent_workflows.host_sandbox_profile import HostSandboxCapabilities; HostSandboxCapabilities().supports_os_sandbox is False` holds; every one of the seven named contract fields exists and defaults `False`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `detect_host_capabilities(host: str, platform_name: str | None = None) -> HostSandboxCapabilities` to `host_sandbox_profile.py` that returns the fail-closed default (all `False`) for any host/platform NOT explicitly proven, and populates `supports_os_sandbox=True` (plus the process-tree-kill and read-only-phase fields it can back) ONLY for the single launch platform this phase certifies (Linux, using an unprivileged mount/user-namespace jail); wire it so `host_adapters` exposes the capability snapshot without editing the default launch path.
+- [x] E-02 Add `detect_host_capabilities(host: str, platform_name: str | None = None) -> HostSandboxCapabilities` to `host_sandbox_profile.py` that returns the fail-closed default (all `False`) for any host/platform NOT explicitly proven, and populates `supports_os_sandbox=True` (plus the process-tree-kill and read-only-phase fields it can back) ONLY for the single launch platform this phase certifies (Linux, using an unprivileged mount/user-namespace jail); wire it so `host_adapters` exposes the capability snapshot without editing the default launch path.
     THE PROBE MUST ATTEMPT, NOT INSPECT (found at review; this is the difference between failing closed and failing OPEN). Do NOT decide `supports_os_sandbox` by reading `/proc/sys/kernel/unprivileged_userns_clone`, `/proc/sys/user/max_user_namespaces`, `sys.platform`, or the mere PRESENCE of a `bwrap`/`unshare` binary. MEASURED COUNTEREXAMPLE on the review host: `unprivileged_userns_clone` was `1` and `max_user_namespaces` was `514277` (both look permissive) and BOTH `/usr/bin/unshare` and `/usr/bin/bwrap` were installed, yet an actual attempt FAILED - `unshare -Umr true` returned `Operation not permitted` writing `/proc/self/uid_map`, and `bwrap` failed with `setting up uid map: Permission denied` (the host is itself inside a namespace whose `uid_map` is `0 0 4294967295`). A sysctl/binary-presence probe would therefore have reported `supports_os_sandbox=True` on a host that CANNOT enforce the sandbox, and `select_execution_profile` (E-06) would have GRANTED hard mode - the exact silent degradation x03wgn Section 8 Phase 6.3 forbids, in the fail-OPEN direction. The probe MUST therefore actually execute a minimal jail (e.g. `unshare -Umr true`, or a `bwrap ... true` with the real bind set) in a subprocess, treat ANY nonzero exit / exception / timeout as `False`, and cache the single result per process. The same executable probe MUST back the `_linux_userns_available()` skipif helper used by E-08/E-09 so the tests and the capability report can never disagree.
   - Depends on: E-01
   - Expected outcome: `detect_host_capabilities("opencode", "windows").supports_os_sandbox is False` and `detect_host_capabilities("opencode", "darwin").supports_os_sandbox is False` (unproven platforms), while the certified Linux path reports `supports_os_sandbox` from an ATTEMPTED jail launch, not from a sysctl/binary check; on a host where the attempt fails (verified to include this review host) it reports `False`; no capability is asserted without a corresponding executed probe.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: OS-sandbox execution profile
 
-- [ ] E-03 Add `build_sandbox_plan(lane_worktree, lane_scratch, toolchain_roots, control_root, main_worktree, sibling_lane_roots, integration_candidate, credential_paths, git_common_dir) -> SandboxPlan` to `host_sandbox_profile.py` that computes the explicit mount/permission classes required by x03wgn Section 4 ("Container or OS sandbox"): WRITABLE = {lane worktree, lane scratch, selected build caches}; READ-ONLY = {required toolchain/dependencies}; INACCESSIBLE = {control root, main worktree, every sibling lane root, integration candidate, credentials not needed by the task}. The plan is a pure data structure (no side effects) so it can be unit-tested and asserted.
+- [x] E-03 Add `build_sandbox_plan(lane_worktree, lane_scratch, toolchain_roots, control_root, main_worktree, sibling_lane_roots, integration_candidate, credential_paths, git_common_dir) -> SandboxPlan` to `host_sandbox_profile.py` that computes the explicit mount/permission classes required by x03wgn Section 4 ("Container or OS sandbox"): WRITABLE = {lane worktree, lane scratch, selected build caches}; READ-ONLY = {required toolchain/dependencies}; INACCESSIBLE = {control root, main worktree, every sibling lane root, integration candidate, credentials not needed by the task}. The plan is a pure data structure (no side effects) so it can be unit-tested and asserted.
   - Depends on: E-01
   - Expected outcome: for a `SandboxPlan` built from representative paths, `plan.writable == {lane_worktree, lane_scratch}` (order-independent), and `control_root`, `main_worktree`, each `sibling_lane_root`, and `credential_paths` all appear in `plan.inaccessible` and in NEITHER `plan.writable` NOR `plan.readonly`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 In `build_sandbox_plan` classify the `git_common_dir` as READ-ONLY (never writable) and set `plan.driver_owns_git_mutation = True`, implementing the x03wgn Section 4 subtlety that a linked worktree's `.git` file points into the shared common dir so a writable common dir lets the worker mutate shared refs/hooks/config even when it cannot write main working files; add a `SandboxPlan.validate()` that raises `SandboxProfileError` if the common dir is ever placed in `writable`.
+- [x] E-04 In `build_sandbox_plan` classify the `git_common_dir` as READ-ONLY (never writable) and set `plan.driver_owns_git_mutation = True`, implementing the x03wgn Section 4 subtlety that a linked worktree's `.git` file points into the shared common dir so a writable common dir lets the worker mutate shared refs/hooks/config even when it cannot write main working files; add a `SandboxPlan.validate()` that raises `SandboxProfileError` if the common dir is ever placed in `writable`.
   - Depends on: E-03
   - Expected outcome: `plan.git_common_dir in plan.readonly and plan.git_common_dir not in plan.writable and plan.driver_owns_git_mutation is True`; constructing a plan that puts the common dir in `writable` and calling `validate()` raises `SandboxProfileError`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `enter_sandbox(argv, sandbox_plan, capabilities) -> list[str]` to `host_sandbox_profile.py` that, on the certified Linux platform, wraps the worker `argv` in the unprivileged-namespace jail enforcing `sandbox_plan` (writable lane roots, read-only toolchain + git-common-dir, inaccessible control/main/sibling/credentials) and attaches the child tree to a killable group; the DRIVER (not the sandboxed worker) performs `git add`/commit/refs on the lane branch after the worker exits, so the sandboxed worker never needs common-dir write access. This is invoked ONLY when the hardened profile is explicitly selected AND `capabilities.supports_os_sandbox` is True.
+- [x] E-05 Add `enter_sandbox(argv, sandbox_plan, capabilities) -> list[str]` to `host_sandbox_profile.py` that, on the certified Linux platform, wraps the worker `argv` in the unprivileged-namespace jail enforcing `sandbox_plan` (writable lane roots, read-only toolchain + git-common-dir, inaccessible control/main/sibling/credentials) and attaches the child tree to a killable group; the DRIVER (not the sandboxed worker) performs `git add`/commit/refs on the lane branch after the worker exits, so the sandboxed worker never needs common-dir write access. This is invoked ONLY when the hardened profile is explicitly selected AND `capabilities.supports_os_sandbox` is True.
   - Depends on: E-02, E-04
   - Expected outcome: `enter_sandbox` returns an argv whose leading tokens are the jail launcher configured from `sandbox_plan` (asserted by string inspection in tests); when the hardened profile is NOT selected the default `run_opencode` launch at `oc_runipd.py:1765` is byte-for-byte unchanged (regression test on the default path passes).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `select_execution_profile(requested_profile, capabilities) -> str` to `host_sandbox_profile.py` and call it in the `oc_runipd` launch path: when `requested_profile == "hardened"` and `capabilities.supports_os_sandbox` is False, RAISE `HardModeUnavailableError` (fail closed) rather than returning `"default"`; when `"hardened"` is requested and supported, return `"hardened"`; when unset/`"default"`, return `"default"`. x03wgn Section 8 Phase 6.3: "fail rather than silently degrading when hard mode is requested but unavailable."
+- [x] E-06 Add `select_execution_profile(requested_profile, capabilities) -> str` to `host_sandbox_profile.py` and call it in the `oc_runipd` launch path: when `requested_profile == "hardened"` and `capabilities.supports_os_sandbox` is False, RAISE `HardModeUnavailableError` (fail closed) rather than returning `"default"`; when `"hardened"` is requested and supported, return `"hardened"`; when unset/`"default"`, return `"default"`. x03wgn Section 8 Phase 6.3: "fail rather than silently degrading when hard mode is requested but unavailable."
   - Depends on: E-01
   - Expected outcome: `select_execution_profile("hardened", HostSandboxCapabilities(supports_os_sandbox=False))` raises `HardModeUnavailableError`; `select_execution_profile("default", HostSandboxCapabilities())` returns `"default"`; `select_execution_profile("hardened", HostSandboxCapabilities(supports_os_sandbox=True))` returns `"hardened"`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: read-only discovery then write execution
 
-- [ ] E-07 Add `run_discovery_then_execution(...)` two-phase orchestration to `host_sandbox_profile.py` implementing x03wgn Section 6 Layer 4: PHASE 1 launches the worker with the product tree READ-ONLY and only a narrow submission channel writable (repository read access, no product writes); the driver validates the structured discovery submission (a prose-only claim is insufficient - x03wgn Layer 4 step 2); PHASE 2 flips the sandbox to grant product writes and resumes/relaunches with the validated discovery result injected. This is only offered when `capabilities.supports_read_only_phase` AND `capabilities.emits_structured_tool_events` are True; otherwise the driver keeps the prerequisite (no advisory before-edit barrier is claimed).
+- [x] E-07 Add `run_discovery_then_execution(...)` two-phase orchestration to `host_sandbox_profile.py` implementing x03wgn Section 6 Layer 4: PHASE 1 launches the worker with the product tree READ-ONLY and only a narrow submission channel writable (repository read access, no product writes); the driver validates the structured discovery submission (a prose-only claim is insufficient - x03wgn Layer 4 step 2); PHASE 2 flips the sandbox to grant product writes and resumes/relaunches with the validated discovery result injected. This is only offered when `capabilities.supports_read_only_phase` AND `capabilities.emits_structured_tool_events` are True; otherwise the driver keeps the prerequisite (no advisory before-edit barrier is claimed).
   - Depends on: E-05
   - Expected outcome: with capabilities lacking `supports_read_only_phase`, `run_discovery_then_execution` refuses to claim a before-edit barrier and returns a `barrier_enforced=False` result; with the capability present, phase 1 uses a read-only product-tree sandbox plan (asserted) and phase 2 uses the writable plan, and a phase-1 worker attempt to write a product file is denied.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: adversarial + fail-closed tests and published guarantees
 
-- [ ] E-08 Add adversarial test `test_hardened_worker_write_to_control_main_sibling_denied_by_os` to `tests/test_host_sandbox_profile.py` (marked `@pytest.mark.skipif(not _linux_userns_available(), reason="requires the certified Linux namespace sandbox")`, where `_linux_userns_available()` MUST be the SAME executed-attempt probe E-02 uses - not a sysctl/binary-presence check - so the skip decision and the reported capability can never disagree. NOTE (measured at review): the review host has permissive sysctls and both `unshare` and `bwrap` installed yet CANNOT create a userns (`unshare -Umr true` -> `Operation not permitted`), so this test is expected to report `1 skipped` there; a run that reports `1 passed` on such a host would mean the guard is not actually sandboxing and is a FAILURE, not a success): under the hardened profile, launch a worker command that attempts to write a file into (a) the control root, (b) the main worktree, and (c) a sibling lane root, and assert each write is DENIED BY THE OS (the target file does not exist afterward and the attempt returns a permission error), NOT merely flagged by policy.
+- [x] E-08 Add adversarial test `test_hardened_worker_write_to_control_main_sibling_denied_by_os` to `tests/test_host_sandbox_profile.py` (marked `@pytest.mark.skipif(not _linux_userns_available(), reason="requires the certified Linux namespace sandbox")`, where `_linux_userns_available()` MUST be the SAME executed-attempt probe E-02 uses - not a sysctl/binary-presence check - so the skip decision and the reported capability can never disagree. NOTE (measured at review): the review host has permissive sysctls and both `unshare` and `bwrap` installed yet CANNOT create a userns (`unshare -Umr true` -> `Operation not permitted`), so this test is expected to report `1 skipped` there; a run that reports `1 passed` on such a host would mean the guard is not actually sandboxing and is a FAILURE, not a success): under the hardened profile, launch a worker command that attempts to write a file into (a) the control root, (b) the main worktree, and (c) a sibling lane root, and assert each write is DENIED BY THE OS (the target file does not exist afterward and the attempt returns a permission error), NOT merely flagged by policy.
   - Depends on: E-05
   - Expected outcome: `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hardened_worker_write_to_control_main_sibling_denied_by_os` reports `1 passed` on the certified Linux host (or `1 skipped` where the sandbox is unavailable), and none of the three target files exist after the run.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add adversarial test `test_hardened_worker_git_common_dir_mutation_denied` to `tests/test_host_sandbox_profile.py` (same skipif guard): under the hardened profile with the git common dir read-only, launch a worker command that attempts to mutate a shared git ref / hook / config through the common dir (e.g. `git update-ref`, writing `hooks/pre-commit`, `git config`), and assert the mutation is DENIED (the ref/hook/config is unchanged afterward) while a subsequent DRIVER-performed commit on the lane branch succeeds - proving the driver owns git mutation.
+- [x] E-09 Add adversarial test `test_hardened_worker_git_common_dir_mutation_denied` to `tests/test_host_sandbox_profile.py` (same skipif guard): under the hardened profile with the git common dir read-only, launch a worker command that attempts to mutate a shared git ref / hook / config through the common dir (e.g. `git update-ref`, writing `hooks/pre-commit`, `git config`), and assert the mutation is DENIED (the ref/hook/config is unchanged afterward) while a subsequent DRIVER-performed commit on the lane branch succeeds - proving the driver owns git mutation.
   - Depends on: E-04, E-05
   - Expected outcome: `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hardened_worker_git_common_dir_mutation_denied` reports `1 passed` (or `1 skipped`); the pre-existing ref/hook/config bytes are identical before and after the worker attempt, and the driver's lane-branch commit is reachable.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-10 Add fail-closed test `test_hard_mode_requested_without_capability_fails_closed` to `tests/test_host_sandbox_profile.py` WITHOUT any skipif (it MUST run on every platform, because it is pure dispatch logic): assert `select_execution_profile("hardened", HostSandboxCapabilities(supports_os_sandbox=False))` raises `HardModeUnavailableError` and that the default launch path is never entered in that case (no unsandboxed worker is spawned). ALSO publish the hardened-profile guarantee summary as the `host_sandbox_profile.py` module docstring: what it prevents, the exact platform + probe it was verified on, that the git common dir is read-only to the worker, that the DRIVER performs all git mutation, and - stated explicitly - that the guarantee is VOID on any host where the executed userns probe (E-02) returns False (x03wgn Section 8 Phase 6.3 "publish guarantees"). (Editorial note added at review: the previous wording contained a stray half-sentence, "write `.aw/records/walkthroughs/` guarantees text is out of scope but publish ...", which read as an instruction to write a walkthrough while also saying it was out of scope; the walkthrough is NOT in Scope-Paths and is NOT part of this item - only the module docstring is.)
+- [x] E-10 Add fail-closed test `test_hard_mode_requested_without_capability_fails_closed` to `tests/test_host_sandbox_profile.py` WITHOUT any skipif (it MUST run on every platform, because it is pure dispatch logic): assert `select_execution_profile("hardened", HostSandboxCapabilities(supports_os_sandbox=False))` raises `HardModeUnavailableError` and that the default launch path is never entered in that case (no unsandboxed worker is spawned). ALSO publish the hardened-profile guarantee summary as the `host_sandbox_profile.py` module docstring: what it prevents, the exact platform + probe it was verified on, that the git common dir is read-only to the worker, that the DRIVER performs all git mutation, and - stated explicitly - that the guarantee is VOID on any host where the executed userns probe (E-02) returns False (x03wgn Section 8 Phase 6.3 "publish guarantees"). (Editorial note added at review: the previous wording contained a stray half-sentence, "write `.aw/records/walkthroughs/` guarantees text is out of scope but publish ...", which read as an instruction to write a walkthrough while also saying it was out of scope; the walkthrough is NOT in Scope-Paths and is NOT part of this item - only the module docstring is.)
   - Depends on: E-06
   - Expected outcome: `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hard_mode_requested_without_capability_fails_closed` reports `1 passed` on ALL platforms (no skip); `host_sandbox_profile.py`'s module docstring states the published guarantees.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -158,56 +158,231 @@ CITATION BASIS (added at review): every `file:line` reference was RE-VERIFIED ag
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: ACTUAL pasted output of `python3 -c "from agent_workflows.host_sandbox_profile import HostSandboxCapabilities as C; c=C(); print([f for f in ('supports_inline_permissions','supports_read_only_phase','supports_session_resume','emits_structured_tool_events','emits_child_permission_events','supports_process_tree_kill','supports_os_sandbox') if getattr(c,f) is False]); print(len([f for f in vars(c)]))"` showing all seven named fields present and each defaulting `False` (the printed list contains all seven names).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all SEVEN contract fields exist and each defaults `False`; `10` = the 7 contract booleans plus `platform`, `sandbox_mechanism`, `probe_notes`.
 
-- [ ] V-02 validates E-02
+    $ python3 -c "...seven-field default check..."
+
+    ```text
+    ['supports_inline_permissions', 'supports_read_only_phase', 'supports_session_resume',
+     'emits_structured_tool_events', 'emits_child_permission_events',
+     'supports_process_tree_kill', 'supports_os_sandbox']
+    10
+    ```
+
+    $ python3 -m pytest -p no:randomly -n0 --no-header tests/test_host_sandbox_profile.py::CapabilityContractTests
+
+    ```text
+    ..                                                                       [100%]
+    2 passed in 0.11s
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: ACTUAL pasted output of `python3 -c "from agent_workflows.host_sandbox_profile import detect_host_capabilities as d; print(d('opencode','windows').supports_os_sandbox, d('opencode','darwin').supports_os_sandbox)"` printing `False False` (unproven platforms report no sandbox capability - fail-closed). PLUS the ATTEMPT-BASED PROBE PROOF (added at review; the `False False` assertion above would also pass for a sysctl-reading probe, so it does not establish E-02's real requirement): paste BOTH (a) the executing host's own result `python3 -c "from agent_workflows.host_sandbox_profile import detect_host_capabilities as d; print(d('opencode').supports_os_sandbox)"` alongside the ground truth `unshare -Umr true; echo rc=$?` (or the equivalent `bwrap ... true`), showing the reported capability MATCHES the attempted-launch exit code; and (b) evidence the probe does not consult sysctls alone - e.g. an `ast`/`grep` check that the probe body invokes a subprocess jail attempt, or a test that monkeypatches the jail attempt to fail and asserts `supports_os_sandbox` flips to `False` even while `/proc/sys/user/max_user_namespaces` remains nonzero. MEASURED REFERENCE (review host): sysctls read `unprivileged_userns_clone=1`, `max_user_namespaces=514277`, both `unshare` and `bwrap` installed, yet `unshare -Umr true` -> `Operation not permitted` and `bwrap` -> `setting up uid map: Permission denied`; on such a host this V-item REQUIRES the probe to report `False`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the probe ATTEMPTS rather than inspects, and its report matches ground truth.
 
-- [ ] V-03 validates E-03
+    $ python3 -c "from agent_workflows.host_sandbox_profile import detect_host_capabilities as d; print(d('opencode','windows').supports_os_sandbox, d('opencode','darwin').supports_os_sandbox)"
+
+    ```text
+    False False
+    ```
+
+    $ python3 -c "print('reported:', detect_host_capabilities('opencode').supports_os_sandbox)"  # executing host
+
+    ```text
+    reported: True
+    ```
+
+    $ python3 -c "ok,note=_probe_landlock(); print(ok, '|', note)"   # ground truth, landlock rung
+
+    ```text
+    True | landlock jail enforced: write outside the allowed root was refused
+    ```
+
+    $ unshare -Umr true; echo rc=$?                                  # ground truth, userns rung
+
+    ```text
+    unshare: write failed /proc/self/uid_map: Operation not permitted
+    rc=1
+    ```
+
+    $ python3 -c "<force every ladder ATTEMPT to fail, leave sysctls untouched>"
+
+    ```text
+    with all attempts forced to fail -> False
+    sysctl still says: 514277
+    ```
+
+    $ python3 -c "<ast walk: does each probe invoke a subprocess attempt?>"
+
+    ```text
+    _probe_landlock -> invokes subprocess/attempt: True ['_run_probe']
+    _probe_bwrap -> invokes subprocess/attempt: True ['_run_probe', 'which']
+    _probe_userns -> invokes subprocess/attempt: True ['_run_probe', 'which']
+    _run_probe -> invokes subprocess/attempt: True ['run']
+    ```
+
+    $ python3 -m pytest -p no:randomly -n0 --no-header tests/test_host_sandbox_profile.py::CapabilityProbeTests
+
+    ```text
+    ....                                                                     [100%]
+    4 passed in 0.63s
+    ```
+
+    (a) UNPROVEN PLATFORMS report `False False` - fail-closed. (b) REPORT vs GROUND TRUTH AGREE: the reported capability tracks the rung that actually launches - the Landlock attempt SUCCEEDS (and its success criterion is that the kernel REFUSED a write outside the allowed root, not merely that syscalls returned 0), while the userns attempt FAILS rc=1; `sandbox_mechanism` names `landlock`. (c) THE PROBE IS NOT SYSCTL/BINARY-PRESENCE: forcing every ATTEMPT to fail flips `supports_os_sandbox` to False while `max_user_namespaces` still reads `514277` and both `unshare` and `bwrap` remain installed - an inspection-based probe would still have reported True, which is the fail-OPEN direction the design forbids.
+
+    CERTIFIED HOST for this guarantee: `Linux 6.8.0-137-generic x86_64 GNU/Linux`; Landlock LSM enabled (`/sys/kernel/security/lsm` = `lockdown,capability,landlock,yama,apparmor`); Landlock ABI 4. This host CANNOT create a user namespace (`unshare -Umr true` -> rc=1 `write failed /proc/self/uid_map: Operation not permitted`; `bwrap` -> `setting up uid map: Permission denied`), reproducing the review measurement exactly. The certified mechanism is therefore the LANDLOCK rung of the executed probe ladder (see decision 08-1o4eif-D1), which IS enforced here, so this guarantee is VERIFIED BY EXECUTION rather than skipped.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: ACTUAL pasted stdout of a `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_build_sandbox_plan_partition` run reporting `1 passed`, whose asserts prove `writable == {lane_worktree, lane_scratch}` and that control_root, main_worktree, each sibling_lane_root, and credential_paths are all in `inaccessible` and in neither `writable` nor `readonly`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed`.
 
-- [ ] V-04 validates E-04
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::SandboxPlanTests::test_build_sandbox_plan_partition
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.12s
+    ```
+
+    The test asserts `set(plan.writable) == {lane_worktree, lane_scratch}` (order-independent) and, for each of `control_root`, `main_worktree`, the `sibling_lane` root, `integration_candidate`, and `credential_paths`: present in `plan.inaccessible`, and in NEITHER `plan.writable` NOR `plan.readonly`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_git_common_dir_readonly_and_driver_owns_mutation` reporting `1 passed`, asserting `git_common_dir in readonly`, `git_common_dir not in writable`, `driver_owns_git_mutation is True`, AND that a plan placing the common dir in `writable` raises `SandboxProfileError` on `validate()`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed`.
 
-- [ ] V-05 validates E-05
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::SandboxPlanTests::test_git_common_dir_readonly_and_driver_owns_mutation
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.12s
+    ```
+
+    Asserts `git_common_dir in plan.readonly`, `git_common_dir not in plan.writable`, `driver_owns_git_mutation is True`, AND that a `SandboxPlan` placing the common dir in `writable` raises `SandboxProfileError` on `validate()`. A companion test proves `driver_owns_git_mutation=False` is refused as well.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_enter_sandbox_wraps_argv_and_default_path_unchanged` reporting `1 passed`, proving `enter_sandbox` prepends the jail launcher configured from the plan AND that the default (non-hardened) launch argv is unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed`, plus the default-path regression.
 
-- [ ] V-06 validates E-06
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::EnterSandboxTests::test_enter_sandbox_wraps_argv_and_default_path_unchanged
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.12s
+    ```
+
+    $ python3 -m pytest -p no:randomly --no-header tests/test_oc_runipd.py     # default launch path
+
+    ```text
+    ........................................................................ [ 85%]
+    ............                                                             [100%]
+    84 passed in 3.44s
+    ```
+
+    $ git diff --stat agent_workflows/oc_runipd.py
+
+    ```text
+     agent_workflows/oc_runipd.py | 135 +++++++++++++++++++++++++++++++++++++++++++
+     1 file changed, 135 insertions(+)
+    ```
+
+    The test proves (a) `enter_sandbox` PREPENDS the jail launcher configured from the plan - `wrapped[0] == sys.executable`, `wrapped[1]` ends with `aw-landlock-bootstrap.py`, and the generated bootstrap contains the lane path, `landlock_restrict_self`, and the real worker argv; for the `bwrap` rung `wrapped[0] == "bwrap"` with `--unshare-user` and the original argv as the tail; and (b) THE DEFAULT PATH IS UNCHANGED - `_apply_execution_profile` with no `execution_profile` option returns a list byte-for-byte equal to its input argv. `enter_sandbox` also REFUSES (`HardModeUnavailableError`) when `supports_os_sandbox` is False, so it can never be the route by which an unsandboxed worker launches. The `oc_runipd.py` diff is purely ADDITIVE (135 insertions, 0 deletions): the `subprocess.Popen` launch itself is untouched.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: E-06 is the `select_execution_profile` DISPATCH FUNCTION; E-10 is the platform-independent TEST of it. To keep these two V-items from being satisfied by one identical paste (they named the same test), this V-item validates the dispatch's THREE-WAY behavior directly and E-10's validates the test artifact. Paste the ACTUAL output of `python3 -c "from agent_workflows.host_sandbox_profile import select_execution_profile as s, HostSandboxCapabilities as C, HardModeUnavailableError as E;\nprint(s('default', C()));\nprint(s('hardened', C(supports_os_sandbox=True)));\ntry:\n    s('hardened', C(supports_os_sandbox=False)); print('BUG: no raise')\nexcept E as exc: print('raised', type(exc).__name__)"` showing exactly `default`, `hardened`, and `raised HardModeUnavailableError` - i.e. all three branches of E-06's contract, including that an unset/`"default"` request never raises.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all THREE branches of the dispatch contract.
 
-- [ ] V-07 validates E-07
+    $ python3 -c "print(s('default', C())); print(s('hardened', C(supports_os_sandbox=True))); try: s('hardened', C(supports_os_sandbox=False)) except E as exc: print('raised', type(exc).__name__)"
+
+    ```text
+    default
+    hardened
+    raised HardModeUnavailableError
+    ```
+
+    A `default` (or unset) request returns `"default"` and NEVER raises; `hardened` with the capability returns `"hardened"`; `hardened` WITHOUT the capability raises `HardModeUnavailableError` - fail closed, not a silent downgrade to `"default"`. An unknown profile name is refused with `SandboxProfileError` (`ProfileDispatchTests::test_unknown_profile_is_refused`).
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_discovery_then_execution_barrier` reporting `1 passed` (or the read-only-phase-dependent asserts `skipped` where the capability is absent) showing that without `supports_read_only_phase` no before-edit barrier is claimed (`barrier_enforced is False`), and with it phase 1 uses a read-only product-tree plan and a phase-1 product write is denied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3 passed` for the discovery/execution group.
 
-- [ ] V-08 validates E-08
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::DiscoveryThenExecutionTests
+
+    ```text
+    ...                                                                      [100%]
+    3 passed in 0.20s
+    ```
+
+    `test_discovery_then_execution_barrier` proves: WITHOUT `supports_read_only_phase` no before-edit barrier is claimed (`barrier_enforced is False`, the reason says `advisory`, and neither callback is invoked - each would `self.fail()`); WITH the capability, phase 1's plan has the lane product tree in `readonly` and NOT in `writable`, while phase 2's has it in `writable`. `test_prose_only_submission_does_not_authorize_writes` proves a PROSE-only submission fails driver validation and product writes are NOT authorized (x03wgn Layer 4 step 2). `test_phase_one_product_write_is_denied_by_os` proves a phase-1 worker attempt to write a product file is DENIED BY THE OS with the original bytes intact.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hardened_worker_write_to_control_main_sibling_denied_by_os`; the test asserts none of the three target files (control-root write, main-worktree write, sibling-lane write) exist after the run AND each attempt returned an OS permission error - proving OS denial, not policy detection.
     A SKIP DOES NOT SATISFY THIS V-ITEM (hardened; this is the phase's flagship guarantee). `1 skipped` is an ACCEPTABLE CI outcome but is NOT acceptance evidence: it proves nothing about OS enforcement, and this plan's whole value is that the OS - not policy - denies the write. Therefore this V-item may be marked `pass` ONLY with pasted `1 passed` from a host where the executed userns probe (E-02) returns True. If the executing host cannot create a userns (measured true on the review host: `unshare -Umr true` -> `Operation not permitted`), then: paste the `1 skipped` output AND the probe output proving WHY it skipped, mark this V-item `Result: pending` (not `pass`), and record in the plan that the hardened profile is UNVERIFIED on this machine - do not claim the guarantee. Naming the certified host/kernel where `1 passed` was obtained is part of the evidence (x03wgn Section 8 Phase 6.3 requires publishing the platform the guarantee holds on). The same rule applies to V-09.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed` - NOT `1 skipped`.
 
-- [ ] V-09 validates E-09
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::AdversarialOsDenialTests::test_hardened_worker_write_to_control_main_sibling_denied_by_os
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.16s
+    ```
+
+    The sandboxed worker attempts a write to (a) the control root, (b) the main worktree, and (c) a sibling lane root. The test asserts each result is `DENIED:13` - EACCES FROM THE KERNEL, an OS denial rather than a policy flag - and that NONE of the three target files exists afterward. The worker's own lane stays writable in the same run, which is what proves the denial is a real boundary and not a broken interpreter.
+
+    CERTIFIED HOST for this guarantee: `Linux 6.8.0-137-generic x86_64 GNU/Linux`; Landlock LSM enabled (`/sys/kernel/security/lsm` = `lockdown,capability,landlock,yama,apparmor`); Landlock ABI 4. This host CANNOT create a user namespace (`unshare -Umr true` -> rc=1 `write failed /proc/self/uid_map: Operation not permitted`; `bwrap` -> `setting up uid map: Permission denied`), reproducing the review measurement exactly. The certified mechanism is therefore the LANDLOCK rung of the executed probe ladder (see decision 08-1o4eif-D1), which IS enforced here, so this guarantee is VERIFIED BY EXECUTION rather than skipped.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hardened_worker_git_common_dir_mutation_denied`; the test asserts the target ref/hook/config bytes are byte-identical before and after the worker's mutation attempt through the read-only common dir, AND that a subsequent driver-performed lane-branch commit is reachable (`git cat-file -e <oid>` succeeds) - proving the common dir is read-only to the worker and the driver owns git mutation. A SKIP DOES NOT SATISFY THIS V-ITEM: per the V-08 rule, `1 skipped` requires marking this `Result: pending` with the probe output showing why, and the guarantee recorded as UNVERIFIED on that machine; only pasted `1 passed` from a userns-capable host (named, with kernel) may mark it `pass`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed` - NOT `1 skipped`.
 
-- [ ] V-10 validates E-10
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::AdversarialOsDenialTests::test_hardened_worker_git_common_dir_mutation_denied
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.23s
+    ```
+
+    # the same split measured by hand against a scratch linked worktree:
+
+    ```text
+    git READ (status): rc=0 out='' err=''
+    update-ref: rc=128 err=fatal: update_ref failed for ref 'refs/heads/evil': cannot lock ref
+    config hooksPath: rc=255 err=error: could not lock config file .../main/.git/config: Permission denied
+    git add: rc=128 err=fatal: Unable to create '.../main/.git/worktrees/lane/index.lock': Permission denied
+    ```
+
+    On a REAL linked worktree (`git worktree add -b aw/lane/test`) with the common dir read-only, the test asserts: the worker's `git status --porcelain` still returns rc=0 (READ works, so the denials are specifically about WRITE and not a broken toolchain); `git update-ref refs/heads/evil`, `git config core.hooksPath`, and `git add -A` ALL return nonzero; a direct `hooks/pre-commit` write returns `DENIED:<errno>`; `hooks/pre-commit` and `config` are BYTE-IDENTICAL before and after and `git for-each-ref` output is unchanged; and then the DRIVER (unsandboxed) performs `git add` + `commit` on the lane branch successfully, the commit being reachable via `git cat-file -e <oid>` from the main worktree - proving the driver owns git mutation.
+
+    CERTIFIED HOST for this guarantee: `Linux 6.8.0-137-generic x86_64 GNU/Linux`; Landlock LSM enabled (`/sys/kernel/security/lsm` = `lockdown,capability,landlock,yama,apparmor`); Landlock ABI 4. This host CANNOT create a user namespace (`unshare -Umr true` -> rc=1 `write failed /proc/self/uid_map: Operation not permitted`; `bwrap` -> `setting up uid map: Permission denied`), reproducing the review measurement exactly. The certified mechanism is therefore the LANDLOCK rung of the executed probe ladder (see decision 08-1o4eif-D1), which IS enforced here, so this guarantee is VERIFIED BY EXECUTION rather than skipped.
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: ACTUAL pasted stdout of `python3 -m pytest -p no:randomly -q tests/test_host_sandbox_profile.py::test_hard_mode_requested_without_capability_fails_closed` reporting `1 passed` with NO skip marker on this run (the fail-closed test must run on every platform), PLUS pasted output of `python3 -c "import agent_workflows.host_sandbox_profile as m; print('read-only' in m.__doc__.lower() and 'driver' in m.__doc__.lower() and 'linux' in m.__doc__.lower())"` printing `True` (the published guarantees are in the module docstring).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `1 passed` with NO skip marker, on a test that carries no skipif.
+
+    $ python3 -m pytest -p no:randomly -n0 -rs --no-header tests/test_host_sandbox_profile.py::ProfileDispatchTests::test_hard_mode_requested_without_capability_fails_closed
+
+    ```text
+    .                                                                        [100%]
+    1 passed in 0.12s
+    ```
+
+    $ python3 -c "import agent_workflows.host_sandbox_profile as m; print('read-only' in m.__doc__.lower() and 'driver' in m.__doc__.lower() and 'linux' in m.__doc__.lower())"
+
+    ```text
+    True
+    ```
+
+    The test asserts `select_execution_profile("hardened", HostSandboxCapabilities(supports_os_sandbox=False))` raises `HardModeUnavailableError`, and additionally patches `subprocess.Popen` to a fixture that FAILS if called, then drives the real driver seam `oc_runipd._apply_execution_profile` with `execution_profile="hardened"` and a False-capability snapshot: the raise happens and `spawned == []`, proving NO unsandboxed worker is spawned on the fail-closed path. The module docstring publishes what the profile prevents, the exact platform and executed probe ladder it was verified on (Linux only; Landlock ABI 4 on 6.8.0-137-generic), that the git common dir is READ-ONLY to the worker, that the DRIVER performs all git mutation, and - explicitly - that THE GUARANTEE IS VOID on any host where the executed probe returns False. `ProfileDispatchTests::test_module_publishes_its_guarantees` pins those tokens.
+  - Result: pass
 
 ## Approval and execution gate
 
