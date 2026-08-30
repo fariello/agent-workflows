@@ -3644,6 +3644,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md",
+    "plan_id": "uyd3lw",
+    "set_id": "testinvoke",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md",
     "plan_id": "g40w37",
     "set_id": "ttywedge",
@@ -4048,16 +4058,6 @@
     "plan_id": "ntf6sx",
     "set_id": "terseout",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md",
-    "plan_id": "uyd3lw",
-    "set_id": "testinvoke",
-    "status": "approved"
   },
   {
     "date": "2026-08-29",
