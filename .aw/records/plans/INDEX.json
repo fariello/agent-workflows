@@ -3624,6 +3624,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md",
+    "plan_id": "8h9lap",
+    "set_id": "reposcfg",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
     "set_id": "runstale",
@@ -3877,16 +3887,6 @@
     "path": "pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md",
     "plan_id": "jxqdcw",
     "set_id": "promptmint",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md",
-    "plan_id": "8h9lap",
-    "set_id": "reposcfg",
     "status": "approved"
   },
   {

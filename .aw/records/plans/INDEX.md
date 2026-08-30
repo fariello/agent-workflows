@@ -75,7 +75,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## reposcfg
 
-- `8h9lap` [pending] 01 pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md
+- `8h9lap` [executed] 01 executed/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md
 
 ## revgate
 
