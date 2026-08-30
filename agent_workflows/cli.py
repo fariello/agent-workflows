@@ -3138,6 +3138,107 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
+    # IPD w0ln4q: the releases owner verb, bringing `.aw/records/releases/` to parity with the other
+    # record classes. Subcommands are DELIBERATELY list/show/new only - there is no `releases check`,
+    # because `aw check releases` is the canonical validator (check_engine -> validate_release) and a
+    # second entry point could drift from it.
+    p_releases = sub.add_parser(
+        "releases",
+        aliases=["release"],
+        parents=[common],
+        help="Owner verbs for release records (ship-gate anchors). 'list' shows every release; 'show' details one plus its blockers; 'new' scaffolds one.",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw releases                  # list every release record (default)\n"
+            "  aw releases show next        # the planned release + everything gating it\n"
+            '  aw releases new --version 2.1.0 --summary "why" --apply\n'
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  'new' is dry-run by default; pass --apply to write.\n"
+            "  Bare 'aw releases' lists; 'show' defaults to the 'next' (single planned) release.\n"
+            "  Validation lives in 'aw check releases' - there is no 'releases check'.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 2 cannot-run/usage error (e.g. an unresolvable selector).\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+        description=(
+            "Owner verbs for the release records in .aw/records/releases/ (the ship-gate anchors that "
+            "'Blocks-Release: <id6|next>' resolves against): 'list' tabulates every release record, "
+            "'show' details one release plus the LIVE items gating it (the same blocker set 'aw "
+            "attention' reports), and 'new' scaffolds a conformant record (preview by default). "
+            "Validate release records with 'aw check releases'."
+        ),
+    )
+    # Unlike the other record families (whose bare form prints help), a bare `aw releases` IS a real
+    # leaf that lists, so `--dir` must be accepted BEFORE the subcommand too. The subparsers therefore
+    # default their own `--dir` to argparse.SUPPRESS: absent means "leave the parent's value alone",
+    # so `aw releases --dir X` and `aw releases list --dir X` both resolve the same repo root.
+    p_releases.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    releases_sub = p_releases.add_subparsers(dest="releases_command")
+    p_releases_list = releases_sub.add_parser(
+        "list",
+        parents=[common],
+        description="List every release record (id6, status, version, summary). Read-only.",
+        help="List every release record (the default for a bare 'aw releases').",
+    )
+    p_releases_list.add_argument(
+        "--dir",
+        default=argparse.SUPPRESS,
+        help="Repo root (default: current directory).",
+    )
+    p_releases_show = releases_sub.add_parser(
+        "show",
+        parents=[common],
+        description=(
+            "Show one release record in full plus every LIVE item declaring it a blocker. The "
+            "selector accepts a release id6, a version string, a filename, or 'next' (the single "
+            "planned release); it defaults to 'next'. Read-only."
+        ),
+        help="Show one release + its release-blockers (selector defaults to 'next').",
+    )
+    p_releases_show.add_argument(
+        "selector",
+        nargs="?",
+        default=None,
+        help="Release id6, version, filename, or 'next' (default: next).",
+    )
+    p_releases_show.add_argument(
+        "--dir",
+        default=argparse.SUPPRESS,
+        help="Repo root (default: current directory).",
+    )
+    p_releases_new = releases_sub.add_parser(
+        "new",
+        parents=[common],
+        description="Create a conformant release record (dry-run by default; --apply to write).",
+        help="Create a release record (dry-run by default; --apply to write).",
+    )
+    p_releases_new.add_argument(
+        "--dir",
+        default=argparse.SUPPRESS,
+        help="Repo root (default: current directory).",
+    )
+    p_releases_new.add_argument(
+        "--version", default=None, help="Release version, e.g. 2.1.0 (required)."
+    )
+    p_releases_new.add_argument(
+        "--summary",
+        default=None,
+        help="One-line summary of what this release is for (required).",
+    )
+    p_releases_new.add_argument(
+        "--status",
+        default="planned",
+        help="planned | blocked | shipped (default: planned).",
+    )
+    p_releases_new.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+
     p_specs = sub.add_parser(
         "specs",
         aliases=["spec"],
@@ -9150,6 +9251,19 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if backlog_cmd == "check":
             return backlog_mod.run_check(args)
         return _show_family_help(parser, "backlog", "aw backlog check", term, context)
+    if args.command in ("releases", "release"):
+        from agent_workflows import releases as releases_mod
+
+        releases_cmd = getattr(args, "releases_command", None) or getattr(
+            args, "release_command", None
+        )
+        if releases_cmd == "show":
+            return releases_mod.run_show(args)
+        if releases_cmd == "new":
+            return releases_mod.run_new(args)
+        # Bare `aw releases` (and explicit `list`) both list: OQ-01 resolved to list, matching
+        # `aw backlog`-family conventions, so the family help is NOT shown for a bare invocation.
+        return releases_mod.run_list(args)
     if args.command in ("specs", "spec"):
         specs_cmd = getattr(args, "specs_command", None) or getattr(
             args, "spec_command", None

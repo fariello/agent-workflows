@@ -19,7 +19,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
-- `w0ln4q` [pending] 01 pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
+- `w0ln4q` [executed] 01 executed/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
 
 ## bkclose
 

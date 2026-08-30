@@ -460,6 +460,35 @@ def run_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
     return out
 
 
+def release_selector_candidates(repo_root: Optional[Path] = None) -> List[str]:
+    """Selectors accepted by ``aw releases show``: every release ``id6``, every ``Version`` string,
+    and the ``next`` sentinel (IPD w0ln4q E-04).
+
+    Sourced from ``releases.list_releases`` (the SAME reader the verb itself uses), not a second
+    filesystem walk, so completion can never offer a token the verb would reject. The releases tree is
+    tiny (one record per release), so it is scanned unscoped without threatening the latency budget."""
+    from agent_workflows import releases as _releases
+
+    root = _repo_root(repo_root)
+    out: List[str] = []
+    try:
+        records = _releases.list_releases(root)
+    except Exception:
+        return out
+    for rec in records:
+        if rec.id6:
+            out.append(rec.id6)
+        if rec.version:
+            out.append(rec.version)
+    # `next` is only a real selector when exactly one release is planned (the resolver's own rule).
+    try:
+        if _releases.resolve_release(root, "next") is not None:
+            out.append("next")
+    except Exception:
+        pass
+    return out
+
+
 def entity_id6_candidates(
     record_type: str, repo_root: Optional[Path] = None
 ) -> List[str]:
@@ -625,6 +654,20 @@ def complete_query(
     if entity_rt is not None and cword >= 3:
         try:
             return _prefix_filter(entity_id6_candidates(entity_rt, repo_root), prefix)
+        except Exception:
+            return []
+
+    # 2b. `aw releases show <selector>` / `aw release show <selector>` -> release id6s + versions +
+    #     `next` (IPD w0ln4q E-04). A pure dynamic answer for the same reason as steps 1-2: no
+    #     subcommand name is valid in the selector slot.
+    if (
+        cword >= 3
+        and len(words) > 2
+        and words[1] in ("releases", "release")
+        and words[2] == "show"
+    ):
+        try:
+            return _prefix_filter(release_selector_candidates(repo_root), prefix)
         except Exception:
             return []
 

@@ -255,6 +255,13 @@ class _DynamicRepoFixture(unittest.TestCase):
             rec / "backlog" / "open" / "20260828-def456-01-def456-a-task.md",
             "# Task\n\n- Id: def456\n- Status: open\n- Summary: x\n",
         )
+        # A single PLANNED release record with a KNOWN id6 + version, so `aw releases show`
+        # completion (IPD w0ln4q E-04) resolves stably and `next` is offered.
+        _write(
+            rec / "releases" / "20260828-rel111-01-rel111-7-0-0.release.md",
+            "# Release: 7.0.0\n\n- Id: rel111\n- Status: planned\n- Version: 7.0.0\n"
+            "- Summary: the completable one\n",
+        )
         # A run directory.
         (rec / "runs" / "run-20260829T000000Z-1").mkdir(parents=True)
 
@@ -302,6 +309,23 @@ class CompleteQueryArtifactTests(_DynamicRepoFixture):
     def test_run_id_from_runs_dir(self) -> None:
         got = completion.complete_query(["aw", "runs", "run-"], 2, self.root)
         self.assertIn("run-20260829T000000Z-1", got)
+
+    def test_release_selector_id6_version_and_next(self) -> None:
+        # IPD w0ln4q E-04: `aw releases show <selector>` completes DYNAMICALLY from the release
+        # records on disk (id6 + Version) plus the `next` sentinel. Asserted here (not only in
+        # tests/test_releases_cli.py) so a future refactor of this query engine cannot silently
+        # drop the release branch.
+        got = completion.complete_query(["aw", "releases", "show", ""], 3, self.root)
+        self.assertIn("rel111", got)
+        self.assertIn("7.0.0", got)
+        self.assertIn("next", got)
+        # the `release` argparse alias resolves identically
+        alias = completion.complete_query(["aw", "release", "show", ""], 3, self.root)
+        self.assertEqual(sorted(alias), sorted(got))
+
+    def test_release_selector_prefix_filters(self) -> None:
+        got = completion.complete_query(["aw", "releases", "show", "rel"], 3, self.root)
+        self.assertEqual(got, ["rel111"])
 
 
 class CompleteQueryStatusTests(_DynamicRepoFixture):
