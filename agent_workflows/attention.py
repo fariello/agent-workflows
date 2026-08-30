@@ -582,14 +582,21 @@ def setup_needed(repo_root: Path) -> bool:
 
 
 def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
-    """awdoctor Order 02: items carrying a `- Blocks-Release: next|<id6>` field that are NOT done.
-    Reads the field from each item's file (the awrelease Set defines it). Returns the blocking items."""
+    """awdoctor Order 02: items carrying a `- Blocks-Release: next|<id6>` field that are still LIVE.
+    Reads the field from each item's file (the awrelease Set defines it). Returns the blocking items.
+
+    Both TERMINAL classes are excluded, not just ``DONE``. A retired artifact keeps its
+    ``Blocks-Release`` field on purpose, because the field records what the artifact was FOR and
+    erasing it would falsify the record; but a superseded plan or a parked backlog item cannot gate a
+    release, since nobody is going to do it. Skipping only ``DONE`` counted a plan retired to
+    ``superseded/`` as an outstanding blocker, which is how a split plan kept appearing in the
+    release-blocker list after its replacements were filed."""
     import re as _re
 
     rx = _re.compile(r"(?m)^- Blocks-Release:\s*(\S+)\s*$")
     out: List[Item] = []
     for it in items:
-        if it.attention_class == A.DONE:
+        if it.attention_class in (A.DONE, A.PARKED):
             continue
         for base in (repo_root / it.path, repo_root / ".aw" / "records" / it.path):
             try:

@@ -145,5 +145,57 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
         self.assertIn("[blocking]", out)
 
 
+class RetiredPlanIsNotAReleaseBlockerTests(unittest.TestCase):
+    """A RETIRED artifact keeps its `Blocks-Release` field on purpose (the field records what the
+    artifact was for, and erasing it would falsify the record), but it must NOT be counted as an
+    outstanding release blocker: nobody is going to do it. `release_blockers` previously skipped only
+    the DONE class, so a plan retired to `superseded/` kept appearing in the release-blocker list."""
+
+    def _mk_plan(self, root, disposition, status):
+        import pathlib
+
+        pdir = pathlib.Path(root) / ".aw" / "records" / "plans" / disposition
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / "20260101-demo-01-pl0002-x.ipd.md").write_text(
+            "# IPD: pl0002\n\n- Date: 2026-08-22\n- Kind: child\n"
+            f"- Status: {status}\n"
+            "- Set: demo\n- Order: 1\n- Id: pl0002\n- Blocks-Release: next\n\n"
+            "## Workflow history\n- 2026-08-22 draft (t): x.\n\n## Goal\nx\n",
+            encoding="utf-8",
+        )
+
+    def _blockers(self, disposition, status):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            self._mk_plan(root, disposition, status)
+            items, _drift = attention.scan(root)
+            return (
+                [it.id for it in attention.release_blockers(items, root)],
+                [it.attention_class for it in items if it.tree == "plans"],
+            )
+
+    def test_superseded_plan_is_not_an_outstanding_release_blocker(self):
+        # The regression: a split/retired plan keeps Blocks-Release but cannot gate a release.
+        blockers, classes = self._blockers("superseded", "superseded")
+        self.assertEqual(classes, ["parked"], "superseded must map to the parked class")
+        self.assertNotIn(
+            "pl0002",
+            blockers,
+            "a superseded plan must NOT be counted as an outstanding release blocker",
+        )
+
+    def test_pending_plan_is_still_an_outstanding_release_blocker(self):
+        # The guard against over-filtering: a live plan must still be counted.
+        blockers, _classes = self._blockers("pending", "approved")
+        self.assertIn(
+            "pl0002",
+            blockers,
+            "a live pending plan carrying Blocks-Release must still be counted",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
