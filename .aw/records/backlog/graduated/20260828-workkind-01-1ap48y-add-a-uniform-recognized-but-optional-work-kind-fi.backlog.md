@@ -1,5 +1,5 @@
 - Id: 1ap48y
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: workkind
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Add a uniform recognized-but-optional Work-Kind field (bug/feature/chore/... work-nature) to IPDs and specs, distinct from the structural Kind (orchestrator/child) and artifact type; enables cross-tree filtering of work by nature across backlog/plans/specs
 
 ## Workflow history
+- 2026-08-30 graduated (aw set): design handed off to plan a6cej0 (workkind-01, to-review, carries From-Backlog: 1ap48y and Blocks-Release: next); gate preserved via handoff. All four 'resolve at plan time' design considerations resolved from repo evidence: (1) ONE shared backlog.KINDS vocab, per-type set rejected as the fork mechanism that actually causes drift here; (2) STORE not derive, since a derived value is undefined for artifacts without From-Backlog and would change silently when the source item is edited; (3) backlog Kind rename DEFERRED with the naming asymmetry recorded openly; (4) optional mechanics fully specified by the Priority precedent. The named precedent (xprio) turned out to be ALREADY EXECUTED, giving a proven four-plan template. Corrects the item's stated benefit: nothing consumes a work-nature field today (not even backlog's own Kind), so this delivers a recorded+validated field, NOT cross-tree filtering.
 - 2026-08-28 open (aw set): status set to open
 - 2026-08-28 created (aw backlog): Add a uniform recognized-but-optional Work-Kind field (bug/feature/chore/... work-nature) to IPDs and specs, distinct from the structural Kind (orchestrator/child) and artifact type; enables cross-tree filtering of work by nature across backlog/plans/specs
 
