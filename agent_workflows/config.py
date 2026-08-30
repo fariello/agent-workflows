@@ -152,6 +152,272 @@ def parse_set_args(tokens: Sequence[str]) -> Tuple[str, str]:
     return varname, val_str
 
 
+def parse_add_args(tokens: Sequence[str]) -> Tuple[str, str]:
+    """Parse 'add <value> to <varname>', 'add <value> <varname>', or 'add <varname> <value>'."""
+    if not tokens:
+        raise ConfigError(
+            "Missing value and variable name. Usage: aw config add <value> to <varname>"
+        )
+    toks = [str(x) for x in tokens]
+    to_indices = [i for i, t in enumerate(toks) if t.lower() == "to"]
+    if to_indices:
+        idx = to_indices[-1]
+        val_parts = toks[:idx]
+        var_parts = toks[idx + 1 :]
+        if not val_parts:
+            raise ConfigError(
+                "Missing value before 'to'. Usage: aw config add <value> to <varname>"
+            )
+        if not var_parts:
+            raise ConfigError(
+                "Missing variable name after 'to'. Usage: aw config add <value> to <varname>"
+            )
+        return " ".join(val_parts).strip(), " ".join(var_parts).strip()
+
+    if len(toks) == 1:
+        raise ConfigError(
+            "Missing variable name. Usage: aw config add <value> to <varname>"
+        )
+
+    first = toks[0].strip().lower()
+    last = toks[-1].strip().lower()
+    if last in CONFIG_SCHEMA:
+        return " ".join(toks[:-1]).strip(), toks[-1].strip()
+    if first in CONFIG_SCHEMA:
+        return " ".join(toks[1:]).strip(), toks[0].strip()
+
+    return " ".join(toks[:-1]).strip(), toks[-1].strip()
+
+
+def parse_remove_args(tokens: Sequence[str]) -> Tuple[str, str]:
+    """Parse 'remove <value> from <varname>', 'remove <value> <varname>', or 'remove <varname> <value>'."""
+    if not tokens:
+        raise ConfigError(
+            "Missing value and variable name. Usage: aw config remove <value> from <varname>"
+        )
+    toks = [str(x) for x in tokens]
+    from_indices = [i for i, t in enumerate(toks) if t.lower() == "from"]
+    if from_indices:
+        idx = from_indices[-1]
+        val_parts = toks[:idx]
+        var_parts = toks[idx + 1 :]
+        if not val_parts:
+            raise ConfigError(
+                "Missing value before 'from'. Usage: aw config remove <value> from <varname>"
+            )
+        if not var_parts:
+            raise ConfigError(
+                "Missing variable name after 'from'. Usage: aw config remove <value> from <varname>"
+            )
+        return " ".join(val_parts).strip(), " ".join(var_parts).strip()
+
+    if len(toks) == 1:
+        raise ConfigError(
+            "Missing variable name. Usage: aw config remove <value> from <varname>"
+        )
+
+    first = toks[0].strip().lower()
+    last = toks[-1].strip().lower()
+    if last in CONFIG_SCHEMA:
+        return " ".join(toks[:-1]).strip(), toks[-1].strip()
+    if first in CONFIG_SCHEMA:
+        return " ".join(toks[1:]).strip(), toks[0].strip()
+
+    return " ".join(toks[:-1]).strip(), toks[-1].strip()
+
+
+def parse_is_args(tokens: Sequence[str]) -> Tuple[str, str]:
+    """Parse 'is <value> in <varname>' or 'is <value> <varname>'."""
+    if not tokens:
+        raise ConfigError(
+            "Missing value and variable name. Usage: aw config is <value> in <varname>"
+        )
+    toks = [str(x) for x in tokens]
+    in_indices = [i for i, t in enumerate(toks) if t.lower() == "in"]
+    if in_indices:
+        idx = in_indices[-1]
+        val_parts = toks[:idx]
+        var_parts = toks[idx + 1 :]
+        if not val_parts:
+            raise ConfigError(
+                "Missing value before 'in'. Usage: aw config is <value> in <varname>"
+            )
+        if not var_parts:
+            raise ConfigError(
+                "Missing variable name after 'in'. Usage: aw config is <value> in <varname>"
+            )
+        return " ".join(val_parts).strip(), " ".join(var_parts).strip()
+
+    if len(toks) == 1:
+        raise ConfigError(
+            "Missing variable name. Usage: aw config is <value> in <varname>"
+        )
+
+    first = toks[0].strip().lower()
+    last = toks[-1].strip().lower()
+    if last in CONFIG_SCHEMA:
+        return " ".join(toks[:-1]).strip(), toks[-1].strip()
+    if first in CONFIG_SCHEMA:
+        return " ".join(toks[1:]).strip(), toks[0].strip()
+
+    return " ".join(toks[:-1]).strip(), toks[-1].strip()
+
+
+def _normalize_item_for_key(
+    item_raw: str, spec: ConfigKeySpec
+) -> Tuple[str, Optional[Path]]:
+    """Return (stored_string, resolved_path_if_path)."""
+    s = item_raw.strip()
+    if spec.type_name in ("list[path]", "list[path|glob]"):
+        stored = _preserve_home(s)
+        try:
+            expanded = expand_path(stored).resolve()
+        except Exception:
+            expanded = None
+        return stored, expanded
+    return s, None
+
+
+def _item_matches(
+    target_stored: str,
+    target_expanded: Optional[Path],
+    entry_stored: str,
+    is_path: bool,
+) -> bool:
+    if target_stored == entry_stored:
+        return True
+    if is_path:
+        try:
+            entry_expanded = expand_path(entry_stored).resolve()
+            if target_expanded is not None and entry_expanded == target_expanded:
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def add_config_item(
+    varname: str,
+    item_raw: str,
+    cfg: Optional[Dict[str, Any]] = None,
+    auto_save: bool = True,
+) -> Tuple[Dict[str, Any], str, List[str], bool]:
+    """Add an item to a list-typed config key."""
+    if cfg is None:
+        cfg = load()
+    else:
+        cfg = dict(cfg)
+
+    norm_key = varname.strip().lower()
+    if norm_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{varname}'. Valid keys: {valid_keys}")
+
+    spec = CONFIG_SCHEMA[norm_key]
+    if not spec.type_name.startswith("list["):
+        raise ConfigError(
+            f"Cannot add item to '{norm_key}': it is not a list (type is {spec.type_name})."
+        )
+    if spec.read_only:
+        raise ConfigError(
+            f"Config key '{norm_key}' is read-only and cannot be modified."
+        )
+
+    stored, expanded = _normalize_item_for_key(item_raw, spec)
+    current_list: List[str] = list(cfg.get(norm_key, []))
+
+    is_path = spec.type_name in ("list[path]", "list[path|glob]")
+    already_present = any(
+        _item_matches(stored, expanded, e, is_path) for e in current_list
+    )
+
+    if already_present:
+        return cfg, norm_key, current_list, False, stored
+
+    current_list.append(stored)
+    cfg[norm_key] = current_list
+    normalized = normalize(cfg)
+    if auto_save:
+        save(normalized)
+    return normalized, norm_key, list(normalized.get(norm_key, [])), True, stored
+
+
+def remove_config_item(
+    varname: str,
+    item_raw: str,
+    cfg: Optional[Dict[str, Any]] = None,
+    auto_save: bool = True,
+) -> Tuple[Dict[str, Any], str, List[str], bool, str]:
+    """Remove a matching item from a list-typed config key."""
+    if cfg is None:
+        cfg = load()
+    else:
+        cfg = dict(cfg)
+
+    norm_key = varname.strip().lower()
+    if norm_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{varname}'. Valid keys: {valid_keys}")
+
+    spec = CONFIG_SCHEMA[norm_key]
+    if not spec.type_name.startswith("list["):
+        raise ConfigError(
+            f"Cannot remove item from '{norm_key}': it is not a list (type is {spec.type_name})."
+        )
+    if spec.read_only:
+        raise ConfigError(
+            f"Config key '{norm_key}' is read-only and cannot be modified."
+        )
+
+    stored, expanded = _normalize_item_for_key(item_raw, spec)
+    current_list: List[str] = list(cfg.get(norm_key, []))
+    is_path = spec.type_name in ("list[path]", "list[path|glob]")
+
+    kept = []
+    removed = False
+    for e in current_list:
+        if not removed and _item_matches(stored, expanded, e, is_path):
+            removed = True
+        else:
+            kept.append(e)
+
+    if not removed:
+        return cfg, norm_key, current_list, False, stored
+
+    cfg[norm_key] = kept
+    normalized = normalize(cfg)
+    if auto_save:
+        save(normalized)
+    return normalized, norm_key, list(normalized.get(norm_key, [])), True, stored
+
+
+def is_config_item_present(
+    varname: str,
+    item_raw: str,
+    cfg: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, bool, str]:
+    """Check whether an item is present in a list-typed config key."""
+    if cfg is None:
+        cfg = load()
+    norm_key = varname.strip().lower()
+    if norm_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{varname}'. Valid keys: {valid_keys}")
+
+    spec = CONFIG_SCHEMA[norm_key]
+    if not spec.type_name.startswith("list["):
+        raise ConfigError(
+            f"Cannot check membership in '{norm_key}': it is not a list (type is {spec.type_name})."
+        )
+
+    stored, expanded = _normalize_item_for_key(item_raw, spec)
+    current_list: List[str] = list(cfg.get(norm_key, []))
+    is_path = spec.type_name in ("list[path]", "list[path|glob]")
+
+    present = any(_item_matches(stored, expanded, e, is_path) for e in current_list)
+    return norm_key, present, stored
+
+
 def get_config_value(
     key: str,
     cfg: Optional[Dict[str, Any]] = None,

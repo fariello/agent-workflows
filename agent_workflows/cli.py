@@ -2271,18 +2271,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p_config = sub.add_parser(
         "config",
+        aliases=["conf"],
         parents=[common],
-        help="Manage user CLI config (show, get, set, and exclude list).",
+        help="Manage user CLI config (show, get, set, add, remove, is, and exclude list).",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
             "  aw config show               # display config file and current settings\n"
+            "  aw config show search_roots  # inspect a specific variable\n"
             "  aw config get defaults.backup # get specific variable\n"
             "  aw config set defaults.backup to false  # set specific variable\n"
             "  aw config set search_roots ~/src,~/work # set list variable\n"
+            "  aw config add ~/src to search_roots     # add item to list variable\n"
+            "  aw config remove ~/src from search_roots # remove item from list variable\n"
+            "  aw config is ~/src in search_roots      # check membership in list variable\n"
             "  aw config exclude list       # list never-install exclude entries\n"
             "  aw config exclude add ~/src/legacy  # add path to exclude list\n"
             "  aw config exclude rm ~/src/legacy   # remove path from exclude list\n"
+            "  aw conf show                 # shorthand alias\n"
             "\n"
             "OUTPUT & EXITS\n"
             "  Exit codes: 0 success, 1 not found, 2 cannot-run/usage error.\n"
@@ -2291,10 +2297,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     config_sub = p_config.add_subparsers(dest="config_command")
 
-    config_sub.add_parser(
+    p_config_show = config_sub.add_parser(
         "show",
         parents=[common],
-        help="Display the configuration file location, status, and all current settings.",
+        help="Display the configuration file location, status, and all current settings (or a single variable).",
+    )
+    p_config_show.add_argument(
+        "varname",
+        nargs="?",
+        default=None,
+        help="Optional variable name to inspect (e.g. 'search_roots', 'defaults.backup').",
     )
 
     p_config_get = config_sub.add_parser(
@@ -2316,6 +2328,40 @@ def _build_parser() -> argparse.ArgumentParser:
         "set_args",
         nargs="+",
         help="Variable name and value (e.g. 'defaults.backup false', 'search_roots to ~/src,~/work').",
+    )
+
+    p_config_add = config_sub.add_parser(
+        "add",
+        parents=[common],
+        help="Add an item to a list configuration variable (syntax: 'aw config add <value> to <varname>').",
+    )
+    p_config_add.add_argument(
+        "add_args",
+        nargs="+",
+        help="Item value and variable name (e.g. '~/src to search_roots', '~/src search_roots').",
+    )
+
+    p_config_remove = config_sub.add_parser(
+        "remove",
+        aliases=["rm"],
+        parents=[common],
+        help="Remove an item from a list configuration variable (syntax: 'aw config remove <value> from <varname>').",
+    )
+    p_config_remove.add_argument(
+        "remove_args",
+        nargs="+",
+        help="Item value and variable name (e.g. '~/src from search_roots', '~/src search_roots').",
+    )
+
+    p_config_is = config_sub.add_parser(
+        "is",
+        parents=[common],
+        help="Check if an item is present in a list configuration variable (syntax: 'aw config is <value> in <varname>').",
+    )
+    p_config_is.add_argument(
+        "is_args",
+        nargs="+",
+        help="Item value and variable name (e.g. '~/src in search_roots', '~/src search_roots').",
     )
 
     p_config_exclude = config_sub.add_parser(
@@ -5354,11 +5400,75 @@ def _orient(term: Term) -> None:
 
 
 def _run_config_show(args: argparse.Namespace, term: Term) -> int:
-    """Display the configuration file location, status, and all current settings."""
+    """Display the configuration file location, status, and settings (or a single variable)."""
     cfg = config.load()
     cfg_file = config.config_path()
     present = cfg_file.is_file()
     cfg_path_str = config._preserve_home(str(cfg_file))
+    varname = getattr(args, "varname", None)
+
+    if varname:
+        varname = str(varname).strip()
+        try:
+            canon_key, val = config.get_config_value(varname, cfg)
+        except config.ConfigError as exc:
+            term.status("fail", str(exc))
+            return 2
+
+        if getattr(args, "json", False) or getattr(args, "as_json", False):
+            payload = {
+                "config_file": str(cfg_file),
+                "config_present": present,
+                "key": canon_key,
+                "value": val,
+            }
+            print(json.dumps(payload, indent=2, sort_keys=True))
+            return 0
+
+        if getattr(args, "agent", False):
+            from agent_workflows.term import format_agent_json
+
+            print(
+                format_agent_json(
+                    kind="result",
+                    cmd="config-show",
+                    outcome="clean",
+                    exit_code=0,
+                    extra={
+                        "config_file": str(cfg_file),
+                        "config_present": present,
+                        "key": canon_key,
+                        "value": val,
+                    },
+                )
+            )
+            return 0
+
+        term.heading("agent-workflows configuration")
+        term.line(
+            f"  {term.colorize('File:', 'bold')}    {term.color256(cfg_path_str, 39)} "
+            f"({'present' if present else 'none yet; default values in effect'})"
+        )
+        term.line()
+        term.heading("Setting")
+        if isinstance(val, list):
+            if not val:
+                term.line(f"  {term.color256(canon_key, 244):<20} = []")
+            elif len(val) == 1:
+                term.line(
+                    f"  {term.color256(canon_key, 244):<20} = [{term.color256(str(val[0]), 39)}]"
+                )
+            else:
+                term.line(f"  {term.color256(canon_key, 244):<20} = [")
+                for item in val:
+                    term.line(f"      {term.color256(str(item), 39)},")
+                term.line("  ]")
+        else:
+            disp_val = "-" if val is None else str(val)
+            term.line(
+                f"  {term.color256(canon_key, 244):<20} = {term.color256(disp_val, 39)}"
+            )
+        return 0
 
     if getattr(args, "json", False) or getattr(args, "as_json", False):
         payload = {
@@ -5520,6 +5630,198 @@ def _run_config_set(args: argparse.Namespace, term: Term) -> int:
         f"{term.color256(canon_key, 39, bold=True)} = {term.colorize(str(final_val), 'bold')} (saved to {cfg_path_str})",
     )
     return 0
+
+
+def _run_config_add(args: argparse.Namespace, term: Term) -> int:
+    """Add an item to a list configuration variable."""
+    raw_tokens = getattr(args, "add_args", []) or []
+    try:
+        item_val, varname = config.parse_add_args(raw_tokens)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    try:
+        updated_cfg, canon_key, updated_list, was_added, stored = (
+            config.add_config_item(varname, item_val, auto_save=True)
+        )
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    cfg_file = config.config_path()
+    cfg_path_str = config._preserve_home(str(cfg_file))
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(
+            json.dumps(
+                {
+                    "key": canon_key,
+                    "item": stored,
+                    "added": was_added,
+                    "value": updated_list,
+                    "config_file": str(cfg_file),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-add",
+                outcome="clean",
+                exit_code=0,
+                extra={
+                    "key": canon_key,
+                    "item": stored,
+                    "added": was_added,
+                    "value": updated_list,
+                    "config_file": str(cfg_file),
+                },
+            )
+        )
+        return 0
+
+    if was_added:
+        term.status(
+            "ok",
+            f"Added '{term.color256(stored, 39, bold=True)}' to {term.color256(canon_key, 39, bold=True)} (saved to {cfg_path_str})",
+        )
+    else:
+        term.status(
+            "ok",
+            f"Already present: '{term.color256(stored, 39, bold=True)}' is already in {term.color256(canon_key, 39, bold=True)}",
+        )
+    return 0
+
+
+def _run_config_remove(args: argparse.Namespace, term: Term) -> int:
+    """Remove an item from a list configuration variable."""
+    raw_tokens = getattr(args, "remove_args", []) or []
+    try:
+        item_val, varname = config.parse_remove_args(raw_tokens)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    try:
+        updated_cfg, canon_key, updated_list, was_removed, stored = (
+            config.remove_config_item(varname, item_val, auto_save=True)
+        )
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    cfg_file = config.config_path()
+    cfg_path_str = config._preserve_home(str(cfg_file))
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(
+            json.dumps(
+                {
+                    "key": canon_key,
+                    "item": stored,
+                    "removed": was_removed,
+                    "value": updated_list,
+                    "config_file": str(cfg_file),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0 if was_removed else 1
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-remove",
+                outcome="clean" if was_removed else "not_found",
+                exit_code=0 if was_removed else 1,
+                extra={
+                    "key": canon_key,
+                    "item": stored,
+                    "removed": was_removed,
+                    "value": updated_list,
+                    "config_file": str(cfg_file),
+                },
+            )
+        )
+        return 0 if was_removed else 1
+
+    if was_removed:
+        term.status(
+            "ok",
+            f"Removed '{term.color256(stored, 39, bold=True)}' from {term.color256(canon_key, 39, bold=True)} (saved to {cfg_path_str})",
+        )
+        return 0
+    else:
+        term.status(
+            "warn",
+            f"No entry matching '{stored}' in {canon_key}",
+        )
+        return 1
+
+
+def _run_config_is(args: argparse.Namespace, term: Term) -> int:
+    """Check if an item is present in a list configuration variable."""
+    raw_tokens = getattr(args, "is_args", []) or []
+    try:
+        item_val, varname = config.parse_is_args(raw_tokens)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    try:
+        canon_key, present, stored = config.is_config_item_present(varname, item_val)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(
+            json.dumps(
+                {"key": canon_key, "item": stored, "present": present},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0 if present else 1
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-is",
+                outcome="clean" if present else "not_found",
+                exit_code=0 if present else 1,
+                extra={"key": canon_key, "item": stored, "present": present},
+            )
+        )
+        return 0 if present else 1
+
+    if present:
+        term.status(
+            "ok",
+            f"Yes, '{term.color256(stored, 39, bold=True)}' is in {term.color256(canon_key, 39, bold=True)}",
+        )
+        return 0
+    else:
+        term.status(
+            "warn",
+            f"No, '{term.color256(stored, 39, bold=True)}' is not in {term.color256(canon_key, 39, bold=True)}",
+        )
+        return 1
 
 
 def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
@@ -8405,7 +8707,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if storage_cmd == "preflight":
             return _run_storage_preflight(args, term)
         return _show_family_help(parser, "storage", "aw storage status", term, context)
-    if args.command == "config":
+    if args.command in ("config", "conf"):
         subcmd = getattr(args, "config_command", None)
         if subcmd == "show":
             return _run_config_show(args, term)
@@ -8413,6 +8715,12 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_config_get(args, term)
         if subcmd == "set":
             return _run_config_set(args, term)
+        if subcmd == "add":
+            return _run_config_add(args, term)
+        if subcmd in ("remove", "rm"):
+            return _run_config_remove(args, term)
+        if subcmd == "is":
+            return _run_config_is(args, term)
         if subcmd == "exclude":
             return _run_config_exclude(args, term)
         return _show_family_help(parser, "config", "aw config show", term, context)

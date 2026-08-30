@@ -271,6 +271,80 @@ class ConfigSchemaAndGetSetTests(unittest.TestCase):
         with self.assertRaises(CFG.ConfigError):
             CFG.parse_set_args(["defaults.backup", "="])
 
+    def test_parse_add_args_variants(self):
+        item, var = CFG.parse_add_args(["~/src", "to", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+        item, var = CFG.parse_add_args(["~/src", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+        item, var = CFG.parse_add_args(["search_roots", "~/src"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+    def test_parse_remove_args_variants(self):
+        item, var = CFG.parse_remove_args(["~/src", "from", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+        item, var = CFG.parse_remove_args(["~/src", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+        item, var = CFG.parse_remove_args(["search_roots", "~/src"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+    def test_parse_is_args_variants(self):
+        item, var = CFG.parse_is_args(["~/src", "in", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+        item, var = CFG.parse_is_args(["~/src", "search_roots"])
+        self.assertEqual((item, var), ("~/src", "search_roots"))
+
+    def test_add_and_remove_config_item(self):
+        cfg = CFG.default_config()
+        # Add item
+        cfg, key, items, added, stored = CFG.add_config_item(
+            "search_roots", "~/src", cfg=cfg, auto_save=False
+        )
+        self.assertEqual(key, "search_roots")
+        self.assertTrue(added)
+        self.assertIn("~/src", items)
+
+        # Idempotent add
+        cfg, key, items, added, stored = CFG.add_config_item(
+            "search_roots", "~/src", cfg=cfg, auto_save=False
+        )
+        self.assertFalse(added)
+        self.assertEqual(len(items), 1)
+
+        # Check membership
+        key, present, stored = CFG.is_config_item_present(
+            "search_roots", "~/src", cfg=cfg
+        )
+        self.assertTrue(present)
+
+        # Remove item
+        cfg, key, items, removed, stored = CFG.remove_config_item(
+            "search_roots", "~/src", cfg=cfg, auto_save=False
+        )
+        self.assertTrue(removed)
+        self.assertNotIn("~/src", items)
+
+        # Remove nonexistent
+        cfg, key, items, removed, stored = CFG.remove_config_item(
+            "search_roots", "~/src", cfg=cfg, auto_save=False
+        )
+        self.assertFalse(removed)
+
+    def test_add_remove_non_list_raises(self):
+        cfg = CFG.default_config()
+        with self.assertRaises(CFG.ConfigError):
+            CFG.add_config_item("defaults.backup", "foo", cfg=cfg, auto_save=False)
+
+        with self.assertRaises(CFG.ConfigError):
+            CFG.remove_config_item("defaults.backup", "foo", cfg=cfg, auto_save=False)
+
+        with self.assertRaises(CFG.ConfigError):
+            CFG.is_config_item_present("defaults.backup", "foo", cfg=cfg)
+
 
 class ConfigCliCommandTests(unittest.TestCase):
     def setUp(self):
@@ -300,6 +374,25 @@ class ConfigCliCommandTests(unittest.TestCase):
         data = json.loads(out_json.getvalue())
         self.assertIn("config_file", data)
         self.assertIn("config", data)
+
+    def test_cli_config_show_single_var(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = cli.main(["config", "show", "defaults.backup"])
+        self.assertEqual(rc, 0)
+        self.assertIn("defaults.backup", out.getvalue())
+
+        out_json = io.StringIO()
+        with redirect_stdout(out_json):
+            rc = cli.main(["config", "show", "defaults.backup", "--json"])
+        self.assertEqual(rc, 0)
+        data = json.loads(out_json.getvalue())
+        self.assertEqual(data["key"], "defaults.backup")
+        self.assertTrue(data["value"])
 
     def test_cli_config_get_and_set_roundtrip(self):
         from agent_workflows import cli
@@ -338,6 +431,52 @@ class ConfigCliCommandTests(unittest.TestCase):
             rc = cli.main(["config", "set", "invalid_key", "foo"])
         self.assertEqual(rc, 2)
         self.assertIn("FAIL", out.getvalue())
+
+    def test_cli_config_add_remove_and_is(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        # Add
+        out_add = io.StringIO()
+        with redirect_stdout(out_add):
+            rc = cli.main(["config", "add", "~/my-test-root", "to", "search_roots"])
+        self.assertEqual(rc, 0)
+        self.assertIn("Added", out_add.getvalue())
+
+        # Is present
+        out_is = io.StringIO()
+        with redirect_stdout(out_is):
+            rc = cli.main(["config", "is", "~/my-test-root", "in", "search_roots"])
+        self.assertEqual(rc, 0)
+        self.assertIn("Yes", out_is.getvalue())
+
+        # Remove
+        out_rm = io.StringIO()
+        with redirect_stdout(out_rm):
+            rc = cli.main(
+                ["config", "remove", "~/my-test-root", "from", "search_roots"]
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn("Removed", out_rm.getvalue())
+
+        # Is not present (exit 1)
+        out_is2 = io.StringIO()
+        with redirect_stdout(out_is2):
+            rc = cli.main(["config", "is", "~/my-test-root", "in", "search_roots"])
+        self.assertEqual(rc, 1)
+        self.assertIn("No", out_is2.getvalue())
+
+    def test_cli_conf_alias(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = cli.main(["conf", "show"])
+        self.assertEqual(rc, 0)
+        self.assertIn("agent-workflows configuration", out.getvalue())
 
 
 if __name__ == "__main__":
