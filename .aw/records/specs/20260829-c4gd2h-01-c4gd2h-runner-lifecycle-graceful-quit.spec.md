@@ -1,7 +1,7 @@
 # Spec: Runner lifecycle: graceful-quit protocol and stop-state reconciliation
 
 - Date: 2026-08-29
-- Status: approved
+- Status: implementing
 - Id: c4gd2h
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - From-Backlog: kjzlgw
@@ -9,6 +9,7 @@
 - Scope: Four stop levels for aw oc/agy run over one unconditional clean-shutdown invariant, their trigger UX, ledger interaction, and reuse of the active-work reconciliation routine.
 
 ## Workflow history
+- 2026-08-30 implementing (aw set): runstop Phase 0 (2ouj70) begun: shared clean-shutdown routine landed in agent_workflows/runner_shutdown.py
 
 - 2026-08-29 approved (aw specs, --by-human): Approved by maintainer instruction 2026-08-29: 'graduate/implement/execute <backlog>' must write specs as approved without a separate stop-and-approve round trip; all blocking OQs resolved from repository evidence.
 ## 0. Concepts (kept distinct)

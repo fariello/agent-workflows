@@ -42,7 +42,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_workflows import oc_runipd
+from agent_workflows import oc_runipd, runner_shutdown
 from tests.support import git, init_repo
 
 
@@ -353,9 +353,19 @@ class NestedPermissionDeadlockTests(unittest.TestCase):
 
         module_src = Path(inspect.getfile(oc_runipd)).read_text(encoding="utf-8")
 
-        # Process-tree kill exists (agent_workflows/oc_runipd.py:1639-1643).
-        self.assertIn("killpg", module_src)
-        self.assertIn("getpgid", module_src)
+        # Process-tree kill exists. CONSCIOUS UPDATE (runstop Phase 0, `2ouj70`): the escalation
+        # MOVED into the single shared reaper `runner_shutdown.terminate_process` (spec `c4gd2h`
+        # R5 forbids the two byte-identical per-driver copies this used to grep for). The
+        # capability is unchanged, so this guard now asserts it where it actually lives and that
+        # the driver still reaches it. It is deliberately NOT weakened: `killpg`/`getpgid` are
+        # still required to exist, and the driver must still delegate to them.
+        reaper_src = inspect.getsource(runner_shutdown)
+        self.assertIn("killpg", reaper_src)
+        self.assertIn("getpgid", reaper_src)
+        self.assertIn(
+            "runner_shutdown.terminate_process",
+            inspect.getsource(oc_runipd.terminate_process),
+        )
 
         # But NO permission-deadline trigger exists. When Phase 1 adds one, this fails loudly and
         # must be updated together with the fix.
