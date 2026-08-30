@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 176 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## detrun
 
@@ -12,6 +12,10 @@ Showing the 40 most-recent of 176 Sets; the full manifest is INDEX.json.
 - `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
 - `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
 - `7f7782` [pending] 05 pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
+
+## sessrot
+
+- `jb6vys` [pending] 01 pending/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md
 
 ## ackme8
 
@@ -207,10 +211,6 @@ Showing the 40 most-recent of 176 Sets; the full manifest is INDEX.json.
 - `wqj1ne` [executed] 04 executed/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
 - `diundn` [executed] 05 executed/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md
 - `r2ks4k` [executed] 06 executed/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
-
-## beginscope
-
-- `vaq9qf` [executed] 01 executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md
 
 ## (singletons: no Set)
 

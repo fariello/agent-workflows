@@ -4160,6 +4160,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md",
+    "plan_id": "jb6vys",
+    "set_id": "sessrot",
+    "status": "approved"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
