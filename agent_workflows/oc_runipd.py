@@ -21,7 +21,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -36,6 +35,7 @@ from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 # here (see ``__all__`` below) so existing ``oc_runipd`` call sites and tests keep
 # referencing these names. ``should_color`` (the TTY color decision) stays local to the
 # caller per OQ-01.
+from agent_workflows import runner_shutdown
 from agent_workflows.render_stream import (
     _ANSI_CODES,
     _ANSI_RESET,
@@ -54,6 +54,10 @@ from agent_workflows.render_stream import (
     format_tokens,
     render_event,
 )
+
+# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+from agent_workflows import runner_stop
 
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
@@ -765,23 +769,36 @@ def append_jsonl(path: Path, event: dict[str, Any]) -> None:
 
 @contextlib.contextmanager
 def run_lock(run_dir: Path):
+    """Hold the run's ``driver.lock`` for this driver process.
+
+    Yields a :class:`runner_shutdown.RunLockHandle` so the clean-shutdown routine can release
+    the lock OBSERVABLY (spec `c4gd2h` R2: drop the ``flock`` AND remove the lock file). The
+    contextmanager contract is unchanged for the normal path, and release is idempotent, so a
+    caller that already ran ``clean_shutdown`` is not double-released here.
+    """
+
     lock_path = run_dir / "driver.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as handle:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise DriverError(
-                f"Run is already controlled by another process: {run_dir.name}"
-            ) from exc
-        handle.seek(0)
-        handle.truncate()
-        handle.write(f"pid={os.getpid()} started={utc_now()}\n")
-        handle.flush()
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    handle = lock_path.open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise DriverError(
+            f"Run is already controlled by another process: {run_dir.name}"
+        ) from exc
+    except BaseException:
+        handle.close()
+        raise
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+    handle.flush()
+    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
+    try:
+        yield lock
+    finally:
+        lock.release()
 
 
 def _read_id(text: str) -> str | None:
@@ -1759,50 +1776,22 @@ DEFAULT_STALL_TIMEOUT: float = 600.0
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    """Reap a child OpenCode process and its process group without leaving orphans."""
-    if process.poll() is not None:
-        _close_process_streams(process)
-        return
+    """Reap a child OpenCode process and its process group without leaving orphans.
 
-    def _signal(sig: int) -> bool:
-        if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
-            try:
-                pgid = os.getpgid(process.pid)
-                if pgid != os.getpgrp():
-                    os.killpg(pgid, sig)
-                    return True
-            except (ProcessLookupError, OSError):
-                pass
-        try:
-            process.send_signal(sig)
-            return True
-        except (ProcessLookupError, OSError):
-            return False
+    Delegates to the SINGLE shared reaper in ``runner_shutdown`` (spec `c4gd2h` R5 forbids a
+    second implementation; both drivers previously carried byte-identical copies). The
+    module-level grace constants are read at call time and passed through, so a caller or test
+    that tunes ``_SIGINT_GRACE_SECONDS`` / ``_SIGTERM_GRACE_SECONDS`` still takes effect.
+    """
 
-    for sig, grace in (
-        (signal.SIGINT, _SIGINT_GRACE_SECONDS),
-        (signal.SIGTERM, _SIGTERM_GRACE_SECONDS),
-    ):
-        if not _signal(sig):
-            break
-        try:
-            process.wait(timeout=grace)
-            _close_process_streams(process)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-
-    _signal(signal.SIGKILL)
-    with contextlib.suppress(Exception):
-        process.wait(timeout=_SIGTERM_GRACE_SECONDS)
-    _close_process_streams(process)
+    runner_shutdown.terminate_process(
+        process,
+        sigint_grace=_SIGINT_GRACE_SECONDS,
+        sigterm_grace=_SIGTERM_GRACE_SECONDS,
+    )
 
 
-def _close_process_streams(process: subprocess.Popen) -> None:
-    for stream in (process.stdout, process.stderr, process.stdin):
-        if stream is not None:
-            with contextlib.suppress(Exception):
-                stream.close()
+_close_process_streams = runner_shutdown._close_process_streams
 
 
 def run_opencode(
@@ -1920,7 +1909,9 @@ def run_opencode(
             run_start_mono = None
 
     with log_path.open("w", encoding="utf-8") as log:
-        process = subprocess.Popen(argv, **popen_kwargs)
+        # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
+        # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
+        process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
         assert process.stdout is not None
         statusline = Statusline(
             pal=pal,
@@ -1941,6 +1932,12 @@ def run_opencode(
                     log.flush()
                     statusline.touch()
                     watchdog.touch()
+                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7). This
+                    # is the per-line point the existing StallWatchdog already proves the driver
+                    # may act on from stream observation alone. The poll is SIDE-EFFECT FREE and
+                    # only REPORTS the requested level here; acting on a level is owned by the
+                    # later phases (levels 1-2 branch between items, level 3 at this point).
+                    runner_stop.poll_stop(run_dir)
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
@@ -2661,6 +2658,71 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     return requeued
 
 
+def _observe_between_turn_stop(
+    run_dir: Path,
+    level: int | None,
+    current_setid: str | None,
+    existing: runner_stop.WindDown | None,
+) -> runner_stop.WindDown | None:
+    """Turn a polled stop LEVEL into a level-1/2 wind-down, capturing the set boundary ONCE.
+
+    runstop 1qxuke. Returns the wind-down in force, or None while no between-turn stop applies.
+
+    Two details carry the correctness:
+
+    1. The captured `setid` is frozen at the FIRST observation and never re-derived. Level 2's
+       boundary is "the rest of THIS set", and because the dequeue is dependency-ordered the set in
+       flight can change under a naive re-derivation (sets interleave), which would stop at the
+       wrong place. `existing` is therefore returned unchanged unless the level ESCALATED.
+    2. Levels 3 and 4 are NOT handled here. They interrupt the running turn and belong to later
+       phases; returning None for them leaves today's behavior untouched rather than silently
+       treating a turn-interrupting request as a between-turn one.
+    """
+
+    if level not in runner_stop.BETWEEN_TURN_LEVELS:
+        return existing
+    if existing is not None and existing.level >= level:
+        return existing
+    request = runner_stop.read_stop_request(run_dir)
+    requester = request.requester if request is not None else "unknown"
+    # On an escalation (1 -> 2) keep the ORIGINALLY captured set: the operator raised the boundary
+    # for the set they were already winding down, and re-capturing now could pick up a different
+    # set that only became current because of an interleave.
+    setid = existing.setid if existing is not None else current_setid
+    wind_down = runner_stop.WindDown(level=level, requester=requester, setid=setid)
+    print(
+        f"stop requested: level {wind_down.level} ({wind_down.level_name}); "
+        f"boundary = next "
+        f"{'item' if wind_down.level == runner_stop.LEVEL_AFTER_CALL else 'set'}"
+        + (f", finishing set {setid}" if wind_down.level == 2 and setid else ""),
+        file=sys.stderr,
+    )
+    return wind_down
+
+
+def _record_deliberate_stop(
+    run_dir: Path, state: dict[str, Any], wind_down: runner_stop.WindDown
+) -> None:
+    """Append the DELIBERATE-stop ledger event (spec R21) and leave un-run items `queued`.
+
+    runstop 1qxuke. Uses the driver's ESTABLISHED append-only `events.jsonl` channel, deliberately
+    not a new ledger file or substrate. No per-item status is invented and nothing is marked
+    `unknown_outcome`: levels 1-2 interrupt no turn, so every item is either genuinely finished or
+    genuinely never started (spec R20).
+    """
+
+    remaining = [item["id6"] for item in state["queue"] if item["status"] == "queued"]
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.deliberate_stop_event(wind_down, at=utc_now(), remaining=remaining),
+    )
+    print(
+        f"deliberate stop (level {wind_down.level}, {wind_down.level_name}): "
+        f"{len(remaining)} item(s) left queued, not started: {', '.join(remaining) or 'none'}",
+        file=sys.stderr,
+    )
+
+
 def run_queue(
     run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
 ) -> int:
@@ -2689,10 +2751,33 @@ def run_queue(
                 item["recovery_next"] = True
         save_state(run_dir, state)
     tracker = StreamTracker()
+    # runstop 1qxuke: the observed level-1/2 wind-down, or None while no between-turn stop has been
+    # requested. Captured ONCE at observation time (see `_observe_between_turn_stop`) because level
+    # 2's boundary is the set that was in flight THEN, and the dependency-ordered dequeue below lets
+    # sets interleave.
+    wind_down: runner_stop.WindDown | None = None
+    current_setid: str | None = None
+    # The deliberate stop is recorded EXACTLY ONCE, whichever boundary the loop actually exits at
+    # (declined item, drained queue, or dependency-blocked remainder).
+    stop_recorded = False
     while True:
+        # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), evaluated
+        # before the next item is selected. runstop 1qxuke acts on it for the two BETWEEN-TURN
+        # levels: level 1 = stop-after-call (R20/A1), level 2 = stop-after-set (R20/A4). Neither
+        # interrupts the turn that just finished, so neither can produce an indeterminate outcome.
+        level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
+        wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
+            # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 request on the last set
+            # drains the queue, so the loop leaves here rather than at the consent check below. The
+            # deliberate stop must STILL be recorded (spec R21), otherwise a stop that happened to
+            # skip nothing would be indistinguishable from an ordinary finish and the operator's
+            # intent would vanish from the history. `stop_recorded` keeps it exactly-once.
+            if wind_down is not None and not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
             break
         runnable = None
         for item in queued:
@@ -2700,7 +2785,31 @@ def run_queue(
             if satisfied:
                 runnable = item
                 break
+        # runstop 1qxuke: the wind-down decides only whether the driver still CONSENTS to start the
+        # selected item; it never reorders the queue. An item outside the boundary is left `queued`
+        # (spec R22: no fabricated disposition), which for level 2 can legitimately mean ending with
+        # runnable work outstanding (the operator asked to wind down, not to drain).
+        if (
+            wind_down is not None
+            and runnable is not None
+            and not wind_down.permits(runnable.get("setid"))
+        ):
+            if not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
+            break
         if runnable is None:
+            # runstop 1qxuke: during a wind-down, do NOT relabel the remainder. Outside a stop,
+            # marking every queued item `dependency-blocked` is the truthful description of why the
+            # run ended. Under a stop it would not be: items of another set are `queued` because the
+            # OPERATOR asked to stop, not because their dependencies are unmet, and rewriting their
+            # status would be exactly the fabricated disposition spec R22 forbids. So record the
+            # deliberate stop and leave the remainder `queued`.
+            if wind_down is not None:
+                if not stop_recorded:
+                    _record_deliberate_stop(run_dir, state, wind_down)
+                    stop_recorded = True
+                break
             for item in queued:
                 _, missing = dependency_status(item, state)
                 item["status"] = "dependency-blocked"
@@ -2758,6 +2867,9 @@ def run_queue(
                 )
             save_state(run_dir, state)
             continue
+        # runstop 1qxuke: the set now in flight. Recorded BEFORE the turn so that a stop requested
+        # DURING this turn is observed at the next checkpoint with this set already captured.
+        current_setid = runnable.get("setid")
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except DriverError as exc:
@@ -2777,7 +2889,45 @@ def run_queue(
     state = load_state(run_dir)
     write_report(run_dir, state)
     print(render_continuation_hint(state, run_dir))
-    return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
+    # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
+    # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
+    # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores
+    # `queued` only when a stop was actually observed, and still returns nonzero if an item that RAN
+    # failed. No item's status is rewritten to manufacture the 0 (spec R22).
+    return runner_stop.deliberate_stop_exit_code(
+        (item["status"] for item in state["queue"]),
+        success_states=SUCCESS_STATES,
+        stopped=wind_down is not None,
+    )
+
+
+@contextlib.contextmanager
+def locked_run(run_dir: Path):
+    """Hold the run lock AND guarantee the shared clean shutdown when the scope ends.
+
+    This is the LOCK-HOLDING layer, which is the only scope that holds all four clean-shutdown
+    invariants' inputs at once: the ``driver.lock`` handle (spec `c4gd2h` R2), the run ledger
+    (R3), and the repository path (R4), plus the tracked child agent processes (R1). The
+    per-turn ``run_opencode`` handlers cannot satisfy R2/R3/R4 at all: they hold no lock, run
+    once per turn, and have no queue authority, so they only reap the child.
+
+    The routine runs in a ``finally`` so it also covers the failure path (spec R6: cleanup runs
+    even when the wind-down phase fails or times out), and its per-invariant report is printed
+    rather than assumed (spec R23).
+    """
+
+    repo: Path | None = None
+    with contextlib.suppress(Exception):
+        repo = Path(load_state(run_dir)["repo"])
+    with run_lock(run_dir) as lock:
+        try:
+            yield lock
+        finally:
+            report = runner_shutdown.clean_shutdown(
+                lock=lock, run_dir=run_dir, repo=repo
+            )
+            if not report.all_satisfied or report.dirty_paths or report.reaped_pids:
+                print(report.render(), file=sys.stderr)
 
 
 def _detect_driver_command() -> str:
@@ -3145,7 +3295,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.prepare_only:
                 print_status(run_dir)
                 return 0
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
@@ -3188,7 +3338,7 @@ def main(argv: list[str] | None = None) -> int:
                 for s in state.get("set_sessions", {}):
                     state["set_sessions"][s] = args.session
                 save_state(run_dir, state)
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(
                     run_dir,
                     retry_incomplete=args.retry_incomplete,
