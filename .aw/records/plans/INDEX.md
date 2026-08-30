@@ -48,7 +48,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## gatestale
 
-- `rygds7` [pending] 01 pending/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md
+- `rygds7` [executed] 01 executed/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md
 
 ## lanename
 

@@ -234,8 +234,10 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.lifecycle-transition-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
     ),
-    # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan with an
-    # active begin receipt whose changed paths since the frozen base fall outside its Scope-Paths.
+    # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan with a
+    # LIVE begin receipt whose changed paths since the frozen base fall outside its Scope-Paths. LIVE
+    # excludes a receipt whose plan is in a terminal lifecycle dir or whose base is unreachable from
+    # HEAD (IPD rygds7; see `_receipt_is_live`).
     "check.scope-drift": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-01"
     ),
@@ -1069,18 +1071,107 @@ def check_lifecycle_transitions(
     return drift
 
 
+def _plan_disposition(repo_root: Path, plan_path: Path) -> Optional[str]:
+    """The plan's lifecycle DISPOSITION: the FIRST path component under the plans dir.
+
+    Deliberately the first component, NOT ``plan_path.parent.name``: ``aw archive plans`` shards a
+    terminal plan into ``<disposition>/YYYYMM/`` (``plans_archive._shard_target``), so a
+    parent-directory test would silently stop recognizing a sharded plan as terminal. This reuses the
+    derivation ``plans_index.scan_plans`` already established (``rel.split("/", 1)[0]``) rather than
+    inventing a third one. Returns None when the plan cannot be located under any plans dir.
+    """
+    try:
+        resolved = plan_path.resolve()
+    except OSError:
+        return None
+    for plans_dir in _type_dirs(repo_root, "plans"):
+        try:
+            rel = resolved.relative_to(plans_dir.resolve()).as_posix()
+        except (ValueError, OSError):
+            continue
+        return rel.split("/", 1)[0] if "/" in rel else None
+    return None
+
+
+def _receipt_is_live(repo_root: Path, plan_path: Path, receipt: Dict) -> bool:
+    """True when ``receipt`` can still describe an IN-FLIGHT execution (IPD rygds7 E-01/E-02).
+
+    A begin receipt is execution AUTHORITY for one in-flight plan. Once that authority is spent the
+    receipt must no longer drive a SCOPE ADVISORY about the current working tree, because the frozen
+    base it carries no longer describes work any live execution owns. Two cases are rejected:
+
+    * TERMINAL PLAN - the plan file sits in a terminal lifecycle directory (``plans.TERMINAL``:
+      executed/superseded/not-executed). Disposition is read from the plan's PATH, not from its
+      ``Status:`` text, because the directory is the authoritative encoding (the lifecycle setters
+      move the file as the authoritative act) and status text may legitimately lag the move.
+    * UNREACHABLE BASE - ``base_head`` is not an ancestor of HEAD, so the frozen baseline does not
+      describe this history and a diff against it is meaningless.
+
+    IMPORTANT, and the reason this is a liveness test for an ADVISORY only: a terminal plan's receipt
+    is NOT necessarily garbage. A finalize journal in ``committed-incomplete`` re-runs finalize
+    against a plan ALREADY in ``executed/`` (``ipd_lifecycle.finalize`` resume path), and the receipt
+    is consumed only on the clean-complete path. So "terminal" licenses IGNORING the receipt here; it
+    never licenses deleting it.
+
+    FAIL SAFE, NOT FAIL OPEN (E-02): when liveness cannot be determined (git unavailable, unreadable
+    path, ``merge-base`` error) the receipt is treated as NOT live and skipped. The asymmetry is
+    deliberate and must not later be "corrected": a false refusal blocks a legitimate commit, while a
+    missed advisory is recoverable, and this rule is explicitly documented as best-effort local
+    FEEDBACK rather than an authority boundary (``hooks/precommit_scope_gate.py:17-19``: "git hooks
+    are LOCAL, not cloned by default, and skippable with ``--no-verify``. This is OPT-IN best-effort
+    FEEDBACK, not an authority boundary; the authoritative boundary is phase-5 CI running the same
+    engine."). WHAT THIS DIRECTION COSTS, stated plainly: an environment where git cannot run
+    silently disables this rule entirely rather than reporting that it could not run. That is
+    acceptable ONLY because the authoritative boundary is CI (``.github/workflows/tests.yml`` runs
+    ``aw check`` fail-closed) and NOT this local rule.
+    """
+    from agent_workflows import plans as _plans
+
+    try:
+        disposition = _plan_disposition(repo_root, plan_path)
+        if disposition is not None and disposition in _plans.TERMINAL:
+            return False
+        base_head = str(receipt.get("base_head") or "").strip()
+        if not base_head:
+            return False
+        rc, _out, _err = _git_capture(
+            repo_root, ["merge-base", "--is-ancestor", base_head, "HEAD"]
+        )
+        if rc != 0:
+            return (
+                False  # unreachable/unknown base, or git could not answer -> not live
+            )
+    except Exception:
+        # Fail safe (see the docstring): an undeterminable liveness is treated as NOT live. This
+        # local `except` is deliberate and must NOT be left to the aggregator's blanket
+        # `except Exception` in `check_commit_invariants`, which would also swallow a genuine bug in
+        # the comparison below.
+        return False
+    return True
+
+
 def check_scope_drift(
     repo_root: Path, include_untracked: bool = False
 ) -> List[_core.Drift]:
     """Declared-file-scope drift (agentadhere Phase 3 E-02; catalog I-01).
 
-    For each plan that has an ACTIVE begin receipt (an in-flight execution with a frozen base HEAD +
-    Scope-Paths), compare the paths this execution changed since the frozen base against the plan's
-    declared Scope-Paths, REUSING the finalize scope helpers
+    For each plan that has a LIVE begin receipt, compare the paths this execution changed since the
+    frozen base against the plan's declared Scope-Paths, REUSING the finalize scope helpers
     (``_paths_changed_by_this_execution``/``_scope_match``/``_frozen_scope_paths``/
     ``_is_implicitly_allowed``) - no forked comparator. A changed path outside the allowlist is
     flagged. A ``grandfathered``/absent Scope-Paths carries no allowlist (empty frozen list), so it
     is advisory-satisfied (never hard-flagged), honoring the sentinel.
+
+    LIVE is checked by ``_receipt_is_live`` and is narrower than "a receipt exists" (IPD rygds7): a
+    receipt is IGNORED when (1) its plan sits in a TERMINAL lifecycle directory
+    (executed/superseded/not-executed, read from the plan's path so a ``<disposition>/YYYYMM/`` shard
+    still counts), or (2) its frozen ``base_head`` is NOT an ancestor of HEAD, so the baseline no
+    longer describes this history. Both cases are receipts that cannot describe work in progress, and
+    comparing the whole working tree against them attributed other agents' uncommitted files to a
+    finished plan. Liveness FAILS SAFE (undeterminable -> skip); see ``_receipt_is_live`` for the
+    rationale and its cost. Ignoring a terminal plan's receipt here is an ADVISORY decision only and
+    is NOT a claim that the receipt is dead - it may still be required by an unfinished finalize
+    transaction, and nothing here deletes one.
     """
     from agent_workflows import ipd_lifecycle as _life
 
@@ -1097,6 +1188,8 @@ def check_scope_drift(
         receipt = _life.read_receipt(repo_root, plan_id)
         if not receipt:
             continue  # no active execution -> nothing to reconcile
+        if not _receipt_is_live(repo_root, p, receipt):
+            continue  # spent authority (terminal plan / unreachable base) -> not an in-flight scope
         base_head = str(receipt.get("base_head") or "").strip()
         if not base_head or base_head == "unversioned":
             continue
@@ -1150,9 +1243,13 @@ def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
       plan status change;
     * ``check.blocking-item-closed-without-gate`` (``check_release_gate_consistency``) - a staged
       release-blocking backlog item closed without a preserved gate;
-    * ``check.scope-drift`` (``check_scope_drift``) - for a plan with an ACTIVE begin receipt, a
+    * ``check.scope-drift`` (``check_scope_drift``) - for a plan with a LIVE begin receipt, a
       changed path outside its declared ``Scope-Paths`` (findings 5.3: enforce the staged-paths-
-      within-declared-scope INVARIANT, not the command syntax).
+      within-declared-scope INVARIANT, not the command syntax). LIVE is verified, not assumed (IPD
+      rygds7): a receipt is IGNORED when its plan is in a TERMINAL lifecycle directory or when its
+      frozen ``base_head`` is not an ancestor of HEAD, since neither can describe an in-flight
+      execution. That liveness test fails SAFE (undeterminable -> skip), consistent with this being
+      best-effort local feedback; see ``_receipt_is_live``.
 
     Each rule is commit/receipt-scoped, so on an ordinary clean commit this is a fast no-op. The
     per-drift ``recovery`` field (from the versioned finding shape) is what the hook TEACHES. HONEST
