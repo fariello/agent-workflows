@@ -99,14 +99,64 @@ The `review_findings_gate` key in `.aw/config/project.json` sets which severity 
 `high`, so the gate is active by default; a malformed value also falls back to `high` rather than
 silently disabling the gate. Only an explicit `off` disables it.
 
-## Current status of enforcement
+## Enforcement: unfixed gating findings must be escalated
 
-This tree and its format exist. Recording and reading findings by machine works today.
+A finding left `open` or `deferred` whose severity is at or above the gate threshold MUST also be
+raised in the reviewed plan as an open question carrying `- Blocking: yes` and a `- Finding: <ID>`
+subfield naming it:
 
-Enforcement does NOT exist yet: at present an unfixed High blocks nothing. Gating on unresolved
-findings, cascading to dependent plans, and having the plan-review workflow emit these files
-automatically are separate, sequenced pieces of work. Until those land, writing a review record is a
-deliberate act by the reviewer.
+```markdown
+### OQ-03: F-7 leaves the malformed case fail-open; must it be reported?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: F-7
+- Resolution or deferral rationale: pending a decision on fail-open vs fail-closed
+```
+
+One question may cover several findings (`- Finding: F-3, F-5`). The match is against the typed
+`- Finding:` field, never the rationale prose, so an incidental mention of an id cannot satisfy the
+rule.
+
+`aw check` reports a violation as `check.review-finding-unescalated` (an error), and `aw ipd lint`
+reports it at the `review-finalize` and `pre-execution` checkpoints. It is deliberately NOT checked at
+`pre-transition`: by the time a plan finalizes, execution already happened, so a gating finding needed
+to stop it earlier.
+
+Only PENDING-lane plans are checked. Terminal plans (`executed/`, `superseded/`, `not-executed/`) are
+grandfathered, the same way `check.ipd-draft-ready-to-review` and `check.lifecycle-transition-invalid`
+scope themselves, so the existing corpus is never retroactively litigated.
+
+### Why escalation, and not a direct block on the finding
+
+There is deliberately NO second gate that blocks on the finding itself. The escalated open question is
+caught by the pre-existing `pre-execution` gate on unresolved blocking questions, so the design reuses
+one mechanism instead of keeping two in agreement.
+
+Stated honestly, because the distinction matters: across this repo's executed plans, 28 of 28
+`Blocking: yes` open questions are `resolved`. That is a CONSISTENCY fact, not a measured catch rate.
+Part of it is tautological, since a blocking question may not be `deferred` (an independent structural
+rule), leaving `resolved` as the only legal terminal state; and nothing records whether the checkpoint
+gate ever actually stopped a run. The justification for reuse is fewer moving parts, not proven
+infallibility.
+
+### What this does and does not catch
+
+The honest claim is narrow: **a RECORDED unfixed gating finding must be escalated.** It is not
+"unfixed gating findings are now caught."
+
+| Situation | Behavior |
+|---|---|
+| No `.review.md` for the plan | SILENT. Nothing to read, so nothing is enforced. |
+| `.review.md` present but malformed/unparseable | REPORTED. A file that exists but cannot be trusted is an error, not an absence. |
+| Threshold `off` | Rule disabled entirely. |
+
+The absent case is the open evasion path, and it is the state of most plans: a reviewer who writes no
+review record is outside deterministic reach. Fail-closing it would mass-fail the whole existing
+corpus, so it stays silent by design. Closing that hole would mean gating EMISSION itself, which is
+not implemented. This rule also cannot tell whether a severity was classified honestly; a Blocker
+mislabeled `MEDIUM` passes.
 
 ## Tooling
 

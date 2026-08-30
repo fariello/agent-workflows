@@ -127,6 +127,24 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.review-dangling": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # revgate Order 02 (plqjt7) E-01: an unfixed finding at or above the configured severity
+    # threshold that was never escalated into a `Blocking: yes` open question. UNLIKE
+    # `check.review-dangling` above (advisory, an untidy leftover), this one is an `error`: an unfixed
+    # High/Blocker that gates nothing is the exact hole this Set exists to close, so it must set an
+    # exit code. Deterministic: a closed-vocabulary severity compared against a configured threshold
+    # via the ONE shared `review_findings.is_gating` predicate, plus a literal finding-id lookup in the
+    # plan's parsed open questions. No inference, hence DET_DETERMINISTIC.
+    #
+    # Invariant: `""`. Deliberate, with a reason rather than an omission. The Phase-0 catalog (spec
+    # pqsx96) invariants used above cover naming (I-09), lifecycle-status authority (I-03), release
+    # gates (I-07), declared scope (I-01), dependency statements (I-08), and authoring nudges (I-12).
+    # None of them is about REVIEW findings: the review tier did not exist as machine-readable data
+    # until 15zvu6, so the catalog has no invariant for it yet. Claiming a neighbouring id would be a
+    # false trace. `check.priority-invalid` above sets the precedent for a legitimately uncatalogued
+    # rule id.
+    "check.review-finding-unescalated": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # Cross-IPD dependency statements (catalog I-08).
     "check.ipd-dependency-malformed": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
@@ -465,6 +483,20 @@ def check_content(
         try:
             drift.extend(
                 check_ipd_draft_ready(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # revgate Order 02 (plqjt7 E-01): an unfixed review finding at or above the configured
+        # severity threshold that was never escalated into a `Blocking: yes` open question. Runs in
+        # the PLANS-TYPE content path for the same documented reason `check_ipd_dependencies` above
+        # does - the concern is plans-scoped (every finding names a plan) - so it is reached by BOTH
+        # `aw check plans` and the `aw check all` fan-out, exactly once, and is deliberately NOT also
+        # added to the collisions-only cross-tree sweep (which the full sweep alone reaches).
+        try:
+            drift.extend(
+                check_review_finding_unescalated(
+                    repo_root, include_untracked=include_untracked
+                )
             )
         except Exception:
             pass
@@ -2042,6 +2074,288 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
                     "correct the Plan-Id to the reviewed plan's id6, or retire the review "
                     "alongside the plan it reviewed"
                 ),
+            )
+        )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# revgate Order 02 (plqjt7): unfixed findings at or above the threshold must be escalated.
+#
+# WHY THERE IS NO SECOND, DIRECT SEVERITY GATE HERE (E-03; maintainer decision 2026-08-29).
+#
+# This rule does NOT block on the finding. It blocks on the ABSENCE OF AN ESCALATION, and the
+# escalated artifact - a `Blocking: yes` open question - is then caught by the PRE-EXISTING
+# pre-execution gate in `ipd_lint.check_checkpoint` (`ipd_lint.py:681-693`, "unresolved blocking
+# question at pre-execution"). One gate, reused, instead of two gates to keep in agreement.
+#
+# THE EVIDENCE FOR THAT REUSE, STATED HONESTLY. Measured over this repo's executed plans: 28 of 28
+# `Blocking: yes` open questions are `resolved`, so no executed plan carries an unresolved blocking
+# question. That is a CONSISTENCY FACT, NOT A CATCH RATE, and it must not be written up as one, for
+# two reasons:
+#   (a) part of it is TAUTOLOGICAL. `Blocking: yes` combined with `deferred` is ALREADY a structural
+#       error at every phase via a DIFFERENT rule (`ipd_schema.open_question_error`,
+#       `ipd_schema.py:1242-1243`), so `resolved` is the only legal terminal state a blocking question
+#       can reach. The corpus could hardly show anything else.
+#   (b) nothing in the corpus records whether the checkpoint gate EVER ACTUALLY STOPPED A RUN. Its
+#       true catch rate is UNMEASURED, not perfect.
+# The reuse is still the right design (one mechanism, already wired into `begin`/`finalize`), but its
+# justification is "fewer moving parts", not "proven infallible".
+#
+# DO NOT "SIMPLIFY" THIS BY ADDING THE DIRECT SEVERITY GATE. A second gate that blocks on the finding
+# itself was CONSIDERED AND DELIBERATELY REJECTED (maintainer preference for fewer pieces of code,
+# 2026-08-29), not merely left undone. The known trade-off is recorded in the plan: this design blocks
+# one step removed from the finding, so its weakness is a reviewer who records a finding and omits the
+# escalation - which is precisely what THIS rule makes a deterministic error. If you believe the
+# direct gate is needed anyway, RAISE IT rather than adding it silently.
+# --------------------------------------------------------------------------------------
+
+_REVIEW_UNESCALATED_RULE = "check.review-finding-unescalated"
+
+#: Finding decisions that leave a finding UNFIXED and therefore require escalation.
+#:
+#: `replan` is deliberately EXCLUDED, matching the approved plan's E-01 wording ("whose decision is
+#: `open` or `deferred`"). A `REPLAN` finding says the plan must be rewritten wholesale, which is a
+#: different remedy than "execute it but answer this first"; a replanned plan is not heading for
+#: execution in its current form. Named here as an explicit set so the choice is visible rather than
+#: buried in a conditional.
+_UNFIXED_DECISIONS = ("open", "deferred")
+
+
+def _blocking_escalated_finding_ids(open_questions) -> set:
+    """The finding ids escalated by a `Blocking: yes` open question.
+
+    Reads the TYPED `- Finding:` subfield (the E-08 convention), NOT the free-text rationale prose.
+    A substring search over prose would be both spoofable (any mention of "F-3" would satisfy the
+    rule) and brittle, so the match is against a declared field only.
+
+    One question may name SEVERAL findings (`- Finding: F-3, F-5`), which is why the value is split
+    on commas and whitespace: a reviewer raising one blocking question that covers two related
+    findings should not have to file it twice.
+
+    The open question's own `Status` is deliberately NOT consulted, matching the approved plan's E-01
+    wording ("has NO open question with `Blocking: yes` naming that finding id"). The honest residual:
+    a reviewer who escalates, then marks the QUESTION `resolved` while leaving the FINDING `open`,
+    satisfies this rule and is not blocked. That combination is self-inconsistent (a resolved
+    escalation should have moved the finding to `fixed`) and is left to the semantic reviewer.
+    """
+    out: set = set()
+    for oq in open_questions or []:
+        if str(oq.get("Blocking", "")).strip().lower() != "yes":
+            continue
+        raw = str(oq.get("Finding", "")).strip()
+        if not raw:
+            continue
+        for token in _re.split(r"[,;\s]+", raw):
+            tok = token.strip().strip(".`").upper()
+            if tok:
+                out.add(tok)
+    return out
+
+
+def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
+    """Map a reviewed plan's id6 -> its review file(s), via the ONE discovery helper.
+
+    Discovery is `review_findings.iter_review_files` (the record-path authority plus its documented
+    bare-repo fallback), so this function holds NO `.aw/records/reviews` path literal of its own.
+    """
+    index: Dict[str, List[Path]] = {}
+    try:
+        from agent_workflows import review_findings as _rf
+    except Exception:
+        return index
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    for path in _rf.iter_review_files(repo_root):
+        if _core.is_ignored_path(path, repo_root, ignored_dirs):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            # Unreadable: recorded against the id6 we cannot learn, so it cannot be attributed to a
+            # plan. `check.review-dangling` already owns the untidy-review surface; a file we cannot
+            # read at all has no Plan-Id to key on.
+            continue
+        m = _REVIEW_PLAN_ID_RE.search(text)
+        if m is None:
+            continue
+        index.setdefault(m.group(1), []).append(path)
+    return index
+
+
+def evaluate_review_finding_escalation(
+    repo_root: Path,
+    *,
+    plan_path: Path,
+    plan_text: str,
+    open_questions=None,
+    threshold: Optional[str] = None,
+    review_index: Optional[Dict[str, List[Path]]] = None,
+) -> List[_core.Drift]:
+    """The ONE evaluator for `check.review-finding-unescalated`, shared by both host surfaces.
+
+    `aw check` (via :func:`check_review_finding_unescalated`) and `aw ipd lint` (via
+    ``ipd_lint.lint_file``) both call THIS function, so the sweep and the checkpoint gate cannot
+    drift apart in what they consider escalated.
+
+    Severity comparison is delegated to ``review_findings.is_gating``; this function does NOT
+    re-implement it. Current-round semantics come from ``ReviewDocument.current_findings()``, so a
+    finding raised in round 1 and fixed in round 2 is not current and never fires.
+
+    THE THREE FAILURE MODES ARE DELIBERATE AND EXPLICIT (E-07), not inherited from an enclosing
+    ``except Exception: pass``:
+
+    (a) NO review artifact for this plan -> SILENT. This is the honest consequence of the
+        acknowledged under-scope: a reviewer who records nothing is outside deterministic reach. It is
+        also required for safety, since zero `.review.md` files exist against 428 plan files, so a
+        fail-closed absent case would mass-fail the entire corpus on day one.
+    (b) Artifact PRESENT but unparseable/malformed -> FAIL CLOSED, reported. A file that exists but
+        cannot be trusted is an ERROR, not an absence, and treating it as an absence is the evasion
+        path. Any parser diagnostic counts, INCLUDING an unrecognized severity: a `HGIH` typo would
+        otherwise slip past ``is_gating`` silently, which is exactly the hole being closed.
+    (c) Threshold ``off`` -> the rule is DISABLED entirely (15zvu6 E-05).
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import review_findings as _rf
+        from agent_workflows import config as _cfg
+    except Exception:
+        return drift
+
+    # (c) `off` disables the rule outright. Checked FIRST so a disabled gate does no work at all.
+    thr = (
+        threshold if threshold is not None else _cfg.findings_gate_threshold(repo_root)
+    )
+    if str(thr).strip().lower() in ("off", ""):
+        return drift
+
+    mid = _ITEM_ID_RE.search(plan_text)
+    if mid is None:
+        return drift  # no `- Id:` to join on; the metadata linter owns that complaint
+    plan_id6 = mid.group(1)
+
+    index = _review_index(repo_root) if review_index is None else review_index
+    reviews = index.get(plan_id6) or []
+    if not reviews:
+        return drift  # (a) absent -> silent, by design
+
+    if open_questions is None:
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            open_questions = _lint.parse(plan_text).open_questions
+        except Exception:
+            open_questions = []
+    escalated = _blocking_escalated_finding_ids(open_questions)
+
+    for review_path in reviews:
+        doc = _rf.parse_review_file(review_path)
+        if doc.diagnostics:
+            # (b) present but malformed -> FAIL CLOSED. Reported at the REVIEW path, because that is
+            # the file to repair.
+            codes = ", ".join(sorted({d.code for d in doc.diagnostics}))
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(review_path),
+                        _REVIEW_UNESCALATED_RULE,
+                        (
+                            "review artifact for plan {0} is malformed ({1}), so its findings "
+                            "cannot be checked for escalation".format(plan_id6, codes)
+                        ),
+                    ),
+                    observed="unparseable review artifact: {0}".format(codes),
+                    required=(
+                        "a review artifact whose findings table parses, so gating findings are "
+                        "machine-checkable"
+                    ),
+                    recovery=(
+                        "repair the review artifact's findings table (see the reviews tree "
+                        "README); a malformed artifact is reported rather than skipped so a "
+                        "typo cannot hide a gating finding"
+                    ),
+                )
+            )
+            continue
+
+        for finding in doc.current_findings():
+            if finding.decision not in _UNFIXED_DECISIONS:
+                continue
+            if not _rf.is_gating(finding.severity, thr):
+                continue
+            if finding.id.strip().upper() in escalated:
+                continue
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(plan_path),
+                        _REVIEW_UNESCALATED_RULE,
+                        (
+                            "review finding {0} is {1}/{2} (at or above the `{3}` gate threshold) "
+                            "but no `Blocking: yes` open question names it".format(
+                                finding.id, finding.severity, finding.decision, thr
+                            )
+                        ),
+                    ),
+                    observed=(
+                        "{0}: severity {1}, decision {2}, not escalated".format(
+                            finding.id, finding.severity, finding.decision
+                        )
+                    ),
+                    required=(
+                        "an open question with `- Blocking: yes` and `- Finding: {0}`".format(
+                            finding.id
+                        )
+                    ),
+                    recovery=(
+                        "either fix {0} and mark it `FIXED` in {1}, or add an `### OQ-NN:` entry "
+                        "to the plan's `## Open questions` carrying `- Blocking: yes` and "
+                        "`- Finding: {0}`".format(finding.id, review_path.name)
+                    ),
+                )
+            )
+    return drift
+
+
+def check_review_finding_unescalated(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Sweep every PENDING-lane plan for unescalated gating review findings (plqjt7 E-01).
+
+    Scoped to pending-lane plans, following the identical grandfathering precedent as
+    ``check_ipd_draft_ready`` (:func:`check_ipd_draft_ready`) and ``check_lifecycle_transitions``:
+    a terminal-dir plan's review predates this rule, and retroactively litigating the terminal corpus
+    would be a whole-tree false-positive explosion.
+
+    The review index is built ONCE for the whole sweep rather than per plan.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import config as _cfg
+
+        threshold = _cfg.findings_gate_threshold(repo_root)
+    except Exception:
+        return drift
+    if str(threshold).strip().lower() in ("off", ""):
+        return drift
+
+    index = _review_index(repo_root)
+    if not index:
+        return drift  # nothing reviewed: every plan is the (a) absent case
+
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        drift.extend(
+            evaluate_review_finding_escalation(
+                repo_root,
+                plan_path=p,
+                plan_text=text,
+                threshold=threshold,
+                review_index=index,
             )
         )
     return drift

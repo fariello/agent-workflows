@@ -57,6 +57,15 @@ For each reviewed plan confirm:
 
 - every finding is `FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`;
 - every deferral meets the Fix Bar;
+- the typed review record was written, and every finding left `OPEN` or `DEFERRED` at or above the
+  repository's gate threshold (`review_findings_gate.block_at` in `.aw/config/project.json`, default
+  `HIGH`) is ALSO raised in the plan as an open question carrying `- Blocking: yes` and
+  `- Finding: <ID>` naming that finding. `check.review-finding-unescalated` enforces this, and the
+  escalated question is then caught by the existing `pre-execution` gate, so an unfixed serious
+  finding actually stops execution instead of merely being reported. This does NOT contradict
+  "Severity is for reporting only": severity still does not decide whether to FIX anything (the Fix
+  Bar alone does that, on Remediation Risk), only whether a finding you have ALREADY decided not to
+  fix must be surfaced as blocking;
 - resolved decisions are written into the plan;
 - required spec and documentation work is included;
 - tests and validation cover affected invariants;

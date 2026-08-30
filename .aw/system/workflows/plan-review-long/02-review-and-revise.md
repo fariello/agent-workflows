@@ -36,6 +36,19 @@ Each finding MUST contain:
 
 Severity is for reporting only.
 
+Write the findings to BOTH places:
+
+1. The findings table in the final report.
+2. A typed review record, `.aw/records/reviews/<...>.review.md`, using the same columns.
+
+The record is what makes a severity readable by tooling. Before it, severity survived only as prose,
+so a `HIGH` left unfixed gated nothing. This is a transcription of the classification you already
+made, not a second classification.
+
+Append a new `## Round <n>` for a re-review rather than editing an earlier round: the gate reads only
+the CURRENT (last) round, so a finding you raised in round 1 and fixed in round 2 correctly stops
+counting against the plan.
+
 ## 2. Apply the Fix Bar
 
 Overall Remediation Risk is the highest applicable axis:
