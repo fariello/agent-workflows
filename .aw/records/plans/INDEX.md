@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 178 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
 
 ## detrun
 
@@ -20,6 +20,10 @@ Showing the 40 most-recent of 178 Sets; the full manifest is INDEX.json.
 ## sessrot
 
 - `jb6vys` [executed] 01 executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md
+
+## timefmt
+
+- `rhszxj` [pending] 01 pending/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md
 
 ## ackme8
 
@@ -201,10 +205,6 @@ Showing the 40 most-recent of 178 Sets; the full manifest is INDEX.json.
 - `1b45el` [executed] 01 executed/20260827-xprio-01-1b45el-add-recognized-but-optional-priority-to-the-ipd-schema-plus.ipd.md
 - `rp859c` [executed] 02 executed/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md
 - `6vgd0k` [executed] 03 executed/20260827-xprio-03-6vgd0k-add-priority-to-the-research-frontmatter-contract-plus-aw-re.ipd.md
-
-## specid6
-
-- `ha55fi` [executed] 01 executed/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md
 
 ## (singletons: no Set)
 

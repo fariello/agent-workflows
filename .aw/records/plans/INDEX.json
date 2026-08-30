@@ -4180,6 +4180,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md",
+    "plan_id": "rhszxj",
+    "set_id": "timefmt",
+    "status": "approved"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
