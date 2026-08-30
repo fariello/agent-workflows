@@ -6,16 +6,18 @@
 - Scope: Add a recognized-but-optional `Work-Kind` field to the IPD schema and the spec contract, reusing backlog's existing vocabulary rather than forking it, with setter support on the existing verbs and an `aw check` enum rule. Excludes renaming or migrating backlog (child 01 owns that, and this plan requires it executed), excludes adding the field to research, excludes attention-board wiring or sort changes, and excludes deriving the value from `From-Backlog`.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/specs.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_work_kind.py
 - Item-Dependencies: executed:9trlc3
-- Status: reviewed
+- Status: approved
 - Set: wkindname
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: ng2blv
+- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - Blocks-Release: next
 - From-Backlog: 1ap48y
 
 ## Workflow history
+- 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed in place. Corrected two would-have-failed validations (backlog REQUIRES the field so the Set unifies name not requiredness; the 88/2 counts are tree-wide greps while the parser reads 87 items and 1 Gate-Kind item) and one unachievable gate (aw backlog check is already red on 3 unrelated violations, now no-worsening). Also: two validation mechanisms not one, command_surface.py added to child 01 because backlog new does declare --kind, orchestrator scope narrowed off the shared pending/ dir, 10 old-spelling fixture modules must pass unedited, and E-01 recorded as a manual obligation the runner rollup does not perform. Baselines re-measured at be49ac4 (2927 passed, 3 skipped, 4 xfailed). All three lint conforming at review-finalize.
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

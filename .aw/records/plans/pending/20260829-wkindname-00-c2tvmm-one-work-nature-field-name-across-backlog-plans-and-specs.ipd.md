@@ -6,16 +6,18 @@
 - Scope: ORCHESTRATOR - authors NO product code. Its own execution work is (E-01) whole-Set verification only. Child 01 carries the rename plus migration; child 02 carries the field addition. This plan owns the child sequence, the one-vocabulary rule both children inherit, the Set completion criteria, and the cross-plan checks. Excludes adding the field to research, excludes any attention-board wiring or sort change, and excludes deriving the value from `From-Backlog`.
 - Scope-Paths: .aw/records/plans/pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: wkindname
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: c2tvmm
+- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - Blocks-Release: next
 - From-Backlog: 1ap48y
 
 ## Workflow history
+- 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed in place. Corrected two would-have-failed validations (backlog REQUIRES the field so the Set unifies name not requiredness; the 88/2 counts are tree-wide greps while the parser reads 87 items and 1 Gate-Kind item) and one unachievable gate (aw backlog check is already red on 3 unrelated violations, now no-worsening). Also: two validation mechanisms not one, command_surface.py added to child 01 because backlog new does declare --kind, orchestrator scope narrowed off the shared pending/ dir, 10 old-spelling fixture modules must pass unedited, and E-01 recorded as a manual obligation the runner rollup does not perform. Baselines re-measured at be49ac4 (2927 passed, 3 skipped, 4 xfailed). All three lint conforming at review-finalize.
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

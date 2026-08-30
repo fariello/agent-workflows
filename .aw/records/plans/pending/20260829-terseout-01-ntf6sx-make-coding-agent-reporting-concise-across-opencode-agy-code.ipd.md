@@ -6,15 +6,17 @@
 - Scope: Define one host-neutral concise-reporting contract; render it into installed managed instructions as a separately owned `aw:reporting` section; deliver it to Claude/OpenCode command sessions by POINTER (not by duplicating prose into 48 shims); inject it into OpenCode and Agy IPD-driver execution, verification, AND review turns; resolve the workflow-required-report precedence conflict explicitly; document precedence and limits; regenerate owned artifacts; and add reachability, parity, no-clobber, and prompt-construction tests. The contract governs conversational progress and final responses, not the completeness of code, tests, IPDs, reports, JSON outcomes, safety warnings, or workflow-required evidence.
 - Scope-Paths: agent_workflows/reporting_contract.py, agent_workflows/engine.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/, docs/, README.md, AGENTS.md, .opencode/commands/**, .claude/commands/**
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Priority: high
 - Set: terseout
 - Order: 1
 - Highest E allocated: 09
 - Author: codex gpt-5.6
 - Id: ntf6sx
+- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 
 ## Workflow history
+- 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 
 - 2026-08-29 draft (codex gpt-5.6): created.
 - 2026-08-29 to-review (codex gpt-5.6): authored a review-ready cross-host concise-reporting plan from current installer, shim, and runner architecture.

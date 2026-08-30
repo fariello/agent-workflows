@@ -4067,7 +4067,7 @@
     "path": "pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md",
     "plan_id": "ntf6sx",
     "set_id": "terseout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4077,7 +4077,7 @@
     "path": "pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
     "plan_id": "c2tvmm",
     "set_id": "wkindname",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4087,7 +4087,7 @@
     "path": "pending/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md",
     "plan_id": "9trlc3",
     "set_id": "wkindname",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4097,7 +4097,7 @@
     "path": "pending/20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md",
     "plan_id": "ng2blv",
     "set_id": "wkindname",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4117,7 +4117,7 @@
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
     "plan_id": "r4mbcw",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-30",
@@ -4127,7 +4127,7 @@
     "path": "pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md",
     "plan_id": "bmh754",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-30",
@@ -4137,7 +4137,7 @@
     "path": "pending/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md",
     "plan_id": "a54m79",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-30",
@@ -4147,7 +4147,7 @@
     "path": "pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md",
     "plan_id": "kaygwo",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-30",
@@ -4157,7 +4157,7 @@
     "path": "pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md",
     "plan_id": "k7o7el",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-30",
@@ -4167,7 +4167,7 @@
     "path": "pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
     "plan_id": "7f7782",
     "set_id": "detrun",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",
