@@ -2682,14 +2682,9 @@ def run_agy_turn(
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
-    run_start_mono = None
-    created_at = state.get("created_at")
-    if created_at:
-        try:
-            created_ts = dt.datetime.fromisoformat(created_at).timestamp()
-            run_start_mono = time.monotonic() - max(0.0, time.time() - created_ts)
-        except Exception:
-            run_start_mono = None
+    run_start_mono = state.get("_invocation_start_mono")
+    if run_start_mono is None:
+        run_start_mono = time.monotonic()
 
     with log_path.open("w", encoding="utf-8") as log:
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
@@ -3831,6 +3826,9 @@ def run_queue(
         )
         return 1
 
+    invocation_start_mono = time.monotonic()
+    state["_invocation_start_mono"] = invocation_start_mono
+
     # runstop 1qxuke: the observed level-1/2 wind-down and the set in flight, kept symmetric with
     # `oc_runipd.run_queue` (orchestrator CID-3).
     wind_down: runner_stop.WindDown | None = None
@@ -3846,6 +3844,7 @@ def run_queue(
         # (stop-after-call, R20/A1) and level 2 (stop-after-set, R20/A4).
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
+        state["_invocation_start_mono"] = invocation_start_mono
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead

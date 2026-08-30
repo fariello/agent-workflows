@@ -30,6 +30,8 @@ def test_format_duration() -> None:
     assert format_duration(84) == "1m 24s"
     assert format_duration(3600) == "1h 00m 00s"
     assert format_duration(3725) == "1h 02m 05s"
+    assert format_duration(86400) == "1d 0h 00m 00s"
+    assert format_duration(86400 + 3 * 3600 + 7 * 60 + 56) == "1d 3h 07m 56s"
 
 
 def test_render_run_summary_table_borders_and_alignment() -> None:
@@ -421,3 +423,46 @@ def test_agy_runipd_main_sigterm_and_sigint_handling(
         val = buf.getvalue()
         assert "AW RUN SUMMARY: run-agy-sig-test" in val
         assert "INTERRUPTED (SIGINT / Ctrl-C)" in val
+
+
+def test_resume_statusbar_starts_from_resume_time(tmp_path: Path) -> None:
+    """Verify resume invocation sets _invocation_start_mono so statusbar does not count old time."""
+    import time
+
+    # Created 10 hours ago
+    created_at = "2026-08-30T00:00:00+00:00"
+    state = {
+        "run_id": "run-resume-time-test",
+        "repo": str(tmp_path),
+        "created_at": created_at,
+        "updated_at": "2026-08-30T00:05:00+00:00",
+        "queue": [
+            {
+                "position": 1,
+                "id6": "item01",
+                "setid": "testset",
+                "action": "execute",
+                "status": "queued",
+                "attempts": [],
+            }
+        ],
+    }
+    run_dir = tmp_path / "run-resume-time-test"
+    run_dir.mkdir(parents=True)
+    (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    t_before = time.monotonic()
+    # In run_queue, state["_invocation_start_mono"] is populated with current monotonic time
+    captured_state = {}
+    with patch.object(oc_runipd, "execute_item") as mock_exec:
+
+        def fake_exec(r_dir, st, item, *args, **kwargs):
+            captured_state["_invocation_start_mono"] = st.get("_invocation_start_mono")
+            st["queue"][0]["status"] = "executed"
+            (r_dir / "state.json").write_text(json.dumps(st), encoding="utf-8")
+
+        mock_exec.side_effect = fake_exec
+        rc = oc_runipd.run_queue(run_dir, retry_incomplete=False)
+        assert rc == 0
+        assert captured_state.get("_invocation_start_mono") is not None
+        assert captured_state["_invocation_start_mono"] >= t_before

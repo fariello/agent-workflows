@@ -166,7 +166,7 @@ class StatuslineCountdownTests(unittest.TestCase):
             id6="7nkcgp",
         )
         l1, l2 = render_stream.format_statusline_lines(**kw)
-        self.assertEqual(l2.split(" │ ")[1].strip(), "64m21s idle: 14s")
+        self.assertEqual(l2.split(" │ ")[1].strip(), "1h04m21s idle: 14s")
         self.assertEqual(len(l1), len(l2))
 
 

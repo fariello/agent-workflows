@@ -3415,14 +3415,9 @@ def run_opencode(
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
-    run_start_mono = None
-    created_at = state.get("created_at")
-    if created_at:
-        try:
-            created_ts = dt.datetime.fromisoformat(created_at).timestamp()
-            run_start_mono = time.monotonic() - max(0.0, time.time() - created_ts)
-        except Exception:
-            run_start_mono = None
+    run_start_mono = state.get("_invocation_start_mono")
+    if run_start_mono is None:
+        run_start_mono = time.monotonic()
 
     with log_path.open("w", encoding="utf-8") as log:
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
@@ -4656,6 +4651,8 @@ def run_queue(
         )
         return 1
     tracker = StreamTracker()
+    invocation_start_mono = time.monotonic()
+    state["_invocation_start_mono"] = invocation_start_mono
     # runstop 1qxuke: the observed level-1/2 wind-down, or None while no between-turn stop has been
     # requested. Captured ONCE at observation time (see `_observe_between_turn_stop`) because level
     # 2's boundary is the set that was in flight THEN, and the dependency-ordered dequeue below lets
@@ -4676,6 +4673,7 @@ def run_queue(
         # interrupts the turn that just finished, so neither can produce an indeterminate outcome.
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
+        state["_invocation_start_mono"] = invocation_start_mono
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
         # terminal state can never become runnable, so mark it (and its dependents, transitively)

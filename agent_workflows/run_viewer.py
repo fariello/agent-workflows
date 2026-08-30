@@ -153,7 +153,7 @@ class RunSummary:
 
 
 def format_duration(seconds: float | None) -> str:
-    """Format duration seconds into a human-readable string (e.g. '12.4s', '4m 12s', '1h 04m 12s')."""
+    """Format duration seconds into a human-readable string (e.g. '12.4s', '4m 12s', '1h 04m 12s', '1d 03h 07m 56s')."""
     if seconds is None or seconds < 0:
         return "0s"
     if seconds < 60:
@@ -164,7 +164,11 @@ def format_duration(seconds: float | None) -> str:
         return f"{mins}m {rem_secs:02d}s"
     hrs = int(mins // 60)
     rem_mins = int(mins % 60)
-    return f"{hrs}h {rem_mins:02d}m {rem_secs:02d}s"
+    if hrs < 24:
+        return f"{hrs}h {rem_mins:02d}m {rem_secs:02d}s"
+    days = int(hrs // 24)
+    rem_hrs = int(hrs % 24)
+    return f"{days}d {rem_hrs}h {rem_mins:02d}m {rem_secs:02d}s"
 
 
 def inspect_run_pid_and_runtime(

@@ -274,13 +274,11 @@ def format_statusline_lines(
 
     # Run Elapsed & Idle
     run_elapsed = max(0, int(now_ts - run_start_ts))
-    r_m, r_s = divmod(run_elapsed, 60)
-    run_el_str = f"{r_m}m{r_s:02d}s"
+    run_el_str = format_compact_duration(run_elapsed)
 
     idle = max(0, int(now_ts - last_act_ts))
     if idle >= 60:
-        im, is_ = divmod(idle, 60)
-        idle_str = f"idle: {im}m{is_:02d}s"
+        idle_str = f"idle: {format_compact_duration(idle)}"
     else:
         idle_str = f"idle: {idle}s"
     col2_val = f"{run_el_str} {idle_str}"
@@ -295,8 +293,7 @@ def format_statusline_lines(
 
     # Item Elapsed & Progress bar
     item_elapsed = max(0, int(now_ts - item_start_ts))
-    i_m, i_s = divmod(item_elapsed, 60)
-    item_el_str = f"{i_m}m{i_s:02d}s"
+    item_el_str = format_compact_duration(item_elapsed)
 
     bar = format_progress_bar(current_idx, total_items)
     col3_val = f"{item_el_str} {bar}"
@@ -632,18 +629,17 @@ class Heartbeat:
 
     def format_idle(self) -> str:
         idle = int(time.monotonic() - self._last_activity)
-        idle_m, idle_s = divmod(idle, 60)
-        return f"{idle_m}m{idle_s:02d}s"
+        return format_compact_duration(idle)
 
     def format_message(self) -> str:
         elapsed = int(time.monotonic() - self._start)
-        mins, secs = divmod(elapsed, 60)
+        el_str = format_compact_duration(elapsed)
         idle_str = self.format_idle()
         countdown = format_stall_countdown(self.stall_remaining(), self.progress_source)
         tail = f", stall {countdown}" if countdown else ""
         return (
             f"    \u2026 {self.label}: no progress {idle_str} "
-            f"({mins}m{secs:02d}s elapsed{tail})"
+            f"({el_str} elapsed{tail})"
         )
 
     def _run(self) -> None:
@@ -666,18 +662,37 @@ class Heartbeat:
             self._thread.join(timeout=1.0)
 
 
+def format_compact_duration(seconds: float | None) -> str:
+    """Format duration seconds into compact statusline format (e.g. '0m00s', '4m08s', '1h04m21s', '3h07m56s', '1d 3h07m56s')."""
+    if seconds is None or seconds < 0:
+        return "0m00s"
+    secs = int(round(seconds))
+    if secs < 3600:
+        mins, rem_s = divmod(secs, 60)
+        return f"{mins}m{rem_s:02d}s"
+    hrs, rem = divmod(secs, 3600)
+    mins, rem_s = divmod(rem, 60)
+    if hrs < 24:
+        return f"{hrs}h{mins:02d}m{rem_s:02d}s"
+    days, rem_h = divmod(hrs, 24)
+    return f"{days}d {rem_h}h{mins:02d}m{rem_s:02d}s"
+
+
 def format_duration(seconds: float | None) -> str:
-    """Format duration seconds into a human-readable string (e.g. '0s', '12s', '4m 12s', '1h 04m 12s')."""
+    """Format duration seconds into a human-readable string (e.g. '0s', '12s', '4m 12s', '1h 04m 12s', '1d 03h 07m 56s')."""
     if seconds is None or seconds < 0:
         return "0s"
     secs = int(round(seconds))
     if secs < 60:
         return f"{secs}s"
-    mins, rem = divmod(secs, 60)
+    mins, rem_s = divmod(secs, 60)
     if mins < 60:
-        return f"{mins}m {rem:02d}s"
+        return f"{mins}m {rem_s:02d}s"
     hrs, rem_m = divmod(mins, 60)
-    return f"{hrs}h {rem_m:02d}m {rem:02d}s"
+    if hrs < 24:
+        return f"{hrs}h {rem_m:02d}m {rem_s:02d}s"
+    days, rem_h = divmod(hrs, 24)
+    return f"{days}d {rem_h}h {rem_m:02d}m {rem_s:02d}s"
 
 
 def _parse_iso_timestamp(ts_str: str | None) -> float | None:

@@ -275,12 +275,27 @@ class StatuslineUnitTests(unittest.TestCase):
             render_stream.format_progress_bar(5, 5), "██████████ 100% [5/5]"
         )
 
+    def test_format_compact_duration(self):
+        self.assertEqual(render_stream.format_compact_duration(0), "0m00s")
+        self.assertEqual(render_stream.format_compact_duration(45), "0m45s")
+        self.assertEqual(render_stream.format_compact_duration(248), "4m08s")
+        self.assertEqual(
+            render_stream.format_compact_duration(64 * 60 + 21), "1h04m21s"
+        )
+        self.assertEqual(
+            render_stream.format_compact_duration(187 * 60 + 56), "3h07m56s"
+        )
+        self.assertEqual(
+            render_stream.format_compact_duration(86400 + 3 * 3600 + 7 * 60 + 56),
+            "1d 3h07m56s",
+        )
+
     def test_format_statusline_exact_layout(self):
         tracker = render_stream.StreamTracker()
         tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
 
         now_ts = 1700000000.0  # fixed timestamp
-        run_start_ts = now_ts - (64 * 60 + 21)  # 64m21s
+        run_start_ts = now_ts - (64 * 60 + 21)  # 64m21s -> 1h04m21s
         item_start_ts = now_ts - (4 * 60 + 8)  # 4m08s
         last_act_ts = now_ts - 14  # idle 14s
 
@@ -317,7 +332,7 @@ class StatuslineUnitTests(unittest.TestCase):
 
         # Value line segments
         self.assertRegex(seg2[0].strip(), r"^\d{2}:\d{2}:\d{2}$")
-        self.assertEqual(seg2[1].strip(), "64m21s idle: 14s")
+        self.assertEqual(seg2[1].strip(), "1h04m21s idle: 14s")
         self.assertEqual(seg2[2].strip(), "4m08s ██████████ 100% [1/1]")
         self.assertEqual(seg2[3].strip(), "$15.27")
         self.assertEqual(seg2[4].strip(), "16.2m")
@@ -358,7 +373,7 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(len(s1), len(s2))
         self.assertIn("Time", s1)
         self.assertIn("set: revgate id6: 7nkcgp", s1)
-        self.assertIn("64m21s idle: 14s", s2)
+        self.assertIn("1h04m21s idle: 14s", s2)
         self.assertIn("4m08s ██████████ 100% [1/1]", s2)
         self.assertIn("$15.27", s2)
 
