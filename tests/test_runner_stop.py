@@ -619,12 +619,23 @@ class PollWiringTests(unittest.TestCase):
         self.assertIs(agy_runipd.runner_stop, runner_stop)
 
     def test_this_child_wires_no_level_behavior(self):
-        # Scope fence: Phases 2-4 own the behavior. The poll's return value is deliberately not
-        # branched on yet, and no signal handler is registered here (Phase 5 owns that).
+        # Scope fence, CONSCIOUSLY NARROWED by runstop Phase 2 (`1qxuke`) rather than deleted.
+        #
+        # As authored by Phase 1 (`gq6m2u`) this test asserted that NO level behavior existed yet, by
+        # forbidding any consumption of the poll's return value (`= runner_stop.poll_stop`) and any
+        # signal handler. Phase 2 legitimately implements levels 1-2, which REQUIRES consuming that
+        # return value at the between-item checkpoint, so the first half of the fence is now
+        # superseded by the very phase it was reserving room for. Deleting the test would silently
+        # drop the parts of the fence that are STILL live, so it is narrowed instead:
+        #
+        #   * still forbidden here: `signal.signal(` - the trigger UX is Phase 5 (`71vjbn`), and a
+        #     handler registered before then would bypass the monotonic writer's handler-safe entry
+        #     point (`request_stop_nowait`) and reintroduce the measured deadlock.
+        #   * now expected: the between-turn branch, which Phase 2 owns. It is asserted POSITIVELY in
+        #     `tests/test_runner_stop_levels12.py` (which observes real behavior, not source text),
+        #     so this test does not re-pin it by grep.
         for module_name in ("oc_runipd.py", "agy_runipd.py"):
             source = self._source(module_name)
-            self.assertNotIn("if runner_stop.poll_stop", source)
-            self.assertNotIn("= runner_stop.poll_stop", source)
             self.assertNotIn("signal.signal(", source)
 
 

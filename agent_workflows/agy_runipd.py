@@ -3295,6 +3295,58 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     return requeued
 
 
+def _observe_between_turn_stop(
+    run_dir: Path,
+    level: int | None,
+    current_setid: str | None,
+    existing: runner_stop.WindDown | None,
+) -> runner_stop.WindDown | None:
+    """Turn a polled stop LEVEL into a level-1/2 wind-down, capturing the set boundary ONCE.
+
+    runstop 1qxuke. The exact counterpart of ``oc_runipd._observe_between_turn_stop`` (orchestrator
+    CID-3: no level may exist in one driver only). The boundary decision itself lives in the shared
+    ``runner_stop`` module, so the two drivers cannot drift apart on WHICH items may still start.
+    """
+
+    if level not in runner_stop.BETWEEN_TURN_LEVELS:
+        return existing
+    if existing is not None and existing.level >= level:
+        return existing
+    request = runner_stop.read_stop_request(run_dir)
+    requester = request.requester if request is not None else "unknown"
+    setid = existing.setid if existing is not None else current_setid
+    wind_down = runner_stop.WindDown(level=level, requester=requester, setid=setid)
+    print(
+        f"stop requested: level {wind_down.level} ({wind_down.level_name}); "
+        f"boundary = next "
+        f"{'item' if wind_down.level == runner_stop.LEVEL_AFTER_CALL else 'set'}"
+        + (f", finishing set {setid}" if wind_down.level == 2 and setid else ""),
+        file=sys.stderr,
+    )
+    return wind_down
+
+
+def _record_deliberate_stop(
+    run_dir: Path, state: dict[str, Any], wind_down: runner_stop.WindDown
+) -> None:
+    """Append the DELIBERATE-stop ledger event (spec R21); un-run items stay `queued`.
+
+    runstop 1qxuke. The counterpart of ``oc_runipd._record_deliberate_stop``, writing the same
+    event to the same established append-only ``events.jsonl`` channel.
+    """
+
+    remaining = [item["id6"] for item in state["queue"] if item["status"] == "queued"]
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.deliberate_stop_event(wind_down, at=utc_now(), remaining=remaining),
+    )
+    print(
+        f"deliberate stop (level {wind_down.level}, {wind_down.level_name}): "
+        f"{len(remaining)} item(s) left queued, not started: {', '.join(remaining) or 'none'}",
+        file=sys.stderr,
+    )
+
+
 def run_queue(
     run_dir: Path, retry_incomplete: bool = False, output_mode: str | None = None
 ) -> int:
@@ -3323,14 +3375,27 @@ def run_queue(
                 item["recovery_next"] = True
         save_state(run_dir, state)
 
+    # runstop 1qxuke: the observed level-1/2 wind-down and the set in flight, kept symmetric with
+    # `oc_runipd.run_queue` (orchestrator CID-3).
+    wind_down: runner_stop.WindDown | None = None
+    current_setid: str | None = None
+    # Recorded EXACTLY ONCE, whichever boundary the loop exits at (kept symmetric with `oc_runipd`).
+    stop_recorded = False
     while True:
         # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), the exact
-        # counterpart of the `oc_runipd` site. Levels 1-2 will branch here; this child only
-        # OBSERVES the level and leaves dequeuing unconditional.
-        runner_stop.poll_stop(run_dir)
+        # counterpart of the `oc_runipd` site. runstop 1qxuke acts on it for level 1
+        # (stop-after-call, R20/A1) and level 2 (stop-after-set, R20/A4).
+        level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
+        wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
+            # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 stop on the last set
+            # drains the queue and leaves HERE, so the deliberate stop must still be recorded (spec
+            # R21) or it would be indistinguishable from an ordinary finish.
+            if wind_down is not None and not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
             break
         runnable = None
         for item in queued:
@@ -3338,7 +3403,26 @@ def run_queue(
             if satisfied:
                 runnable = item
                 break
+        # runstop 1qxuke: consent to START only, never a reordering. Out-of-boundary items stay
+        # `queued` (spec R22), which for level 2 can mean ending with runnable work outstanding.
+        if (
+            wind_down is not None
+            and runnable is not None
+            and not wind_down.permits(runnable.get("setid"))
+        ):
+            if not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
+            break
         if runnable is None:
+            # runstop 1qxuke: during a wind-down the remainder is `queued` because the OPERATOR
+            # stopped, not because its dependencies are unmet; relabelling it `dependency-blocked`
+            # would be a fabricated disposition (spec R22).
+            if wind_down is not None:
+                if not stop_recorded:
+                    _record_deliberate_stop(run_dir, state, wind_down)
+                    stop_recorded = True
+                break
             for item in queued:
                 _, missing, why = dependency_status_detailed(item, state)
                 item["status"] = "dependency-blocked"
@@ -3363,6 +3447,9 @@ def run_queue(
             break
 
         recovery = bool(runnable.pop("recovery_next", False))
+        # runstop 1qxuke: the set now in flight, recorded BEFORE the turn so a stop requested during
+        # it is observed at the next checkpoint with this set already captured.
+        current_setid = runnable.get("setid")
         try:
             execute_item(run_dir, state, runnable, recovery=recovery)
         except ToolIdentityError:
@@ -3418,7 +3505,14 @@ def run_queue(
     write_report(run_dir, state)
     hint = render_continuation_hint(state, run_dir)
     print(hint)
-    return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
+    # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
+    # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
+    # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
+    return runner_stop.deliberate_stop_exit_code(
+        (item["status"] for item in state["queue"]),
+        success_states=SUCCESS_STATES,
+        stopped=wind_down is not None,
+    )
 
 
 @contextlib.contextmanager

@@ -63,7 +63,7 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator, Tuple
+from typing import Any, Callable, Container, Iterable, Iterator, Sequence, Tuple
 
 __all__ = [
     "STOP_REQUEST_FILENAME",
@@ -89,6 +89,10 @@ __all__ = [
     "poll_stop",
     "pending_deferred_request",
     "reset_deferred_request",
+    "BETWEEN_TURN_LEVELS",
+    "WindDown",
+    "deliberate_stop_event",
+    "deliberate_stop_exit_code",
 ]
 
 # --- the record's on-disk identity ----------------------------------------------------------------
@@ -557,3 +561,124 @@ def poll_stop(run_dir: Path | str) -> int | None:
                 _DEFERRED_REQUEST = None
     request = read_stop_request(run_dir)
     return request.level if request is not None else None
+
+
+# --- levels 1 and 2: the BETWEEN-TURN wind-down (spec `c4gd2h` R20/R21, A1/A4) ---------------------
+#
+# Owned by Set `runstop` Phase 2 (`1qxuke`). Levels 1 and 2 are the two levels that never interrupt
+# a running turn, so their entire correctness argument is about the DEQUEUE decision: which items
+# the driver still consents to start. That decision is expressed here, ONCE, so both drivers
+# consult one implementation instead of each re-deriving the boundary (spec R5's single-source
+# discipline; orchestrator CID-3 requires the two drivers to expose the same levels).
+#
+# Level 1 = STOP-AFTER-CALL (R20/A1): the in-flight turn finishes, then NO further item starts.
+# Level 2 = STOP-AFTER-SET  (R20/A4): the rest of the CURRENT set finishes, then nothing else.
+#
+# WHY THE CURRENT SET MUST BE CAPTURED, NOT RE-DERIVED (the subtle part). The drivers' dequeue is
+# DEPENDENCY-ordered, not set-ordered: `run_queue` picks the first `queued` item whose dependencies
+# are satisfied by scanning the WHOLE queue, even though the queue is BUILT set-contiguously. So
+# sets INTERLEAVE. Measured against the real `dependency_status`: with the queue
+# `A/a1 (executed), A/a2 (blocked on an unmet dep), B/b1 (ready)`, the next dequeue is `B/b1` - the
+# in-flight set jumps A -> B while set A still holds a queued item. Consequences encoded below:
+#   * "the current set" is the setid of the item in flight when the request was OBSERVED, captured
+#     ONCE (`WindDown.setid`) and held for the whole wind-down;
+#   * a "stop when the setid changes" rule would be wrong in BOTH directions (it can stop early on
+#     an interleave, or resume set A after B and never stop at all);
+#   * during a level-2 wind-down an item of ANOTHER set is out of scope and stays `queued` EVEN IF
+#     it is the only runnable item, so a level-2 stop can legitimately end with runnable work
+#     outstanding. That is correct: the operator asked to wind down, not to drain the queue.
+
+BETWEEN_TURN_LEVELS: Tuple[int, ...] = (LEVEL_AFTER_CALL, LEVEL_AFTER_SET)
+
+
+@dataclass(frozen=True)
+class WindDown:
+    """An OBSERVED level-1/2 stop request, with the set boundary frozen at observation time.
+
+    `setid` is the set that was in flight when the request was first observed, or None when the
+    request was observed before any item had run. It is captured once precisely because the
+    dependency-ordered dequeue lets sets interleave (see the module comment above).
+    """
+
+    level: int
+    requester: str
+    setid: str | None
+
+    @property
+    def level_name(self) -> str:
+        return LEVEL_NAMES.get(self.level, "unknown")
+
+    def permits(self, item_setid: str | None) -> bool:
+        """May the driver still START an item belonging to `item_setid` during this wind-down?
+
+        Level 1 permits nothing further (the boundary is the next ITEM). Level 2 permits only the
+        captured set (the boundary is the next SET). A wind-down observed before any item ran has
+        no captured set, so level 2 has no set to finish and permits nothing either: that is the
+        conservative direction, and it can never run an item the operator asked to skip.
+        """
+
+        if self.level == LEVEL_AFTER_CALL:
+            return False
+        if self.level == LEVEL_AFTER_SET:
+            return self.setid is not None and item_setid == self.setid
+        # Levels 3 and 4 interrupt the turn itself and are owned by later phases; they are not
+        # between-turn boundaries and must not be silently treated as permissive here.
+        return False
+
+
+def deliberate_stop_event(
+    wind_down: WindDown,
+    *,
+    at: str,
+    remaining: Sequence[str] = (),
+) -> dict:
+    """The ledger event recording a DELIBERATE stop, as a NON-FAILURE (spec R21).
+
+    Written to the driver's established append-only `events.jsonl` channel. It names the level and
+    the requester so history shows the operator's INTENT rather than implying breakage, and lists
+    the items deliberately not started so the record is self-describing. Un-run items keep their
+    existing `queued` status: no per-item status is invented, and nothing is marked
+    `unknown_outcome`, because no turn was interrupted (spec R20).
+    """
+
+    return {
+        "at": at,
+        "event": "deliberate-stop",
+        "deliberate": True,
+        "failure": False,
+        "level": wind_down.level,
+        "level_name": wind_down.level_name,
+        "requester": wind_down.requester,
+        "boundary": "next-item" if wind_down.level == LEVEL_AFTER_CALL else "next-set",
+        "current_setid": wind_down.setid,
+        "not_started": list(remaining),
+    }
+
+
+def deliberate_stop_exit_code(
+    statuses: Iterable[str],
+    *,
+    success_states: Container[str],
+    stopped: bool,
+) -> int:
+    """The run's exit code, honest about BOTH a deliberate stop and a real failure.
+
+    The drivers' normal predicate is "every item reached a success state, else 1". A deliberate
+    stop intentionally leaves items `queued`, which is NOT a success state, so that predicate
+    returns 1 for a correct, operator-requested wind-down (verified by direct evaluation:
+    `['executed', 'queued', 'queued']` -> 1). Spec A1 and A4 both require exit 0.
+
+    So when `stopped` is true, the run exits 0 iff every item that actually RAN reached a success
+    state; items still `queued` are ignored BECAUSE THEY NEVER RAN, not because they succeeded.
+    Their status is left untouched: rewriting them to buy the 0 is exactly the fabricated
+    disposition spec R22 forbids. A stop whose last run item genuinely FAILED still exits nonzero.
+    """
+
+    remaining = list(statuses)
+    if not stopped:
+        return 0 if all(status in success_states for status in remaining) else 1
+    return (
+        0
+        if all(status in success_states for status in remaining if status != "queued")
+        else 1
+    )
