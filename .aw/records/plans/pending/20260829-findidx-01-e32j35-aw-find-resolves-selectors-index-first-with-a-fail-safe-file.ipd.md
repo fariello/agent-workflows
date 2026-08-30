@@ -6,14 +6,16 @@
 - Scope: Make selector resolution INDEX-FIRST with a FAIL-SAFE FILESYSTEM FALLBACK, never index-only, for the PLANS type (the one indexed type whose index is semantically parity-capable; see Deferred for research). Resolve MATCH_ID6/MATCH_SETID/MATCH_STATUS from the index when it is trustworthy; if the index is missing, unparseable, or judged stale, fall back to today's bounded-header filesystem scan and still return the correct answer. MATCH_PATH/MATCH_STEM/MATCH_SUBSTRING already need no file contents (they match on the path/filename) and must stop being fed file text at all. Add the staleness signal the index currently lacks so 'is the index trustworthy?' is a cheap deterministic check rather than a guess. Out of scope: changing what `aw find` MATCHES (precedence and semantics are frozen, and PARITY between the index path and the fallback path is the hard invariant), changing `aw search`, the CLI display layer's own re-scan, and building indexes for the eight types that do not have one.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/plans_index.py, tests/, .aw/records/plans/README.md, .gitignore, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: findidx
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: e32j35
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (5 blockers) fixed in place; OQ-03 open (blocking, maintainer scope call)
 - 2026-08-29 to-review (aw set): Authored review-ready: aw find should resolve id6/setid/status from the per-type index when fresh, with a non-removable filesystem fallback. Index-only is explicitly rejected: aw check plans reported a stale index TWICE on 2026-08-29, so index-only would have been blind to two real plans.
 

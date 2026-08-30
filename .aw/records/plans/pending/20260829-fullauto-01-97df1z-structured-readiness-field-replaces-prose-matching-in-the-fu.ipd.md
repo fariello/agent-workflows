@@ -6,14 +6,16 @@
 - Scope: Fix the gate at its real cause, then make it structural. (1) FIX THE EXTRACTOR: bound the `## Workflow history` slice at the next `## ` heading and select the NEWEST (first) record, reusing the repo's existing correct reader rather than writing a fourth one - `attention._history_section_lines` (attention.py:86) already bounds the section correctly and `attention_contract.HISTORY_RECORD_RE` (attention_contract.py:450) already defines the `- YYYY-MM-DD <text>` record grammar. (2) Add an optional, recognized plan front-matter field `- Readiness:` with a closed lowercase-kebab enum `go` | `go-pending-approval` | `no-go` (house convention: bare lowercase enums, cf. `Status:`, `Kind:`, `Priority:`, `Gate-Kind:`); absent = unknown = NOT auto-approvable (fail closed). (3) Extract ONE shared predicate (and the history helper, also duplicated at oc_runipd.py:215 / agy_runipd.py:391) into a single module both drivers import, so the rule cannot drift. (4) The predicate returns True only for `Readiness: go-pending-approval` (or `go`), with a BOUNDED BACK-COMPAT FALLBACK that reads the CORRECTED newest history record: accept verdict `APPROVE` or `APPROVE WITH REVISIONS APPLIED` AND no unresolved blocking open question; never accept `NO-GO`/`CONDITIONAL-GO`. (5) Make `/plan-review` (and its parity twin `plan-review-long`) WRITE the field at its finalize step instead of relying on prose. Preserve the existing safety property: a `NO-GO`/`CONDITIONAL-GO` readiness must never auto-approve. Out of scope: widening what `--full-auto` is ALLOWED to do (see the Deferred note on the `--by-human` attestation), and the broader driver unification.
 - Scope-Paths: agent_workflows/plan_readiness.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_schema.py, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/plan-review-long.md, tests/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: fullauto
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 97df1z
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007. Misdiagnosis corrected: the extractor is the primary bug (rfind-to-EOF, unbounded; 20/20 pending plans return a non-history bullet) and history is newest-first, so the structured field alone would NOT have fixed --full-auto and the back-compat fallback would have been dead code. Added E-06/E-07 + V-06/V-07. OQ-02 opened (blocking): --full-auto self-asserts --by-human.
 - 2026-08-29 to-review (aw set): status set to to-review
 
