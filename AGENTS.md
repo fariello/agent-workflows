@@ -112,6 +112,14 @@ field and is an equally valid gate carrier, so a spec-first graduation can legit
 blocking backlog item's release gate be provably handed off to the plan that inherits it (so the item can
 close `done` without silently dropping the gate).
 
+A plan (or spec) graduated from a SPEC carries the parallel `- From-Spec: <spec-id6>` field naming that
+spec, so a spec-to-plan handoff is machine-readable in exactly the shape a backlog-to-plan handoff
+already is. Both fields are recognized but optional, so no existing artifact is retroactively invalid.
+`aw check` flags a `From-Spec` value that resolves to no spec (`check.from-spec-dangling`), the same
+error severity its `From-Backlog` twin carries, because a spec is an equally valid release-gate carrier
+and a link pointing at nothing is a broken handoff claim either way. Note there is no
+`--from-spec` setter yet: write the field when authoring the plan.
+
 Close-legitimacy rule for a release-blocking backlog item: `aw backlog set done` on an item carrying
 `- Blocks-Release: <R>` FAILS CLOSED unless the gate is provably preserved or released via one of three
 fixes: (1) HANDOFF, a plan carrying `- From-Backlog: <this id6>` and the same `- Blocks-Release: <R>`

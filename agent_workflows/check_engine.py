@@ -114,6 +114,15 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.from-backlog-dangling": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # detrun Order bmh754 (spec 25kzda): the SPEC-side twin of `check.from-backlog-dangling` above - a
+    # plan/spec whose `From-Spec:` id6 resolves to no spec. Same severity (`error`), same assurance
+    # class, and the SAME invariant I-07 as its backlog twin, because a spec is an equally valid
+    # release-gate handoff carrier (AGENTS.md), so a broken `From-Spec` breaks the same gate-preservation
+    # invariant a broken `From-Backlog` does. Deterministic: a literal id6 set membership test against
+    # `specs._existing_spec_ids`, no inference.
+    "check.from-spec-dangling": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
@@ -1425,6 +1434,13 @@ def check_types(
             drift.extend(_releases.check_from_backlog(repo_root))
         except Exception:
             pass
+        # detrun bmh754: a dangling From-Spec link is the SPEC-side twin of the From-Backlog scan
+        # directly above, so it rides the same once-per-full-sweep seam. Its own try/except (rather
+        # than sharing the one above) so a failure in either scan cannot suppress the other.
+        try:
+            drift.extend(check_from_spec_dangling(repo_root))
+        except Exception:
+            pass
         # revgate Order 01 (15zvu6): a review file pointing at a nonexistent plan is the same class
         # of cross-tree ref check, run once in the full sweep. ADVISORY (`warning`), so it reports
         # without setting an exit code.
@@ -2367,6 +2383,91 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
                 ),
             )
         )
+    return drift
+
+
+_FROM_SPEC_DANGLING_RULE = "check.from-spec-dangling"
+_ITEM_FROM_SPEC_RE = _re.compile(r"(?m)^-[ \t]*From-Spec:[ \t]*(\S+)[ \t]*$")
+
+
+def check_from_spec_dangling(repo_root: Path) -> List[_core.Drift]:
+    """Flag a plan (or spec) whose `- From-Spec:` does not resolve to an existing spec id6.
+
+    detrun Order bmh754 (spec 25kzda): the SPEC-side sibling of `releases.check_from_backlog`, and the
+    value-validation half of the `META_FROM_SPEC` schema recognition. The schema layer deliberately
+    only stops the IPD-M103 "unknown field" error; whether the id6 actually resolves is a CROSS-TREE
+    reference question, so it lives here on the same full-sweep seam as `check.from-backlog-dangling`,
+    `check.blocks-release-dangling`, and `check.review-dangling`.
+
+    `error`, matching `check.from-backlog-dangling` rather than the advisory `check.review-dangling`,
+    and the difference is deliberate. A stale review is untidy leftover data that nothing downstream
+    reads. A `From-Spec` link is LOAD-BEARING provenance: AGENTS.md makes a spec an "equally valid gate
+    carrier" for a release gate, so a `From-Spec` pointing at nothing is a broken handoff claim of
+    exactly the kind its `From-Backlog` twin already errors on. Severity parity between the two
+    carriers of one handoff is the point.
+
+    Discovery reuses the existing `_iter_plan_ipds` / `_iter_spec_records` iterators. This function
+    contains NO new spec-id scanner and NO second spec-path literal: a second mechanism for "which
+    spec ids exist" is precisely the drift GUIDING_PRINCIPLES P8 forbids.
+
+    The known-id set is the UNION of two existing authorities, and the union is load-bearing rather
+    than belt-and-braces (measured, not assumed): `_iter_spec_records` walks the in-tree
+    `.aw/records/specs` / `.agents/specs` trees, while `specs._existing_spec_ids` goes through
+    `record_producers.resolve_record_read_paths`, which in an EXTERNALLY-REDIRECTED project resolves
+    to a path outside the repo entirely. Verified on a scratch repo: the resolver returned only
+    `~/.aw/projects/<slug>/records/specs` and `_existing_spec_ids` was therefore EMPTY while the
+    in-tree spec plainly existed, which made a perfectly valid link look dangling. Consulting either
+    source alone yields false positives on some real layout; the union yields them on neither.
+
+    Unresolvable-either-way is the only reported case, which is the correct bias for an `error` rule:
+    over-reporting here would block commits on valid links.
+
+    Scanned on plans AND specs for the same symmetry reason `check_from_backlog` scans both: the link's
+    primary home is a plan, but tolerating it anywhere keeps one rule instead of two.
+    """
+    drift: List[_core.Drift] = []
+    known: set = set()
+    for _p, _t in _iter_spec_records(repo_root):
+        m = _ITEM_ID_RE.search(_t)
+        if m:
+            known.add(m.group(1))
+    try:
+        from agent_workflows import specs as _specs
+
+        known |= _specs._existing_spec_ids(Path(repo_root))
+    except Exception:
+        # Fail SAFE: a resolver failure must not turn every valid link into a finding. The in-tree
+        # scan above already stands on its own; this only widens the set.
+        pass
+    if not known:
+        # No spec identity is discoverable at all (no specs tree, or an unreadable one). We cannot
+        # distinguish a dangling link from an invisible spec corpus, so report nothing rather than
+        # flag every link in the repo. Same fail-safe posture as the sibling dangling scans.
+        return drift
+
+    for iterator in (_iter_plan_ipds, _iter_spec_records):
+        for path, text in iterator(repo_root):
+            m = _ITEM_FROM_SPEC_RE.search(text)
+            if m is None:
+                continue
+            target = m.group(1)
+            if target in known:
+                continue
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(path),
+                        _FROM_SPEC_DANGLING_RULE,
+                        f"From-Spec {target!r} does not resolve to a spec",
+                    ),
+                    observed=f"From-Spec: {target}",
+                    required="a From-Spec matching an existing spec's `- Id:`",
+                    recovery=(
+                        "correct the From-Spec to the source spec's id6 (`aw find specs` to look it "
+                        "up), or drop the field if this plan did not graduate from a spec"
+                    ),
+                )
+            )
     return drift
 
 
