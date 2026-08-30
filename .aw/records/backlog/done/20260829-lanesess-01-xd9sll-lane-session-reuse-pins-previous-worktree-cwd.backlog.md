@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: lanesess
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Session reuse across lanes pins a turn to the PREVIOUS lane's worktree: session is per-set but worktrees are per-item, so lanes 2..N run in the wrong tree and stall at the external_directory gate
 
 ## Workflow history

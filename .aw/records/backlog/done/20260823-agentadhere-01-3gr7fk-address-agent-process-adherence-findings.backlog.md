@@ -2,7 +2,7 @@
 - Status: done
 - Set: agentadhere
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: Address agent-process-adherence findings: move key invariants from prose into layered deterministic enforcement
 - Blocks-Release: next
 

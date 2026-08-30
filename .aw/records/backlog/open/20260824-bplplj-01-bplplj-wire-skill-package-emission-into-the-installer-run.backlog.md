@@ -2,7 +2,7 @@
 - Status: open
 - Set: bplplj
 - Priority: medium
-- Kind: followup
+- Work-Kind: followup
 - Summary: Wire skill-package emission into the installer run() path across hosts
 
 ## Workflow history

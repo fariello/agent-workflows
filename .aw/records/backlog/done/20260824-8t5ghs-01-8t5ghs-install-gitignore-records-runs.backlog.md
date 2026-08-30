@@ -2,7 +2,7 @@
 - Status: done
 - Set: 8t5ghs
 - Priority: high
-- Kind: chore
+- Work-Kind: chore
 - Summary: aw install must ensure .aw/records/runs/ is gitignored (ipdrunner durable run state must never be committed)
 - Blocks-Release: next
 

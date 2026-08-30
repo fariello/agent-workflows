@@ -2,7 +2,7 @@
 - Status: open
 - Set: runverdict
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Both runners' verifier gate fails OPEN: only BLOCKED/NOT CONFORMING downgrade, so the schema's own CORRECTION_REQUIRED verdict (and any typo/empty/garbage) is recorded 'verified' and proceeds to finalize+merge
 
 ## Workflow history

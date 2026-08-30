@@ -2,7 +2,7 @@
 - Status: open
 - Set: runverdict
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: The runner reads only 'verdict' from the verification outcome: the substantive evidence/tests_run/corrections_made fields all 28 verifiers populated are written, committed, and then ignored by every gate
 
 ## Workflow history

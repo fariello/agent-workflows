@@ -2,7 +2,7 @@
 - Status: open
 - Set: onasuh
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Surface artifact and status discrepancies in aw doctor via shared audit engine
 
 ## Workflow history

@@ -2,7 +2,7 @@
 - Status: done
 - Set: research-prompt-pipeline
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: /research [topic] workflow: producer that drafts a house-conformant handoff prompt into prompts/pending
 
 ## Workflow history

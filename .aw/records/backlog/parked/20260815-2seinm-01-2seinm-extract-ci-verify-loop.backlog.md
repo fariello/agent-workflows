@@ -2,7 +2,7 @@
 - Status: parked
 - Set: 2seinm
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Extract the push-then-verify CI loop into its own file, invocable during authorized dev iteration (not just release Section 9)
 
 ## Workflow history

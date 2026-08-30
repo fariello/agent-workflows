@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: driverwire
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: aw oc/agy run must drive execution through engine-owned aw commit/aw finish (not runbook prose) so a run never leaves the IPD move/status/code changes uncommitted
 
 ## Workflow history

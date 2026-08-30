@@ -2,7 +2,7 @@
 - Status: open
 - Set: setiduniq
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: Enforce setid uniqueness across types (hard/prevented) + bidirectional graduation links (From-Backlog/From-Spec by id6, Graduated-To by setid); fix the agentadhere collision
 
 ## Workflow history

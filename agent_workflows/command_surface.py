@@ -1039,6 +1039,10 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
             "--set",
             "--status",
             "--priority",
+            # wkindname Order 01 (9trlc3) E-05: `--work-kind` is the preferred spelling and `--kind`
+            # is the retained alias, so BOTH are declared here to keep the declared flag set matching
+            # the parser's accepted set on the one backlog command where the flag is declared.
+            "--work-kind",
             "--kind",
             "--slug",
             "--gate-kind",

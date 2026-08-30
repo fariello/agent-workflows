@@ -2,7 +2,7 @@
 - Status: open
 - Set: specsubdirs
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: Should specs get lifecycle subdirs? 24 specs sit intermixed in a flat tree while carrying a real 6-state lifecycle, 16 of them terminal
 
 ## Workflow history

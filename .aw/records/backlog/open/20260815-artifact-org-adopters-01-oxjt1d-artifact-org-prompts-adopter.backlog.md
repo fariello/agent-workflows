@@ -2,7 +2,7 @@
 - Status: open
 - Set: artifact-org-adopters
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Apply the artifact-organization model to prompts/ (then comms/, walkthroughs/) reusing artifact_core
 
 ## Workflow history

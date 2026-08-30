@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: gateclear
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw backlog set (leaving blocked) must clear the Gate-Kind/Gate-Ref fields; today it moves status but leaves stale gate fields, so aw backlog check then fails gate-unexpected and forces a hand-edit
 
 ## Workflow history

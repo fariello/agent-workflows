@@ -2,7 +2,7 @@
 - Status: open
 - Set: rcptstale
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: Decide how a begin receipt should behave when its frozen base goes stale: scope-drift emits ~1000 findings for plans that are not actually drifting
 
 ## Workflow history

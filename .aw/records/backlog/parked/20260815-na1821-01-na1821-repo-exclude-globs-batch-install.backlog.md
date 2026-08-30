@@ -2,7 +2,7 @@
 - Status: parked
 - Set: na1821
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Repo exclude-globs for aw setup / aw install all: config list of globs to skip in batch install/setup
 
 ## Workflow history

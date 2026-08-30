@@ -2,7 +2,7 @@
 - Status: done
 - Set: vwios6
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: aw ipd set must support --blocks-release (release-gate parity with backlog and specs setters)
 - Blocks-Release: next
 

@@ -2,7 +2,7 @@
 - Status: done
 - Set: awphysical
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw install from a mid-awphysical build produces a split-brain layout (.aw bookkeeping + .agents/workflows content); add an install-time guard
 
 ## Workflow history

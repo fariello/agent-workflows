@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: statefork
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Worktree-relative aw state fork: an inner aw invoked with cwd inside a lane worktree resolves .aw/state and .aw/records/runs relative to the worktree, writing a SECOND receipt/run tree that the driver (running from main) cannot see and that teardown destroys
 
 ## Workflow history

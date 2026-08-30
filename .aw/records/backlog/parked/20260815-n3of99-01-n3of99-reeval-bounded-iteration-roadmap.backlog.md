@@ -2,7 +2,7 @@
 - Status: parked
 - Set: n3of99
 - Priority: low
-- Kind: chore
+- Work-Kind: chore
 - Summary: Re-evaluate the stale bounded-iteration + skill-modifiers roadmap (drafted vs 1.1.0) per-item keep/revise/retire
 
 ## Workflow history

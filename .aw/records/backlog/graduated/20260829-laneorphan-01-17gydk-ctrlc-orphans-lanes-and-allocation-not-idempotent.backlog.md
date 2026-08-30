@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: laneorphan
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: CTRL-C orphans lane worktrees/branches and lane allocation is not idempotent, so every later aw oc run of that Set dies on 'a branch named aw/lane/<id6> already exists' until someone clears them by hand
 
 ## Workflow history
