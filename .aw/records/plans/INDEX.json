@@ -3634,6 +3634,26 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md",
+    "plan_id": "j4v6ga",
+    "set_id": "lanename",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
+    "plan_id": "zwnjp3",
+    "set_id": "laneorphan",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md",
     "plan_id": "af7i6p",
     "set_id": "lanetruth",
@@ -3733,9 +3753,29 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 1,
+    "path": "executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
+    "plan_id": "2ouj70",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 2,
     "path": "executed/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md",
     "plan_id": "gq6m2u",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
+    "plan_id": "1qxuke",
     "set_id": "runstop",
     "status": "executed"
   },
@@ -3932,26 +3972,6 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md",
-    "plan_id": "j4v6ga",
-    "set_id": "lanename",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
-    "plan_id": "zwnjp3",
-    "set_id": "laneorphan",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md",
@@ -3996,26 +4016,6 @@
     "order": 0,
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
-    "set_id": "runstop",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
-    "plan_id": "2ouj70",
-    "set_id": "runstop",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
-    "plan_id": "1qxuke",
     "set_id": "runstop",
     "status": "approved"
   },
