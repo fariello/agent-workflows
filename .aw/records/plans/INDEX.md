@@ -15,7 +15,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## sessrot
 
-- `jb6vys` [pending] 01 pending/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md
+- `jb6vys` [executed] 01 executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md
 
 ## ackme8
 

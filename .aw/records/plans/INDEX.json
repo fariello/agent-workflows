@@ -3650,6 +3650,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md",
+    "plan_id": "jb6vys",
+    "set_id": "sessrot",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4158,16 +4168,6 @@
     "plan_id": "7f7782",
     "set_id": "detrun",
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md",
-    "plan_id": "jb6vys",
-    "set_id": "sessrot",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",
