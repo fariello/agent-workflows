@@ -71,7 +71,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## promptmint
 
-- `jxqdcw` [pending] 01 pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
+- `jxqdcw` [executed] 01 executed/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
 
 ## reposcfg
 

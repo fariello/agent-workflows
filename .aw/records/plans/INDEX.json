@@ -3624,6 +3624,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md",
+    "plan_id": "jxqdcw",
+    "set_id": "promptmint",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
     "set_id": "runstale",
@@ -3867,16 +3877,6 @@
     "path": "pending/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md",
     "plan_id": "8guhs0",
     "set_id": "lanetruth",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md",
-    "plan_id": "jxqdcw",
-    "set_id": "promptmint",
     "status": "approved"
   },
   {
