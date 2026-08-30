@@ -1863,6 +1863,51 @@ def _record_checkpoint_stop(
     return record
 
 
+def _record_forced_stop(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    stop: "runner_stop.StopNowForce",
+) -> dict[str, Any]:
+    """Record a level-4 stop on the item as INDETERMINATE (spec R18/R21/R22), returning the record.
+
+    runstop m0z0ti (E-02/E-03). Same shape and same channel as `_record_checkpoint_stop`, with the
+    three level-4 differences the record builder enforces: certainty is `indeterminate`, the
+    disposition is `unknown_outcome`, and NO last-completed-operation is invented (the cut point was
+    not observed, so naming one would be the fabrication spec R22 forbids).
+
+    The git state is OBSERVED here, at stop time, because after a force cut the tree may hold a
+    partial edit and an assumed state would be worthless for the reconciliation a resume must do.
+
+    R22 is asserted, not merely intended: the item's status is set through `reconcile_disposition`'s
+    deliberate-stop branch (so the two cannot disagree) and this function refuses to record a success.
+    """
+
+    repo = Path(state["repo"])
+    try:
+        observed_git = git_status(repo)
+    except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
+        observed_git = f"<unobserved: {exc}>"
+    record = runner_stop.forced_disposition(
+        level=stop.level,
+        requester=stop.requester,
+        git_state=observed_git,
+        events_seen=stop.events_seen,
+        # Carried as PRIOR observations only, under keys that cannot be read as "what finished
+        # last" - which for a force cut is unknowable. They describe what the driver had ALREADY
+        # seen complete before the request arrived, nothing about the cut itself.
+        prior_completed_index=stop.prior_completed_index,
+        prior_completed_label=stop.prior_completed_label,
+        at=utc_now(),
+    )
+    item["stopped"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.forced_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
+    )
+    return record
+
+
 def run_opencode(
     state: dict[str, Any],
     run_dir: Path,
@@ -2000,8 +2045,60 @@ def run_opencode(
             detector=runner_stop.is_oc_safe_checkpoint
         )
         breach_watch: runner_stop.BudgetBreachWatch | None = None
+        # runstop m0z0ti (level 4, E-01): the IMMEDIATE interrupt is observed OUT OF BAND, for the
+        # same measured reason Phase 3's budget watch is: `for line in process.stdout` BLOCKS, so a
+        # poll inside the loop only runs when the next line arrives and a silent child would make
+        # "immediately" mean "whenever the child next speaks". The watch only RECORDS the request;
+        # the cut itself is raised on the main thread below and reaped by the ONE shared
+        # `clean_shutdown` (spec R5) - never by a bare kill and never by a second reaper.
+        forced: dict[str, Any] = {}
+
+        def _note_force(level: int, requester: str) -> None:
+            """Record the level-4 request and INTERRUPT the turn through the SHARED reaper.
+
+            The reap happens HERE, not only in the teardown below, because the main thread may be
+            blocked in `for line in process.stdout` with nothing more coming - which is exactly the
+            silent-child case Phase 3's budget breach escalates FROM (spec A7). Reaping closes the
+            child's stdout, the blocked iteration ends, and the main thread raises `StopNowForce`.
+            `StallWatchdog._run` is the in-repo precedent for a supervisor thread reaping the child.
+
+            It goes through `runner_shutdown.clean_shutdown`, which is the ONE shared routine and the
+            ONE process-group escalation (spec R5): NOT a bare kill, NOT a second reaper, and not a
+            local `terminate_process` call.
+            """
+
+            if forced:
+                return
+            forced["level"] = level
+            forced["requester"] = requester
+            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+            if not report.all_satisfied:
+                print(report.render(), file=sys.stderr)
+
+        force_watch = runner_stop.ForceStopWatch(
+            run_dir,
+            on_force=_note_force,
+            is_alive=lambda: process.poll() is None,
+        )
+
+        def _raise_if_forced() -> None:
+            """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
+
+            if not forced:
+                return
+            raise runner_stop.StopNowForce(
+                level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
+                requester=forced.get("requester", ""),
+                events_seen=observer.events_seen,
+                # What had ALREADY been observed completing before the request. Passed so the record
+                # can carry it under its `prior_observed_*` keys; it is NEVER promoted to "the last
+                # completed operation", because the cut point itself was not observed.
+                prior_completed_index=observer.last_checkpoint_index,
+                prior_completed_label=observer.last_checkpoint_label,
+            )
+
         try:
-            with statusline, watchdog:
+            with statusline, watchdog, force_watch:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
@@ -2013,6 +2110,18 @@ def run_opencode(
                     # only REPORTS the requested level here; acting on a level is owned by the
                     # later phases (levels 1-2 branch between items, level 3 at this point).
                     level = runner_stop.poll_stop(run_dir)
+                    # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
+                    # classified, because level 4 must NOT wait for a checkpoint. The out-of-band
+                    # `force_watch` above is what makes it prompt on a silent child; this is the
+                    # main-thread half, so the cut always unwinds through the driver's own teardown.
+                    if level is not None and level >= runner_stop.LEVEL_NOW_FORCE:
+                        _note_force(
+                            level,
+                            (lambda r: r.requester if r is not None else "unknown")(
+                                runner_stop.read_stop_request(run_dir)
+                            ),
+                        )
+                    _raise_if_forced()
                     # runstop foi1b3 (level 3, spec R10/A3): a level >= 3 request means the TURN
                     # itself must stop, at the next OBSERVED safe checkpoint.
                     #
@@ -2070,6 +2179,11 @@ def run_opencode(
                         rendered = render_event(line, pal, tracker=tracker)
                         if rendered is not None:
                             statusline.write_event(rendered)
+                # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
+                # child, which is how the blocking iteration above is unblocked at all. Re-check here
+                # so that path raises the same `StopNowForce` rather than falling through to a normal
+                # `process.wait()` and reporting an ordinary nonzero exit.
+                _raise_if_forced()
         except BaseException:
             if breach_watch is not None:
                 breach_watch.__exit__(None, None, None)
@@ -2080,6 +2194,10 @@ def run_opencode(
             # share this mechanism and differ only in WHEN it is issued. "KNOWN" certainty therefore
             # means no PREVIOUSLY OBSERVED operation was cut mid-flight, not that the agent finished
             # tidily.
+            #
+            # runstop m0z0ti (level 4): the SAME endpoint, deliberately. Spec c4gd2h section 3 states
+            # the only difference between levels 3 and 4 is outcome CERTAINTY, not cleanliness, so
+            # level 4 must not acquire its own teardown, its own reaper, or a bare kill.
             report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
             if not report.all_satisfied:
                 print(report.render(), file=sys.stderr)
@@ -2132,8 +2250,14 @@ def reconcile_disposition(
     if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
         # `interrupted` is an EXISTING status in TERMINAL_STATES' sibling vocabulary and in
         # `runner_shutdown.KNOWN_ITEM_STATUSES`, so the ledger stays coherent (spec R3) and the
-        # existing `requeue_interrupted` already retries it in recovery mode. Certainty is `known`
-        # and never `unknown_outcome` (level 4's, owned by Phase 4), and never a success (R22).
+        # existing `requeue_interrupted` already retries it in recovery mode.
+        #
+        # runstop m0z0ti: this branch now covers BOTH turn-interrupting levels, and returns the SAME
+        # status for each ON PURPOSE. The difference between them is CERTAINTY, carried as the
+        # explicit `certainty` flag on the record above (`known` for level 3, `indeterminate` for
+        # level 4) - not as a different status. That is what keeps a level-4 item visible to the
+        # reconcile/requeue/report machinery while the R19 gate in `requeue_interrupted` still refuses
+        # to re-run it. Neither level ever returns a success state (spec R22).
         return runner_stop.STOPPED_DISPOSITION, None
     if item.get("action") == "review":
         try:
@@ -2330,6 +2454,37 @@ def execute_item(
             tracker=tracker,
             work_dir=work_dir,
         )
+    except runner_stop.StopNowForce as stop:
+        # runstop m0z0ti (E-02/E-03, spec A2/R18/R21/R22): the turn was interrupted IMMEDIATELY, at a
+        # point the driver did NOT observe. So the outcome is INDETERMINATE and is recorded that way;
+        # the child has already been reaped through the SAME shared `clean_shutdown` level 3 uses
+        # (spec R5), and cleanliness is identical - only certainty differs.
+        now = utc_now()
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "deliberate-stop-now-force"
+        record = _record_forced_stop(run_dir, state, item, stop)
+        attempt["stopped"] = record
+        attempt["disposition"] = runner_stop.FORCED_DISPOSITION
+        # Through `reconcile_disposition` for the same reason level 3 does it: one place decides the
+        # status, so the recorded certainty and the item status cannot disagree. It returns
+        # `interrupted` (a status the ledger and recovery already understand); the INDETERMINACY is
+        # the explicit `certainty` flag on the record, never a new status. See the decision recorded
+        # in `runner_stop`'s level-4 section for why a bare `unknown_outcome` status is wrong.
+        item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"\u25a0 IPD {item['position']:02d}/{total} {item['id6']} INTERRUPTED IMMEDIATELY "
+                f"(level {record['level']}, {record['level_name']}); outcome is "
+                f"{record['disposition']} (certainty {record['certainty']}) after "
+                f"{record['events_observed']} observed event(s); requested by "
+                f"{record['requester']}. {runner_stop.RECONCILIATION_ACTION}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        raise
     except runner_stop.StopAtCheckpoint as stop:
         # runstop foi1b3 (E-02/E-03, spec A3/R18): the turn was stopped at an OBSERVED safe
         # checkpoint. Record it with KNOWN certainty and STOP the run; the child has already been
@@ -2802,16 +2957,54 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
         try:
             path = resolve_plan_path(repo, item["configured_file"], item["id6"])
             if plan_bucket(path) == "executed":
-                item["status"] = "executed"
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "interrupted-reconciled-executed",
-                        "id6": item["id6"],
-                    },
-                )
-                continue
+                # runstop m0z0ti (E-05, spec R22): THE FABRICATED-SUCCESS GATE.
+                #
+                # The promotion below infers success from the plan's DIRECTORY alone, consulting
+                # neither the outcome artifact nor any stop record. For an item whose turn was
+                # FORCE-CUT that is a live R22 violation: if the agent had already moved the plan to
+                # `executed/` but was interrupted before its work was complete or verified, this would
+                # record `executed` - a success the driver never established, which is precisely what
+                # level 4 exists to prevent. So for an item flagged INDETERMINATE the promotion
+                # refuses to fire and the conflict is REPORTED instead.
+                #
+                # Deliberately narrow: ordinary (non-indeterminate) interrupted items are promoted
+                # exactly as before, and a control test pins that. Widening this to all interrupted
+                # items would disable a legitimate promotion rather than fix a fabrication.
+                if runner_stop.is_indeterminate(item):
+                    item["reconciliation_conflict"] = (
+                        f"plan is in executed/ ({path}) but this turn was force-interrupted "
+                        f"(level 4), so the driver never established that the work completed; "
+                        f"refusing to record it executed (spec c4gd2h R22). "
+                        f"{runner_stop.RECONCILIATION_ACTION}"
+                    )
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "interrupted-promotion-refused-unknown-outcome",
+                            "id6": item["id6"],
+                            "plan_bucket": "executed",
+                            "certainty": runner_stop.CERTAINTY_INDETERMINATE,
+                            "disposition": runner_stop.FORCED_DISPOSITION,
+                            "requires_reconciliation": True,
+                            "reason": item["reconciliation_conflict"],
+                        },
+                    )
+                    print(
+                        f"reconcile {item['id6']}: {item['reconciliation_conflict']}",
+                        file=sys.stderr,
+                    )
+                else:
+                    item["status"] = "executed"
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "interrupted-reconciled-executed",
+                            "id6": item["id6"],
+                        },
+                    )
+                    continue
         except DriverError:
             pass
         item["status"] = "interrupted"
@@ -2827,21 +3020,47 @@ def reconcile_interrupted(run_dir: Path, state: dict[str, Any]) -> None:
 
 
 def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
-    """Re-queue items left `interrupted` so resume retries in recovery mode."""
+    """Re-queue items left `interrupted` so resume retries in recovery mode.
+
+    runstop m0z0ti (E-04, spec R19): EXCEPT an item flagged INDETERMINATE, which is SKIPPED and
+    REPORTED instead of silently re-run.
+
+    WHY THE GATE IS HERE AND NOT BESIDE THIS FUNCTION. `run_queue` calls `reconcile_interrupted` and
+    then this function UNCONDITIONALLY on every start and every resume, and this function's original
+    behavior was to flip every `interrupted` item straight back to `queued` with
+    `recovery_next = True` and no operator gate. A refusal added anywhere else would simply be
+    BYPASSED by the call that already ran, so the gate has to live in the requeue itself
+    (orchestrator CID-4). `--retry-incomplete` is a SECOND route to the same requeue and is gated in
+    `run_queue` for the same reason.
+
+    Do not "clean this up" as a redundant special case: without it, a force-interrupted item whose
+    outcome the driver never established is re-run blindly, which is the exact failure spec R19
+    exists to prevent.
+    """
+
     requeued: list[str] = []
     for item in state["queue"]:
-        if item["status"] == "interrupted":
-            item["status"] = "queued"
-            item["recovery_next"] = True
-            requeued.append(item["id6"])
+        if item["status"] != "interrupted":
+            continue
+        if runner_stop.is_indeterminate(item):
+            item["requires_reconciliation"] = True
             append_jsonl(
                 run_dir / "events.jsonl",
-                {
-                    "at": utc_now(),
-                    "event": "interrupted-requeued",
-                    "id6": item["id6"],
-                },
+                runner_stop.refused_resume_event(item, at=utc_now()),
             )
+            print(runner_stop.resume_refusal_message(item), file=sys.stderr)
+            continue
+        item["status"] = "queued"
+        item["recovery_next"] = True
+        requeued.append(item["id6"])
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "interrupted-requeued",
+                "id6": item["id6"],
+            },
+        )
     return requeued
 
 
@@ -2922,6 +3141,13 @@ def run_queue(
         save_state(run_dir, state)
     if retry_incomplete:
         for item in state["queue"]:
+            # runstop m0z0ti (E-04, spec R19): `--retry-incomplete` is the SECOND route into the
+            # requeue and would otherwise re-run a force-interrupted item that `requeue_interrupted`
+            # just refused, since its status set includes `interrupted`. Gate it on the SAME predicate
+            # so the two routes cannot disagree. A broader retry flag is still not permission to
+            # re-run work whose outcome the driver never established.
+            if runner_stop.is_indeterminate(item):
+                continue
             if item["status"] in {
                 "interrupted",
                 "substantially-complete",
@@ -2937,6 +3163,23 @@ def run_queue(
                 item["status"] = "queued"
                 item["recovery_next"] = True
         save_state(run_dir, state)
+    # runstop m0z0ti (E-04, spec R19/A6): REFUSE the resume outright when the queue still holds an
+    # indeterminate item. Skipping it silently would satisfy "did not re-run it" while leaving the
+    # operator with no signal, so the refusal exits NONZERO and names the item, its state, and the
+    # required reconciliation. The remaining items are NOT started: an indeterminate item may well be
+    # a dependency of theirs, and the driver cannot know what it did.
+    unresolved = runner_stop.indeterminate_items(state["queue"])
+    if unresolved:
+        for item in unresolved:
+            print(runner_stop.resume_refusal_message(item), file=sys.stderr)
+        save_state(run_dir, state)
+        write_report(run_dir, state)
+        print(
+            f"resume refused: {len(unresolved)} item(s) require reconciliation first: "
+            f"{', '.join(item.get('id6', '?') for item in unresolved)}",
+            file=sys.stderr,
+        )
+        return 1
     tracker = StreamTracker()
     # runstop 1qxuke: the observed level-1/2 wind-down, or None while no between-turn stop has been
     # requested. Captured ONCE at observation time (see `_observe_between_turn_stop`) because level
@@ -3063,6 +3306,15 @@ def run_queue(
         current_setid = runnable.get("setid")
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
+        except runner_stop.StopNowForce:
+            # runstop m0z0ti (E-01/E-03, spec A2): the current TURN was interrupted IMMEDIATELY, so
+            # the RUN stops here too. `execute_item` already recorded the item as INDETERMINATE and
+            # the child was reaped through the shared `clean_shutdown`. Remaining items keep `queued`
+            # (spec R22 forbids relabeling work that never ran), and NOTHING is marked executed,
+            # complete, or successful anywhere on this path.
+            stopped_at_checkpoint = True
+            state = load_state(run_dir)
+            break
         except runner_stop.StopAtCheckpoint:
             # runstop foi1b3 (E-02, spec A3): the current TURN was stopped at an observed safe
             # checkpoint, so the RUN stops here too. `execute_item` already recorded the item with
