@@ -1,5 +1,5 @@
 - Id: 17gydk
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: laneorphan
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: CTRL-C orphans lane worktrees/branches and lane allocation is not idempotent, so every later aw oc run of that Set dies on 'a branch named aw/lane/<id6> already exists' until someone clears them by hand
 
 ## Workflow history
+- 2026-08-30 graduated (aw set): design handed off to plan zwnjp3 (laneorphan-01, to-review, carries From-Backlog: 17gydk and Blocks-Release: next); gate preserved via handoff. Both reported defects reproduced verbatim in throwaway repos. Plan adds a defect the item did not know about: teardown_worktree(force=True) deletes the lane BRANCH, leaving commits unreferenced with an empty reflog and GC-able, so preserve-only-empty-lanes is a data-safety requirement, not a nicety. Fix sketch item 3 (aw doctor --lanes / aw recover) deliberately NOT adopted: owned by plan 2c122z.
 - 2026-08-29 created (aw backlog): CTRL-C orphans lane worktrees/branches and lane allocation is not idempotent, so every later aw oc run of that Set dies on 'a branch named aw/lane/<id6> already exists' until someone clears them by hand
 
 OBSERVED 2026-08-29 (twice today): a CTRL-C during 'aw oc run wtiso' left five lane branches + worktrees behind (aw/lane/{8zgybk,qcqhj7,rchpms,7p9n2v,58ha43}). The next 'aw oc run wtiso' then failed EVERY lane at allocation:
