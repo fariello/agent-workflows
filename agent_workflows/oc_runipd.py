@@ -27,8 +27,9 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
+from typing import Any, Callable, NamedTuple, TextIO
 
 # The interactive streaming render layer (Palette/render_event/Heartbeat and the
 # coupled ANSI/status helpers) lives in the shared ``render_stream`` module so it is
@@ -36,8 +37,18 @@ from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 # here (see ``__all__`` below) so existing ``oc_runipd`` call sites and tests keep
 # referencing these names. ``should_color`` (the TTY color decision) stays local to the
 # caller per OQ-01.
-from agent_workflows import stall_progress
-from agent_workflows import runner_shutdown
+from agent_workflows import runner_shutdown, stall_progress
+
+# wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
+# seam in `run_opencode` only; when no `execution_profile` is requested the default launch
+# is byte-for-byte unchanged and nothing in this module is invoked.
+from agent_workflows.host_sandbox_profile import (
+    SandboxProfileError,
+    build_sandbox_plan,
+    detect_host_capabilities,
+    enter_sandbox,
+    select_execution_profile,
+)
 from agent_workflows.render_stream import (
     _ANSI_CODES,
     _ANSI_RESET,
@@ -57,25 +68,15 @@ from agent_workflows.render_stream import (
     format_tokens,
     render_event,
 )
-
-# wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
-# seam in `run_opencode` only; when no `execution_profile` is requested the default launch
-# is byte-for-byte unchanged and nothing in this module is invoked.
-from agent_workflows.host_sandbox_profile import (
-    SandboxProfileError,
-    build_sandbox_plan,
-    detect_host_capabilities,
-    enter_sandbox,
-    select_execution_profile,
-)
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
+
+# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+from agent_workflows import runner_stop
 
 # Where a hardened lane's scratch/submission channel lives, relative to the lane worktree
 # root. Lane-local so it is writable by construction and torn down with the lane.
 LANE_SCRATCH_SUBDIR = ".aw/lane-scratch"
-# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
-# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
-from agent_workflows import runner_stop
 
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
@@ -187,8 +188,6 @@ class DriverError(RuntimeError):
 class StallTimeout(DriverError):
     """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
 
-    pass
-
 
 class ToolIdentityError(DriverError):
     """Raised when a nested ``aw`` would run code OTHER than the runner's own installation.
@@ -198,8 +197,6 @@ class ToolIdentityError(DriverError):
     code the runner believes it is, so the fault is not attributable to whichever item merely
     happened to trigger the probe. Contrast ``dependency-blocked``, which is correctly
     item-scoped. Spec 25kzda 1.4/A1 reserves ABORT RUN for exactly this identity class."""
-
-    pass
 
 
 # --- lanetruth Order 01 (af7i6p): pin nested `aw` to the RUNNER's OWN tooling -----------------
@@ -254,6 +251,16 @@ _AW_PIN_STRIP = (
     "import os,sys\n"
     "_cwd=os.getcwd()\n"
     "_drop={'',os.curdir,_cwd,os.path.realpath(_cwd)}\n"
+    # KEEP the runner's own root even when it IS the cwd. Without this exception the two halves of
+    # the pin defeat each other: `pinned_child_env` PREPENDS the runner root to PYTHONPATH, and this
+    # filter then removes that very entry whenever the runner is launched from its own checkout (the
+    # normal case), so the child fell through to the site-packages copy and the identity probe
+    # reported a MISMATCH that aborted every run. Measured: sys.path lost the runner's own checkout
+    # root and `agent_workflows` resolved under site-packages as a
+    # namespace package. The lane-shadowing defect this pin exists to close is a DIFFERENT cwd (a
+    # lane worktree carrying its own unreviewed copy), which is still dropped.
+    "_keep=os.environ.get('AW_PIN_KEEP_ROOT') or ''\n"
+    "_drop-={_keep,os.path.realpath(_keep)} if _keep else set()\n"
     "sys.path[:]=[p for p in sys.path if p not in _drop]\n"
 )
 
@@ -267,7 +274,13 @@ _AW_PIN_BOOTSTRAP = (
 # Identity probe: same suppression, but report WHICH copy was selected instead of running the CLI.
 _AW_PIN_PROBE = _AW_PIN_STRIP + (
     "import agent_workflows as _a\n"
-    "print(os.path.realpath(_a.__file__))\n"
+    # Use __file__ when present, else fall back to __path__[0]. With the cwd stripped, an
+    # installed agent_workflows can resolve as a NAMESPACE package whose __file__ is None
+    # (measured: site-packages/agent_workflows with __file__ None and a valid __path__),
+    # which made os.path.realpath() raise TypeError and the probe report a false MISMATCH,
+    # aborting every run as tool-identity-mismatch.
+    "_f=getattr(_a,'__file__',None) or (list(getattr(_a,'__path__',[]))+[None])[0]\n"
+    "print(os.path.realpath(_f) if _f else 'UNRESOLVED')\n"
     "print(getattr(_a,'__version__',''))\n"
 )
 
@@ -292,6 +305,8 @@ def pinned_child_env(env: dict[str, str] | None = None) -> dict[str, str]:
     current = merged.get("PYTHONPATH", "")
     if root not in current.split(os.pathsep):
         merged["PYTHONPATH"] = f"{root}{os.pathsep}{current}".rstrip(os.pathsep)
+    # Tell the suppressing half which root is the RUNNER's, so it is never dropped as "the cwd".
+    merged["AW_PIN_KEEP_ROOT"] = root
     if env:
         merged.update(env)
     return merged
@@ -996,13 +1011,11 @@ def _lane_reclaim_prompt(lane: dict[str, Any], default_action: str) -> str | Non
     try:
         ready, _w, _x = select.select([sys.stdin], [], [], LANE_PROMPT_TIMEOUT)
     except Exception:
-        print("", file=sys.stderr)
+        print(file=sys.stderr)
         return None
     if not ready:
         print(
-            "\n  (no answer in {0}s; taking the automatic decision: {1})".format(
-                LANE_PROMPT_TIMEOUT, default_action
-            ),
+            f"\n  (no answer in {LANE_PROMPT_TIMEOUT}s; taking the automatic decision: {default_action})",
             file=sys.stderr,
         )
         return None
@@ -1075,7 +1088,7 @@ def reclaim_lanes_on_interrupt(
             if lane["dirty"]:
                 try:
                     snapshot = worktree_lease.snapshot_lane_dirty_work(
-                        repo, handle, note="Reason: {0}.".format(reason)
+                        repo, handle, note=f"Reason: {reason}."
                     )
                 except Exception as exc:  # never let preservation failure escalate
                     append_jsonl(
@@ -2465,6 +2478,8 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     if not blocks:
         return None
     return "; ".join(b.describe() for b in blocks)
+
+
 def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, str]]:
     """Owners of ``id6`` of ``record_type`` as ``[(status, path)]`` via the SHARED identity index.
 
@@ -3161,12 +3176,14 @@ def _hardened_credential_paths() -> list[str]:
         home / ".pypirc",
     ]
     return [str(p) for p in candidates if p.exists()]
+
+
 def _budget_breach_recorder(
     run_dir: Path,
     item: dict[str, Any],
     request: runner_stop.StopRequest,
     checkpoint_observer: runner_stop.CheckpointObserver,
-) -> "Callable[[], None]":
+) -> Callable[[], None]:
     """Build the callback `BudgetBreachWatch` invokes when the wind-down deadline passes.
 
     runstop foi1b3 (E-04, spec R11). It RECORDS the breach on the established `events.jsonl`
@@ -3234,7 +3251,7 @@ def _record_forced_stop(
     run_dir: Path,
     state: dict[str, Any],
     item: dict[str, Any],
-    stop: "runner_stop.StopNowForce",
+    stop: runner_stop.StopNowForce,
 ) -> dict[str, Any]:
     """Record a level-4 stop on the item as INDETERMINATE (spec R18/R21/R22), returning the record.
 
