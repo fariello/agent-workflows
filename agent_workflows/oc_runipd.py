@@ -1895,14 +1895,9 @@ def run_opencode(
 
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
-    plan_queue = state.get("plan", [])
-    total_items = len(plan_queue)
-    item_id = item.get("id6")
-    current_idx = 1
-    for idx, p in enumerate(plan_queue, start=1):
-        if p.get("id6") == item_id:
-            current_idx = idx
-            break
+    queue = state.get("queue", [])
+    total_items = len(queue) or 1
+    current_idx = item.get("position", 1)
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
