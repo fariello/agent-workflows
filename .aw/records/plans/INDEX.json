@@ -3644,6 +3644,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
+    "plan_id": "2ouj70",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md",
     "plan_id": "g40w37",
     "set_id": "ttywedge",
@@ -3946,16 +3956,6 @@
     "order": 0,
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
-    "set_id": "runstop",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
-    "plan_id": "2ouj70",
     "set_id": "runstop",
     "status": "approved"
   },
