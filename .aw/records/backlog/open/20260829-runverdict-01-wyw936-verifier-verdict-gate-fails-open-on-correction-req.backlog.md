@@ -62,8 +62,29 @@ an unacknowledged Scope-Paths discrepancy, 1 `ipd-begin-refused` for a dirty Sco
 has. NOTE the 28/28 is NOT proof the verifiers were wrong -- their evidence bodies are substantive (one
 even ran mutation tests) -- but the gate could not have recorded a rejection had one been made.
 
-SEVERITY: highest of this Set. It can silently merge work an independent verifier rejected, and the
-run record will read `verified`.
+SEVERITY (REVISED DOWN after measurement -- read this before acting): the original filing said "it can
+silently merge work an independent verifier rejected". That OVERSTATED the active risk, and the
+correction matters for prioritisation.
+
+1. AUTO-MERGE IS SEPARATELY GATED ON THE SAME VARIABLE. Self-finalize requires
+   `verify_disp == "verified"` (`oc_runipd.py:2309-2314`: `disposition in ("executed",
+   "substantially-complete") and verify_disp == "verified"`). This bug corrupts what gets WRITTEN into
+   that variable, but does not bypass the gate. Measured: 23 turns recorded `unverified` and none was
+   auto-merged by the runner; the 5 spot-checked plans reached `executed/` through SEPARATE
+   human-driven finalize commits (`08e22b1` g69y23, `71724de` iw793a).
+2. THE FAIL-OPEN PATH HAS NEVER FIRED. Every one of the 34 recorded verification outcomes carries the
+   exact string `'VERIFIED'`; there is not one `CORRECTION_REQUIRED`, typo, empty, or malformed verdict
+   in the corpus. So this is a LATENT trap, not an active leak.
+3. THEREFORE THERE IS NO BEHAVIOR CHANGE TO NEGOTIATE. The earlier "failing closed will start blocking
+   lanes that currently merge" warning is FALSIFIED by (2): a correct gate would have changed the
+   outcome of ZERO historical turns. That removes the argument for escalating this to a spec; it is a
+   small mapping fix with a 34-case regression corpus that must all still pass.
+
+It remains a real bug worth fixing BEFORE the verifier population becomes more willing to reject, since
+`self_finalize` defaults to True (`oc_runipd.py:1427`) and the first genuine rejection would be
+converted to `verified` and auto-merged. But it is not an emergency and, on this evidence, not a release
+blocker. Sibling t74o5q (verification skipped entirely, fired 23 times) is the more urgent defect and
+should probably be fixed first.
 
 FIX SKETCH: delete the private two-way substring test from BOTH runners and consume the shared state
 machine (`verify_roles`/`run_state`), exactly as sibling items resolve duplicated logic. Map the three
@@ -87,4 +108,6 @@ asserting neither runner defines its own verdict-substring test, so the two copi
 
 RELATION: same class as y9lcem (runner reimplements a parser the schema already owns) -- a runner
 carrying private logic that duplicates and contradicts a shared, correct implementation. Siblings in
-this Set: vlf75p (model + rate card not recorded) and rbftpl (verifier evidence never consumed).
+this Set: t74o5q (verifier turn dies on a stale plan path, so verification is SKIPPED -- fired 23
+times, fix first), vlf75p (model + rate card not recorded) and rbftpl (verifier evidence never
+consumed).

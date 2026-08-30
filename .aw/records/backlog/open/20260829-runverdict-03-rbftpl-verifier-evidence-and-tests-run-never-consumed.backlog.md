@@ -57,6 +57,6 @@ what good verifiers already produce); (d) `execution-report.md`/`aw runs` render
 codes for a verified turn; (e) a fabricated `tests_run` naming a command absent from the session log is
 detected (if the cross-check is in scope).
 
-RELATION: siblings in this Set are wyw936 (the gate cannot express rejection) and vlf75p (the record
-cannot attribute or price). Together: the runner asks for a rigorous verification, cannot record its
+RELATION: siblings in this Set are wyw936 (the gate cannot express rejection), vlf75p (the record
+cannot attribute or price) and t74o5q (the verification often never ran at all). Together: the runner asks for a rigorous verification, cannot record its
 rejection, does not read its evidence, and cannot say which model produced it.

@@ -59,8 +59,8 @@ change that run's reported cost; (d) a run whose model/card cannot be resolved r
 excluded from pooled cost aggregates rather than silently averaged in; (e) per-model aggregation over
 verification outcomes is computable WITHOUT grepping agent prose.
 
-RELATION: siblings in this Set are wyw936 (verifier gate fails open) and rbftpl (verifier evidence never
-consumed). This item is the OBSERVABILITY instance: the other two concern a gate that cannot reject,
+RELATION: siblings in this Set are wyw936 (verifier gate fails open), rbftpl (verifier evidence never
+consumed) and t74o5q (verifier turn dies on a stale plan path; verification skipped 23 times). This item is the OBSERVABILITY instance: the other two concern a gate that cannot reject,
 this one concerns a record that cannot attribute or price what it observed. Consumes research x0spmh,
 whose session-allocation policy REQUIRES a runtime cache-read/context signal that this gap currently
 denies.
