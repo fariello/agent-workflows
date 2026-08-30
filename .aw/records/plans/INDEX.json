@@ -3644,6 +3644,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md",
+    "plan_id": "kaga7s",
+    "set_id": "stallfp",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md",
     "plan_id": "g40w37",
     "set_id": "ttywedge",
@@ -4027,16 +4037,6 @@
     "path": "pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md",
     "plan_id": "lbgzxg",
     "set_id": "scopeattrib",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md",
-    "plan_id": "kaga7s",
-    "set_id": "stallfp",
     "status": "approved"
   },
   {

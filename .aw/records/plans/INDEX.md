@@ -116,7 +116,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## stallfp
 
-- `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
+- `kaga7s` [executed] 01 executed/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
 
 ## terseout
 
