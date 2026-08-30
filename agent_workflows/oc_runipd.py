@@ -67,6 +67,8 @@ from agent_workflows.render_stream import (
     format_statusline_lines,
     format_tokens,
     render_event,
+    render_run_summary_table,
+    install_exit_signal_handler,
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
@@ -4866,7 +4868,24 @@ def run_queue(
             print(f"IPD {runnable['id6']} failed safely: {exc}", file=sys.stderr)
     state = load_state(run_dir)
     write_report(run_dir, state)
+    pal = Palette(should_color(sys.stdout))
+    exit_reason = None
+    if wind_down is not None:
+        exit_reason = f"STOPPED (Level {wind_down.level}: {runner_stop.LEVEL_NAMES.get(wind_down.level, 'wind-down')})"
+    elif stopped_at_checkpoint:
+        exit_reason = "STOPPED (at checkpoint)"
+    print(
+        render_run_summary_table(
+            state,
+            run_dir,
+            tracker=tracker,
+            pal=pal,
+            exit_reason=exit_reason,
+            driver_label="opencode",
+        )
+    )
     print(render_continuation_hint(state, run_dir))
+    state["_summary_table_printed"] = True
     # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
     # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
     # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores
@@ -4974,31 +4993,8 @@ def render_continuation_hint(
 
 def print_status(run_dir: Path) -> None:
     state = load_state(run_dir)
-    print(f"Run: {state['run_id']}")
-    print(f"Repository: {state['repo']}")
-    print(f"Updated: {state['updated_at']}")
-    print(f"State directory: {run_dir}")
-    for item in state["queue"]:
-        action = item.get("action", "execute")
-        v = (
-            f" [verify: {item.get('verification_status')}]"
-            if item.get("verification_status")
-            else ""
-        )
-        print(
-            f"{item['position']:02d} {item['id6']} {item['setid']:<12} "
-            f"{action:<8} {item['status']:<20}{v} attempts={len(item.get('attempts', []))}"
-        )
-        # revgate Order 03 (7nkcgp) E-04: name the cause and the exact recovery command here too,
-        # since `status` is the surface an operator checks first.
-        reasons = item.get("unsatisfied_dependency_reasons") or {}
-        for dep in item.get("unsatisfied_dependencies") or []:
-            print(
-                f"     blocked by {dep}: {reasons.get(dep) or 'dependency not satisfied'}"
-            )
-        hint = item.get("dependency_block_recovery")
-        if hint and item.get("status") == "dependency-blocked":
-            print(f"     recovery: {hint}")
+    pal = Palette(should_color(sys.stdout))
+    print(render_run_summary_table(state, run_dir, pal=pal, driver_label="opencode"))
 
 
 def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
@@ -5288,6 +5284,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
 
+    run_dir = None
+    install_exit_signal_handler()
+
     try:
         if args.command == "start":
             run_dir = initialize_run(args)
@@ -5346,10 +5345,52 @@ def main(argv: list[str] | None = None) -> int:
                     output_mode=output_mode,
                 )
         raise DriverError(f"Unsupported command: {args.command}")
-    except KeyboardInterrupt:
-        print("Interrupted; durable run state was preserved.", file=sys.stderr)
-        return 130
+    except KeyboardInterrupt as exc:
+        msg = str(exc)
+        is_sigterm = "SIGTERM" in msg
+        exit_reason = (
+            "TERMINATED (SIGTERM)" if is_sigterm else "INTERRUPTED (SIGINT / Ctrl-C)"
+        )
+        if run_dir and (run_dir / "state.json").is_file():
+            try:
+                state = load_state(run_dir)
+                if not state.get("_summary_table_printed"):
+                    pal = Palette(should_color(sys.stdout))
+                    print(
+                        render_run_summary_table(
+                            state,
+                            run_dir,
+                            pal=pal,
+                            exit_reason=exit_reason,
+                            driver_label="opencode",
+                        )
+                    )
+                    print(render_continuation_hint(state, run_dir))
+            except Exception:
+                pass
+        print(
+            f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
+            file=sys.stderr,
+        )
+        return 143 if is_sigterm else 130
     except DriverError as exc:
+        if run_dir and (run_dir / "state.json").is_file():
+            try:
+                state = load_state(run_dir)
+                if not state.get("_summary_table_printed"):
+                    pal = Palette(should_color(sys.stdout))
+                    print(
+                        render_run_summary_table(
+                            state,
+                            run_dir,
+                            pal=pal,
+                            exit_reason=f"FAILED ({exc})",
+                            driver_label="opencode",
+                        )
+                    )
+                    print(render_continuation_hint(state, run_dir))
+            except Exception:
+                pass
         print(f"runipd: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:

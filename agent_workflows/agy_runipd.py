@@ -43,7 +43,11 @@ from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows import runner_shutdown
-from agent_workflows.render_stream import Statusline
+from agent_workflows.render_stream import (
+    Statusline,
+    render_run_summary_table,
+    install_exit_signal_handler,
+)
 
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
@@ -3982,8 +3986,20 @@ def run_queue(
 
     state = load_state(run_dir)
     write_report(run_dir, state)
+    pal = Palette(should_color(sys.stdout))
+    exit_reason = None
+    if wind_down is not None:
+        exit_reason = f"STOPPED (Level {wind_down.level}: {runner_stop.LEVEL_NAMES.get(wind_down.level, 'wind-down')})"
+    elif stopped_at_checkpoint:
+        exit_reason = "STOPPED (at checkpoint)"
+    print(
+        render_run_summary_table(
+            state, run_dir, pal=pal, exit_reason=exit_reason, driver_label="antigravity"
+        )
+    )
     hint = render_continuation_hint(state, run_dir)
     print(hint)
+    state["_summary_table_printed"] = True
     # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
     # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
     # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
@@ -4080,30 +4096,8 @@ def render_continuation_hint(
 
 def print_status(run_dir: Path) -> None:
     state = load_state(run_dir)
-    print(f"Run: {state['run_id']}")
-    print(f"Repository: {state['repo']}")
-    print(f"Updated: {state['updated_at']}")
-    print(f"State directory: {run_dir}")
-    for item in state["queue"]:
-        action = item.get("action", "execute")
-        v = (
-            f" [verify: {item.get('verification_status')}]"
-            if item.get("verification_status")
-            else ""
-        )
-        print(
-            f"{item['position']:02d} {item['id6']} {item['setid']:<12} "
-            f"{action:<8} {item['status']:<20}{v} attempts={len(item.get('attempts', []))}"
-        )
-        # revgate Order 03 (7nkcgp) E-04: name the cause and the exact recovery command.
-        reasons = item.get("unsatisfied_dependency_reasons") or {}
-        for dep in item.get("unsatisfied_dependencies") or []:
-            print(
-                f"     blocked by {dep}: {reasons.get(dep) or 'dependency not satisfied'}"
-            )
-        hint = item.get("dependency_block_recovery")
-        if hint and item.get("status") == "dependency-blocked":
-            print(f"     recovery: {hint}")
+    pal = Palette(should_color(sys.stdout))
+    print(render_run_summary_table(state, run_dir, pal=pal, driver_label="antigravity"))
 
 
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
@@ -4354,6 +4348,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
 
+    run_dir = None
+    install_exit_signal_handler()
+
     try:
         if args.command == "start":
             run_dir = initialize_run(args)
@@ -4416,10 +4413,54 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
         raise DriverError(f"Unsupported command: {args.command}")
-    except KeyboardInterrupt:
-        print("Interrupted; durable run state was preserved.", file=sys.stderr)
-        return 130
+    except KeyboardInterrupt as exc:
+        msg = str(exc)
+        is_sigterm = "SIGTERM" in msg
+        exit_reason = (
+            "TERMINATED (SIGTERM)" if is_sigterm else "INTERRUPTED (SIGINT / Ctrl-C)"
+        )
+        if run_dir and (run_dir / "state.json").is_file():
+            try:
+                state = load_state(run_dir)
+                if not state.get("_summary_table_printed"):
+                    pal = Palette(should_color(sys.stdout))
+                    print(
+                        render_run_summary_table(
+                            state,
+                            run_dir,
+                            pal=pal,
+                            exit_reason=exit_reason,
+                            driver_label="antigravity",
+                        )
+                    )
+                    hint = render_continuation_hint(state, run_dir)
+                    print(hint)
+            except Exception:
+                pass
+        print(
+            f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
+            file=sys.stderr,
+        )
+        return 143 if is_sigterm else 130
     except DriverError as exc:
+        if run_dir and (run_dir / "state.json").is_file():
+            try:
+                state = load_state(run_dir)
+                if not state.get("_summary_table_printed"):
+                    pal = Palette(should_color(sys.stdout))
+                    print(
+                        render_run_summary_table(
+                            state,
+                            run_dir,
+                            pal=pal,
+                            exit_reason=f"FAILED ({exc})",
+                            driver_label="antigravity",
+                        )
+                    )
+                    hint = render_continuation_hint(state, run_dir)
+                    print(hint)
+            except Exception:
+                pass
         print(f"runagy: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:

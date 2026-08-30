@@ -21,11 +21,14 @@ output for the same event stream.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
+from pathlib import Path
 import re
+import signal
 import threading
 import time
-from typing import TextIO
+from typing import Any, Callable, TextIO
 
 
 # ANSI SGR codes. Kept local so a standalone driver has no heavier package dependency.
@@ -661,3 +664,508 @@ class Heartbeat:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+
+
+def format_duration(seconds: float | None) -> str:
+    """Format duration seconds into a human-readable string (e.g. '0s', '12s', '4m 12s', '1h 04m 12s')."""
+    if seconds is None or seconds < 0:
+        return "0s"
+    secs = int(round(seconds))
+    if secs < 60:
+        return f"{secs}s"
+    mins, rem = divmod(secs, 60)
+    if mins < 60:
+        return f"{mins}m {rem:02d}s"
+    hrs, rem_m = divmod(mins, 60)
+    return f"{hrs}h {rem_m:02d}m {rem:02d}s"
+
+
+def _parse_iso_timestamp(ts_str: str | None) -> float | None:
+    """Parse ISO8601 or similar UTC timestamp string into a float epoch timestamp."""
+    if not ts_str:
+        return None
+    try:
+        cleaned = ts_str.replace("Z", "+00:00")
+        return dt.datetime.fromisoformat(cleaned).timestamp()
+    except Exception:
+        return None
+
+
+def render_run_summary_table(
+    state: dict[str, Any],
+    run_dir: Path | str | None = None,
+    tracker: StreamTracker | None = None,
+    pal: Palette | None = None,
+    exit_reason: str | None = None,
+    driver_label: str = "opencode",
+    use_unicode: bool = True,
+) -> str:
+    """Render a visually compelling box-art summary table aggregating runner metrics at exit.
+
+    Includes run duration, spend, token breakdown (total, input, output, cache), progress bar,
+    per-item status, duration, cost, tokens, verify outcome, and diagnostic notes for failures.
+    """
+    if pal is None:
+        pal = Palette(True)
+    color = pal.enabled
+
+    # Box-drawing primitives
+    if use_unicode:
+        tl, tm, tr = "╭", "┬", "╮"
+        ml, mm, mr = "├", "┼", "┤"
+        bl, bm, br = "╰", "┴", "╯"
+        vl, hl = "│", "─"
+    else:
+        tl = tm = tr = ml = mm = mr = bl = bm = br = "+"
+        vl, hl = "|", "-"
+
+    queue = state.get("queue", [])
+    run_id = state.get("run_id", "run-unknown")
+    created_ts = _parse_iso_timestamp(state.get("created_at"))
+    updated_ts = _parse_iso_timestamp(state.get("updated_at"))
+    now_ts = time.time()
+
+    # Calculate run duration
+    if created_ts:
+        end_anchor = updated_ts or now_ts
+        run_duration_sec = max(0.0, end_anchor - created_ts)
+    else:
+        run_duration_sec = 0.0
+
+    # Aggregate item data
+    items_data = []
+    tot_item_dur = 0.0
+    tot_item_cost = 0.0
+    tot_item_tok = 0
+    tot_item_in = 0
+    tot_item_out = 0
+    tot_item_cache = 0
+
+    status_counts: dict[str, int] = {}
+    completed_count = 0
+
+    for idx, item in enumerate(queue):
+        pos = item.get("position", idx + 1)
+        id6 = item.get("id6", "-")
+        setid = item.get("setid", "-")
+        action = item.get("action", "execute")
+        status = item.get("status", "queued")
+        verify = item.get("verification_status") or "-"
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+        if status not in ("queued", "not-attempted"):
+            completed_count += 1
+
+        # Calculate item duration, cost, tokens
+        item_dur = 0.0
+        item_cost = 0.0
+        item_tok = 0
+        item_in = 0
+        item_out = 0
+        item_cache = 0
+        has_run = False
+
+        attempts = item.get("attempts", [])
+        for att in attempts:
+            has_run = True
+            att_s = _parse_iso_timestamp(att.get("started_at"))
+            att_e = _parse_iso_timestamp(
+                att.get("ended_at") or att.get("interrupted_at")
+            )
+            if att_s:
+                dur = max(0.0, (att_e or now_ts) - att_s)
+                item_dur += dur
+
+            c = att.get("cost")
+            if c is not None:
+                item_cost += float(c)
+            vc = att.get("verification_cost")
+            if vc is not None:
+                item_cost += float(vc)
+
+            toks = att.get("tokens") or {}
+            if toks:
+                item_tok += toks.get("total", 0)
+                item_in += toks.get("input", 0)
+                item_out += toks.get("output", 0)
+                item_cache += toks.get("cache", 0)
+
+            v_toks = att.get("verification_tokens") or {}
+            if v_toks:
+                item_tok += v_toks.get("total", 0)
+                item_in += v_toks.get("input", 0)
+                item_out += v_toks.get("output", 0)
+                item_cache += v_toks.get("cache", 0)
+
+        tot_item_dur += item_dur
+        tot_item_cost += item_cost
+        tot_item_tok += item_tok
+        tot_item_in += item_in
+        tot_item_out += item_out
+        tot_item_cache += item_cache
+
+        dur_str = format_duration(item_dur) if has_run else "-"
+        cost_str = f"${item_cost:.2f}" if has_run else "-"
+        tok_tot_str = (
+            format_compact_tokens(item_tok) if (has_run and item_tok > 0) else "-"
+        )
+        tok_in_str = (
+            format_compact_tokens(item_in) if (has_run and item_in > 0) else "-"
+        )
+        tok_out_str = (
+            format_compact_tokens(item_out) if (has_run and item_out > 0) else "-"
+        )
+        tok_cache_str = (
+            format_compact_tokens(item_cache) if (has_run and item_cache > 0) else "-"
+        )
+
+        items_data.append(
+            {
+                "pos": f"{pos:02d}",
+                "id6": id6,
+                "setid": setid,
+                "action": action,
+                "status": status,
+                "verify": verify,
+                "dur_str": dur_str,
+                "cost_str": cost_str,
+                "tok_tot_str": tok_tot_str,
+                "tok_in_str": tok_in_str,
+                "tok_out_str": tok_out_str,
+                "tok_cache_str": tok_cache_str,
+                "has_run": has_run,
+            }
+        )
+
+    # Tracker overrides if tracker observed more
+    if tracker:
+        tot_cost = max(tot_item_cost, tracker.cost)
+        tot_in = max(tot_item_in, tracker.input_tokens)
+        tot_out = max(tot_item_out, tracker.output_tokens)
+        tot_cache = max(tot_item_cache, tracker.cache_tokens)
+        tot_tokens = max(
+            tot_item_tok,
+            tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens,
+        )
+    else:
+        tot_cost = tot_item_cost
+        tot_in = tot_item_in
+        tot_out = tot_item_out
+        tot_cache = tot_item_cache
+        tot_tokens = tot_item_tok
+
+    total_items = len(queue)
+    prog_bar = format_progress_bar(completed_count, total_items, width=10)
+
+    # Status summary line
+    status_parts = []
+    for st, cnt in sorted(status_counts.items(), key=lambda x: (-x[1], x[0])):
+        status_parts.append(f"{cnt} {st}")
+    status_summary_str = ", ".join(status_parts) if status_parts else "0 items"
+
+    # Outcome label
+    if exit_reason:
+        outcome_str = exit_reason
+    elif any(it.get("status") == "interrupted" for it in queue):
+        outcome_str = "INTERRUPTED"
+    elif any(
+        it.get("status") in ("failed-safely", "integration-blocked", "merge-conflict")
+        for it in queue
+    ):
+        outcome_str = "FAILED"
+    elif any(it.get("status") in ("blocked", "dependency-blocked") for it in queue):
+        outcome_str = "BLOCKED"
+    elif (
+        all(
+            it.get("status")
+            in ("executed", "reviewed", "approved", "substantially-complete")
+            for it in queue
+        )
+        and total_items > 0
+    ):
+        outcome_str = "COMPLETED"
+    elif completed_count > 0:
+        outcome_str = "PARTIAL"
+    else:
+        outcome_str = "QUEUED"
+
+    # Colors
+    c_bold = "\033[1m" if color else ""
+    c_cyan = "\033[36m" if color else ""
+    c_green = "\033[32m" if color else ""
+    c_yellow = "\033[33m" if color else ""
+    c_red = "\033[31m" if color else ""
+    c_reset = "\033[0m" if color else ""
+
+    outcome_color = (
+        c_green
+        if outcome_str == "COMPLETED"
+        else (
+            c_yellow
+            if (
+                "INTERRUPT" in outcome_str
+                or "STOP" in outcome_str
+                or outcome_str == "PARTIAL"
+            )
+            else (c_red if "FAIL" in outcome_str else c_cyan)
+        )
+    )
+
+    headers = [
+        "#",
+        "ID6",
+        "Set",
+        "Action",
+        "Status",
+        "Verify",
+        "Duration",
+        "Spend",
+        "Tok tot",
+        "Tok in",
+        "Tok out",
+        "Tok cache",
+    ]
+    aligns = [
+        "right",
+        "left",
+        "left",
+        "left",
+        "left",
+        "left",
+        "right",
+        "right",
+        "right",
+        "right",
+        "right",
+        "right",
+    ]
+
+    raw_rows = []
+    styled_rows = []
+    for it in items_data:
+        st_val = it["status"]
+        st_styled = pal.status(st_val) if color else st_val
+        v_val = it["verify"]
+        if v_val == "pass":
+            v_styled = f"{c_green}pass{c_reset}" if color else "pass"
+        elif v_val == "fail":
+            v_styled = f"{c_red}fail{c_reset}" if color else "fail"
+        else:
+            v_styled = v_val
+
+        cost_val = it["cost_str"]
+        cost_styled = (
+            f"{c_green}{cost_val}{c_reset}" if (color and cost_val != "-") else cost_val
+        )
+
+        raw_row = [
+            it["pos"],
+            it["id6"],
+            it["setid"],
+            it["action"],
+            st_val,
+            v_val,
+            it["dur_str"],
+            cost_val,
+            it["tok_tot_str"],
+            it["tok_in_str"],
+            it["tok_out_str"],
+            it["tok_cache_str"],
+        ]
+        styled_row = [
+            it["pos"],
+            it["id6"],
+            it["setid"],
+            it["action"],
+            st_styled,
+            v_styled,
+            it["dur_str"],
+            cost_styled,
+            it["tok_tot_str"],
+            it["tok_in_str"],
+            it["tok_out_str"],
+            it["tok_cache_str"],
+        ]
+        raw_rows.append(raw_row)
+        styled_rows.append(styled_row)
+
+    col_widths = [len(h) for h in headers]
+    for row in raw_rows:
+        for idx, cell in enumerate(row):
+            col_widths[idx] = max(col_widths[idx], len(_strip_ansi(str(cell))))
+
+    tot_dur_str = format_duration(run_duration_sec or tot_item_dur)
+    tot_cost_str = f"${tot_cost:.2f}"
+    tot_tok_str = format_compact_tokens(tot_tokens)
+    tot_in_str = format_compact_tokens(tot_in)
+    tot_out_str = format_compact_tokens(tot_out)
+    tot_cache_str = format_compact_tokens(tot_cache)
+
+    total_label = f"Total ({completed_count}/{total_items} items run)"
+    col_widths[6] = max(col_widths[6], len(tot_dur_str))
+    col_widths[7] = max(col_widths[7], len(tot_cost_str))
+    col_widths[8] = max(col_widths[8], len(tot_tok_str))
+    col_widths[9] = max(col_widths[9], len(tot_in_str))
+    col_widths[10] = max(col_widths[10], len(tot_out_str))
+    col_widths[11] = max(col_widths[11], len(tot_cache_str))
+
+    b_title = f"AW RUN SUMMARY: {run_id} ({driver_label})"
+    b_line1 = (
+        f"Outcome: {outcome_color}{outcome_str}{c_reset}   "
+        f"Duration: {c_cyan}{tot_dur_str}{c_reset}   "
+        f"Spend: {c_green}{tot_cost_str}{c_reset}   "
+        f"Tokens: {tot_tok_str} (In: {tot_in_str} │ Out: {tot_out_str} │ Cache: {tot_cache_str})"
+    )
+    b_line2 = f"Progress: {prog_bar} ({status_summary_str})"
+
+    banner_plain = [
+        _strip_ansi(b_title),
+        _strip_ansi(b_line1),
+        _strip_ansi(b_line2),
+    ]
+    base_table_width = sum(col_widths) + (len(col_widths) - 1) * 3 + 4
+    max_banner_w = max((len(t) for t in banner_plain), default=0) + 4
+    if max_banner_w > base_table_width:
+        diff = max_banner_w - base_table_width
+        col_widths[2] += diff
+        base_table_width += diff
+
+    total_table_width = base_table_width
+    left_span_w = sum(col_widths[:6]) + (5 * 3)
+
+    top_border = tl + hl * (total_table_width - 2) + tr
+    sep_banner_table = ml + tm.join(hl * (w + 2) for w in col_widths) + mr
+    sep_headers_rows = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
+    sep_totals_border = (
+        ml
+        + bm.join(hl * (w + 2) for w in col_widths[:6])
+        + mm
+        + mm.join(hl * (w + 2) for w in col_widths[6:])
+        + mr
+    )
+    bot_border = (
+        bl
+        + hl * (left_span_w + 2)
+        + bm
+        + bm.join(hl * (w + 2) for w in col_widths[6:])
+        + br
+    )
+
+    lines = []
+    lines.append(top_border)
+
+    # Banner Title
+    pad_title = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_title)))
+    lines.append(f"{vl} {c_bold}{b_title}{c_reset}{pad_title} {vl}")
+
+    # Banner Line 1
+    pad_1 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line1)))
+    lines.append(f"{vl} {b_line1}{pad_1} {vl}")
+
+    # Banner Line 2
+    pad_2 = " " * max(0, total_table_width - 4 - len(_strip_ansi(b_line2)))
+    lines.append(f"{vl} {b_line2}{pad_2} {vl}")
+    lines.append(sep_banner_table)
+
+    # Table Header
+    hdr_cells = []
+    for h, w, a in zip(headers, col_widths, aligns):
+        pad = w - len(h)
+        h_txt = f"{c_bold}{h}{c_reset}" if color else h
+        spaces = " " * pad
+        if a == "right":
+            hdr_cells.append(f" {spaces}{h_txt} ")
+        else:
+            hdr_cells.append(f" {h_txt}{spaces} ")
+    lines.append(vl + vl.join(hdr_cells) + vl)
+    lines.append(sep_headers_rows)
+
+    # Table Rows
+    for s_row in styled_rows:
+        row_cells = []
+        for cell, w, a in zip(s_row, col_widths, aligns):
+            raw_len = len(_strip_ansi(str(cell)))
+            pad = w - raw_len
+            spaces = " " * pad
+            if a == "right":
+                row_cells.append(f" {spaces}{cell} ")
+            else:
+                row_cells.append(f" {cell}{spaces} ")
+        lines.append(vl + vl.join(row_cells) + vl)
+
+    # Totals Row
+    pad_tot_lbl = " " * max(0, left_span_w - len(_strip_ansi(total_label)))
+    tot_lbl_txt = f"{c_bold}{total_label}{c_reset}" if color else total_label
+    tot_lbl_cell = f" {tot_lbl_txt}{pad_tot_lbl} "
+
+    dur_cell_str = (
+        f" {' ' * (col_widths[6] - len(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
+        if color
+        else f" {' ' * (col_widths[6] - len(tot_dur_str))}{tot_dur_str} "
+    )
+    cost_cell_str = (
+        f" {' ' * (col_widths[7] - len(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
+        if color
+        else f" {' ' * (col_widths[7] - len(tot_cost_str))}{tot_cost_str} "
+    )
+
+    tot_cells = [
+        tot_lbl_cell,
+        dur_cell_str,
+        cost_cell_str,
+        f" {' ' * (col_widths[8] - len(tot_tok_str))}{tot_tok_str} ",
+        f" {' ' * (col_widths[9] - len(tot_in_str))}{tot_in_str} ",
+        f" {' ' * (col_widths[10] - len(tot_out_str))}{tot_out_str} ",
+        f" {' ' * (col_widths[11] - len(tot_cache_str))}{tot_cache_str} ",
+    ]
+    lines.append(sep_totals_border)
+    lines.append(vl + vl.join(tot_cells) + vl)
+    lines.append(bot_border)
+
+    # Failure / Dependency block diagnostics
+    diag_lines = []
+    for it in queue:
+        st = it.get("status")
+        id6 = it.get("id6")
+        if st == "dependency-blocked":
+            reasons = it.get("unsatisfied_dependency_reasons") or {}
+            deps = it.get("unsatisfied_dependencies") or []
+            dep_msg = (
+                ", ".join(f"{d} ({reasons.get(d, 'blocked')})" for d in deps)
+                if deps
+                else "unmet dependencies"
+            )
+            diag_lines.append(f"  • {id6}: dependency-blocked ({dep_msg})")
+        elif st in (
+            "failed-safely",
+            "integration-blocked",
+            "merge-conflict",
+        ) and it.get("driver_error"):
+            diag_lines.append(f"  • {id6}: {st} ({it['driver_error']})")
+        elif st == "interrupted" and it.get("interrupt_reason"):
+            diag_lines.append(f"  • {id6}: interrupted ({it['interrupt_reason']})")
+
+    if diag_lines:
+        lines.append("")
+        lines.append(f"{c_bold}Diagnostics / Blocked Items:{c_reset}")
+        lines.extend(diag_lines)
+
+    return "\n".join(lines)
+
+
+def install_exit_signal_handler(
+    handler: Callable[[int, Any], None] | None = None,
+) -> Any:
+    """Install SIGTERM exit handler on the main thread if supported."""
+    if handler is None:
+
+        def _default_handler(signum: int, frame: Any) -> None:
+            raise KeyboardInterrupt("Terminated by SIGTERM")
+
+        handler = _default_handler
+    try:
+        if threading.current_thread() is threading.main_thread():
+            return signal.signal(signal.SIGTERM, handler)
+    except (ValueError, AttributeError):
+        pass
+    return None
