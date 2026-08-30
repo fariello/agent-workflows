@@ -32,7 +32,16 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, NamedTuple, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    List,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 # Receipt schema version (bump on an incompatible receipt-shape change).
 RECEIPT_SCHEMA_VERSION = 1
@@ -610,7 +619,8 @@ def begin(
       6. the baseline is clean WITHIN this plan's frozen ``Scope-Paths`` (path-overlap rule,
          ipdgates-03 OQ-01): an uncommitted change to an in-scope path is refused, while disjoint
          uncommitted work elsewhere is IGNORED so a concurrent multi-agent workflow is not thrashed.
-         The finalize scope reconciliation remains the enforcement point for out-of-scope changes.
+         The finalize scope reconciliation remains the enforcement point for the out-of-scope changes
+         THIS execution owns (scopeattrib Order 01 aligned it with this same disjoint-unowned rule).
     Only when all pass is the receipt built and written atomically. Steps 5 and 6 are ordered so the
     baseline check can scope itself to the frozen ``Scope-Paths``.
     """
@@ -698,7 +708,10 @@ def begin(
 
     # 6. baseline clean WITHIN this plan's frozen Scope-Paths (path-overlap rule, ipdgates-03 OQ-01).
     #    Disjoint uncommitted work elsewhere is intentionally ignored so a concurrent multi-agent
-    #    workflow is not thrashed; finalize's scope reconciliation still catches out-of-scope changes.
+    #    workflow is not thrashed. Finalize's scope reconciliation still catches the out-of-scope
+    #    changes THIS EXECUTION made (its commits since the frozen base, plus dirty paths it can be
+    #    shown to own); since scopeattrib Order 01 it no longer demands a reason for a disjoint
+    #    UNOWNED dirty path, which is exactly the rule applied here, so the two gates now agree.
     scope_paths = _frozen_scope_paths(plan_text)
     in_scope_dirty = dirty_within(str(repo_root), scope_paths, _scope_match)
     if in_scope_dirty == "unversioned":
@@ -788,19 +801,44 @@ def _git(repo_root: Path, args: List[str]) -> Tuple[int, str, str]:
     return _shared_git(repo_root, args)
 
 
-def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[str]:
-    """Repo-relative paths this execution changed: committed since base + current working tree.
+class ChangedPathSources(NamedTuple):
+    """The two SOURCES of "paths this execution changed", kept apart by OWNERSHIP EVIDENCE.
 
-    Union of `git diff --name-only <base>..HEAD` (commits made since the frozen base) and
-    `git status --porcelain` (staged + unstaged + untracked working-tree changes). This is the set
-    of paths the CURRENT worktree presents relative to the frozen base - i.e. what THIS execution
-    produced (unrelated concurrent commits on disjoint paths are handled by the intervening-commit
-    collision check, not here).
+    They are not interchangeable, which is why they are no longer collapsed at the point of
+    collection (scopeattrib Order 01, lbgzxg E-01):
+
+    * ``committed`` - `git diff --name-only <base>..HEAD`. A commit EXISTS for each of these paths,
+      so the change is durably attributable (to *someone*: see the honest bound below).
+    * ``working_tree`` - `git status --porcelain` (staged + unstaged + untracked). Carries NO
+      author at all. In a SHARED checkout a concurrent agent's dirty file is indistinguishable
+      from this execution's own, which is the whole defect scopeattrib Order 01 fixes.
+
+    HONEST BOUND: ``committed`` is attributable to a COMMIT, not to an AGENT. Every agent in a
+    shared checkout may commit under one git identity, so this split does NOT let finalize tell a
+    co-worker's commit from its own. That residual gap is deliberately out of Order 01's scope
+    (backlog `a8eufb`) and is pinned by a characterization test in
+    ``tests/test_finalize_scope_ownership.py``.
     """
-    changed: set = set()
+
+    committed: Tuple[str, ...]
+    working_tree: Tuple[str, ...]
+
+    def union(self) -> List[str]:
+        """The sorted union - byte-identical to the pre-split ``_paths_changed_by_this_execution``."""
+        return sorted(set(self.committed) | set(self.working_tree))
+
+
+def _changed_path_sources(repo_root: Path, base_head: str) -> ChangedPathSources:
+    """Collect the committed and working-tree change sources SEPARATELY (no union here).
+
+    Asks git for exactly what the pre-split implementation asked for; only the shape of the result
+    changes. See :class:`ChangedPathSources` for why the two halves must stay distinguishable.
+    """
+    committed: set = set()
     rc, out, _err = _git(repo_root, ["diff", "--name-only", f"{base_head}..HEAD"])
     if rc == 0:
-        changed.update(ln.strip() for ln in out.splitlines() if ln.strip())
+        committed.update(ln.strip() for ln in out.splitlines() if ln.strip())
+    working_tree: set = set()
     rc, out, _err = _git(repo_root, ["status", "--porcelain"])
     if rc == 0:
         for ln in out.splitlines():
@@ -810,8 +848,24 @@ def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[st
                 body = body.split(" -> ", 1)[1]
             p = body.strip().strip('"')
             if p:
-                changed.add(p)
-    return sorted(changed)
+                working_tree.add(p)
+    return ChangedPathSources(tuple(sorted(committed)), tuple(sorted(working_tree)))
+
+
+def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[str]:
+    """Repo-relative paths this execution changed: committed since base + current working tree.
+
+    Union of `git diff --name-only <base>..HEAD` (commits made since the frozen base) and
+    `git status --porcelain` (staged + unstaged + untracked working-tree changes). This is the set
+    of paths the CURRENT worktree presents relative to the frozen base - i.e. what THIS execution
+    produced (unrelated concurrent commits on disjoint paths are handled by the intervening-commit
+    collision check, not here).
+
+    Kept as the UNION-returning surface so every existing caller (notably
+    ``check_engine.check_scope_drift``) is unaffected by the E-01 split. Callers that must
+    distinguish the two halves by ownership evidence use :func:`_changed_path_sources` instead.
+    """
+    return _changed_path_sources(repo_root, base_head).union()
 
 
 def _intervening_commits_touching(
@@ -884,6 +938,41 @@ def _is_implicitly_allowed(path: str, plan_rel: str) -> bool:
         if _scope_match(p, spec):
             return True
     return False
+
+
+def _working_tree_path_is_owned(
+    path: str,
+    *,
+    scope_paths: List[str],
+    committed: Sequence[str],
+    plan_rel: str,
+) -> bool:
+    """Is this WORKING-TREE (uncommitted) path attributable to THIS execution? (Order 01 E-02.)
+
+    A `git status --porcelain` entry carries no author, so ownership has to be inferred from
+    positive evidence. This execution OWNS a dirty path when any of the following holds:
+
+    * it matches the plan's frozen ``Scope-Paths`` (the plan declared this territory);
+    * it also appears in the COMMITTED half (this execution already committed that path, so the
+      dirty entry is a further edit of its own work); or
+    * it is an implicit lifecycle allowance (the plan file, the plans index).
+
+    A dirty path matching NONE of those is UNOWNED: in a shared checkout it is almost certainly a
+    concurrent agent's in-flight work, and demanding a ``--scope-reason`` for it would force this
+    plan to either write a false claim into its permanent record or block on a condition it does
+    not control. Note this only ever REMOVES paths from the out-of-scope set; it never adds any.
+
+    ACCEPTED COST (Order 01 OQ-01/F3): an executor's OWN uncommitted out-of-scope edit is
+    byte-identical to a co-worker's here, so it is disregarded too. The mitigation is the execution
+    contract's path-scoped commits, which put the executor's real work in the COMMITTED half, where
+    the reason requirement still fires. Disregarded paths are recorded in the evidence and surfaced
+    in the human message rather than silently dropped.
+    """
+    if _is_implicitly_allowed(path, plan_rel):
+        return True
+    if path in set(committed):
+        return True
+    return any(_scope_match(path, pat) for pat in scope_paths)
 
 
 def finalize_precheck(
@@ -960,7 +1049,8 @@ def finalize_precheck(
 
     # 3. scope comparison against the frozen base + literal Scope-Paths (OQ-01 path-overlap rule).
     plan_rel = _repo_relative(repo_root, plan_path)
-    changed = _paths_changed_by_this_execution(repo_root, base_head)
+    sources = _changed_path_sources(repo_root, base_head)
+    changed = sources.union()
     evidence["changed_paths"] = changed
 
     # (a) OUT-OF-SCOPE paths: paths THIS execution changed that are outside Scope-Paths. Order 04
@@ -969,13 +1059,35 @@ def finalize_precheck(
     #     A grandfathered plan (empty literal allowlist) has NO machine path fence, so there is no
     #     out-of-scope set (Order oorry1: grandfathered = advisory); only implicit lifecycle
     #     allowances + free-form scope apply.
+    #
+    #     ATTRIBUTE BY OWNERSHIP, NOT BY MERE DIRTINESS (scopeattrib Order 01, lbgzxg E-02). The two
+    #     change sources are filtered DIFFERENTLY because they carry different ownership evidence:
+    #       * COMMITTED half: treated exactly as before. A path this execution committed outside
+    #         Scope-Paths still demands a reason (no weakening whatsoever).
+    #       * WORKING-TREE half: an UNOWNED dirty path (see `_working_tree_path_is_owned`) is
+    #         DISREGARDED instead of demanding a reason, because in a shared checkout it belongs to a
+    #         concurrent agent and this plan can neither honestly justify it nor wait it out.
+    #     This is also what makes finalize CONSISTENT with begin, which already ignores disjoint
+    #     uncommitted work so a concurrent multi-agent workflow is not thrashed.
     out_of_scope: List[str] = []
+    disregarded_unowned: List[str] = []
     if scope_paths:
+        committed_set = set(sources.committed)
         for p in changed:
             if _is_implicitly_allowed(p, plan_rel):
                 continue
-            if not any(_scope_match(p, pat) for pat in scope_paths):
-                out_of_scope.append(p)
+            if any(_scope_match(p, pat) for pat in scope_paths):
+                continue
+            if p not in committed_set and not _working_tree_path_is_owned(
+                p,
+                scope_paths=scope_paths,
+                committed=sources.committed,
+                plan_rel=plan_rel,
+            ):
+                # Working-tree only AND unowned: not this execution's to justify.
+                disregarded_unowned.append(p)
+                continue
+            out_of_scope.append(p)
     # (b') IN-SCOPE-UNMODIFIED paths (Order 05, the MISSING-work direction): a Scope-Paths entry the
     #      execution did NOT touch. Requires the receipt's LITERAL declared Scope-Paths (Order 03/04).
     #      Acknowledge-and-proceed (a declared-but-unneeded file is normal, not a failure).
@@ -996,14 +1108,28 @@ def finalize_precheck(
         "out_of_scope_paths": list(out_of_scope),
         "in_scope_unmodified": list(in_scope_unmodified),
         "intervening_in_scope_commits": collisions,
+        # E-03: what the ownership filter DISREGARDED, kept visible rather than silently dropped.
+        # These are uncommitted paths this execution cannot be shown to own (a concurrent agent's
+        # in-flight work in a shared checkout). They demand no reason, but they stay on the record.
+        "disregarded_unowned_paths": list(disregarded_unowned),
+        "committed_paths": list(sources.committed),
+        "working_tree_paths": list(sources.working_tree),
     }
     # The precheck itself no longer REFUSES on out-of-scope paths; that decision now belongs to the
     # two-way reconciliation in `finalize` (Order 05), which legitimizes an out-of-scope edit with a
     # recorded reason and refuses only a MISSING reason. The precheck returns EXIT_OK with the
     # computed two-way delta in evidence so `finalize` can reconcile it.
+    msg = "precheck passed (receipt valid, pre-transition conforming; scope delta computed)."
+    if disregarded_unowned:
+        msg += (
+            " Disregarded "
+            + str(len(disregarded_unowned))
+            + " uncommitted path(s) not owned by this execution (no reason required, recorded in "
+            "the scope audit): " + ", ".join(disregarded_unowned) + "."
+        )
     return (
         EXIT_OK,
-        "precheck passed (receipt valid, pre-transition conforming; scope delta computed).",
+        msg,
         evidence,
         (),
     )
@@ -1653,9 +1779,31 @@ def _complete_after_commit(
     return FinalizeResult(
         EXIT_OK,
         commit_hash,
-        f"finalized {plan_id} -> executed at {commit_hash[:12]} (actor {actor}).",
+        f"finalized {plan_id} -> executed at {commit_hash[:12]} (actor {actor})."
+        + _disregarded_unowned_note(evidence),
         evidence,
         (),
+    )
+
+
+def _disregarded_unowned_note(evidence: Dict[str, Any]) -> str:
+    """Render the E-03 disregarded-unowned paths for a human message (empty when there are none).
+
+    Surfaces what the ownership filter set aside so it is visible in the terminal output, not only
+    in the recorded scope audit. Says DISREGARDED, not "in scope": these paths were neither
+    justified nor attributed to this execution.
+    """
+    paths = list(
+        (evidence.get("scope_audit", {}) or {}).get("disregarded_unowned_paths", [])
+        or []
+    )
+    if not paths:
+        return ""
+    return (
+        " Disregarded "
+        + str(len(paths))
+        + " uncommitted path(s) not owned by this execution (left untouched, recorded in the scope "
+        "audit): " + ", ".join(paths) + "."
     )
 
 
