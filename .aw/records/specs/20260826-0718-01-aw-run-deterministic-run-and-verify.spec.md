@@ -1,7 +1,7 @@
 # Spec: aw <host> run - deterministic run-and-verify with enforced cross-item dependencies
 
 - Date: 2026-08-26
-- Status: to-review
+- Status: reviewed
 - Blocks-Release: next
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 25kzda
@@ -1119,4 +1119,4 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
-- 2026-08-29 note (aw specs): Reconciled two stale points against work landed after authoring: (1) backlog graduation now terminates at the 'graduated' status, not 'done' - the graduated status was added by bklgrad Order 01 (v58bvy, executed 2026-08-29) precisely because closing an item 'done' when only its design exists is a false implementation claim that also drops the release gate; renamed BACKLOG-DONE-LEGITIMACY to BACKLOG-GRADUATE-LEGITIMACY and added a 'graduated' row to the 3.4 dispatch table. (2) Graduation may produce a spec plus MORE THAN ONE IPD: the 'exactly one conformant IPD' rule contradicted both AGENTS.md's graduate/implement/execute contract and observed practice (the wtiso Set is 8 IPDs from one concern), so BACKLOG-GRADUATE-COUNT and SPEC-PLAN-COUNT now require at-least-one-each-linked rather than exactly-one, and the spec-approved row allows an orchestrated Set. Also made explicit that a spec required by a graduate request is authorized BY that request (no separate approve round trip).
+- 2026-08-30 reviewed (aw specs): Completed specification review (verdict: approve)
