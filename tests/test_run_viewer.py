@@ -1,4 +1,34 @@
-"""Unit tests for `agent_workflows.run_viewer` (aw runs / run viewer)."""
+"""Unit tests for `agent_workflows.run_viewer` (aw runs / run viewer).
+
+KNOWN HAZARD, measured 2026-08-30 (i79rgh E-04): 23 of the 36 tests in this file pass
+``dir="."`` or ``Path(".")`` and therefore assert against the LIVE repository (30 such
+occurrences in total). Their verdict depends on the machine they run on, not on the code
+under test, so a green run here does not by itself mean the run viewer is correct.
+
+The consequence is not hypothetical. ``.aw/records/runs/`` is GITIGNORED
+(``.aw/.gitignore:15``, "box-local, ephemeral working material ... never committed") and
+has ZERO tracked files, so the run records these tests read exist only on the machine that
+produced them. In any fresh checkout the directory is absent entirely and 15 of these tests
+fail, e.g. ``AssertionError: 'run-' not found in 'no matching runs found'``. Reproduce in
+one command::
+
+    git clone --no-local <repo> /tmp/x && cd /tmp/x \
+        && python3 -m pytest tests/test_run_viewer.py     # -> 15 failed, 20 passed
+
+That is also why CI is red: the same 15 test names fail in every ``unittest`` job of the
+``tests`` workflow. Two run ids are asserted BY NAME and are load-bearing on a developer
+box -- ``run-20260827T212854Z-2364829`` (the ``--since`` test) and
+``run-20260827T212958Z-2367239`` (asserted in seven tests) -- so deleting or archiving
+either breaks this file locally as well. Grep for the ids rather than trusting line
+numbers, which drift.
+
+Converting these 23 tests to temp-dir fixtures is deliberately NOT done here (see the
+i79rgh plan's "Deferred / out of scope"): it is a large mechanical rewrite that would make
+a targeted bug fix unreviewable. Until it lands, do not read a failure in this file as a
+regression in your own change, and do not add new tests that read ``dir="."`` -- build a
+fixture repo instead, as ``test_run_viewer_cli_issues_flag`` and
+``test_run_viewer_cli_issues_flag_empty_state`` do.
+"""
 
 from __future__ import annotations
 
@@ -1185,6 +1215,73 @@ class RunViewerTests(TestCase):
             self.assertIn("Artifact & Status Discrepancies", out)
             self.assertIn("20260829-test-01-item01", out)
             self.assertNotIn("pid:", out)
+
+    def test_run_viewer_cli_issues_flag_empty_state(self):
+        """The NEGATIVE polarity of `--issues` (i79rgh E-02), on its own fixture.
+
+        The populated case above only shows that a discrepancy is REPORTED. Without this
+        test, an `--issues` implementation that reported a discrepancy unconditionally
+        would still pass, and the empty-state string would be untested. Both polarities
+        are pinned on fixtures so neither depends on the live repository's health.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # A CLEAN repo: the plan is in executed/ with `- Status: executed`, which is
+            # exactly what a step whose run status is `complete` should look like, so
+            # audit_step_artifact finds neither a location nor a status mismatch.
+            executed_dir = root / ".aw" / "records" / "plans" / "executed"
+            executed_dir.mkdir(parents=True)
+            (executed_dir / "20260829-test-01-item01.ipd.md").write_text(
+                "- Id: item01\n- Status: executed\n", encoding="utf-8"
+            )
+
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-111111"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260829T000000Z-111111",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "item01",
+                        "setid": "test",
+                        "action": "execute",
+                        "status": "complete",
+                        "configured_file": (
+                            ".aw/records/plans/executed/20260829-test-01-item01.ipd.md"
+                        ),
+                        "stem": "20260829-test-01-item01",
+                    }
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+            ns = argparse.Namespace(
+                dir=str(root),
+                target=[],
+                set=None,
+                ipd=None,
+                status=None,
+                failed=False,
+                active=False,
+                latest=False,
+                last=1,
+                since=None,
+                detail=False,
+                short=False,
+                summary_only=False,
+                latest_only=False,
+                issues=True,
+                json=False,
+                agent=False,
+                no_color=True,
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run_viewer.run_viewer_cli(ns)
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+            self.assertEqual(out.strip(), "no artifact or status discrepancies found")
+            self.assertNotIn("Artifact & Status Discrepancies", out)
 
     def test_run_viewer_cli_issues_conflict(self):
         ns = argparse.Namespace(
