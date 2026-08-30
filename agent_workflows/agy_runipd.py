@@ -28,7 +28,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable, NamedTuple, Sequence, TextIO
+from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 
 from agent_workflows import runner_shutdown
 from agent_workflows.render_stream import Statusline
@@ -1866,6 +1866,73 @@ def terminate_process(process: subprocess.Popen) -> None:
 _close_process_streams = runner_shutdown._close_process_streams
 
 
+def _budget_breach_recorder(
+    run_dir: Path,
+    item: dict[str, Any],
+    request: runner_stop.StopRequest,
+    observer: runner_stop.CheckpointObserver,
+) -> Callable[[], None]:
+    """Build the callback `BudgetBreachWatch` invokes when the wind-down deadline passes.
+
+    runstop foi1b3 (E-04, spec R11); the exact counterpart of the `oc_runipd` helper. It RECORDS
+    the breach as an escalation-REQUIRED signal and returns, taking no escalation action: spec A7
+    places enforcement in Phase 5 (`71vjbn`), which consumes this one signal.
+    """
+
+    def _record() -> None:
+        event = runner_stop.budget_breach_event(
+            request,
+            at=utc_now(),
+            id6=item.get("id6", ""),
+            observed_events=observer.events_seen,
+            last_completed_index=observer.last_checkpoint_index,
+        )
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir / "events.jsonl", event)
+        print(
+            f"stop wind-down budget breached (level {request.level}, "
+            f"{request.budget_seconds}s, deadline {request.deadline}): no safe checkpoint "
+            f"observed; escalation REQUIRED (recorded, not performed here)",
+            file=sys.stderr,
+        )
+
+    return _record
+
+
+def _record_checkpoint_stop(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    observer: runner_stop.CheckpointObserver,
+) -> dict[str, Any]:
+    """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
+
+    runstop foi1b3 (E-03); the exact counterpart of the `oc_runipd` helper, sharing the SAME record
+    builder in `runner_stop` so the two drivers cannot describe the same stop differently.
+    """
+
+    repo = Path(state["repo"])
+    try:
+        observed_git = git_status(repo)
+    except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
+        observed_git = f"<unobserved: {exc}>"
+    record = runner_stop.stopped_disposition(
+        level=observer.requested_level or runner_stop.LEVEL_NOW,
+        requester=observer.requester,
+        last_completed_index=observer.last_checkpoint_index,
+        last_completed_label=observer.last_checkpoint_label,
+        git_state=observed_git,
+        events_seen=observer.events_seen,
+        at=utc_now(),
+    )
+    item["stopped"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.stopped_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
+    )
+    return record
+
+
 def run_agy_turn(
     state: dict[str, Any],
     run_dir: Path,
@@ -1960,6 +2027,15 @@ def run_agy_turn(
             run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
+        # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. NOTE the detector: agy's
+        # completion signal is `step_update` with `state == "DONE"`, NOT oc's `tool_use` +
+        # `part.state.status == "completed"`. The two drivers share the SEMANTICS through one helper
+        # module (orchestrator CID-3) while each reads its OWN schema; assuming one schema across
+        # both would make this silently never fire here.
+        observer = runner_stop.CheckpointObserver(
+            detector=runner_stop.is_agy_safe_checkpoint
+        )
+        breach_watch: runner_stop.BudgetBreachWatch | None = None
         try:
             with statusline, watchdog:
                 for raw_line in process.stdout:
@@ -1970,7 +2046,43 @@ def run_agy_turn(
                     # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
                     # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
                     # requested level, and acting on a level belongs to the later phases.
-                    runner_stop.poll_stop(run_dir)
+                    level = runner_stop.poll_stop(run_dir)
+                    # runstop foi1b3 (level 3, spec R10/A3): stop the TURN at the next OBSERVED safe
+                    # checkpoint. Parsed here, for EVERY line, independently of `output_mode` - not in
+                    # the `clean` branch below via `render_agy_event`, which would make the feature
+                    # silently inert under `raw` and `quiet`.
+                    if level is not None and level >= runner_stop.LEVEL_NOW:
+                        if not observer.pending:
+                            request = runner_stop.read_stop_request(run_dir)
+                            observer.request(
+                                level,
+                                request.requester if request is not None else "unknown",
+                            )
+                            print(
+                                f"stop requested: level {level} "
+                                f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
+                                f"the current turn will stop at its next observed safe checkpoint",
+                                file=sys.stderr,
+                            )
+                            # runstop foi1b3 (E-04, spec R11): the BOUNDED wait, armed out-of-band
+                            # because `for raw_line in process.stdout` BLOCKS on a silent child and
+                            # so can never notice a deadline itself. R10 stands: the checkpoint is
+                            # still defined only by an observed event; this is the GIVE-UP bound.
+                            if request is not None:
+                                remaining = runner_stop.deadline_seconds_remaining(
+                                    request
+                                )
+                                breach_watch = runner_stop.BudgetBreachWatch(
+                                    deadline_monotonic=time.monotonic()
+                                    + max(0.0, remaining),
+                                    on_breach=_budget_breach_recorder(
+                                        run_dir, item, request, observer
+                                    ),
+                                    is_alive=lambda: process.poll() is None,
+                                )
+                                breach_watch.__enter__()
+                    if observer.observe(raw_line):
+                        raise runner_stop.StopAtCheckpoint(observer)
 
                     if output_mode == "raw":
                         sys.stdout.write(raw_line)
@@ -1980,7 +2092,15 @@ def run_agy_turn(
                         if rendered is not None:
                             statusline.write_event(rendered)
         except BaseException:
-            terminate_process(process)
+            if breach_watch is not None:
+                breach_watch.__exit__(None, None, None)
+            # runstop foi1b3: route the stop through the SHARED reaper (spec R5), not a local
+            # `terminate_process`. The child is a one-shot subprocess with no cooperative stop
+            # channel, so stopping it IS termination at an observation-chosen instant; levels 3 and 4
+            # share that mechanism and differ only in timing.
+            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+            if not report.all_satisfied:
+                print(report.render(), file=sys.stderr)
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
@@ -1990,6 +2110,9 @@ def run_agy_turn(
                     f"Antigravity child turn stalled: no output for {timeout_val}s"
                 ) from None
             raise
+        finally:
+            if breach_watch is not None:
+                breach_watch.__exit__(None, None, None)
 
         if watchdog.stalled:
             terminate_process(process)
@@ -2013,6 +2136,18 @@ def run_agy_turn(
 def reconcile_disposition(
     repo: Path, item: dict[str, Any], run_dir: Path, exit_code: int
 ) -> tuple[str, dict[str, Any] | None]:
+    # runstop foi1b3 (E-03, spec R18/R21/R22): the DELIBERATE-STOP branch, ahead of every other
+    # branch including the exit-code fallback, for the same measured reason as in `oc_runipd`: a
+    # level-3 stop leaves NO outcome JSON (the agent writes it at turn END), the plan is still in
+    # `pending/`, and the terminated child exits NONZERO, so the final
+    # `("partial" if exit_code == 0 else "failed-safely")` would label a DELIBERATE OPERATOR STOP as
+    # `failed-safely` - the intent-versus-breakage conflation R21 forbids.
+    #
+    # Keyed on the `stopped` record the checkpoint path wrote, NOT on the exit code, so a genuine
+    # failure still reconciles normally even if a stop was requested.
+    stopped = item.get("stopped")
+    if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
+        return runner_stop.STOPPED_DISPOSITION, None
     if item.get("action") == "review":
         try:
             current_plan = resolve_plan_path(
@@ -2240,6 +2375,33 @@ def execute_item(
             label_suffix="",
             work_dir=work_dir,
         )
+    except runner_stop.StopAtCheckpoint as stop:
+        # runstop foi1b3 (E-02/E-03, spec A3/R18): the exact counterpart of the `oc_runipd` handler.
+        # The turn was stopped at an OBSERVED safe checkpoint; record it with KNOWN certainty. The
+        # child was already reaped through `clean_shutdown` inside `run_agy_turn` (spec R5).
+        now = utc_now()
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+        record = _record_checkpoint_stop(run_dir, state, item, stop.observer)
+        attempt["stopped"] = record
+        attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+        # Decided in ONE place (`reconcile_disposition`'s deliberate-stop branch) so the two drivers
+        # and the two code paths cannot disagree about what a stopped item is.
+        item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"\u25a0 IPD {item['position']:02d}/{total} {item['id6']} stopped at a safe "
+                f"checkpoint (level {record['level']}, {record['level_name']}, certainty "
+                f"{record['certainty']}) after event "
+                f"{record['last_completed_event_index']} "
+                f"({record['last_completed_event']}); requested by {record['requester']}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        raise
     except KeyboardInterrupt:
         now = utc_now()
         attempt["interrupted_at"] = now
@@ -2794,6 +2956,9 @@ def run_queue(
     current_setid: str | None = None
     # Recorded EXACTLY ONCE, whichever boundary the loop exits at (kept symmetric with `oc_runipd`).
     stop_recorded = False
+    # runstop foi1b3: True once a level-3 stop cut the running TURN at an observed safe checkpoint
+    # (level 3 stops INSIDE a turn, unlike levels 1-2), so the deliberate-stop exit contract applies.
+    stopped_at_checkpoint = False
     while True:
         # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), the exact
         # counterpart of the `oc_runipd` site. runstop 1qxuke acts on it for level 1
@@ -2858,6 +3023,13 @@ def run_queue(
         current_setid = runnable.get("setid")
         try:
             execute_item(run_dir, state, runnable, recovery=recovery)
+        except runner_stop.StopAtCheckpoint:
+            # runstop foi1b3 (E-02, spec A3): the current TURN stopped at an observed safe checkpoint,
+            # so the RUN stops here. The item is already recorded with KNOWN certainty and the child
+            # reaped through `clean_shutdown`; remaining queued items are left `queued` (spec R22).
+            stopped_at_checkpoint = True
+            state = load_state(run_dir)
+            break
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
@@ -2880,10 +3052,13 @@ def run_queue(
     # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
     # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
     # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
+    # runstop foi1b3: a level-3 stop is equally DELIBERATE and takes the same contract. Its own item
+    # is `interrupted`, not a success state, so the run still exits nonzero for it - deliberately;
+    # only items the stop never STARTED are excused, exactly as for levels 1-2.
     return runner_stop.deliberate_stop_exit_code(
         (item["status"] for item in state["queue"]),
         success_states=SUCCESS_STATES,
-        stopped=wind_down is not None,
+        stopped=wind_down is not None or stopped_at_checkpoint,
     )
 
 
