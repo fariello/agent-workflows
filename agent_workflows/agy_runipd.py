@@ -33,6 +33,17 @@ from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
 from agent_workflows.render_stream import Statusline
 
+# lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
+# rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
+# how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
+# not import this module, so there is no import cycle.
+from agent_workflows.oc_runipd import (
+    ToolIdentityError,
+    assert_child_tool_identity,
+    pinned_child_env,
+    pinned_module_argv,
+)
+
 SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gemini-3.7-flash-high"
 DEFAULT_TIMEOUT = "240m"
@@ -360,13 +371,11 @@ def utc_now() -> str:
 def run_checked(
     argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    merged_env = os.environ.copy()
-    repo_src = str(Path(__file__).resolve().parent.parent)
-    cur_pp = merged_env.get("PYTHONPATH", "")
-    if repo_src not in cur_pp.split(os.pathsep):
-        merged_env["PYTHONPATH"] = f"{repo_src}{os.pathsep}{cur_pp}".rstrip(os.pathsep)
-    if env:
-        merged_env.update(env)
+    # lanetruth Order 01 (af7i6p) E-05: was an inert PYTHONPATH-only prepend (the cwd entry
+    # precedes PYTHONPATH in sys.path, so a child launched from a lane still imported the lane's
+    # copy). Now delegates to the ONE shared definition in `oc_runipd`, kept symmetric with that
+    # driver by construction rather than by a duplicated copy.
+    merged_env = pinned_child_env(env)
     result = subprocess.run(
         argv,
         cwd=str(cwd) if cwd else None,
@@ -414,26 +423,32 @@ def is_plan_review_approved(plan_path: Path) -> bool:
 def set_plan_approved(
     repo: Path, id6: str, message: str = "Full-auto approval via runagy"
 ) -> None:
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "set",
-        "approved",
-        id6,
-        "--by-human",
-        "--yes",
-        "--no-commit",
-        "--dir",
-        str(repo),
-        "-m",
-        message,
-    ]
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
+    cmd = pinned_module_argv(
+        [
+            "set",
+            "approved",
+            id6,
+            "--by-human",
+            "--yes",
+            "--no-commit",
+            "--dir",
+            str(repo),
+            "-m",
+            message,
+        ]
+    )
     try:
         run_checked(cmd, cwd=repo)
         return
     except (FileNotFoundError, OSError):
         pass
+    # lanetruth Order 01 (af7i6p) E-06: CONSOLE-SCRIPT FALLBACK, deliberately NOT rewritten (see
+    # the fuller note at the matching oc_runipd site). A bare `aw` argv can carry no interpreter
+    # flag, but it does not need one: a console script puts its OWN directory, not the cwd, at the
+    # head of `sys.path`, so it is MEASURABLY IMMUNE to the lane-shadowing defect. It still routes
+    # through `run_checked` for the pinned env (defence in depth). Do not delete it believing it is
+    # the hijack vector -- the `-m` form was.
     if shutil.which("aw"):
         run_checked(
             [
@@ -474,21 +489,24 @@ def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
     mirroring `set_plan_approved`); begin writes the gitignored
     `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
     (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority)."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "ipd",
-        "begin",
-        id6,
-        "--actor",
-        actor,
-        "--dir",
-        str(repo),
-    ]
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. As in oc_runipd, this site
+    # is not itself lane-shadowed (it runs against the MAIN tree, before any lane exists), but it
+    # is pinned anyway so exactly one launch shape exists across both drivers.
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "begin",
+            id6,
+            "--actor",
+            actor,
+            "--dir",
+            str(repo),
+        ]
+    )
     result = subprocess.run(
         cmd,
         cwd=str(repo),
+        env=pinned_child_env(),
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -541,21 +559,24 @@ def driver_finalize(
     forces the transition: a refusal returns nonzero and the caller records the child NOT-executed.
     Returns (exit_code, stderr)."""
     reasons, acks = _compute_scope_reconciliation(repo, plan_path)
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "ipd",
-        "finalize",
-        id6,
-        "--actor",
-        actor,
-        "--message",
-        message,
-        "--apply",
-        "--dir",
-        str(repo),
-    ]
+    # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site (mirrors oc_runipd). `repo` is the
+    # LANE worktree and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize must
+    # resolve paths against the tree it finalizes. Only IMPORT resolution is pinned, so the lane's
+    # own unreviewed `agent_workflows` can no longer be the code performing its own gating.
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "finalize",
+            id6,
+            "--actor",
+            actor,
+            "--message",
+            message,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
     for path, reason in reasons.items():
         cmd.extend(["--scope-reason", f"{path}={reason}"])
     for path, note in acks.items():
@@ -563,6 +584,7 @@ def driver_finalize(
     result = subprocess.run(
         cmd,
         cwd=str(repo),
+        env=pinned_child_env(),
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -2147,6 +2169,10 @@ def execute_item(
     work_dir: str | None = None
     if self_finalize and not is_review:
         actor = driver_actor(state)
+        # lanetruth Order 01 (af7i6p) E-04: verify ONCE per process that a pinned nested `aw`
+        # resolves to this runner's own tooling before letting one perform a lifecycle transition.
+        # Memoized (no per-call subprocess). A mismatch is RUN-FATAL per OQ-02.
+        assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
         begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
@@ -2771,6 +2797,13 @@ def run_queue(
         recovery = bool(runnable.pop("recovery_next", False))
         try:
             execute_item(run_dir, state, runnable, recovery=recovery)
+        except ToolIdentityError:
+            # lanetruth Order 01 (af7i6p) E-04 / OQ-02: RUN-FATAL. Must precede the item-local
+            # `except DriverError` (ToolIdentityError subclasses it), or the abort would be
+            # downgraded to one item marked `failed-safely` while later items ran under the same
+            # wrong tooling. Mirrors oc_runipd.
+            save_state(run_dir, state)
+            raise
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
