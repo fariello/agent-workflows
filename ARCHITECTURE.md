@@ -63,7 +63,7 @@ agent-workflows/
       walkthroughs/         Narrative walkthroughs
       roadmaps/             Roadmaps
       backlog/              Committed lightweight backlog work (open/, done/, parked/)
-      comms/                Inter-agent messaging lanes (shared/, local/)
+      comms/                Inter-agent messaging lanes (shared/, untracked/)
       prompts/              Prompt templates and execution logs
     config/                 Project policy and configuration (config.json, leak allowlist)
     state/                  Local runtime scratch and migration journals (never committed)
@@ -213,7 +213,7 @@ When migrating from the legacy `.agents/` layout:
 
 ### Inter-agent comms convention (`.aw/records/comms/`)
 
-The installer scaffolds an agent-agnostic **inter-agent comms convention** (DECISIONS D81): a gitignored `local/` lane and a git-tracked `shared/`
+The installer scaffolds an agent-agnostic **inter-agent comms convention** (DECISIONS D81): a gitignored `untracked/` lane and a git-tracked `shared/`
 lane for leaving filesystem messages between agents (and between an agent and a human). Messages carry a small header envelope (`From`/`To`/`Kind`/`Status`, and
 an optional `Not-Before` scheduling gate) over an UNTRUSTED payload; acknowledgements
 are a closed enum. The installed pointer block tells agents to check

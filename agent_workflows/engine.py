@@ -4120,7 +4120,7 @@ RESEARCH_SHARD_SUBDIRS = (
 # Operational staging for run-once / research prompts that are QUEUED to be executed (D91),
 # distinct from `.agents/docs/prompts/` (the evergreen copy-paste prompt LIBRARY). Mirrors the
 # plan lifecycle buckets so the `aw plans` board and the name-normalizer treat it on par with
-# `.agents/plans/`. Prompts staging is TRACKED (like plans), NOT gitignored like comms `local/`.
+# `.agents/plans/`. Prompts staging is TRACKED (like plans), NOT gitignored like comms `untracked/`.
 PROMPTS_DIR = ".agents/prompts"
 PROMPT_LIFECYCLE_SUBDIRS = (
     "pending",
@@ -4129,12 +4129,17 @@ PROMPT_LIFECYCLE_SUBDIRS = (
     "not-executed",
     "reusable",
 )
-# Quarantine lane for raw/sensitive/WIP prompts (D94, mirrors the comms local/ lane). `local/`
-# is gitignored via a NESTED `.agents/prompts/.gitignore` (a created deliverable, NOT a change to
-# the target root `.gitignore`). Its contents are never committable; a human promotes a reviewed,
-# scrubbed copy up into a tracked lifecycle bucket. The installer materializes the dir so it is
-# discoverable, but git does not track it empty.
-PROMPTS_LOCAL_SUBDIR = "untracked"
+# Quarantine lane for raw/sensitive/WIP prompts (D94, mirrors the comms untracked/ lane).
+# `untracked/` is gitignored via the framework-owned `.aw/.gitignore` on the canonical layout, and via
+# a NESTED `.agents/prompts/.gitignore` on the legacy one (a created deliverable, NOT a change to the
+# target root `.gitignore`). Its contents are never committable; a human promotes a reviewed, scrubbed
+# copy up into a tracked lifecycle bucket. The installer materializes the dir so it is discoverable,
+# but git does not track it empty.
+PROMPTS_UNTRACKED_SUBDIR = "untracked"
+# Deprecated alias retained for external callers (IPD lanename-01 j4v6ga renamed the constant, whose
+# old name contradicted its own value). `engine` declares no `__all__`, so a third-party import of the
+# old name cannot be ruled out from inside this repo. Prefer PROMPTS_UNTRACKED_SUBDIR.
+PROMPTS_LOCAL_SUBDIR = PROMPTS_UNTRACKED_SUBDIR
 _PROMPTS_GITIGNORE_TEMPLATE = """\
 # agent-workflows prompts staging: ignore the box-local, quarantine lane.
 # `untracked/` holds raw/sensitive/work-in-progress prompts (e.g. session-handoff drafts); it is
@@ -4198,12 +4203,16 @@ not clear this reminder and is not what this file is asking for.
 This file is per-machine and gitignored (via `.aw/.gitignore`), so it is never
 committed and never travels with the repo. It is safe to delete at any time.
 """
-# Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
-# box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,
-# NOT a modification of the target root `.gitignore`, so it respects the firm no-touch-root rule).
+# Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `untracked/` is
+# box-local, ephemeral routing and is gitignored via the framework-owned `.aw/.gitignore` on the
+# canonical layout, or a NESTED `.gitignore` on the legacy one (a created deliverable, NOT a
+# modification of the target root `.gitignore`, so it respects the firm no-touch-root rule).
 # `shared/` is tracked and travels with the repo. The directory chosen IS the privilege level.
 COMMS_DIR = ".agents/comms"
-COMMS_LOCAL_SUBDIRS = ("inbox", "sent", "archive", "scheduled", "acks")
+COMMS_UNTRACKED_SUBDIRS = ("inbox", "sent", "archive", "scheduled", "acks")
+# Deprecated alias retained for external callers; see PROMPTS_LOCAL_SUBDIR above (IPD lanename-01
+# j4v6ga). Prefer COMMS_UNTRACKED_SUBDIRS.
+COMMS_LOCAL_SUBDIRS = COMMS_UNTRACKED_SUBDIRS
 COMMS_SHARED_SUBDIRS = ("inbox", "sent", "archive")
 
 # --- Layout-aware record scaffolding (IPD awretrofit Order 08) ---------------------------------
@@ -5066,7 +5075,7 @@ def create_setup_artifacts(
     .gitkeep, the prompts staging lifecycle dirs with .gitkeep (tracked, like plans), a
     .gitleaksignore baseline, the secret-scan CI workflow, and the inter-agent comms
     skeleton (`.agents/comms/` with a nested .gitignore, a README, and .gitkeep under each `shared/`
-    subdir; `local/` subdirs get NO .gitkeep since the nested .gitignore ignores `local/`). Returns
+    subdir; `untracked/` subdirs get NO .gitkeep since the gitignore rule ignores them). Returns
     the list of created paths (empty on a re-run where everything already exists, so it is quiet and
     idempotent).
 
@@ -5134,10 +5143,10 @@ def create_setup_artifacts(
     migrate_local_lanes_to_untracked(repo_root, dirs)
     # Materialize the gitignored `untracked/` quarantine lanes so they are discoverable (D94): side
     # effect only (uncommittable, not `--undo`-recorded - a user may write into them).
-    (repo_root / dirs["prompts"] / PROMPTS_LOCAL_SUBDIR).mkdir(
+    (repo_root / dirs["prompts"] / PROMPTS_UNTRACKED_SUBDIR).mkdir(
         parents=True, exist_ok=True
     )
-    for sub in COMMS_LOCAL_SUBDIRS:
+    for sub in COMMS_UNTRACKED_SUBDIRS:
         (repo_root / dirs["comms"] / "untracked" / sub).mkdir(
             parents=True, exist_ok=True
         )

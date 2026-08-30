@@ -104,7 +104,7 @@ class SetupArtifactTests(unittest.TestCase):
                 (self.repo / ".aw/records/comms/shared" / sub / ".gitkeep").is_file(),
                 f"missing comms shared dir {sub}",
             )
-        # `local/` is ignored by the nested .gitignore, so it gets NO committed .gitkeep.
+        # `untracked/` is ignored by the gitignore rule, so it gets NO committed .gitkeep.
         self.assertFalse(
             (self.repo / ".aw/records/comms/untracked/inbox/.gitkeep").exists()
         )
