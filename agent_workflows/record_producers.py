@@ -93,6 +93,12 @@ class RecordClass(str, Enum):
     COMMS = "comms"
     WALKTHROUGHS = "walkthroughs"
     RELEASES = "releases"
+    # revgate Order 01 (15zvu6) E-09: typed plan-review findings artifacts (`*.review.md`). A records
+    # class so the `check.review-dangling` scan discovers the tree through THIS one authority rather
+    # than a second hardcoded `.aw/records/reviews` path string. Reviews are net-new, so there is
+    # deliberately no `_LEGACY_RECORD_CLASS_SUBPATHS` override (no legacy `.agents/` tree exists to
+    # read; the legacy map inherits the final subpath via its `**` spread, which is correct-by-absence).
+    REVIEWS = "reviews"
     # NOTE: run-artifacts (assess/verify/release-review/advise run records) are NOT a records class.
     # They live at the top-level `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (sibling of records),
     # written by the workflows directly and gitignored - NOT resolved via resolve_record_path. The
@@ -132,6 +138,7 @@ _RECORD_CLASS_SUBPATHS: Dict[str, str] = {
     RecordClass.COMMS.value: "comms",
     RecordClass.WALKTHROUGHS.value: "walkthroughs",
     RecordClass.RELEASES.value: "releases",
+    RecordClass.REVIEWS.value: "reviews",
 }
 
 # LEGACY `.agents/` read-only subpaths (plan-review PR-001): the legacy tree keeps its `docs/` nesting

@@ -820,3 +820,70 @@ def dependency_cutover_date(repo_root: "os.PathLike[str] | str") -> Optional[str
         return None
     date = marker.get("date")
     return date if isinstance(date, str) and date.strip() else None
+
+
+# --------------------------------------------------------------------------------------
+# revgate Order 01 (15zvu6) E-05: the ONE review-findings gate threshold.
+#
+# Recorded in the COMMITTED, portable project policy (`.aw/config/project.json`) as the
+# `review_findings_gate` key, read HERE and not via the XDG user config (which drops unknown keys).
+# Shape `{"block_at": "high"}`, with a bare string tolerated for convenience. Deliberately NOT
+# registered in `CONFIG_SCHEMA`: `project_schema.parse_portable_policy` preserves unknown keys in
+# `unknown_fields` and writes them BACK on serialization, so the key round-trips safely, and the
+# `dependency_schema_cutover` precedent above is likewise absent from the schema.
+#
+# THE DEFAULT DIVERGES FROM THAT PRECEDENT ON PURPOSE (maintainer decision, 2026-08-29). The cutover
+# marker is fail-OPEN (absent means "no cutover, grandfather everything"); this key is fail-CLOSED:
+# an ABSENT key means the gate is ACTIVE at `high`, so a repo gets the protection without having to
+# opt in. Opting OUT is explicit, via `{"block_at": "off"}`.
+# --------------------------------------------------------------------------------------
+
+REVIEW_FINDINGS_GATE_KEY = "review_findings_gate"
+
+#: Legal `block_at` values: a severity from `review_findings.SEVERITIES`, or `off` to disable.
+REVIEW_GATE_THRESHOLDS = ("medium", "high", "blocker", "off")
+
+#: The threshold in force when the key is absent, unreadable, or malformed (fail-CLOSED at `high`).
+REVIEW_GATE_DEFAULT = "high"
+
+
+def read_review_findings_gate(
+    repo_root: "os.PathLike[str] | str",
+) -> Optional[Dict[str, Any]]:
+    """Return the `review_findings_gate` object from `.aw/config/project.json`, or None if unset.
+
+    Never raises: a missing file, unparseable JSON, or a missing key returns None (the caller then
+    applies :data:`REVIEW_GATE_DEFAULT`). A bare string is tolerated and normalized to
+    ``{"block_at": <string>}``.
+    """
+    project_file = Path(repo_root) / ".aw" / "config" / "project.json"
+    try:
+        data = json.loads(project_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    raw = data.get(REVIEW_FINDINGS_GATE_KEY)
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        return {"block_at": raw.strip()}
+    return None
+
+
+def findings_gate_threshold(repo_root: "os.PathLike[str] | str") -> str:
+    """Return the effective gate threshold: one of :data:`REVIEW_GATE_THRESHOLDS`.
+
+    Falls back to :data:`REVIEW_GATE_DEFAULT` (``high``) when the key is absent OR carries a value
+    outside the vocabulary. A typo therefore lands on the SAFE side (still gating) rather than
+    silently disabling the gate, which is the whole point of a fail-closed default; only an explicit,
+    correctly spelled ``off`` disables it.
+    """
+    marker = read_review_findings_gate(repo_root)
+    if marker is None:
+        return REVIEW_GATE_DEFAULT
+    value = marker.get("block_at")
+    if not isinstance(value, str):
+        return REVIEW_GATE_DEFAULT
+    token = value.strip().lower()
+    return token if token in REVIEW_GATE_THRESHOLDS else REVIEW_GATE_DEFAULT
