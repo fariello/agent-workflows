@@ -81,7 +81,7 @@ Showing the 40 most-recent of 173 Sets; the full manifest is INDEX.json.
 
 ## runstatus
 
-- `y7xygb` [pending] 01 pending/20260829-runstatus-01-y7xygb-live-sticky-statusline-for-runner-terminal-streaming.ipd.md
+- `y7xygb` [executed] 01 executed/20260829-runstatus-01-y7xygb-live-sticky-statusline-for-runner-terminal-streaming.ipd.md
 
 ## runstop
 
