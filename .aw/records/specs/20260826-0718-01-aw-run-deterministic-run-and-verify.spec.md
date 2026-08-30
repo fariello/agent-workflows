@@ -1,7 +1,7 @@
 # Spec: aw <host> run - deterministic run-and-verify with enforced cross-item dependencies
 
 - Date: 2026-08-26
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 25kzda
@@ -1119,4 +1119,4 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
-- 2026-08-30 reviewed (aw specs): Completed specification review (verdict: approve)
+- 2026-08-30 approved (aw specs, --by-human): Approved spec 25kzda
