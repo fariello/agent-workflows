@@ -6,15 +6,17 @@
 - Scope: Make a reviewer or executor RECORD each decision it made instead of asking, into the tracked `## Decisions` section defined by `15zvu6`, and give the maintainer one command to audit them. (The drafted second clause, "fix the location defect in the gitignored autonomous-decisions register", was REMOVED at review: F-7 refutes the premise and E-05 now leaves `set_records.py` untouched.)
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, agent_workflows/review_findings.py, agent_workflows/reviews.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/check_engine.py, .aw/records/reviews/README.md, tests/test_review_decisions.py, tests/test_plan_review_parity.py
 - Item-Dependencies: executed:15zvu6
-- Status: reviewed
+- Status: approved
 - Set: revgate
 - Order: 4
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: c621h9
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed in place (wrong long-variant file; three unstated CLI declaration gates; unspecified selector + absent-tree crash; E-06 bundled build+test+parity and the check rule lacked placement/registry/grandfathering/fail-mode; duplicate parity harness; own history order invalid)
 
 - 2026-08-29 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): authored on maintainer instruction that decisions which would have been open questions, but for the resolve-before-refusing rule, must remain auditable.

@@ -2,7 +2,16 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 173 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 176 Sets; the full manifest is INDEX.json.
+
+## detrun
+
+- `r4mbcw` [pending] 00 pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
+- `bmh754` [pending] 01 pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
+- `a54m79` [pending] 02 pending/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
+- `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
+- `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
+- `7f7782` [pending] 05 pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
 
 ## ackme8
 
@@ -118,9 +127,19 @@ Showing the 40 most-recent of 173 Sets; the full manifest is INDEX.json.
 
 - `g40w37` [executed] 01 executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md
 
+## wkindname
+
+- `c2tvmm` [pending] 00 pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md
+- `9trlc3` [pending] 01 pending/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md
+- `ng2blv` [pending] 02 pending/20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md
+
 ## workkind
 
-- `a6cej0` [pending] 01 pending/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md
+- `a6cej0` [superseded] 01 superseded/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md
+
+## wtisoland
+
+- `6knsrx` [pending] 01 pending/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md
 
 ## assessdocs
 
@@ -192,24 +211,6 @@ Showing the 40 most-recent of 173 Sets; the full manifest is INDEX.json.
 ## beginscope
 
 - `vaq9qf` [executed] 01 executed/20260825-beginscope-01-vaq9qf-scope-aw-ipd-begin-baseline-dirty-check-to-the-plan-scope-pa.ipd.md
-
-## bklggrad
-
-- `s65hhv` [executed] 00 executed/20260825-bklggrad-00-s65hhv-backlog-release-gate-graduation-guard-a-blocking-backlog-ite.ipd.md
-- `ku93tn` [executed] 01 executed/20260825-bklggrad-01-ku93tn-from-backlog-link-field-schema-recognition-on-ipds-and-backl.ipd.md
-- `orb9zb` [executed] 02 executed/20260825-bklggrad-02-orb9zb-shared-close-legitimacy-predicate-aw-backlog-set-done-fails.ipd.md
-- `f1dhht` [executed] 03 executed/20260825-bklggrad-03-f1dhht-optional-opt-in-pre-commit-hook-wired-by-aw-install-that-ref.ipd.md
-
-## installerskill
-
-- `rldro6` [executed] 00 executed/20260825-installerskill-00-rldro6-wire-skill-package-emission-into-the-installer-run-path-acro.ipd.md
-- `kvfsak` [executed] 01 executed/20260825-installerskill-01-kvfsak-emit-skill-package-adapter-bundle-from-install-all-across-ho.ipd.md
-
-## runnernorm
-
-- `ryvoi5` [executed] 00 executed/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md
-- `dg28i9` [executed] 01 executed/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md
-- `puot79` [executed] 02 executed/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md
 
 ## (singletons: no Set)
 
