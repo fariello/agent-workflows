@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: mergedirty
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: driver pre-merge dirty check scopes to the lane's changed files, so a non-ff merge touching other paths reports a confusing merge-conflict instead of integration-blocked
 - Gate-Kind: artifact
 - Gate-Ref: 2c122z

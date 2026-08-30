@@ -2,7 +2,7 @@
 - Status: done
 - Set: awrenamebug
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw rename --order mangles the slug when --slug is omitted (injects the old cluster segment into the new slug)
 - Blocks-Release: next
 

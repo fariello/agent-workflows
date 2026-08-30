@@ -2,7 +2,7 @@
 - Status: done
 - Set: xtypepriority
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Add a uniform Priority field (low|medium|high) to research/plans/specs (backlog already has it); attention already reads Priority - extend the field + setters + checks + board rendering across types
 
 ## Workflow history

@@ -2,7 +2,7 @@
 - Status: open
 - Set: 1sdkvd
 - Priority: medium
-- Kind: followup
+- Work-Kind: followup
 - Summary: Normalize runner interactive output into a shared renderer and graduate remaining tools (runagy, pwatch, agy sessions/view) under aw
 
 ## Workflow history

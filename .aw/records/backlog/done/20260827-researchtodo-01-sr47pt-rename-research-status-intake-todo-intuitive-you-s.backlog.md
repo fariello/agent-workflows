@@ -2,7 +2,7 @@
 - Status: done
 - Set: researchtodo
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: Rename research status 'intake' -> 'todo' (intuitive 'you still need to do this'); migrate the 8 modules + existing docs; ride with 5tapom's state-advancement so 'todo' means genuinely-not-started
 
 ## Workflow history

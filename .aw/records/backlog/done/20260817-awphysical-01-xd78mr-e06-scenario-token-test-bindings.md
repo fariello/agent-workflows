@@ -2,7 +2,7 @@
 - Status: done
 - Set: awphysical
 - Priority: high
-- Kind: chore
+- Work-Kind: chore
 - Summary: awphysical Order 12 E-06: bind every acceptance-manifest expected token to a named test method + schema validator that loads each test (blocks Order 12 completion + spec implemented)
 
 ## Workflow history

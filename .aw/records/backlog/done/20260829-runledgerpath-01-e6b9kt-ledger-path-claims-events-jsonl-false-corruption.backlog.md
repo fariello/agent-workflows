@@ -2,7 +2,7 @@
 - Status: done
 - Set: runledgerpath
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw run ledger resolution claims the runner's events.jsonl and misdiagnoses it as a corrupt ledger
 
 ## Workflow history

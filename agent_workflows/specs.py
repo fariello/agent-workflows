@@ -112,6 +112,13 @@ _SPEC_ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
 # backlog.PRIORITIES; do NOT fork it). Optional (existing specs carry none). The ENUM value is
 # enum-validated in validate_spec (not here); this is just the reader RE, mirroring _BLOCKS_RELEASE_RE.
 _PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")
+# wkindname Order ng2blv: an optional `- Work-Kind:` bullet on a spec (shared bug/feature/chore/
+# security/followup vocab is backlog.KINDS; do NOT fork it and do NOT define a spec-only subset).
+# Optional (existing specs carry none). The ENUM value is enum-validated in validate_spec (not here);
+# this is just the reader RE, mirroring _PRIORITY_RE exactly. A spec is rarely a "bug" and will mostly
+# use `feature` or `chore`; that is an accepted cost of ONE shared vocabulary (OQ-01), because forked
+# per-type vocabularies are the drift this Set exists to remove.
+_WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")
 
 
 def _repo_root_of(spec_path: Path) -> Path:
@@ -166,6 +173,17 @@ def _read_priority(lines: List[str]) -> Optional[str]:
     end = _metadata_end(lines)
     for line in lines[:end]:
         m = _PRIORITY_RE.match(line)
+        if m:
+            return m.group(1)
+    return None
+
+
+def _read_work_kind(lines: List[str]) -> Optional[str]:
+    """Read a spec's optional `- Work-Kind:` value (shared backlog.KINDS vocab), or None (absent =
+    unclassified). wkindname Order ng2blv; mirrors `_read_priority`. Enum-validated in validate_spec."""
+    end = _metadata_end(lines)
+    for line in lines[:end]:
+        m = _WORK_KIND_RE.match(line)
         if m:
             return m.group(1)
     return None
@@ -284,6 +302,24 @@ def validate_spec(path: Path, text: str) -> List[core.Drift]:
                     loc,
                     "spec.priority-invalid",
                     f"priority not in {sorted(_backlog.PRIORITIES)}: {priority!r}",
+                )
+            )
+
+    # wkindname Order ng2blv: an optional `- Work-Kind:` bullet must, WHEN PRESENT, be in the shared
+    # backlog.KINDS vocab (imported, not forked). Absent = unclassified (no finding), which is the
+    # property that keeps the existing spec corpus from being mass-failed. Because `aw specs set`
+    # re-runs validate_spec and refuses a nonconforming result, this also makes the setter refuse an
+    # out-of-vocab `--work-kind bogus` (byte-identical refuse path to `--priority bogus`).
+    work_kind = _read_work_kind(lines)
+    if work_kind is not None:
+        from agent_workflows import backlog as _backlog
+
+        if work_kind not in _backlog.KINDS:
+            drift.append(
+                core.Drift(
+                    loc,
+                    "spec.work-kind-invalid",
+                    f"work kind not in {sorted(_backlog.KINDS)}: {work_kind!r}",
                 )
             )
 
@@ -573,6 +609,15 @@ def run_set(args) -> int:
         from agent_workflows import releases as _releases
 
         new_text = _releases.set_priority_line(new_text, prio)
+    # wkindname Order ng2blv: set/clear the optional `- Work-Kind:` bullet when requested, via the
+    # shared idempotent `releases.set_work_kind_line` writer (no forked write path). `-`/None clears.
+    # The enum value is enforced by the validate_spec pass below (so `--work-kind bogus` is refused
+    # here, byte-identically to `--priority bogus`).
+    work_kind = getattr(args, "work_kind", None)
+    if work_kind is not None:
+        from agent_workflows import releases as _releases
+
+        new_text = _releases.set_work_kind_line(new_text, work_kind)
     # validate the complete result in memory; refuse (byte-identical) if it would not conform
     residual = validate_spec(path, new_text)
     if residual:

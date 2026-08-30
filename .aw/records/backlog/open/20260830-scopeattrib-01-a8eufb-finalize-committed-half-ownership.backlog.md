@@ -2,7 +2,7 @@
 - Status: open
 - Set: scopeattrib
 - Priority: medium
-- Kind: followup
+- Work-Kind: followup
 - Summary: finalize still demands a scope reason for a CONCURRENT agent's COMMITTED out-of-scope path (the committed half of the shared-checkout attribution defect)
 
 ## Workflow history

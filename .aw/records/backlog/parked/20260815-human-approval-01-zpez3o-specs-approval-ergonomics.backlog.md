@@ -2,7 +2,7 @@
 - Status: parked
 - Set: human-approval
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Refine aw specs reviewed->approved ergonomics (OQ10): proportionality + an honest delegated-approval path; keep the anti-self-approval floor
 
 ## Workflow history

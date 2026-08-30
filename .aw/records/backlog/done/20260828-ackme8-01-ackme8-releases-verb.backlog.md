@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: ackme8
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Add an 'aw releases' owner-verb to inspect/list release records
 
 ## Workflow history

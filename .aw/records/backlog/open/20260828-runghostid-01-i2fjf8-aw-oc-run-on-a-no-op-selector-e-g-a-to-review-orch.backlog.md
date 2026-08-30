@@ -2,7 +2,7 @@
 - Status: open
 - Set: runghostid
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw oc run on a no-op selector (e.g. a to-review orchestrator with no runnable children) prints a resume hint for a run-id it never persisted (no run dir written), so the run appears to have started and be resumable when it did not exist
 
 ## Workflow history

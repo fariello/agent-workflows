@@ -2,7 +2,7 @@
 - Status: graduated
 - Set: runstale
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw runs shows a dead run's item as 'running' forever (no read-time liveness check) and an interrupted driver never writes a terminal status
 
 ## Workflow history

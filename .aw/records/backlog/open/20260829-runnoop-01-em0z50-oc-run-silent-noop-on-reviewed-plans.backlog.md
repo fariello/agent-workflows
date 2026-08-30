@@ -2,7 +2,7 @@
 - Status: open
 - Set: runnoop
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw oc run silently skips matched artifacts with no per-artifact reason and no end-of-run disposition summary (surfaced by reviewed plans counting as SUCCESS_STATES: 8/8 skipped, zero output explaining why)
 
 ## Workflow history

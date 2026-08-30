@@ -2,7 +2,7 @@
 - Status: done
 - Set: awmigrate-cleanup
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: migration/uninstall should sweep untracked stale-tool leftovers under .agents/
 
 ## Workflow history

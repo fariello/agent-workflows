@@ -2,7 +2,7 @@
 - Status: done
 - Set: human-approval
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: Human-approval attestation: rename --yes-i-am-human (stop the 'I am human' lie) + design a non-TTY on-behalf-of path without weakening the D125 floor
 
 ## Workflow history

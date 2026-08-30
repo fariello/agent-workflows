@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: ttywedge
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: driver-spawned aw subprocesses inherit the operator TTY, so ipd finalize sees isatty() and blocks on input() forever
 
 ## Workflow history

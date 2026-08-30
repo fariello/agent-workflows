@@ -2,7 +2,7 @@
 - Status: parked
 - Set: nm69aj
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Unify lifecycle-status transitions behind one positional verb (aw set <status> <identifier...>) with Set/group ops + a format checker
 
 ## Workflow history

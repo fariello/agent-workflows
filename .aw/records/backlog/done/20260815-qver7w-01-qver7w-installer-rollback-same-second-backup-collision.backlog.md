@@ -2,7 +2,7 @@
 - Status: done
 - Set: qver7w
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: run_rollback undo restores wrong index.md when two installs share a same-second backup timestamp (test_rollback_undo ~50% flake)
 
 ## Workflow history

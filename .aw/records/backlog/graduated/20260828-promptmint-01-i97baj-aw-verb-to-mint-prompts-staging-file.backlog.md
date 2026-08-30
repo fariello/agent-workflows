@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: promptmint
 - Priority: high
-- Kind: chore
+- Work-Kind: chore
 - Summary: Add an aw verb to mint a conforming prompts/ staging-lane file (YYYYMMDD-HHMM-NN-<slug>.prompt.md + aw-prompt metadata) so the /aw research producer workflow does not hand-name/hand-write staged prompt files
 
 ## Workflow history

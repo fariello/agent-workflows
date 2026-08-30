@@ -2,7 +2,7 @@
 - Status: done
 - Set: awrenamebug
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw backlog set --blocks-release does not persist the Blocks-Release field on a no-op (same-status) transition
 - Blocks-Release: next
 

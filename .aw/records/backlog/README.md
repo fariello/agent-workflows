@@ -39,7 +39,7 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 - Status: open | graduated | blocked | parked | done
 - Set: <terse-id>
 - Priority: high | medium | low
-- Kind: bug | feature | chore | security | followup
+- Work-Kind: bug | feature | chore | security | followup
 - Summary: <one line>
 - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
 - Gate-Ref: <ref>                                            # iff blocked
@@ -52,9 +52,15 @@ attention `Gate-Kind`/`Gate-Ref` bullets), then a prose body:
 
 Status is encoded BOTH by directory and by the `- Status:` bullet, and the two MUST agree.
 
+The work-nature field is `- Work-Kind:`. It was formerly spelled `- Kind:`, which collided with four
+unrelated uses of that word (a plan's structural kind, a research document type, a comms message kind,
+and the `- Gate-Kind:` bullet right above). The old spelling is still READ, so an item arriving from a
+long-lived branch keeps parsing, but only `- Work-Kind:` is written. Unlike plans and specs, where the
+field is optional, backlog REQUIRES it: an item with no value is a `backlog.kind-invalid` error.
+
 ## Verbs
 
-- `aw backlog new --summary ... [--status --priority --kind --set --slug --gate-kind --gate-ref --body] [--apply]`
+- `aw backlog new --summary ... [--status --priority --work-kind --set --slug --gate-kind --gate-ref --body] [--apply]`
   create a conformant item (dry-run by default; owns the clustering filename + metadata).
 - `aw backlog set <status> <id6|setid|fname>...` (or `aw backlog set <path> --status <status>`)
   transition status (moves the file between the disposition dirs), append a history record; moving to

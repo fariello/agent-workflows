@@ -2,7 +2,7 @@
 - Status: done
 - Set: aw-namespace
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: /aw <verb> command-family redesign: single /aw slash namespace over the workflows; per-host grammar verification + back-compat aliases
 
 ## Workflow history

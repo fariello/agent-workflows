@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: workkind
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Add a uniform recognized-but-optional Work-Kind field (bug/feature/chore/... work-nature) to IPDs and specs, distinct from the structural Kind (orchestrator/child) and artifact type; enables cross-tree filtering of work by nature across backlog/plans/specs
 
 ## Workflow history

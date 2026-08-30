@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: scopeattrib
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw ipd finalize misattributes concurrent agents' uncommitted files to whichever plan finalizes first, because _paths_changed_by_this_execution unions the whole git status porcelain with no ownership filter
 
 ## Workflow history

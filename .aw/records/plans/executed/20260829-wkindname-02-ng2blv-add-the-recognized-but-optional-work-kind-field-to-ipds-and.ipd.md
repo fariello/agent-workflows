@@ -6,17 +6,17 @@
 - Scope: Add a recognized-but-optional `Work-Kind` field to the IPD schema and the spec contract, reusing backlog's existing vocabulary rather than forking it, with setter support on the existing verbs and an `aw check` enum rule. Excludes renaming or migrating backlog (child 01 owns that, and this plan requires it executed), excludes adding the field to research, excludes attention-board wiring or sort changes, and excludes deriving the value from `From-Backlog`.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/specs.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_work_kind.py
 - Item-Dependencies: executed:9trlc3
-- Status: approved
+- Status: executed
 - Set: wkindname
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: ng2blv
-- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - Blocks-Release: next
 - From-Backlog: 1ap48y
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Work-Kind recognized as an optional field on plans and specs, on the one shared backlog.KINDS vocabulary, with --work-kind setters on aw ipd set / aw specs set and the check.work-kind-invalid rule (spec.work-kind-invalid on the spec carrier, matching the Priority precedent's two-id split). Absent means unclassified: 0 new findings on the existing corpus. 24 new tests, all four falsifiability negatives reproduced by really breaking the implementation. ONE field name now spans backlog, plans and specs; nothing CONSUMES it for filtering yet. Backlog still REQUIRES its field, so the Set unified the NAME, not the requiredness. [Scope reconciliation - in-scope-unmodified agent_workflows/check_engine.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5; in-scope-unmodified agent_workflows/cli.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5; in-scope-unmodified agent_workflows/ipd_schema.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5; in-scope-unmodified agent_workflows/specs.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5; in-scope-unmodified agent_workflows/status_set.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5; in-scope-unmodified tests/test_work_kind.py: modified-in-6472890b-before-the-re-taken-receipt-base-see-DECISION-03-ng2blv-D5]
 - 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed in place. Corrected two would-have-failed validations (backlog REQUIRES the field so the Set unifies name not requiredness; the 88/2 counts are tree-wide greps while the parser reads 87 items and 1 Gate-Kind item) and one unachievable gate (aw backlog check is already red on 3 unrelated violations, now no-worsening). Also: two validation mechanisms not one, command_surface.py added to child 01 because backlog new does declare --kind, orchestrator scope narrowed off the shared pending/ dir, 10 old-spelling fixture modules must pass unedited, and E-01 recorded as a manual obligation the runner rollup does not perform. Baselines re-measured at be49ac4 (2927 passed, 3 skipped, 4 xfailed). All three lint conforming at review-finalize.
 
@@ -36,37 +36,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared vocabulary, recognized in two contracts
 
-- [ ] E-01 Export backlog's work-nature vocabulary as the ONE shared source and do not fork it. `backlog.KINDS` already exists as a frozenset of `bug`, `feature`, `chore`, `security`, `followup`. Consume THAT from the plan and spec contracts exactly as `backlog.PRIORITIES` is consumed today by `ipd_schema`, `specs`, `check_engine`, `releases`, and `research_cmd` (locate those consumers by grepping for `PRIORITIES` to copy the established import pattern). Do NOT define a second tuple and do NOT define a per-type subset. The vocabulary SYMBOL `backlog.KINDS` keeps its name (only the on-disk FIELD was renamed, by child 01 `9trlc3`), so do not rename the symbol either. If the executor believes a shared SUPERSET is needed (see OQ-01's resolution, which rejects this), that is a scope question to report rather than a silent addition.
+- [x] E-01 Export backlog's work-nature vocabulary as the ONE shared source and do not fork it. `backlog.KINDS` already exists as a frozenset of `bug`, `feature`, `chore`, `security`, `followup`. Consume THAT from the plan and spec contracts exactly as `backlog.PRIORITIES` is consumed today by `ipd_schema`, `specs`, `check_engine`, `releases`, and `research_cmd` (locate those consumers by grepping for `PRIORITIES` to copy the established import pattern). Do NOT define a second tuple and do NOT define a per-type subset. The vocabulary SYMBOL `backlog.KINDS` keeps its name (only the on-disk FIELD was renamed, by child 01 `9trlc3`), so do not rename the symbol either. If the executor believes a shared SUPERSET is needed (see OQ-01's resolution, which rejects this), that is a scope question to report rather than a silent addition.
   - Depends on: none
   - Expected outcome: one vocabulary symbol is imported by every new consumer; a grep for the member tokens shows no second literal list; the `backlog.KINDS` symbol name is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Recognize `Work-Kind` in the IPD schema as recognized-but-OPTIONAL, mirroring `META_PRIORITY` exactly: add the field constant and include it in `META_RECOGNIZED` but NOT in `META_REQUIRED`. Constraints, all inherited from the `META_PRIORITY` comment rather than invented here: recognition exists only to stop the unknown-field lint error, the ENUM value check belongs to `aw check` (E-05) and must NOT be added to the schema, and absent means unclassified with no forced default. The name is `Work-Kind` and not `Kind` because of the hard collision recorded in F2.
+- [x] E-02 Recognize `Work-Kind` in the IPD schema as recognized-but-OPTIONAL, mirroring `META_PRIORITY` exactly: add the field constant and include it in `META_RECOGNIZED` but NOT in `META_REQUIRED`. Constraints, all inherited from the `META_PRIORITY` comment rather than invented here: recognition exists only to stop the unknown-field lint error, the ENUM value check belongs to `aw check` (E-05) and must NOT be added to the schema, and absent means unclassified with no forced default. The name is `Work-Kind` and not `Kind` because of the hard collision recorded in F2.
   - Depends on: E-01
   - Expected outcome: a plan carrying a valid `- Work-Kind:` lints clean; a plan carrying NONE lints clean (no mass-fail); the field is absent from `META_REQUIRED`; no enum validation was added to the schema layer.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Recognize `- Work-Kind:` on a spec, mirroring the spec contract's existing optional `- Priority:` handling. Add the bullet regex and reader alongside `_PRIORITY_RE` and its reader (locate both by symbol), keeping the same shape: present-and-valid passes, present-and-invalid is reported by `aw check`, absent returns None and is silent. Note the spec-vocabulary concern the item raises, that a spec is rarely a "bug" and reads more like design or policy: OQ-01 resolves this by keeping ONE vocabulary and accepting that specs will mostly use `feature` or `chore`, because forking a per-type vocabulary is the exact drift the item itself warns against and the `xprio` precedent explicitly forbade ("do NOT fork three copies").
+- [x] E-03 Recognize `- Work-Kind:` on a spec, mirroring the spec contract's existing optional `- Priority:` handling. Add the bullet regex and reader alongside `_PRIORITY_RE` and its reader (locate both by symbol), keeping the same shape: present-and-valid passes, present-and-invalid is reported by `aw check`, absent returns None and is silent. Note the spec-vocabulary concern the item raises, that a spec is rarely a "bug" and reads more like design or policy: OQ-01 resolves this by keeping ONE vocabulary and accepting that specs will mostly use `feature` or `chore`, because forking a per-type vocabulary is the exact drift the item itself warns against and the `xprio` precedent explicitly forbade ("do NOT fork three copies").
   - Depends on: E-01
   - Expected outcome: a spec with a valid `- Work-Kind:` passes `aw specs check`; a spec with none passes unchanged; the reader returns None when absent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: setters and validation
 
-- [ ] E-04 Add setter support so the field is never hand-written, since the house rule is that conforming artifacts are created and mutated by verbs. Extend `aw ipd set` and `aw specs set` with a `--work-kind` option accepting a vocabulary member or `-` to clear, exactly mirroring how `--blocks-release` and `--priority` already behave on those verbs (locate the existing `--priority` wiring in `cli.py` and the write path in `status_set.py` and `specs.py`, and copy it). Do NOT add the option to `aw ipd scaffold`: the conditional this E-item used to leave open is RESOLVED by measurement (F10), since `aw ipd scaffold --help` carries NO `--priority`, so the "if and only if" condition is FALSE. Do NOT add a new standalone verb. Do NOT add `--work-kind` to `command_surface.py`'s `legacy_flags`: per F8 that tuple is not asserted exhaustive and the `Priority` precedent left `--priority` undeclared on both verbs, so declaring only this one field would be a gratuitous asymmetry and would pull an undeclared file into scope.
+- [x] E-04 Add setter support so the field is never hand-written, since the house rule is that conforming artifacts are created and mutated by verbs. Extend `aw ipd set` and `aw specs set` with a `--work-kind` option accepting a vocabulary member or `-` to clear, exactly mirroring how `--blocks-release` and `--priority` already behave on those verbs (locate the existing `--priority` wiring in `cli.py` and the write path in `status_set.py` and `specs.py`, and copy it). Do NOT add the option to `aw ipd scaffold`: the conditional this E-item used to leave open is RESOLVED by measurement (F10), since `aw ipd scaffold --help` carries NO `--priority`, so the "if and only if" condition is FALSE. Do NOT add a new standalone verb. Do NOT add `--work-kind` to `command_surface.py`'s `legacy_flags`: per F8 that tuple is not asserted exhaustive and the `Priority` precedent left `--priority` undeclared on both verbs, so declaring only this one field would be a gratuitous asymmetry and would pull an undeclared file into scope.
   - Depends on: E-02, E-03
   - Expected outcome: `aw ipd set <status> <plan> --work-kind bug` writes the field; `--work-kind -` clears it; the same for `aw specs set`; an out-of-vocab value is rejected by the setter with a nonzero exit; the flag's shape matches `--priority`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add a `check.work-kind-invalid` rule to the `aw check` registry and implement it, using `check.priority-invalid` as a line-by-line template (same severity, assurance class, and determinism: error, repository, deterministic). Behavior: an out-of-vocab value is an error, an ABSENT field is silent. Constraints: reuse E-01's shared vocabulary in the message so accepted and advertised values cannot drift, and keep the validation in the registry rather than the schema or spec contract, which is where the `Priority` precedent puts it.
+- [x] E-05 Add a `check.work-kind-invalid` rule to the `aw check` registry and implement it, using `check.priority-invalid` as a line-by-line template (same severity, assurance class, and determinism: error, repository, deterministic). Behavior: an out-of-vocab value is an error, an ABSENT field is silent. Constraints: reuse E-01's shared vocabulary in the message so accepted and advertised values cannot drift, and keep the validation in the registry rather than the schema or spec contract, which is where the `Priority` precedent puts it.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: `aw check` flags a plan and a spec carrying an out-of-vocab `Work-Kind` with `check.work-kind-invalid`; artifacts with a valid value or NO value produce no finding; the rule appears in the registry with the same class as its `Priority` sibling.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `tests/test_work_kind.py`, modeled on the EXISTING `tests/test_ipd_priority.py` and `tests/test_spec_priority.py` (both present; read them first and mirror their structure so the two features are verified the same way). Cover: a valid `Work-Kind` on a plan and on a spec passes lint/check; an ABSENT field passes, which is the no-mass-fail property and must be asserted for BOTH types; an out-of-vocab value produces exactly `check.work-kind-invalid`; the setter writes, clears, and rejects; and a SINGLE-VOCABULARY assertion proving the accepted set is `backlog.KINDS` itself rather than a copy, so a future fork fails the suite. Add one assertion that the field is NOT in `META_REQUIRED`, since that is the property protecting the existing corpus.
+- [x] E-06 Add `tests/test_work_kind.py`, modeled on the EXISTING `tests/test_ipd_priority.py` and `tests/test_spec_priority.py` (both present; read them first and mirror their structure so the two features are verified the same way). Cover: a valid `Work-Kind` on a plan and on a spec passes lint/check; an ABSENT field passes, which is the no-mass-fail property and must be asserted for BOTH types; an out-of-vocab value produces exactly `check.work-kind-invalid`; the setter writes, clears, and rejects; and a SINGLE-VOCABULARY assertion proving the accepted set is `backlog.KINDS` itself rather than a copy, so a future fork fails the suite. Add one assertion that the field is NOT in `META_REQUIRED`, since that is the property protecting the existing corpus.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: the module passes; the absent-field cases fail against an implementation that made the field required; the single-vocabulary assertion fails against a forked list.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,35 +160,109 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the import of the shared vocabulary in every new consumer. Then paste a grep for the member tokens (`bug`, `feature`, `chore`, `security`, `followup` as a literal collection) proving there is NO second definition anywhere in `agent_workflows/`. Paste `git diff` for `backlog.py` showing it is EMPTY, since that file is deliberately undeclared and unmodified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b` (all evidence below re-measured at my own HEAD; the plan's recorded baselines were stale and are NOT reused). IMPORTANT INSTRUMENT NOTE: inside a lane worktree the `aw` console script loads MAIN's code (the editable install `.pth` pins the MAIN checkout root, not the lane), so `aw --version` reported `dev1688+g0dae3fa2` while `python3 -m agent_workflows --version` reported the lane's own HEAD. On the SAME files `aw backlog check` said `94 violation(s)` and the lane's own code said `3`, the 91 difference being main's pre-rename parser misreading already-migrated `- Work-Kind:` items. Every measurement in this plan therefore uses `python3 -m agent_workflows`, which provably executes the code under test (recorded as DECISION 03-ng2blv-D2).
+    SHARED VOCABULARY IMPORTED, NOT FORKED. Both new consumers import the one symbol:
+    `agent_workflows/check_engine.py:2279:    from agent_workflows import backlog as _backlog`
+    `agent_workflows/check_engine.py:2291:        if value in _backlog.KINDS:`
+    `agent_workflows/check_engine.py:2300:                    f"work kind not in {sorted(_backlog.KINDS)}: {value!r}",`
+    `agent_workflows/check_engine.py:2303:                required=f"one of {sorted(_backlog.KINDS)} (or omit Work-Kind)",`
+    `agent_workflows/specs.py:315:        from agent_workflows import backlog as _backlog` (with `if work_kind not in _backlog.KINDS:` immediately below)
+    NO SECOND DEFINITION. `grep -rn '"bug".*"feature".*"chore"|frozenset(("bug"' agent_workflows/*.py` returns exactly THREE hits and no second definition:
+      `agent_workflows/backlog.py:70:KINDS = frozenset(("bug", "feature", "chore", "security", "followup"))`  <- the ONE definition, unchanged
+      `agent_workflows/cli.py:1093:        choices=["bug", "feature", "chore", "security", "followup", "-"],`  <- argparse `choices`
+      `agent_workflows/cli.py:3393:        choices=["bug", "feature", "chore", "security", "followup", "-"],`  <- argparse `choices`
+    The two `choices` literals are NOT a fork of the vocabulary but the EXACT shape the Priority precedent uses (`grep -n 'choices=["low", "medium", "high", "-"]' agent_workflows/cli.py` -> lines 1082, 2051, 3382, i.e. three pre-existing literal instances). A literal is unavoidable at parser-build time; to stop it drifting I added `test_the_cli_choices_match_the_shared_vocab`, which pins both flags to `set(backlog.KINDS) | {"-"}` and FAILS if they diverge (falsifiability re-run below).
+    SYMBOL NAME UNCHANGED: `backlog.KINDS` still resolves; `python3 -c "from agent_workflows import backlog; print(sorted(backlog.KINDS))"` -> `['bug', 'chore', 'feature', 'followup', 'security']`.
+    `backlog.py` UNTOUCHED as the fence requires: `git diff 2b3e1c20..HEAD -- agent_workflows/backlog.py | wc -l` -> `0` (EMPTY).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the new schema constant and its inclusion in `META_RECOGNIZED`, plus proof it is NOT in `META_REQUIRED`. Paste a lint run on a plan WITH a valid `Work-Kind` and on a plan WITHOUT one, both conforming. Confirm by inspection that no enum validation was added to the schema layer, matching the layering comment the schema states for `Priority`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b`. The new constant and its recognition, with the layering comment stating the enum check lives in `aw check`:
+    `agent_workflows/ipd_schema.py:207:META_WORK_KIND = "Work-Kind"`, added to the `META_RECOGNIZED` frozenset at line 219 alongside `META_PRIORITY`.
+    RECOGNIZED BUT NOT REQUIRED, read from the live objects rather than the source:
+    `META_WORK_KIND = 'Work-Kind'` / `in META_RECOGNIZED: True` / `in META_REQUIRED  : False`
+    LINT BOTH WAYS (the no-mass-fail property). Via `ipd_lint.parse` + `ipd_schema.validate_metadata` on the fixture plan:
+      WITH `- Work-Kind: feature` -> diagnostic codes `[]` (conforming)
+      WITH NO `Work-Kind` line     -> diagnostic codes `[]` (conforming; the existing corpus is NOT mass-failed)
+      WITH `- Work-Kind: bogus`    -> `IPD-M103` NOT present, confirming recognition suppresses the unknown-field error and that NO enum validation was added to the schema layer.
+    NECESSITY OF E-02 CONFIRMED EMPIRICALLY, not assumed: F16 predicted that an unrecognized `Work-Kind` lints `IPD-M103 unknown field`. Verified in reverse during falsifiability run 1 below: removing `META_WORK_KIND` from `META_RECOGNIZED` made `test_work_kind_is_recognized_not_required` fail with `AssertionError: 'Work-Kind' not found in frozenset({...})`, whose printed set contains `Priority` but not `Work-Kind`. So the field is necessary and sufficient as scoped.
+    NO SCHEMA-LEVEL ENUM CHECK by inspection: the only `Work-Kind` mentions in `ipd_schema.py` are the constant, its comment block, and the `META_RECOGNIZED` membership; there is no reference to `backlog.KINDS` in that file at all.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the spec-side regex and reader next to the existing `Priority` equivalents to show the shape matches. Paste `aw specs check` passing for a spec with a valid value and for one with none, and the reader returning None when absent.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b`. The spec-side reader mirrors its Priority equivalent line-for-line:
+    `agent_workflows/specs.py:114:_PRIORITY_RE = re.compile(r"^- Priority:\s*(\S+)\s*$")`   <- pre-existing
+    `agent_workflows/specs.py:122:_WORK_KIND_RE = re.compile(r"^- Work-Kind:\s*(\S+)\s*$")`  <- new, same shape, FULL-LINE anchored
+    and the readers likewise: `_read_priority` (line 171) and the new `_read_work_kind` (line 181), both walking `lines[:_metadata_end(lines)]` and returning `m.group(1)` or `None`.
+    VALIDATION BOTH WAYS via `specs.validate_spec` on a real spec fixture:
+      `valid  -> []`  (a spec carrying `- Work-Kind: feature` conforms)
+      `absent -> []`  (a spec carrying NONE conforms; the no-mass-fail property for specs)
+      `bogus  -> ['spec.work-kind-invalid']`
+    Every member of the shared vocab passes: the test loops `sorted(backlog.KINDS)` and asserts no `spec.work-kind-invalid` for any of the five.
+    READER RETURNS None WHEN ABSENT: `specs._read_work_kind(...)` -> `'bug'` when the bullet is present, `None` when it is not (asserted in `test_reader_returns_value_or_none`).
+    NOTE ON RULE ID, disclosed rather than smoothed over: the spec carrier reports `spec.work-kind-invalid`, not `check.work-kind-invalid`, because that is EXACTLY the Priority precedent's split (`check_engine.py:223` registers `check.priority-invalid` for PLANS; `specs.py:303` emits `spec.priority-invalid` for SPECS, and the latter is deliberately NOT in `RULE_REGISTRY`). See DECISION 03-ng2blv-D4 and the V-05 note.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `aw ipd set ... --work-kind bug` writing the line, `--work-kind -` clearing it, and an out-of-vocab value REJECTED with a nonzero exit and no write. Same three for `aw specs set`. Confirm `aw ipd scaffold` was NOT given the option, and paste `aw ipd scaffold --help` showing it still has no `--priority` either (F10's condition, re-measured rather than trusted). Paste the undeclared-leaf COUNT from `python3 -m pytest tests/test_command_surface_declarations.py -m ""` before and after, showing it did not increase from the `59` baseline re-measured at `7f23670` and that no leaf names `work-kind`; a clean BARE run is not acceptable evidence here because the module is `slow`-marked and the bare run skips it (F9). Confirm `command_surface.py` was not edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b`. END-TO-END ON A FIXTURE, not on a tracked artifact, per F14: this is a shared checkout and every plan in `pending/` is either another session's work or a member of this Set, so I built a throwaway tree at `/tmp/opencode/e2e` rather than dirtying a real plan. `git status --porcelain` at the end of this turn is EMPTY.
+    PLAN SETTER (`python3 -m agent_workflows ipd set approved e2e001 --work-kind ... --dir /tmp/opencode/e2e`):
+      `--work-kind bug`  -> file now carries `10:- Work-Kind: bug`, and crucially `4:- Kind: child` is UNTOUCHED
+      `--work-kind bogus` -> REFUSED: `agent-workflows ipd set: error: argument --work-kind: invalid choice: 'bogus' (choose from 'bug', 'feature', 'chore', 'security', 'followup', '-')`, `exit=2` (nonzero), file unchanged
+      `--work-kind -`    -> `Work-Kind` line GONE; `4:- Kind: child` still present, proving the clear is full-line anchored and cannot eat the structural field
+      PERSISTENCE ON A NO-OP re-run without the flag is asserted in `test_set_writes_persists_on_noop_and_clears` (the hoisted, status-branch-independent write, matching `--priority`).
+    SPEC SETTER (`python3 -m agent_workflows specs set <spec> --status draft --work-kind ...`):
+      `--work-kind feature` -> `aw specs set: ... -> draft` and the file gains `3:- Work-Kind: feature`
+      `--work-kind bogus`   -> `exit=2`, no write
+      `--work-kind -`       -> `Work-Kind` line GONE
+      `python3 -m agent_workflows specs set --help` lists `--work-kind {bug,feature,chore,security,followup,-}` directly beneath `--priority {low,medium,high,-}`, confirming the shape matches.
+    `aw ipd scaffold` NOT GIVEN THE OPTION, and F10's condition RE-MEASURED rather than trusted: `python3 -m agent_workflows ipd scaffold --help | grep -ci "priority|work-kind"` -> `0`. Neither flag is there, so F10's "if and only if `--priority` is present" condition is FALSE and correctly produced no change.
+    UNDECLARED-LEAF COUNT, measured with `-m ""` because the module is `slow`-marked and a bare run reports `no tests ran` (F9):
+      BEFORE at `2b3e1c20`: `AssertionError: 65 != 0`, `1 failed, 13 passed`
+      AFTER  at `6472890b`: `AssertionError: 65 != 0`, `1 failed, 13 passed`
+      UNCHANGED at 65, and NO leaf names `work-kind` (the printed set contains `oc run`, `runs`, `commit`, `work begin`, ... and nothing work-kind related). This confirms F8: an argparse OPTION cannot create a parser LEAF. NOTE the plan's recorded baseline of `59` was STALE; the true figure at my base is 65, which is why the requirement is no-worsening measured by me rather than a fixed constant.
+    `command_surface.py` NOT EDITED: `git diff 2b3e1c20..HEAD -- agent_workflows/command_surface.py | wc -l` -> `0`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new registry entry beside `check.priority-invalid` showing the same severity, assurance class, and determinism. Paste `aw check` flagging an out-of-vocab value on a PLAN and on a SPEC with rule `check.work-kind-invalid`. Paste `aw check` producing NO finding for a valid value and NO finding for an absent field ON THOSE TWO TYPES; do not extend the claim to backlog, which keeps requiring the field and reports through `backlog.kind-invalid` (F11/F12). Then paste the whole-repo DELTA proof: `aw check` finding counts per type before and after the change, each with its HEAD, showing the count did NOT increase. Do NOT paste a clean run as the evidence and do NOT claim one: the corpus is already red at `findings=318` (`plans` 238, `specs` 0) at `7f23670` for unrelated reasons (F13). Zero NEW findings is the property; zero findings is not.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b`. REGISTRY ENTRY, beside its sibling and provably the same class:
+    `agent_workflows/check_engine.py:223:    "check.priority-invalid": RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`
+    `agent_workflows/check_engine.py:233:    "check.work-kind-invalid": RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "")`
+    Read from the live registry: `rule_spec('check.work-kind-invalid')` -> `RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')`, IDENTICAL to `rule_spec('check.priority-invalid')`. The test asserts the two are `==` so they cannot drift apart.
+    FLAGGING AND SILENCE ON THE TWO TYPES THIS PLAN OWNS:
+      PLAN out-of-vocab -> `check.work-kind-invalid` (one finding, locating the `chkbad` fixture, detail `work kind not in ['bug', 'chore', 'feature', 'followup', 'security']: 'bogus'`)
+      PLAN valid value  -> NO finding;  PLAN absent field -> NO finding
+      SPEC out-of-vocab -> `spec.work-kind-invalid`;  SPEC valid -> NO finding;  SPEC absent -> NO finding
+      RULE ID CAVEAT, stated plainly because this V-item's wording asked for `check.work-kind-invalid` on BOTH: the spec carrier reports `spec.work-kind-invalid`. That is the Priority precedent's own two-id split (`spec.priority-invalid` is likewise NOT in `RULE_REGISTRY`), not a shortfall; routing specs through the plans registry id would have contradicted E-03's "mirror the spec contract's existing Priority handling". Recorded as DECISION 03-ng2blv-D4. The PROPERTY the plan cares about holds on both: out-of-vocab caught, absent silent.
+      NOT EXTENDED TO BACKLOG, per F11/F12: backlog still REQUIRES the field and reports via its own pre-existing `backlog.kind-invalid`. Asserted directly in `test_backlog_still_REQUIRES_its_work_nature_field`: an item WITH the field yields no `backlog.kind-invalid`, an item WITHOUT it DOES. So this Set unified the field NAME across three types, NOT its requiredness, and `backlog.kind-invalid` is confirmed absent from `RULE_REGISTRY` (two mechanisms by design).
+    WHOLE-REPO DELTA (the actual no-mass-fail proof; a clean run is NOT claimed and is NOT achievable):
+      BEFORE at `2b3e1c20`: `all` findings=87 exit=1  |  `plans` findings=3 exit=1  |  `specs` findings=0 exit=0
+      AFTER  at `6472890b`: `all` findings=88 exit=1  |  `plans` findings=4 exit=1  |  `specs` findings=0 exit=0
+      `check.work-kind-invalid` findings on the REAL corpus: 0. No existing plan or spec carries the field, so a correct optional implementation adds none, which is exactly what happened.
+      THE +1 IS ACCOUNTED FOR AND IS NOT A MASS-FAIL. It is `check.scope-drift` on THIS plan's own file, caused by my own LIVE `aw ipd begin` receipt: the receipt froze `Scope-Paths` (six paths) at base `2b3e1c20`, and my execution also changed `agent_workflows/releases.py`, the undeclared home of the shared line-writer (DECISION 03-ng2blv-D3). Enumerated to prove it: the four `plans` findings are 2x `check.lifecycle-transition-invalid` on `terseout-01-ntf6sx`, 1x on `runnamecollapse-01-0soncw` (all three pre-existing, other sessions' plans), and 1x `check.scope-drift` on `20260829-wkindname-02-ng2blv`. The three pre-existing findings are byte-identical before and after. This finding is transient by construction: it is resolved by declaring the path to `aw ipd finalize --scope-reason`, after which the receipt is consumed.
+      Note the plan's recorded baseline (`findings=318`, `plans` 238) was measured with a DIFFERENT instrument in a different tree and is not comparable; my before/after pair was taken with the same instrument at known HEADs, which is what makes the delta meaningful.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the full new module passing. Paste FALSIFIABILITY as actual failures: the absent-field cases failing when the field is made required, and the single-vocabulary assertion failing against a forked list. Paste `tests/test_ipd_priority.py` and `tests/test_spec_priority.py` passing UNCHANGED, since a break there means the sibling field was disturbed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT `6472890b`. THE NEW MODULE PASSES: `python3 -m pytest -o addopts="" tests/test_work_kind.py -q` -> `........................  [100%]` / `24 passed in 0.55s`.
+    FALSIFIABILITY AS ACTUAL FAILURES, produced by really breaking the implementation four ways and restoring it each time (not by assertion):
+      1. `Work-Kind` REMOVED from `META_RECOGNIZED` -> `1 failed, 22 passed`; `test_work_kind_is_recognized_not_required` fails with `AssertionError: 'Work-Kind' not found in frozenset({...'Priority'...})`. This is the E-02-is-necessary proof.
+      2. `Work-Kind` ADDED to `META_REQUIRED` (the mass-fail implementation) -> `2 failed, 21 passed`; the failures are `test_a_plan_with_NO_work_kind_lints_clean` and `test_work_kind_is_recognized_not_required`. THE ABSENT-FIELD CASE FAILS AGAINST A REQUIRED-FIELD IMPLEMENTATION, which is precisely the property the plan demanded be falsifiable.
+      3. VOCABULARY FORKED to a literal subset `("bug","feature","chore")` in the check rule -> `3 failed, 20 passed`: `test_accepted_set_is_the_shared_backlog_kinds_symbol`, `test_the_check_rule_advertises_the_shared_vocab_in_its_message`, and `test_check_flags_out_of_vocab_only`. THE SINGLE-VOCABULARY ASSERTION FAILS AGAINST A FORKED LIST, as required.
+      4. CLI `choices` drifted from the shared vocab (dropped `security` from one flag) -> `1 failed, 23 passed`: `test_the_cli_choices_match_the_shared_vocab`. This guards the one place a literal member list is unavoidable.
+      After each experiment the file was restored from a backup and the module re-confirmed at `24 passed`; `grep -n FORKED agent_workflows/check_engine.py` returns nothing and `git status --porcelain` is EMPTY, so no experiment residue was committed.
+    SIBLING PRIORITY TESTS PASS UNCHANGED: `python3 -m pytest -o addopts="" tests/test_ipd_priority.py tests/test_spec_priority.py -q` -> `..............  [100%]` / `14 passed in 0.38s`, and they are provably UNEDITED: `git diff 2b3e1c20..HEAD -- tests/test_ipd_priority.py tests/test_spec_priority.py | wc -l` -> `0`. Neither file is in `Scope-Paths` and neither was touched, so `Priority` was not disturbed by E-02/E-03.
+    WHOLE SUITE, BARE, BOTH INVOCATIONS (no added flags), before/after at known HEADs:
+      FAST  `python3 -m pytest`:      BEFORE at `2b3e1c20` `15 failed, 3604 passed, 3 skipped, 4 xfailed`  ->  AFTER at `6472890b` `15 failed, 3628 passed, 3 skipped, 4 xfailed` (+24, exactly this module)
+      FULL  `python3 -m pytest -m ""`: BEFORE `20 failed, 3988 passed, 3 skipped, 4 xfailed`  ->  AFTER `20 failed, 4011 passed, 3 skipped, 4 xfailed` (+23 in that run's collection)
+      FAILURE SETS PROVEN BYTE-IDENTICAL, not merely equal in count: `diff` of the sorted `FAILED` lines before/after is EMPTY for BOTH invocations. The 15 fast failures are all `tests/test_run_viewer.py` and fail ENVIRONMENTALLY in a lane worktree (they read a real `.aw/records/runs/` that does not exist here); the extra 5 in the full run are the pre-existing `slow`-marked CLI-conformance and stop-level failures. None is caused by, or masked by, this change.
+  - Result: pass
 
 ## Approval and execution gate
 

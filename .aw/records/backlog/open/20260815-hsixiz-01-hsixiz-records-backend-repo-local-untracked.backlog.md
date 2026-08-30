@@ -2,7 +2,7 @@
 - Status: open
 - Set: hsixiz
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Records backend variant: repo-local-but-untracked .aw/records (git-ignored in-tree records); own IPD
 
 ## Workflow history

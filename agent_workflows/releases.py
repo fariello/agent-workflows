@@ -411,6 +411,31 @@ def set_priority_line(text: str, value: Optional[str]) -> str:
     return text
 
 
+_WORK_KIND_LINE_RE = re.compile(r"(?m)^- Work-Kind:[ \t]*[^\n]*$\n?")
+
+
+def set_work_kind_line(text: str, value: Optional[str]) -> str:
+    """Return `text` with the `- Work-Kind:` metadata line set to `value`, or removed when `value` is
+    '-' or None. Idempotent: replaces an existing line or inserts one after `- Status:` (falling back
+    to after `- Id:`, or leaving unchanged). wkindname Order ng2blv; mirrors `set_priority_line`
+    exactly, so the two optional metadata fields cannot drift on anchor or clearing semantics. The
+    ENUM check (value in backlog.KINDS) is enforced by `aw check` / validate_spec, not here (this is a
+    pure idempotent line writer). Tolerates any value so an existing malformed line is still replaced.
+
+    The pattern is FULL-LINE anchored on `- Work-Kind:` so it can never touch the unrelated
+    `- Gate-Kind:` field (backlog's typed gate) nor an IPD's REQUIRED structural `- Kind:`."""
+    text = _WORK_KIND_LINE_RE.sub("", text)
+    if value in (None, "-"):
+        return text
+    new_line = f"- Work-Kind: {value}\n"
+    for anchor in (r"(?m)^- Status:[^\n]*\n", r"(?m)^- Id:[^\n]*\n"):
+        m = re.search(anchor, text)
+        if m:
+            i = m.end()
+            return text[:i] + new_line + text[i:]
+    return text
+
+
 _FROM_BACKLOG_LINE_RE = re.compile(r"(?m)^- From-Backlog:[ \t]*\S+[ \t]*$\n?")
 
 

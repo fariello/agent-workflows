@@ -2,7 +2,7 @@
 - Status: done
 - Set: 7vd36f
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: aw ipd scaffold should enforce the clustering filename grammar + require Set metadata (authoring gap)
 
 ## Workflow history

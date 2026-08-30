@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: rundeps
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: The runner cannot read Item-Dependencies: oc_runipd matches only the legacy Dependencies/Depends-on field, so 11 pending plans declare edges the queue silently ignores and ordering falls back to Set/Order
 
 ## Workflow history

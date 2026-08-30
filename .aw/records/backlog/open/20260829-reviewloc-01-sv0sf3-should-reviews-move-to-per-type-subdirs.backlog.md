@@ -2,7 +2,7 @@
 - Status: open
 - Set: reviewloc
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: Should review artifacts move from a flat .aw/records/reviews/ to per-type .aw/records/<type>/reviews/?
 
 ## Workflow history
