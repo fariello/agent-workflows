@@ -9,7 +9,7 @@
 - Status: approved
 - Set: laneorphan
 - Order: 1
-- Highest E allocated: 08
+- Highest E allocated: 11
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: zwnjp3
 - Approval: 2026-08-30, recorded via aw ipd set: status set to approved
@@ -73,6 +73,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Execution state: pending
 
 ### Task group 3: prove it, including the destructive case
+
+- [ ] E-09 SNAPSHOT a preserved lane's UNCOMMITTED work as a marked commit on its own lane branch, so loose edits cannot be lost. Maintainer decision (OQ-04). MEASURED JUSTIFICATION, and it is the strongest data-safety finding in this plan: `git worktree remove --force` on a lane holding uncommitted edits destroys those files from git AND from disk with nothing to recover from, silently. A commit on the lane branch is unlosable by comparison. When the reclamation decision (E-05) classifies a lane HOLDS-WORK because its tree is dirty, commit the dirty tree to the lane branch with a message marking it plainly as an interrupted snapshot rather than finished work, then leave the lane in place. Do NOT commit anything outside the lane worktree, and do NOT touch main. Note this is NOT the auto-stash the house rules forbid: the prohibition protects a human's own checkout from being rewritten, whereas this writes only inside a driver-created lane whose sole content is that turn's work.
+  - Depends on: E-05
+  - Expected outcome: a lane interrupted with uncommitted edits ends with those edits committed on its lane branch and reachable by ref; the commit message marks it as an interrupted snapshot; the lane still exists; main is untouched; a lane whose tree was already clean gets no snapshot commit.
+  - Execution state: pending
+
+- [ ] E-10 Offer an OPTIONAL interactive choice at interrupt, and only when a terminal is genuinely present. Maintainer decision (OQ-05): the machine decides by content on its own, and the prompt is a convenience layered on top, never the safety net. When and only when the driver has a real TTY (the drivers already carry an `isatty` check to copy), offer the operator the choice to discard a provably-empty lane, or to snapshot-and-keep a lane holding work, defaulting to exactly what E-05 and E-09 would have done unattended. HARD CONSTRAINTS: no TTY means no prompt and no waiting, ever; a prompt that receives no answer within a short bound falls through to the automatic decision rather than blocking shutdown; and a second interrupt or a forced kill skips the prompt entirely. These runs are non-interactive by design and are usually unattended, so a prompt that can block shutdown would be a worse defect than the one being fixed.
+  - Depends on: E-05, E-09
+  - Expected outcome: with no TTY, no prompt appears and the automatic decision runs; with a TTY, the operator can choose and the offered default matches the automatic decision; an unanswered prompt falls through rather than hanging; a repeated interrupt bypasses it.
+  - Execution state: pending
+
+- [ ] E-11 TELL THE RESUMING AGENT it is continuing an interrupted turn, in the PROMPT. Maintainer decision (OQ-06), and it replaces a heavier gate this plan previously contemplated. The hook ALREADY EXISTS and must be reused rather than rebuilt: `build_prompt` takes a `recovery` flag and already renders `Mode: RECOVERY/CONTINUATION`, and `requeue_interrupted` already sets `recovery_next` on interrupted items. So the whole change is enriching that existing recovery branch of the prompt with the lane facts this plan now records: that the previous attempt was interrupted or killed, whether its lane holds commits or an E-09 snapshot, where that lane is, and that the agent must therefore establish the current state itself before editing rather than assuming a clean start. Add NO new gate, NO acknowledgement handshake, and NO refusal path; a prominent, honest prompt is the whole requirement. Land it in both drivers.
+  - Depends on: E-04, E-09
+  - Expected outcome: a resumed item's prompt states it is continuing an interrupted attempt and names its lane's branch, path, and whether it holds commits or a snapshot; a normal first attempt's prompt is unchanged; the existing `recovery` flag and `Mode:` line are reused rather than duplicated; both drivers agree.
+  - Execution state: pending
 
 - [ ] E-07 Add `tests/test_lane_allocation_idempotent.py` covering, on throwaway git repos: (a) the exact reported failure, so a second allocation for the same lane id no longer raises `a branch named 'aw/lane/<id>' already exists`, shown FAILING against pre-fix code; (b) a BRANCH-ONLY leftover (worktree removed, branch surviving) also allocates, since this was measured to wedge allocation identically and is the likelier residue; (c) an EMPTY same-base lane is ADOPTED and no second worktree appears; (d) a lane holding commits is NOT adopted, gets an attempt-scoped allocation, and is byte-identical afterward (assert the tip sha and `git status --porcelain` before and after); (e) THE DESTRUCTIVE-CASE GUARD, asserting that no code path reachable from interrupt handling deletes a branch whose lane holds commits, and that after an interrupt the work-holding lane's tip is still reachable BY REFERENCE and not merely as an unreferenced object (this is the assertion that would have caught F5, and it must fail if someone replaces the classifier with a blanket force teardown); (f) a subsequent run of the same Set allocates successfully after an interrupt, which is the end-to-end property the item actually asks for; (g) both drivers, via a symmetry assertion that fails if only one was changed; (h) THE STALE GUARD (F9/F10): a clean leftover lane whose base is an ancestor of, but not equal to, the requested base is attempt-scoped and NOT adopted, asserted on the classification AND on the resulting lane name, so a regression to the four-state scheme fails here; (i) THE NON-DESTRUCTIVE FAILURE-PATH GUARD (F11): a `git worktree add` failure where a work-holding branch of that name already exists leaves that branch present with an unchanged tip and still reachable by reference, which fails against a name-based `branch -D` cleanup; (j) THE LIVE-OWNER GUARD (F12): a lane whose owner process is alive is NOT adopted and the second allocation is attempt-scoped, with the complement that a dead-owner lane IS adopted, so the guard cannot be satisfied by disabling adoption. Every case must be built from its own fixture repo; do NOT reference live lanes or shas, because this repo has multiple live lanes owned by running drivers and that set churns (F7). Tests that spawn real processes must be marked `slow` per the repo convention.
   - Depends on: E-01, E-02, E-05, E-08
@@ -177,9 +192,45 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Owner: none
 - Resolution or deferral rationale: NO, do not wait, but do NOT install a signal handler either, and the drafted answer was CORRECTED at review. The item is a release blocker whose failure wedges runs today, whereas the `runstop` Set is a six-child sequence, so waiting is wrong. But the drafted fallback ("if `clean_shutdown` does not exist, E-05 installs its own handler") is unsafe: `runstop` Phase 5 (`71vjbn`) is ALREADY APPROVED and owns registering the SIGINT and SIGTERM handlers in both drivers per spec `c4gd2h` R12/R13, over these same two files, and no `signal.signal(` exists in either driver today, so two plans racing for the handler slot means whichever lands last silently wins (F13). The resolution is a shape that cannot collide: E-05 exposes the lane-reclamation decision as an idempotent CALLABLE and wires it into the EXISTING `KeyboardInterrupt` teardown paths only. Phase 0's `clean_shutdown` and Phase 5's handlers then both call that one function, which satisfies the "exactly ONE lane-preservation decision" requirement more strongly than either drafted branch did. The executor must still record whether `clean_shutdown` existed and, if so, call it rather than duplicating teardown.
 
+### OQ-04: What happens to a preserved lane's UNCOMMITTED work?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: SNAPSHOT IT as a marked commit on the lane branch (E-09). RESOLVED 2026-08-30 by maintainer decision. The question was raised by the maintainer and it exposed the sharpest hazard here: measurement shows `git worktree remove --force` erases a lane's uncommitted files from git AND disk, unrecoverably and without a word, so uncommitted work is the most fragile thing in this whole area rather than the least. Merely declining to delete it (this plan's original position) leaves it one careless cleanup away from gone and leaves no record of what it was. Committing it on the lane branch makes it unlosable, inspectable, and revertible, at the cost of creating a commit the agent did not ask for, which the message marks plainly as an interrupted snapshot. Alternatives rejected: leaving the edits loose keeps the fragility; copying them to a separate backup location creates a second place work can hide and can drift from the lane.
+
+### OQ-05: Should the interrupt ASK the operator what to do?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: THE MACHINE DECIDES BY CONTENT; a prompt is an OPTIONAL convenience when a terminal is present (E-10). RESOLVED 2026-08-30 by maintainer decision, after the maintainer proposed a prompt offering discard, commit-then-discard, or leave. The prompt is genuinely useful when someone is watching, so it is in. It cannot be the safety net, for three verified reasons: these runs are non-interactive by design and usually unattended; an interrupt can be repeated, and a forced kill cannot prompt at all; and a prompt awaiting an answer that never comes either hangs shutdown or silently picks a default, which is a worse failure than the wedging being fixed. So the content-based decision is the authority and the prompt merely front-runs it with the same default.
+
+### OQ-06: How strongly must a resuming agent be told it is resuming?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: A LINE IN THE PROMPT, no gate (E-11). RESOLVED 2026-08-30 by maintainer decision, and it OVERRODE a heavier design this plan was contemplating (a refuse-to-resume-silently gate requiring acknowledgement). The maintainer's version is correct and cheaper: tell the agent plainly that it is picking up an interrupted or killed attempt and that it must work out the current state for itself. Two facts support it over the gate. The plumbing already exists, since `build_prompt` takes a `recovery` flag and renders a `Mode: RECOVERY/CONTINUATION` line and `requeue_interrupted` already marks interrupted items, so this is enriching an existing branch rather than building a mechanism. And a refusal path would add a new way for an unattended run to stall, which is the same class of defect as OQ-05's blocking prompt. The residual risk, accepted: an agent that ignores the notice can still act on a half-finished state, which is a prompt-adherence problem rather than a plumbing one.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-09 validates E-09
+  - Required evidence: paste the pre-fix measurement showing `git worktree remove --force` destroying uncommitted lane files (gone from disk, absent from git, nothing to recover). Then paste an interrupted lane with dirty files ending with those files COMMITTED on its lane branch, showing the commit message marks it as an interrupted snapshot, the tip reachable by ref, and the lane still present. Paste `git status --porcelain` for MAIN before and after, identical, proving nothing outside the lane was committed. Paste a clean-tree lane getting NO snapshot commit.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-10 validates E-10
+  - Required evidence: paste a no-TTY interrupt showing NO prompt, no wait, and the automatic decision taken. Paste a TTY interrupt showing the choice offered with the default matching the automatic decision. Paste an unanswered prompt falling through to the automatic decision rather than blocking. Paste a repeated interrupt bypassing the prompt. A prompt that can block shutdown when unattended FAILS this item outright.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-11 validates E-11
+  - Required evidence: paste the recovery-branch prompt text for a resumed item, showing it states the previous attempt was interrupted or killed, names the lane branch and path, says whether the lane holds commits or a snapshot, and tells the agent to establish current state itself. Paste a normal first-attempt prompt showing it is UNCHANGED. Paste evidence the existing `recovery` flag and `Mode:` line were reused, not duplicated. Confirm by grep that no acknowledgement gate or refusal path was added. Show both drivers.
+  - Observed evidence:
+  - Result: pending
 
 - [ ] V-01 validates E-01
   - Required evidence: paste the classifier and a transcript showing all FIVE classifications on a fixture repo: ABSENT before allocation, EMPTY immediately after, STALE for that same untouched lane after main advances by one commit, HOLDS-WORK for a clean-but-committed lane and a dirty-but-uncommitted lane as SEPARATE cases, and FOREIGN for a lane cut from an unrelated commit. The STALE case is MANDATORY and must be a distinct printed state, not EMPTY: it is the hole F9 measured, and a transcript that shows only four states proves the defect was reintroduced. Then paste the branch-only case from F2 being classified correctly, which proves the classifier consults refs and not merely directory existence, and show the returned record carries the lane's base sha.
