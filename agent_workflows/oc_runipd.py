@@ -39,6 +39,11 @@ from typing import Any, Callable, NamedTuple, TextIO
 # caller per OQ-01.
 from agent_workflows import runner_shutdown, stall_progress
 
+# terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
+# execution and verifier prompts. A fresh worker session must not depend only on ambient host
+# instructions, which is why the drivers already embed their other critical safeguards.
+from agent_workflows import reporting_contract
+
 # wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
 # seam in `run_opencode` only; when no `execution_profile` is requested the default launch
 # is byte-for-byte unchanged and nothing in this module is invoked.
@@ -2785,6 +2790,17 @@ def build_review_prompt(
     plan_path: Path,
     repo: Path,
 ) -> str:
+    """Return EXACTLY the slash command for a review turn: `/plan-review <relative path>`.
+
+    Deliberately prose-free (terseout `ntf6sx` E-05). This value is handed to the host as ONE
+    argv element after `--`, so anything appended to it is absorbed by the slash command's
+    `$ARGUMENTS` and parsed as additional path arguments. Never append instructions here; the
+    review turn inherits the concise-reporting contract from the generated command shim's
+    pointer line plus the installed `AGENTS.md#aw:reporting` section. If a future change truly
+    must add prose to a review turn, it goes on a separate line AFTER the command, never on
+    the command line itself.
+    """
+
     try:
         rel_path = str(plan_path.relative_to(repo))
     except ValueError:
@@ -2954,7 +2970,7 @@ Before exiting, write valid JSON to {outcome} with at least:
 
 The disposition must describe the actual repository result, not merely your effort. If no
 material question arose, say so in the summary. Explicitly confirm pushed=false.
-"""
+{reporting_contract.prompt_block()}"""
 
 
 def build_verifier_prompt(
@@ -3023,7 +3039,7 @@ and documentation satisfy every requirement before this plan can be considered e
    }}
 
 Begin independent verification now.
-"""
+{reporting_contract.prompt_block()}"""
 
 
 def write_prompt(

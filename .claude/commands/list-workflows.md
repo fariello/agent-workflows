@@ -10,3 +10,4 @@ Read and execute @.aw/system/workflows/list-workflows/list-workflows.md.
 If the user provided arguments, treat them as an optional filter to narrow the catalog (a concern, area, or category, e.g. `security` or `assess`); omit to list everything: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

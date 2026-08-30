@@ -10,3 +10,4 @@ Read and execute @.aw/system/workflows/handoff/handoff.md.
 If the user provided arguments, treat them as an optional focus for the handoff (an area or thread to emphasize, e.g. `release`); omit to capture the whole session: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

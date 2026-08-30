@@ -25,6 +25,7 @@ bars) so the documented prose can never claim more than the recorded evidence. S
 - [Troubleshooting](troubleshooting.md): diagnosing an incomplete or failed run.
 - [Recovery and rollback](recovery.md): resuming, recovering, and rolling back safely.
 - [CLI Output Mode Contract](cli-output-contract.md): dual-audience output modes, stream boundaries, and exit codes.
+- [Concise reporting contract](reporting-contract.md): the portable default for model-authored user-facing prose, its overrides, and per-host delivery.
 - [Human TTY guide](cli-human-guide.md): reading the styled interactive `aw` output at a terminal.
 - [Agent protocol reference](cli-agent-protocol.md): parsing the `aw.agent/v1` machine format.
 - [CLI output migration guide](cli-migration.md): the 2.0.0 non-TTY hard cutover and how to update scrapers.
