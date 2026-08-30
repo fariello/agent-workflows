@@ -676,6 +676,33 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             )
             self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
 
+    def test_expand_selectors_reviews(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "p1": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/pending/20260824-s1-01-p1.ipd.md",
+                    "status": "to-review",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "p2": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/pending/20260824-s1-02-p2.ipd.md",
+                    "status": "approved",
+                    "order": 2,
+                    "dependencies": [],
+                },
+            },
+            "sets": {
+                "s1": {"order": ["p1", "p2"]},
+            },
+        }
+        for alias in ("reviews", "review", "to-review"):
+            expanded = agy_runipd.expand_selectors(manifest, [alias])
+            self.assertEqual(expanded, ["p1"])
+
 
 if __name__ == "__main__":
     unittest.main()

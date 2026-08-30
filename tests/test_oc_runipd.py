@@ -1219,6 +1219,67 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
         expanded = driver.expand_selectors(manifest, ["all"])
         self.assertEqual(expanded, ["pend01", "pend02"])
 
+    def test_expand_selectors_reviews_finds_only_to_review_plans(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "exec01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/executed/20260801-s1-01-exec01-done.ipd.md",
+                    "status": "executed",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "pend01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/pending/20260824-s1-02-pend01-test.ipd.md",
+                    "status": "to-review",
+                    "order": 2,
+                    "dependencies": ["exec01"],
+                },
+                "pend02": {
+                    "set": "s2",
+                    "file": ".aw/records/plans/pending/20260824-s2-01-pend02-test.ipd.md",
+                    "status": "approved",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "pend03": {
+                    "set": "s2",
+                    "file": ".aw/records/plans/pending/20260824-s2-02-pend03-test.ipd.md",
+                    "status": "to-review",
+                    "order": 2,
+                    "dependencies": [],
+                },
+            },
+            "sets": {
+                "s1": {"order": ["exec01", "pend01"]},
+                "s2": {"order": ["pend02", "pend03"]},
+            },
+        }
+        for alias in ("reviews", "review", "to-review"):
+            expanded = driver.expand_selectors(manifest, [alias])
+            self.assertEqual(expanded, ["pend01", "pend03"])
+
+    def test_expand_selectors_reviews_raises_when_none(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "pend02": {
+                    "set": "s2",
+                    "file": ".aw/records/plans/pending/20260824-s2-01-pend02-test.ipd.md",
+                    "status": "approved",
+                    "order": 1,
+                    "dependencies": [],
+                },
+            },
+            "sets": {
+                "s2": {"order": ["pend02"]},
+            },
+        }
+        with self.assertRaises(driver.DriverError):
+            driver.expand_selectors(manifest, ["reviews"])
+
     def test_expand_selectors_all_raises_when_no_actionable_plans(self):
         manifest = {
             "schema_version": 1,

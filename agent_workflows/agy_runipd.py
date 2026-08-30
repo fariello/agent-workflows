@@ -1105,6 +1105,43 @@ def expand_selectors(
     sets = manifest.get("sets", {})
     selectors_list = [str(s).strip() for s in selectors]
 
+    if len(selectors_list) == 1 and selectors_list[0].lower() in (
+        "reviews",
+        "review",
+        "to-review",
+    ):
+        expanded: list[str] = []
+        seen: set[str] = set()
+
+        def _needs_review(p_info: dict[str, Any]) -> bool:
+            st = str(p_info.get("status", "")).lower().strip()
+            f_str = str(p_info.get("file", ""))
+            is_non_pending = (
+                "/executed/" in f_str
+                or "/superseded/" in f_str
+                or "/not-executed/" in f_str
+                or "/reusable/" in f_str
+            )
+            return st == "to-review" and not is_non_pending
+
+        for _setid, group in sets.items():
+            for id6 in group.get("order", []):
+                p = plans.get(id6, {})
+                if _needs_review(p):
+                    if id6 not in seen:
+                        expanded.append(id6)
+                        seen.add(id6)
+
+        for id6, p in plans.items():
+            if id6 not in seen:
+                if _needs_review(p):
+                    expanded.append(id6)
+                    seen.add(id6)
+
+        if not expanded:
+            raise DriverError("No items in 'to-review' state found in repository")
+        return expanded
+
     if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
         expanded: list[str] = []
         seen: set[str] = set()
