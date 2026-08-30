@@ -622,15 +622,17 @@ class ProgressRendererTests(unittest.TestCase):
         self.assertIsNone(driver.render_event('{"type":"step_start"}', self.plain))
         self.assertIsNone(driver.render_event("   ", self.plain))
 
-    def test_step_finish_summarizes_tokens_and_cost(self):
+    def test_step_finish_updates_tracker_and_is_suppressed(self):
+        tracker = driver.StreamTracker()
         line = driver.render_event(
-            '{"type":"step_finish","part":{"tokens":{"total":1234},"cost":0.0042}}',
+            '{"type":"step_finish","part":{"tokens":{"total":1234,"input":1000,"output":234},"cost":0.0042}}',
             self.plain,
+            tracker=tracker,
         )
-        assert line is not None
-        self.assertIn("1.23K tok", line)
-        self.assertIn("$0.0042", line)
-        self.assertIn("tok: 0 in, 0 out, 0 cache, $0.00 tot", line)
+        self.assertIsNone(line)
+        self.assertEqual(tracker.input_tokens, 1000)
+        self.assertEqual(tracker.output_tokens, 234)
+        self.assertAlmostEqual(tracker.cost, 0.0042)
 
     def test_non_json_line_passed_through_dimmed(self):
         line = driver.render_event("a stray log line", self.plain)

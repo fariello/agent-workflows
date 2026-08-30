@@ -272,70 +272,90 @@ class StatuslineUnitTests(unittest.TestCase):
 
     def test_format_statusline_exact_layout(self):
         tracker = render_stream.StreamTracker()
-        tracker.update(inp=24500, out=4100, cache=88200, cost=0.24)
+        tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
 
         now_ts = 1700000000.0  # fixed timestamp
-        start_ts = now_ts - (14 * 60 + 22)  # 14m22s
-        last_act_ts = now_ts - 3  # idle 3s
+        run_start_ts = now_ts - (64 * 60 + 21)  # 64m21s
+        item_start_ts = now_ts - (4 * 60 + 8)  # 4m08s
+        last_act_ts = now_ts - 14  # idle 14s
 
-        line = render_stream.format_statusline(
+        l1, l2 = render_stream.format_statusline_lines(
             now_ts=now_ts,
-            start_ts=start_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
             last_act_ts=last_act_ts,
-            current_idx=4,
-            total_items=5,
-            setid="reposcfg",
-            id6="8h9lap",
+            current_idx=1,
+            total_items=1,
+            setid="revgate",
+            id6="7nkcgp",
             tracker=tracker,
         )
 
-        # Ensure no leading space
-        self.assertFalse(line.startswith(" "))
+        self.assertEqual(len(l1), len(l2))
+        self.assertFalse(l1.startswith(" "))
+        self.assertFalse(l2.startswith(" "))
 
-        # Verify exact divider and segments
-        segments = line.split(" │ ")
-        self.assertEqual(len(segments), 6)
-        self.assertRegex(segments[0], r"^\d{2}:\d{2}:\d{2}$")
-        self.assertEqual(segments[1], "14m22s (idle 3s)")
-        self.assertEqual(segments[2], "████████░░ 80% [4/5]")
-        self.assertEqual(segments[3], "reposcfg:8h9lap")
-        self.assertEqual(segments[4], "$0.24")
-        self.assertEqual(segments[5], "24.5k in, 4.1k out, 88.2k cache")
+        seg1 = l1.split(" │ ")
+        seg2 = l2.split(" │ ")
+        self.assertEqual(len(seg1), 8)
+        self.assertEqual(len(seg2), 8)
+
+        # Header line segments
+        self.assertEqual(seg1[0].strip(), "Time")
+        self.assertEqual(seg1[1].strip(), "From start")
+        self.assertEqual(seg1[2].strip(), "set: revgate id6: 7nkcgp")
+        self.assertEqual(seg1[3].strip(), "Spend")
+        self.assertEqual(seg1[4].strip(), "Tok tot")
+        self.assertEqual(seg1[5].strip(), "Tok in")
+        self.assertEqual(seg1[6].strip(), "Tok out")
+        self.assertEqual(seg1[7].rstrip(" │").strip(), "Tok cache")
+
+        # Value line segments
+        self.assertRegex(seg2[0].strip(), r"^\d{2}:\d{2}:\d{2}$")
+        self.assertEqual(seg2[1].strip(), "64m21s idle: 14s")
+        self.assertEqual(seg2[2].strip(), "4m08s ██████████ 100% [1/1]")
+        self.assertEqual(seg2[3].strip(), "$15.27")
+        self.assertEqual(seg2[4].strip(), "16.2m")
+        self.assertEqual(seg2[5].strip(), "214.1k")
+        self.assertEqual(seg2[6].strip(), "195.7k")
+        self.assertEqual(seg2[7].rstrip(" │").strip(), "15.8m")
 
     def test_format_statusline_colorized(self):
         tracker = render_stream.StreamTracker()
-        tracker.update(inp=24500, out=4100, cache=88200, cost=0.24)
+        tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
         pal = render_stream.Palette(True)
 
         now_ts = 1700000000.0
-        start_ts = now_ts - (14 * 60 + 22)
-        last_act_ts = now_ts - 3
+        run_start_ts = now_ts - (64 * 60 + 21)
+        item_start_ts = now_ts - (4 * 60 + 8)
+        last_act_ts = now_ts - 14
 
-        colored = render_stream.format_statusline(
+        l1, l2 = render_stream.format_statusline_lines(
             now_ts=now_ts,
-            start_ts=start_ts,
+            run_start_ts=run_start_ts,
+            item_start_ts=item_start_ts,
             last_act_ts=last_act_ts,
-            current_idx=4,
-            total_items=5,
-            setid="reposcfg",
-            id6="8h9lap",
+            current_idx=1,
+            total_items=1,
+            setid="revgate",
+            id6="7nkcgp",
             tracker=tracker,
             pal=pal,
         )
 
-        self.assertIn("\033[1;38;5;117m", colored)  # Bold sky light blue
-        self.assertNotIn("\033[48;", colored)  # No background color
-        self.assertIn("\033[0m", colored)
+        self.assertIn("\033[1;38;5;117m", l2)  # Bold sky light blue
+        self.assertNotIn("\033[48;", l1)  # No background
+        self.assertNotIn("\033[48;", l2)
+
         # Stripping ANSI recovers clean content
-        stripped = render_stream._strip_ansi(colored).strip()
-        segments = stripped.split(" │ ")
-        self.assertEqual(len(segments), 6)
-        self.assertRegex(segments[0], r"^\d{2}:\d{2}:\d{2}$")
-        self.assertEqual(segments[1], "14m22s (idle 3s)")
-        self.assertEqual(segments[2], "████████░░ 80% [4/5]")
-        self.assertEqual(segments[3], "reposcfg:8h9lap")
-        self.assertEqual(segments[4], "$0.24")
-        self.assertEqual(segments[5], "24.5k in, 4.1k out, 88.2k cache")
+        s1 = render_stream._strip_ansi(l1)
+        s2 = render_stream._strip_ansi(l2)
+        self.assertEqual(len(s1), len(s2))
+        self.assertIn("Time", s1)
+        self.assertIn("set: revgate id6: 7nkcgp", s1)
+        self.assertIn("64m21s idle: 14s", s2)
+        self.assertIn("4m08s ██████████ 100% [1/1]", s2)
+        self.assertIn("$15.27", s2)
 
     def test_statusline_write_event_non_tty(self):
         buf = io.StringIO()
@@ -352,7 +372,8 @@ class StatuslineUnitTests(unittest.TestCase):
         st.touch()
         st.update_item(2, 10, setid="myset", id6="id6abc")
         line = st.render_line()
-        self.assertIn("myset:id6abc", line)
+        self.assertIn("myset", line)
+        self.assertIn("id6abc", line)
         self.assertIn("[2/10]", line)
 
 
@@ -367,6 +388,9 @@ class SingleDefinitionTests(unittest.TestCase):
         self.assertIs(driver.format_compact_tokens, render_stream.format_compact_tokens)
         self.assertIs(driver.format_progress_bar, render_stream.format_progress_bar)
         self.assertIs(driver.format_statusline, render_stream.format_statusline)
+        self.assertIs(
+            driver.format_statusline_lines, render_stream.format_statusline_lines
+        )
         self.assertIs(driver.Statusline, render_stream.Statusline)
         self.assertIs(driver.render_event, render_stream.render_event)
         self.assertIs(driver.Heartbeat, render_stream.Heartbeat)

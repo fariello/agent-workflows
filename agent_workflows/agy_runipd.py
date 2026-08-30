@@ -1939,6 +1939,15 @@ def run_agy_turn(
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
+    run_start_mono = None
+    created_at = state.get("created_at")
+    if created_at:
+        try:
+            created_ts = dt.datetime.fromisoformat(created_at).timestamp()
+            run_start_mono = time.monotonic() - max(0.0, time.time() - created_ts)
+        except Exception:
+            run_start_mono = None
+
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(argv, **popen_kwargs)
         if process.stdout is None:
@@ -1954,6 +1963,7 @@ def run_agy_turn(
             total_items=total_items or 1,
             setid=item.get("setid", ""),
             id6=item.get("id6", ""),
+            run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         try:

@@ -50,6 +50,7 @@ from agent_workflows.render_stream import (
     format_compact_tokens,
     format_progress_bar,
     format_statusline,
+    format_statusline_lines,
     format_tokens,
     render_event,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "format_compact_tokens",
     "format_progress_bar",
     "format_statusline",
+    "format_statusline_lines",
     "format_tokens",
     "render_event",
     "should_color",
@@ -1901,6 +1903,15 @@ def run_opencode(
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
+    run_start_mono = None
+    created_at = state.get("created_at")
+    if created_at:
+        try:
+            created_ts = dt.datetime.fromisoformat(created_at).timestamp()
+            run_start_mono = time.monotonic() - max(0.0, time.time() - created_ts)
+        except Exception:
+            run_start_mono = None
+
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(argv, **popen_kwargs)
         assert process.stdout is not None
@@ -1913,6 +1924,7 @@ def run_opencode(
             total_items=total_items or 1,
             setid=item.get("setid", ""),
             id6=item.get("id6", ""),
+            run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         try:

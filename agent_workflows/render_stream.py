@@ -226,6 +226,132 @@ def format_progress_bar(current: int, total: int, width: int = 10) -> str:
     return f"{bar} {pct:>2}% [{current}/{total}]"
 
 
+def format_statusline_lines(
+    now_ts: float,
+    run_start_ts: float,
+    item_start_ts: float,
+    last_act_ts: float,
+    current_idx: int,
+    total_items: int,
+    setid: str,
+    id6: str,
+    tracker: StreamTracker | None = None,
+    pal: Palette | None = None,
+) -> tuple[str, str]:
+    """Format the 2-line runner statusline (header line and value line):
+
+    Time     │ From start        │ set: revgate id6: 7nkcgp         │ Spend   │  Tok tot │   Tok in │  Tok out │ Tok cache │
+    23:11:21 │ 64m21s idle: 14s  │ 4m08s ██████████ 100% [1/1]      │ $15.27  │    16.2m │   214.1k │   195.7k │     15.8m │
+    """
+    t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
+
+    # Run Elapsed & Idle
+    run_elapsed = max(0, int(now_ts - run_start_ts))
+    r_m, r_s = divmod(run_elapsed, 60)
+    run_el_str = f"{r_m}m{r_s:02d}s"
+
+    idle = max(0, int(now_ts - last_act_ts))
+    if idle >= 60:
+        im, is_ = divmod(idle, 60)
+        idle_str = f"idle: {im}m{is_:02d}s"
+    else:
+        idle_str = f"idle: {idle}s"
+    col2_val = f"{run_el_str} {idle_str}"
+
+    # Item Elapsed & Progress bar
+    item_elapsed = max(0, int(now_ts - item_start_ts))
+    i_m, i_s = divmod(item_elapsed, 60)
+    item_el_str = f"{i_m}m{i_s:02d}s"
+
+    bar = format_progress_bar(current_idx, total_items)
+    col3_val = f"{item_el_str} {bar}"
+    target_hdr = f"set: {setid} id6: {id6}" if (setid or id6) else "-"
+
+    # Spend
+    cost = tracker.cost if tracker is not None else 0.0
+    cost_str = f"${cost:.2f}"
+
+    # Tokens
+    tot_tok = (
+        (tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
+        if tracker is not None
+        else 0
+    )
+    tot_str = format_compact_tokens(tot_tok)
+    in_str = format_compact_tokens(tracker.input_tokens if tracker is not None else 0)
+    out_str = format_compact_tokens(tracker.output_tokens if tracker is not None else 0)
+    cache_str = format_compact_tokens(
+        tracker.cache_tokens if tracker is not None else 0
+    )
+
+    h1 = "Time    "
+    h2 = "From start       "
+    col3_w = 32
+    h3 = f"{target_hdr:<{col3_w}s}"
+    h4 = "Spend  "
+    h5 = " Tok tot"
+    h6 = "  Tok in"
+    h7 = " Tok out"
+    h8 = "Tok cache"
+
+    v1 = f"{t_str:<8s}"
+    v2 = f"{col2_val:<17s}"
+    v3 = f"{col3_val:<{col3_w}s}"
+    v4 = f"{cost_str:<7s}"
+    v5 = f"{tot_str:>8s}"
+    v6 = f"{in_str:>8s}"
+    v7 = f"{out_str:>8s}"
+    v8 = f"{cache_str:>9s}"
+
+    div_plain = " │ "
+    l1_plain = (
+        f"{h1}{div_plain}{h2}{div_plain}{h3}{div_plain}{h4}"
+        f"{div_plain}{h5}{div_plain}{h6}{div_plain}{h7}{div_plain}{h8} │"
+    )
+    l2_plain = (
+        f"{v1}{div_plain}{v2}{div_plain}{v3}{div_plain}{v4}"
+        f"{div_plain}{v5}{div_plain}{v6}{div_plain}{v7}{div_plain}{v8} │"
+    )
+
+    if pal is None or not pal.enabled:
+        return l1_plain, l2_plain
+
+    # Colorized 256-color palette styling:
+    b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
+    b_clock = "\033[1;38;5;123m"  # pale bright cyan
+    b_bar = "\033[1;38;5;78m"  # light emerald green
+    b_target = "\033[1;38;5;229m"  # soft cream/yellow
+    b_cost = "\033[1;38;5;114m"  # light green
+    dim_hdr = "\033[38;5;110m"  # soft muted slate blue for headers
+    div = "\033[38;5;67m │ \033[0m"
+    reset = _ANSI_RESET
+
+    hdrs = [
+        f"{dim_hdr}{h1}",
+        f"{dim_hdr}{h2}",
+        f"{b_target}{h3}",
+        f"{dim_hdr}{h4}",
+        f"{dim_hdr}{h5}",
+        f"{dim_hdr}{h6}",
+        f"{dim_hdr}{h7}",
+        f"{dim_hdr}{h8}",
+    ]
+    l1_color = div.join(hdrs) + f"\033[38;5;67m │{reset}"
+
+    vals = [
+        f"{b_clock}{v1}",
+        f"{b_blue}{v2}",
+        f"{b_bar}{v3}",
+        f"{b_cost}{v4}",
+        f"{b_blue}{v5}",
+        f"{b_blue}{v6}",
+        f"{b_blue}{v7}",
+        f"{b_blue}{v8}",
+    ]
+    l2_color = div.join(vals) + f"\033[38;5;67m │{reset}"
+    return l1_color, l2_color
+
+
 def format_statusline(
     now_ts: float,
     start_ts: float,
@@ -236,62 +362,27 @@ def format_statusline(
     id6: str,
     tracker: StreamTracker | None = None,
     pal: Palette | None = None,
+    item_start_ts: float | None = None,
 ) -> str:
-    """Format the unified runner statusline:
-
-    22:15:30 │ 14m22s (idle 3s) │ ████████░░ 80% [4/5] │ reposcfg:8h9lap │ $0.24 │ 24.5k in, 4.1k out, 88.2k cache
-    """
-    t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
-
-    elapsed = max(0, int(now_ts - start_ts))
-    el_m, el_s = divmod(elapsed, 60)
-    el_str = f"{el_m}m{el_s:02d}s"
-
-    idle = max(0, int(now_ts - last_act_ts))
-    if idle >= 60:
-        im, is_ = divmod(idle, 60)
-        idle_str = f"(idle {im}m{is_:02d}s)"
-    else:
-        idle_str = f"(idle {idle}s)"
-    seg2 = f"{el_str} {idle_str}"
-
-    seg3 = format_progress_bar(current_idx, total_items)
-    target = f"{setid}:{id6}" if setid and id6 else (setid or id6 or "-")
-
-    cost = tracker.cost if tracker is not None else 0.0
-    cost_str = f"${cost:.2f}"
-
-    inp = format_compact_tokens(tracker.input_tokens if tracker is not None else 0)
-    out = format_compact_tokens(tracker.output_tokens if tracker is not None else 0)
-    cache = format_compact_tokens(tracker.cache_tokens if tracker is not None else 0)
-    seg6 = f"{inp} in, {out} out, {cache} cache"
-
-    plain = f"{t_str} │ {seg2} │ {seg3} │ {target} │ {cost_str} │ {seg6}"
-    if pal is None or not pal.enabled:
-        return plain
-
-    # Bold light blue styling (no background) with gentle foreground highlights
-    b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
-    b_clock = "\033[1;38;5;123m"  # pale bright cyan
-    b_bar = "\033[1;38;5;78m"  # light emerald green
-    b_target = "\033[1;38;5;229m"  # soft cream/yellow
-    b_cost = "\033[1;38;5;114m"  # light green
-    div = "\033[38;5;67m │ \033[1;38;5;117m"  # slate divider
-    reset = _ANSI_RESET
-
-    c_clock = f"{b_clock}{t_str}{b_blue}"
-    c_elapsed = f"{b_blue}{seg2}"
-    c_bar = f"{b_bar}{seg3}{b_blue}"
-    c_target = f"{b_target}{target}{b_blue}"
-    c_cost = f"{b_cost}{cost_str}{b_blue}"
-    c_tokens = f"{b_blue}{seg6}"
-
-    content = div.join([c_clock, c_elapsed, c_bar, c_target, c_cost, c_tokens])
-    return f"{b_blue}{content}{reset}"
+    """Format the 2-line unified runner statusline as a newline-delimited string."""
+    item_ts = start_ts if item_start_ts is None else item_start_ts
+    l1, l2 = format_statusline_lines(
+        now_ts=now_ts,
+        run_start_ts=start_ts,
+        item_start_ts=item_ts,
+        last_act_ts=last_act_ts,
+        current_idx=current_idx,
+        total_items=total_items,
+        setid=setid,
+        id6=id6,
+        tracker=tracker,
+        pal=pal,
+    )
+    return f"{l1}\n{l2}"
 
 
 class Statusline:
-    """A live sticky statusline pinned to the bottom of the terminal during execution."""
+    """A live sticky 2-line statusline pinned to the bottom of the terminal during execution."""
 
     def __init__(
         self,
@@ -303,6 +394,7 @@ class Statusline:
         total_items: int = 0,
         setid: str = "",
         id6: str = "",
+        run_start_mono: float | None = None,
     ) -> None:
         self.pal = pal
         self.stream = stream
@@ -313,8 +405,12 @@ class Statusline:
         self.setid = setid
         self.id6 = id6
 
-        self._start_time = time.monotonic()
-        self._last_activity = time.monotonic()
+        mono_now = time.monotonic()
+        self._item_start_mono = mono_now
+        self._run_start_mono = (
+            run_start_mono if run_start_mono is not None else mono_now
+        )
+        self._last_activity = mono_now
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -335,21 +431,22 @@ class Statusline:
         with self._lock:
             self.current_idx = current_idx
             self.total_items = total_items
+            self._item_start_mono = time.monotonic()
             if setid:
                 self.setid = setid
             if id6:
                 self.id6 = id6
 
-    def _render_line_unlocked(self) -> str:
+    def _render_lines_unlocked(self) -> tuple[str, str]:
         now_wall = time.time()
-        start_mono = self._start_time
-        last_mono = self._last_activity
         cur_mono = time.monotonic()
-        start_wall = now_wall - (cur_mono - start_mono)
-        last_wall = now_wall - (cur_mono - last_mono)
-        return format_statusline(
+        run_wall = now_wall - (cur_mono - self._run_start_mono)
+        item_wall = now_wall - (cur_mono - self._item_start_mono)
+        last_wall = now_wall - (cur_mono - self._last_activity)
+        return format_statusline_lines(
             now_ts=now_wall,
-            start_ts=start_wall,
+            run_start_ts=run_wall,
+            item_start_ts=item_wall,
             last_act_ts=last_wall,
             current_idx=self.current_idx,
             total_items=self.total_items,
@@ -361,14 +458,18 @@ class Statusline:
 
     def render_line(self) -> str:
         with self._lock:
-            return self._render_line_unlocked()
+            l1, l2 = self._render_lines_unlocked()
+            return f"{l1}\n{l2}"
 
     def redraw(self) -> None:
         if not self._is_tty:
             return
-        line = self.render_line()
         with self._lock:
-            self.stream.write(f"\r\033[K{line}")
+            l1, l2 = self._render_lines_unlocked()
+            if self._has_drawn:
+                self.stream.write(f"\033[1A\r\033[K{l1}\n\r\033[K{l2}")
+            else:
+                self.stream.write(f"\r\033[K{l1}\n\r\033[K{l2}")
             self.stream.flush()
             self._has_drawn = True
 
@@ -376,17 +477,18 @@ class Statusline:
         if not self._is_tty or not self._has_drawn:
             return
         with self._lock:
-            self.stream.write("\r\033[K")
+            self.stream.write("\033[1A\r\033[K\n\r\033[K\033[1A\r")
             self.stream.flush()
             self._has_drawn = False
 
     def write_event(self, rendered_text: str) -> None:
-        """Write a log event line above the live statusline."""
+        """Write a log event line above the live 2-line statusline."""
         with self._lock:
             if self._is_tty and self._has_drawn:
-                self.stream.write(f"\r\033[K{rendered_text}\n")
-                line = self._render_line_unlocked()
-                self.stream.write(line)
+                l1, l2 = self._render_lines_unlocked()
+                self.stream.write(
+                    f"\033[1A\r\033[K\n\r\033[K\033[1A\r{rendered_text}\n{l1}\n{l2}"
+                )
                 self.stream.flush()
             else:
                 self.stream.write(f"{rendered_text}\n")
