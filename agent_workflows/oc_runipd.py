@@ -55,6 +55,10 @@ from agent_workflows.render_stream import (
     render_event,
 )
 
+# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+from agent_workflows import runner_stop
+
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
     "_ANSI_CODES",
@@ -1941,6 +1945,12 @@ def run_opencode(
                     log.flush()
                     statusline.touch()
                     watchdog.touch()
+                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7). This
+                    # is the per-line point the existing StallWatchdog already proves the driver
+                    # may act on from stream observation alone. The poll is SIDE-EFFECT FREE and
+                    # only REPORTS the requested level here; acting on a level is owned by the
+                    # later phases (levels 1-2 branch between items, level 3 at this point).
+                    runner_stop.poll_stop(run_dir)
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
@@ -2690,6 +2700,11 @@ def run_queue(
         save_state(run_dir, state)
     tracker = StreamTracker()
     while True:
+        # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), evaluated
+        # before the next item is selected. This is where levels 1 (stop-after-call) and 2
+        # (stop-after-set) will branch; this child only OBSERVES the level, and dequeuing is
+        # deliberately still unconditional here.
+        runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:

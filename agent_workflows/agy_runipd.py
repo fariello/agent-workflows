@@ -33,6 +33,10 @@ from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
 from agent_workflows.render_stream import Statusline
 
+# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+from agent_workflows import runner_stop
+
 SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gemini-3.7-flash-high"
 DEFAULT_TIMEOUT = "240m"
@@ -1975,6 +1979,10 @@ def run_agy_turn(
                     log.flush()
                     statusline.touch()
                     watchdog.touch()
+                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
+                    # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
+                    # requested level, and acting on a level belongs to the later phases.
+                    runner_stop.poll_stop(run_dir)
 
                     if output_mode == "raw":
                         sys.stdout.write(raw_line)
@@ -2741,6 +2749,10 @@ def run_queue(
         save_state(run_dir, state)
 
     while True:
+        # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), the exact
+        # counterpart of the `oc_runipd` site. Levels 1-2 will branch here; this child only
+        # OBSERVES the level and leaves dequeuing unconditional.
+        runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
