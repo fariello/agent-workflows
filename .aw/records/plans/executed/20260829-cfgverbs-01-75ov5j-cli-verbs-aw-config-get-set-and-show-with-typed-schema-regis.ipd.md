@@ -6,15 +6,15 @@
 - Scope: In-process config schema registry in config.py, CLI subcommands get/set/show in cli.py, and comprehensive tests.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/cli.py, tests/test_config.py, tests/test_cli_help_and_errors.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: cfgverbs
 - Order: 1
 - Highest E allocated: 03
 - Author: antigravity
 - Id: 75ov5j
-- Approval: 2026-08-30, human ("approved"): User requested get/set/show config verbs backed by schema registry
 
 ## Workflow history
+- 2026-08-30 executed (antigravity): Implement aw config get, set, and show with typed schema registry [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: acknowledged; in-scope-unmodified agent_workflows/config.py: acknowledged; in-scope-unmodified tests/test_cli_help_and_errors.py: acknowledged; in-scope-unmodified tests/test_config.py: acknowledged]
 - 2026-08-30 approved (aw set, --by-human): User requested get/set/show config verbs backed by schema registry
 - 2026-08-30 reviewed (aw set): plan authored
 - 2026-08-30 approved (aw set, --by-human): User requested get/set/show config verbs backed by schema registry

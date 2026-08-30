@@ -2,15 +2,23 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 170 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
 - `w0ln4q` [pending] 01 pending/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
 
+## bkclose
+
+- `zhr6mc` [pending] 01 pending/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md
+
 ## bklgrad
 
 - `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
+
+## cfgverbs
+
+- `75ov5j` [executed] 01 executed/20260829-cfgverbs-01-75ov5j-cli-verbs-aw-config-get-set-and-show-with-typed-schema-regis.ipd.md
 
 ## coauthor
 
@@ -32,6 +40,10 @@ Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 
 - `j4v6ga` [pending] 01 pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
 
+## laneorphan
+
+- `zwnjp3` [pending] 01 pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md
+
 ## lanetruth
 
 - `y0gg8o` [pending] 00 pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md
@@ -42,6 +54,17 @@ Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 ## ocsync
 
 - `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
+
+## promptmint
+
+- `jxqdcw` [pending] 01 pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
+
+## revgate
+
+- `15zvu6` [pending] 01 pending/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md
+- `plqjt7` [pending] 02 pending/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md
+- `7nkcgp` [pending] 03 pending/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md
+- `c621h9` [pending] 04 pending/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md
 
 ## runnamecollapse
 
@@ -61,6 +84,10 @@ Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 - `m0z0ti` [pending] 05 pending/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
 - `71vjbn` [pending] 06 pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
 
+## scopeattrib
+
+- `lbgzxg` [pending] 01 pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md
+
 ## stallfp
 
 - `kaga7s` [pending] 01 pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
@@ -77,6 +104,10 @@ Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 ## ttywedge
 
 - `g40w37` [executed] 01 executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md
+
+## workkind
+
+- `a6cej0` [pending] 01 pending/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md
 
 ## assessdocs
 
@@ -184,37 +215,6 @@ Showing the 40 most-recent of 163 Sets; the full manifest is INDEX.json.
 - `nfo184` [executed] 02 executed/20260824-awocrunner-02-nfo184-add-aw-oc-opencode-subcommand-group-dispatching-to-the-packa.ipd.md
 - `4tlkgj` [executed] 03 executed/20260824-awocrunner-03-4tlkgj-reduce-tools-ipdrunner-runipd-to-a-thin-compatibility-shim.ipd.md
 - `suks59` [executed] 04 executed/20260824-awocrunner-04-suks59-docs-sync-and-non-blocking-backlog-for-output-normalization.ipd.md
-
-## awrenamebug
-
-- `5rzupk` [executed] 01 executed/20260824-awrenamebug-01-5rzupk-fix-aw-rename-order-slug-mangle-preserve-slug-when-order-cha.ipd.md
-
-## ipdrbugs
-
-- `a4j0ly` [executed] 01 executed/20260824-ipdrbugs-01-a4j0ly-fix-correctness-bugs-in-tools-ipdrunner-ipdrunner-py.ipd.md
-
-## ipdrunner
-
-- `pr2nd0` [executed] 01 executed/20260824-ipdrunner-01-pr2nd0-harden-ipdrunner-process-lifecycle-dependency-validation-and.ipd.md
-
-## reslife
-
-- `rmwr8s` [executed] 00 executed/20260824-reslife-00-rmwr8s-research-lifecycle-reliability-tool-owned-state-outcome-prov.ipd.md
-- `m383qb` [executed] 01 executed/20260824-reslife-01-m383qb-structural-unrun-detection-and-tool-advanced-drift-checked-r.ipd.md
-- `xjrdjp` [executed] 02 executed/20260824-reslife-02-xjrdjp-tooled-and-validated-research-outcome-and-consumed-by-proven.ipd.md
-- `h40usm` [executed] 03 executed/20260824-reslife-03-h40usm-attention-and-query-surfacing-for-research-pending-and-stale.ipd.md
-
-## runipdbugs
-
-- `wk108w` [executed] 01 executed/20260824-runipdbugs-01-wk108w-fix-runipd-dependency-execution-gating-yaml-dependency-parsi.ipd.md
-
-## runipdsess
-
-- `rxkf1e` [superseded] 01 superseded/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md
-
-## runipdwd
-
-- `iw793a` [executed] 01 executed/20260824-runipdwd-01-iw793a-runipd-stall-watchdog-process-group-reaping-and-mmss-idle-fo.ipd.md
 
 ## (singletons: no Set)
 

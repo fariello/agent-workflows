@@ -3584,6 +3584,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-cfgverbs-01-75ov5j-cli-verbs-aw-config-get-set-and-show-with-typed-schema-regis.ipd.md",
+    "plan_id": "75ov5j",
+    "set_id": "cfgverbs",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md",
     "plan_id": "a5ni7v",
     "set_id": "coauthor",
@@ -3734,6 +3744,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md",
+    "plan_id": "zhr6mc",
+    "set_id": "bkclose",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md",
     "plan_id": "e32j35",
     "set_id": "findidx",
@@ -3768,6 +3788,16 @@
     "plan_id": "j4v6ga",
     "set_id": "lanename",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
+    "plan_id": "zwnjp3",
+    "set_id": "laneorphan",
+    "status": "to-review"
   },
   {
     "date": "2026-08-29",
@@ -3808,6 +3838,56 @@
     "plan_id": "8guhs0",
     "set_id": "lanetruth",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md",
+    "plan_id": "jxqdcw",
+    "set_id": "promptmint",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md",
+    "plan_id": "15zvu6",
+    "set_id": "revgate",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md",
+    "plan_id": "plqjt7",
+    "set_id": "revgate",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md",
+    "plan_id": "7nkcgp",
+    "set_id": "revgate",
+    "status": "draft"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md",
+    "plan_id": "c621h9",
+    "set_id": "revgate",
+    "status": "draft"
   },
   {
     "date": "2026-08-29",
@@ -3894,6 +3974,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md",
+    "plan_id": "lbgzxg",
+    "set_id": "scopeattrib",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md",
     "plan_id": "kaga7s",
     "set_id": "stallfp",
@@ -3928,6 +4018,16 @@
     "plan_id": "i79rgh",
     "set_id": "testinvoke",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
+    "plan_id": "a6cej0",
+    "set_id": "workkind",
+    "status": "draft"
   },
   {
     "date": "2026-08-07",
