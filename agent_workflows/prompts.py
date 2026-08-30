@@ -22,7 +22,7 @@ What this module owns, and why each property is load-bearing:
 
 Deliberately NOT here: ``aw prompts check`` (the prompt-purity lint) is owned by its own approved
 spec, and prompt LIFECYCLE movement stays a ``git mv`` per the staging README. This module also never
-writes to or promotes from the gitignored ``local/``/``untracked/`` quarantine lanes.
+writes to or promotes from the gitignored ``untracked/`` quarantine lane.
 
 Stdlib only; Python 3.9 compatible.
 """

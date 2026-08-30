@@ -52,7 +52,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## lanename
 
-- `j4v6ga` [pending] 01 pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
+- `j4v6ga` [executed] 01 executed/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
 
 ## laneorphan
 

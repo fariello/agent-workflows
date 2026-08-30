@@ -7,7 +7,7 @@ per-minute sequence; `<slug>` is lowercase kebab-case), the same convention as p
 Recognized prompt kinds (front-matter `Kind:`): run-once / research prompts QUEUED to be executed
 (the original staging use), and `Kind: session-handoff` resume prompts produced by `/handoff` (a
 prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
-gitignored `local/` lane (below) and promoted only after review.
+gitignored `untracked/` lane (below) and promoted only after review.
 
 This is NOT the same as `.aw/records/prompt-library/`. The two prompt homes are:
 
@@ -41,20 +41,23 @@ Retire a prompt by prepending a `RETIRED YYYY-MM-DD: <reason>; superseded by <pa
 `git mv`ing it to `superseded/` or `not-executed/`. Never silently delete a prompt; retiring preserves
 the record and the reason.
 
-## The `local/` quarantine lane (gitignored) - DECISIONS D94
+## The `untracked/` quarantine lane (gitignored) - DECISIONS D94
 
 `.aw/records/prompts/untracked/` is a GITIGNORED quarantine lane for raw, sensitive, or work-in-progress
 prompts that must NOT be accidentally committed - most importantly `/handoff` session-handoff drafts,
-which capture raw session context. It mirrors the inter-agent comms `local/` lane (D81): the directory
+which capture raw session context. It mirrors the inter-agent comms `untracked/` lane (D81): the directory
 you write to IS the privilege level.
 
-- **`local/`** (gitignored): never committed. Write raw/sensitive/WIP prompts here. A nested
-  `.aw/records/prompts/.gitignore` ignores it (a created deliverable; it does not touch the repo root
-  `.gitignore`). The installer materializes the dir so it is discoverable, but git does not track it
-  empty and its contents can never be committed.
+This lane is named `untracked/`; its retired name was `local/`, which an older checkout or an older
+adopter repo may still show for the same lane. Run `aw normalize-lanes` to rename it forward.
+
+- **`untracked/`** (gitignored): never committed. Write raw/sensitive/WIP prompts here. The
+  framework-owned `.aw/.gitignore` ignores it via `records/*/untracked/` (it does not touch the repo
+  root `.gitignore`). The installer materializes the dir so it is discoverable, but git does not track
+  it empty and its contents can never be committed.
 - **The tracked lifecycle buckets** (`pending/`, `executed/`, ...): durable prompts that travel with the
   repo, visible to other agents and humans.
 
-To make a `local/` prompt durable: REVIEW and scrub it (remove secrets, personal/sensitive content;
+To make an `untracked/` prompt durable: REVIEW and scrub it (remove secrets, personal/sensitive content;
 consider `aw check-local-leaks`), then `git mv .aw/records/prompts/untracked/<file> .aw/records/prompts/pending/<file>`.
 Promotion is a deliberate human act, never automatic.

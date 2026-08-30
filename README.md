@@ -293,7 +293,7 @@ To support gradual adoption, `agent-workflows` maintains a bounded compatibility
   - `plans/` - IPDs organized by lifecycle state (`pending/`, `executed/`, `reusable/`, `superseded/`, `not-executed/`).
   - `specs/` - specifications; `research/` - durable research reports (with `INDEX.json`/`INDEX.md`); `walkthroughs/` - narrative walkthroughs; `roadmaps/` - roadmaps.
   - `backlog/` - lightweight committed backlog items (`open/`, `done/`, `parked/`).
-  - `comms/` - inter-agent messaging inbox and archives (`shared/`, `local/`).
+  - `comms/` - inter-agent messaging inbox and archives (`shared/`, `untracked/`).
   - `prompts/` - prompt templates and execution records.
 - `.aw/config/` - tracked project policy and leak-allowlist configuration.
 - `.aw/state/` - local runtime scratch, install logs, and migration journals (never committed).

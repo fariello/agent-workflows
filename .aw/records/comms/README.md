@@ -6,13 +6,13 @@ daemon: without one, messages simply wait on disk and are picked up when an agen
 
 ## Layout
 
-- `local/` (gitignored): this box only, ephemeral. `inbox/` incoming, `sent/` your outgoing copies,
+- `untracked/` (gitignored): this box only, ephemeral. `inbox/` incoming, `sent/` your outgoing copies,
   `archive/` processed, `scheduled/` messages whose `Not-Before` time has not arrived, `acks/`
   acknowledgement files. Never committed.
 - `shared/` (tracked): deliberate, durable messages that should travel with the repo. Commit these
   like any other artifact.
 
-The directory you write to IS the privilege level: `local/` = ephemeral/untracked, `shared/` =
+The directory you write to IS the privilege level: `untracked/` = ephemeral/untracked, `shared/` =
 durable/tracked.
 
 ## Message format
