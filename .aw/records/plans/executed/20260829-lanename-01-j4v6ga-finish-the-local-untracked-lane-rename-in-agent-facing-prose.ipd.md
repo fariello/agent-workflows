@@ -6,16 +6,16 @@
 - Scope: Retire the last live `local/` lane references in agent-facing workflow instructions, shipped templates/READMEs, user-facing docs, and the misleading `*_LOCAL_SUBDIR` constant names. Prose, templates, and identifier renames only; no lane behavior change (the runtime values are already `untracked`). Also normalize the stale on-disk `local/` lane and its hand-written `.gitignore` through the EXISTING `aw normalize-lanes` verb rather than a raw delete. Immutable history (executed IPDs, research reports, DECISIONS.md, CHANGELOG) is explicitly NOT rewritten.
 - Scope-Paths: .aw/system/workflows/handoff/handoff.md, .aw/system/workflows/handoff/README.md, .aw/system/workflows/whatnext/whatnext.md, .aw/system/workflows/index.md, .aw/system/workflows/templates/prompts-README.md, .aw/records/prompts/README.md, .aw/records/comms/README.md, README.md, ARCHITECTURE.md, tools/README.md, agent_workflows/engine.py, agent_workflows/comms.py, tests/test_untracked_lane_migration.py, tests/test_dir_readmes.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: lanename
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: j4v6ga
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Executed the residual: retired the bare lane-NAME form (both prompts READMEs incl. the shipped template, comms README, README.md, ARCHITECTURE.md), renamed PROMPTS_LOCAL_SUBDIR/COMMS_LOCAL_SUBDIRS behind deprecated aliases, and extended the existing RetiredLaneNameNotInLiveProse guard to catch the name form its path-only regex could not see (proven falsifiable both ways; historical exemption asserted positively). E-01/E-03/E-04/E-07 arrived already satisfied via commit 7eec414b plus an already-normalized on-disk lane, and were verified by inspection rather than re-performed (DECISION 06-j4v6ga-D1). Fast 15 failed/2914 passed, full 19 failed/3241 passed: failure sets identical to the measured pre-change baseline, +2 passed being the new tests; those pre-existing failures need the gitignored .aw/records/runs/ and are owned by plan i79rgh. aw install . was NOT run here. [Scope reconciliation - out-of-scope tests/test_setup_artifacts.py: A code COMMENT in this file misnamed the live lane, the same defect class E-06 fixes in engine.py comments; corrected the comment only. No assertion, fixture, or behavior changed, and the count assertion still reads 25 as the plan requires.; in-scope-unmodified .aw/system/workflows/handoff/README.md: already satisfied by commit 7eec414b; verified in V-04; in-scope-unmodified .aw/system/workflows/handoff/handoff.md: already satisfied by commit 7eec414b before this turn; verified by inspection in V-01, deliberately not re-edited; in-scope-unmodified .aw/system/workflows/index.md: already satisfied by commit 7eec414b, which also regenerated both shims; verified in V-03. Untouched so no install had to run here; in-scope-unmodified .aw/system/workflows/whatnext/whatnext.md: already satisfied by commit 7eec414b; verified in V-04; in-scope-unmodified agent_workflows/comms.py: docstring ack path already corrected by commit 7eec414b; verified in V-06; in-scope-unmodified tests/test_dir_readmes.py: no change needed; it guards README shape generically and passes unchanged (78 passed in the targeted run); in-scope-unmodified tools/README.md: already satisfied by commit 7eec414b; see V-08 for the disclosed prefix deviation]
 - 2026-08-29 approved (aw set): status set to approved
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
