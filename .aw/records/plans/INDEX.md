@@ -79,9 +79,9 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## revgate
 
-- `15zvu6` [pending] 01 pending/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md
-- `plqjt7` [pending] 02 pending/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md
-- `7nkcgp` [pending] 03 pending/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md
+- `15zvu6` [executed] 01 executed/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md
+- `plqjt7` [executed] 02 executed/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md
+- `7nkcgp` [executed] 03 executed/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md
 - `c621h9` [pending] 04 pending/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md
 
 ## runnamecollapse

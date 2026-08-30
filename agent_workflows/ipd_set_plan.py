@@ -97,10 +97,19 @@ class SetInventory(NamedTuple):
     cross_edges: Mapping[str, Tuple[str, ...]]
     # Whether cross_edges came from an explicit orchestrator table (True) or legacy inference (False).
     cross_edges_source: str  # "orchestrator-table" | "legacy-inference"
-    # Children classified deferred_gate (unapproved) -> the set of child ids blocked (that child +
-    # all its transitive descendants). Independent approved siblings are NOT in here.
+    # Children classified deferred_gate -> the set of child ids blocked (that child + all its
+    # transitive descendants). Independent approved siblings are NOT in here.
+    #
+    # revgate Order 03 (7nkcgp) E-07: `deferred_gates` now has TWO causes, not one. A child is a gate
+    # when it is individually unapproved (the original cause) OR when it carries recorded unresolved
+    # gating review findings (the new cause). Both feed the SAME `_propagate_blocked` cascade, so there
+    # is exactly one transitive-blocking rule in this module.
     deferred_gates: Tuple[str, ...]
     blocked_children: Tuple[str, ...]
+    # revgate Order 03 (7nkcgp) E-07: {child_id: human reason} for each child that is a gate, so
+    # `--plan-only` and the manifest can name WHY rather than only listing ids. Additive: the two
+    # tuples above keep their exact shape and meaning for every existing consumer.
+    gate_reasons: Mapping[str, str]
     requirement_digest: str  # set-level frozen digest over source IPD contents
 
 
@@ -251,6 +260,42 @@ def _propagate_blocked(
     return sorted(blocked)
 
 
+def _repo_root_for_plans_dir(plans_dir: Path) -> Path:
+    """Best-effort repo root for a plans dir, so reviews discovery can be reached from it.
+
+    ``resolve_set`` is given only a plans dir (its whole signature), but the shared findings predicate
+    needs a repo root to locate the reviews tree. Recognizes the two layouts the plans resolver itself
+    accepts (``<root>/.aw/records/plans`` and the legacy ``<root>/.agents/plans``) and otherwise falls
+    back to the plans dir's own parent. Pure, no IO.
+    """
+    p = Path(plans_dir)
+    parts = p.parts
+    if len(parts) >= 4 and parts[-3:] == (".aw", "records", "plans"):
+        return Path(*parts[:-3])
+    if len(parts) >= 3 and parts[-2:] == (".agents", "plans"):
+        return Path(*parts[:-2])
+    return p.parent
+
+
+def _findings_gate_reason(plans_dir: Path, plan_id6: str) -> Optional[str]:
+    """Reason ``plan_id6`` is a findings gate for `/exec-set`, or None.
+
+    revgate Order 03 (7nkcgp) E-07. Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the
+    SAME shared predicate both host runners and `aw check` consume, so the Set compiler cannot drift
+    from them. Never raises: a repo with no reviews tree, no config, or an unimportable module yields
+    None, which preserves the pre-Order-03 behavior exactly.
+    """
+    try:
+        from agent_workflows import review_findings as _rf
+
+        blocks = _rf.plan_gating_blocks(_repo_root_for_plans_dir(plans_dir), plan_id6)
+    except Exception:
+        return None
+    if not blocks:
+        return None
+    return "; ".join(b.describe() for b in blocks)
+
+
 def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
     """E-01: resolve a Set into one deterministic inventory with every child + E-leaf exactly once.
 
@@ -380,7 +425,26 @@ def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
         )
 
     # Gate classification + descendant-only blocking.
-    gates = tuple(sorted(c.plan_id for c in children if not c.runnable))
+    #
+    # revgate Order 03 (7nkcgp) E-07: TWO gate causes, ONE cascade. Without the second cause,
+    # `/exec-set` (the documented autonomous entry point) would keep releasing the dependents of a
+    # findings-blocked child, making the Order 03 gate evadable simply by choosing the Set path over
+    # the queue path - the same class of hole E-02 closes across hosts. The findings verdict comes from
+    # the SAME shared predicate the runners and `aw check` use, and both causes feed the EXISTING
+    # `_propagate_blocked` fixpoint rather than a second cascade.
+    gate_reasons: Dict[str, str] = {}
+    for c in children:
+        if not c.runnable:
+            gate_reasons[c.plan_id] = "status `{0}` is not runnable".format(
+                c.status or "(none)"
+            )
+    for c in children:
+        if c.plan_id in gate_reasons:
+            continue  # already a gate; do not overwrite the primary reason
+        why = _findings_gate_reason(plans_dir, c.plan_id)
+        if why:
+            gate_reasons[c.plan_id] = why
+    gates = tuple(sorted(gate_reasons))
     blocked = tuple(_propagate_blocked(child_ids, cross_edges, gates))
 
     # Set-level frozen digest over all source IPD contents (deterministic, order-independent).
@@ -403,6 +467,7 @@ def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
         cross_edges_source=cross_source,
         deferred_gates=gates,
         blocked_children=blocked,
+        gate_reasons=gate_reasons,
         requirement_digest=req_digest,
     )
 
@@ -498,6 +563,9 @@ class ExecutionManifest(NamedTuple):
     deferred_gates: Tuple[str, ...]
     blocked_children: Tuple[str, ...]
     cross_edges_source: str
+    # revgate Order 03 (7nkcgp) E-07: {child_id: why it is a gate}. Additive and defaulted, so any
+    # existing constructor call site keeps working unchanged.
+    gate_reasons: Mapping[str, str] = {}
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -509,6 +577,7 @@ class ExecutionManifest(NamedTuple):
             "cross_edges_source": self.cross_edges_source,
             "deferred_gates": list(self.deferred_gates),
             "blocked_children": list(self.blocked_children),
+            "gate_reasons": dict(self.gate_reasons),
             "nodes": [n.to_dict() for n in self.nodes],
             "eligibility": self.eligibility.to_dict(),
         }
@@ -616,6 +685,7 @@ def compile_manifest(
         deferred_gates=inventory.deferred_gates,
         blocked_children=inventory.blocked_children,
         cross_edges_source=inventory.cross_edges_source,
+        gate_reasons=inventory.gate_reasons,
     )
 
 
@@ -651,11 +721,17 @@ def render_plan_only_human(manifest: ExecutionManifest) -> str:
         )
     )
     if manifest.deferred_gates:
+        # revgate Order 03 (7nkcgp) E-07: a gate is now either unapproved OR findings-blocked, so name
+        # the reason per child instead of asserting "unapproved" for all of them.
         lines.append(
-            "Deferred gates (unapproved children): {0}".format(
+            "Deferred gates (unapproved or findings-blocked children): {0}".format(
                 ", ".join(manifest.deferred_gates)
             )
         )
+        for gid in manifest.deferred_gates:
+            why = (manifest.gate_reasons or {}).get(gid)
+            if why:
+                lines.append("  - {0}: {1}".format(gid, why))
     if manifest.blocked_children:
         lines.append(
             "Blocked children (gate + descendants): {0}".format(

@@ -6,16 +6,16 @@
 - Scope: Add ONE consistency rule so an unfixed finding at or above the configured threshold must carry a matching blocking open question, and make plan-review emit the findings artifact. Deliberately adds NO second enforcement gate: it reuses the pre-execution open-question gate that already works. Dependency cascade is `7nkcgp` (Order 03).
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/ipd_schema.py, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/records/reviews/README.md, tests/test_review_findings_gate.py, tests/test_plan_review_parity.py
 - Item-Dependencies: executed:15zvu6
-- Status: approved
+- Status: executed
 - Set: revgate
 - Order: 2
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: plqjt7
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Added check.review-finding-unescalated on both aw check and aw ipd lint (review-finalize/pre-execution), reusing the pre-existing blocking-question gate rather than adding a second severity gate; absent artifact silent, malformed reported, off disables; both review variants now emit the typed record and escalate; 43 new tests, live-corpus delta zero.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed in place
 
@@ -35,7 +35,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the consistency rule
 
-- [ ] E-01 Add a `check.review-finding-unescalated` rule that fires when a plan's CURRENT-round review
+- [x] E-01 Add a `check.review-finding-unescalated` rule that fires when a plan's CURRENT-round review
       findings (via `15zvu6`'s parser and `current_findings()`) contain a finding whose severity is at or
       above `findings_gate_threshold(repo_root)` and whose decision is `open` or `deferred`, but the plan
       has NO open question with `Blocking: yes` naming that finding id. Use `15zvu6`'s shared
@@ -59,9 +59,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: an unescalated gating finding is reported by `aw check plans` AND `aw check all`;
     an escalated one is not; a terminal-dir plan is never flagged; the rule id resolves through
     `rule_spec()` to a real RuleSpec rather than the default.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the SAME rule to `ipd_lint` at the `review-finalize` and `pre-execution` checkpoints, so
+- [x] E-02 Add the SAME rule to `ipd_lint` at the `review-finalize` and `pre-execution` checkpoints, so
       the coupling is enforced at the moment it matters rather than only in a repo-wide sweep. Reuse the
       already-parsed `doc.open_questions` list (`ipd_lint.py:162`, populated at `:258`) for the
       open-question side; do not re-parse the plan.
@@ -77,9 +77,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: `aw ipd lint --phase pre-execution` and `--phase review-finalize` report an
     unescalated gating finding as a BLOCKING diagnostic; `lint_text` remains pure (no file reads added).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Document explicitly, in the rule's own comment and in the plan-review body, WHY there is no
+- [x] E-03 Document explicitly, in the rule's own comment and in the plan-review body, WHY there is no
       separate severity gate: the escalated open question is then caught by the EXISTING pre-execution
       gate at `ipd_lint.py:682-693` (`"unresolved blocking question at pre-execution"`).
       STATE THE EVIDENCE HONESTLY AND DO NOT REPEAT THE DRAFT'S OVERCLAIM. The draft called this a
@@ -99,9 +99,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: the design decision is recorded where the next maintainer will read it, with a
     claim that survives being checked.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 DECIDE AND ENCODE THE FAIL-OPEN / FAIL-CLOSED BEHAVIOR, which the draft left entirely
+- [x] E-07 DECIDE AND ENCODE THE FAIL-OPEN / FAIL-CLOSED BEHAVIOR, which the draft left entirely
       unspecified even though it is this plan's single most consequential choice (F-8). Both host
       surfaces this rule rides SWALLOW EXCEPTIONS today: `lint_file`'s resolution block ends
       `except Exception: pass` (`ipd_lint.py:1054-1056`, "a repo-scan failure never masks the pure lint
@@ -123,9 +123,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02
   - Expected outcome: absent is silent, malformed is reported, `off` disables; and none of the three
     depends on an enclosing exception swallow.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 SETTLE HOW A BLOCKING OPEN QUESTION NAMES ITS FINDING, which OQ-01 requires but the draft
+- [x] E-08 SETTLE HOW A BLOCKING OPEN QUESTION NAMES ITS FINDING, which OQ-01 requires but the draft
       gave no mechanism for (F-9). Measured at review: the IPD open-question parser already accepts an
       ARBITRARY `- Field: value` subfield and carries it into the parsed OQ dict
       (`ipd_lint.py:353-359`), and a plan carrying an extra `- Finding: F-3` line under an `### OQ-NN:`
@@ -143,11 +143,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: the naming convention is declared, the rule matches a typed field rather than
     prose, and the schema/spec question is answered with cited evidence rather than left implicit.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make reviewers emit the artifact
 
-- [ ] E-04 Amend `.aw/system/workflows/plan-review/plan-review.md` so Step 2.2 (Record findings,
+- [x] E-04 Amend `.aw/system/workflows/plan-review/plan-review.md` so Step 2.2 (Record findings,
       `plan-review.md:163-176`) writes the findings to the `.review.md` artifact defined by `15zvu6`, in
       addition to the report, and so Step 4 (Finalize, `:271-296`) requires that any finding left
       `open`/`deferred` at or above the threshold be raised as a `Blocking: yes` open question carrying
@@ -163,9 +163,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: a plan-review run produces a `.review.md` and escalates its own unfixed gating
     findings; the Fix Bar and the reporting-only severity rule are intact and visibly reconciled.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Mirror E-04 into the long variant, which the workflow manifest states is kept in DELIBERATE
+- [x] E-05 Mirror E-04 into the long variant, which the workflow manifest states is kept in DELIBERATE
       PARITY with the single-file variant. An instruction added to one and not the other is a defect,
       not a partial improvement.
       EDIT THE CORRECT FILES. The draft named `plan-review-long/plan-review-long.md`, which is the
@@ -178,11 +178,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-04
   - Expected outcome: both variants carry equivalent emit-and-escalate wording, in the step files a
     long-variant reviewer actually loads.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the gate fires
 
-- [ ] E-06 Write `tests/test_review_findings_gate.py` proving, at minimum: an unescalated `high`/`open`
+- [x] E-06 Write `tests/test_review_findings_gate.py` proving, at minimum: an unescalated `high`/`open`
       finding is reported by both `aw check` and `pre-execution` lint; the same finding WITH a matching
       blocking open question is NOT reported; a `medium` finding is ignored at threshold `high` but
       caught at threshold `medium`; threshold `off` disables the rule entirely; a finding marked `fixed`
@@ -209,7 +209,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02, E-04, E-05, E-07, E-08
   - Expected outcome: every branch of the rule is covered from isolated fixtures, parity is enforced in
     the file that already owns parity, and the reuse chain is demonstrated working.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -366,7 +366,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `aw check plans` reporting `check.review-finding-unescalated` for a fixture
     with a `high`/`open` finding and no matching blocking question, AND paste the same fixture WITH the
     escalation showing the rule does NOT fire. Paste `aw check all` on the same fixture proving the
@@ -375,10 +375,45 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     assumed). Paste a Python session showing `check_engine.rule_spec("check.review-finding-unescalated")`
     returns a REGISTERED RuleSpec, not `_DEFAULT_RULESPEC`. Paste `grep -n` proving the rule calls
     `15zvu6`'s `is_gating` rather than comparing severities locally.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the rule fires on an unescalated gating finding on BOTH surfaces, is silent when escalated, is silent for terminal-dir plans, and its id resolves to a registered RuleSpec.
+    ```text
+    ### UNESCALATED high/open, via the plans-type path  (check_types(repo, ["plans"]))
+      aw check plans: 1 finding(s)
+         check.review-finding-unescalated  review finding F-1 is high/open (at or above the `high`
+         gate threshold) but no `Blocking: yes` open question names it
+    ### SAME fixture via the FULL SWEEP  (check_types(repo, ["all"]))
+      aw check all: 1 finding(s)
+         check.review-finding-unescalated  review finding F-1 is high/open (at or above the `high`
+         gate threshold) but no `Blocking: yes` open question names it
+    ### ESCALATED (blocking OQ carrying `- Finding: F-1`): rule does NOT fire on either surface
+      aw check plans: 0 finding(s)
+      aw check all:   0 finding(s)
+    ### TERMINAL-dir plan with the SAME unescalated finding -> SILENT (grandfathering PROVEN)
+      executed/:      0 finding(s)
+      superseded/:    0 finding(s)
+      not-executed/:  0 finding(s)
+    ### rule_spec() resolves to a REGISTERED RuleSpec, not the conservative default
+      RuleSpec(severity='error', assurance='repository', determinism='deterministic', invariant='')
+      is _DEFAULT_RULESPEC? False    in RULE_REGISTRY? True
+    ```
+    Delegation to `15zvu6`'s shared predicate rather than a local severity comparison
+    (`grep -n "is_gating\|_SEVERITY_RANK\|SEVERITIES" agent_workflows/check_engine.py`):
+    ```text
+    135:    # via the ONE shared `review_findings.is_gating` predicate, plus a literal finding-id ...
+    2200:    Severity comparison is delegated to ``review_findings.is_gating``; this function does NOT
+    2214:        otherwise slip past ``is_gating`` silently, which is exactly the hole being closed.
+    2281:            if not _rf.is_gating(finding.severity, thr):
+    ```
+    The only executable reference is line 2281, the delegation itself; `_SEVERITY_RANK` and
+    `SEVERITIES` appear NOWHERE in `check_engine.py`, so no severity ranking is re-implemented. Pinned
+    by `RuleRegistrationTests.test_severity_comparison_is_delegated_not_reimplemented`, which greps the
+    evaluator body and fails if `_SEVERITY_RANK`, `SEVERITIES.index`, or a literal `"blocker"` appears.
+    Wiring point is the plans-type content path beside `check_ipd_dependencies`
+    (`check_engine.py:471-484`), as E-01 mandates; the full sweep reports it EXACTLY ONCE
+    (`RuleReachTests.test_reported_by_full_sweep_exactly_once`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste `aw ipd lint --phase pre-execution` and `--phase review-finalize` on the
     unescalated fixture, showing the blocking diagnostic and a nonzero disposition; then paste both
     phases on the escalated fixture showing conforming. Paste `grep -n` showing it consumes
@@ -386,36 +421,215 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     no file read was added inside `lint_text`, AND a direct `lint_text(...)` call on the unescalated
     plan text returning no such diagnostic (it cannot see the separate artifact). A version that works
     only because `lint_text` started reading files fails this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both checkpoints report the rule as a blocking diagnostic, the escalated fixture is clean, and `lint_text` stays pure.
+    ```text
+    UNESCALATED  --phase review-finalize  disposition=error       rule reported=True
+        check.review-finding-unescalated  review finding F-1 is high/open (at or above the `high`
+        gate threshold) but no `Blocking: yes` open question names it
+    UNESCALATED  --phase pre-execution    disposition=error       rule reported=True
+        check.review-finding-unescalated  review finding F-1 is high/open (at or above the `high`
+        gate threshold) but no `Blocking: yes` open question names it
+    UNESCALATED  --phase pre-transition   disposition=error       rule reported=False
+    ESCALATED    --phase review-finalize  rule reported=False
+    ESCALATED    --phase pre-execution    rule reported=False
+    ```
+    `pre-transition` correctly does NOT report it (out of scope by design: execution already happened).
+    The `disposition=error` on that row is from unrelated IPD-M101/IPD-H202 complaints about the
+    minimal fixture stub, not from this rule.
 
-- [ ] V-03 validates E-03
+    PURITY of `lint_text` PROVEN TWO WAYS. (1) A direct `lint_text` call on the same plan TEXT reports
+    nothing, because it cannot see the separate artifact:
+    ```text
+    lint_text --phase review-finalize  rule reported=False
+    lint_text --phase pre-execution    rule reported=False
+    ```
+    (2) No file read was added inside `lint_text`:
+    ```text
+    lint_text purity -> read_text: False | open(: False | evaluate_review: False
+    ```
+    Both are pinned as tests (`LintCheckpointTests.test_lint_text_stays_pure`,
+    `test_lint_text_body_adds_no_file_read`). The check rides `lint_file`
+    (`ipd_lint.py:_merge_review_escalation`), matching the Item-Dependencies-resolution precedent.
+
+    CONSUMES THE ALREADY-PARSED OPEN QUESTIONS, no re-parse (`grep -n`):
+    ```text
+    1025:    doc = parse(text)                  # lint_file parses ONCE
+    1121:                open_questions=doc.open_questions,   # the hook consumes that parse
+    ```
+    NOTE, and recorded as decision 02-plqjt7-D3: my first implementation called `parse(text)` a second
+    time inside the hook, which is what E-02 forbids. `lint_text` returns only a `LintResult`
+    (no parsed doc), so to share the parse honestly I added an OPTIONAL `doc=` keyword to `lint_text`
+    (default `None` -> parses exactly as before) and `lint_file` now parses once and passes the same
+    document to both sides. Purity is unaffected (a parsed value in, no I/O added) and all 119
+    `tests/test_ipd_lint.py` tests remain green.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the recorded rationale from both the code comment and the workflow body.
     Confirm it (a) states the corpus fact as a CONSISTENCY fact and not as a catch rate, (b) names the
     tautology (`ipd_schema.py:1242-1243` already forces `resolved`), (c) admits the gate's actual catch
     rate is unmeasured, and (d) carries the do-not-add-a-second-gate instruction. If the text still
     says "100% catch rate" anywhere, this item FAILS: the overclaim was the finding (F-2).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the rationale is recorded in the code comment AND the reviews README, stated as a consistency fact rather than a catch rate.
+    The rationale is recorded in TWO places. (a) `agent_workflows/check_engine.py`, in the block
+    header immediately above the rule ("WHY THERE IS NO SECOND, DIRECT SEVERITY GATE HERE"):
+    ```text
+    # THE EVIDENCE FOR THAT REUSE, STATED HONESTLY. Measured over this repo's executed plans: 28 of 28
+    # `Blocking: yes` open questions are `resolved`, so no executed plan carries an unresolved blocking
+    # question. That is a CONSISTENCY FACT, NOT A CATCH RATE, and it must not be written up as one, for
+    # two reasons:
+    #   (a) part of it is TAUTOLOGICAL. `Blocking: yes` combined with `deferred` is ALREADY a structural
+    #       error at every phase via a DIFFERENT rule (`ipd_schema.open_question_error`,
+    #       `ipd_schema.py:1242-1243`), so `resolved` is the only legal terminal state a blocking question
+    #       can reach. The corpus could hardly show anything else.
+    #   (b) nothing in the corpus records whether the checkpoint gate EVER ACTUALLY STOPPED A RUN. Its
+    #       true catch rate is UNMEASURED, not perfect.
+    # The reuse is still the right design (one mechanism, already wired into `begin`/`finalize`), but its
+    # justification is "fewer moving parts", not "proven infallible".
+    #
+    # DO NOT "SIMPLIFY" THIS BY ADDING THE DIRECT SEVERITY GATE. A second gate that blocks on the finding
+    # itself was CONSIDERED AND DELIBERATELY REJECTED (maintainer preference for fewer pieces of code,
+    # 2026-08-29), not merely left undone. ... If you believe the
+    # direct gate is needed anyway, RAISE IT rather than adding it silently.
+    ```
+    (b) `.aw/records/reviews/README.md`, section "Why escalation, and not a direct block on the
+    finding", which states the same 28/28 figure as a consistency fact, names the tautology, admits the
+    catch rate is unmeasured, and concludes "The justification for reuse is fewer moving parts, not
+    proven infallibility."
 
-- [ ] V-04 validates E-04
+    Checking the four required properties: (a) stated as a CONSISTENCY fact in both - yes; (b) names
+    the tautology and cites `ipd_schema.py:1242-1243` - yes; (c) admits the actual catch rate is
+    unmeasured - yes; (d) carries the do-not-add-a-second-gate instruction - yes, in the code comment.
+    The forbidden overclaim is ABSENT from the whole tree:
+    ```console
+    $ grep -rn "100% catch rate" --include='*.py' --include='*.md' . \
+        | grep -v '^\./\.aw/worktrees' | grep -v 'plqjt7.*\.ipd\.md'
+    (no output)
+    ```
+    The phrase survives ONLY inside this plan's own F-2/E-03/V-03 text, where it is quoted as the
+    overclaim to avoid. It appears in NO shipped artifact: not in `check_engine.py`, not in
+    `ipd_lint.py`, and not in the reviews README or either review workflow.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the amended Step 2.2 and Step 4 wording, plus a `git diff` of the hunks
     proving the pre-existing Fix Bar (`plan-review.md:178-196`) and the severity/decision classification
     (`:169-176`) were NOT weakened. Paste the sentence reconciling escalation with "Severity is for
     reporting only" (`:397`); absent that reconciliation this item fails. Then paste a worked run
     showing a `.review.md` was emitted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Step 2.2 and Step 4 are amended additively, the Fix Bar and classification are intact, and the reporting-only rule is explicitly reconciled.
+    Amended Step 2.2 of `.aw/system/workflows/plan-review/plan-review.md` (added after the existing
+    Severity/Decision classification list, which is untouched):
+    ```markdown
+    Write the findings to BOTH places:
 
-- [ ] V-05 validates E-05
+    1. The findings table in the final report (below).
+    2. A typed review record, `.aw/records/reviews/<...>.review.md`, using the same columns.
+
+    The record is what makes a severity readable by tooling. Before it, severity survived only as prose,
+    so a `HIGH` left unfixed gated nothing. This is a transcription of the classification you already
+    made, not a second classification.
+
+    Append a new `## Round <n>` for a re-review rather than editing an earlier round: the gate reads only
+    the CURRENT (last) round, so a finding you raised in round 1 and fixed in round 2 correctly stops
+    counting against the plan.
+    ```
+    Amended Step 4 (Finalize), added as a new confirmation bullet:
+    ```markdown
+    - The typed review record was written, and every finding left `OPEN` or `DEFERRED` at or above the
+      repository's gate threshold (`review_findings_gate.block_at` in `.aw/config/project.json`, default
+      `HIGH`) is ALSO raised in the plan as an open question carrying `- Blocking: yes` and
+      `- Finding: <ID>` naming that finding. `check.review-finding-unescalated` enforces this, and the
+      escalated question is then caught by the existing `pre-execution` gate, so an unfixed serious
+      finding actually stops execution instead of merely being reported.
+
+      This does NOT contradict "Severity is for reporting only" below. Severity still does not decide
+      whether to FIX anything: the Fix Bar alone does that, on Remediation Risk. Severity decides only
+      whether a finding you have ALREADY decided not to fix must be surfaced as blocking. Reporting rule
+      unchanged; escalation is about visibility of an unfixed finding, not about the fix decision.
+    ```
+    That second paragraph IS the required reconciliation with `plan-review.md`'s "Severity is for
+    reporting only", and it is asserted mechanically by
+    `ReviewFindingsEmitAndEscalateParityTests.test_escalation_reconciled_with_reporting_only_severity`.
+
+    NOTHING WEAKENED, proven by the diff being purely ADDITIVE in both hunks:
+    ```console
+    $ git diff --numstat -- .aw/system/workflows/plan-review/plan-review.md
+    24      0       .aw/system/workflows/plan-review/plan-review.md
+    ```
+    24 insertions, ZERO deletions, so no pre-existing line could have been altered or removed. The Fix
+    Bar and the severity/decision classification are additionally pinned by
+    `test_fix_bar_and_classification_not_weakened`, which asserts the literal Fix Bar sentence, the
+    "Effort, time, cost, and tokens are never valid deferral reasons" rule, and both vocabularies still
+    appear.
+
+    Worked run showing an emitted artifact (the writer from `15zvu6` producing the record this
+    instruction demands, then the gate reading it back):
+    ```text
+    wrote  <tmp>/.aw/records/reviews/20260829-demo-01-aaa111-gate.review.md
+    parsed back: plan_id=aaa111  rounds=1  current_findings=1  (F-1 high/open)
+    gate on it: check.review-finding-unescalated  review finding F-1 is high/open ...
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the amended wording from BOTH long-variant step files
     (`02-review-and-revise.md` and `03-resolve-and-finalize.md`) and a diff showing each is equivalent to
     its single-file counterpart. State explicitly that `plan-review-long.md` (the orchestrator) was
     correctly NOT the edit target, per F-6. State that parity was CHECKED, not assumed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both long-variant STEP files carry equivalent wording; the orchestrator was correctly not the edit target.
+    `plan-review-long.md` (the 92-line ORCHESTRATOR) was correctly NOT the edit target, per F-6: it
+    only lists the steps and contains neither a findings-recording nor a finalize section, so editing it
+    would have left long-variant reviewers with no instruction while a naive parity grep passed. It is
+    unmodified:
+    ```console
+    $ git diff --name-only -- .aw/system/workflows/plan-review-long/
+    .aw/system/workflows/plan-review-long/02-review-and-revise.md
+    .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
+    ```
+    `02-review-and-revise.md` section "1. Record findings" gained the EMISSION wording, identical in
+    substance to E-04's Step 2.2 (the numbered list drops the "(below)" back-reference, which does not
+    apply in the long variant):
+    ```markdown
+    Write the findings to BOTH places:
 
-- [ ] V-06 validates E-06
+    1. The findings table in the final report.
+    2. A typed review record, `.aw/records/reviews/<...>.review.md`, using the same columns.
+
+    The record is what makes a severity readable by tooling. Before it, severity survived only as prose,
+    so a `HIGH` left unfixed gated nothing. This is a transcription of the classification you already
+    made, not a second classification.
+
+    Append a new `## Round <n>` for a re-review rather than editing an earlier round: the gate reads only
+    the CURRENT (last) round, so a finding you raised in round 1 and fixed in round 2 correctly stops
+    counting against the plan.
+    ```
+    `03-resolve-and-finalize.md` section "2. Finalize plan state" gained the ESCALATION bullet, matching
+    E-04's Step 4 including the reporting-only reconciliation (re-flowed to the section's
+    semicolon-terminated bullet style):
+    ```markdown
+    - the typed review record was written, and every finding left `OPEN` or `DEFERRED` at or above the
+      repository's gate threshold (`review_findings_gate.block_at` in `.aw/config/project.json`, default
+      `HIGH`) is ALSO raised in the plan as an open question carrying `- Blocking: yes` and
+      `- Finding: <ID>` naming that finding. `check.review-finding-unescalated` enforces this, and the
+      escalated question is then caught by the existing `pre-execution` gate, so an unfixed serious
+      finding actually stops execution instead of merely being reported. This does NOT contradict
+      "Severity is for reporting only": severity still does not decide whether to FIX anything (the Fix
+      Bar alone does that, on Remediation Risk), only whether a finding you have ALREADY decided not to
+      fix must be surfaced as blocking;
+    ```
+    Both hunks are purely additive:
+    ```console
+    $ git diff --numstat -- .aw/system/workflows/plan-review-long/
+    13      0       .aw/system/workflows/plan-review-long/02-review-and-revise.md
+    9       0       .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
+    ```
+    PARITY WAS CHECKED, NOT ASSUMED, and the check was OBSERVED FAILING (see V-06 for the two negative
+    controls): removing the escalation from `03` alone failed 2 assertions, and removing the emission
+    from `02` alone failed 1, each restored to green.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test file result with counts, and paste each of these cases individually
     so none is vacuous: unescalated caught; escalated not caught; `medium` ignored at `high` but caught
     at `medium`; `off` disables; `fixed` never triggers; round-2-fixed does not trigger. Then paste the
@@ -424,10 +638,82 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     repository's live plans or live `project.json` (the `i79rgh` defect class). Finally paste the parity
     assertion in `tests/test_plan_review_parity.py` FAILING with the instruction removed from one
     variant, and passing when restored. A guard never observed failing is not accepted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: 59 tests pass and every required case is shown individually, including the end-to-end reuse chain and two observed guard failures.
+    ```console
+    $ python3 -m pytest tests/test_review_findings_gate.py tests/test_plan_review_parity.py
+    bringing up nodes...
+    ...........................................................              [100%]
+    59 passed in 2.45s
+    ```
+    (39 in the new gate file, 20 in the parity file. Run BARE, per the plan.)
 
-- [ ] V-07 validates E-07
+    EACH REQUIRED CASE INDIVIDUALLY, so none is vacuous:
+    ```text
+    unescalated caught                : 1 finding  check.review-finding-unescalated (F-1 high/open)
+    escalated NOT caught              : 0 findings
+    medium @ threshold high           : 0 findings
+    medium @ threshold medium         : 1 finding  (F-1 medium/open)
+    medium @ threshold blocker        : 0 findings
+    threshold off                     : 0 findings  (rule disabled)
+    decision `fixed`                  : 0 findings
+    round1 open -> round2 fixed       : 0 findings  (current-round semantics)
+    round1 fixed -> round2 open       : 1 finding   (converse: reopened is live again)
+    decision `deferred`               : 1 finding   (a deferral is unfixed and must gate)
+    ```
+    END-TO-END CHAIN, proving the reuse closes the loop rather than merely reporting
+    (`EndToEndReuseChainTests.test_escalation_is_then_caught_by_the_preexisting_pre_execution_gate`):
+    ```text
+    step 1  unescalated, --phase pre-execution:
+              check.review-finding-unescalated  reported   ; IPD-S404 absent
+    step 2  add `### OQ-01` with `- Blocking: yes` + `- Finding: F-1`
+    step 3  same plan, --phase pre-execution:
+              check.review-finding-unescalated  ABSENT
+              IPD-S404  OQ-01: unresolved blocking question at pre-execution
+              disposition=error
+    ```
+    IPD-S404 is the PRE-EXISTING gate at `ipd_lint.py:681-693`, untouched by this plan. The test also
+    asserts the loop is CLOSABLE (`test_the_loop_is_closable_by_resolving_the_question`): fixing the
+    finding and resolving the question silences both, so no plan is permanently stuck.
+
+    EVERY FIXTURE IS A TMP REPO; NO ASSERTION READS LIVE STATE (the `i79rgh` defect class):
+    ```console
+    $ grep -n "mkdtemp\|REPO_ROOT\|SOURCE_PLANS\|Path(\"\.aw" tests/test_review_findings_gate.py
+    50:    d = Path(tempfile.mkdtemp(prefix="aw_revgate02_"))
+    ```
+    The ONLY repo construction is `mkdtemp`; `REPO_ROOT`, `SOURCE_PLANS`, and any literal `.aw` root
+    path are absent, so no test reads this repository's plans or its live `project.json`. Every
+    threshold case writes the key into its OWN fixture via `_set_threshold`, so the suite is
+    order-independent and cannot break when a maintainer sets the real key. Each `_RepoCase` tears its
+    tmp tree down.
+
+    PARITY GUARD OBSERVED FAILING, then passing when restored (a guard never seen to fail is not
+    accepted). Control 1, escalation removed from the long variant's `03` only:
+    ```console
+    $ python3 -m pytest tests/test_plan_review_parity.py -k ReviewFindingsEmitAndEscalate
+    E  AssertionError: 'Severity is for reporting only' not found in '# Step 3: Resolve, finalize...'
+       : 03-resolve-and-finalize.md must quote the reporting-only rule it reconciles with
+    FAILED ...::test_escalation_requirement_in_both_variants
+    FAILED ...::test_escalation_reconciled_with_reporting_only_severity
+    2 failed, 2 passed in 1.86s
+    ```
+    Control 2, emission removed from the long variant's `02` only:
+    ```console
+    E  AssertionError: '.aw/records/reviews/' not found in '# Step 2: Review and revise...'
+       : 02-review-and-revise.md must instruct the reviewer to write the typed review record
+    FAILED ...::test_findings_record_emission_in_both_variants
+    1 failed, 3 passed in 1.96s
+    ```
+    Restored (and both files verified byte-identical to their pre-control backups via `diff`):
+    ```console
+    $ python3 -m pytest tests/test_plan_review_parity.py
+    ....................                                                     [100%]
+    20 passed in 1.89s
+    ```
+    Parity assertions live in `tests/test_plan_review_parity.py`, the file that already owns this exact
+    pair, and they target the long variant's STEP FILES rather than the orchestrator.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste three distinct runs on the SAME plan fixture: (a) with NO `.review.md`,
     showing the rule is SILENT; (b) with a MALFORMED `.review.md`, showing it is REPORTED (a silent pass
     here fails this item, since that is the evasion path F-8 identified); (c) with threshold `off`,
@@ -435,10 +721,56 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     plans` and `aw check all` finding counts on THIS repository before and after, which must be equal
     (417 plans, zero review artifacts). Paste `grep -n` showing the malformed case produces a finding
     from an explicit branch, not from an enclosing `except Exception: pass`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: absent is silent, malformed is reported, `off` disables, and the live corpus shows a ZERO delta.
+    THE THREE MODES, on the SAME plan fixture, varying only the artifact/threshold:
+    ```text
+    (a) NO .review.md          -> SILENT   : 0 finding(s)
+    (b) MALFORMED .review.md   -> REPORTED : 1 finding(s)
+          check.review-finding-unescalated  review artifact for plan aaa111 is malformed (REV-R001),
+          so its findings cannot be checked for escalation
+    (c) threshold off          -> DISABLED : 0 finding(s)
+    ```
+    The malformed finding is reported at the REVIEW path (the file to repair), not the plan path. A
+    fourth case is also covered because it is the same evasion: an unrecognized SEVERITY (`hgih`) would
+    slip past `is_gating` silently, so the parser diagnostic makes it a malformed-report too
+    (`FailureModeTests.test_malformed_row_with_unknown_severity_is_reported`).
 
-- [ ] V-08 validates E-08
+    THE MALFORMED BRANCH IS EXPLICIT, NOT AN ENCLOSING SWALLOW (`grep -n`):
+    ```text
+    2251:        doc = _rf.parse_review_file(review_path)
+    2252:        if doc.diagnostics:
+    2253:            # (b) present but malformed -> FAIL CLOSED. Reported at the REVIEW path, ...
+    ```
+    The finding comes from `if doc.diagnostics:` inside the evaluator. Pinned by
+    `test_malformed_branch_is_explicit_not_an_exception_swallow`, which greps the evaluator body for
+    that branch. `parse_review_file` never raises by contract (`15zvu6`), so the branch, not an
+    exception handler, is what decides. The `except Exception: pass` in `_merge_review_escalation`
+    covers only a repo-scan failure and is documented as NOT being the malformed path.
+
+    NO-REGRESSION ON THE LIVE CORPUS, MEASURED BEFORE AND AFTER (not assumed):
+    ```console
+    $ aw check plans   BEFORE: 15 findings across 428 plans
+    $ aw check plans   AFTER : 15 findings across 428 plans
+                               15  check.lifecycle-transition-invalid
+    $ aw check all     BEFORE: 95 findings          AFTER: 95 findings
+       35  adopted-without-consumer
+        3  backlog.summary-unsafe
+       15  check.lifecycle-transition-invalid
+        6  check.name-nonconformant
+       28  check.setid-collision
+        1  dangling-citation
+        7  stale-state-to-promote
+    $ diff baseline_check_all.txt after_check_all.txt
+    *** BEFORE/AFTER IDENTICAL: zero drift on the live corpus ***
+    ```
+    Delta is EXACTLY ZERO and the per-rule breakdown is byte-identical, as required (428 plan files,
+    zero `.review.md` files, so every live plan is the (a) absent case). Zero
+    `check.review-finding-unescalated` findings appear in the live tree. Also verified against an
+    isolated many-plan fixture (`GrandfatheringTests`): 12 pending + 10 terminal plans with no reviews
+    produce 0 findings.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the declared convention text, and a plan fixture whose blocking OQ carries
     `- Finding: F-3` being MATCHED by the rule, alongside one whose blocking OQ names a DIFFERENT finding
     id showing it does NOT satisfy the requirement (proving the match is per-finding, per OQ-01, and not
@@ -446,8 +778,62 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     than substring-searching the rationale prose. State whether `- Finding:` was added to
     `ipd_schema.OQ_FIELDS`, with the reason and the cited evidence for the choice, and note the ipd-spec
     amendment that was recorded for later reconciliation rather than edited here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the convention is declared, matched per-finding as a typed field, and the OQ_FIELDS question is answered with cited evidence.
+    THE DECLARED CONVENTION, in `agent_workflows/ipd_schema.py` above `OQ_FIELDS`:
+    ```text
+    #: `Finding` is the plqjt7 E-08 convention: a blocking question ESCALATING an unfixed review finding
+    #: names it as `- Finding: F-3` (comma-separate several). `check.review-finding-unescalated` matches
+    #: THIS TYPED FIELD, never the rationale prose - a substring search over prose would be spoofable by
+    #: any incidental mention and brittle against rewording. It is OPTIONAL: only a question escalating a
+    #: gating finding needs it.
+    ```
+    and, for authors, in `.aw/records/reviews/README.md` ("Enforcement: unfixed gating findings must be
+    escalated") with a worked `### OQ-03:` example, plus the finalize step of BOTH review variants.
+
+    MATCHED PER-FINDING, NOT "ANY BLOCKING QUESTION WILL DO" (this is OQ-01's requirement):
+    ```text
+    blocking OQ carries `- Finding: F-1`, finding is F-1  -> 0 findings  (SATISFIED)
+    blocking OQ carries `- Finding: F-9`, finding is F-1  -> 1 finding   (NOT satisfied)
+          check.review-finding-unescalated  review finding F-1 is high/open ... but no
+          `Blocking: yes` open question names it
+    blocking OQ with NO `- Finding:` subfield             -> 1 finding   (NOT satisfied)
+    NON-blocking question naming F-1                      -> 1 finding   (NOT satisfied)
+    prose mentioning "F-1" in the rationale, no subfield  -> 1 finding   (NOT satisfied)
+    one question naming `- Finding: F-1, F-2` (2 findings)-> 0 findings  (both satisfied)
+    `- Finding: f-1` (lowercase)                          -> 0 findings  (case-insensitive on the id)
+    ```
+    The prose case is the important negative: a substring search would have accepted it.
+
+    READS THE TYPED SUBFIELD, NOT THE PROSE (`grep -n` in `check_engine.py`):
+    ```text
+    2146:        raw = str(oq.get("Finding", "")).strip()
+    2150:            tok = token.strip().strip(".`").upper()
+    ```
+    The matcher reads only the `Finding` KEY from the parsed OQ dict. It never inspects
+    `"Resolution or deferral rationale"` (absent from the function entirely), so prose cannot satisfy
+    it.
+
+    THE `OQ_FIELDS` QUESTION, ANSWERED WITH EVIDENCE (recorded in full as decision 02-plqjt7-D2):
+    `Finding` WAS added to `ipd_schema.OQ_FIELDS`. Cited basis:
+    ```console
+    $ grep -rn "OQ_FIELDS" --include=*.py .
+    ./agent_workflows/ipd_schema.py:1226:OQ_FIELDS: Tuple[str, ...] = (
+    ```
+    ONE hit, its own definition: the tuple has NO consumer, so adding to it is DOCUMENTATION, not
+    behavior. `open_question_error` (`ipd_schema.py:1234`) validates its four fields POSITIONALLY via
+    its own arguments and is unaffected by an extra subfield. Verified the subfield needs no schema
+    change to work: a plan carrying `- Finding: F-1` parses to `{'Finding': 'F-1', ...}` and
+    `check_open_questions` returns zero diagnostics
+    (`FindingNamingConventionTests.test_finding_subfield_does_not_break_structural_lint`). The comment
+    records both facts, including that `Finding` must stay if `OQ_FIELDS` is ever made a closed
+    allowlist.
+
+    SPEC AMENDMENT RECORDED FOR LATER RECONCILIATION, NOT EDITED HERE (the ipd-spec is deliberately not
+    in `Scope-Paths`): `.aw/records/specs/20260726-1340-01-ipd-spec.spec.md:26` should gain a line
+    naming the OPTIONAL `- Finding: <F-id>` open-question subfield and its meaning (it escalates a
+    review finding at or above the gate threshold; matched as a typed field, never as prose). Same
+    convention `7nkcgp` uses for spec `25kzda`.
+  - Result: pass
 
 ## Approval and execution gate
 

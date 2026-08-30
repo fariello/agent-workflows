@@ -234,5 +234,122 @@ class RightSizingRubricParityTests(unittest.TestCase):
             )
 
 
+class ReviewFindingsEmitAndEscalateParityTests(unittest.TestCase):
+    """revgate Order 02 (plqjt7 E-04/E-05): both variants must emit the typed review record AND
+    escalate an unfixed gating finding.
+
+    These assertions live HERE, in the file that already owns single-file-vs-long parity for this
+    exact pair, rather than in `tests/test_review_findings_gate.py`: a second parity harness would be
+    the drift the repo's single-source rule forbids.
+
+    The long variant is asserted on the STEP FILES (`02-review-and-revise.md`,
+    `03-resolve-and-finalize.md`), NOT on the `plan-review-long.md` orchestrator. That is deliberate:
+    the orchestrator only lists the steps and contains neither a findings-recording nor a finalize
+    section, so a parity check pointed at it would pass while long-variant reviewers received no
+    instruction at all.
+    """
+
+    def test_findings_record_emission_in_both_variants(self):
+        # PRL_02 is the long variant's counterpart to plan-review.md's "Record findings" step.
+        for path in (PLAN_REVIEW, PRL_02):
+            t = _read(path)
+            self.assertIn(
+                ".aw/records/reviews/",
+                t,
+                f"{path.name} must instruct the reviewer to write the typed review record",
+            )
+            self.assertIn(
+                ".review.md",
+                t,
+                f"{path.name} must name the .review.md artifact",
+            )
+            low = t.lower()
+            self.assertIn(
+                "## round",
+                low,
+                f"{path.name} must instruct appending a new Round for a re-review",
+            )
+            self.assertIn(
+                "current",
+                low,
+                f"{path.name} must state that only the current round is read",
+            )
+
+    def test_escalation_requirement_in_both_variants(self):
+        # PRL_03 is the long variant's counterpart to plan-review.md's finalize step.
+        for path in (PLAN_REVIEW, PRL_03):
+            t = _read(path)
+            self.assertIn(
+                "- Blocking: yes",
+                t,
+                f"{path.name} must require the escalation carry `- Blocking: yes`",
+            )
+            self.assertIn(
+                "- Finding: <ID>",
+                t,
+                f"{path.name} must require the escalation name the finding id",
+            )
+            self.assertIn(
+                "check.review-finding-unescalated",
+                t,
+                f"{path.name} must name the enforcing rule",
+            )
+            self.assertIn(
+                "review_findings_gate",
+                t,
+                f"{path.name} must point at the configurable gate threshold",
+            )
+            self.assertIn(
+                "pre-execution",
+                t,
+                f"{path.name} must state the escalated question is caught at pre-execution",
+            )
+
+    def test_escalation_reconciled_with_reporting_only_severity(self):
+        """The added wording must reconcile itself with "Severity is for reporting only".
+
+        Both variants carry that rule, so an escalation instruction that did not address it would read
+        as a direct contradiction to the next reviewer.
+        """
+        for path in (PLAN_REVIEW, PRL_03):
+            t = _read(path)
+            self.assertIn(
+                "Severity is for reporting only",
+                t,
+                f"{path.name} must quote the reporting-only rule it reconciles with",
+            )
+            self.assertIn(
+                "Fix Bar",
+                t,
+                f"{path.name} must state the Fix Bar alone decides whether to fix",
+            )
+
+    def test_fix_bar_and_classification_not_weakened(self):
+        """The pre-existing Fix Bar and severity/decision classification must survive intact."""
+        pr = _read(PLAN_REVIEW)
+        self.assertIn(
+            "Fix every finding unless overall Remediation Risk is Medium-High or High.",
+            pr,
+            "plan-review.md must retain the Fix Bar",
+        )
+        self.assertIn(
+            "Effort, time, cost, and tokens are never valid deferral reasons.",
+            pr,
+            "plan-review.md must retain the invalid-deferral-reasons rule",
+        )
+        for path in (PLAN_REVIEW, PRL_02):
+            t = _read(path)
+            self.assertIn(
+                "`BLOCKER`, `HIGH`, `MEDIUM`, or `LOW`",
+                t,
+                f"{path.name} must retain the severity vocabulary",
+            )
+            self.assertIn(
+                "`FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`",
+                t,
+                f"{path.name} must retain the decision vocabulary",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
