@@ -21,14 +21,13 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Iterable, NamedTuple, Sequence, TextIO
+from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 
 # The interactive streaming render layer (Palette/render_event/Heartbeat and the
 # coupled ANSI/status helpers) lives in the shared ``render_stream`` module so it is
@@ -36,6 +35,7 @@ from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 # here (see ``__all__`` below) so existing ``oc_runipd`` call sites and tests keep
 # referencing these names. ``should_color`` (the TTY color decision) stays local to the
 # caller per OQ-01.
+from agent_workflows import runner_shutdown
 from agent_workflows.render_stream import (
     _ANSI_CODES,
     _ANSI_RESET,
@@ -54,6 +54,10 @@ from agent_workflows.render_stream import (
     format_tokens,
     render_event,
 )
+
+# The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
+# live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
+from agent_workflows import runner_stop
 
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
@@ -765,23 +769,36 @@ def append_jsonl(path: Path, event: dict[str, Any]) -> None:
 
 @contextlib.contextmanager
 def run_lock(run_dir: Path):
+    """Hold the run's ``driver.lock`` for this driver process.
+
+    Yields a :class:`runner_shutdown.RunLockHandle` so the clean-shutdown routine can release
+    the lock OBSERVABLY (spec `c4gd2h` R2: drop the ``flock`` AND remove the lock file). The
+    contextmanager contract is unchanged for the normal path, and release is idempotent, so a
+    caller that already ran ``clean_shutdown`` is not double-released here.
+    """
+
     lock_path = run_dir / "driver.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as handle:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise DriverError(
-                f"Run is already controlled by another process: {run_dir.name}"
-            ) from exc
-        handle.seek(0)
-        handle.truncate()
-        handle.write(f"pid={os.getpid()} started={utc_now()}\n")
-        handle.flush()
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    handle = lock_path.open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise DriverError(
+            f"Run is already controlled by another process: {run_dir.name}"
+        ) from exc
+    except BaseException:
+        handle.close()
+        raise
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+    handle.flush()
+    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
+    try:
+        yield lock
+    finally:
+        lock.release()
 
 
 def _read_id(text: str) -> str | None:
@@ -1759,50 +1776,91 @@ DEFAULT_STALL_TIMEOUT: float = 600.0
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    """Reap a child OpenCode process and its process group without leaving orphans."""
-    if process.poll() is not None:
-        _close_process_streams(process)
-        return
+    """Reap a child OpenCode process and its process group without leaving orphans.
 
-    def _signal(sig: int) -> bool:
-        if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
-            try:
-                pgid = os.getpgid(process.pid)
-                if pgid != os.getpgrp():
-                    os.killpg(pgid, sig)
-                    return True
-            except (ProcessLookupError, OSError):
-                pass
-        try:
-            process.send_signal(sig)
-            return True
-        except (ProcessLookupError, OSError):
-            return False
+    Delegates to the SINGLE shared reaper in ``runner_shutdown`` (spec `c4gd2h` R5 forbids a
+    second implementation; both drivers previously carried byte-identical copies). The
+    module-level grace constants are read at call time and passed through, so a caller or test
+    that tunes ``_SIGINT_GRACE_SECONDS`` / ``_SIGTERM_GRACE_SECONDS`` still takes effect.
+    """
 
-    for sig, grace in (
-        (signal.SIGINT, _SIGINT_GRACE_SECONDS),
-        (signal.SIGTERM, _SIGTERM_GRACE_SECONDS),
-    ):
-        if not _signal(sig):
-            break
-        try:
-            process.wait(timeout=grace)
-            _close_process_streams(process)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-
-    _signal(signal.SIGKILL)
-    with contextlib.suppress(Exception):
-        process.wait(timeout=_SIGTERM_GRACE_SECONDS)
-    _close_process_streams(process)
+    runner_shutdown.terminate_process(
+        process,
+        sigint_grace=_SIGINT_GRACE_SECONDS,
+        sigterm_grace=_SIGTERM_GRACE_SECONDS,
+    )
 
 
-def _close_process_streams(process: subprocess.Popen) -> None:
-    for stream in (process.stdout, process.stderr, process.stdin):
-        if stream is not None:
-            with contextlib.suppress(Exception):
-                stream.close()
+_close_process_streams = runner_shutdown._close_process_streams
+
+
+def _budget_breach_recorder(
+    run_dir: Path,
+    item: dict[str, Any],
+    request: runner_stop.StopRequest,
+    observer: runner_stop.CheckpointObserver,
+) -> "Callable[[], None]":
+    """Build the callback `BudgetBreachWatch` invokes when the wind-down deadline passes.
+
+    runstop foi1b3 (E-04, spec R11). It RECORDS the breach on the established `events.jsonl`
+    channel as an escalation-REQUIRED signal and returns. It deliberately does NOT escalate, does
+    not terminate the child, and does not rewrite any item status: escalation spans levels 3 and 4
+    and spec A7 places its enforcement in Phase 5 (`71vjbn`), which consumes this one signal.
+    """
+
+    def _record() -> None:
+        event = runner_stop.budget_breach_event(
+            request,
+            at=utc_now(),
+            id6=item.get("id6", ""),
+            observed_events=observer.events_seen,
+            last_completed_index=observer.last_checkpoint_index,
+        )
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir / "events.jsonl", event)
+        print(
+            f"stop wind-down budget breached (level {request.level}, "
+            f"{request.budget_seconds}s, deadline {request.deadline}): no safe checkpoint "
+            f"observed; escalation REQUIRED (recorded, not performed here)",
+            file=sys.stderr,
+        )
+
+    return _record
+
+
+def _record_checkpoint_stop(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    observer: runner_stop.CheckpointObserver,
+) -> dict[str, Any]:
+    """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
+
+    runstop foi1b3 (E-03). Writes to the item and to the established append-only `events.jsonl`
+    channel; no new ledger substrate. The item's STATUS is set by `reconcile_disposition`'s
+    deliberate-stop branch, so the two cannot disagree.
+    """
+
+    repo = Path(state["repo"])
+    try:
+        observed_git = git_status(repo)
+    except Exception as exc:  # noqa: BLE001 - an honest note beats failing the stop
+        observed_git = f"<unobserved: {exc}>"
+    record = runner_stop.stopped_disposition(
+        level=observer.requested_level or runner_stop.LEVEL_NOW,
+        requester=observer.requester,
+        last_completed_index=observer.last_checkpoint_index,
+        last_completed_label=observer.last_checkpoint_label,
+        git_state=observed_git,
+        events_seen=observer.events_seen,
+        at=utc_now(),
+    )
+    item["stopped"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.stopped_stop_event(record, id6=item.get("id6", ""), at=utc_now()),
+    )
+    return record
 
 
 def run_opencode(
@@ -1920,7 +1978,9 @@ def run_opencode(
             run_start_mono = None
 
     with log_path.open("w", encoding="utf-8") as log:
-        process = subprocess.Popen(argv, **popen_kwargs)
+        # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
+        # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
+        process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
         assert process.stdout is not None
         statusline = Statusline(
             pal=pal,
@@ -1934,6 +1994,12 @@ def run_opencode(
             run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
+        # runstop foi1b3 (level 3): the OBSERVED safe-checkpoint tracker. Fed every stream line
+        # regardless of `output_mode` - see the comment at the parse site below for why that matters.
+        observer = runner_stop.CheckpointObserver(
+            detector=runner_stop.is_oc_safe_checkpoint
+        )
+        breach_watch: runner_stop.BudgetBreachWatch | None = None
         try:
             with statusline, watchdog:
                 for line in process.stdout:
@@ -1941,6 +2007,62 @@ def run_opencode(
                     log.flush()
                     statusline.touch()
                     watchdog.touch()
+                    # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7). This
+                    # is the per-line point the existing StallWatchdog already proves the driver
+                    # may act on from stream observation alone. The poll is SIDE-EFFECT FREE and
+                    # only REPORTS the requested level here; acting on a level is owned by the
+                    # later phases (levels 1-2 branch between items, level 3 at this point).
+                    level = runner_stop.poll_stop(run_dir)
+                    # runstop foi1b3 (level 3, spec R10/A3): a level >= 3 request means the TURN
+                    # itself must stop, at the next OBSERVED safe checkpoint.
+                    #
+                    # THE PARSE IS DELIBERATELY NOT `render_event`. `render_event` is called only in
+                    # the `output_mode == "clean"` branch below, so in `raw` and `quiet` modes nothing
+                    # would parse the line and a `render_event`-based checkpoint would silently never
+                    # fire - the feature would depend on an unrelated display flag. The detector in
+                    # `runner_stop` does its own minimal decode and runs for EVERY line here, before
+                    # any mode branch. Do not move it into the branch below.
+                    #
+                    # The definition itself is spec `c4gd2h` OQ-01's resolution: after a COMPLETED
+                    # tool/step event, before the next is dispatched, observed from this very stream.
+                    # No agent cooperation is involved, and none may be added (that was rejected).
+                    if level is not None and level >= runner_stop.LEVEL_NOW:
+                        if not observer.pending:
+                            request = runner_stop.read_stop_request(run_dir)
+                            observer.request(
+                                level,
+                                request.requester if request is not None else "unknown",
+                            )
+                            print(
+                                f"stop requested: level {level} "
+                                f"({runner_stop.LEVEL_NAMES.get(level, 'unknown')}); "
+                                f"the current turn will stop at its next observed safe checkpoint",
+                                file=sys.stderr,
+                            )
+                            # runstop foi1b3 (E-04, spec R11): arm the BOUNDED wait. A silent child
+                            # never reaches another line, and `for line in process.stdout` BLOCKS, so
+                            # a deadline can only be noticed from another thread (the shape
+                            # StallWatchdog already uses). R10 is not violated: the checkpoint is
+                            # still defined only by an observed event; this deadline is the GIVE-UP
+                            # bound after which no checkpoint is awaited.
+                            if request is not None:
+                                remaining = runner_stop.deadline_seconds_remaining(
+                                    request
+                                )
+                                breach_watch = runner_stop.BudgetBreachWatch(
+                                    deadline_monotonic=time.monotonic()
+                                    + max(0.0, remaining),
+                                    on_breach=_budget_breach_recorder(
+                                        run_dir, item, request, observer
+                                    ),
+                                    is_alive=lambda: process.poll() is None,
+                                )
+                                breach_watch.__enter__()
+                    if observer.observe(line):
+                        # The turn stops HERE, after an event observed to have completed. Raising
+                        # unwinds into the existing `except BaseException` below, which already
+                        # routes to the shared reaper, so no second teardown path exists (spec R5).
+                        raise runner_stop.StopAtCheckpoint(observer)
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
@@ -1949,7 +2071,18 @@ def run_opencode(
                         if rendered is not None:
                             statusline.write_event(rendered)
         except BaseException:
-            terminate_process(process)
+            if breach_watch is not None:
+                breach_watch.__exit__(None, None, None)
+            # runstop foi1b3: the stop MECHANISM. `clean_shutdown` owns the reaper (spec R5), so the
+            # level-3 stop routes there rather than calling `terminate_process` itself. Be clear about
+            # what this is: the child is a one-shot `opencode run` with NO cooperative stop channel,
+            # so stopping it IS termination - at an instant chosen by observation. Levels 3 and 4
+            # share this mechanism and differ only in WHEN it is issued. "KNOWN" certainty therefore
+            # means no PREVIOUSLY OBSERVED operation was cut mid-flight, not that the agent finished
+            # tidily.
+            report = runner_shutdown.clean_shutdown(process, run_dir=run_dir)
+            if not report.all_satisfied:
+                print(report.render(), file=sys.stderr)
             log.flush()
             with contextlib.suppress(OSError):
                 os.fsync(log.fileno())
@@ -1959,6 +2092,9 @@ def run_opencode(
                     f"OpenCode child turn stalled: no output for {timeout_val}s"
                 ) from None
             raise
+        finally:
+            if breach_watch is not None:
+                breach_watch.__exit__(None, None, None)
 
         if watchdog.stalled:
             terminate_process(process)
@@ -1979,6 +2115,26 @@ def run_opencode(
 def reconcile_disposition(
     repo: Path, item: dict[str, Any], run_dir: Path, exit_code: int
 ) -> tuple[str, dict[str, Any] | None]:
+    # runstop foi1b3 (E-03, spec R18/R21/R22): the DELIBERATE-STOP branch, which MUST precede every
+    # other branch below, including the exit-code fallback.
+    #
+    # MEASURED FAILURE THIS PREVENTS. A level-3 stop leaves NO outcome JSON (the runbook has the
+    # AGENT write `outcomes/<NN>-<id6>.json` at turn END, so a mid-turn stop never produces one), the
+    # plan is still in `pending/`, and the terminated child exits NONZERO. Without this branch every
+    # check below misses and the final `return ("partial" if exit_code == 0 else "failed-safely")`
+    # labels a DELIBERATE OPERATOR STOP as `failed-safely` - the crash-versus-intent conflation spec
+    # R21 forbids and a verdict R22 forbids the driver to assert.
+    #
+    # It is keyed on the `stopped` record the checkpoint path wrote, NOT on the exit code or on the
+    # mere presence of a stop-request file, so a run that requested a stop but whose turn genuinely
+    # FAILED before any checkpoint still reconciles normally (a control test pins this).
+    stopped = item.get("stopped")
+    if isinstance(stopped, dict) and stopped.get("stopped_deliberately"):
+        # `interrupted` is an EXISTING status in TERMINAL_STATES' sibling vocabulary and in
+        # `runner_shutdown.KNOWN_ITEM_STATUSES`, so the ledger stays coherent (spec R3) and the
+        # existing `requeue_interrupted` already retries it in recovery mode. Certainty is `known`
+        # and never `unknown_outcome` (level 4's, owned by Phase 4), and never a success (R22).
+        return runner_stop.STOPPED_DISPOSITION, None
     if item.get("action") == "review":
         try:
             current_plan = resolve_plan_path(repo, item["configured_file"], item["id6"])
@@ -2174,6 +2330,34 @@ def execute_item(
             tracker=tracker,
             work_dir=work_dir,
         )
+    except runner_stop.StopAtCheckpoint as stop:
+        # runstop foi1b3 (E-02/E-03, spec A3/R18): the turn was stopped at an OBSERVED safe
+        # checkpoint. Record it with KNOWN certainty and STOP the run; the child has already been
+        # reaped through `clean_shutdown` inside `run_opencode` (spec R5's single reaper).
+        now = utc_now()
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "deliberate-stop-at-checkpoint"
+        record = _record_checkpoint_stop(run_dir, state, item, stop.observer)
+        attempt["stopped"] = record
+        attempt["disposition"] = runner_stop.STOPPED_DISPOSITION
+        # Go through `reconcile_disposition` rather than assigning the status directly, so the
+        # deliberate-stop branch there is the ONE place the disposition is decided and the two can
+        # never disagree.
+        item["status"], _ = reconcile_disposition(repo, item, run_dir, 1)
+        save_state(run_dir, state)
+        print(
+            pal(
+                f"\u25a0 IPD {item['position']:02d}/{total} {item['id6']} stopped at a safe "
+                f"checkpoint (level {record['level']}, {record['level_name']}, certainty "
+                f"{record['certainty']}) after event "
+                f"{record['last_completed_event_index']} "
+                f"({record['last_completed_event']}); requested by {record['requester']}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+        raise
     except KeyboardInterrupt:
         attempt["interrupted_at"] = utc_now()
         item["status"] = "interrupted"
@@ -2661,6 +2845,71 @@ def requeue_interrupted(run_dir: Path, state: dict[str, Any]) -> list[str]:
     return requeued
 
 
+def _observe_between_turn_stop(
+    run_dir: Path,
+    level: int | None,
+    current_setid: str | None,
+    existing: runner_stop.WindDown | None,
+) -> runner_stop.WindDown | None:
+    """Turn a polled stop LEVEL into a level-1/2 wind-down, capturing the set boundary ONCE.
+
+    runstop 1qxuke. Returns the wind-down in force, or None while no between-turn stop applies.
+
+    Two details carry the correctness:
+
+    1. The captured `setid` is frozen at the FIRST observation and never re-derived. Level 2's
+       boundary is "the rest of THIS set", and because the dequeue is dependency-ordered the set in
+       flight can change under a naive re-derivation (sets interleave), which would stop at the
+       wrong place. `existing` is therefore returned unchanged unless the level ESCALATED.
+    2. Levels 3 and 4 are NOT handled here. They interrupt the running turn and belong to later
+       phases; returning None for them leaves today's behavior untouched rather than silently
+       treating a turn-interrupting request as a between-turn one.
+    """
+
+    if level not in runner_stop.BETWEEN_TURN_LEVELS:
+        return existing
+    if existing is not None and existing.level >= level:
+        return existing
+    request = runner_stop.read_stop_request(run_dir)
+    requester = request.requester if request is not None else "unknown"
+    # On an escalation (1 -> 2) keep the ORIGINALLY captured set: the operator raised the boundary
+    # for the set they were already winding down, and re-capturing now could pick up a different
+    # set that only became current because of an interleave.
+    setid = existing.setid if existing is not None else current_setid
+    wind_down = runner_stop.WindDown(level=level, requester=requester, setid=setid)
+    print(
+        f"stop requested: level {wind_down.level} ({wind_down.level_name}); "
+        f"boundary = next "
+        f"{'item' if wind_down.level == runner_stop.LEVEL_AFTER_CALL else 'set'}"
+        + (f", finishing set {setid}" if wind_down.level == 2 and setid else ""),
+        file=sys.stderr,
+    )
+    return wind_down
+
+
+def _record_deliberate_stop(
+    run_dir: Path, state: dict[str, Any], wind_down: runner_stop.WindDown
+) -> None:
+    """Append the DELIBERATE-stop ledger event (spec R21) and leave un-run items `queued`.
+
+    runstop 1qxuke. Uses the driver's ESTABLISHED append-only `events.jsonl` channel, deliberately
+    not a new ledger file or substrate. No per-item status is invented and nothing is marked
+    `unknown_outcome`: levels 1-2 interrupt no turn, so every item is either genuinely finished or
+    genuinely never started (spec R20).
+    """
+
+    remaining = [item["id6"] for item in state["queue"] if item["status"] == "queued"]
+    append_jsonl(
+        run_dir / "events.jsonl",
+        runner_stop.deliberate_stop_event(wind_down, at=utc_now(), remaining=remaining),
+    )
+    print(
+        f"deliberate stop (level {wind_down.level}, {wind_down.level_name}): "
+        f"{len(remaining)} item(s) left queued, not started: {', '.join(remaining) or 'none'}",
+        file=sys.stderr,
+    )
+
+
 def run_queue(
     run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
 ) -> int:
@@ -2689,10 +2938,37 @@ def run_queue(
                 item["recovery_next"] = True
         save_state(run_dir, state)
     tracker = StreamTracker()
+    # runstop 1qxuke: the observed level-1/2 wind-down, or None while no between-turn stop has been
+    # requested. Captured ONCE at observation time (see `_observe_between_turn_stop`) because level
+    # 2's boundary is the set that was in flight THEN, and the dependency-ordered dequeue below lets
+    # sets interleave.
+    wind_down: runner_stop.WindDown | None = None
+    current_setid: str | None = None
+    # The deliberate stop is recorded EXACTLY ONCE, whichever boundary the loop actually exits at
+    # (declined item, drained queue, or dependency-blocked remainder).
+    stop_recorded = False
+    # runstop foi1b3: True once a level-3 stop cut the running TURN at an observed safe checkpoint.
+    # Tracked separately from `wind_down` because levels 1-2 stop BETWEEN turns while level 3 stops
+    # inside one, yet both are DELIBERATE and so must share the honest exit contract below.
+    stopped_at_checkpoint = False
     while True:
+        # runstop gq6m2u: the BETWEEN-ITEM cooperative checkpoint (spec `c4gd2h` R7), evaluated
+        # before the next item is selected. runstop 1qxuke acts on it for the two BETWEEN-TURN
+        # levels: level 1 = stop-after-call (R20/A1), level 2 = stop-after-set (R20/A4). Neither
+        # interrupts the turn that just finished, so neither can produce an indeterminate outcome.
+        level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
+        wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
+            # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 request on the last set
+            # drains the queue, so the loop leaves here rather than at the consent check below. The
+            # deliberate stop must STILL be recorded (spec R21), otherwise a stop that happened to
+            # skip nothing would be indistinguishable from an ordinary finish and the operator's
+            # intent would vanish from the history. `stop_recorded` keeps it exactly-once.
+            if wind_down is not None and not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
             break
         runnable = None
         for item in queued:
@@ -2700,7 +2976,31 @@ def run_queue(
             if satisfied:
                 runnable = item
                 break
+        # runstop 1qxuke: the wind-down decides only whether the driver still CONSENTS to start the
+        # selected item; it never reorders the queue. An item outside the boundary is left `queued`
+        # (spec R22: no fabricated disposition), which for level 2 can legitimately mean ending with
+        # runnable work outstanding (the operator asked to wind down, not to drain).
+        if (
+            wind_down is not None
+            and runnable is not None
+            and not wind_down.permits(runnable.get("setid"))
+        ):
+            if not stop_recorded:
+                _record_deliberate_stop(run_dir, state, wind_down)
+                stop_recorded = True
+            break
         if runnable is None:
+            # runstop 1qxuke: during a wind-down, do NOT relabel the remainder. Outside a stop,
+            # marking every queued item `dependency-blocked` is the truthful description of why the
+            # run ended. Under a stop it would not be: items of another set are `queued` because the
+            # OPERATOR asked to stop, not because their dependencies are unmet, and rewriting their
+            # status would be exactly the fabricated disposition spec R22 forbids. So record the
+            # deliberate stop and leave the remainder `queued`.
+            if wind_down is not None:
+                if not stop_recorded:
+                    _record_deliberate_stop(run_dir, state, wind_down)
+                    stop_recorded = True
+                break
             for item in queued:
                 _, missing = dependency_status(item, state)
                 item["status"] = "dependency-blocked"
@@ -2758,8 +3058,19 @@ def run_queue(
                 )
             save_state(run_dir, state)
             continue
+        # runstop 1qxuke: the set now in flight. Recorded BEFORE the turn so that a stop requested
+        # DURING this turn is observed at the next checkpoint with this set already captured.
+        current_setid = runnable.get("setid")
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
+        except runner_stop.StopAtCheckpoint:
+            # runstop foi1b3 (E-02, spec A3): the current TURN was stopped at an observed safe
+            # checkpoint, so the RUN stops here too. `execute_item` already recorded the item with
+            # KNOWN certainty and the child was reaped through `clean_shutdown`; the remaining queued
+            # items are left `queued` untouched (spec R22 forbids relabeling work that never ran).
+            stopped_at_checkpoint = True
+            state = load_state(run_dir)
+            break
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
@@ -2777,7 +3088,50 @@ def run_queue(
     state = load_state(run_dir)
     write_report(run_dir, state)
     print(render_continuation_hint(state, run_dir))
-    return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
+    # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
+    # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
+    # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores
+    # `queued` only when a stop was actually observed, and still returns nonzero if an item that RAN
+    # failed. No item's status is rewritten to manufacture the 0 (spec R22).
+    #
+    # runstop foi1b3: a level-3 stop is equally DELIBERATE, so it takes the same contract. Its own
+    # item is `interrupted`, which is NOT a success state, so the run still exits nonzero for it -
+    # deliberately. Level 3 admits the turn did not finish; only the items it never STARTED are
+    # excused, exactly as for levels 1-2.
+    return runner_stop.deliberate_stop_exit_code(
+        (item["status"] for item in state["queue"]),
+        success_states=SUCCESS_STATES,
+        stopped=wind_down is not None or stopped_at_checkpoint,
+    )
+
+
+@contextlib.contextmanager
+def locked_run(run_dir: Path):
+    """Hold the run lock AND guarantee the shared clean shutdown when the scope ends.
+
+    This is the LOCK-HOLDING layer, which is the only scope that holds all four clean-shutdown
+    invariants' inputs at once: the ``driver.lock`` handle (spec `c4gd2h` R2), the run ledger
+    (R3), and the repository path (R4), plus the tracked child agent processes (R1). The
+    per-turn ``run_opencode`` handlers cannot satisfy R2/R3/R4 at all: they hold no lock, run
+    once per turn, and have no queue authority, so they only reap the child.
+
+    The routine runs in a ``finally`` so it also covers the failure path (spec R6: cleanup runs
+    even when the wind-down phase fails or times out), and its per-invariant report is printed
+    rather than assumed (spec R23).
+    """
+
+    repo: Path | None = None
+    with contextlib.suppress(Exception):
+        repo = Path(load_state(run_dir)["repo"])
+    with run_lock(run_dir) as lock:
+        try:
+            yield lock
+        finally:
+            report = runner_shutdown.clean_shutdown(
+                lock=lock, run_dir=run_dir, repo=repo
+            )
+            if not report.all_satisfied or report.dirty_paths or report.reaped_pids:
+                print(report.render(), file=sys.stderr)
 
 
 def _detect_driver_command() -> str:
@@ -3145,7 +3499,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.prepare_only:
                 print_status(run_dir)
                 return 0
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
@@ -3188,7 +3542,7 @@ def main(argv: list[str] | None = None) -> int:
                 for s in state.get("set_sessions", {}):
                     state["set_sessions"][s] = args.session
                 save_state(run_dir, state)
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(
                     run_dir,
                     retry_incomplete=args.retry_incomplete,
