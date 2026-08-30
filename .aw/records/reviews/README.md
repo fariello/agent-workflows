@@ -57,6 +57,81 @@ Each `## Round <N>` contains:
 
 A review with no autonomous decisions is valid and simply omits the `Decisions` section.
 
+## Decisions: the audit trail for resolving instead of asking
+
+The `plan-review` workflow tells a reviewer to resolve a question from authoritative evidence
+rather than asking the maintainer. That rule is deliberate and it is right, but it converts
+questions into SILENT CHOICES: a reviewer can make ten judgement calls, get one badly wrong, and
+the maintainer discovers it only by reading the code it produced. The `### Decisions` section is
+what removes the silence, so a wrong turn is findable AFTER the fact instead of invisible.
+
+Both review variants require a row for EVERY question resolved from evidence instead of asked.
+The columns:
+
+| Column | Meaning |
+|---|---|
+| `ID` | `D-1`, `D-2`, ... within the round. |
+| `Question` | What the reviewer would have asked the human. |
+| `Chosen` | What it decided. |
+| `Alternatives considered` | What it rejected. "None" is a claim, not a default. |
+| `Basis` | The `path:line` or artifact that authorized it. |
+| `Reversible` | `yes` or `no`, judged on the cost of being wrong. |
+
+Read them back with one command:
+
+```bash
+aw reviews decisions                  # every recorded decision
+aw reviews decisions --irreversible   # only the ones that cannot be undone
+aw reviews decisions c621h9           # one reviewed plan
+```
+
+That verb is READ-ONLY and exits 0 even when nothing is recorded, because an empty audit trail is
+a valid answer rather than a failure. It reports ALL rounds, not just the current one: a gate asks
+"does this plan block today", so a superseded finding must stop counting, but an audit asks "what
+did the agents decide", and a decision made in round 1 was still made.
+
+### `Reversible`, and why it changes the obligation
+
+`Reversible` is judged on the COST OF BEING WRONG, not on the reviewer's confidence:
+
+- `yes`: a later maintainer can undo it by editing the plan or the code. Wrong costs a rewrite.
+- `no`: it cannot be cleanly undone. Published interfaces, data or file migrations, deletions, a
+  released artifact, anything another party may already depend on.
+
+Recording alone is enough for a REVERSIBLE decision. It is NOT enough for an irreversible one,
+which must ALSO be surfaced: either raised in the reviewed plan as an open question carrying
+`- Blocking: yes` (so the existing pre-execution gate stops the run), or told to the maintainer
+directly with that noted on the row. Resolving-instead-of-asking must never silently authorize a
+change nobody can undo.
+
+`check.review-decision-unescalated` reports an unescalated `Reversible: no` row as a WARNING. It
+is a backstop for a reviewer who skipped the escalation step, not a substitute for doing it: the
+preventive control is escalation at decision time. An empty or unrecognized `Reversible` cell is
+treated as UNJUDGED (never silently as "reversible"), is visible in the listing, and is reported by
+the same rule, because a blank is not a judgement.
+
+Be precise about what that warning does, because "advisory" is easy to overread. A `warning` DOES
+contribute to a nonzero `aw check` findings exit; only `info` severity is exempt from the exit
+code. What this rule adds is no LIFECYCLE gate: unlike `check.review-finding-unescalated`, it is
+not wired into any `aw ipd lint` checkpoint, it cannot refuse a `begin` or `finalize`, and it does
+not block a dependency edge. So it can make a check run report findings, and it cannot stop a plan
+from executing.
+
+### This tree is the source of truth for review-time decisions
+
+The tracked `.review.md` `## Decisions` section is THE record of what a reviewer decided on its own
+authority. It is tracked deliberately: a decision that survives only in a session transcript or an
+untracked scratch file is not auditable.
+
+Do not confuse it with `agent_workflows/set_records.py`, which is a DIFFERENT and legitimate
+register. That module serves `/exec-set` SET COORDINATION, not plan review, and its untracked
+projections under `.aw/workflow-artifacts/` are deliberate ("the local authoritative run
+convention"), not a location defect. They already have a tracked counterpart: the same module
+writes a tracked walkthrough to `.aw/records/walkthroughs/`, and `promote_local_checkpoints`
+promotes an untracked decision checkpoint into it before releasing another lane, specifically "so
+a crash never loses a recorded decision". Two registers, two surfaces, both with a tracked source
+of truth. A later agent should not "fix" either one into the other.
+
 ## Enums
 
 Severity, least to most severe:

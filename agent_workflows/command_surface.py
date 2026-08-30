@@ -995,6 +995,37 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         empty_error_renderer="renderer_boundary",
         exit_contract=(0, 1, 2),
     ),
+    # --- Reviews Family (revgate Order 04, c621h9 E-04) ---
+    #
+    # Read-only audit of the decisions a reviewer made on its own authority. Three declaration
+    # choices are load-bearing and each is made deliberately rather than copied:
+    #
+    # `empty_error_renderer="renderer_boundary"`, NOT `shared_empty_result`. CONTRIBUTING.md item 8
+    # asks a query verb to use the shared empty-state path, and `test_empty_error_renderer_
+    # classification_consistency` gates on a HARDCODED literal set of query commands, requiring
+    # `renderer_boundary` for anything outside it. The two disagree for a new leaf. Resolved toward
+    # the test, because it is the mechanical gate AND because the closest in-tree precedent agrees:
+    # `run decisions`/`run questions` are read-class decision/question PRINTERS that declare
+    # `renderer_boundary`. This verb also renders a real empty state itself (a summary line plus a
+    # zero count), so the shared path would add nothing the caller can observe.
+    #
+    # `exit_contract=(0, 2)`, deliberately WITHOUT 1. A `read`/`check`/`bare` class whose contract
+    # includes 1 obliges a `domain_failure` conformance scenario (`tests/conformance_matrix.py`), and
+    # a read-only printer has no domain failure to produce: an empty audit trail is a valid answer,
+    # not a finding. Judging an unescalated irreversible decision is
+    # `check.review-decision-unescalated`'s job, which is where the nonzero exit lives.
+    #
+    # `mutation_gate="none"` because the namespace writes nothing at all; there is no `--apply`.
+    CommandDeclaration(
+        command="reviews decisions",
+        command_class="read",
+        human_recipe="table",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--irreversible", "--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
     # --- Backlog Family ---
     CommandDeclaration(
         command="backlog new",

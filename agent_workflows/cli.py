@@ -187,6 +187,15 @@ _DESCRIPTIONS = {
         "Report archived-but-still-cited research docs (candidates that should be reference "
         "instead of archived). Read-only advisory."
     ),
+    "reviews": (
+        "Tooling for the typed plan-review records under .aw/records/reviews. Subcommands "
+        "report what a review recorded; the whole namespace is read-only and writes nothing."
+    ),
+    "reviews decisions": (
+        "Audit the judgement calls reviewers made on their own authority instead of asking the "
+        "maintainer, read from the review record's Decisions section. Use --irreversible for the "
+        "ones that cannot be undone. Read-only; exits 0 even when nothing is recorded."
+    ),
     "context": (
         "Inspect the resolved AW project context: project id, delivery mode, AW_HOME, "
         "records backend, durability, enabled hosts, and the four logical roots. Read-only; "
@@ -2035,6 +2044,49 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Report archived-but-cited docs (should they be reference?).",
     )
     p_research_miscat.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    # revgate Order 04 (c621h9 E-04): the `reviews` namespace. Read-only reporting over the typed
+    # review records; this verb brings the noun into existence.
+    p_reviews = sub.add_parser(
+        "reviews",
+        parents=[common],
+        help="Typed plan-review record tooling. 'reviews decisions' audits what agents decided without asking.",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw reviews decisions                 # every recorded self-resolved decision\n"
+            "  aw reviews decisions --irreversible  # only the ones that cannot be undone\n"
+            "  aw reviews decisions c621h9          # one reviewed plan (matched by filename)\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Read-only: this namespace writes nothing, so there is no --apply.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 always when it can run (an empty audit trail is a valid answer),\n"
+            "  2 cannot-run/usage error. There is no exit 1: reporting is not judging.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    reviews_sub = p_reviews.add_subparsers(dest="reviews_command")
+    p_reviews_decisions = reviews_sub.add_parser(
+        "decisions",
+        parents=[common],
+        help="Print the judgement calls reviewers made on their own authority instead of asking.",
+    )
+    p_reviews_decisions.add_argument(
+        "selector",
+        nargs="?",
+        default=None,
+        help="Optional review/plan selector (path, or a filename match embedding the plan id6/set id).",
+    )
+    p_reviews_decisions.add_argument(
+        "--irreversible",
+        action="store_true",
+        help="Show only decisions marked 'Reversible: no' (the ones that cannot be undone).",
+    )
+    p_reviews_decisions.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
     )
 
@@ -9032,6 +9084,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return ra.run_check_miscategorized(args)
         return _show_family_help(parser, "research", "aw research find", term, context)
+    if args.command == "reviews":
+        reviews_cmd = getattr(args, "reviews_command", None)
+        if reviews_cmd == "decisions":
+            from agent_workflows import reviews as _reviews
+
+            return _reviews.run_decisions(args)
+        return _show_family_help(
+            parser, "reviews", "aw reviews decisions", term, context
+        )
     if args.command == "context":
         return _run_context(args, term, context=context)
     if args.command == "path":
