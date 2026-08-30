@@ -3817,7 +3817,7 @@
     "path": "pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
     "plan_id": "zwnjp3",
     "set_id": "laneorphan",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3867,7 +3867,7 @@
     "path": "pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md",
     "plan_id": "jxqdcw",
     "set_id": "promptmint",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3887,7 +3887,7 @@
     "path": "pending/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md",
     "plan_id": "15zvu6",
     "set_id": "revgate",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3897,7 +3897,7 @@
     "path": "pending/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md",
     "plan_id": "plqjt7",
     "set_id": "revgate",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3907,7 +3907,7 @@
     "path": "pending/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md",
     "plan_id": "7nkcgp",
     "set_id": "revgate",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4007,7 +4007,7 @@
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
     "plan_id": "5e4sb6",
     "set_id": "rununify",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4017,7 +4017,7 @@
     "path": "pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md",
     "plan_id": "lbgzxg",
     "set_id": "scopeattrib",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4067,7 +4067,7 @@
     "path": "pending/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
     "plan_id": "a6cej0",
     "set_id": "workkind",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",

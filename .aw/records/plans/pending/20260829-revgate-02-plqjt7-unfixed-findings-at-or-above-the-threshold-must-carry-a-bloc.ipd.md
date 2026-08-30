@@ -6,15 +6,17 @@
 - Scope: Add ONE consistency rule so an unfixed finding at or above the configured threshold must carry a matching blocking open question, and make plan-review emit the findings artifact. Deliberately adds NO second enforcement gate: it reuses the pre-execution open-question gate that already works. Dependency cascade is `7nkcgp` (Order 03).
 - Scope-Paths: agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/ipd_schema.py, .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, .aw/records/reviews/README.md, tests/test_review_findings_gate.py, tests/test_plan_review_parity.py
 - Item-Dependencies: executed:15zvu6
-- Status: reviewed
+- Status: approved
 - Set: revgate
 - Order: 2
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: plqjt7
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 fixed in place
 
 - 2026-08-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

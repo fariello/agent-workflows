@@ -6,15 +6,17 @@
 - Scope: Introduce a machine-readable `.review.md` findings artifact under `.aw/records/reviews/`, add `review` to the closed artifact-type facet enum, add the `review_findings_gate` project-config key (default threshold `high`), and a dangling-reference check. The artifact carries a decisions section as well as findings, so `c621h9` (Order 04) can populate it. This plan does NOT gate anything: enforcement is `plqjt7` (Order 02) and dependency cascade is `7nkcgp` (Order 03).
 - Scope-Paths: agent_workflows/artifact_naming.py, agent_workflows/config.py, agent_workflows/review_findings.py, agent_workflows/check_engine.py, agent_workflows/record_producers.py, agent_workflows/engine.py, agent_workflows/status_set.py, .aw/records/reviews/README.md, tests/test_review_findings.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: revgate
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 15zvu6
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-206. Verified the premise exactly: F-1 confirmed (BLOCKER/HIGH/Severity/Remediation Risk each grep to 0 in both ipd_lint.py and check_engine.py), F-2 confirmed (no .aw/records/reviews tree), the closed-enum rationale confirmed verbatim at artifact_naming.py:59-70. Found a HIGH ripple the draft did not examine (F-8): TYPE_FACET is ITERATED, not inert, and status_set.detect_artifact_type (status_set.py:175-177) loops every entry and returns the matched type, so the drafted 'reviews'->'review' addition would make a .review.md file resolve as a status-settable artifact to aw set although a review has no status lifecycle; nothing in E-02..E-08 needs that mapping, so E-01 now requires an explicit choice (omit the entry, recommended, or add it with a reviews skip beside the existing comms exemption) and must prove the aw set behavior either way. Found a HIGH registration gap (F-9): the plan introduced the first new .aw/records/ subtree but registered it NOWHERE, so reviews is absent from the closed RecordClass enum and _RECORD_CLASS_SUBPATHS (making E-06's dangling check undiscoverable by supported means), absent from _DEEP_CLEANUP_ROOTS (aw uninstall --deep would orphan it), and absent from the installer dir map and .gitkeep list (a fresh repo would never create the tree the E-04 README describes); added E-09 plus V-09 and grew Scope-Paths by record_producers.py, engine.py, and status_set.py. De-risked E-05 by measurement (F-10): project.json's strict parser preserves unknown keys in unknown_fields AND writes them back on serialize, so review_findings_gate round-trips safely and must NOT be added to CONFIG_SCHEMA (the cutover precedent is absent from it too). Corrected a mis-citation (F-11): the dependency_schema_cutover precedent is config.py:781-822, not :282-316 (which is add_config_item); its characterization was otherwise exactly right. Re-measured the corpus figures, which had DRIFTED upward since authoring (F-5: 880 history lines across 362 plans, not 863/352; F-6: 94 lines across 52 plans, not 48/49), and reframed both as measurements rather than constants while confirming their conclusions hold. Made E-06's advisory severity deliberate against its all-error siblings, forbade hardcoding the reviews path in check_engine.py, and pre-verified that the two RecordClass test modules do not assert an exact set (16 passed at 65b685e) so E-09 is safe.
 
 - 2026-08-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

@@ -6,16 +6,18 @@
 - Scope: Add a uniform recognized-but-optional `Work-Kind` field to IPDs and specs, reusing backlog's existing work-nature vocabulary rather than forking it, with setter support and an `aw check` enum rule, following the `Priority` precedent exactly. Excludes renaming backlog's own `Kind` field, excludes adding `Work-Kind` to research, excludes any attention-board sort change, and excludes deriving the value from `From-Backlog`.
 - Scope-Paths: agent_workflows/ipd_schema.py, agent_workflows/specs.py, agent_workflows/check_engine.py, agent_workflows/cli.py, agent_workflows/status_set.py, tests/test_work_kind.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: workkind
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: a6cej0
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: 1ap48y
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004. Strongest of three plans in this sweep: every substantive claim VERIFIED, including backlog.KINDS being exactly {bug,feature,chore,security,followup}, the genuinely THREEFOLD Kind collision (ipd_schema {child,orchestrator}, research_contract 18 members, backlog work-nature), the xprio Set executed as orchestrator plus three children, the META_PRIORITY comment stating verbatim that the enum check lives in the aw check surface NOT the schema layer, check.priority-invalid registered (error, repository, deterministic), and both priority test modules present and passing (14 passed). F5's correction independently CONFIRMED and is the plan's best insight: backlog.KINDS is consumed only by backlog's own validation and new verb, and attention.Item carries priority and blocks_release but NO kind, so this plan delivers a recorded+validated field and NOT cross-tree filtering. PR-001 (MEDIUM, new F9): the CLI-conformance requirement was UNRUNNABLE. test_zero_undeclared_parser_leaves already fails 59 != 0 and the module is slow-marked while addopts carry -m 'not slow', so the plan's own prescribed bare pytest reports 'no tests ran' and an executor would see green while the suite is red; replaced with a measured no-worsening check against the pasted baseline. PR-002 (MEDIUM, new F8): resolved the scope-check's open pre-work task, and it REMOVES risk: an option cannot trigger the undeclared-leaf requirement (find_undeclared_leaves compares subcommand leaves only), and legacy_flags is not asserted exhaustive since xprio left --priority undeclared on both ipd set and specs set, so command_surface.py stays out of scope. PR-003 (LOW, new F10): resolved two more deferred conditionals to 'do nothing' (aw ipd scaffold has no --priority; ipd-spec has zero Priority mentions). PR-004 (LOW): recorded two deliberate precedent divergences, that xprio wired attention.py while this plan does not (Work-Kind will appear nowhere in aw attention output) and that omitting import-only backlog.py improves on xprio's needless in-scope-unmodified reconciliation. No open questions remain.
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

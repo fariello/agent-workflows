@@ -6,16 +6,18 @@
 - Scope: Add `aw prompts new` to mint a conforming staged prompt file (correct clustered/legacy name, leading `aw-prompt` metadata comment, `Status: pending`, landing in `.aw/records/prompts/pending/`, dry-run by default, never auto-staged), and change the `research-prompt` workflow to call it instead of hand-writing. Excludes `aw prompts check` (the prompt-purity lint, already specified separately and still unimplemented), excludes any change to the prompt LIFECYCLE verbs, and excludes touching `.aw/records/research/` or the `aw research` verb family.
 - Scope-Paths: agent_workflows/prompts.py, agent_workflows/cli.py, agent_workflows/artifact_types.py, agent_workflows/command_surface.py, .aw/records/prompts/README.md, .aw/system/workflows/research-prompt/research-prompt.md, tests/test_prompts_new.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: promptmint
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: jxqdcw
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Backlog: i97baj
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-106. Verified every finding independently at f02c64e: F3 exact (7 of 13 executed prompts carry the aw-prompt comment, 6 do not, named), F4 three-way naming conflict confirmed (README:4 bare .md, workflow:9/:98/:105 faceted, TYPE_FACET[prompts]=prompt), F5 docstring confirmed verbatim, F1/F6 confirmed (aw prompts is not a top-level command; TYPE_BACKENDS[prompts] at artifact_types.py:98-101 has only rename/group; the approved purity spec names the namespace). Found a BLOCKER (F8): the plan's own fence guaranteed a mid-execution halt, because every parser leaf MUST be declared in command_surface.COMMAND_INVENTORY (enforced by find_undeclared_leaves, test_command_surface_declarations.py:46-52) and command_surface.py was NOT in Scope-Paths, while the draft said to STOP if the manifest required an undeclared file; added command_surface.py to Scope-Paths, named specs new (command_surface.py:1053-1066) as the declaration model, and recorded that this test is ALREADY RED at baseline with 59 undeclared leaves so it cannot be a green gate and the other 59 are not this plan's to fix. Found a HIGH factual error (F9): E-03 told the executor to enumerate recognized kinds from the README, but the README documents YAML front-matter Kind: (README:7) which the approved spec P4 explicitly FORBIDS, so following the instruction would have propagated the banned convention; E-03 now derives from the measured corpus plus the spec, and E-01's README fix now repairs the metadata paragraph as well as the filename. Found an undefined default: --author has no resolver to inherit (specs new has no such flag; only driver-local driver_actor exists), so E-03 must state its rule and never emit a placeholder author. Recorded a real cross-artifact conflict (F10): the handoff workflow instructs YAML front-matter for session-handoff prompts (handoff.md:110, gate :134) and one such file exists in the gitignored untracked/ lane, so a whole prompt KIND disagrees with the purity contract; fenced out of this plan but recorded for the lint implementer. Recorded that this verb IS the aw prompts scaffold contemplated by the purity spec's OQ5 (F11), named new for consistency, so no second overlapping verb is added. Corrected F2's evidence (four references to the prompts tree exist, not one; the accurate claim is no CREATOR). Closed both fence questions the draft left to the approver, since both were certainties rather than judgment calls.
 
 - 2026-08-29 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
