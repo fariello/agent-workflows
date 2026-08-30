@@ -3,13 +3,13 @@
 - Date: 2026-08-29
 - Kind: child
 - Concern: `_paths_changed_by_this_execution` unions the committed diff since the frozen base with the ENTIRE `git status --porcelain`, with no ownership filter. In a shared checkout every concurrent agent's uncommitted file is therefore attributed to whichever plan finalizes first, which demands a `--scope-reason` for work that plan never touched. The two available responses are both wrong: write a false reason into the permanent record, or block indefinitely until every other agent happens to be clean.
-- Scope: Make finalize's out-of-scope attribution consider only paths this execution can be shown to own, so an unowned dirty path disjoint from the plan's frozen `Scope-Paths` and from its own commits stops demanding a reason. Preserves every existing refusal for paths the plan itself changed, for dirty in-scope paths, and for the intervening-commit collision check. Excludes begin's dirty gate (plan `z2isfg`), excludes changing the receipt's location or `base_head` semantics, and excludes any new lease or registry mechanism.
+- Scope: Make finalize's out-of-scope attribution consider only paths this execution can be shown to own, FOR THE WORKING-TREE HALF of the attribution union, so an unowned dirty path disjoint from the plan's frozen `Scope-Paths` and from its own commits stops demanding a reason. Preserves every existing refusal for paths the plan itself changed, for dirty in-scope paths, and for the intervening-commit collision check. Excludes begin's dirty gate (plan `z2isfg`), excludes changing the receipt's location or `base_head` semantics, and excludes any new lease or registry mechanism. EXPLICITLY EXCLUDES the COMMITTED half: a CONCURRENT AGENT'S COMMITTED out-of-scope file still demands a reason after this plan, which is the same defect reached through the other half of the union and is measured in F9. That half needs an ownership signal that does not exist yet (git authorship cannot supply it, since every agent here commits under one identity) and is handed to a named follow-up rather than half-solved here. This plan therefore fixes the working-tree half COMPLETELY and the Concern PARTIALLY, and says so rather than implying the shared-checkout problem is closed.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, tests/test_finalize_scope_ownership.py
 - Item-Dependencies: none
 - Status: to-review
 - Set: scopeattrib
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: lbgzxg
 - Blocks-Release: next
@@ -22,7 +22,9 @@
 
 ## Goal
 
-Attribute by ownership, not by mere dirtiness. A plan that finished its own work and committed it must be able to finalize while an unrelated agent has unrelated files dirty, without either lying in its record or waiting for a condition it does not control. The real guarantee the gate exists to provide, that an out-of-scope path the plan ITSELF changed still demands a reason, must survive intact.
+Attribute by ownership, not by mere dirtiness. A plan that finished its own work and committed it must be able to finalize while an unrelated agent has unrelated files DIRTY, without either lying in its record or waiting for a condition it does not control. The real guarantee the gate exists to provide, that an out-of-scope path the plan ITSELF changed still demands a reason, must survive intact.
+
+HONEST BOUND ON THIS GOAL (F9): "unrelated files dirty" is the whole goal, and it is not the whole problem. When the unrelated agent COMMITS instead of leaving work dirty, its file enters the committed half and finalize still demands a reason, because this plan deliberately does not filter that half. In a repo where concurrent agents commit to the same branch continuously, that residual case is common rather than exotic. This plan makes the working-tree case correct and leaves the committed case for a follow-up that has a real ownership signal to work with; it does not claim to close the shared-checkout attribution problem.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -57,6 +59,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a single test demonstrates begin and finalize reaching the SAME verdict on a disjoint unowned dirty path; it fails against pre-fix code because finalize disagreed; `ipd_lifecycle.begin` is unmodified by this plan.
   - Execution state: pending
 
+- [ ] E-06 Pin the KNOWN RESIDUAL GAP (F9) as an executable test so it cannot be mistaken for fixed, and so the follow-up that closes it has a failing-to-passing target. Add a case to `tests/test_finalize_scope_ownership.py` that builds the F9 state (the plan's own in-scope work committed path-scoped, plus ONE unrelated out-of-scope file committed by a notional concurrent agent under the SAME git identity) and asserts finalize STILL demands a `--scope-reason` for that path after this plan's fix. Name the test and write its docstring so the reader understands this is a DOCUMENTED LIMITATION rather than a passing feature: it pins current post-fix behavior and MUST be inverted by the follow-up deferral, exactly as the repo's characterization pattern intends. Also assert in the same test that git authorship is NOT usable as the discriminator here, by constructing the co-worker commit under the same identity as the executor, so a future implementer cannot reach for `%an` and believe it works.
+  - Depends on: E-02
+  - Expected outcome: a test that PASSES today, encodes the F9 limitation in its name and docstring, names the follow-up that must invert it, and demonstrates the same-identity condition that rules out authorship-based filtering; no attempt is made to fix the committed half in this plan.
+  - Execution state: pending
+
 ## Project conventions discovered (Step 0)
 
 - The defect is REPRODUCIBLE and was reproduced, not inferred. Probe run at HEAD `df731f1` in a throwaway repo: a plan with `Scope-Paths: agent_workflows/demo.py, tests/test_demo.py`, its own work committed, then ONE unrelated untracked file left dirty by a notional co-worker, yields exit 1 and `out-of-scope path needs a --scope-reason: agent_workflows/coworker.py`. Full transcript in F1.
@@ -79,6 +86,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F6 | LOW | the item's fix candidate (3) | ELIMINATED AS THE PRIMARY FIX: an opt-in `--include-worktree` that preserves today's union defaults the BROKEN behavior on, so the defect keeps firing for everyone who does not pass the flag. It is at best an escape hatch layered on candidate (1), not a fix. This plan takes candidate (1) and adds no flag (E-03). | reasoning from the item's own text plus F1's default-path failure |
 | F7 | LOW | `tests/test_ipd_lifecycle_cli.py` | The fixture pattern to copy exists and is proven: `_init_git` writes a `.gitignore` containing `.aw/state/` so the begin receipt does not dirty the tree, and `_completed_plan_text` produces a plan that lints conforming at pre-transition. Reuse these rather than hand-rolling a fixture; note the module is NOT in `Scope-Paths`, so import from it or replicate the helpers, do not edit it. | helper functions read at `df731f1` |
 | F8 | LOW | scenario D probe | A dirty path INSIDE `Scope-Paths` at finalize time is NOT currently an out-of-scope finding and finalize SUCCEEDS (`exit: 0 | out_of_scope: []`). Recorded so the executor does not "fix" a non-defect: in-scope dirtiness is begin's gate, not finalize's, and E-04 case (c) pins today's behavior rather than changing it. | Scenario D probe: an in-scope path dirtied after the in-scope commit, `exit: 0` |
+| F9 | HIGH | `_paths_changed_by_this_execution`, the COMMITTED half | THE FIX IS INCOMPLETE FOR THE STATED CONCERN, and the gap is not a corner case in this repo, it is the common case. The Concern says "in a shared checkout every concurrent agent's uncommitted file is therefore attributed to whichever plan finalizes first". True, but concurrent agents in this repo COMMIT constantly to the same branch (12 consecutive HEAD commits at `ea4da75` belong to at least six different work streams: `plans(revgate)`, `backlog(runverdict)`, `feat(attention)`, `docs(plan) 8h9lap`, `feat(config)`, plus this review's own two). Every such commit lands in `base..HEAD` and therefore in the COMMITTED half, which E-02 deliberately leaves untouched. So after this plan lands, a co-worker's COMMITTED out-of-scope file still demands a `--scope-reason` from an unrelated finalizing plan, which is the SAME false-record-or-block dilemma the Concern describes, reached by a different half of the union. MEASURED, not argued: with the plan's own in-scope work committed path-scoped and one concurrent commit added under the same git identity, finalize exits 1 naming `agent_workflows/other_agents_file.py`. Crucially, git authorship CANNOT rescue this: every agent in this repo commits as the same `user.name`/`user.email` (verified at `ea4da75`), so `%an` cannot separate a co-worker's commit from the executor's own. This does NOT invalidate the plan's approach, and the working-tree half remains worth fixing, but the plan must either extend ownership filtering to the committed half using a real ownership signal or explicitly scope itself to the working-tree half and hand the committed half to a named follow-up. It must NOT keep claiming the Concern is resolved. | Probe at `ea4da75` (own work committed path-scoped, then one concurrent same-identity commit): `exit: 1`, `out_of_scope_paths: ["agent_workflows/other_agents_file.py"]`; `git log --format='%h|%an|%ae' -6` shows a single identity for all recent commits; contrast the co-worker-COMMITTED probe in F1's family, which also exits 1 |
 
 ## Proposed changes (ordered, validatable)
 
@@ -87,17 +95,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 3. Make the disregarded set visible in evidence and in the human message, and record the F3 trade-off honestly (E-03).
 4. Prove both directions, including the no-weakening cases and the accepted regression (E-04).
 5. Pin begin/finalize agreement as its own invariant so the two gates cannot diverge again (E-05).
+6. Pin the residual committed-half gap (F9) as a documented, executable limitation and file its follow-up (E-06).
 
 ## Deferred / out of scope (with reason)
 
 - `begin`'s dirty gate and its isolated-lane scoping are owned by plan `z2isfg` (`lanetruth-02`, approved, `From-Backlog: l6rh0z`). That plan's own Deferred section explicitly assigns ownership-awareness to `077yqc`, i.e. to THIS plan, so the split is agreed on both sides. This plan does not modify `begin`.
 - Building a durable per-path ownership registry (the item's candidate 2) is deferred with the reason recorded in F5: no such data exists today and creating it is a much larger change than the defect warrants.
+- THE COMMITTED HALF of the same defect (F9) is deferred, and this is the most important deferral in this plan because a reader could otherwise believe the shared-checkout problem is closed. A concurrent agent's COMMITTED out-of-scope file still demands a `--scope-reason` from an unrelated finalizing plan after this change. It is deferred rather than fixed because the obvious signal does not work: git authorship cannot distinguish agents here, since every agent commits under a single shared `user.name`/`user.email` (verified at `ea4da75`), so `%an` filtering would be a no-op that LOOKS like a fix. Filtering the committed half by "commits whose message names this plan id" would be prose-matching of exactly the kind `97df1z` replaces with a structured field, so it is not acceptable either. A real fix needs a durable per-path or per-commit ownership record, which is F5's eliminated registry, so the two deferrals collapse into one follow-up. ACTION REQUIRED OF THE EXECUTOR: file that follow-up as a backlog item (carrying the F9 measurement and this reasoning) and record its id in this plan's terminal history, so the residual half is tracked rather than lost. Do NOT attempt it inside this plan.
 - An opt-in `--include-worktree` flag restoring today's union is deferred per F6: it defaults the broken behavior on. If a real need appears, it is a follow-up.
 - Universal worktree isolation (the `wtiso` Set) would remove the shared-tree case entirely, but the gate must be correct regardless, so this plan does not wait on it.
 
 ## Scope check
 
-- Over-scope: none. `agent_workflows/ipd_lifecycle.py` carries F1/F2/F3/F8 and hosts E-01 through E-03; the new test module is required by E-04 and E-05.
+- Over-scope: none. `agent_workflows/ipd_lifecycle.py` carries F1/F2/F3/F8/F9 and hosts E-01 through E-03; the new test module is required by E-04, E-05, and E-06.
+- PARTIAL-FIX DISCLOSURE (F9): this plan resolves its Concern only for the working-tree half of the attribution union. That is a legitimate scope, since the working-tree half is the half with no ownership evidence at all and it is fixable today, but it must be DECLARED rather than discovered by a later reader. The committed half is named under Deferred with a required follow-up and pinned by E-06. A reviewer should reject any report from this plan that describes the shared-checkout attribution defect as closed.
 - Under-scope: NONE OUTSTANDING, and this is deliberate rather than lucky. The fix is confined to one function and one computation loop in a single module. Two modules that MUST stay green without being edited are named explicitly so the fence is checkable: `tests/test_event_derived_lifecycle.py` (asserts `_paths_changed_by_this_execution` by name, see E-01) and `tests/test_ipd_lifecycle_cli.py` (the existing reconciliation and receipt tests, whose behavior E-02 must not disturb for the committed half). Neither is in `Scope-Paths`; if either must change, STOP and report.
 - `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` are NOT needed. The runners call the packaged `aw ipd finalize` surface rather than reimplementing the attribution, so a single fix in `ipd_lifecycle.py` reaches both hosts. This is the reverse of sibling plan `z2isfg`'s situation, where the caller itself needed changing; state this explicitly in V-02 rather than leaving a reader to wonder whether driver symmetry was forgotten. Verify it holds before relying on it, since `oc_runipd.py` defines its own `dirty_tree_overlap` for the MERGE path, which is a different mechanism and is owned by backlog `h1ksy6`.
 
@@ -109,6 +120,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - INVOKE THE SUITE BARE: `python3 -m pytest` and `python3 -m pytest -m ""` (or `make test` / `make test-all`). Do NOT add `-n auto` or a second `-q`.
 - BASELINE IS A MEASUREMENT, NOT A CONSTANT. Fast suite at `df731f1`: `2880 passed, 3 skipped, 4 xfailed`. Take your own before/after readings with their HEAD, and do not treat a mismatch against this figure as a regression you caused. Concurrent agents are committing to this repo while this plan sits in review.
 - End-to-end: reproduce F1's exact conditions (commit the plan's in-scope work, leave ONE unrelated untracked file dirty, finalize with NO `--scope-reason`) and paste the transcript showing the plan now finalizes. Then paste the evidence block showing the disregarded path recorded under E-03's key.
+- ALSO reproduce F9's conditions (the same, but with the unrelated file COMMITTED under the same git identity) and paste the transcript showing finalize STILL demands a reason. This is not a failure of the plan; it is the declared bound, and pasting it is what keeps the record honest. If this case unexpectedly SUCCEEDS, E-02 has leaked into the committed half and V-02's no-weakening proof is invalid, so treat a success here as a defect.
+- The fixture helpers in `tests/test_ipd_lifecycle_cli.py` are importable and were used to reproduce every finding in this plan during review (`_init_git`, `_commit_all`, `_completed_plan_text`, `_write_plan`). Note the real signatures, which the plan's probes had to match: `begin(repo_root, plan_path, actor, *, timestamp)` and `finalize(repo_root, plan_path, actor, message, *, apply=False, scope_reasons=None, ...)`; `finalize_precheck(repo_root, plan_path)` takes NO `base_head` argument. The begin receipt lands at `.aw/state/ipd-lifecycle/<plan_id>.receipt.json`.
 - `aw check-local-leaks . --agent` clean; `aw ipd lint --phase pre-transition` conforming.
 
 ## Spec / documentation sync
@@ -162,10 +175,15 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
+- [ ] V-06 validates E-06
+  - Required evidence: paste the residual-gap test, its name, its docstring, and its passing output, and confirm the docstring names the follow-up backlog item that must invert it. Paste the backlog item id you filed for the committed half per the Deferred section, and confirm it carries the F9 measurement. Then paste proof that the test genuinely exercises the same-identity condition (the git commands showing the co-worker commit was authored under the SAME `user.name`/`user.email` as the executor's), since a test that accidentally uses two identities would not pin the real limitation. State plainly in the terminal history that this plan fixes the working-tree half only and that the committed half remains open; a report implying the shared-checkout attribution problem is closed FAILS this item.
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required. 5 E-leaves across 2 task groups, well under the thresholds. Right-sizing checked per leaf: E-01 is the behavior-neutral split, E-02 the filter, E-03 the visibility and the recorded trade-off, E-04 the test module, E-05 the one cross-gate invariant. Each has its own falsifiable surface.
+- Cohesion rationale: not required. 6 E-leaves across 2 task groups, well under the thresholds. Right-sizing checked per leaf: E-01 is the behavior-neutral split, E-02 the filter, E-03 the visibility and the recorded trade-off, E-04 the test module, E-05 the one cross-gate invariant, E-06 the pinned residual gap. Each has its own falsifiable surface.
 
 Open questions: ALL RESOLVED from repository evidence and direct measurement. OQ-01 accepts a named regression with its mitigation; OQ-02 keeps the intervening-commit check untouched. Nothing here requires a maintainer decision. The maintainer should be aware of ONE judgment call recorded in OQ-01 and F3, which is that this plan deliberately trades a refusal on the executor's own uncommitted out-of-scope work for the ability to finalize at all in a shared checkout; if that trade is unacceptable, the alternative is building the ownership registry ruled out in F5.
 
