@@ -15,12 +15,12 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): PR-006 fix. Normalized this history block to NEWEST-FIRST, the order `ipd_lifecycle._plan_status_events` assumes (it reverses to derive oldest-first). As authored the block was oldest-first, so the derived event stream read `to-review -> draft` and `aw check plans` reported `check.lifecycle-transition-invalid` ("backwards transition") on all 6 detrun plans. Verified pre-existing at pre-review commit `d4d265b6` (6 findings) and 0 after this fix. Content of every entry is unchanged; only line order.
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
-
-- 2026-08-30 draft (antigravity): created.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
-- 2026-08-30 to-review (antigravity): deepened probe specifications, mock injection harness, degraded assurance states, and CLI introspection.
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-002. E-01..E-03 largely duplicate the shipped `host_capability_registry.py` (1593 lines, TTL expiry, unverified default, fail-closed migration, degraded/fail-closed-verified states, 9-class negative probes). The typed host capability contract is ALSO claimed by APPROVED `wtiso-07` (`1o4eif`), so two approved plans would own one contract (BLOCKING OQ-02). E-05 adds code to both runners, fighting APPROVED `rununify` (`5e4sb6`) (BLOCKING OQ-03). Genuine residue: the runner-safety capability vocabulary (greps to zero hits) and the action-to-capability map with fail-closed preflight, as an EXTENSION of the shipped registry. Gate closed. NO-GO.
+- 2026-08-30 to-review (antigravity): deepened probe specifications, mock injection harness, degraded assurance states, and CLI introspection.
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 draft (antigravity): created.
 
 ## Goal
 

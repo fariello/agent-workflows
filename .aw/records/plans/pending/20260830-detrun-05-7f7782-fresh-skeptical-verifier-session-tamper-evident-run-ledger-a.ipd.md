@@ -15,12 +15,12 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): PR-006 fix. Normalized this history block to NEWEST-FIRST, the order `ipd_lifecycle._plan_status_events` assumes (it reverses to derive oldest-first). As authored the block was oldest-first, so the derived event stream read `to-review -> draft` and `aw check plans` reported `check.lifecycle-transition-invalid` ("backwards transition") on all 6 detrun plans. Verified pre-existing at pre-review commit `d4d265b6` (6 findings) and 0 after this fix. Content of every entry is unchanged; only line order.
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
-
-- 2026-08-30 draft (antigravity): created.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
-- 2026-08-30 to-review (antigravity): deepened 13 common deterministic checks, ledger hash chaining, run resume validation, and exit code aggregation.
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001. E-02/E-03/E-04/E-06 are ALREADY SHIPPED: hash-chained append-only ledger with corruption refusal (`run_ledger_store.py`: prev_hash/GENESIS_HASH/BrokenChainError), `aw run show|evidence|verify-ledger` (`run_cli.py`), completion predicates + false-completion validators (`run_evidence.py`), resume/cancel/crash recovery (`run_recovery.py`), plus `run_ledger_schema.py`, `run_freeze.py`, `run_gates.py`. Building a second ledger and a second completion authority in the one component that must be the single trustworthy authority is worse than none: two disagreeing checkers mean neither can authorize completion. Residue: the fresh verifier harness (E-01), after inventorying `run_evidence.py`. Gate closed. NO-GO.
+- 2026-08-30 to-review (antigravity): deepened 13 common deterministic checks, ledger hash chaining, run resume validation, and exit code aggregation.
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 draft (antigravity): created.
 
 ## Goal
 

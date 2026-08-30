@@ -15,12 +15,12 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): PR-006 fix. Normalized this history block to NEWEST-FIRST, the order `ipd_lifecycle._plan_status_events` assumes (it reverses to derive oldest-first). As authored the block was oldest-first, so the derived event stream read `to-review -> draft` and `aw check plans` reported `check.lifecycle-transition-invalid` ("backwards transition") on all 6 detrun plans. Verified pre-existing at pre-review commit `d4d265b6` (6 findings) and 0 after this fix. Content of every entry is unchanged; only line order.
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
-
-- 2026-08-30 draft (antigravity): created.
-- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
-- 2026-08-30 to-review (antigravity): deepened edge cases, From-Spec schema recognition, cycle detection, and grandfathering cutover helpers.
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001. Verified at HEAD `d4d265b6` that E-01..E-09 are ALREADY SHIPPED: `ipd_schema.parse_item_dependencies`/`canonical_item_dependencies` (ipd_schema.py:634,690, executed live), `META_ITEM_DEPENDENCIES` in META_RECOGNIZED (:207), `check_engine.evaluate_ipd_dependencies` with cycle detection (check_engine.py:1750), all six `check.ipd-dependency-*` rules (:121-137), `config.dependency_cutover_date` (config.py:816), phased lint consumption (ipd_lint.py:1046), the `aw ipd dependencies set` verb, the `ipd-dependency-statement-gate` hook, and 626 lines of tests. All graduated from this SAME spec 25kzda by the executed `ipddeps` Set (r7xku3/g69y23/ovbnyq/mp88bl). Only residue: `From-Spec` recognition + `check.from-spec-dangling`. Gate closed. NO-GO.
+- 2026-08-30 to-review (antigravity): deepened edge cases, From-Spec schema recognition, cycle detection, and grandfathering cutover helpers.
+- 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 draft (antigravity): created.
 
 ## Goal
 
