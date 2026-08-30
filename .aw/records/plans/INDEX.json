@@ -3633,6 +3633,26 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md",
+    "plan_id": "plqjt7",
+    "set_id": "revgate",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md",
+    "plan_id": "7nkcgp",
+    "set_id": "revgate",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
@@ -3907,26 +3927,6 @@
     "path": "pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md",
     "plan_id": "8h9lap",
     "set_id": "reposcfg",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md",
-    "plan_id": "plqjt7",
-    "set_id": "revgate",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md",
-    "plan_id": "7nkcgp",
-    "set_id": "revgate",
     "status": "approved"
   },
   {

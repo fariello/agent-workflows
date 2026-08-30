@@ -175,6 +175,19 @@ Classify each finding with:
   overall.
 - **Decision:** `FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`.
 
+Write the findings to BOTH places:
+
+1. The findings table in the final report (below).
+2. A typed review record, `.aw/records/reviews/<...>.review.md`, using the same columns.
+
+The record is what makes a severity readable by tooling. Before it, severity survived only as prose,
+so a `HIGH` left unfixed gated nothing. This is a transcription of the classification you already
+made, not a second classification.
+
+Append a new `## Round <n>` for a re-review rather than editing an earlier round: the gate reads only
+the CURRENT (last) round, so a finding you raised in round 1 and fixed in round 2 correctly stops
+counting against the plan.
+
 ### 2.3 Remediation Risk and Fix Bar
 Overall Remediation Risk is the highest applicable axis rating.
 
@@ -272,6 +285,17 @@ In a genuinely non-interactive or interrupted run:
 For each reviewed plan confirm:
 - Every finding is `FIXED`, `DEFERRED`, `OPEN`, or `REPLAN`.
 - Every deferral meets the Fix Bar.
+- The typed review record was written, and every finding left `OPEN` or `DEFERRED` at or above the
+  repository's gate threshold (`review_findings_gate.block_at` in `.aw/config/project.json`, default
+  `HIGH`) is ALSO raised in the plan as an open question carrying `- Blocking: yes` and
+  `- Finding: <ID>` naming that finding. `check.review-finding-unescalated` enforces this, and the
+  escalated question is then caught by the existing `pre-execution` gate, so an unfixed serious
+  finding actually stops execution instead of merely being reported.
+
+  This does NOT contradict "Severity is for reporting only" below. Severity still does not decide
+  whether to FIX anything: the Fix Bar alone does that, on Remediation Risk. Severity decides only
+  whether a finding you have ALREADY decided not to fix must be surfaced as blocking. Reporting rule
+  unchanged; escalation is about visibility of an unfixed finding, not about the fix decision.
 - Resolved decisions are written into the plan.
 - Required specification and documentation work is included.
 - Tests and validation map to affected invariants.

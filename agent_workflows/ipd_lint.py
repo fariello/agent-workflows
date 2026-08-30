@@ -947,9 +947,18 @@ def lint_text(
     checkpoint: str = "author",
     directory: Optional[str] = None,
     legacy: bool = False,
+    doc: Optional[ParsedDoc] = None,
 ) -> LintResult:
-    """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics)."""
-    doc = parse(text)
+    """Lint IPD source text. Pure: no I/O. Returns a LintResult (disposition + diagnostics).
+
+    ``doc`` lets a caller that has ALREADY parsed ``text`` hand the parse in, so the document is
+    parsed exactly ONCE per lint. ``lint_file`` uses it to share one parse between the pure checks
+    here and its own repo-aware checks (plqjt7 E-02 requires consuming the already-parsed
+    ``doc.open_questions`` rather than re-parsing the plan). Purity is unaffected: parsing is pure,
+    and omitting the argument keeps the original behavior exactly.
+    """
+    if doc is None:
+        doc = parse(text)
     # Legacy/grandfathered: a terminal-dir file evaluated without migration.
     # At post-transition, the just-transitioned plan is evaluated for S405 history agreement.
     if _is_terminal_dir(directory) and not legacy and checkpoint != "post-transition":
@@ -1011,8 +1020,11 @@ def lint_file(
     path: Path, *, checkpoint: str = "author", legacy: bool = False
 ) -> LintResult:
     text = path.read_text(encoding="utf-8")
+    # Parse ONCE and share the parse with the pure linter below, so the repo-aware checks that follow
+    # consume the already-parsed document instead of re-parsing the same text.
+    doc = parse(text)
     result = lint_text(
-        text, checkpoint=checkpoint, directory=_dir_of(path), legacy=legacy
+        text, checkpoint=checkpoint, directory=_dir_of(path), legacy=legacy, doc=doc
     )
     # ipddeps ovbnyq (spec 2.9-2.11): RESOLUTION-level Item-Dependencies checks (dangling / ambiguous
     # / cycle) need the repo, so they run HERE (lint_file has the path -> repo_root) via the ONE
@@ -1050,10 +1062,77 @@ def lint_file(
             ]
             if extra:
                 merged = list(result.diagnostics) + extra
-                return LintResult(S.DISPOSITION_ERROR, merged, list(result.advisories))
+                result = LintResult(
+                    S.DISPOSITION_ERROR, merged, list(result.advisories)
+                )
         except Exception:
             # Resolution is best-effort; a repo-scan failure never masks the pure lint result.
             pass
+    result = _merge_review_escalation(path, result, text, checkpoint, doc)
+    return result
+
+
+# revgate Order 02 (plqjt7 E-02): the review-escalation rule at the two checkpoints where it matters.
+#
+# `review-finalize` is where the reviewer is finishing (the moment to demand the escalation) and
+# `pre-execution` is the last gate before work starts. `pre-transition` is deliberately EXCLUDED: by
+# the time a plan is finalizing, execution already happened, so a gating finding needed to stop it
+# earlier - blocking there would only strand a completed plan.
+_REVIEW_ESCALATION_CHECKPOINTS = frozenset(("review-finalize", "pre-execution"))
+
+
+def _merge_review_escalation(
+    path: Path, result: LintResult, text: str, checkpoint: str, doc: ParsedDoc
+) -> LintResult:
+    """Merge `check.review-finding-unescalated` diagnostics into a LintResult (plqjt7 E-02).
+
+    THIS LIVES IN ``lint_file``, NOT ``lint_text``, and that placement is load-bearing. ``lint_text``
+    is PURE by documented contract ("Pure: no I/O", :func:`lint_text`), and a plan's findings live in
+    a SEPARATE FILE under ``.aw/records/reviews/``, so this check cannot be performed there without
+    breaking that contract. The established precedent is exact: the Item-Dependencies RESOLUTION
+    checks were moved to ``lint_file`` for the same reason (see the comment above, "lint_text is
+    PURE, so it only performs the SYNTAX-level checks here").
+
+    The consequence is intended and is asserted by the tests: a text-only ``lint_text`` call CANNOT
+    report this rule, because it cannot see the separate artifact.
+
+    Delegates to the ONE shared evaluator (``check_engine.evaluate_review_finding_escalation``) so
+    the checkpoint gate and ``aw check`` cannot disagree. Reuses the ALREADY-PARSED
+    ``doc.open_questions`` list rather than re-parsing the plan.
+    """
+    if checkpoint not in _REVIEW_ESCALATION_CHECKPOINTS:
+        return result
+    if result.disposition not in (S.DISPOSITION_CONFORMING, S.DISPOSITION_ERROR):
+        return result  # legacy / quarantined: leave the grandfathered disposition alone
+    try:
+        from agent_workflows import check_engine as _ce
+
+        repo_root = path.resolve().parent
+        for anc in path.resolve().parents:
+            if (anc / ".aw").is_dir() or (anc / ".agents").is_dir():
+                repo_root = anc
+                break
+        extra = [
+            Diagnostic(0, 1, d.rule, d.detail)
+            for d in _ce.evaluate_review_finding_escalation(
+                repo_root,
+                plan_path=path,
+                plan_text=text,
+                open_questions=doc.open_questions,
+            )
+        ]
+        if extra:
+            return LintResult(
+                S.DISPOSITION_ERROR,
+                list(result.diagnostics) + extra,
+                list(result.advisories),
+            )
+    except Exception:
+        # Consistent with the sibling resolution block: a repo-scan failure never masks the pure lint
+        # result. NOTE this is NOT the fail-open path for a malformed artifact - that case is an
+        # explicit reported branch inside the evaluator (E-07(b)), so a bad review file produces a
+        # finding here rather than being swallowed.
+        pass
     return result
 
 

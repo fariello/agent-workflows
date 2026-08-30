@@ -1223,11 +1223,27 @@ def e_item_density_advisory(action: str) -> Optional[str]:
 OQ_HEADING_RE = re.compile(r"^### (OQ-[0-9]{2,}):\s*(.+)$")
 OQ_BLOCKING_VALUES: FrozenSet[str] = frozenset(("yes", "no"))
 OQ_STATUS_VALUES: FrozenSet[str] = frozenset(("open", "resolved", "deferred"))
+#: The open-question subfields this repo names. DOCUMENTATION, NOT ENFORCEMENT: verified that
+#: `OQ_FIELDS` has NO consumer anywhere in the codebase (it is defined here and never read), and
+#: `open_question_error` below validates its four arguments POSITIONALLY, so it is unaffected by any
+#: extra subfield. The parser (`ipd_lint`, the `- Field: value` capture under an `### OQ-NN:` heading)
+#: is deliberately OPEN-ENDED and carries any subfield into the parsed dict.
+#:
+#: `Finding` is the plqjt7 E-08 convention: a blocking question ESCALATING an unfixed review finding
+#: names it as `- Finding: F-3` (comma-separate several). `check.review-finding-unescalated` matches
+#: THIS TYPED FIELD, never the rationale prose - a substring search over prose would be spoofable by
+#: any incidental mention and brittle against rewording. It is OPTIONAL: only a question escalating a
+#: gating finding needs it.
+#:
+#: Because the tuple has no consumer, adding `Finding` here changes NO behavior; it is recorded so an
+#: author reading the schema finds the convention. If a future change makes `OQ_FIELDS` a CLOSED
+#: allowlist, `Finding` must stay in it or every escalation becomes a structural error.
 OQ_FIELDS: Tuple[str, ...] = (
     "Blocking",
     "Status",
     "Owner",
     "Resolution or deferral rationale",
+    "Finding",
 )
 
 

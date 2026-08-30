@@ -74,6 +74,18 @@ SUCCESS_STATES = {"executed", "reviewed", "approved"}
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 
+# revgate Order 03 (7nkcgp) E-08. The EXACT recovery command for a `dependency-blocked` item, stated
+# host-appropriately for this driver. Recovery is NOT automatic: re-queueing happens ONLY under the
+# `if retry_incomplete:` branch of `run_queue`, which is False for a plain `start` and comes from the
+# explicit `--retry-incomplete` flag on `resume`, so a bare `resume` leaves the item blocked. Also
+# pre-existing and NOT changed here: with nothing satisfiable the loop blocks every queued item and
+# BREAKS out of the run.
+DEPENDENCY_BLOCK_RECOVERY_HINT = (
+    "resolve the named cause, then re-queue with "
+    "`aw agy runipd resume --repo <repo> --retry-incomplete <run-id>`; "
+    "a bare `resume` does NOT re-queue a dependency-blocked item"
+)
+
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
@@ -1537,6 +1549,28 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
             f"| {item['position']} | `{item['id6']}` | `{item['setid']}` | `{action}` | "
             f"{item['status']} | `{v_stat}` | {len(attempts)} | `{session}` |"
         )
+    # revgate Order 03 (7nkcgp) E-04: name the ROOT CAUSE in the report an operator actually reads,
+    # not only in events.jsonl. Its own section, so the table's column contract is unchanged.
+    blocked = [
+        item
+        for item in state["queue"]
+        if item.get("status") == "dependency-blocked"
+        and (
+            item.get("unsatisfied_dependencies")
+            or item.get("unsatisfied_dependency_reasons")
+        )
+    ]
+    if blocked:
+        lines.extend(["", "## Dependency blocks (why)", ""])
+        for item in blocked:
+            reasons = item.get("unsatisfied_dependency_reasons") or {}
+            lines.append(f"- `{item['id6']}` (position {item['position']}):")
+            for dep in item.get("unsatisfied_dependencies") or []:
+                detail = reasons.get(dep) or "dependency not satisfied"
+                lines.append(f"  - `{dep}`: {detail}")
+            hint = item.get("dependency_block_recovery")
+            if hint:
+                lines.append(f"  - Recovery: {hint}")
     lines.extend(
         [
             "",
@@ -1584,33 +1618,95 @@ def extract_session_id(log_path: Path) -> str | None:
     return fallback
 
 
+def _findings_block_reason(repo: Path, dep: str) -> str | None:
+    """Return an operator-facing reason ``dep``'s review blocks its dependents, else None.
+
+    revgate Order 03 (7nkcgp) E-02. The MIRROR of ``oc_runipd._findings_block_reason``, and
+    deliberately a thin one: all logic lives in the ONE shared predicate
+    ``review_findings.plan_gating_blocks``, so the two hosts cannot diverge and the gate is not
+    evadable by switching host. This wrapper exists only because neither runner imports the other (the
+    duplication the in-flight `rununify` Set exists to fix); it holds no threshold and no severity
+    comparison of its own.
+    """
+    try:
+        from agent_workflows import review_findings as _rf
+
+        blocks = _rf.plan_gating_blocks(repo, dep)
+    except Exception:
+        return None
+    if not blocks:
+        return None
+    return "; ".join(b.describe() for b in blocks)
+
+
 def dependency_status(
     item: dict[str, Any], state: dict[str, Any]
 ) -> tuple[bool, list[str]]:
+    """(satisfied, unsatisfied-dep-id6s). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
+
+    See :func:`dependency_status_detailed` for the additive per-dependency REASON map.
+    """
+    satisfied, unsatisfied, _reasons = dependency_status_detailed(item, state)
+    return satisfied, unsatisfied
+
+
+def dependency_status_detailed(
+    item: dict[str, Any], state: dict[str, Any]
+) -> tuple[bool, list[str], dict[str, str]]:
+    """As :func:`dependency_status`, plus a ``{dep_id6: reason}`` map naming each ROOT CAUSE.
+
+    revgate Order 03 (7nkcgp) E-01/E-02 + E-04, mirroring ``oc_runipd`` exactly: an execute-action
+    dependency is satisfied by reaching `executed` ONLY IF it also carries no recorded unresolved
+    gating findings, applied to BOTH the in-queue and out-of-queue resolution paths so the gate is not
+    evadable by whether the target is in the same run. A `review`-action item is not findings-gated,
+    since only an `executed:` edge asserts completed-and-verified work.
+    """
     by_id = {entry["id6"]: entry for entry in state["queue"]}
     repo = Path(state["repo"])
     unsatisfied: list[str] = []
+    reasons: dict[str, str] = {}
     is_exec = item.get("action") != "review"
     required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
 
+    def _block(dep: str, reason: str) -> None:
+        unsatisfied.append(dep)
+        reasons[dep] = reason
+
     for dep in item.get("dependencies", []):
         if dep in by_id:
-            if by_id[dep]["status"] not in required_states:
-                unsatisfied.append(dep)
+            dep_status = by_id[dep]["status"]
+            if dep_status not in required_states:
+                _block(
+                    dep,
+                    f"{dep}: queue status is `{dep_status}`, not one of "
+                    f"{sorted(required_states)}",
+                )
+                continue
+            if is_exec:
+                why = _findings_block_reason(repo, dep)
+                if why:
+                    _block(dep, why)
             continue
         try:
             dep_path = resolve_plan_path(repo, "", dep)
         except DriverError:
-            unsatisfied.append(dep)
+            _block(dep, f"{dep}: no plan resolves to this id6 in the repo")
             continue
         bucket = plan_bucket(dep_path)
         if is_exec:
             if bucket != "executed":
-                unsatisfied.append(dep)
+                _block(dep, f"{dep}: plan is in `{bucket}/`, not `executed/`")
+                continue
+            why = _findings_block_reason(repo, dep)
+            if why:
+                _block(dep, why)
         else:
             if bucket not in ("executed", "reviewed", "approved"):
-                unsatisfied.append(dep)
-    return not unsatisfied, unsatisfied
+                _block(
+                    dep,
+                    f"{dep}: plan is in `{bucket}/`, not executed/reviewed/approved",
+                )
+    return not unsatisfied, unsatisfied, reasons
 
 
 def build_review_prompt(
@@ -2733,9 +2829,13 @@ def run_queue(
                 break
         if runnable is None:
             for item in queued:
-                _, missing = dependency_status(item, state)
+                _, missing, why = dependency_status_detailed(item, state)
                 item["status"] = "dependency-blocked"
                 item["unsatisfied_dependencies"] = missing
+                # revgate Order 03 (7nkcgp) E-04: ADDITIVE companion keys; the flat
+                # `unsatisfied_dependencies` list[str] keeps its exact shape for existing consumers.
+                item["unsatisfied_dependency_reasons"] = why
+                item["dependency_block_recovery"] = DEPENDENCY_BLOCK_RECOVERY_HINT
                 append_jsonl(
                     run_dir / "events.jsonl",
                     {
@@ -2743,6 +2843,9 @@ def run_queue(
                         "event": "dependency-blocked",
                         "id6": item["id6"],
                         "dependencies": missing,
+                        # Additive: the flat `dependencies` list above is unchanged.
+                        "reasons": why,
+                        "recovery": DEPENDENCY_BLOCK_RECOVERY_HINT,
                     },
                 )
             save_state(run_dir, state)
@@ -2846,6 +2949,15 @@ def print_status(run_dir: Path) -> None:
             f"{item['position']:02d} {item['id6']} {item['setid']:<12} "
             f"{action:<8} {item['status']:<20}{v} attempts={len(item.get('attempts', []))}"
         )
+        # revgate Order 03 (7nkcgp) E-04: name the cause and the exact recovery command.
+        reasons = item.get("unsatisfied_dependency_reasons") or {}
+        for dep in item.get("unsatisfied_dependencies") or []:
+            print(
+                f"     blocked by {dep}: {reasons.get(dep) or 'dependency not satisfied'}"
+            )
+        hint = item.get("dependency_block_recovery")
+        if hint and item.get("status") == "dependency-blocked":
+            print(f"     recovery: {hint}")
 
 
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
