@@ -1,5 +1,5 @@
 - Id: dhuape
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: dhuape
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: Unify aw oc run and aw agy run onto a shared tool-agnostic runner library
 
 ## Workflow history
+- 2026-08-30 graduated (aw set): design handed off to orchestrator plan 5e4sb6 (rununify-00, to-review, carries From-Backlog: dhuape and Blocks-Release: next); gate preserved via handoff. Divergence RE-MEASURED and materially worse than the item recorded: 37 of 72 shared symbols have drifted (the item's def-name comm method cannot see a drifted same-named function); duplication is ~93 percent. Two premises corrected: the nominated host_adapters/host_launchers home is the wrong layer (a generator and an orchestration layer), the right precedent is host_runner.py which the item never mentions; and run_opencode is host-specific, not a missing feature. ONE open question left for the maintainer (OQ-01, BLOCKING): sequencing against the 21 unexecuted plans that declare these modules, 8+ of which defer to this item while landing duplicated code meanwhile. Recommended interleaved option recorded. Child plans deliberately not pre-written: they must come from E-01's inventory, which is the deliverable the item asks for.
 - 2026-08-28 open (aw set): gate 2.0.0 on unifying the two runners
 - 2026-08-28 created (aw backlog): Unify aw oc run and aw agy run onto a shared tool-agnostic runner library
 
