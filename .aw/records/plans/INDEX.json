@@ -4170,6 +4170,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md",
+    "plan_id": "bds6nd",
+    "set_id": "exittbl",
+    "status": "approved"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

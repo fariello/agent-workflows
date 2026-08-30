@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 178 Sets; the full manifest is INDEX.json.
 
 ## detrun
 
@@ -12,6 +12,10 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 - `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
 - `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
 - `7f7782` [pending] 05 pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
+
+## exittbl
+
+- `bds6nd` [pending] 01 pending/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
 
 ## sessrot
 
@@ -201,16 +205,6 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 ## specid6
 
 - `ha55fi` [executed] 01 executed/20260826-specid6-01-ha55fi-spec-id6-filenames-producer-emits-id6-clustered-names-checke.ipd.md
-
-## agentadhere
-
-- `3b4f8u` [executed] 00 executed/20260825-agentadhere-00-3b4f8u-layered-defense-in-depth-for-reliable-agent-process-adherenc.ipd.md
-- `gfokao` [executed] 01 executed/20260825-agentadhere-01-gfokao-phase-0-threat-model-assurance-classes-invariant-catalog-and.ipd.md
-- `uisjns` [executed] 02 executed/20260825-agentadhere-02-uisjns-phase-1-versioned-policy-schema-and-shared-aw-check-format-j.ipd.md
-- `8dto0g` [executed] 03 executed/20260825-agentadhere-03-8dto0g-phase-2-atomic-aw-work-test-commit-finish-primitives-that-pr.ipd.md
-- `wqj1ne` [executed] 04 executed/20260825-agentadhere-04-wqj1ne-phase-3-event-derived-lifecycle-state-and-declared-file-scop.ipd.md
-- `diundn` [executed] 05 executed/20260825-agentadhere-05-diundn-phase-4-local-git-hooks-that-call-the-shared-checker-and-emi.ipd.md
-- `r2ks4k` [executed] 06 executed/20260825-agentadhere-06-r2ks4k-phase-5-required-ci-and-protected-branch-enforcement-running.ipd.md
 
 ## (singletons: no Set)
 
