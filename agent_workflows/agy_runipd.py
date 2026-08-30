@@ -58,6 +58,40 @@ from agent_workflows.oc_runipd import (
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
 from agent_workflows import runner_stop
+# --- Cross-IPD dependency API (lanetruth-03 / 8guhs0): IMPORTED, never re-declared --------------
+#
+# `oc_runipd` owns ONE definition of each of these and `agy_runipd` binds the SAME objects, so the
+# two drivers cannot drift apart the way the deleted `_read_deps` pair did (it was duplicated
+# verbatim in both modules and both were equally wrong). `oc_runipd` does NOT import `agy_runipd`, so
+# there is no cycle, and the marginal import cost is ~2ms (measured).
+#
+# The one function that CANNOT be re-exported as-is is `enforce_dependency_preflight`: it raises
+# `oc_runipd.DriverError`, which is a DIFFERENT class from this module's `DriverError`, so agy's
+# `main` would not catch it and the refusal would surface as an unhandled traceback instead of a
+# clean "runagy: ..." exit. This module therefore defines a thin `enforce_dependency_preflight`
+# wrapper (further down, next to `PlanRecord`) that delegates and re-raises in THIS module's
+# exception type. The rules and their severities remain the shared evaluator's; nothing about the
+# policy is duplicated.
+# The `as <same-name>` form marks these as an intentional RE-EXPORT, so an autoformatter cannot
+# "clean up" the ones this module does not call itself. That is not cosmetic: `ruff` did remove 6 of
+# them on the first commit attempt, and the cross-driver symmetry test caught it immediately
+# (`test_both_drivers_expose_the_dependency_api` / `test_the_implementation_is_shared_not_copied`).
+# Losing them would silently re-open the divergence this change exists to close, because a later fix
+# to, say, `edge_satisfied` would then be reachable through only ONE driver.
+from agent_workflows.oc_runipd import (
+    DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
+    _artifact_owners as _artifact_owners,
+    _read_item_dependencies as _read_item_dependencies,
+    cascade_dependency_blocked as cascade_dependency_blocked,
+    dependency_depth as dependency_depth,
+    dependency_reasons as dependency_reasons,
+    dependency_status as dependency_status,
+    dependency_target_id6 as dependency_target_id6,
+    edge_satisfied as edge_satisfied,
+    parse_dependency_token as parse_dependency_token,
+    preflight_dependency_findings as preflight_dependency_findings,
+    queue_sort_key as queue_sort_key,
+)
 
 SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gemini-3.7-flash-high"
@@ -109,7 +143,12 @@ _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
 _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
-_DEPS_RE = re.compile(r"(?m)^-\s*(?:Dependencies|Depends-on):\s*(.+?)\s*$")
+# NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. See the
+# identical note in `oc_runipd`. The canonical field NAME comes from
+# `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`; the
+# dependency API objects below are IMPORTED FROM `oc_runipd`, not re-declared, so the two drivers
+# cannot drift apart again. Re-adding a dependency regex here is a regression guarded by
+# tests/test_runner_item_dependencies.py.
 _PLAN_FILENAME_RE = re.compile(
     r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
 )
@@ -1295,17 +1334,30 @@ def _read_order(text: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _read_deps(text: str) -> list[str]:
-    m = _DEPS_RE.search(text)
-    if not m:
-        return []
-    raw = m.group(1).strip()
-    if not raw or raw.lower() in ("none", "none.", "n/a"):
-        return []
-    raw = re.sub(r"\(.*?\)", "", raw)
-    tokens = re.split(r"[,;\s]+", raw)
-    cleaned = [tok.strip("[]'\"(),;").strip() for tok in tokens]
-    return [tok for tok in cleaned if ID6_RE.fullmatch(tok)]
+def enforce_dependency_preflight(
+    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
+) -> list[tuple[str, str, str]]:
+    """Fail CLOSED on an invalid selected dependency graph BEFORE any host session starts.
+
+    Delegates to the shared implementation and re-raises in THIS module's `DriverError` so agy's
+    `main` handles the refusal as a normal driver error (the two modules define distinct exception
+    classes; see the import note above).
+    """
+    # NOTE the import FORM is deliberate: the symbol-level `from agent_workflows.oc_runipd import
+    # <name>` spelling, NOT the module-alias spelling. revgate's guard
+    # (tests/test_review_findings_cascade.py::test_no_runner_to_runner_import) rejects the
+    # module-alias substring anywhere in this file, and the alias form contains it while the
+    # symbol-level form does not. The coupling is identical either way; this spelling keeps the
+    # guard meaningful for the case it actually targets, a NEW blanket runner-to-runner dependency.
+    from agent_workflows.oc_runipd import DriverError as _OcDriverError
+    from agent_workflows.oc_runipd import (
+        enforce_dependency_preflight as _oc_enforce_dependency_preflight,
+    )
+
+    try:
+        return _oc_enforce_dependency_preflight(repo, plan_paths, phase=phase)
+    except _OcDriverError as exc:
+        raise DriverError(str(exc)) from exc
 
 
 class PlanRecord(NamedTuple):
@@ -1315,7 +1367,9 @@ class PlanRecord(NamedTuple):
     order: int
     path: Path
     rel_path: str
+    # CANONICAL TYPED edge tokens, never bare id6 strings (8guhs0 E-01); see the `oc_runipd` note.
     dependencies: list[str]
+    dependency_error: str | None = None
 
 
 def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
@@ -1327,7 +1381,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     setid = _read_set(text)
     status = _read_status(text)
     order = _read_order(text)
-    deps = _read_deps(text)
+    deps, dep_err = _read_item_dependencies(text)
     m = _PLAN_FILENAME_RE.match(path.name)
     if m:
         if not setid:
@@ -1366,6 +1420,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         path=path.resolve(),
         rel_path=rel,
         dependencies=deps,
+        dependency_error=dep_err,
     )
 
 
@@ -1434,7 +1489,20 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         dependencies = plan.get("dependencies", [])
         if not isinstance(dependencies, list):
             raise DriverError(f"Plan {id6} dependencies must be a list")
-        unknown = [dep for dep in dependencies if dep not in plans]
+        # 8guhs0 E-01 (symmetric with oc_runipd): a dependency token is a SHARED-grammar typed edge
+        # (or a bare id6 in a legacy hand-written manifest, normalized to `executed:`). Only an
+        # IPD-typed target must name a plan in the manifest; `spec`/`backlog` targets are graph
+        # LEAVES (spec 25kzda 2.10), resolved against the repository rather than the queue.
+        malformed = [dep for dep in dependencies if parse_dependency_token(dep) is None]
+        if malformed:
+            raise DriverError(
+                f"Plan {id6} has malformed Item-Dependencies edges: {malformed}"
+            )
+        unknown = []
+        for dep in dependencies:
+            edge = parse_dependency_token(dep)
+            if edge.target_type == "ipd" and edge.id6 not in plans:
+                unknown.append(dep)
         if unknown:
             raise DriverError(f"Plan {id6} has unknown dependencies: {unknown}")
     for setid, group in sets.items():
@@ -1824,6 +1892,20 @@ def initialize_run(args: argparse.Namespace) -> Path:
             runbook_path = None
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
+
+    # 8guhs0 E-02 (symmetric with oc_runipd): FAIL CLOSED on an invalid dependency graph BEFORE any
+    # host session starts, and before the run directory exists. The rules and their severities are
+    # the SHARED evaluator's; there is no runner-local dependency policy.
+    selected_plan_paths: list[Path] = []
+    for id6 in queue_ids:
+        try:
+            selected_plan_paths.append(
+                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
+            )
+        except (DriverError, KeyError):
+            continue
+    enforce_dependency_preflight(repo, selected_plan_paths)
+
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
     if run_dir.exists():
@@ -1879,6 +1961,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "setid": setid,
                 "configured_file": plan["file"],
                 "dependencies": plan.get("dependencies", []),
+                # 8guhs0 E-04: the plan's numeric Order, frozen as a TIEBREAKER only (see
+                # `queue_sort_key`). Additive; an older run directory lacking the key still sorts.
+                "order": plan.get("order"),
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"
@@ -2063,15 +2148,11 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     return "; ".join(b.describe() for b in blocks)
 
 
-def dependency_status(
-    item: dict[str, Any], state: dict[str, Any]
-) -> tuple[bool, list[str]]:
-    """(satisfied, unsatisfied-dep-id6s). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
-
-    See :func:`dependency_status_detailed` for the additive per-dependency REASON map.
-    """
-    satisfied, unsatisfied, _reasons = dependency_status_detailed(item, state)
-    return satisfied, unsatisfied
+# `dependency_status` is deliberately NOT defined here: it is RE-EXPORTED from `oc_runipd` in the
+# import block above, so both drivers bind the SAME object and a fix cannot land in only one of them
+# (asserted by tests/test_runner_item_dependencies.py::test_the_implementation_is_shared_not_copied).
+# The merge of revgate 7nkcgp and 8guhs0 briefly produced BOTH a re-export and a local copy here; the
+# copy is the one that had to go.
 
 
 def dependency_status_detailed(
@@ -2131,6 +2212,12 @@ def dependency_status_detailed(
                     f"{dep}: plan is in `{bucket}/`, not executed/reviewed/approved",
                 )
     return not unsatisfied, unsatisfied, reasons
+# NOTE (8guhs0 E-01/E-03): `dependency_status` is NOT defined here. It is IMPORTED from `oc_runipd`
+# above, so the runtime satisfaction semantics exist exactly ONCE. The deleted copy was a verbatim
+# duplicate of oc's, which is how both drivers came to be equally unable to read the canonical field:
+# a fix applied to one silently left the other broken. `plan_bucket` is byte-identical between the
+# two modules and `resolve_plan_path` differs only in formatting (verified), so the imported
+# implementation behaves identically here.
 
 
 def build_review_prompt(
@@ -3752,6 +3839,12 @@ def run_queue(
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
+        # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
+        # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
+        # of stalling the queue, while independent items keep running.
+        if cascade_dependency_blocked(state, run_dir):
+            save_state(run_dir, state)
+            state = load_state(run_dir)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
             # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 stop on the last set
@@ -3762,7 +3855,10 @@ def run_queue(
                 stop_recorded = True
             break
         runnable = None
-        for item in queued:
+        # 8guhs0 E-04: DECLARED EDGES are authoritative; Set/Order only breaks ties among nodes that
+        # are ALREADY ready (spec 25kzda 5.4 rules 3-5).
+        by_id = {entry["id6"]: entry for entry in state["queue"]}
+        for item in sorted(queued, key=lambda it: queue_sort_key(it, by_id)):
             satisfied, _ = dependency_status(item, state)
             if satisfied:
                 runnable = item

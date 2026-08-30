@@ -1634,25 +1634,42 @@ class RunipdBugsFixesTests(unittest.TestCase):
         self.assertEqual(missing, [])
 
     def test_read_deps_and_set_parsing(self):
-        # Bracketed YAML array
-        text1 = '- Dependencies: [5ahblp, pr2nd0]\n- Set: "my-set" (descriptive)'
-        self.assertEqual(driver._read_deps(text1), ["5ahblp", "pr2nd0"])
-        self.assertEqual(driver._read_set(text1), "my-set")
+        # lanetruth-03 (8guhs0) E-01 / OQ-01: the LEGACY `Dependencies:`/`Depends-on:` field is
+        # REMOVED, along with the private `_read_deps` parser that read it. Measured at execution:
+        # zero plans in the tree used the legacy field, while the canonical
+        # `- Item-Dependencies:` statement it shadowed was invisible to the runner. These assertions
+        # were rewritten (they previously asserted the legacy field parsed) so they now pin the
+        # CANONICAL behavior. The `_read_set` assertions below are unchanged.
+        # Canonical typed statement: read through the SHARED grammar, qualifiers preserved.
+        canonical = (
+            "# IPD: aaaaaa\n\n- Id: aaaaaa\n"
+            '- Set: "my-set" (descriptive)\n'
+            "- Item-Dependencies: executed:5ahblp, exists:spec:pr2nd0\n\n## Goal\n"
+        )
+        self.assertEqual(
+            driver._read_item_dependencies(canonical),
+            (["executed:5ahblp", "exists:spec:pr2nd0"], None),
+        )
+        self.assertEqual(driver._read_set(canonical), "my-set")
 
-        # Quoted YAML array
-        text2 = "- Depends-on: ['5ahblp', 'pr2nd0']\n- Set: 'custom-set'"
-        self.assertEqual(driver._read_deps(text2), ["5ahblp", "pr2nd0"])
-        self.assertEqual(driver._read_set(text2), "custom-set")
+        # The legacy field names no longer contribute dependencies.
+        legacy1 = '- Dependencies: [5ahblp, pr2nd0]\n- Set: "my-set" (descriptive)'
+        self.assertEqual(driver._read_item_dependencies(legacy1), ([], None))
+        self.assertEqual(driver._read_set(legacy1), "my-set")
 
-        # Inline notes / parentheticals
-        text3 = "- Dependencies: 5ahblp (first step), pr2nd0 (second step)"
-        self.assertEqual(driver._read_deps(text3), ["5ahblp", "pr2nd0"])
+        legacy2 = "- Depends-on: ['5ahblp', 'pr2nd0']\n- Set: 'custom-set'"
+        self.assertEqual(driver._read_item_dependencies(legacy2), ([], None))
+        self.assertEqual(driver._read_set(legacy2), "custom-set")
 
-        # None / empty / n/a
-        self.assertEqual(driver._read_deps("- Dependencies: None"), [])
-        self.assertEqual(driver._read_deps("- Dependencies: none."), [])
-        self.assertEqual(driver._read_deps("- Dependencies: n/a"), [])
-        self.assertEqual(driver._read_deps("- Dependencies: "), [])
+        # The deleted private parser is gone from the module surface.
+        self.assertFalse(hasattr(driver, "_read_deps"))
+        self.assertFalse(hasattr(driver, "_DEPS_RE"))
+
+        # `none` / `unresolved` / absent all mean "no edges" (the MISSING-vs-`none` judgement
+        # belongs to the shared evaluator, not the runner; see 8guhs0 OQ-02).
+        for value in ("none", "unresolved", ""):
+            text = f"# IPD: aaaaaa\n\n- Id: aaaaaa\n- Item-Dependencies: {value}\n\n## Goal\n"
+            self.assertEqual(driver._read_item_dependencies(text), ([], None))
 
     def test_atomic_write_json_directory_fsync_suppresses_oserror(self):
         with tempfile.TemporaryDirectory() as t:

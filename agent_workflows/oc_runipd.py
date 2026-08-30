@@ -151,7 +151,14 @@ _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
 _ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 _KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
-_DEPS_RE = re.compile(r"(?m)^-\s*(?:Dependencies|Depends-on):\s*(.+?)\s*$")
+# NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. The runner
+# used to carry a private `_DEPS_RE` matching a LEGACY `Dependencies:`/`Depends-on:` field that no
+# plan in the tree uses, so the canonical `- Item-Dependencies:` statement was invisible and every
+# queue item froze with `dependencies: []`. The canonical field NAME comes from
+# `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`
+# (see `_read_item_dependencies`). Spec 25kzda 2.10: "All surfaces call this evaluator; none
+# reimplement the rules." Re-adding a dependency regex here is a regression guarded by
+# tests/test_runner_item_dependencies.py.
 _PLAN_FILENAME_RE = re.compile(
     r"^\d{8}-([a-z0-9_-]+)-(\d{1,3})-([a-z0-9]{6})-(.+)\.(ipd|draft|plan)\.md$"
 )
@@ -1522,17 +1529,39 @@ def _read_kind(text: str) -> str | None:
     return m.group(1).lower() if m else None
 
 
-def _read_deps(text: str) -> list[str]:
-    m = _DEPS_RE.search(text)
-    if not m:
-        return []
-    raw = m.group(1).strip()
-    if not raw or raw.lower() in ("none", "none.", "n/a"):
-        return []
-    raw = re.sub(r"\(.*?\)", "", raw)
-    tokens = re.split(r"[,;\s]+", raw)
-    cleaned = [tok.strip("[]'\"(),;").strip() for tok in tokens]
-    return [tok for tok in cleaned if ID6_RE.fullmatch(tok)]
+def _read_item_dependencies(text: str) -> tuple[list[str], str | None]:
+    """Read the plan's canonical `- Item-Dependencies:` statement as CANONICAL TYPED edge tokens.
+
+    Returns ``(edges, error)`` where ``edges`` is the list of canonical edge strings (e.g.
+    ``["executed:af7i6p", "exists:spec:d4e5f6", "state:backlog:done:g7h8j9"]``) and ``error`` is the
+    shared parser's message for a malformed statement (else None). `none`, `unresolved`, an empty
+    value, and an absent field all yield ``([], None)``; the MISSING-vs-`none` distinction is NOT the
+    runner's to judge (see `preflight_dependency_findings` and 8guhs0 OQ-02).
+
+    THE QUALIFIER IS PRESERVED, NOT STRIPPED. The deleted `_read_deps` kept only bare id6 tokens,
+    which would have silently degraded `exists:spec:<id6>` into an untyped id6 with different
+    release semantics (plan finding F4). The satisfaction rule depends on the kind, so the typed
+    token is what the record and the frozen queue must carry.
+
+    Two shared authorities, no private parsing: the field NAME is `ipd_schema`'s constant and the
+    metadata block is read by `ipd_lint.parse` (the same structural, fence-aware reader the lint and
+    lifecycle surfaces use, measured byte-identical to `check_engine`'s extraction across the whole
+    plans tree); the VALUE grammar is `ipd_schema.parse_item_dependencies`.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+
+    try:
+        fields = _lint.parse(text).meta_fields
+    except Exception:
+        return [], None
+    raw = fields.get(_schema.META_ITEM_DEPENDENCIES)
+    if raw is None:
+        return [], None
+    edges, _ready, err = _schema.parse_item_dependencies(raw)
+    if err:
+        return [], err
+    return [edge.canonical() for edge in edges], None
 
 
 class PlanRecord(NamedTuple):
@@ -1542,8 +1571,13 @@ class PlanRecord(NamedTuple):
     order: int
     path: Path
     rel_path: str
+    # CANONICAL TYPED edge tokens (`executed:<id6>` / `exists:<type>:<id6>` /
+    # `state:<type>:<status>:<id6>`), never bare id6 strings: the qualifier decides the satisfaction
+    # rule (`dependency_status`). `dependency_error` carries the shared parser's message when the
+    # statement is malformed, so preflight can fail closed instead of silently seeing no edges.
     dependencies: list[str]
     kind: str | None = None
+    dependency_error: str | None = None
 
 
 def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
@@ -1555,7 +1589,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     setid = _read_set(text)
     status = _read_status(text)
     order = _read_order(text)
-    deps = _read_deps(text)
+    deps, dep_err = _read_item_dependencies(text)
     kind = _read_kind(text)
     m = _PLAN_FILENAME_RE.match(path.name)
     if m:
@@ -1596,6 +1630,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         rel_path=rel,
         dependencies=deps,
         kind=kind,
+        dependency_error=dep_err,
     )
 
 
@@ -1621,6 +1656,35 @@ def discover_plans(repo: Path) -> dict[str, PlanRecord]:
             if rec:
                 plans[rec.id6] = rec
     return plans
+
+
+def parse_dependency_token(token: str) -> Any:
+    """Resolve ONE frozen dependency token to a shared `ipd_schema.ItemDependency`, or None.
+
+    The token grammar is the SHARED one (`parse_item_dependencies`); nothing is parsed here. The one
+    accommodation is a BARE id6, which a hand-written manifest JSON may still carry (the shipped
+    `tools/ipdrunner/*-driver-manifest.json` does): it is normalized to the `executed:<id6>` edge,
+    which is what the pre-8guhs0 driver's bare deps already MEANT (`dependency_status` required the
+    target to be in `executed/`). Plan FILES never take this path; their statements are read by
+    `_read_item_dependencies` and are already canonical typed tokens.
+    """
+    from agent_workflows import ipd_schema as _schema
+
+    tok = str(token).strip()
+    if not tok:
+        return None
+    edges, _ready, err = _schema.parse_item_dependencies(tok)
+    if not err and len(edges) == 1:
+        return edges[0]
+    if ID6_RE.fullmatch(tok):
+        return _schema.ItemDependency("executed", "ipd", None, tok)
+    return None
+
+
+def dependency_target_id6(token: str) -> str | None:
+    """The target id6 of a dependency token (None when the token is not a legal edge)."""
+    edge = parse_dependency_token(token)
+    return edge.id6 if edge is not None else None
 
 
 def build_dynamic_manifest(
@@ -1665,7 +1729,20 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
         dependencies = plan.get("dependencies", [])
         if not isinstance(dependencies, list):
             raise DriverError(f"Plan {id6} dependencies must be a list")
-        unknown = [dep for dep in dependencies if dep not in plans]
+        # 8guhs0 E-01: a dependency token is a SHARED-grammar typed edge (or a bare id6 in a legacy
+        # hand-written manifest, normalized to `executed:`). Only IPD-typed targets must name a plan
+        # in the manifest; a `spec`/`backlog` target is a graph LEAF (spec 25kzda 2.10) and is
+        # resolved against the repository, not the queue.
+        malformed = [dep for dep in dependencies if parse_dependency_token(dep) is None]
+        if malformed:
+            raise DriverError(
+                f"Plan {id6} has malformed Item-Dependencies edges: {malformed}"
+            )
+        unknown = []
+        for dep in dependencies:
+            edge = parse_dependency_token(dep)
+            if edge.target_type == "ipd" and edge.id6 not in plans:
+                unknown.append(dep)
         if unknown:
             raise DriverError(f"Plan {id6} has unknown dependencies: {unknown}")
     for setid, group in sets.items():
@@ -1989,6 +2066,77 @@ def state_root(repo: Path) -> Path:
     return repo / ".aw" / "records" / "runs"
 
 
+# Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
+# maps `check.ipd-dependency-ambiguous` to the `fatal` identity/type-ambiguity class, and 5.4 rule 1
+# says "identity/type ambiguity aborts the run"; every other dependency finding fails only the
+# affected graph component.
+DEPENDENCY_FATAL_RULES = frozenset(("check.ipd-dependency-ambiguous",))
+
+
+def preflight_dependency_findings(
+    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
+) -> list[tuple[str, str, str]]:
+    """Run the SHARED dependency evaluator over the selected plans. Returns [(location, rule, msg)].
+
+    E-02 DELEGATES ENTIRELY: this calls `check_engine.evaluate_ipd_dependencies` with a BLOCKING
+    phase and surfaces whatever it returns, naming the shared `check.ipd-*dependency*` rules. There
+    is deliberately NO runner-local dependency policy here, and in particular NO runner-local branch
+    for the MISSING-statement case.
+
+    WHY NO MISSING-STATEMENT BRANCH (8guhs0 OQ-02, resolved from repository evidence; see orchestrator
+    y0gg8o OQ-03): the decision is the evaluator's plus the cutover marker's, not the runner's. The
+    marker gates it (`config.dependency_cutover_date`), an ABSENT marker grandfathers every existing
+    plan, and spec 2.10's severity column for `check.ipd-missing-dependency-statement` is itself
+    phase-and-provenance conditional, so severity belongs to the evaluator. `ipd_lint` already encodes
+    exactly this deferral. A runner that refused a fieldless plan on its own authority would be
+    STRICTER than `aw check` and `aw ipd lint`, recreating the very divergence 8guhs0 exists to
+    remove and violating 2.10's "none reimplement the rules". If a maintainer later SETS the cutover
+    marker, fieldless plans begin failing preflight automatically, with no change here.
+    """
+    from agent_workflows import check_engine as _ce
+
+    plans: list[tuple[Path, str]] = []
+    for path in plan_paths:
+        try:
+            plans.append((path, path.read_text(encoding="utf-8")))
+        except OSError:
+            continue
+    if not plans:
+        return []
+    drift = _ce.evaluate_ipd_dependencies(repo, phase=phase, plans=plans)
+    return [(d.location, d.rule, d.detail) for d in drift]
+
+
+def enforce_dependency_preflight(
+    repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
+) -> list[tuple[str, str, str]]:
+    """Fail CLOSED on an invalid selected dependency graph BEFORE any host session starts.
+
+    Raises `DriverError` when the shared evaluator reports any finding for the selected plans, so a
+    malformed/dangling/ambiguous/cyclic/self-edge statement (and the `unresolved` scaffold sentinel)
+    refuses the run at freeze time rather than after a session has already mutated the repository.
+    Returns the findings list (empty) when the graph is valid, so a caller can record "checked, clean".
+    """
+    findings = preflight_dependency_findings(repo, plan_paths, phase=phase)
+    if not findings:
+        return findings
+    fatal = [f for f in findings if f[1] in DEPENDENCY_FATAL_RULES]
+    lines = [f"  {rule}: {msg} [{loc}]" for loc, rule, msg in findings]
+    label = (
+        "run ABORTED (identity/type ambiguity is fatal)"
+        if fatal
+        else "run refused before any session started"
+    )
+    raise DriverError(
+        "dependency preflight failed: "
+        + label
+        + " - the selected IPDs' `- Item-Dependencies:` statements did not pass the shared "
+        f"evaluator at phase {phase!r}:\n"
+        + "\n".join(lines)
+        + "\nFix with `aw ipd dependencies set <id6> none|<edge>...`, then re-run."
+    )
+
+
 DEFAULT_RUNBOOK_TEXT = """# IPD Autonomous Execution Runbook
 
 This runbook guides autonomous non-interactive execution of approved Implementation
@@ -2038,6 +2186,20 @@ def initialize_run(args: argparse.Namespace) -> Path:
             runbook_path = None
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
+
+    # 8guhs0 E-02: FAIL CLOSED on an invalid dependency graph BEFORE any host session starts (and
+    # before the run directory exists, so a refused run leaves no durable state to reconcile). The
+    # rules and their severities are the SHARED evaluator's; see `enforce_dependency_preflight`.
+    selected_plan_paths: list[Path] = []
+    for id6 in queue_ids:
+        try:
+            selected_plan_paths.append(
+                resolve_plan_path(repo, manifest["plans"][id6].get("file", ""), id6)
+            )
+        except (DriverError, KeyError):
+            continue
+    enforce_dependency_preflight(repo, selected_plan_paths)
+
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
     if run_dir.exists():
@@ -2104,6 +2266,10 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "setid": setid,
                 "configured_file": plan["file"],
                 "dependencies": plan.get("dependencies", []),
+                # 8guhs0 E-04: the plan's numeric Order, frozen for use as a TIEBREAKER only (see
+                # `queue_sort_key`). Additive: an older run directory lacking the key still sorts
+                # (the comparator defaults it), so existing runs resume unchanged.
+                "order": plan.get("order"),
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"
@@ -2299,12 +2465,115 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     if not blocks:
         return None
     return "; ".join(b.describe() for b in blocks)
+def _artifact_owners(repo: Path, record_type: str, id6: str) -> list[tuple[str, str]]:
+    """Owners of ``id6`` of ``record_type`` as ``[(status, path)]`` via the SHARED identity index.
+
+    Reuses `check_engine.build_dependency_index` (the same index the shared evaluator resolves edges
+    with), so the runner and `aw check` cannot disagree about what an id6 names. Empty list = the
+    target does not exist (dangling); more than one = ambiguous.
+    """
+    try:
+        from agent_workflows import check_engine as _ce
+
+        index = _ce.build_dependency_index(repo)
+    except Exception:
+        return []
+    return [
+        (st or "", path)
+        for rt, st, path in index.owners.get(id6, [])
+        if rt == record_type
+    ]
+
+
+def edge_satisfied(
+    edge: Any,
+    item: dict[str, Any],
+    state: dict[str, Any],
+    by_id: dict[str, dict[str, Any]],
+) -> tuple[bool, str]:
+    """Is ONE typed edge satisfied? Returns ``(satisfied, reason)``; ``reason`` is "" when satisfied.
+
+    WHY THIS LIVES IN THE RUNNER AND NOT IN THE SHARED EVALUATOR (8guhs0 F7; spec 25kzda 2.9 vs
+    2.10). Spec 2.10's "All surfaces call this evaluator; none reimplement the rules" governs the
+    STATIC rules: malformed, dangling, ambiguous, cyclic, missing-at-phase. Those are delegated
+    wholesale to `check_engine.evaluate_ipd_dependencies` in `preflight_dependency_findings`, and
+    NOTHING of them is re-implemented here. What follows is spec 2.9's RUNTIME wait/release
+    semantics, which that evaluator structurally CANNOT answer: its signature is
+    `evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift]` and it has no
+    notion of a run, a queue, an item's outcome, or `verified` (verified by inspection: those words
+    do not appear in its body). "Is this prerequisite verified IN THIS RUN yet?" is a question about
+    run state, and run state lives here. So this is NOT a second implementation of the shared rules,
+    and it must not be "consolidated" into the static evaluator: doing so would break both, because
+    the static evaluator is called from `aw check`/lint/hook contexts that have no run at all. The
+    IDENTITY index is still shared (`_artifact_owners` -> `check_engine.build_dependency_index`), so
+    only the run-state judgement is local.
+    """
+    repo = Path(state["repo"])
+    is_exec = item.get("action") != "review"
+    tok = edge.canonical()
+
+    if edge.kind == "executed":
+        # spec 2.9: the target must be terminally executed with valid finalization evidence, or, if
+        # it is IN THIS RUN, its current outcome must be `verified`.
+        entry = by_id.get(edge.id6)
+        if entry is not None:
+            required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
+            if entry.get("status") not in required_states:
+                return False, (
+                    f"{tok}: in-run target {edge.id6} is {entry.get('status')!r}, "
+                    f"needs one of {sorted(required_states)}"
+                )
+            return True, ""
+        # Outside the queue: evaluated from frozen repository state. There is no
+        # `--with-dependencies` closure in this runner, so an unsatisfied external target simply
+        # cannot be met in this run.
+        try:
+            dep_path = resolve_plan_path(repo, "", edge.id6)
+        except DriverError as exc:
+            return False, f"{tok}: {exc}"
+        bucket = plan_bucket(dep_path)
+        allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
+        if bucket not in allowed:
+            return False, (
+                f"{tok}: external target {edge.id6} is in {bucket!r}, needs one of {list(allowed)} "
+                "(it is not in this run, so it cannot become satisfied here)"
+            )
+        return True, ""
+
+    from agent_workflows import ipd_schema as _schema
+
+    record_type = _schema.ITEM_DEP_TYPE_TO_RECORD_TYPE.get(edge.target_type)
+    owners = _artifact_owners(repo, record_type or "", edge.id6)
+    if not owners:
+        return False, f"{tok}: no {edge.target_type} artifact has id6 {edge.id6}"
+    if len(owners) > 1:
+        return False, (
+            f"{tok}: id6 {edge.id6} matches multiple {edge.target_type} artifacts "
+            f"({', '.join(p for _s, p in owners)})"
+        )
+    status = owners[0][0]
+
+    if edge.kind == "exists":
+        # spec 2.9: evaluated immediately from current repository state; NEVER waits for the target
+        # to run, whatever its status.
+        return True, ""
+
+    # `state:` - the EXACT status is required. An already-satisfied `state:` edge is immediately
+    # releasable (this returns True right away, no waiting); the scheduler's obligation is to run the
+    # dependent BEFORE advancing the target away from that status, which holds here because the
+    # runner never mutates a `spec`/`backlog` target, and an in-queue IPD target that would advance
+    # is ordered AFTER its dependent by `queue_sort_key` (dependency depth).
+    if status != edge.status:
+        return False, (
+            f"{tok}: {edge.target_type} {edge.id6} is {status!r}, needs exactly {edge.status!r}"
+        )
+    return True, ""
 
 
 def dependency_status(
     item: dict[str, Any], state: dict[str, Any]
 ) -> tuple[bool, list[str]]:
-    """(satisfied, unsatisfied-dep-id6s). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
+    """(satisfied, unsatisfied-dep-tokens). Shape UNCHANGED: `unsatisfied` stays a flat list[str].
 
     See :func:`dependency_status_detailed` for the additional per-dependency REASON map, which is a
     strictly additive companion so every existing consumer of the flat list keeps working.
@@ -2316,70 +2585,182 @@ def dependency_status(
 def dependency_status_detailed(
     item: dict[str, Any], state: dict[str, Any]
 ) -> tuple[bool, list[str], dict[str, str]]:
-    """As :func:`dependency_status`, plus a ``{dep_id6: reason}`` map naming each ROOT CAUSE.
+    """As :func:`dependency_status`, plus a ``{dep_token: reason}`` map naming each ROOT CAUSE.
 
-    revgate Order 03 (7nkcgp) E-01 + E-04. Two things changed here relative to the pre-Order-03
-    behavior, and only two:
+    COMBINES revgate Order 03 (7nkcgp) with 8guhs0 (lanetruth-03), which both rewrote this function.
+    Resolved at merge time on the maintainer's decision to keep BOTH behaviors rather than pick a
+    side: 8guhs0's typed-token parsing runs FIRST and its per-edge verdict is delegated to
+    `edge_satisfied`, then revgate's findings gate and reason map are layered on the result.
 
-    1. An `executed:`-style (execute-action) dependency is satisfied by reaching `executed` ONLY IF
-       it ALSO carries no recorded unresolved gating findings. Applied to BOTH resolution paths - the
-       in-queue path (status in ``EXECUTION_SUCCESS_STATES``) and the out-of-queue path
-       (``bucket == "executed"``) - because otherwise the gate would be evadable purely by whether the
-       target happens to be in the same run's queue.
-    2. Every unsatisfied dependency gets a reason string, so `dependency-blocked` can say WHY rather
-       than only that something was not satisfied.
+    From 8guhs0: each dependency is a CANONICAL TYPED token, resolved through the shared grammar
+    before use. This closes its finding F8 - the pre-8guhs0 code used each `dep` BOTH as a queue dict
+    key and as a bare id6, so an unconverted `"executed:af7i6p"` matched neither and landed in
+    `unsatisfied`, BLOCKING a dependent that was actually ready. Failure direction was over-blocking,
+    not wrongly admitting.
+
+    From revgate 7nkcgp: an `executed:`-style (execute-action) dependency is satisfied by reaching
+    `executed` ONLY IF it also carries no recorded unresolved gating findings, applied to BOTH the
+    in-queue and out-of-queue resolution paths so the gate is not evadable by queue membership; and
+    every unsatisfied dependency gets a reason string so `dependency-blocked` can say WHY.
 
     A `review`-action item is deliberately NOT findings-gated: only an `executed:` edge asserts that
-    work was completed and verified, so only it should require findings to be clean (the plan's
-    Deferred section keeps `exists:`/`state:` semantics untouched).
+    work was completed and verified.
     """
     by_id = {entry["id6"]: entry for entry in state["queue"]}
     repo = Path(state["repo"])
     unsatisfied: list[str] = []
     reasons: dict[str, str] = {}
     is_exec = item.get("action") != "review"
-    required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
 
     def _block(dep: str, reason: str) -> None:
         unsatisfied.append(dep)
         reasons[dep] = reason
 
     for dep in item.get("dependencies", []):
-        if dep in by_id:
-            dep_status = by_id[dep]["status"]
-            if dep_status not in required_states:
-                _block(
-                    dep,
-                    f"{dep}: queue status is `{dep_status}`, not one of "
-                    f"{sorted(required_states)}",
-                )
-                continue
-            # In-queue AND nominally successful: still refuse on unresolved gating findings.
-            if is_exec:
-                why = _findings_block_reason(repo, dep)
-                if why:
-                    _block(dep, why)
+        dep = str(dep)
+        # 8guhs0: parse the typed token FIRST, so the id6 and the queue key both come from the
+        # parsed edge and never from the raw string.
+        edge = parse_dependency_token(dep)
+        if edge is None:
+            # Fail closed: an unparseable token is never "no dependency". Preflight refuses such a
+            # run before any session starts; this is the belt-and-braces path for a hand-edited
+            # state.json.
+            _block(dep, f"{dep}: unparseable dependency token")
             continue
-        try:
-            dep_path = resolve_plan_path(repo, "", dep)
-        except DriverError:
-            _block(dep, f"{dep}: no plan resolves to this id6 in the repo")
+        ok, reason = edge_satisfied(edge, item, state, by_id)
+        if not ok:
+            # Report the token AS DECLARED, not its canonical rewrite: `unsatisfied_dependencies` is
+            # written into durable run records.
+            _block(dep, reason or f"{dep}: dependency not satisfied")
             continue
-        bucket = plan_bucket(dep_path)
+        # revgate: the edge is satisfied structurally; for an execute-action dependency ALSO refuse
+        # on unresolved gating findings. Uses the parsed edge's target id6, not the raw token.
         if is_exec:
-            if bucket != "executed":
-                _block(dep, f"{dep}: plan is in `{bucket}/`, not `executed/`")
-                continue
-            why = _findings_block_reason(repo, dep)
+            target = dependency_target_id6(edge) or dep
+            why = _findings_block_reason(repo, target)
             if why:
                 _block(dep, why)
-        else:
-            if bucket not in ("executed", "reviewed", "approved"):
-                _block(
-                    dep,
-                    f"{dep}: plan is in `{bucket}/`, not executed/reviewed/approved",
-                )
     return not unsatisfied, unsatisfied, reasons
+
+
+def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
+    """Longest declared in-queue prerequisite chain ending at ``id6`` (0 = no in-queue prerequisite).
+
+    Only IPD-typed edges whose target is IN THE QUEUE contribute: an external target or a
+    `spec`/`backlog` leaf is not a queue node and cannot order the queue. Cycle-safe (a cycle is
+    already refused by preflight, but a hand-edited state.json must not hang the scheduler here).
+    """
+
+    def _depth(node: str, seen: frozenset[str]) -> int:
+        if node in seen:
+            return 0
+        entry = by_id.get(node)
+        if entry is None:
+            return 0
+        best = 0
+        for dep in entry.get("dependencies", []):
+            edge = parse_dependency_token(dep)
+            if edge is None or edge.target_type != "ipd" or edge.id6 not in by_id:
+                continue
+            best = max(best, 1 + _depth(edge.id6, seen | {node}))
+        return best
+
+    return _depth(id6, frozenset())
+
+
+def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple:
+    """Deterministic ordering key for READY nodes (spec 25kzda 5.4 rules 4-5).
+
+    DECLARED EDGES WIN; Set/Order is only a TIEBREAKER among nodes that are already ready. Ordering
+    by dependency DEPTH first is what demotes Set/Order: a depth-0 node always precedes a node that
+    declares an in-queue prerequisite, whatever their Order numbers say. Set/Order can therefore no
+    longer act as evidence that a dependency is satisfied (rule 3), which is what it silently did
+    while `dependencies` was always `[]`.
+
+    Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
+    deliberately NOT implemented: this runner's queue is homogeneous (IPDs only; there is no
+    `--with-dependencies` closure and no non-plan item can enter), so a rank over types that cannot
+    appear would be untestable dead code. Recorded rather than silently skipped.
+
+    `position` is LAST and is a stable identity, never a priority: outcome/prompt/session filenames
+    and this run's decision ids all key on it, so it is frozen at queue-build time and is used here
+    only to make the sort total.
+    """
+    return (
+        dependency_depth(item["id6"], by_id),
+        str(item.get("setid") or ""),
+        item.get("order") if isinstance(item.get("order"), int) else 999,
+        item["id6"],
+        item.get("position", 0),
+    )
+
+
+def cascade_dependency_blocked(
+    state: dict[str, Any], run_dir: Path | None = None
+) -> list[dict[str, Any]]:
+    """Propagate `dependency-blocked` over reverse edges to a fixed point (spec 25kzda 5.4 rule 7).
+
+    A queued item whose prerequisite reached a NON-success terminal state can never become runnable,
+    so it is marked blocked immediately instead of stalling the queue, and its own dependents follow
+    transitively. Independent items are untouched and keep running.
+
+    Uses the EXISTING `dependency-blocked` disposition (already in `TERMINAL_STATES` and already
+    written by the orchestrator-deferral path). It does NOT introduce `dependency-not-met`, which is
+    the spec's vocabulary but does not exist anywhere in this runner; inventing a parallel state
+    would split the run records already on disk.
+    """
+    blocked: list[dict[str, Any]] = []
+    while True:
+        by_id = {entry["id6"]: entry for entry in state["queue"]}
+        progressed = False
+        for item in state["queue"]:
+            if item.get("status") != "queued":
+                continue
+            dead: list[str] = []
+            for dep in item.get("dependencies", []):
+                edge = parse_dependency_token(dep)
+                if edge is None or edge.target_type != "ipd":
+                    continue
+                entry = by_id.get(edge.id6)
+                if entry is None:
+                    continue
+                st = entry.get("status")
+                if st in TERMINAL_STATES and st not in EXECUTION_SUCCESS_STATES:
+                    dead.append(f"{edge.canonical()} (target {st})")
+            if not dead:
+                continue
+            item["status"] = "dependency-blocked"
+            item["unsatisfied_dependencies"] = dead
+            blocked.append(item)
+            progressed = True
+            if run_dir is not None:
+                append_jsonl(
+                    run_dir / "events.jsonl",
+                    {
+                        "at": utc_now(),
+                        "event": "dependency-blocked",
+                        "id6": item["id6"],
+                        "dependencies": dead,
+                        "reason": "prerequisite reached a non-success terminal state",
+                    },
+                )
+        if not progressed:
+            return blocked
+
+
+def dependency_reasons(item: dict[str, Any], state: dict[str, Any]) -> list[str]:
+    """Human-readable reasons for each unsatisfied edge (for events/report; no gating decision)."""
+    by_id = {entry["id6"]: entry for entry in state["queue"]}
+    reasons: list[str] = []
+    for dep in item.get("dependencies", []):
+        edge = parse_dependency_token(dep)
+        if edge is None:
+            reasons.append(f"{dep}: not a legal Item-Dependencies edge")
+            continue
+        ok, reason = edge_satisfied(edge, item, state, by_id)
+        if not ok:
+            reasons.append(reason)
+    return reasons
 
 
 def build_review_prompt(
@@ -4277,6 +4658,12 @@ def run_queue(
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
+        # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
+        # terminal state can never become runnable, so mark it (and its dependents, transitively)
+        # `dependency-blocked` and keep going with independent work rather than stalling the queue.
+        if cascade_dependency_blocked(state, run_dir):
+            save_state(run_dir, state)
+            state = load_state(run_dir)
         queued = [item for item in state["queue"] if item["status"] == "queued"]
         if not queued:
             # runstop 1qxuke (E-03, OQ-01): the FINAL-set boundary. A level-2 request on the last set
@@ -4289,7 +4676,12 @@ def run_queue(
                 stop_recorded = True
             break
         runnable = None
-        for item in queued:
+        # 8guhs0 E-04: DECLARED EDGES are authoritative; Set/Order only breaks ties among nodes that
+        # are ALREADY ready (spec 25kzda 5.4 rules 3-5). Selecting from a dependency-ordered list is
+        # what demotes Set/Order: a lower Order can no longer make an unsatisfied node runnable, and
+        # a higher Order can no longer delay an otherwise independent prerequisite.
+        by_id = {entry["id6"]: entry for entry in state["queue"]}
+        for item in sorted(queued, key=lambda it: queue_sort_key(it, by_id)):
             satisfied, _ = dependency_status(item, state)
             if satisfied:
                 runnable = item
