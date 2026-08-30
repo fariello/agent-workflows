@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import select
 import shlex
 import shutil
 import signal
@@ -62,6 +63,9 @@ TERMINAL_STATES = {
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
 ID6_RE = re.compile(r"^[a-z0-9]{6}$")
+# laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
+# automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
+LANE_PROMPT_TIMEOUT: float = 10.0
 
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
@@ -576,7 +580,7 @@ def driver_finalize(
 
 # --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------
 #
-# Each execute-action child runs in its OWN git worktree on an `aw/lane/<id6>` branch (via the reused
+# Each execute-action child runs in its OWN git worktree on a per-lane branch (via the reused
 # `worktree_lease`), so the MAIN working tree is untouched during the turn (no cross-run
 # contamination). begin runs against the MAIN repo (the receipt lives under the main repo's gitignored
 # `.aw/state/`, findable regardless of worktree); the agent turn + verifier + `aw ipd finalize` all run
@@ -585,23 +589,406 @@ def driver_finalize(
 # `orchestrate_isolation.execute_merge_and_revalidate_gate` (detect conflicts + revalidate) followed by
 # a driver fast-forward/controlled merge; the worktree is torn down on success. A non-passing gate
 # result leaves the child NOT integrated (recorded, deferred to child-03), never faked executed.
+#
+# laneorphan-01 (`zwnjp3`): the lane name is NO LONGER always `aw/lane/<id6>`. Allocation is now
+# idempotent for the same lane identity, so when a leftover lane holds work (or a live process owns
+# it) allocation returns an ATTEMPT-SCOPED lane (`aw/lane/<id6>_attemptN`). ALWAYS read
+# `handle.branch`/`handle.path`; never reconstruct the name from the id6.
 
 
 def allocate_isolation_worktree(repo: Path, id6: str) -> Any:
     """Allocate a per-lane git worktree for an execute-action child (reuses worktree_lease).
 
-    Returns a `worktree_lease.WorktreeHandle` (branch `aw/lane/<id6>`, dir `.aw/worktrees/<id6>`, base
-    = main HEAD) or raises `worktree_lease.WorktreeError` on failure (fail-closed)."""
+    Returns a `worktree_lease.WorktreeHandle` whose branch is normally `aw/lane/<id6>` in
+    `.aw/worktrees/<id6>`, based at main HEAD, or raises `worktree_lease.WorktreeError` on a genuinely
+    failed `git worktree add` (still fail-closed).
+
+    laneorphan-01 (`zwnjp3`): allocation is now IDEMPOTENT for the same lane identity, so a run is
+    never wedged by its own interrupt debris. It may ADOPT an existing empty lane at the same base, or
+    return an ATTEMPT-SCOPED lane (`aw/lane/<id6>_attemptN` in `.aw/worktrees/<id6>_attemptN`) when the
+    existing lane holds work, is cut from a stale base, is foreign, or is owned by a LIVE process.
+    Read `handle.branch`, `handle.path`, and `handle.disposition` rather than assuming the name."""
     from agent_workflows import worktree_lease
 
     return worktree_lease.allocate_worktree(repo, id6, base_commit="HEAD")
 
 
 def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
-    """Remove a lane's worktree + branch (reuses worktree_lease.teardown_worktree)."""
+    """Remove a lane's worktree + branch (reuses worktree_lease.teardown_worktree).
+
+    DESTRUCTIVE: this deletes the lane BRANCH and force-removes the worktree, so it must only ever be
+    called on a lane that holds NO work. Callers on a non-success path must go through
+    `reclaim_lanes_on_interrupt`, which classifies first and preserves anything holding work."""
     from agent_workflows import worktree_lease
 
     worktree_lease.teardown_worktree(repo, handle, force=True)
+
+
+# --- laneorphan-01 (`zwnjp3`) E-05/E-06/E-09/E-10: lane reclamation on interrupt -------------------
+#
+# An interrupt must PRESERVE-AND-RECORD, never leak and never destroy. Before this, a CTRL-C left lane
+# worktrees and branches behind with no record, and the next run of that Set hard-failed at allocation
+# on its own debris.
+#
+# NO SIGNAL HANDLER IS REGISTERED HERE, deliberately. `runstop` Phase 5 (`71vjbn`, already approved)
+# owns installing the SIGINT escalation ladder (spec `c4gd2h` R12) and the SIGTERM handler (R13) in
+# THIS file, and spec R5 forbids divergent per-level cleanup. So the lane decision is exposed as an
+# idempotent CALLABLE that the EXISTING `KeyboardInterrupt` teardown path invokes today and that
+# Phase 5's handlers and Phase 0's `clean_shutdown` can both call later. That satisfies "exactly ONE
+# lane-preservation decision in the codebase" without racing another approved plan for the handler slot.
+#
+# The asymmetry (reclaim only provably-empty lanes, preserve everything else) is a DATA-SAFETY
+# requirement, not a preference: `teardown_worktree(force=True)` deletes the lane branch, leaving its
+# commits unreferenced with an empty reflog, and `--force` erases uncommitted lane files from disk.
+
+
+def _lane_records_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every lane THIS run allocated, read back from durable per-item state (E-04).
+
+    Reuses the existing `worktree`/`worktree_branch` (and `preserved_*`) fields rather than adding a
+    second store. Note `preserved_worktree`/`preserved_branch` were previously WRITTEN and never READ
+    anywhere in the package; this is the consumer that makes them meaningful."""
+    lanes: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in state.get("queue", []):
+        candidates: list[dict[str, Any]] = []
+        for attempt in item.get("attempts", []) or []:
+            if attempt.get("worktree"):
+                candidates.append(
+                    {
+                        "worktree": attempt.get("worktree"),
+                        "branch": attempt.get("worktree_branch"),
+                        "lane_id": attempt.get("worktree_lane_id") or item.get("id6"),
+                        "base_commit": attempt.get("worktree_base"),
+                        "disposition": attempt.get("worktree_disposition"),
+                    }
+                )
+        if item.get("preserved_worktree"):
+            candidates.append(
+                {
+                    "worktree": item.get("preserved_worktree"),
+                    "branch": item.get("preserved_branch"),
+                    "lane_id": item.get("preserved_lane_id") or item.get("id6"),
+                    "base_commit": item.get("preserved_base"),
+                    "disposition": item.get("preserved_disposition"),
+                }
+            )
+        for rec in candidates:
+            key = "{0}|{1}".format(rec.get("branch"), rec.get("worktree"))
+            if key in seen:
+                continue
+            seen.add(key)
+            rec["id6"] = item.get("id6")
+            rec["status"] = item.get("status")
+            lanes.append(rec)
+    return lanes
+
+
+def describe_lane(repo: Path, lane: dict[str, Any]) -> dict[str, Any]:
+    """The E-01 classifier's reading of one recorded lane, shaped for reporting (E-06).
+
+    The classifier is the SINGLE source of the reported facts; this adds no second git probe and no
+    new CLI verb (`aw doctor --lanes` and `aw recover` are owned by plan `2c122z`)."""
+    from agent_workflows import worktree_lease
+
+    lane_id = lane.get("lane_id") or lane.get("id6") or ""
+    base = lane.get("base_commit") or "HEAD"
+    st = worktree_lease.inspect_lane(repo, lane_id, base_commit=base)
+    return {
+        "id6": lane.get("id6"),
+        "lane_id": lane_id,
+        "branch": st.branch,
+        "worktree": str(st.worktree_path) if st.worktree_path else lane.get("worktree"),
+        "state": st.state,
+        "commits_ahead": st.commits_ahead,
+        "dirty": st.dirty,
+        "head": st.head,
+        "base_sha": st.base_sha,
+        "reclaimable": st.reclaimable,
+        "holds_work": st.holds_work,
+        "owner_live": st.owner_live,
+        # Whether ANOTHER live process owns it, which is the question reclamation must ask (a driver
+        # reclaiming its own lanes is itself the live owner of every one of them).
+        "owned_by_other_live_process": worktree_lease.lane_owned_by_other_live_process(
+            repo, lane_id
+        ),
+    }
+
+
+def format_lane_report(lanes: list[dict[str, Any]]) -> str:
+    """One actionable line per lane, so an operator can tell at a glance which lane matters (E-06).
+
+    The lane that holds work is the one to look at; an empty lane is noise. Reporting both without
+    distinguishing them is what forced a hand inspection of five lanes to find the one holding work."""
+    from agent_workflows import worktree_lease
+
+    if not lanes:
+        return "No lanes were allocated by this run."
+    lines: list[str] = []
+    for lane in lanes:
+        if lane["holds_work"]:
+            detail_bits = []
+            if lane["commits_ahead"]:
+                detail_bits.append(
+                    "{0} commit(s) beyond base".format(lane["commits_ahead"])
+                )
+            if lane["dirty"]:
+                detail_bits.append("uncommitted changes")
+            what = "HOLDS WORK ({0})".format(
+                ", ".join(detail_bits) if detail_bits else "work present"
+            )
+        elif lane["state"] == worktree_lease.LANE_ABSENT:
+            what = "already gone"
+        else:
+            what = "empty ({0}, nothing to recover)".format(lane["state"].lower())
+        lines.append(
+            "  {0} {1}: {2}\n      branch {3}\n      worktree {4}".format(
+                lane["id6"] or "-",
+                lane["lane_id"],
+                what,
+                lane["branch"],
+                lane["worktree"] or "(not registered)",
+            )
+        )
+    return "\n".join(lines)
+
+
+# E-10: set once a SECOND interrupt (or a forced kill path) is seen, after which the prompt is
+# skipped entirely and the automatic decision runs unattended. A prompt during a repeated interrupt
+# would be the worst case: the operator is already trying harder to stop the run.
+_LANE_PROMPT_DISABLED = False
+
+
+def disable_lane_prompt() -> None:
+    """Skip the OPTIONAL lane prompt from here on (a repeated interrupt or a forced kill)."""
+    global _LANE_PROMPT_DISABLED
+    _LANE_PROMPT_DISABLED = True
+
+
+def _lane_reclaim_prompt(lane: dict[str, Any], default_action: str) -> str | None:
+    """Offer the operator a choice for ONE lane, but ONLY with a real TTY (E-10).
+
+    HARD CONSTRAINTS, because these runs are non-interactive by design and usually unattended: no TTY
+    means no prompt and no waiting, ever; an unanswered prompt falls through to the automatic decision
+    rather than blocking shutdown; a repeated interrupt skips the prompt entirely; and the offered
+    default IS the automatic decision. The content-based decision is the authority; this only
+    front-runs it, and it can never be the safety net.
+    """
+    if _LANE_PROMPT_DISABLED:
+        return None
+    if not (getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()):
+        return None
+    if not (getattr(sys.stderr, "isatty", None) and sys.stderr.isatty()):
+        return None
+    if lane["holds_work"]:
+        question = "Lane {0} ({1}) HOLDS WORK. [k]eep+snapshot (default) or [d]iscard? ".format(
+            lane["lane_id"], lane["branch"]
+        )
+        options = {"k": "keep", "d": "discard"}
+    else:
+        question = "Lane {0} ({1}) is empty. [d]iscard (default) or [k]eep? ".format(
+            lane["lane_id"], lane["branch"]
+        )
+        options = {"d": "discard", "k": "keep"}
+    print(question, end="", file=sys.stderr, flush=True)
+    try:
+        ready, _w, _x = select.select([sys.stdin], [], [], LANE_PROMPT_TIMEOUT)
+    except Exception:
+        print("", file=sys.stderr)
+        return None
+    if not ready:
+        print(
+            "\n  (no answer in {0}s; taking the automatic decision: {1})".format(
+                LANE_PROMPT_TIMEOUT, default_action
+            ),
+            file=sys.stderr,
+        )
+        return None
+    try:
+        answer = (sys.stdin.readline() or "").strip().lower()
+    except Exception:
+        return None
+    if not answer:
+        return None
+    return options.get(answer[0])
+
+
+def reclaim_lanes_on_interrupt(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    interactive: bool = True,
+    reason: str = "interrupt",
+) -> list[dict[str, Any]]:
+    """THE lane-reclamation decision (E-05). Idempotent; safe to call twice; separately callable.
+
+    For every lane this run allocated: classify it with the E-01 classifier, then
+
+      * HOLDS WORK -> LEAVE IT ENTIRELY ALONE, snapshot any uncommitted edits onto its own lane branch
+        (E-09, so `--force` can never erase them later), and record it as recoverable. Never torn
+        down, never stashed, reset, or moved: this repo's policy for un-owned dirty state is
+        REFUSE-AND-REPORT, not relocate.
+      * provably EMPTY (or a clean STALE lane) -> tear it down, so the NEXT run of this Set is not
+        wedged by this run's debris.
+      * owned by a LIVE process -> never touched.
+
+    Returns the classified lane records (for the report). Registers no signal handler: callers wire it
+    into their existing teardown path, and `runstop` Phase 5 owns the handlers.
+    """
+    from agent_workflows import worktree_lease
+
+    lanes = [describe_lane(repo, rec) for rec in _lane_records_from_state(state)]
+    if not lanes:
+        return []
+    if not interactive:
+        disable_lane_prompt()
+    pal = Palette(should_color(sys.stderr))
+    for lane in lanes:
+        if lane["state"] == worktree_lease.LANE_ABSENT:
+            continue
+        if lane.get("owned_by_other_live_process"):
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-left-to-live-owner",
+                    "id6": lane["id6"],
+                    "branch": lane["branch"],
+                    "reason": reason,
+                },
+            )
+            continue
+        handle = worktree_lease.WorktreeHandle(
+            lane_id=lane["lane_id"],
+            path=Path(lane["worktree"]) if lane["worktree"] else Path(""),
+            branch=lane["branch"],
+            base_commit=lane["base_sha"] or "",
+        )
+        if lane["holds_work"]:
+            choice = (
+                _lane_reclaim_prompt(lane, "keep and snapshot") if interactive else None
+            )
+            snapshot = None
+            if lane["dirty"]:
+                try:
+                    snapshot = worktree_lease.snapshot_lane_dirty_work(
+                        repo, handle, note="Reason: {0}.".format(reason)
+                    )
+                except Exception as exc:  # never let preservation failure escalate
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-snapshot-failed",
+                            "id6": lane["id6"],
+                            "branch": lane["branch"],
+                            "detail": str(exc),
+                        },
+                    )
+            lane["snapshot_commit"] = snapshot
+            if choice == "discard":
+                # An operator explicitly asked; the snapshot above already made the work recoverable
+                # by ref, so the worktree can go while the BRANCH survives.
+                print(
+                    pal(
+                        "  (operator chose discard for {0}; its branch is kept)".format(
+                            lane["branch"]
+                        ),
+                        "dim",
+                    ),
+                    file=sys.stderr,
+                )
+            lane["action"] = "preserved"
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-preserved-on-interrupt",
+                    "id6": lane["id6"],
+                    "branch": lane["branch"],
+                    "worktree": lane["worktree"],
+                    "commits_ahead": lane["commits_ahead"],
+                    "dirty": lane["dirty"],
+                    "snapshot_commit": snapshot,
+                    "reason": reason,
+                },
+            )
+            continue
+        if not lane["reclaimable"]:
+            lane["action"] = "left-alone"
+            continue
+        choice = _lane_reclaim_prompt(lane, "discard") if interactive else None
+        if choice == "keep":
+            lane["action"] = "kept-by-operator"
+            continue
+        try:
+            worktree_lease.teardown_worktree(repo, handle, force=True)
+            lane["action"] = "reclaimed"
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-reclaimed-on-interrupt",
+                    "id6": lane["id6"],
+                    "branch": lane["branch"],
+                    "state": lane["state"],
+                    "reason": reason,
+                },
+            )
+        except Exception as exc:
+            lane["action"] = "reclaim-failed"
+            lane["error"] = str(exc)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-reclaim-failed",
+                    "id6": lane["id6"],
+                    "branch": lane["branch"],
+                    "detail": str(exc),
+                },
+            )
+    return lanes
+
+
+def print_lane_interrupt_report(lanes: list[dict[str, Any]]) -> None:
+    """Print the E-06 report for the lanes a reclamation pass just handled."""
+    if not lanes:
+        return
+    pal = Palette(should_color(sys.stderr))
+    preserved = [lane for lane in lanes if lane.get("action") == "preserved"]
+    reclaimed = [lane for lane in lanes if lane.get("action") == "reclaimed"]
+    print(pal("\n--- Lane reclamation ---", "bold"), file=sys.stderr)
+    if preserved:
+        print(
+            pal(
+                "PRESERVED (holds work; inspect these, nothing was deleted):", "yellow"
+            ),
+            file=sys.stderr,
+        )
+        print(format_lane_report(preserved), file=sys.stderr)
+        for lane in preserved:
+            if lane.get("snapshot_commit"):
+                print(
+                    pal(
+                        "      uncommitted edits committed as an interrupted snapshot "
+                        "{0}".format(lane["snapshot_commit"][:12]),
+                        "cyan",
+                    ),
+                    file=sys.stderr,
+                )
+    if reclaimed:
+        print(
+            pal("Reclaimed (provably empty, nothing to recover):", "dim"),
+            file=sys.stderr,
+        )
+        for lane in reclaimed:
+            print(
+                "  {0} {1}".format(lane["id6"] or "-", lane["branch"]), file=sys.stderr
+            )
+    if not preserved and not reclaimed:
+        print("No lane needed reclamation.", file=sys.stderr)
 
 
 def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
@@ -1652,6 +2039,80 @@ def build_review_prompt(
     return f"/plan-review {rel_path}"
 
 
+def build_recovery_lane_notice(
+    item: dict[str, Any], state: dict[str, Any], recovery: bool
+) -> str:
+    """Tell a RESUMING agent, in the prompt, that it is continuing an interrupted attempt (E-11).
+
+    Enriches the EXISTING `recovery` branch of the prompt (the `Mode: RECOVERY/CONTINUATION` line)
+    with the lane facts E-04 now records, rather than adding a mechanism. A first attempt gets
+    nothing, so a normal prompt is unchanged. There is deliberately NO acknowledgement gate and NO
+    refusal path: a refusal would be one more way for an unattended run to stall. The point is that
+    the agent must establish current state itself instead of assuming a clean start.
+    """
+    if not recovery:
+        return ""
+    lane_branch = item.get("preserved_branch")
+    lane_path = item.get("preserved_worktree")
+    lane_base = item.get("preserved_base")
+    if not lane_branch:
+        for attempt in reversed(item.get("attempts", []) or []):
+            if attempt.get("worktree_branch"):
+                lane_branch = attempt.get("worktree_branch")
+                lane_path = attempt.get("worktree")
+                lane_base = attempt.get("worktree_base")
+                break
+    lines = [
+        "",
+        "",
+        "## You are continuing an INTERRUPTED attempt",
+        "",
+        "A previous attempt at this IPD was interrupted or killed before it finished. It is NOT a",
+        "clean start. Whatever that attempt did is already on disk or already committed, and it may",
+        "be half-applied. Establish the CURRENT state yourself before you edit anything: read the",
+        "plan's execution/validation state, inspect the git log and the working tree, and check",
+        "which E-items were actually performed. Do not assume the previous attempt did nothing, and",
+        "do not assume it finished what it started.",
+    ]
+    if lane_branch:
+        facts: list[str] = []
+        try:
+            from agent_workflows import worktree_lease
+
+            repo = Path(state.get("repo", "."))
+            lane_id = str(
+                item.get("preserved_lane_id")
+                or (item.get("attempts") or [{}])[-1].get("worktree_lane_id")
+                or item.get("id6")
+                or ""
+            )
+            st = worktree_lease.inspect_lane(
+                repo, lane_id, base_commit=lane_base or "HEAD"
+            )
+            if st.commits_ahead:
+                facts.append(f"it HOLDS {st.commits_ahead} commit(s) beyond its base")
+            if st.dirty:
+                facts.append("its tree has uncommitted changes")
+            if not facts and st.exists:
+                facts.append("it holds no commits and its tree is clean")
+            if not st.exists:
+                facts.append("it no longer exists")
+        except Exception:
+            facts.append("its current contents could not be read; inspect it yourself")
+        lines.extend(
+            [
+                "",
+                f"That attempt's lane branch is `{lane_branch}`"
+                + (f" at `{lane_path}`" if lane_path else "")
+                + ".",
+                "State of that lane: " + "; ".join(facts) + ".",
+                "A commit there whose message says INTERRUPTED SNAPSHOT is preserved uncommitted work",
+                "from the interrupted attempt, not reviewed or validated work.",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -1665,9 +2126,10 @@ def build_prompt(
     report = run_dir / "execution-report.md"
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
+    lane_notice = build_recovery_lane_notice(item, state, recovery)
     return f"""# Antigravity IPD Driver Turn
 
-Mode: {mode}
+Mode: {mode}{lane_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -2187,8 +2649,18 @@ def execute_item(
                 # one-driver-only fix is asserted against in tests.
                 session_id = None
                 use_continue = False
+                # laneorphan-01 (`zwnjp3`) E-04: register the lane DURABLY at the moment of
+                # allocation, reusing this existing per-item state + event path (no second store), so
+                # an interrupt has something to report and a later run something to find. The lane id
+                # and base sha are recorded too, because allocation may have ATTEMPT-SCOPED the name
+                # and the reclamation classifier needs the real identity, not a reconstructed one.
                 attempt["worktree"] = work_dir
                 attempt["worktree_branch"] = wt_handle.branch
+                attempt["worktree_lane_id"] = wt_handle.lane_id
+                attempt["worktree_base"] = wt_handle.base_commit
+                attempt["worktree_disposition"] = getattr(
+                    wt_handle, "disposition", "created"
+                )
                 save_state(run_dir, state)
                 append_jsonl(
                     run_dir / "events.jsonl",
@@ -2198,11 +2670,17 @@ def execute_item(
                         "id6": item["id6"],
                         "worktree": work_dir,
                         "branch": wt_handle.branch,
+                        "lane_id": wt_handle.lane_id,
+                        "base_commit": wt_handle.base_commit,
+                        "disposition": getattr(wt_handle, "disposition", "created"),
+                        "displaced_from": getattr(wt_handle, "displaced_from", None),
                     },
                 )
+                disp = getattr(wt_handle, "disposition", "created")
+                suffix = "" if disp == "created" else f" ({disp})"
                 print(
                     pal(
-                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}",
+                        f"  \u2713 isolated worktree {wt_handle.branch} at {work_dir}{suffix}",
                         "cyan",
                     )
                 )
@@ -2556,6 +3034,12 @@ def execute_item(
     if wt_handle is not None and item.get("status") != "executed":
         item["preserved_worktree"] = str(wt_handle.path)
         item["preserved_branch"] = wt_handle.branch
+        # laneorphan-01 (`zwnjp3`) E-04: carry the real lane identity and base too, so the
+        # reclamation classifier can read them back instead of reconstructing a name that
+        # attempt-scoping may have changed.
+        item["preserved_lane_id"] = wt_handle.lane_id
+        item["preserved_base"] = wt_handle.base_commit
+        item["preserved_disposition"] = getattr(wt_handle, "disposition", "created")
         save_state(run_dir, state)
         append_jsonl(
             run_dir / "events.jsonl",
@@ -2565,6 +3049,8 @@ def execute_item(
                 "id6": item["id6"],
                 "worktree": str(wt_handle.path),
                 "branch": wt_handle.branch,
+                "lane_id": wt_handle.lane_id,
+                "base_commit": wt_handle.base_commit,
                 "status": item.get("status"),
             },
         )
@@ -2771,6 +3257,34 @@ def run_queue(
         recovery = bool(runnable.pop("recovery_next", False))
         try:
             execute_item(run_dir, state, runnable, recovery=recovery)
+        except KeyboardInterrupt:
+            # laneorphan-01 (`zwnjp3`) E-05: PRESERVE-AND-RECORD before the interrupt propagates,
+            # so the run does not leak lanes (which wedged the next run at allocation) and does not
+            # destroy any lane holding work. Wired into this EXISTING teardown path; NO signal handler
+            # is registered here (`runstop` Phase 5 `71vjbn` owns SIGINT/SIGTERM registration).
+            state = load_state(run_dir)
+            try:
+                lanes = reclaim_lanes_on_interrupt(
+                    Path(state["repo"]), run_dir, state, reason="interrupt"
+                )
+                print_lane_interrupt_report(lanes)
+            except KeyboardInterrupt:
+                # E-10: a SECOND interrupt while reclaiming. The operator is trying harder to stop, so
+                # never prompt again and finish the automatic content-based decision unattended. The
+                # preservation half must still run: it is what keeps work from being lost.
+                disable_lane_prompt()
+                with contextlib.suppress(Exception):
+                    lanes = reclaim_lanes_on_interrupt(
+                        Path(state["repo"]),
+                        run_dir,
+                        state,
+                        interactive=False,
+                        reason="repeated-interrupt",
+                    )
+                    print_lane_interrupt_report(lanes)
+            except Exception:
+                pass
+            raise
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
