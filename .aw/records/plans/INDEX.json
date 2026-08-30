@@ -3614,6 +3614,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
+    "plan_id": "zwnjp3",
+    "set_id": "laneorphan",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
     "plan_id": "g7hljt",
     "set_id": "ocsync",
@@ -3817,16 +3827,6 @@
     "path": "pending/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md",
     "plan_id": "j4v6ga",
     "set_id": "lanename",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md",
-    "plan_id": "zwnjp3",
-    "set_id": "laneorphan",
     "status": "approved"
   },
   {
