@@ -15,7 +15,7 @@ Showing the 40 most-recent of 178 Sets; the full manifest is INDEX.json.
 
 ## exittbl
 
-- `bds6nd` [pending] 01 pending/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
+- `bds6nd` [executed] 01 executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
 
 ## sessrot
 

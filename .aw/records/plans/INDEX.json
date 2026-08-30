@@ -3874,6 +3874,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md",
+    "plan_id": "bds6nd",
+    "set_id": "exittbl",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md",
     "plan_id": "jb6vys",
     "set_id": "sessrot",
@@ -4167,16 +4177,6 @@
     "path": "pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
     "plan_id": "7f7782",
     "set_id": "detrun",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md",
-    "plan_id": "bds6nd",
-    "set_id": "exittbl",
     "status": "approved"
   },
   {
