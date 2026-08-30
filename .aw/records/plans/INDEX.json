@@ -3870,6 +3870,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md",
+    "plan_id": "9trlc3",
+    "set_id": "wkindname",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-30",
     "disposition": "executed",
     "kind": "child",
@@ -4076,16 +4086,6 @@
     "order": 0,
     "path": "pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
     "plan_id": "c2tvmm",
-    "set_id": "wkindname",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md",
-    "plan_id": "9trlc3",
     "set_id": "wkindname",
     "status": "approved"
   },

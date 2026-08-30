@@ -134,7 +134,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 ## wkindname
 
 - `c2tvmm` [pending] 00 pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md
-- `9trlc3` [pending] 01 pending/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md
+- `9trlc3` [executed] 01 executed/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md
 - `ng2blv` [pending] 02 pending/20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md
 
 ## workkind

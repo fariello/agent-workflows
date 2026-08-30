@@ -6,17 +6,17 @@
 - Scope: Rename the on-disk work-nature field from `- Kind:` to `- Work-Kind:` in `backlog.py`, migrate the 87 existing backlog ITEMS behind a dual-read window so the tree never stops parsing, update `.aw/records/backlog/README.md` and any other documentation naming the old spelling, and reconcile the `backlog new` flag declaration in `command_surface.py` if a `--work-kind` spelling is added. Excludes adding the field to plans or specs (child 02 owns that), excludes renaming the in-code vocabulary symbol, excludes any change to `Gate-Kind`, and excludes making the field OPTIONAL: backlog requires it today and this is a pure rename that preserves that.
 - Scope-Paths: agent_workflows/backlog.py, .aw/records/backlog, agent_workflows/command_surface.py, tests/test_backlog_work_kind_rename.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: wkindname
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: 9trlc3
-- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - Blocks-Release: next
 - From-Backlog: 1ap48y
 
 ## Workflow history
+- 2026-08-30 executed (opencode (its_direct/pt3-claude-opus-5-1m-us)): Backlog's work-nature field renamed to Work-Kind behind a dual-read window landed first, so the tree never stopped parsing mid-migration. 91 items migrated (enumerated with backlog._iter_items, NOT a grep, which would have counted README.md as data and reported 92); Gate-Kind item count unchanged at 1 and that item still parses, verified because a substring-anchored rename would have produced Gate-Work-Kind; requiredness PRESERVED (an absent value is still backlog.kind-invalid), so the Set unifies the field's NAME and not its requiredness; --kind kept as an alias per OQ-01; README.md edited as documentation rather than migrated as data. 26 new tests, with three load-bearing negatives each shown FAILING against the specific mis-implementation it guards. The 12 pre-existing old-spelling fixture modules pass UNEDITED, which is the real proof dual-read works on live callers. Suite +26 passing on both invocations with a byte-identical pre-existing failure set. The dual-read window is deliberately RETAINED as insurance against an old-spelling item arriving from a long-lived branch; it is not dead code. [Scope reconciliation - out-of-scope agent_workflows/cli.py: E-02/OQ-01 require --work-kind as the preferred flag with --kind kept as an alias, and backlog new's argparse declarations live here; the plan's scope fence explicitly permits 'the CLI beyond backlog's own flag', so omitting this path from Scope-Paths was an oversight. Edit confined to that one flag block (+15/-3). See DECISION 02-9trlc3-D2.; in-scope-unmodified .aw/records/backlog: modified in commit 91cd3fa2 (receipt base); 91 items migrated plus the README; in-scope-unmodified agent_workflows/backlog.py: modified in commit 91cd3fa2, which is this receipt's own base_head, so finalize cannot see it; dual-read, canonical write, docstring; in-scope-unmodified agent_workflows/command_surface.py: modified in commit 91cd3fa2 (receipt base); --work-kind added to backlog new legacy_flags; in-scope-unmodified tests/test_backlog_work_kind_rename.py: created in commit 91cd3fa2 (receipt base); 26 cases]
 - 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-008 fixed in place. Corrected two would-have-failed validations (backlog REQUIRES the field so the Set unifies name not requiredness; the 88/2 counts are tree-wide greps while the parser reads 87 items and 1 Gate-Kind item) and one unachievable gate (aw backlog check is already red on 3 unrelated violations, now no-worsening). Also: two validation mechanisms not one, command_surface.py added to child 01 because backlog new does declare --kind, orchestrator scope narrowed off the shared pending/ dir, 10 old-spelling fixture modules must pass unedited, and E-01 recorded as a manual obligation the runner rollup does not perform. Baselines re-measured at be49ac4 (2927 passed, 3 skipped, 4 xfailed). All three lint conforming at review-finalize.
 
@@ -34,37 +34,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: accept both spellings, then move
 
-- [ ] E-01 Add a DUAL-READ window to `backlog.py` before anything is rewritten: accept `- Work-Kind:` and `- Kind:` on read, preferring the new spelling when both somehow appear. Anchor on the full-line field pattern, never on the bare token `Kind`, because the same module parses a distinct `- Gate-Kind:` field. This lands FIRST so that at no point during the migration does a partially converted tree fail to parse; a plan that rewrites files before dual-read exists has created a window where `aw backlog check` is broken.
+- [x] E-01 Add a DUAL-READ window to `backlog.py` before anything is rewritten: accept `- Work-Kind:` and `- Kind:` on read, preferring the new spelling when both somehow appear. Anchor on the full-line field pattern, never on the bare token `Kind`, because the same module parses a distinct `- Gate-Kind:` field. This lands FIRST so that at no point during the migration does a partially converted tree fail to parse; a plan that rewrites files before dual-read exists has created a window where `aw backlog check` is broken.
   - Depends on: none
   - Expected outcome: an item with the old spelling parses; an item with the new spelling parses; a tree containing BOTH parses and `aw backlog check` reports NO work-nature finding on it (not "clean": the live tree already carries 3 unrelated `backlog.summary-unsafe` violations, F7); `- Gate-Kind:` still parses unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make `backlog.py` WRITE the new spelling: update the item renderer and the creation path so a newly created item carries `- Work-Kind:`, and update the module's own documented field list (its docstring enumerates the field by name). Keep the in-code vocabulary symbol name as it is; only the on-disk field name changes. PRESERVE REQUIREDNESS: the validator rejects an item with no work-nature value today (`backlog.kind-invalid`) and must still reject one after the rename. This plan does NOT make the field optional on backlog; that asymmetry with plans and specs is the Set's intended outcome, so if making it optional seems necessary, STOP and report. Per OQ-01 add `--work-kind` as the preferred CLI spelling and KEEP `--kind` as an accepted alias.
+- [x] E-02 Make `backlog.py` WRITE the new spelling: update the item renderer and the creation path so a newly created item carries `- Work-Kind:`, and update the module's own documented field list (its docstring enumerates the field by name). Keep the in-code vocabulary symbol name as it is; only the on-disk field name changes. PRESERVE REQUIREDNESS: the validator rejects an item with no work-nature value today (`backlog.kind-invalid`) and must still reject one after the rename. This plan does NOT make the field optional on backlog; that asymmetry with plans and specs is the Set's intended outcome, so if making it optional seems necessary, STOP and report. Per OQ-01 add `--work-kind` as the preferred CLI spelling and KEEP `--kind` as an accepted alias.
   - Depends on: E-01
   - Expected outcome: a newly created item carries `- Work-Kind:`; the validator accepts a valid value, still REJECTS an absent one, and still rejects an out-of-vocabulary one; the module's documented field list matches what it writes; both `--kind` and `--work-kind` work.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Reconcile the `backlog new` FLAG DECLARATION with the parser, which is a step child 02's reasoning does not cover and would mislead you if borrowed. Child 02 correctly found that `--priority` is UNDECLARED in `command_surface.COMMAND_INVENTORY`'s `legacy_flags` for `ipd set` and `specs set`, and concluded that file stays out of scope. That does NOT hold here: `backlog new` DOES declare `--kind` in its `legacy_flags` tuple, so adding `--work-kind` in E-02 without touching the declaration leaves the declared and accepted flag sets divergent on the one command where the flag is actually declared. Add `--work-kind` alongside the retained `--kind` there. Nothing asserts that tuple is exhaustive today, so this is correctness of the declaration rather than a test forcing your hand; do it because the declaration exists and is now wrong, and keep the edit to that one tuple.
+- [x] E-05 Reconcile the `backlog new` FLAG DECLARATION with the parser, which is a step child 02's reasoning does not cover and would mislead you if borrowed. Child 02 correctly found that `--priority` is UNDECLARED in `command_surface.COMMAND_INVENTORY`'s `legacy_flags` for `ipd set` and `specs set`, and concluded that file stays out of scope. That does NOT hold here: `backlog new` DOES declare `--kind` in its `legacy_flags` tuple, so adding `--work-kind` in E-02 without touching the declaration leaves the declared and accepted flag sets divergent on the one command where the flag is actually declared. Add `--work-kind` alongside the retained `--kind` there. Nothing asserts that tuple is exhaustive today, so this is correctness of the declaration rather than a test forcing your hand; do it because the declaration exists and is now wrong, and keep the edit to that one tuple.
   - Depends on: E-02
   - Expected outcome: `backlog new`'s `legacy_flags` lists both `--work-kind` and `--kind`; the declared set matches what the parser accepts; no other declaration is touched.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: migrate the corpus, prove nothing else moved
 
-- [ ] E-03 Rewrite the field in the existing items, with a script anchored on the full-line pattern from E-01. Enumerate the target set with `backlog._iter_items` rather than a grep, so it is exactly what the tool reads: 87 items at `be49ac4`, and NOT the widely quoted 88, which counts the README the parser skips (F1b explains the discrepancy and E-06 owns that file). Re-measure the count at your own HEAD before rewriting, since other sessions add items continuously. Then re-verify the `- Gate-Kind:` item count is unchanged at 1 and that item still parses, since substring corruption of that field is the specific hazard here. Change nothing but the one field line per file.
+- [x] E-03 Rewrite the field in the existing items, with a script anchored on the full-line pattern from E-01. Enumerate the target set with `backlog._iter_items` rather than a grep, so it is exactly what the tool reads: 87 items at `be49ac4`, and NOT the widely quoted 88, which counts the README the parser skips (F1b explains the discrepancy and E-06 owns that file). Re-measure the count at your own HEAD before rewriting, since other sessions add items continuously. Then re-verify the `- Gate-Kind:` item count is unchanged at 1 and that item still parses, since substring corruption of that field is the specific hazard here. Change nothing but the one field line per file.
   - Depends on: E-02
   - Expected outcome: every parsed item carries `- Work-Kind:` and none carries `- Kind:` (87 at `be49ac4`, re-measured at yours); the `Gate-Kind` item count is unchanged at 1 and that item parses; `git diff` shows exactly one changed line per migrated item and no other edits.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Update `.aw/records/backlog/README.md`, the human-facing field list that names the old spelling, plus any other documentation hit found by grep. This file is DOCUMENTATION, not an item: the parser skips it by name, so E-03's migration does not and must not rewrite it, and it is the reason a tree-wide grep reports one more file than there are items. It is a hand-maintained tracked file, not installer-generated, so editing it here is sufficient and nothing regenerates it back. Leaving it stale would reintroduce the exact naming confusion the rename removes.
+- [x] E-06 Update `.aw/records/backlog/README.md`, the human-facing field list that names the old spelling, plus any other documentation hit found by grep. This file is DOCUMENTATION, not an item: the parser skips it by name, so E-03's migration does not and must not rewrite it, and it is the reason a tree-wide grep reports one more file than there are items. It is a hand-maintained tracked file, not installer-generated, so editing it here is sufficient and nothing regenerates it back. Leaving it stale would reintroduce the exact naming confusion the rename removes.
   - Depends on: E-03
   - Expected outcome: `README.md` documents `- Work-Kind:`; no documentation outside `Scope-Paths` needs editing, or any such hit is reported rather than edited.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `tests/test_backlog_work_kind_rename.py` covering: an item with the NEW spelling parses and validates; an item with the OLD spelling still parses through the dual-read window; a tree containing both spellings validates with no work-nature finding; a newly created item is written with the new spelling; an out-of-vocabulary value is still rejected; REQUIREDNESS PRESERVED, namely that an item with NO work-nature field is still rejected as `backlog.kind-invalid` (F5), which must fail against an implementation that made the field optional; and the `Gate-Kind` guard, namely that an item carrying `- Gate-Kind:` parses with its gate intact and that field is never rewritten. Build every case on a throwaway tree rather than the live records, because the live backlog is being modified by other sessions while this runs. Separately, do NOT rewrite the 10 EXISTING test modules that emit the old spelling as fixture data (F8): the dual-read window should keep them green unchanged, and they are the best proof E-01 works on real callers. If one of them breaks, fix `backlog.py`, not the fixture.
+- [x] E-04 Add `tests/test_backlog_work_kind_rename.py` covering: an item with the NEW spelling parses and validates; an item with the OLD spelling still parses through the dual-read window; a tree containing both spellings validates with no work-nature finding; a newly created item is written with the new spelling; an out-of-vocabulary value is still rejected; REQUIREDNESS PRESERVED, namely that an item with NO work-nature field is still rejected as `backlog.kind-invalid` (F5), which must fail against an implementation that made the field optional; and the `Gate-Kind` guard, namely that an item carrying `- Gate-Kind:` parses with its gate intact and that field is never rewritten. Build every case on a throwaway tree rather than the live records, because the live backlog is being modified by other sessions while this runs. Separately, do NOT rewrite the 10 EXISTING test modules that emit the old spelling as fixture data (F8): the dual-read window should keep them green unchanged, and they are the best proof E-01 works on real callers. If one of them breaks, fix `backlog.py`, not the fixture.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: the module passes; the dual-read case fails against an implementation that only accepts the new spelling; the requiredness case fails against an implementation that made the field optional; the `Gate-Kind` case fails against a substring-based rename; the 10 pre-existing old-spelling fixture modules pass UNEDITED.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -148,35 +148,296 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the dual-read implementation showing it anchors on the full-line field pattern and not the bare token. Paste an old-spelling item and a new-spelling item both parsing. Paste `aw backlog check` against a tree deliberately containing BOTH spellings, which is the state the migration passes through, showing NO `backlog.kind-invalid` finding; on a throwaway fixture tree that run is genuinely clean, and on the live tree it is no-worse than your own pre-measured baseline, so say which tree you used (F7). Paste an item carrying `- Gate-Kind:` parsing with its gate values intact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL MEASURED AT `git rev-parse HEAD` = `91cd3fa2fdd0eba6a4b431ba79b342592c18a122` (implementation commit); baseline readings at
+    `bcbbfb077416d1796c7a7e406ef587b66b327e34` (its parent). NOTE ON TOOLING: `aw` resolves `agent_workflows` by CWD, and `--dir` does not
+    change CWD, so every command below is invoked as `python3 -m agent_workflows ...` FROM this worktree.
+    An early `aw backlog check --dir <tmp>` run silently exercised the MAIN checkout's unmodified copy and
+    reported a false failure; that is a measurement artifact, recorded here so the evidence is reproducible.
 
-- [ ] V-02 validates E-02
+    (1) FULL-LINE ANCHORING, not the bare token. `backlog.py:77-82`:
+        _WORK_KIND_RE = re.compile(r"^- Work-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
+        _KIND_RE      = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
+    Both carry `^- ` and `$`, so `- Gate-Kind: artifact` satisfies NEITHER. Asserted directly by
+    `test_the_field_regexes_are_anchored_on_the_full_line`, which also pins that `- Work-Kind:` is not
+    read as the legacy field. Precedence is resolved AFTER the scan (`item.kind = work_kind if
+    work_kind is not None else legacy_kind`), so the canonical value wins regardless of line order
+    rather than depending on which bullet happens to come first.
+
+    (2) BOTH SPELLINGS PARSE (pasted from a run against this worktree's module):
+        OLD  spelling -> kind = 'bug'
+        NEW  spelling -> kind = 'bug'
+        BOTH spellings -> kind = 'security' (canonical wins)
+        GATE item -> kind = 'feature' gate_kind = 'decision' gate_ref = 'some-decision'
+
+    (3) A TREE CONTAINING BOTH SPELLINGS, which is the exact state the migration passes through.
+    Fixture tree at /tmp/opencode/dualread with three items, one legacy + two canonical:
+        open/...abc123-legacy.backlog.md:5:- Kind: bug
+        open/...abc126-canonical.backlog.md:5:- Work-Kind: feature
+        blocked/...abc124-gate.backlog.md:5:- Work-Kind: chore
+        $ python3 -m agent_workflows backlog check --dir /tmp/opencode/dualread
+        aw backlog check: all backlog items conform.
+        exit=0
+    TREE USED: a THROWAWAY fixture tree, and on it the run is genuinely CLEAN (exit 0), as F7 predicted
+    is possible off the live tree. The LIVE tree is reported under V-03 as no-worse-than-baseline, NOT
+    clean, because it carries 3 pre-existing `backlog.summary-unsafe` violations outside this fence.
+
+    (4) `- Gate-Kind:` PARSES WITH ITS GATE INTACT. The live tree's one carrier, after migration:
+        file      : .aw/records/backlog/blocked/20260829-mergedirty-01-h1ksy6-pre-merge-dirty-check-scope.backlog.md
+        kind      : 'bug'
+        gate_kind : 'artifact'
+        gate_ref  : '2c122z'
+        drift     : []
+    and its on-disk block reads `- Work-Kind: bug` above an untouched `- Gate-Kind: artifact`.
+
+    (5) REAL-CALLER PROOF, the strongest evidence for this item (F8). 12 pre-existing test modules emit
+    the OLD spelling as fixture data and were left UNEDITED; they pass unchanged through the dual-read
+    window (the plan predicted 10; the tree grew to 12, all still unedited):
+        $ python3 -m pytest -o addopts="" -q tests/test_agentadhere_policy_engine.py \
+            tests/test_auto_index_on_mutation.py tests/test_backlog_blocking_close_gate.py \
+            tests/test_backlog_graduated.py tests/test_backlog.py tests/test_check_engine_spec_handoff.py \
+            tests/test_from_backlog.py tests/test_history_routing.py tests/test_release_gate_close.py \
+            tests/test_releases_cli.py tests/test_releases.py tests/test_status_set.py
+        229 passed in 5.25s
+    `git status --porcelain tests/` showed only `?? tests/test_backlog_work_kind_rename.py`, proving none
+    of them was edited to make this pass.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a newly created item showing `- Work-Kind:` on disk. Paste the validator accepting it, rejecting an out-of-vocabulary value, and STILL REJECTING an item with the field absent, which proves requiredness was preserved rather than quietly relaxed (F5). Paste the module's documented field list matching what it now writes. Paste both `--kind` and `--work-kind` working, per OQ-01's kept alias.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`.
 
-- [ ] V-03 validates E-03
+    (1) A NEWLY CREATED ITEM CARRIES THE CANONICAL SPELLING ON DISK:
+        $ python3 -m agent_workflows backlog new --dir /tmp/opencode/e02 \
+            --summary "test preferred spelling" --work-kind security --slug pref --apply
+        aw backlog new: wrote /tmp/opencode/e02/.aw/records/backlog/open/20260830-5ha6gn-01-5ha6gn-pref.backlog.md
+        - Id: 5ha6gn
+        - Status: open
+        - Set: 5ha6gn
+        - Priority: medium
+        - Work-Kind: security
+        - Summary: test preferred spelling
+
+    (2) BOTH FLAGS WORK, per OQ-01's kept alias. `--kind bug` also wrote the CANONICAL field:
+        $ python3 -m agent_workflows backlog new --dir /tmp/opencode/e02 \
+            --summary "test alias spelling" --kind bug --slug alias --apply
+        - Work-Kind: bug
+    and with neither flag the `chore` fallback is preserved: `- Work-Kind: chore`. Both flags parse to
+    distinct dests with NO argparse default, so "was it passed?" stays answerable and the alias cannot
+    mask the preferred spelling; `run_new` holds the fallback.
+
+    (3) AN OUT-OF-VOCABULARY VALUE IS REJECTED:
+        $ python3 -m agent_workflows backlog new --dir /tmp/opencode/e02 --summary bad --work-kind bogus --slug bad --apply
+        aw backlog new: --work-kind must be one of ['bug', 'chore', 'feature', 'followup', 'security']
+        exit=2
+
+    (4) REQUIREDNESS PRESERVED (F5), the assertion this plan most needed to get right. An item with NO
+    work-nature field is STILL a hard error, exactly as before the rename:
+        $ python3 -m agent_workflows backlog check --dir /tmp/opencode/e02b
+        20260830-demo-01-zzz999-nokind.backlog.md: backlog.kind-invalid: kind not in ['bug', 'chore', 'feature', 'followup', 'security']: None
+        aw backlog check: 1 violation(s).
+        exit=1
+    The validator at `backlog.py:207` is still unconditional (`if item.kind not in KINDS`); the field was
+    NOT moved into an `is not None` guard. V-04 pastes the falsification proving a test catches that.
+
+    (5) THE MODULE'S DOCUMENTED FIELD LIST MATCHES WHAT IT WRITES. `backlog.py`'s docstring block now
+    reads `- Work-Kind: bug | feature | chore | security | followup`, and a new paragraph records that
+    the legacy spelling is still read, that only the canonical one is written, and that the field stays
+    REQUIRED here (asymmetric with plans and specs by design). Asserted by
+    `test_the_module_docstring_documents_the_canonical_spelling`.
+
+    (6) ONE VOCABULARY, NO FORKS: `grep -rn 'frozenset(("bug"' agent_workflows/` returns exactly one line,
+    `agent_workflows/backlog.py:70`. Pinned by `test_exactly_one_vocabulary_definition_is_consumed`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the counts after migration, DERIVED FROM THE PARSER and not from a tree-wide grep: parsed items carrying `- Work-Kind:` = every item (87 at `be49ac4`, re-measured at your HEAD), parsed items carrying `- Kind:` = 0, and items carrying `- Gate-Kind:` = 1. State explicitly that `README.md` is excluded from all three because the parser skips it, so a reviewer can tell your numbers from the misleading 88/2 a `grep -rl` produces (F1b). Paste `aw backlog check` before and during and after with NO `backlog.kind-invalid` finding and the pre-existing `backlog.summary-unsafe` set unchanged; do NOT claim clean (F7). Paste a `git diff` excerpt for two or three migrated items showing exactly ONE changed line each and no incidental reformatting. Paste `git diff --cached --name-only` before your commit proving no other session's file was swept in.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`; baseline at `bcbbfb077416d1796c7a7e406ef587b66b327e34`.
 
-- [ ] V-04 validates E-04
+    (1) COUNTS DERIVED FROM THE PARSER (`backlog._iter_items`), NOT a tree grep:
+        parsed items          : 91
+        carrying '- Work-Kind:': 91
+        carrying '- Kind:'     : 0
+        carrying '- Gate-Kind:': 1
+    `README.md` IS EXPLICITLY EXCLUDED FROM ALL THREE, because `_iter_items` globs `*.md` and skips only
+    that name. The plan's figure was 87 items at `be49ac4`; I re-measured 91 at my own HEAD, since other
+    sessions add items continuously (the plan's CONCURRENCY RULE anticipated exactly this).
+
+    (2) THE MISLEADING GREP, shown for contrast so the numbers above are checkable (F1b):
+        grep -rl '^- Work-Kind:' = 91
+        grep -rl '^- Kind:'      = 1   <- .aw/records/backlog/README.md ONLY, documentation, owned by E-06
+        grep -rl '^- Gate-Kind:' = 2   <- 91-item corpus contributes 1; README.md is the other
+    So a naive `grep` would report 92/2 where the parser reports 91/1. I am NOT pasting 92 and 2.
+
+    (3) `Gate-Kind` UNCHANGED AT 1 ITEM AND STILL PARSING: the one carrier
+    (`blocked/20260829-mergedirty-01-h1ksy6-...`) parses with `gate_kind='artifact'`, `gate_ref='2c122z'`,
+    `kind='bug'`, and `drift = []`. `grep -rn 'Gate-Work-Kind' .aw/records/backlog/` returns ZERO hits,
+    which is the signature a substring-anchored rename would have left.
+
+    (4) EXACTLY ONE CHANGED LINE PER MIGRATED ITEM, proven over the WHOLE corpus rather than by sampling:
+        $ git diff --numstat .aw/records/backlog/ | awk '{print $1"\t"$2}' | sort | uniq -c
+             91 1	1
+              1 8	2      <- .aw/records/backlog/README.md (E-06 documentation edit, not an item)
+    91 files at 1 insertion + 1 deletion each, with the README the only exception. Two sample diffs:
+        -- Kind: bug            /  +- Work-Kind: bug         (the Gate-Kind carrier; gate lines untouched)
+        -- Kind: chore          /  +- Work-Kind: chore       (done/...xd78mr-e06-scenario-token-test-bindings.md,
+                                                              the legacy-named item a `*.backlog.md` glob misses)
+    The migration script anchored on `re.compile(r'^- Kind:...$', re.MULTILINE)` and asserted `n == 1`
+    per file, so a second matching line anywhere would have aborted rather than silently rewritten.
+
+    (5) `aw backlog check` NO WORSE AT THREE POINTS, and NOT claimed clean (F7):
+        BEFORE (at `bcbbfb077416d1796c7a7e406ef587b66b327e34`, live tree): exit 1, `3 violation(s)`, all `backlog.summary-unsafe`, on
+          `20260819-awagyfalseerror-01-uhbdt1`, `20260820-awhistignore-01-f7w55w`, `20260820-awinstallfix-01-av9hni`.
+        DURING (tree carrying BOTH spellings): exit 0 on the throwaway fixture tree, pasted in V-01 (3).
+        AFTER (at `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`, live tree): exit 1, `3 violation(s)`, the SAME three items and the same rule.
+    `backlog.kind-invalid` findings: 0 before, 0 during, 0 after. The pre-existing `summary-unsafe` set is
+    unchanged and untouched: it is outside this plan's fence and I did not edit those three items.
+
+    (6) STAGED-SET VERIFICATION BEFORE COMMITTING (the concurrency rule). `git status --porcelain` showed
+    ONLY my own paths and `git diff --cached --name-only` was EMPTY before I staged, so no co-worker's work
+    was pending. After staging, the set was 96 paths = 91 migrated items + README + `backlog.py` + `cli.py`
+    + `command_surface.py` + the new test; I reviewed the full list and every path is one I modified. The
+    commit was path-scoped, all 10 pre-commit hooks passed, and `git diff --cached --name-only` was re-run
+    AFTER the commit and came back empty, confirming no hook-restore polluted the index.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the full test module passing. Paste FALSIFIABILITY as actual failures: the dual-read case failing when only the new spelling is accepted, and the `Gate-Kind` case failing under a substring-based rename. Paste the requiredness-preserved case passing and show it FAILS against an implementation that made the field optional. Confirm every case used a throwaway tree, not the live records.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`.
 
-- [ ] V-05 validates E-05
+    (1) THE FULL MODULE PASSES:
+        $ python3 -m pytest -o addopts="" tests/test_backlog_work_kind_rename.py -q
+        ..........................                                               [100%]
+        26 passed in 0.30s
+    `python3 -m ruff format --check` and `python3 -m ruff check` both clean on the module.
+
+    (2) FALSIFIABILITY AS ACTUAL FAILURES. Each mis-implementation was really introduced, the suite really
+    run, and the code then restored; these are observed failures, not predictions.
+
+    (a) DUAL-READ REMOVED (accept only the new spelling) -> deleting the `_KIND_RE` branch from
+        `parse_item` produced:
+            FAILED ...::DualReadTests::test_legacy_spelling_still_parses
+            FAILED ...::DualReadTests::test_a_tree_containing_both_spellings_validates
+            FAILED ...::WriteSideTests::test_a_status_transition_rewrites_the_field_in_the_canonical_spelling
+            3 failed, 23 passed in 0.47s
+        with the primary assertion reading `AssertionError: 'bug' != None`-class failure. The third failure
+        exposes the REAL-WORLD harm concretely: a status transition on a legacy item wrote
+        `- Work-Kind: None`, i.e. silent data loss, not merely a parse miss.
+
+    (b) FIELD MADE OPTIONAL (`if item.kind is not None and item.kind not in KINDS`) ->
+            FAILED ...::RequirednessAndVocabularyTests::test_absent_work_kind_is_still_rejected
+            E  AssertionError: 'backlog.kind-invalid' not found in []
+            1 failed, 25 passed in 0.48s
+        This is the F5 guard firing exactly as designed against the one change this plan forbids.
+
+    (c) SUBSTRING-BASED RENAME (`text.replace("Kind:", "Work-Kind:")` applied to the real Gate-Kind
+        carrier, corrupting it to `- Gate-Work-Kind: artifact`) ->
+            FAILED ...::MigratedCorpusTests::test_no_item_lost_its_work_nature_value_in_the_migration
+            FAILED ...::MigratedCorpusTests::test_the_gate_kind_field_survived_the_migration
+            2 failed, 24 passed in 0.30s
+        `test_a_substring_rename_would_have_corrupted_the_gate`
+        additionally demonstrates the hazard in-process without touching the tree: the naive rewrite yields
+        `parse_item(...).gate_kind is None` while the full-line rewrite preserves `'artifact'`.
+
+    After each experiment the implementation was restored and re-verified green (26 passed), and the corpus
+    diff shape returned to `91  1 1`.
+
+    (3) THROWAWAY TREES CONFIRMED. Every constructive case builds under `TemporaryDirectory()`. The only
+    assertions that read the LIVE records are the four `MigratedCorpusTests`, which are deliberately about
+    the migration's actual deliverable (that no item retains the old spelling, none lost its value, the gate
+    survived, and the README is documentation the parser never enumerated); they assert invariants rather
+    than a fixed count, so a concurrent session adding an item cannot make them flake.
+
+    (4) SUITE NO WORSE, both invocations, measured at my own HEAD rather than reusing the plan's numbers:
+        FAST  `python3 -m pytest`      : baseline `bcbbfb077416d1796c7a7e406ef587b66b327e34` 15 failed, 3575 passed, 3 skipped, 4 xfailed
+                                      -> HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122` 15 failed, 3601 passed, 3 skipped, 4 xfailed
+        SLOW  `python3 -m pytest -m ""`: baseline 40 failed, 3939 passed, 3 skipped, 4 xfailed
+                                      -> HEAD     40 failed, 3965 passed, 3 skipped, 4 xfailed
+    Passing count rose by exactly +26 on both, which is this module. The failure SETS are IDENTICAL before
+    and after (`diff` of the sorted `FAILED` lines reports no difference), so nothing regressed.
+    HONEST DISCLOSURE, since these are not green runs: both failure sets are PRE-EXISTING and unrelated to
+    this plan. The 15 fast failures are all `tests/test_run_viewer.py`, which read the real
+    `.aw/records/runs/` directory; that directory does not exist in this lane worktree, so they fail
+    environmentally (`discover_run_dirs` returns 0 runs) at the baseline commit too, with none of my changes
+    applied. The slow set adds `test_runner_stop_level*`, `test_cli_conformance_matrix`,
+    `test_command_surface_declarations`, and `test_cli.py::SubcommandDescriptionTests`. I specifically
+    checked the two `command_surface`-adjacent ones because E-05 edits that file: they fail on UNDECLARED
+    COMMAND LEAVES (65 of them, e.g. `runs`, `commit`, `config set`), an entirely different axis from the
+    per-command `legacy_flags` tuple E-05 touches, and they fail identically at the baseline.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the `backlog new` `legacy_flags` tuple showing BOTH `--work-kind` and the retained `--kind`. Paste a comparison of the declared flag set against what the parser actually accepts (`aw backlog new --help`) showing they agree. Paste `git diff --stat` for `command_surface.py` showing only that one declaration changed, and confirm no `ipd set` or `specs set` declaration was touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`.
 
-- [ ] V-06 validates E-06
+    (1) THE `backlog new` `legacy_flags` TUPLE, showing BOTH spellings with `--kind` RETAINED:
+        ('--summary', '--set', '--status', '--priority', '--work-kind', '--kind', '--slug',
+         '--gate-kind', '--gate-ref', '--blocks-release', '--message', '--body', '--apply')
+
+    (2) DECLARED vs ACTUALLY ACCEPTED, showing they agree:
+        $ python3 -m agent_workflows backlog new --help | grep -o -- '--[a-z-]*' | sort -u
+        --agent --apply --blocks-release --body --dir --gate-kind --gate-ref --help --json --kind
+        --message --no-color --priority --set --slug --status --summary --work-kind
+    Every declared flag appears in the accepted set; the extras (`--dir --help --json --agent --no-color`)
+    are global/renderer flags not carried in `legacy_flags`. `test_the_declaration_matches_the_parser`
+    asserts `declared - accepted == set()` by walking the REAL parser `_build_parser()` builds, so the
+    declaration cannot drift into being aspirational.
+
+    (3) ONLY THAT ONE DECLARATION CHANGED:
+        $ git diff --stat agent_workflows/command_surface.py
+         agent_workflows/command_surface.py | 4 ++++
+         1 file changed, 4 insertions(+)
+    A pure addition: one `"--work-kind",` entry plus a 3-line comment, no deletions.
+    `ipd set` and `specs set` are UNTOUCHED, verified by reading them back after the edit:
+        ipd set   -> ('--message', '--by-human', '--actor', '--scope-reason', '--scope-ack', '--dry-run', '--json', '--agent')
+        specs set -> ('--status', '--message', '--gate-kind', '--gate-ref', '--gate-summary',
+                      '--blocks-release', '--evidence', '--by-human', '--date', '--dry-run', '--json', '--agent')
+    Neither declares `--priority`, which is precisely the measurement F6 says does NOT transfer to this
+    plan; `backlog new` DOES declare its flag, which is why E-05 exists at all and why child 02's
+    "command_surface.py stays out of scope" conclusion was correctly not borrowed here.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the `.aw/records/backlog/README.md` diff showing the field list now names `- Work-Kind:`. Paste a grep for the old full-line spelling across tracked documentation showing either no remaining hits or only hits outside `Scope-Paths`, which must be REPORTED rather than edited. Paste proof the README was NOT migrated as an item, namely that its diff is a documentation edit and that the parser's item enumeration never included it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `91cd3fa2fdd0eba6a4b431ba79b342592c18a122`.
+
+    (1) THE README DIFF now names the canonical field:
+        --- a/.aw/records/backlog/README.md
+        +++ b/.aw/records/backlog/README.md
+        @@ -39,7 +39,7 @@
+         - Priority: high | medium | low
+        -- Kind: bug | feature | chore | security | followup
+        +- Work-Kind: bug | feature | chore | security | followup
+         - Summary: <one line>
+         - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
+    The `- Gate-Kind:` line two rows below is visibly UNCHANGED, which is the same distinction the code
+    change turns on. Two further edits keep the file honest rather than merely renamed: a paragraph
+    recording that the old spelling is still read while only the new one is written, and that backlog
+    REQUIRES the field unlike plans and specs; and the `aw backlog new` verb line now advertises
+    `--work-kind` (the alias stays accepted, it is simply no longer the documented spelling).
+
+    (2) NO REMAINING OLD-SPELLING DOCUMENTATION HIT INSIDE THIS FENCE:
+        $ git ls-files -z | xargs -0 grep -ln -- '^- Kind: \(bug\|feature\|chore\|security\|followup\)$'
+        tests/test_auto_index_on_mutation.py
+        tests/test_backlog_graduated.py
+        tests/test_check_engine_spec_handoff.py
+        tests/test_status_set.py
+    All four are FIXTURE DATA in test modules, deliberately NOT in `Scope-Paths` and deliberately NOT
+    edited (F8/F10): they are the dual-read window's real-caller evidence and pass unedited (V-01 (5)).
+    They are REPORTED here, not touched. A wider sweep of tracked markdown for a backlog-style field
+    description found exactly one hit outside the backlog tree:
+        .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md:86: "(`- Kind:`, see Section 4.4)"
+    That is an IPD's STRUCTURAL kind (`child`/`orchestrator`), one of the four unrelated bookings of the
+    token this rename exists to disambiguate. Correctly left alone; it is not backlog's field.
+
+    (3) THE README WAS EDITED AS DOCUMENTATION, NEVER MIGRATED AS DATA. Its diff is 8 insertions and 2
+    deletions, the ONLY file in the whole change whose shape is not `1 1` (see V-03 (4)); the 91 items are
+    uniformly one line each. And the parser never enumerated it: `_iter_items` skips it by name, so it is
+    absent from the 91-item target set E-03 rewrote. `test_the_readme_documents_the_canonical_spelling_and_is_not_an_item`
+    asserts BOTH halves, that the file documents `- Work-Kind:` and that
+    `readme not in backlog._iter_items(REPO_ROOT)`.
+  - Result: pass
 
 ## Approval and execution gate
 
