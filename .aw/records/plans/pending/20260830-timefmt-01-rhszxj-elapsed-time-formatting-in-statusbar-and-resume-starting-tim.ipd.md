@@ -30,31 +30,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Duration Formatting Utilities
 
-- [ ] E-01 Implement `format_compact_duration` in `agent_workflows/render_stream.py` and update `format_duration` in `render_stream.py` and `run_viewer.py` with hour and day transitions.
+- [x] E-01 Implement `format_compact_duration` in `agent_workflows/render_stream.py` and update `format_duration` in `render_stream.py` and `run_viewer.py` with hour and day transitions.
   - Depends on: none
   - Expected outcome: Durations >= 60m format as `XhYmZs` (e.g. `3h07m56s`) and >= 24h format as `Wd XhYmZs` (e.g. `1d 3h07m56s`).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Statusline & Heartbeat Rendering
 
-- [ ] E-02 Update `format_statusline_lines`, `Statusline`, and `Heartbeat` in `agent_workflows/render_stream.py` to use `format_compact_duration` for run elapsed, idle time, and item elapsed.
+- [x] E-02 Update `format_statusline_lines`, `Statusline`, and `Heartbeat` in `agent_workflows/render_stream.py` to use `format_compact_duration` for run elapsed, idle time, and item elapsed.
   - Depends on: E-01
   - Expected outcome: Statusline renders clean, consistent compact durations for all columns.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Invocation Timing on Resume & Start
 
-- [ ] E-03 Update `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` to initialize `run_start_mono` from the start of the current run/resume invocation rather than `state["created_at"]`.
+- [x] E-03 Update `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py` to initialize `run_start_mono` from the start of the current run/resume invocation rather than `state["created_at"]`.
   - Depends on: E-01, E-02
   - Expected outcome: `aw oc run resume` and `aw agy run resume` start counting elapsed time from 0m00s when invoked.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Test Suite Updates
 
-- [ ] E-04 Update `tests/test_render_stream.py`, `tests/test_stall_countdown_display.py`, and `tests/test_run_summary_table.py` to test duration transitions and resume timing.
+- [x] E-04 Update `tests/test_render_stream.py`, `tests/test_stall_countdown_display.py`, and `tests/test_run_summary_table.py` to test duration transitions and resume timing.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: All test suites pass 100% clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -104,25 +104,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Unit tests verifying `format_compact_duration` and `format_duration` for seconds, minutes, hours, and days.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_format_compact_duration` and `test_format_duration` in `tests/test_render_stream.py` and `tests/test_run_summary_table.py` passed with assertions for 0s, 45s, 4m08s, 1h04m21s, 3h07m56s, and 1d 3h07m56s.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Test showing `format_statusline_lines` produces `1h04m21s` instead of `64m21s`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_format_statusline_exact_layout` and `test_layout_is_unchanged_when_no_countdown` passed verifying `1h04m21s idle: 14s`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Unit test verifying `Statusline` receives invocation start monotonic time on resume.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `test_resume_statusbar_starts_from_resume_time` in `tests/test_run_summary_table.py` passed asserting `_invocation_start_mono >= t_before`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Full pytest suite passes with pasted output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3654 passed, 3 skipped, 4 xfailed in 43.74s` in full pytest run.
+  - Result: pass
 
 ## Approval and execution gate
 
