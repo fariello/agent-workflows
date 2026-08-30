@@ -3663,6 +3663,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md",
+    "plan_id": "z2isfg",
+    "set_id": "lanetruth",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md",
     "plan_id": "g7hljt",
@@ -3976,16 +3986,6 @@
     "order": 0,
     "path": "pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md",
     "plan_id": "y0gg8o",
-    "set_id": "lanetruth",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md",
-    "plan_id": "z2isfg",
     "set_id": "lanetruth",
     "status": "approved"
   },
