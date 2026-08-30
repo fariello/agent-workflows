@@ -22,7 +22,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -31,6 +30,7 @@ import time
 from pathlib import Path
 from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
+from agent_workflows import runner_shutdown
 from agent_workflows.render_stream import Statusline
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
@@ -843,23 +843,35 @@ def append_jsonl(path: Path, event: dict[str, Any]) -> None:
 
 @contextlib.contextmanager
 def run_lock(run_dir: Path):
+    """Hold the run's ``driver.lock`` for this driver process.
+
+    Yields a :class:`runner_shutdown.RunLockHandle` so the clean-shutdown routine can release
+    the lock OBSERVABLY (spec `c4gd2h` R2: drop the ``flock`` AND remove the lock file). Kept
+    symmetric with ``oc_runipd.run_lock`` (orchestrator CID-3).
+    """
+
     lock_path = run_dir / "driver.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as handle:
-        try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise DriverError(
-                f"Run is already controlled by another process: {run_dir.name}"
-            ) from exc
-        handle.seek(0)
-        handle.truncate()
-        handle.write(f"pid={os.getpid()} started={utc_now()}\n")
-        handle.flush()
-        try:
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    handle = lock_path.open("a+")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        handle.close()
+        raise DriverError(
+            f"Run is already controlled by another process: {run_dir.name}"
+        ) from exc
+    except BaseException:
+        handle.close()
+        raise
+    handle.seek(0)
+    handle.truncate()
+    handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+    handle.flush()
+    lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
+    try:
+        yield lock
+    finally:
+        lock.release()
 
 
 def _read_id(text: str) -> str | None:
@@ -1835,49 +1847,23 @@ def attempt_log_path(
 
 
 def terminate_process(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        _close_process_streams(process)
-        return
+    """Reap a child Antigravity process and its process group without leaving orphans.
 
-    def _signal(sig: int) -> bool:
-        if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
-            try:
-                pgid = os.getpgid(process.pid)
-                if pgid != os.getpgrp():
-                    os.killpg(pgid, sig)
-                    return True
-            except (ProcessLookupError, OSError):
-                pass
-        try:
-            process.send_signal(sig)
-            return True
-        except (ProcessLookupError, OSError):
-            return False
+    Delegates to the SINGLE shared reaper in ``runner_shutdown``. This driver and
+    ``oc_runipd`` previously carried byte-identical copies of this escalation, which spec
+    `c4gd2h` R5 forbids (orchestrator CID-1: the check is repo-wide for exactly that reason).
+    The module-level grace constants are read at call time and passed through, so a test that
+    tunes them still takes effect.
+    """
 
-    for sig, grace in (
-        (signal.SIGINT, _SIGINT_GRACE_SECONDS),
-        (signal.SIGTERM, _SIGTERM_GRACE_SECONDS),
-    ):
-        if not _signal(sig):
-            break
-        try:
-            process.wait(timeout=grace)
-            _close_process_streams(process)
-            return
-        except subprocess.TimeoutExpired:
-            continue
-
-    _signal(signal.SIGKILL)
-    with contextlib.suppress(Exception):
-        process.wait(timeout=_SIGTERM_GRACE_SECONDS)
-    _close_process_streams(process)
+    runner_shutdown.terminate_process(
+        process,
+        sigint_grace=_SIGINT_GRACE_SECONDS,
+        sigterm_grace=_SIGTERM_GRACE_SECONDS,
+    )
 
 
-def _close_process_streams(process: subprocess.Popen) -> None:
-    for stream in (process.stdout, process.stderr, process.stdin):
-        if stream is not None:
-            with contextlib.suppress(Exception):
-                stream.close()
+_close_process_streams = runner_shutdown._close_process_streams
 
 
 def run_agy_turn(
@@ -1955,7 +1941,9 @@ def run_agy_turn(
             run_start_mono = None
 
     with log_path.open("w", encoding="utf-8") as log:
-        process = subprocess.Popen(argv, **popen_kwargs)
+        # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
+        # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
+        process = runner_shutdown.track_child(subprocess.Popen(argv, **popen_kwargs))
         if process.stdout is None:
             terminate_process(process)
             raise DriverError("Failed to open child agy stdout stream")
@@ -2805,6 +2793,31 @@ def run_queue(
     return 0 if all(item["status"] in SUCCESS_STATES for item in state["queue"]) else 1
 
 
+@contextlib.contextmanager
+def locked_run(run_dir: Path):
+    """Hold the run lock AND guarantee the shared clean shutdown when the scope ends.
+
+    The lock-holding layer is the only scope holding all four clean-shutdown invariants' inputs
+    at once: the ``driver.lock`` handle (spec `c4gd2h` R2), the run ledger (R3), and the
+    repository path (R4), plus the tracked child agent processes (R1). The per-turn
+    ``run_agy_turn`` handlers hold no lock and have no queue authority, so they only reap the
+    child. Kept symmetric with ``oc_runipd.locked_run`` (orchestrator CID-3).
+    """
+
+    repo: Path | None = None
+    with contextlib.suppress(Exception):
+        repo = Path(load_state(run_dir)["repo"])
+    with run_lock(run_dir) as lock:
+        try:
+            yield lock
+        finally:
+            report = runner_shutdown.clean_shutdown(
+                lock=lock, run_dir=run_dir, repo=repo
+            )
+            if not report.all_satisfied or report.dirty_paths or report.reaped_pids:
+                print(report.render(), file=sys.stderr)
+
+
 def _detect_driver_command() -> str:
     """Detect the command prefix used to invoke the runner, defaulting to 'aw agy run'."""
     argv = sys.argv
@@ -3136,7 +3149,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.prepare_only:
                 print_status(run_dir)
                 return 0
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
 
         run_dir = resolve_run_dir(args.repo, args.run_id)
@@ -3182,7 +3195,7 @@ def main(argv: list[str] | None = None) -> int:
                 for s in state.get("set_sessions", {}):
                     state["set_sessions"][s] = args.session
                 save_state(run_dir, state)
-            with run_lock(run_dir):
+            with locked_run(run_dir):
                 return run_queue(
                     run_dir,
                     retry_incomplete=args.retry_incomplete,
