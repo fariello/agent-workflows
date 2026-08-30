@@ -6,16 +6,16 @@
 - Scope: Introduce a machine-readable `.review.md` findings artifact under `.aw/records/reviews/`, add `review` to the closed artifact-type facet enum, add the `review_findings_gate` project-config key (default threshold `high`), and a dangling-reference check. The artifact carries a decisions section as well as findings, so `c621h9` (Order 04) can populate it. This plan does NOT gate anything: enforcement is `plqjt7` (Order 02) and dependency cascade is `7nkcgp` (Order 03).
 - Scope-Paths: agent_workflows/artifact_naming.py, agent_workflows/config.py, agent_workflows/review_findings.py, agent_workflows/check_engine.py, agent_workflows/record_producers.py, agent_workflows/engine.py, agent_workflows/status_set.py, .aw/records/reviews/README.md, tests/test_review_findings.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: revgate
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 15zvu6
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): revgate Order 01: typed review findings artifact, review facet, records tree registration, and the fail-closed review_findings_gate key. Data layer only; gates nothing (Order 02 enforces). E-01 chose option (b), omitting the TYPE_FACET entry so a review is not status-settable by aw set. 55 new tests; suite 2967 passed with the failure set unchanged at 15 pre-existing test_run_viewer environmental failures; aw check all byte-identical at 96 findings. [Scope reconciliation - out-of-scope .aw/system/workflows/setup-repo/tools/normalize_plan_names.py: Mechanically forced by E-01. This file is the ONE documented standalone copy of the facet enum (kept stdlib-only so setup-repo can run before the package is installed), and tests/test_naming_authority_single_source.py::test_normalizer_facet_enum_matches_authority is a drift guard that FAILS unless the copy matches the authority. Adding 'review' to ARTIFACT_TYPE_FACETS therefore requires the identical one-token addition here; the guard existing is precisely the instruction to make this edit. One token changed, no logic touched.; out-of-scope tests/test_setup_artifacts.py: Mechanically forced by E-09. Two deliberately pinned setup-artifact totals (test_engine_returns_created_list and test_default_setup_artifacts_unchanged_count_24) assert an exact count of files a fresh install scaffolds. E-09 adds exactly one (.aw/records/reviews/.gitkeep), so both counts move 25 -> 26. I updated the explanatory comments and added assertIn('.aw/records/reviews/.gitkeep', created) to anchor the number to a named artifact rather than a bare integer. I deliberately did NOT rename the stale ..._count_24 method, since pending plan 20260829-lanename-01-j4v6ga documents that name as a known lag and warns against correcting it.; in-scope-unmodified agent_workflows/status_set.py: Correctly unmodified. It was in Scope-Paths ONLY to allow E-01 option (a) (adding a reviews skip beside the comms exemption). I took the plan's RECOMMENDED option (b), omitting the TYPE_FACET entry entirely, so no skip is needed and the plan's own Scope check requires this file be left untouched. Verified: git diff and git status both report no change. Its docstring statement that comms is the only intentional exemption therefore remains true.]
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-206. Verified the premise exactly: F-1 confirmed (BLOCKER/HIGH/Severity/Remediation Risk each grep to 0 in both ipd_lint.py and check_engine.py), F-2 confirmed (no .aw/records/reviews tree), the closed-enum rationale confirmed verbatim at artifact_naming.py:59-70. Found a HIGH ripple the draft did not examine (F-8): TYPE_FACET is ITERATED, not inert, and status_set.detect_artifact_type (status_set.py:175-177) loops every entry and returns the matched type, so the drafted 'reviews'->'review' addition would make a .review.md file resolve as a status-settable artifact to aw set although a review has no status lifecycle; nothing in E-02..E-08 needs that mapping, so E-01 now requires an explicit choice (omit the entry, recommended, or add it with a reviews skip beside the existing comms exemption) and must prove the aw set behavior either way. Found a HIGH registration gap (F-9): the plan introduced the first new .aw/records/ subtree but registered it NOWHERE, so reviews is absent from the closed RecordClass enum and _RECORD_CLASS_SUBPATHS (making E-06's dangling check undiscoverable by supported means), absent from _DEEP_CLEANUP_ROOTS (aw uninstall --deep would orphan it), and absent from the installer dir map and .gitkeep list (a fresh repo would never create the tree the E-04 README describes); added E-09 plus V-09 and grew Scope-Paths by record_producers.py, engine.py, and status_set.py. De-risked E-05 by measurement (F-10): project.json's strict parser preserves unknown keys in unknown_fields AND writes them back on serialize, so review_findings_gate round-trips safely and must NOT be added to CONFIG_SCHEMA (the cutover precedent is absent from it too). Corrected a mis-citation (F-11): the dependency_schema_cutover precedent is config.py:781-822, not :282-316 (which is add_config_item); its characterization was otherwise exactly right. Re-measured the corpus figures, which had DRIFTED upward since authoring (F-5: 880 history lines across 362 plans, not 863/352; F-6: 94 lines across 52 plans, not 48/49), and reframed both as measurements rather than constants while confirming their conclusions hold. Made E-06's advisory severity deliberate against its all-error siblings, forbade hardcoding the reviews path in check_engine.py, and pre-verified that the two RecordClass test modules do not assert an exact set (16 passed at 65b685e) so E-09 is safe.
 
@@ -34,7 +34,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the artifact and its name
 
-- [ ] E-01 Add `review` to `ARTIFACT_TYPE_FACETS` in `agent_workflows/artifact_naming.py:59` (a CLOSED
+- [x] E-01 Add `review` to `ARTIFACT_TYPE_FACETS` in `agent_workflows/artifact_naming.py:59` (a CLOSED
       enum, so a dotted slug is never mis-parsed as a facet). A review file therefore takes the uniform
       clustered name `YYYYMMDD-<setid>-NN-<id6>-<slug>.review.md`, where `<id6>` is the REVIEWED PLAN's
       id6, which is the stable join key. Adding the facet token is safe and local: `_FACET_ALT`
@@ -58,9 +58,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the naming grammar accepts and round-trips a `.review.md` name; existing facets
     are unchanged; and a `.review.md` file is NOT mistaken for a status-settable artifact by
     `status_set.detect_artifact_type` (proven, not assumed).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Create `agent_workflows/review_findings.py` with a pure parser and writer for the findings
+- [x] E-02 Create `agent_workflows/review_findings.py` with a pure parser and writer for the findings
       table. One file per reviewed plan at `.aw/records/reviews/<clustered-name>.review.md`, holding a
       metadata block (`- Plan-Id:`, `- Reviewed-At:`, `- Reviewer:`, `- Verdict:`) and the findings
       table whose columns are the ones plan-review already writes: `ID | Severity | Scope | Area |
@@ -71,9 +71,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: a `.review.md` round-trips through writer -> parser with identical findings, and a
     malformed row yields a diagnostic rather than an exception.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Support MULTIPLE review rounds per plan by appending rounds within the one file (a repeated
+- [x] E-03 Support MULTIPLE review rounds per plan by appending rounds within the one file (a repeated
       `## Round <N>` section), because plans are demonstrably re-reviewed: the corpus has 863
       `/plan-review` history lines across 352 plans. The parser MUST expose which round is CURRENT
       (the last one), since the gate in `plqjt7` acts on current findings only, not on a finding that a
@@ -81,9 +81,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-02
   - Expected outcome: a two-round file parses to two rounds, and `current_findings()` returns only the
     latest round's rows.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Give the artifact a `## Decisions` section alongside its findings table, so a reviewer's
+- [x] E-08 Give the artifact a `## Decisions` section alongside its findings table, so a reviewer's
       SELF-RESOLVED judgement calls are recorded in the same file as its findings. Columns:
       `ID | Question | Chosen | Alternatives considered | Basis | Reversible`. The parser exposes them
       as typed decisions (same pure, never-raise contract as E-02). This plan only defines and parses
@@ -92,16 +92,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-02
   - Expected outcome: a `## Decisions` section round-trips through writer -> parser; a file without one
     parses cleanly with zero decisions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Write `.aw/records/reviews/README.md` documenting the tree: the flat layout (reviews do NOT
+- [x] E-04 Write `.aw/records/reviews/README.md` documenting the tree: the flat layout (reviews do NOT
       move when a plan moves `pending/` -> `executed/`, so `aw ipd finalize` stays a single-file
       transaction), the id6 join key, the round convention, and the severity/decision enums.
   - Depends on: E-02
   - Expected outcome: the convention is documented where a future agent will look.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 REGISTER THE NEW TREE WHERE EVERY OTHER RECORDS TREE IS REGISTERED, because this plan
+- [x] E-09 REGISTER THE NEW TREE WHERE EVERY OTHER RECORDS TREE IS REGISTERED, because this plan
       introduces the first new `.aw/records/` subtree in a while and the draft treated it as a bare
       directory. Verified gaps (F-9): (1) `reviews` is NOT in the closed `RecordClass` enum
       (`record_producers.py:85-101`) nor in `_RECORD_CLASS_SUBPATHS` (`:126-135`), so
@@ -125,11 +125,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `resolve_record_read_paths` resolves the `reviews` class; `aw uninstall --deep`
     lists `.aw/records/reviews`; a fresh `aw setup` creates `.aw/records/reviews/` with a `.gitkeep`;
     the legacy `.agents/` map is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the configurable threshold
 
-- [ ] E-05 Add the `review_findings_gate` key to `agent_workflows/config.py`, read from
+- [x] E-05 Add the `review_findings_gate` key to `agent_workflows/config.py`, read from
       `.aw/config/project.json`, following the EXISTING precedent of `dependency_schema_cutover`
       (`config.py:781-822`; the draft cited `:282-316`, which is `add_config_item` and unrelated,
       corrected at review): read directly from project.json (NOT via the XDG user config, which drops
@@ -142,9 +142,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: threshold resolves to `high` on a repo with no key set, honors an explicit value,
     and `off` disables gating.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add `check.review-dangling` to `agent_workflows/check_engine.py`: a `.review.md` whose
+- [x] E-06 Add `check.review-dangling` to `agent_workflows/check_engine.py`: a `.review.md` whose
       `Plan-Id:` resolves to no plan is a finding, mirroring the existing `check.from-backlog-dangling`
       treatment of an unresolvable cross-tree reference. Register it in the `RuleSpec` table beside the
       existing dangling rules (`check_engine.py:111-135`) and pick its severity DELIBERATELY: the
@@ -161,11 +161,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: a review file pointing at a nonexistent id6 is reported as a warning; a valid one
     is not; the rule appears in the `RuleSpec` table; and the file enumeration goes through the record
     path authority rather than a hardcoded string.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove the foundation
 
-- [ ] E-07 Write `tests/test_review_findings.py` covering: the naming round-trip; writer/parser
+- [x] E-07 Write `tests/test_review_findings.py` covering: the naming round-trip; writer/parser
       fidelity; a malformed row producing a diagnostic and NOT an exception; multi-round parsing with
       `current_findings()`; threshold resolution including the absent-key default of `high` and the
       `off` case; `is_gating` at each severity/threshold combination; the `## Decisions` section
@@ -179,7 +179,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       round-trips through `parse_portable_policy` without losing the key.
   - Depends on: E-01, E-02, E-03, E-05, E-06, E-08, E-09
   - Expected outcome: the whole foundation is covered by tests that fail if any piece regresses.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -310,7 +310,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a Python session showing a `.review.md` clustered name parsed by
     `artifact_naming` and round-tripped, plus the ADVERSARIAL case: a slug containing a dot is NOT
     parsed as a facet. Paste the diff of `ARTIFACT_TYPE_FACETS` proving no existing facet changed.
@@ -319,68 +319,514 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     other than a status-settable `reviews` type, so `aw set` cannot be pointed at a review file. If you
     chose option (a), also paste the `reviews` skip beside the `comms` exemption; if you chose (b), paste
     a grep proving `status_set.py` was NOT modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: CHOSE OPTION (b), omit the `TYPE_FACET` entry, the plan's recommendation.
+    Rationale: an entry in `TYPE_FACET` is a behavioral claim that the type has a STATUS LIFECYCLE
+    (the map is ITERATED by `status_set.detect_artifact_type`), and a review has none: its state is
+    its `Verdict` plus per-finding `Decision` values, not a `- Status:` bullet. Nothing in E-02..E-08
+    needs the plural->facet mapping, confirmed by construction: `build_review_name` passes the facet
+    token straight to `build_clustered_name`, and the parser is handed a path it never has to
+    classify. Recorded as DECISION 01-15zvu6-D1 in the run register.
 
-- [ ] V-02 validates E-02
+    ```text
+    built : 20260829-revgate-01-15zvu6-typed-review-findings.review.md
+    parsed: {'date': '20260829', 'set': 'revgate', 'nn': '01', 'id6': '15zvu6',
+             'slug': 'typed-review-findings', 'type': 'review'}
+    conformant(review): True
+    ADVERSARIAL dotted slug:
+        20260829-revgate-01-15zvu6-foo.bar.md -> None
+        20260829-revgate-01-15zvu6-foo.reviews.md -> None
+        20260829-revgate-01-15zvu6-foo.reviewx.md -> None
+    F-8: detect_artifact_type(.review.md) -> None
+    F-8: "reviews" in TYPE_FACET -> False
+    ```
+
+    `ARTIFACT_TYPE_FACETS` diff proving no existing facet changed (one added line only):
+
+    ```diff
+         "comms",
+         "release",
+    +    "review",
+         "other",
+     )
+    ```
+
+    Option (b) proof that `status_set.py` was NOT modified (both commands print nothing):
+
+    ```text
+    $ git diff --stat agent_workflows/status_set.py
+    $ git status --short agent_workflows/status_set.py
+    ```
+
+    The F-8 guard is enforced by tests, not merely observed: reintroducing a bare `TYPE_FACET` entry
+    makes `TypeFacetHazardTests` FAIL (verified by temporarily injecting it, then reverting):
+
+    ```text
+    AssertionError: 'reviews' unexpectedly found in {... 'reviews': 'review', 'other': 'other'} :
+      adding `reviews` to TYPE_FACET requires a matching skip in status_set.detect_artifact_type,
+      or `aw set` will accept a review file
+    FAILED tests/test_review_findings.py::TypeFacetHazardTests::test_review_file_is_not_status_settable
+    FAILED tests/test_review_findings.py::TypeFacetHazardTests::test_reviews_absent_from_type_facet
+    2 failed, 1 passed
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste a written `.review.md` and the parser's output for it, showing every column
     recovered. Then paste the malformed-row case showing a DIAGNOSTIC and no traceback (a parser that
     raises fails this item).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOTE a deliberate deviation from the drafted column list, found by reading the
+    shipped workflow: E-02 named 8 columns, but `plan-review.md:461` actually emits NINE, including
+    `Evidence` (the `path:line` citation). I used the workflow's real 9-column shape, since E-02's
+    stated intent is "the columns plan-review already writes" and dropping `Evidence` would discard
+    the citation that makes a finding checkable.
 
-- [ ] V-03 validates E-03
+    Written file:
+
+    ```markdown
+    # Plan review findings: 15zvu6
+
+    - Plan-Id: 15zvu6
+    - Reviewed-At: 2026-08-30
+    - Reviewer: opencode
+    - Verdict: APPROVE WITH REVISIONS APPLIED
+
+    ## Round 1
+
+    ### Findings
+
+    | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+    | --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+    | PR-001 | high | IN-SCOPE | rubric 2.1 | agent_workflows/x.py:42 | the thing is wrong | C:Low; Overall:Low | open | needs a fix |
+    ```
+
+    Parser output, every column recovered:
+
+    ```text
+    plan_id  : 15zvu6
+    reviewed : 2026-08-30
+    reviewer : opencode
+    verdict  : APPROVE WITH REVISIONS APPLIED
+    diagnostics: ()
+      id                 = 'PR-001'
+      severity           = 'high'
+      scope              = 'IN-SCOPE'
+      area               = 'rubric 2.1'
+      evidence           = 'agent_workflows/x.py:42'
+      finding            = 'the thing is wrong'
+      remediation_risk   = 'C:Low; Overall:Low'
+      decision           = 'open'
+      resolution         = 'needs a fix'
+    ```
+
+    MALFORMED ROW: diagnostics, NO traceback, and the good rows around it still parse:
+
+    ```text
+    parsed findings: [('PR-001', 'high', 'open'), ('PR-003', 'nosuchsev', 'nosuchdec')]
+      DIAG x.review.md:14 REV-P001 findings row has 2 cells, expected 9 (ID, Severity, Scope,
+           Area, Evidence, Finding, Remediation Risk, Decision, Resolution)
+      DIAG x.review.md:15 REV-P002 PR-003: severity 'nosuchsev' is not one of low|medium|high|blocker
+      DIAG x.review.md:15 REV-P003 PR-003: decision 'nosuchdec' is not one of fixed|deferred|open|replan
+    ```
+
+    Degenerate inputs also return a document rather than raising:
+
+    ```text
+    ''                     -> rounds 0 diags 5
+    'not markdown at all'  -> rounds 0 diags 5
+    '## Round\n| | |'      -> rounds 0 diags 5
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a two-round file and the parsed result, showing `current_findings()`
     returns ONLY round 2. Include a case where round 1 has a `HIGH/open` finding that round 2 marks
     `fixed`, proving a superseded finding is not reported as current.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: two-round file, round 1 raising `HIGH/open` and round 2 marking it `fixed`:
 
-- [ ] V-04 validates E-04
+    ```markdown
+    ## Round 1
+
+    ### Findings
+
+    | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+    | --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+    | PR-001 | high | IN | a | p:1 | bad thing | Low | open | todo |
+
+    ## Round 2
+
+    ### Findings
+
+    | ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+    | --- | -------- | ----- | ---- | -------- | ------- | ---------------- | -------- | ---------- |
+    | PR-001 | high | IN | a | p:1 | bad thing | Low | fixed | done |
+    ```
+
+    Parsed result, showing `current_findings()` returns ONLY round 2:
+
+    ```text
+    rounds parsed        : 2
+    current round number : 2
+    current findings     : [('PR-001', 'high', 'fixed')]
+    unresolved (current) : []
+    round 1 still on record: [('PR-001', 'open')]
+    ```
+
+    The superseded `HIGH/open` is therefore NOT reported as current (so it cannot block forever), while
+    round 1 remains on record so history is not lost. `current_round()` is defined as LAST IN FILE
+    ORDER, not max-by-number, so a hand-inserted out-of-order round cannot silently become
+    authoritative; a duplicate round number is reported as `REV-R002` instead.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the README, and confirm it states the three load-bearing conventions
     (flat/no-move, id6 join key, round semantics) plus both enums.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: written to `.aw/records/reviews/README.md`. All three load-bearing conventions
+    plus both enums are stated, each under its own heading:
 
-- [ ] V-05 validates E-05
+    - FLAT / NO-MOVE, under "Layout: flat, and reviews do not move": "A review does NOT move when the
+      plan it reviewed moves from `plans/pending/` to `plans/executed/`. That keeps `aw ipd finalize` a
+      single-file transaction instead of one that has to keep two locations in sync." It also states
+      the honest consequence: "the review file alone does not tell you the plan's disposition."
+    - ID6 JOIN KEY, under "Naming": "`<id6>` is the REVIEWED PLAN's id6, not a fresh identifier ... the
+      id6 is the repo's stable cross-tree handle (the same role it plays in `From-Backlog`,
+      `From-Spec`, and `Item-Dependencies`), so the join survives a plan rename."
+    - ROUND SEMANTICS, under "Rounds": "one file holds MULTIPLE rounds as repeated `## Round <N>`
+      sections ... The LAST round in the file is the CURRENT one. Only the current round's findings are
+      live."
+    - BOTH ENUMS, under "Enums": severity `low | medium | high | blocker` (stated least to most severe)
+      and decision `fixed | deferred | open | replan`, with the gating-relevant clarification that
+      "Only `fixed` counts as resolved."
+
+    The README also documents the threshold key and its fail-closed `high` default, and states plainly
+    that ENFORCEMENT does not exist yet ("at present an unfixed High blocks nothing"), so it does not
+    overclaim what this plan delivered. Because E-09 was NOT descoped, the README describes a tree the
+    tooling really creates; E-04's fallback wording about a hand-created tree was not needed. Verified
+    free of em/en dashes per the user-facing prose rule:
+
+    ```text
+    $ grep -nP "[\x{2013}\x{2014}]" .aw/records/reviews/README.md
+    no em/en dashes: clean
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste threshold resolution in four conditions: no key present (MUST be `high`),
     explicit `medium`, explicit `blocker`, explicit `off`. Paste the `is_gating` truth table for all
     severity x threshold combinations. Also paste a malformed-key case proving it does not raise.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: threshold resolution across all four required conditions plus five malformed
+    ones (leftmost column is the `review_findings_gate` value in `.aw/config/project.json`):
 
-- [ ] V-06 validates E-06
+    ```text
+    === 1. NO KEY AT ALL (no project.json) ===
+       threshold -> high
+
+       {'block_at': 'medium'}                        -> medium
+       {'block_at': 'blocker'}                       -> blocker
+       {'block_at': 'off'}                           -> off
+       'high'  (bare string tolerated)               -> high
+       {'block_at': 'nonsense'}                      -> high
+       {'block_at': 42}                              -> high
+       {}                                            -> high
+       project.json is a LIST not an object          -> high
+       malformed JSON                                -> high
+    ```
+
+    No case raised. Note the deliberate fail-CLOSED behavior: every malformed value lands on `high`
+    (still gating) rather than silently disabling the gate, so only a correctly spelled `off` turns it
+    off. This diverges from the `dependency_schema_cutover` precedent's fail-OPEN default on purpose,
+    per the maintainer decision recorded in the plan.
+
+    `is_gating` truth table, all severity x threshold combinations:
+
+    ```text
+       severity    medium      high   blocker       off
+       low          False     False     False     False
+       medium        True     False     False     False
+       high          True      True     False     False
+       blocker       True      True      True     False
+
+       unknown severity   -> False
+       empty severity     -> False
+       empty threshold    -> False
+    ```
+
+    Per F-10 the key was NOT added to `CONFIG_SCHEMA`; measured confirmation that it round-trips
+    through the strict project.json parser regardless (note the function lives in `project_schema.py`,
+    not `config.py` as F-10's prose implied):
+
+    ```text
+    unknown_fields: {'review_findings_gate': {'block_at': 'high'}}
+    serialized has key: True
+    serialized: {'schema_version': 2, ..., 'review_findings_gate': {'block_at': 'high'}}
+    'dependency_schema_cutover' in CONFIG_SCHEMA: False   (CONFIG_SCHEMA has 9 keys)
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `aw check` reporting `check.review-dangling` for a review whose `Plan-Id:`
     resolves to nothing, AND paste a run with a valid review showing the rule does NOT fire (proving it
     is not vacuous or over-firing). Paste the new `RuleSpec` entry and state the chosen severity with its
     in-tree precedent, since the neighbouring `*-dangling` rules are `error` and this one is deliberately
     advisory. Paste a grep proving the file enumeration goes through the record-path authority and that
     no `.aw/records/reviews` path string was hardcoded into `check_engine.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both cases proven in ONE repo state, so the rule is neither vacuous nor
+    over-firing. Repo contains a plan `- Id: aaa111`, a VALID review (`Plan-Id: aaa111`), and a
+    DANGLING review (`Plan-Id: zzz999`):
 
-- [ ] V-08 validates E-08
+    ```text
+    === only a VALID review present ===
+       findings: []
+
+    === a DANGLING review added ===
+      rule: check.review-dangling | severity: warning
+      location: .aw/records/reviews/20260830-probe-02-zzz999-ghost-plan.review.md
+      detail: Plan-Id 'zzz999' does not resolve to any plan
+      observed: Plan-Id: zzz999 | required: a Plan-Id matching an existing plan's `- Id:`
+      recovery: correct the Plan-Id to the reviewed plan's id6, or retire the review alongside
+                the plan it reviewed
+    ```
+
+    With BOTH present, exactly one finding is reported and it names the ghost, not the valid review
+    (`test_does_not_over_fire_with_both_present`).
+
+    The new `RuleSpec` entry:
+
+    ```python
+    "check.review-dangling": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
+    ```
+
+    SEVERITY CHOICE, stated explicitly: `warning`, NOT `error` like the neighbouring `*-dangling`
+    rules. A review left behind by a superseded or deleted plan is UNTIDY, not dangerous, and nothing
+    downstream reads it, so it must not block a commit or set an exit code. The in-tree precedent for
+    an advisory rule in this same `I-07` family is `check.orphaned-live-blocker`, so the choice reads
+    as intentional rather than as inconsistency with its siblings. It is tagged `DET_DETERMINISTIC`
+    (not `DET_HEURISTIC` like that precedent) because the test is a literal id6 set lookup with no
+    inference. Confirmed at runtime:
+
+    ```text
+    RuleSpec(severity='warning', assurance='repository', determinism='deterministic', invariant='I-07')
+    drift count: 1 | severities: ['warning'] | any error-severity? False
+    ```
+
+    NO HARDCODED PATH in `check_engine.py`. Discovery goes through
+    `review_findings.iter_review_files` -> `review_dirs` -> `record_producers.resolve_record_read_paths`:
+
+    ```text
+    $ grep -n "records/reviews" agent_workflows/check_engine.py
+    2003:    deliberately contains NO `.aw/records/reviews` path literal: a second hardcoded path is exactly
+    ```
+
+    The single match is COMMENT PROSE inside the function docstring, not code. This is asserted
+    permanently by `test_no_hardcoded_reviews_path_in_check_engine`, which walks the parsed AST's
+    string literals (excluding docstrings) rather than matching raw text. The guard is not vacuous:
+    temporarily inserting `_sneaky = ".aw/records/reviews"` into the function made it FAIL with
+    `found ['.aw/records/reviews']`, and it passed again once reverted.
+
+    IMPORTANT DEVIATION, recorded as DECISION 01-15zvu6-D2: resolving through the authority ALONE made
+    this check VACUOUS on a bare repo. Measured: for a repo with no project context,
+    `resolve_record_path('reviews', target_repo='.')` returns a HOME-COMPANION path
+    (`~/.aw/projects/<repo>-<hash>/records/reviews`), not the in-repo tree, so reviews written to
+    `.aw/records/reviews/` enumerated as ZERO files and the rule found nothing. Rather than hardcode a
+    path in `check_engine.py` (which E-06 forbids), discovery is defined ONCE in
+    `review_findings.review_dirs` as resolver-first plus the in-repo fallback, exactly matching the
+    established `check_engine._type_dirs` precedent whose docstring gives the identical reason ("so a
+    bare/unregistered repo resolves"). There is still only ONE definition of where reviews live.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste a `.review.md` containing a `## Decisions` section and the parser's typed
     output for it, showing every column recovered. Then paste a review file with NO decisions section
     parsing cleanly with zero decisions (proving the section is optional, not silently required).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: a `.review.md` carrying a Decisions section (the real D1 decision from this
+    execution, used as the fixture):
 
-- [ ] V-09 validates E-09
+    ```markdown
+    ### Decisions
+
+    | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+    | --- | -------- | ------ | ----------------------- | ----- | ---------- |
+    | D-01 | which TYPE_FACET option? | omit the entry | add entry plus skip | status_set.py:175 iterates the map | yes |
+    ```
+
+    Parser output, every column recovered:
+
+    ```text
+      id             = 'D-01'
+      question       = 'which TYPE_FACET option?'
+      chosen         = 'omit the entry'
+      alternatives   = 'add entry plus skip'
+      basis          = 'status_set.py:175 iterates the map'
+      reversible     = 'yes'
+    diagnostics: ()
+    ```
+
+    OPTIONALITY proven: with no decisions supplied, the writer omits the header entirely (rather than
+    emitting an empty table) and the parser accepts the file with zero decisions and zero diagnostics:
+
+    ```text
+    "### Decisions" present in output: False
+    diagnostics: () | decisions: () | findings: 1
+    ```
+
+    A malformed decisions row is likewise diagnosed rather than raised, and does not disturb the
+    findings table (`test_malformed_decision_row_diagnoses`). Decisions are also per-round: with two
+    rounds, `current_decisions()` returns only round 2's while round 1's remain on record.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste `resolve_record_read_paths` resolving the `reviews` class (a Python session
     showing the returned path), the `_DEEP_CLEANUP_ROOTS` diff including `.aw/records/reviews`, and a
     fresh-repo `aw setup` (or the installer's dir map + `.gitkeep` list diff) showing the tree is
     created. Paste proof the LEGACY `.agents/` map was NOT extended. Then paste the existing
     record-class/layout tests still green, naming which ones you ran, since `RecordClass` is a closed
     spec-governed enum and this is the item most likely to trip a conformance test.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `resolve_record_read_paths` resolving the `reviews` class, plus a fresh-repo
+    setup creating the tree (run in a brand-new `git init` temp repo):
 
-- [ ] V-07 validates E-07
+    ```text
+    resolve_record_read_paths(reviews) -> [PosixPath('/.../records/reviews')]
+    resolve_record_path(reviews)       -> /.../records/reviews
+
+    fresh setup created reviews entry: ['.aw/records/reviews/.gitkeep']
+    tree exists on disk: True
+    gitkeep exists: True
+    ```
+
+    `_DEEP_CLEANUP_ROOTS` diff including `.aw/records/reviews`:
+
+    ```diff
+         ".aw/records/roadmaps",
+         ".aw/records/releases",
+    +    # revgate Order 01 (15zvu6) E-09: typed plan-review findings. Listed here or `aw uninstall --deep`
+    +    # would silently ORPHAN the tree while claiming to remove every records root. No `.agents/reviews`
+    +    # counterpart below: reviews are net-new, so no legacy tree can exist to clean up.
+    +    ".aw/records/reviews",
+         # Legacy `.agents/*` roots (a not-yet-migrated repo). ...
+    ```
+
+    Installer dir map diff, showing the entry added to the `aw` layout branch ONLY:
+
+    ```diff
+             "roadmaps": f"{base}/roadmaps",
+             "releases": f"{base}/releases",
+    +        # revgate Order 01 (15zvu6) E-09: ... Only in the
+    +        # `aw` layout; the legacy `.agents/` map below is deliberately NOT extended, because
+    +        # reviews are net-new and mapping them into a legacy tree would invent history.
+    +        "reviews": f"{base}/reviews",
+         }
+     # Legacy nested layout (a not-yet-migrated `.agents/workflows` repo).
+    ```
+
+    LEGACY `.agents/` MAP NOT EXTENDED, proven at runtime rather than by reading the diff:
+
+    ```text
+    aw layout has reviews    : .aw/records/reviews
+    legacy layout has reviews: None
+    ```
+
+    (Asserted permanently by `test_installer_scaffolds_reviews_for_aw_layout_only`. The `.gitkeep` loop
+    looks the key up with `dirs.get(key)` for exactly this reason, matching how `releases` is already
+    absent from that loop, so the legacy layout skips it instead of raising `KeyError`.)
+
+    RECORD-CLASS / LAYOUT TESTS RUN AND GREEN. Modules run explicitly, named as required:
+    `tests/test_awphysical_routing.py`, `tests/test_releases.py`,
+    `tests/test_awretrofit_install_scaffolder.py`, `tests/test_awretrofit_layout_verbs.py`,
+    `tests/test_awnaming_grammar_and_producers.py`:
+
+    ```text
+    43 passed in 4.60s
+    ```
+
+    No test asserted an exact record-class set, so the plan's STOP-and-report condition was NOT
+    triggered. THREE genuine regressions did surface in the FULL suite and were fixed as required
+    consequences of E-01/E-09 rather than worked around:
+
+    1. `tests/test_naming_authority_single_source.py::test_normalizer_facet_enum_matches_authority`
+       failed with `Items in the second set but not the first: 'review'`. This drift guard exists
+       precisely to catch this: `normalize_plan_names.py` is the ONE documented standalone copy of the
+       facet enum (it must stay stdlib-only so `setup-repo` can run before the package is installed).
+       Added `review` to its `_ARTIFACT_TYPE_FACETS`, which is the guard's intended remedy, so the two
+       are back in sync. `Scope-Paths` did not name that file; it is a mechanically required
+       consequence of E-01 and the guard's whole purpose, not scope creep.
+    2. `tests/test_setup_artifacts.py::test_engine_returns_created_list` failed `26 != 25`.
+    3. `tests/test_setup_artifacts.py::LocalLeaksBackstopTests::test_default_setup_artifacts_unchanged_count_24`
+       failed the same way.
+
+    Both are deliberately pinned totals; they moved by EXACTLY ONE (the new
+    `.aw/records/reviews/.gitkeep`), the correct expected delta for E-09. I updated the comments to say
+    why and added `assertIn(".aw/records/reviews/.gitkeep", created)` so the count is anchored to a
+    named artifact rather than a bare number. I deliberately did NOT rename the stale `..._count_24`
+    method: pending plan `20260829-lanename-01-j4v6ga` explicitly documents that name as a known
+    pre-existing lag and warns against "correcting" it.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the full test file result with counts, and the full default suite result
     with counts. Every V-item above must have a corresponding test; name which test covers which.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: new module run BARE (no `-n0`, no extra `-q`; the repo `addopts` supplies
+    `-q -n auto --dist=worksteal -m 'not slow'`):
+
+    ```text
+    $ python3 -m pytest tests/test_review_findings.py
+    bringing up nodes...
+    .......................................................                  [100%]
+    55 passed in 2.20s
+    ```
+
+    FULL DEFAULT SUITE, against a baseline I measured MYSELF at execution time on this worktree at
+    `d4d265b` (not a reused recorded number, per the plan's instruction):
+
+    ```text
+    BEFORE (baseline, my changes stashed):
+      15 failed, 2912 passed, 3 skipped, 4 xfailed in 48.23s
+    AFTER:
+      15 failed, 2967 passed, 3 skipped, 4 xfailed in 53.79s
+    ```
+
+    Passed rose by exactly +55 (this module) and the FAILURE SET IS UNCHANGED at 15. All 15 are the
+    pre-existing `tests/test_run_viewer.py` failures, environmental and unrelated to this plan: they
+    assert against live repo state and this worktree has no `.aw/records/runs/` tree, so e.g.
+    `test_discover_run_dirs` fails on `assertTrue(len(runs) > 0)`. Pending plan
+    `20260829-testinvoke-02-i79rgh` ("fix tests that assert against live repo state instead of a
+    fixture") is the existing record of that class of problem. I did NOT touch them.
+
+    V-item to test mapping, as required:
+
+    | V-item | Covering tests |
+    |---|---|
+    | V-01 (naming + F-8) | `ReviewNamingTests` (6: facet registered, existing facets unchanged, build/parse round-trip, clustered grammar, `test_closed_enum_rejects_dotted_slug`, rejects other types); `TypeFacetHazardTests` (3: `test_reviews_absent_from_type_facet`, `test_review_file_is_not_status_settable`, `test_plan_file_is_still_status_settable` as the control) |
+    | V-02 (writer/parser) | `WriterParserTests` (10: `test_every_column_round_trips`, `test_pipe_in_cell_is_escaped_and_recovered`, `test_multiple_findings_preserve_order`, `test_malformed_row_diagnoses_and_does_not_raise`, `test_unknown_severity_and_decision_are_diagnosed_not_coerced`, `test_degenerate_inputs_never_raise`, `test_missing_metadata_is_diagnosed`, `test_no_rounds_is_diagnosed`, `test_file_round_trip`, `test_unreadable_file_diagnoses_not_raises`) |
+    | V-03 (rounds) | `RoundTests` (5: `test_two_rounds_parse_and_current_is_last`, `test_superseded_finding_is_not_current`, `test_unresolved_findings_excludes_only_fixed`, `test_duplicate_round_number_is_diagnosed`, `test_single_round_document`) |
+    | V-04 (README) | Not unit-testable (a prose deliverable); verified by inspection under V-04 |
+    | V-05 (threshold + is_gating) | `ThresholdTests` (8, incl. `test_absent_key_defaults_to_high`, `test_malformed_json_falls_back_to_high`, `test_key_is_not_in_config_schema`); `IsGatingTests` (5, incl. `test_truth_table`, `test_off_disables_everything`, `test_severities_are_ordered_ascending`); `ProjectJsonRoundTripTests` (1, the F-10 guard) |
+    | V-06 (dangling check) | `ReviewDanglingCheckTests` (7: `test_valid_review_does_not_fire`, `test_dangling_review_fires`, `test_rule_is_advisory_not_error`, `test_does_not_over_fire_with_both_present`, `test_missing_plan_id_is_not_this_rules_business`, `test_empty_tree_is_silent`, `test_no_hardcoded_reviews_path_in_check_engine`) |
+    | V-08 (Decisions section) | `DecisionsSectionTests` (4: `test_decisions_round_trip_every_column`, `test_no_decisions_section_parses_cleanly`, `test_malformed_decision_row_diagnoses`, `test_decisions_are_per_round`) |
+    | V-09 (registration) | `RecordRegistrationTests` (7: `test_reviews_is_a_record_class`, `test_resolve_record_path_resolves_reviews`, `test_resolve_record_read_paths_resolves_reviews`, `test_deep_cleanup_reaches_reviews`, `test_installer_scaffolds_reviews_for_aw_layout_only`, `test_fresh_setup_creates_the_tree`, `test_review_dirs_discovers_in_repo_tree`) |
+
+    All three adversarial/hazard guards were proven LOAD-BEARING by temporarily reintroducing the
+    hazard and confirming the test fails, then reverting: the dotted-slug case, the F-8 `TYPE_FACET`
+    entry (2 failures), and the hardcoded-path guard (1 failure).
+
+    `aw check` on THIS repo, required by validation item 6, against a baseline measured with my changes
+    stashed:
+
+    ```text
+    BEFORE: findings: 96      AFTER: findings: 96
+        35  adopted-without-consumer        (identical breakdown in both runs)
+         3  backlog.summary-unsafe
+        16  check.lifecycle-transition-invalid
+         6  check.name-nonconformant
+        28  check.setid-collision
+         1  dangling-citation
+         7  stale-state-to-promote
+    $ diff before after  ->  IDENTICAL: no new drift introduced
+    ```
+
+    Zero `check.review-dangling` findings on this repo, which is correct: the tree contains only a
+    README and no review records yet. `aw sanitize --agent` is also clean (`"findings":0`, exit 0).
+  - Result: pass
 
 ## Approval and execution gate
 
