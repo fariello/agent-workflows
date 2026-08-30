@@ -16,13 +16,21 @@
 This spec is the load-bearing design for the runner-consolidation and process-adherence work. It is
 the product of a two-pass frontier-model design (initial design + a revision folding in four accepted
 pushbacks and a new dependency-enforcement mechanism). It is authored as the single source of truth an
-IPD Set (or Sets) can be graduated from and reviewed against. NET-NEW infrastructure it presumes -
-`Item-Dependencies`, `From-Spec`, the hash-chained run ledger with `AW-Run:`/`AW-Item:` commit
-trailers, the prompt `Run contract` block, the per-host capability descriptor, and the
-`aw ipd dependencies`/`aw runs`/`aw hooks install` surfaces - does not exist yet and must be built;
-this overlaps the agentadhere policy-engine/atomic-command phases, the bklggrad `From-Backlog` work,
-and the runner rename. Constraints honored: pre-release (no backward-compatibility shims or legacy
-aliases) and design-against-roles (no dependence on current internal filenames).
+IPD Set (or Sets) can be graduated from and reviewed against.
+
+Infrastructure status (corrected 2026-08-30; this paragraph originally declared ALL of the below
+net-new and nonexistent, which is no longer true and would mislead a graduating Set into rebuilding
+shipped machinery). PARTS ALREADY SHIPPED, which a graduating Set must CONSUME, not rebuild:
+`Item-Dependencies` (the field, its grammar, and the shared graph predicate), the
+`aw ipd dependencies` surface, and `aw runs`. These were graduated FROM this spec by the `ipddeps`
+Set (`r7xku3`, `g69y23`, `ovbnyq`, `mp88bl`, all `executed`), whose plans cite this spec and its
+sections 2.7-2.11 by name. STILL NET-NEW and to be built: `From-Spec` (absent from
+`ipd_schema.META_RECOGNIZED`), the hash-chained run ledger with `AW-Run:`/`AW-Item:` commit trailers
+(the ledger is built but UNWIRED), the prompt `Run contract` block, the per-host capability
+descriptor, and `aw hooks install` (no such verb today). This overlaps the agentadhere
+policy-engine/atomic-command phases, the bklggrad `From-Backlog` work, and the runner rename.
+Constraints honored: pre-release (no backward-compatibility shims or legacy aliases) and
+design-against-roles (no dependence on current internal filenames).
 
 ---
 
@@ -342,9 +350,14 @@ The authoring and runner path forces an actual decision deterministically:
 
 1. Scaffold writes `unresolved`, never blank and never `none`.
 2. Draft-readiness reports the exact blocking rule.
-3. The lifecycle setter refuses `to-review` while the value is missing or unresolved.
+3. Review-readiness lint BLOCKS while the value is missing or unresolved, so the plan cannot pass review with an unresolved statement. Note the enforcement point is the LINT, not the status setter: as shipped by `ipddeps`, `aw ipd set to-review` SUCCEEDS on a plan carrying `Item-Dependencies: unresolved` (verified 2026-08-30 by running it), because that Set's design makes dependencies "statable and checkable" with the blocking check in the phased lint. An earlier revision of this list claimed the setter itself refuses; it does not, and stating an unimplemented refusal as a rule invites an author to trust a gate that will not fire. Whether the setter SHOULD also refuse is a live design question (see below), not a description of today.
 4. Pre-execution and pre-transition lint invoke the same predicate again.
 5. The deterministic checker refuses review completion, approval, or execution when the frozen statement is invalid or unresolved.
+
+Open design question (not settled by this spec): whether the status setter should ALSO refuse
+`to-review`, making the gate belt-and-braces, or whether lint-only enforcement is correct because the
+setter is a mechanical state-writer and the lint is the judgment surface. Recorded here rather than
+silently asserted, because the two answers imply different code.
 
 The author must therefore state either `none` or concrete id6-grounded edges. A prose reminder cannot satisfy the gate.
 
@@ -1119,4 +1132,4 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
-- 2026-08-30 approved (aw specs, --by-human): Approved spec 25kzda
+- 2026-08-30 note (aw specs): Corrected two factual defects found in review (spec stays approved; no design change): (1) the infrastructure-status paragraph declared Item-Dependencies / aw ipd dependencies / aw runs net-new and nonexistent, but the ipddeps Set (r7xku3, g69y23, ovbnyq, mp88bl, all executed) graduated them FROM this spec and cites sections 2.7-2.11 by name; it now separates shipped-and-must-be-consumed from still-net-new (From-Spec, ledger commit trailers, Run contract block, capability descriptor, aw hooks install). (2) Section 2.11 rule 3 asserted the lifecycle setter refuses to-review while Item-Dependencies is unresolved; verified false by running 'aw ipd set to-review' on a plan carrying 'unresolved' (it succeeded), so the rule now states the LINT is the enforcement point and records setter-refusal as an open design question.
