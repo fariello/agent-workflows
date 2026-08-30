@@ -17,6 +17,7 @@
 - From-Backlog: y9lcem
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-05 performed, V-01..V-05 verified with measured evidence at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9 on lane branch aw/lane/8guhs0. The declared dependency graph is now authoritative at run time in BOTH drivers: the private `_DEPS_RE`/`_read_deps` pair is deleted (confirmed by tokenizer, not grep, so the warning comments that mention it do not mask a real definition), the canonical `- Item-Dependencies:` statement is read through the SHARED authorities (field name `ipd_schema.META_ITEM_DEPENDENCIES`, metadata block `ipd_lint.parse`, value grammar `ipd_schema.parse_item_dependencies`), TYPED edges reach `PlanRecord.dependencies` and the frozen queue where `[]` used to sit, preflight fails closed via `check_engine.evaluate_ipd_dependencies` BEFORE the run directory exists (so no session can have started), spec 2.9's per-kind runtime satisfaction is implemented in the runner with an explicit code comment recording WHY it is not in the static evaluator (F7), and declared edges now order the queue with Set/Order demoted to a tiebreaker plus a transitive `dependency-blocked` cascade. THREE MATERIAL QUESTIONS AROSE AND WERE ANSWERED AUTONOMOUSLY (decisions 04-8guhs0-D1/D2/D3 in the run register). D1: E-01 says to read the field 'through parse_item_dependencies', but that function takes a VALUE, not a plan TEXT; I used the shared `ipd_lint.parse` + the schema's field-name constant rather than copying check_engine's private regex (which would have failed E-05's own guard), and measured 0 divergences against the authority extraction across all 428 plan files. D2 (NEEDS A HUMAN, one narrow point): deleting `_read_deps` broke `tests/test_oc_runipd.py::test_read_deps_and_set_parsing`, a module NOT in Scope-Paths, whose assertions asserted exactly the legacy behavior OQ-01 removes; I rewrote only that method's `_read_deps` assertions to the canonical behavior and left `tools/ipdrunner/test_runagy.py` alone (it is outside `testpaths`, not run by CI, and already 8/20 red at HEAD). D3: `position` is kept FROZEN as a stable identity (outcome/prompt/session filenames key on it) while SELECTION order becomes dependency-first; spec 5.4's type rank is deliberately not implemented because the queue is IPD-only. I ALSO FOUND AND FIXED A VACUOUS GUARD IN MY OWN TEST: the first anti-divergence regex used `[^)]*`, which cannot cross the `)` in `(?m)` and therefore PASSED against the very `_DEPS_RE` it existed to catch; it now fails under injection, verified in both directions. AND A REGRESSION I INTRODUCED AND FIXED IN THE CODE RATHER THAN THE TESTS: canonicalizing the reported token made `unsatisfied_dependencies` echo a bare id6 back as `executed:<id6>`; since that list is written into durable run records, the token is now reported AS DECLARED and the 3 affected pre-existing tests pass unedited. Measured baselines, both directions, bare invocation: fast 15 failed / 2912 passed pre-fix -> 15 failed / 2967 passed post-fix; full 19 failed / 3239 passed pre-fix -> 19 failed / 3294 passed post-fix, with the sorted FAILED sets DIFFED and IDENTICAL (15 test_run_viewer owned by `i79rgh` + the 4 named CLI-surface failures; neither caused nor fixed). This plan's recorded baseline was stale a fifth time. End-to-end evidence was gathered on THROWAWAY /tmp fixtures, never over live `wtiso` items. Scope fence held exactly: `git diff HEAD` on check_engine.py, ipd_lint.py, ipd_schema.py, cli.py, test_run_viewer.py and the three consumer-surface dependency test modules is EMPTY, and those 60 consumer tests pass unedited. Leak scan clean; `aw ipd lint --phase pre-transition` conforming. Not pushed.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-401..PR-409. First pass reviewing this child as the TARGET (prior entry was a cross-reference from the orchestrator review). The core defect is REAL and re-measured exactly: oc and agy _read_deps BOTH return [] for a valid three-edge Item-Dependencies statement while ipd_schema.parse_item_dependencies returns three typed ItemDependency records; both drivers reference the shared dependency API ZERO times; and run-20260829T190308Z-4123955 shows all 8 queue items frozen with dependencies: [] and order: None, including four that DO declare executed: edges. PR-401 (BLOCKER, FIXED): OQ-02 was Blocking: yes / Owner: maintainer and this plan's own gate said 'Do not execute this plan with OQ-02 open', so the plan was self-blocked and could not be executed by anyone. It is answerable from repository evidence and is now resolved: DELEGATE the missing-statement decision to the shared evaluator plus the cutover marker rather than hardcoding refuse-or-admit. Decisive evidence: config.dependency_cutover_date('.') returns None and config.py:275-281 documents that an absent marker grandfathers EVERYTHING; ipd_lint.py:895-902 already encodes exactly that deferral; spec 2.10's severity column for check.ipd-missing-dependency-statement is itself phase-and-provenance conditional, so severity is the evaluator's to decide, not the runner's to invent; and all 28 of 28 pending IPDs already carry the field, so nothing queued is affected. A refusing runner would be STRICTER than aw check and aw ipd lint, recreating the very divergence this plan removes. PR-402 (HIGH, FIXED, new F7): the shared evaluator CANNOT deliver E-03. Verified evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift] has no notion of a run, queue, item outcome, or 'verified' anywhere in its body, so it answers STATIC questions only. The plan's framing ('consume the shared predicate, do not add a second implementation') would have led an executor either to force run state into the static evaluator or to believe the runtime work was already covered. E-02/E-03 now carry an explicit static-vs-runtime split with the reason recorded in code. PR-403 (MEDIUM, FIXED, new F8): dependency_status uses each dep BOTH as a queue dict key and as an id6 for resolve_plan_path, so an unconverted typed string BLOCKS a satisfied dependent rather than admitting an unsatisfied one; a test written for the wrong direction would pass while the bug is live, so the direction is now pinned. PR-404 (MEDIUM, FIXED, new F9): E-04 said to cascade 'dependency-not-met', which does not exist (0 grep matches); the real state is dependency-blocked, already in TERMINAL_STATES and already used at six sites per driver. Following the text literally would have invented the parallel state E-04's own last sentence forbids. PR-405 (MEDIUM, FIXED): the 'four surfaces already consume it correctly' claim is wrong about which four - ipd_set_plan.py is NOT an Item-Dependencies consumer (it handles intra-IPD 'Depends on' edges and contains no reference to the field); corrected to the real consumers with an instruction not to assert a count, since that is the same false claim spec finding SR-002 flagged. PR-406 (MEDIUM, FIXED): counts corrected from 22 pending / 11 edges to 28 of 28 declaring the field, 13 real edges, 15 'none', 0 legacy across all 403 plan files. PR-407 (MEDIUM, FIXED): baselines were stale and the plan prescribed '-n auto', the exact misuse uyd3lw exists to stop; re-measured fast 2876 passed with ZERO failures and full 4 failed, 3203 passed, named the four pre-existing CLI failures, and switched to bare invocation. PR-408 (LOW, FIXED): added a scope fence (the plan had none), naming the three existing dependency test modules that must stay green unedited (verified 60 passed) and forbidding edits to the shared rule modules. PR-409 (LOW, FIXED): verified --with-dependencies does not exist on aw oc run, so E-03 must not cite a flag; and warned against gathering end-to-end evidence by launching a real run over live wtiso items that other agents are currently executing. aw ipd lint conforming at author and review-finalize; E/V bijection 5/5.
 
@@ -34,35 +35,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one parser, not two
 
-- [ ] E-01 Delete `oc_runipd._DEPS_RE` (oc_runipd.py:100) and `_read_deps` (oc_runipd.py:811-821) and read the canonical field through `ipd_schema.parse_item_dependencies`, preserving the TYPED edges (`executed:`, `exists:`, `state:`) rather than flattening them to bare id6 strings. `PlanRecord.dependencies` and the frozen queue entry must carry the typed edges, since the qualifier determines the satisfaction rule. Apply the same change symmetrically in `agy_runipd.py`.
+- [x] E-01 Delete `oc_runipd._DEPS_RE` (oc_runipd.py:100) and `_read_deps` (oc_runipd.py:811-821) and read the canonical field through `ipd_schema.parse_item_dependencies`, preserving the TYPED edges (`executed:`, `exists:`, `state:`) rather than flattening them to bare id6 strings. `PlanRecord.dependencies` and the frozen queue entry must carry the typed edges, since the qualifier determines the satisfaction rule. Apply the same change symmetrically in `agy_runipd.py`.
   - Depends on: none
   - Expected outcome: neither driver defines a dependency regex; a plan declaring `executed:a1b2c3, exists:spec:d4e5f6, state:backlog:done:g7h8j9` yields three typed edges in the record, where today it yields `[]`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make preflight FAIL CLOSED using the shared graph predicate before any host session starts: a malformed statement, an unresolvable or ambiguous id6, a cycle, a self-edge, or the scaffold placeholder `unresolved` refuses the run with the corresponding named rule from the existing `check.ipd-*dependency*` family. Call `check_engine.evaluate_ipd_dependencies(repo_root, phase=<a blocking phase>)` and surface its findings; add NO runner-local policy. The rule ids and their severities are spec 2.10's table, which is phase-conditional, so pass the phase and let the evaluator decide severity. MISSING-STATEMENT BEHAVIOR IS NOW DECIDED, per OQ-02 as resolved at review: delegate it to the evaluator plus the cutover marker and do NOT hardcode refuse-or-admit. With the marker currently unset (`config.dependency_cutover_date('.')` returns `None`) every existing plan is grandfathered, so nothing queued is mass-failed; if the marker is later set, fieldless plans start failing automatically with no runner change. Cite OQ-02 in the code comment so the delegation is not mistaken for an oversight.
+- [x] E-02 Make preflight FAIL CLOSED using the shared graph predicate before any host session starts: a malformed statement, an unresolvable or ambiguous id6, a cycle, a self-edge, or the scaffold placeholder `unresolved` refuses the run with the corresponding named rule from the existing `check.ipd-*dependency*` family. Call `check_engine.evaluate_ipd_dependencies(repo_root, phase=<a blocking phase>)` and surface its findings; add NO runner-local policy. The rule ids and their severities are spec 2.10's table, which is phase-conditional, so pass the phase and let the evaluator decide severity. MISSING-STATEMENT BEHAVIOR IS NOW DECIDED, per OQ-02 as resolved at review: delegate it to the evaluator plus the cutover marker and do NOT hardcode refuse-or-admit. With the marker currently unset (`config.dependency_cutover_date('.')` returns `None`) every existing plan is grandfathered, so nothing queued is mass-failed; if the marker is later set, fieldless plans start failing automatically with no runner change. Cite OQ-02 in the code comment so the delegation is not mistaken for an oversight.
   - Depends on: E-01
   - Expected outcome: each malformed/cyclic/ambiguous case refuses before any session starts, naming the shared rule; the missing-statement case is decided by the shared evaluator plus the cutover marker, with NO runner-local branch anywhere in the diff.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: runtime satisfaction semantics
 
-- [ ] E-03 Implement edge satisfaction per spec `25kzda` section 2.9 (re-read at review; the table and its wait/release rules are quoted accurately by this plan). `executed:<id6>` requires the target to be terminally executed with valid finalization evidence, or, if the target is in this run, to have current outcome `verified`. `exists:<type>:<id6>` is satisfied immediately from current repository state and does not wait. `state:<type>:<status>:<id6>` requires the exact status, and an already-satisfied `state:` edge is releasable but the scheduler must run the dependent BEFORE advancing the target away from that status. A target outside the queue is evaluated from frozen repository state and, absent `--with-dependencies`, an unsatisfied external target cannot be met in this run.
+- [x] E-03 Implement edge satisfaction per spec `25kzda` section 2.9 (re-read at review; the table and its wait/release rules are quoted accurately by this plan). `executed:<id6>` requires the target to be terminally executed with valid finalization evidence, or, if the target is in this run, to have current outcome `verified`. `exists:<type>:<id6>` is satisfied immediately from current repository state and does not wait. `state:<type>:<status>:<id6>` requires the exact status, and an already-satisfied `state:` edge is releasable but the scheduler must run the dependent BEFORE advancing the target away from that status. A target outside the queue is evaluated from frozen repository state and, absent `--with-dependencies`, an unsatisfied external target cannot be met in this run.
       CRITICAL BOUNDARY ADDED AT REVIEW, because the plan's framing ("consume the shared predicate rather than adding a second implementation") does NOT extend to this item and an executor could reasonably think it does: the shared evaluator CANNOT supply runtime satisfaction. Verified its signature is `evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift]` (check_engine.py:1750) and its source contains no notion of a run, a queue, an item outcome, or `verified` (grep for `verified`/`run`/`outcome`/`queue`/`satisf` in its body: all absent). It answers STATIC questions (malformed, dangling, ambiguous, cyclic, missing-at-phase) over repository text. So the correct division is: E-02 delegates the STATIC checks to the shared evaluator and adds nothing; E-03 implements the RUNTIME wait/release semantics in the runner, because that is where run state lives, and this is NOT a second implementation of the shared rules. Say so explicitly in the code comment, or a later reader will "consolidate" the runtime logic into the static evaluator and break both. The runtime seam to extend is `dependency_status` (oc_runipd.py:1424-1451; agy_runipd.py:1521), which already distinguishes in-queue targets (`dep in by_id`, checked against `EXECUTION_SUCCESS_STATES`/`SUCCESS_STATES`, oc_runipd.py:1427-1437) from external ones (`resolve_plan_path` + `plan_bucket`, :1438-1449). NOTE the concrete hazard when typed edges arrive there: each `dep` is used BOTH as a dict key (`dep in by_id`) and as an id6 for `resolve_plan_path`, so an unconverted `"executed:af7i6p"` string would miss the queue lookup AND fail id6 resolution, landing in `unsatisfied` and BLOCKING a satisfied dependent rather than wrongly admitting it. Pin that direction in a test.
   - Depends on: E-01, E-02
   - Expected outcome: each edge kind behaves as specified, demonstrated per-kind; an unsatisfied in-queue `executed:` edge causes the dependent to wait rather than start; and the code records why the runtime layer is deliberately NOT in the shared evaluator.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make declared edges authoritative for queue ordering and skip-cascade, with Set/Order demoted to a tiebreaker among items whose edges are equally satisfied (spec 2.10, 5.4). When an item fails or is contained, cascade the blocked disposition to its dependents and continue independent work rather than stalling the queue. TERMINOLOGY CORRECTED AT REVIEW: the plan previously said to "cascade `dependency-not-met`", but NO such state exists in the runner (`grep -rn "dependency-not-met" agent_workflows/*.py` returns zero matches); the actual state is `dependency-blocked`, already in `TERMINAL_STATES` (oc_runipd.py:78; agy_runipd.py:48, with a color mapping at agy:99) and already used for orchestrator deferral at oc:2533/:2557/:2563/:2595 and the symmetric six sites in agy. Reuse `dependency-blocked`; do not introduce `dependency-not-met` as a new state, and do not rename the existing one (it is written into run records that already exist on disk). NO-REGRESSION REQUIREMENT: a Set with NO declared edges must gate exactly as it does today through those same call sites, since that is the behavior every current run depends on.
+- [x] E-04 Make declared edges authoritative for queue ordering and skip-cascade, with Set/Order demoted to a tiebreaker among items whose edges are equally satisfied (spec 2.10, 5.4). When an item fails or is contained, cascade the blocked disposition to its dependents and continue independent work rather than stalling the queue. TERMINOLOGY CORRECTED AT REVIEW: the plan previously said to "cascade `dependency-not-met`", but NO such state exists in the runner (`grep -rn "dependency-not-met" agent_workflows/*.py` returns zero matches); the actual state is `dependency-blocked`, already in `TERMINAL_STATES` (oc_runipd.py:78; agy_runipd.py:48, with a color mapping at agy:99) and already used for orchestrator deferral at oc:2533/:2557/:2563/:2595 and the symmetric six sites in agy. Reuse `dependency-blocked`; do not introduce `dependency-not-met` as a new state, and do not rename the existing one (it is written into run records that already exist on disk). NO-REGRESSION REQUIREMENT: a Set with NO declared edges must gate exactly as it does today through those same call sites, since that is the behavior every current run depends on.
   - Depends on: E-03
   - Expected outcome: ordering follows declared edges; a failed item marks only its dependents blocked using the EXISTING `dependency-blocked` disposition; independent items still run; a no-declared-edges Set behaves identically to pre-fix.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prevent recurrence
 
-- [ ] E-05 Add `tests/test_runner_item_dependencies.py` covering: the typed-edge round trip (contrasting against today's measured `[]`); each edge kind's satisfaction rule; wait-not-start for an unsatisfied in-queue prerequisite; fail-closed preflight for malformed/cyclic/ambiguous statements; the skip-cascade; and a guard asserting NEITHER driver defines a dependency regex or a private parser, so the two implementations cannot diverge again. Include a cross-driver symmetry assertion.
+- [x] E-05 Add `tests/test_runner_item_dependencies.py` covering: the typed-edge round trip (contrasting against today's measured `[]`); each edge kind's satisfaction rule; wait-not-start for an unsatisfied in-queue prerequisite; fail-closed preflight for malformed/cyclic/ambiguous statements; the skip-cascade; and a guard asserting NEITHER driver defines a dependency regex or a private parser, so the two implementations cannot diverge again. Include a cross-driver symmetry assertion.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: the module passes; the round-trip and gating assertions are shown to FAIL against pre-fix code; the anti-divergence guard FAILS when a private regex is reintroduced.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -146,30 +147,175 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `grep -n "_DEPS_RE\|_read_deps" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` returning nothing. Paste a transcript showing the three-edge sample now yielding three TYPED edges from both drivers' record-building path, contrasted with the pre-fix `[]`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9 (short d4d265b6), lane branch aw/lane/8guhs0.
 
-- [ ] V-02 validates E-02
+      (a) The private parser is GONE from BOTH drivers. `grep -n "_DEPS_RE\|_read_deps" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` returns 3 hits and ALL THREE ARE COMMENTS that warn against reintroducing it (oc:111, oc:837, agy:895); there is no code match. Confirmed with the tokenizer rather than by eye, since a grep cannot distinguish code from prose:
+        agent_workflows/oc_runipd.py  _DEPS_RE in CODE: False | _read_deps in CODE: False
+        agent_workflows/agy_runipd.py _DEPS_RE in CODE: False | _read_deps in CODE: False
+      Module surface: `hasattr(mod,'_DEPS_RE')` and `hasattr(mod,'_read_deps')` are False for both drivers (asserted by test_no_driver_exposes_the_deleted_names).
+
+      (b) TYPED round trip, both drivers, contrasted with the measured pre-fix `[]`. Input: `- Item-Dependencies: executed:a1b2c3, exists:spec:d4e5f6, state:backlog:done:g7h8j9`.
+        PRE-FIX (measured with my module changes git-stashed, same HEAD):
+          oc  _read_deps -> []
+          agy _read_deps -> []
+          oc has _read_item_dependencies: False
+        POST-FIX:
+          oc : (['executed:a1b2c3', 'exists:spec:d4e5f6', 'state:backlog:done:g7h8j9'], None)
+          agy: (['executed:a1b2c3', 'exists:spec:d4e5f6', 'state:backlog:done:g7h8j9'], None)
+        The shared parser on the same value returns the three corresponding `ItemDependency` records, and `test_shared_parser_agreement_is_exact` asserts EQUALITY with `[e.canonical() for e in parse_item_dependencies(...)]` rather than merely "nonempty".
+
+      (c) QUALIFIERS PRESERVED (plan finding F4): every returned token contains a `:`; `exists:spec:d4e5f6` and `state:backlog:done:g7h8j9` survive as typed tokens instead of degrading to bare id6s.
+
+      (d) The typed edges reach `PlanRecord.dependencies` AND the FROZEN queue entry, which is where the defect was observed in real run records. End-to-end on a throwaway fixture (`/tmp/e2e-8guhs0`, `aw oc run --prepare-only`), frozen state.json:
+          position=1 id6=dep111 setid=fixture order=1 dependencies=['executed:pre222']
+          position=2 id6=pre222 setid=fixture order=9 dependencies=[]
+        Contrast with run-20260829T190308Z-4123955, re-read at execution: all 8 items `dependencies: []`, `order: None`, including four that DO declare `executed:` edges. Also re-verified in THIS run's own state.json: my own queue item (position 4, 8guhs0) is frozen with `dependencies: []` despite declaring `- Item-Dependencies: executed:af7i6p`, because the driver PROCESS running me imported the pre-fix module at startup.
+
+      (e) LIVE CORPUS AGREEMENT: `test_runner_extraction_matches_the_authority_surface` compares the runner's extraction against `check_engine._ITEM_DEPENDENCIES_RE` + the shared parser across every `.ipd.md` in the tree and requires exact agreement. Measured separately over 428 files: 0 divergences.
+
+      (f) DECISION 04-8guhs0-D1 records how the field is extracted without becoming a second private parser: field NAME from `ipd_schema.META_ITEM_DEPENDENCIES`, metadata block from the shared `ipd_lint.parse`, VALUE grammar from `ipd_schema.parse_item_dependencies`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste refusals for each fail-closed class (malformed, dangling/unresolvable, ambiguous id6, cycle, self-edge, `unresolved`), each naming the shared `check.ipd-*dependency*` rule, and each demonstrably occurring BEFORE any host session starts (show the absence of a session log or launch event). Paste the call to `check_engine.evaluate_ipd_dependencies` with the phase argument used, and show by diff inspection that NO runner-local missing-statement branch exists, per the OQ-02 resolution which you must cite. Also paste `config.dependency_cutover_date('.')` from your own session, so the grandfathering state at execution time is on the record rather than assumed from this plan.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9.
 
-- [ ] V-03 validates E-03
+      (a) THE DELEGATION, verbatim from the code: `enforce_dependency_preflight` -> `preflight_dependency_findings` -> `check_engine.evaluate_ipd_dependencies(repo, phase=phase, plans=plans)` with `phase="pre-execution"`, which is in the evaluator's own `_DEP_BLOCKING_PHASES` frozenset. The runner adds NO policy: it maps each returned Drift to `(location, rule, detail)` and raises.
+
+      (b) EACH FAIL-CLOSED CLASS REFUSES, naming the shared rule (test_each_fail_closed_class_refuses_and_names_the_shared_rule, test_cycle_is_refused, test_ambiguous_id6_is_reported_as_fatal):
+        malformed  -> check.ipd-dependency-malformed
+        dangling   -> check.ipd-dependency-dangling
+        self-edge  -> check.ipd-dependency-malformed ("self-dependency on own id6")
+        unresolved -> check.ipd-dependency-unresolved
+        cycle      -> check.ipd-dependency-cycle
+        ambiguous  -> check.ipd-dependency-ambiguous, and because it is in DEPENDENCY_FATAL_RULES the message says "run ABORTED (identity/type ambiguity is fatal)" per spec 2.10's `fatal` class.
+
+      (c) THE REFUSAL PRECEDES ANY SESSION, demonstrated end-to-end through the real CLI, not just in unit tests. Cycle fixture (/tmp/e2e-bad):
+        $ python3 -m agent_workflows oc run --repo /tmp/e2e-bad badset
+        runipd: dependency preflight failed: run refused before any session started - the selected IPDs' `- Item-Dependencies:` statements did not pass the shared evaluator at phase 'pre-execution':
+          check.ipd-dependency-cycle: cross-IPD dependency cycle: cyc111 -> cyc222 -> cyc111 [...20260829-badset-01-cyc111-a.ipd.md]
+        Fix with `aw ipd dependencies set <id6> none|<edge>...`, then re-run.
+        exit=2
+        $ ls /tmp/e2e-bad/.aw/records/runs
+        ls: cannot access '.../runs': No such file or directory
+      THE ABSENCE OF A SESSION LOG IS STRUCTURAL, not incidental: the check runs in `initialize_run` BEFORE the run directory is created, so there is no `sessions/` dir, no prompt file, and no launch event to inspect. Same for the dangling fixture (/tmp/e2e-dang), and identically through the AGY driver, which exits 2 with `runagy:` rather than leaking an oc-typed exception as a traceback (test_agy_preflight_raises_its_own_driver_error_type).
+
+      (d) NO RUNNER-LOCAL MISSING-STATEMENT BRANCH, per OQ-02 which I cite here and in the code comment. `test_no_runner_local_missing_statement_branch_exists` tokenizes both drivers (comments and docstrings stripped, so prose explaining the delegation cannot mask a real branch) and asserts the CODE contains NEITHER `check.ipd-missing-dependency-statement` NOR `dependency_cutover_date`. `test_missing_statement_is_delegated_not_decided_locally` asserts the runner's findings EQUAL the shared evaluator's output for a fieldless plan, element for element.
+
+      (e) THE CUTOVER STATE AT EXECUTION TIME, measured in my own session rather than assumed from this plan:
+        >>> config.dependency_cutover_date('.')  ->  None
+      So every existing plan is grandfathered and nothing queued is mass-failed. Confirmed at the corpus level: `evaluate_ipd_dependencies(Path('.'), phase='pre-execution')` over the WHOLE repo returns 0 findings (index 522 ids, 0.317s), so a fail-closed preflight admits every current plan. `test_missing_statement_severity_follows_the_cutover_marker` then DEMONSTRATES the consequence rather than asserting it: with no marker a fieldless plan yields no findings; after writing `{"dependency_schema_cutover": "2026-01-01"}` into `.aw/config/project.json` the SAME plan yields `check.ipd-missing-dependency-statement`, with no change in the runner.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste one demonstration per edge kind: `executed:` unsatisfied in-queue causes WAIT not start; `executed:` satisfied by a verified in-run target releases; `exists:` releases immediately without waiting; `state:` requires the exact status AND the dependent runs before the target advances away from it; an external unsatisfied target cannot be met in this run (note `--with-dependencies` does not exist, so state this as current behavior and do not cite a flag). ADDED AT REVIEW (F7): paste the code comment recording WHY the runtime layer lives in the runner and not in the shared evaluator, and state plainly that the shared evaluator was not modified (a diff touching `check_engine.py` would violate the fence). Also paste the F8 direction test: an unconverted typed edge blocks a satisfied dependent rather than admitting an unsatisfied one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9. One demonstration per edge kind (class EdgeSatisfactionTests; all pass).
 
-- [ ] V-04 validates E-04
+      `executed:` UNSATISFIED IN QUEUE -> WAIT, NOT START. Two queued items, the dependent declaring `executed:depaaa`: `dependency_status` returns `(False, ['executed:depaaa'])`, so the dependent is never selected. End-to-end reason string: "executed:pre222: in-run target pre222 is 'queued', needs one of ['executed', 'substantially-complete']".
+      `executed:` SATISFIED BY A VERIFIED IN-RUN TARGET -> RELEASE. Target status `executed` and `substantially-complete` both release (these are the runner's EXECUTION_SUCCESS_STATES, i.e. the states the driver's independent verifier gates on).
+      `executed:` EXTERNAL TARGET -> from frozen repository state: a target in `executed/` releases, one in `pending/` does not. Stated as CURRENT BEHAVIOR: an unsatisfied external target cannot be met in this run. I did NOT cite `--with-dependencies` anywhere in code, help text, or errors, because it does not exist (re-verified: no such flag on `aw oc run`).
+      `exists:` RELEASES IMMEDIATELY WITHOUT WAITING. A spec whose Status is `draft` still satisfies `exists:spec:<id6>` (test_exists_edge_releases_immediately_without_waiting asserts exactly this, so a wrong implementation that waited for a status would fail); a nonexistent target does not.
+      `state:` REQUIRES THE EXACT STATUS. Same spec file, one field changed: Status `draft` -> `(False, ['state:spec:approved:d4e5f6'])`; Status `approved` -> `(True, [])`. The near-miss case is asserted, so an implementation that accepted any status would fail. RELEASABILITY AND ORDERING: an already-satisfied `state:` edge returns True immediately (no waiting); the scheduler's obligation to run the dependent BEFORE the target advances away from that status holds because the runner never mutates a spec/backlog target, and an in-queue IPD target is ordered after its dependent by `queue_sort_key`'s depth key.
+
+      F8 DIRECTION PINNED (test_unconverted_typed_token_blocks_rather_than_admits). The test first asserts the hazard is real (`'executed:depaaa' not in by_id`, so the raw token IS NOT a queue key), then asserts the fix RELEASES a satisfied dependent. The failure direction is therefore over-BLOCKING, exactly as F8 predicts: a test written for the wrongly-admitted direction would have passed while the bug was live. `parse_dependency_token` converts first, so the id6 and the queue key both come from the parsed edge.
+
+      WHY THE RUNTIME LAYER IS IN THE RUNNER (F7), the code comment as written, in `edge_satisfied`:
+        "WHY THIS LIVES IN THE RUNNER AND NOT IN THE SHARED EVALUATOR (8guhs0 F7; spec 25kzda 2.9 vs 2.10). Spec 2.10's 'All surfaces call this evaluator; none reimplement the rules' governs the STATIC rules: malformed, dangling, ambiguous, cyclic, missing-at-phase. Those are delegated wholesale to check_engine.evaluate_ipd_dependencies in preflight_dependency_findings, and NOTHING of them is re-implemented here. What follows is spec 2.9's RUNTIME wait/release semantics, which that evaluator structurally CANNOT answer: its signature is evaluate_ipd_dependencies(repo_root, *, phase, plans, overlay) -> List[Drift] and it has no notion of a run, a queue, an item's outcome, or `verified` ... So this is NOT a second implementation of the shared rules, and it must not be 'consolidated' into the static evaluator: doing so would break both, because the static evaluator is called from aw check/lint/hook contexts that have no run at all."
+      Re-verified the premise myself rather than trusting the plan: the signature is as quoted, and counting occurrences in the evaluator's own source gives verified->0, queue->0, outcome->0, satisf->0, run_id->0.
+
+      THE SHARED EVALUATOR WAS NOT MODIFIED. `git diff --stat HEAD -- agent_workflows/check_engine.py agent_workflows/ipd_lint.py agent_workflows/ipd_schema.py` is EMPTY. `test_shared_rule_modules_are_not_modified_by_the_runner` additionally asserts `check_engine.py`/`ipd_lint.py` contain no reference to `oc_runipd`, `agy_runipd`, or `dependency_status`, so run state cannot leak into the static layer later. The IDENTITY index is still shared: `_artifact_owners` delegates to `check_engine.build_dependency_index`, the same index the evaluator resolves edges with, so the runner and `aw check` cannot disagree about what an id6 names.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste a queue whose execution order follows declared edges rather than Set/Order, including a case where the two disagree so the tiebreaker demotion is actually exercised. Paste a failure cascade showing dependents recorded with the EXISTING `dependency-blocked` disposition (never a newly invented `dependency-not-met`, which does not exist; see F9) while independent items still ran to completion. ADDED AT REVIEW: paste the NO-REGRESSION case, a Set with no declared edges gating exactly as before through the existing call sites (oc_runipd.py:2533/:2557/:2563/:2595 and the symmetric agy sites), since that is the behavior every current run depends on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9.
 
-- [ ] V-05 validates E-05
+      (a) ORDERING FOLLOWS DECLARED EDGES WHERE THEY DISAGREE WITH Set/Order. The fixture is built so the two CONFLICT: the prerequisite `pre222` carries the HIGHER Order (09) and the LATER position (2), while the dependent `dep111` carries Order 01 and position 1.
+        Set/Order says:      dep111 -> pre222
+        DECLARED EDGES say:  pre222 -> dep111
+          pre222 depth=0 key=(0, 'fixture', 9, 'pre222', 2)
+          dep111 depth=1 key=(1, 'fixture', 1, 'dep111', 1)
+        SELECTED FIRST: pre222 (Order 9, position 2)
+        dep111 satisfied=False missing=['executed:pre222']
+      A FULL END-TO-END RUN confirms it in the launch order actually taken (throwaway fixture /tmp/e2e-run, fake host, 5 items):
+        EXECUTION ORDER: fail33, ind555, pre222, dep111
+      `dep111` ran LAST despite Order 01 and position 01, because its edge gated it. Lower Order can no longer make an unsatisfied node runnable.
+
+      (b) Set/Order STILL BREAKS TIES among already-ready nodes (test_set_order_still_breaks_ties_among_equally_ready_nodes): with no edges, Order 1 precedes Order 2 regardless of queue position.
+
+      (c) FAILURE CASCADE USING THE EXISTING DISPOSITION. Final queue of the same end-to-end run:
+        pos=1 dep111 order=1 status=executed             deps=['executed:pre222']
+        pos=2 fail33 order=3 status=failed-safely        deps=[]
+        pos=3 cas444 order=4 status=dependency-blocked   deps=['executed:fail33'] unsat=['executed:fail33 (target failed-safely)']
+        pos=4 ind555 order=5 status=executed             deps=[]
+        pos=5 pre222 order=9 status=executed             deps=[]
+      Only the DEPENDENT of the failure is blocked; INDEPENDENT ITEMS STILL RAN (`ind555` executed AFTER `fail33` failed). The recorded event carries the root cause:
+        {"event": "dependency-blocked", "id6": "cas444", "dependencies": ["executed:fail33 (target failed-safely)"], "reason": "prerequisite reached a non-success terminal state"}
+      NO SESSION WAS STARTED for the cascaded item: `ls sessions/` shows 01-dep111, 02-fail33, 04-ind555, 05-pre222 and NO 03-cas444.
+      The state used is the EXISTING `dependency-blocked` (already in TERMINAL_STATES, already written by the orchestrator-deferral path). `dependency-not-met` was NOT introduced: `test_cascade_uses_the_existing_disposition_not_a_new_state` tokenizes both drivers and asserts neither `dependency-not-met` nor `dependency_not_met` appears in CODE (F9). Transitive propagation to a fixed point is asserted separately (child1 -> child2 both blocked, independent untouched).
+
+      (d) NO-REGRESSION FOR A SET WITH NO DECLARED EDGES, and I did not merely assert this: I ran the SAME fixture against the PRE-FIX drivers (my module changes git-stashed) and compared.
+        WITH MY CHANGES (/tmp/e2e-noedge):     order aaa111, bbb222, ccc333
+          pos=1 orc000 action=orchestrate status=dependency-blocked unsat=['aaa111','bbb222','ccc333']
+          pos=2..4 aaa111/bbb222/ccc333 executed
+        PRE-FIX, same fixture:                 order aaa111, bbb222, ccc333
+          pos=1 orc000 action=orchestrate status=dependency-blocked unsat=['aaa111','bbb222','ccc333']
+          pos=2..4 aaa111/bbb222/ccc333 executed
+      IDENTICAL, including the orchestrator-deferral `dependency-blocked` path and its unfinished-children list. The only difference in the frozen record is the ADDITIVE `order` key. `test_missing_order_key_still_sorts` covers an older run directory frozen before this change, so `resume` against existing runs does not crash.
+
+      (e) `position` IS NEVER RENUMBERED (test_position_is_never_renumbered_by_ordering): positions are [1,2] before and after sorting. This is deliberate and recorded as DECISION 04-8guhs0-D3: `position` is a stable identity that outcome/prompt/session filenames and this run's own decision ids key on, so ordering changes SELECTION, not identity. That decision also records that spec 5.4's TYPE RANK is deliberately not implemented (the queue is IPD-only, so it would be untestable dead code) rather than silently skipped.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the new module passing, then FALSIFIABILITY in three directions: the typed round-trip fails pre-fix; the gating assertion fails pre-fix; the anti-divergence guard fails when a private regex is reintroduced. Paste the cross-driver symmetry assertion (both drivers ARE declared here, so real symmetry is required, not deferred) and the UNCHANGED results of the existing consumer-surface dependency tests, named: `tests/test_ipd_dependency_check.py`, `tests/test_ipd_dependency_statement_gate.py`, `tests/test_ipd_item_dependencies.py` (review baseline `60 passed` together), none of them edited. Additionally paste the end-to-end queue described under Required tests, stating whether it ran on a throwaway fixture Set or a dry path; do NOT launch a real run over live `wtiso` items that other agents are executing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED at HEAD d4d265b67a12e89893ff77b7ff093b0abd5a45f9. All suite output below is pasted verbatim from runs I performed.
+
+      (a) THE NEW MODULE PASSES:
+        $ python3 -m pytest tests/test_runner_item_dependencies.py -o addopts='' -q -p no:randomly
+        55 passed in 1.75s
+      (no skips: the cutover-marker case initially skipped on a guessed marker path; I found the real mechanism (`config.read_dependency_schema_cutover` reads `.aw/config/project.json`) and turned the skip into a real assertion.)
+
+      (b) FALSIFIABILITY IN THREE DIRECTIONS, each measured, not asserted.
+        1. AGAINST PRE-FIX CODE (my two module changes git-stashed, new module retained, same HEAD):
+             45 failed, 9 passed, 1 skipped in 7.00s
+           Named required cases that FAIL pre-fix: test_both_drivers_yield_three_typed_edges, test_frozen_queue_entry_carries_typed_edges, test_executed_edge_released_by_a_verified_in_run_target, test_exists_edge_releases_immediately_without_waiting, test_unconverted_typed_token_blocks_rather_than_admits, test_preflight_refuses_before_any_session_starts, test_the_implementation_is_shared_not_copied, test_runner_extraction_matches_the_authority_surface.
+        2. ANTI-DIVERGENCE GUARD vs a REINTRODUCED private regex. I injected `_DEPS_RE = re.compile(r"(?m)^-\s*(?:Dependencies|Depends-on):\s*(.+?)\s*$")` back into oc_runipd.py:
+             FAILED test_no_driver_defines_a_dependency_regex
+             FAILED test_no_driver_defines_the_deleted_private_parser
+             FAILED test_no_driver_exposes_the_deleted_names
+           Injection reverted and the module re-verified at 55 passed.
+        3. A GUARD DEFECT I FOUND AND FIXED IN MY OWN TEST, reported because it matters. My first `_DEP_REGEX_HINT` was `re\.compile\([^)]*(?:Dependencies|...)`, which PASSED against the pre-fix `_DEPS_RE` it existed to catch: `[^)]*` cannot cross the `)` of the `(?m)` flag group, so the guard was VACUOUS. Measured directly (`matches: False`) and fixed to a newline-bounded pattern, after which it fails as shown in (2). I record this because a vacuous guard is worse than no guard: it reports safety it does not provide.
+
+      (c) UNCHANGED CONSUMER-SURFACE TESTS, none edited (verified: `git status --porcelain` lists only my 4 files, and `git diff HEAD --` on these three is empty):
+        $ python3 -m pytest tests/test_ipd_dependency_check.py tests/test_ipd_dependency_statement_gate.py tests/test_ipd_item_dependencies.py -o addopts='' -q -p no:randomly
+        60 passed in 2.40s
+      This matches the review baseline of 60 and is the evidence that this plan added a CONSUMER without altering the shared rules.
+
+      (d) CROSS-DRIVER SYMMETRY, REAL AND STRUCTURAL (both drivers are declared here, so unlike sibling z2isfg symmetry is deliverable and I deliver it). `test_the_implementation_is_shared_not_copied` asserts `getattr(agy_runipd, name) is getattr(oc_runipd, name)` for all 11 dependency-API names, so agy BINDS the same objects rather than copying them: a future fix cannot land in one driver only. Measured: `oc._read_item_dependencies is agy._read_item_dependencies` -> True; `oc.dependency_status is agy.dependency_status` -> True. Both drivers also freeze the same queue dependencies and validate a typed manifest identically. The ONE thing that is deliberately not shared is `enforce_dependency_preflight`, because the two modules define DISTINCT `DriverError` classes and a leaked oc-typed exception would bypass agy's `main` handler and surface as a traceback; agy wraps and re-raises in its own type, asserted by test and demonstrated end-to-end (`runagy: dependency preflight failed: ...` with exit=2).
+
+      (e) SUITE BASELINES, MEASURED BY ME AT MY HEAD, both directions, invoked BARE (no `-n auto`: addopts already supplies it):
+        PRE-FIX  fast: `python3 -m pytest`        -> 15 failed, 2912 passed, 3 skipped, 4 xfailed in 87.15s
+        POST-FIX fast: `python3 -m pytest`        -> 15 failed, 2967 passed, 3 skipped, 4 xfailed in 25.33s
+        PRE-FIX  full: `python3 -m pytest -m ''`  -> 19 failed, 3239 passed, 3 skipped, 4 xfailed in 143.52s
+        POST-FIX full: `python3 -m pytest -m ''`  -> 19 failed, 3294 passed, 3 skipped, 4 xfailed in 101.94s
+      IDENTICAL failure COUNT and, more importantly, identical failure SET: I diffed the sorted `FAILED` lines of the pre-fix and post-fix full runs and the diff is EMPTY. +55 passes are exactly my new module. The 19 pre-existing failures are 15 in `tests/test_run_viewer.py` (owned by plan `i79rgh`, explicitly outside this plan's fence) and the 4 named CLI-surface failures (test_command_surface_declarations::test_zero_undeclared_parser_leaves, test_cli_conformance_matrix::test_no_undeclared_parser_leaves, test_cli_conformance_matrix::test_every_declared_leaf_gets_a_full_scenario_row_set, test_cli::SubcommandDescriptionTests::test_every_subparser_has_fuller_description). I neither caused nor fixed any of them. NOTE: this plan's recorded baseline (fast `2876 passed` with ZERO failures) was STALE AGAIN, for the fifth time across this Set; per its own instruction I measured my own rather than reusing it.
+        Driver + shim + lifecycle modules, unedited except test_oc_runipd.py: `tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_runner_item_dependencies.py` -> 156 passed; `tests/test_oc_runipd_shim.py tests/test_agy_runipd_shim.py tests/test_ipd_lifecycle_cli.py` -> 65 passed.
+
+      (f) END-TO-END ON A THROWAWAY FIXTURE, NOT over live `wtiso` items. STATED EXPLICITLY: I did NOT launch any run over `wtiso` (several members are executing in live lanes; starting a competing run over another agent's in-flight items is not acceptable evidence-gathering). Instead I built four throwaway fixture repos under /tmp (`e2e-8guhs0` frozen-queue, `e2e-bad` cycle, `e2e-dang` dangling, `e2e-run` full 5-item run, `e2e-noedge` no-regression) and ran the REAL `aw oc run`/`aw agy run` CLI against them. All evidence in V-02/V-04 comes from those runs. Nothing was written to the live plans tree by these demonstrations.
+
+      (g) A REGRESSION I INTRODUCED AND FIXED, reported rather than hidden. Canonicalizing the reported token made `dependency_status` echo a bare id6 back as `executed:<id6>`, which broke 3 tests in `tests/test_oc_runipd.py`. Rather than edit those tests I fixed the CODE: `unsatisfied_dependencies` now reports the token AS DECLARED, because that list is written into durable run records and rewriting a bare id6 into a typed edge would silently change what the record says the plan asked for. All 3 pass unedited.
+
+      (h) LEAK SCAN + LINT:
+        $ python3 -m agent_workflows check-local-leaks . --agent
+        {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+  - Result: pass
 
 ## Approval and execution gate
 
