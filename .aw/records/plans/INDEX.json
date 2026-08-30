@@ -3593,6 +3593,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260829-cfgverbs-02-k99n3m-cli-verbs-aw-config-add-remove-show-var-and-is-in-with-conf.ipd.md",
+    "plan_id": "k99n3m",
+    "set_id": "cfgverbs",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md",
     "plan_id": "a5ni7v",
@@ -3887,7 +3897,7 @@
     "path": "pending/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md",
     "plan_id": "c621h9",
     "set_id": "revgate",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-29",
@@ -3972,6 +3982,16 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
+    "plan_id": "5e4sb6",
+    "set_id": "rununify",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
     "kind": "child",
     "order": 1,
     "path": "pending/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md",
@@ -4027,7 +4047,7 @@
     "path": "pending/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
     "plan_id": "a6cej0",
     "set_id": "workkind",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",

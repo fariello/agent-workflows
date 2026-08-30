@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 170 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 171 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -19,6 +19,7 @@ Showing the 40 most-recent of 170 Sets; the full manifest is INDEX.json.
 ## cfgverbs
 
 - `75ov5j` [executed] 01 executed/20260829-cfgverbs-01-75ov5j-cli-verbs-aw-config-get-set-and-show-with-typed-schema-regis.ipd.md
+- `k99n3m` [executed] 02 executed/20260829-cfgverbs-02-k99n3m-cli-verbs-aw-config-add-remove-show-var-and-is-in-with-conf.ipd.md
 
 ## coauthor
 
@@ -83,6 +84,10 @@ Showing the 40 most-recent of 170 Sets; the full manifest is INDEX.json.
 - `foi1b3` [pending] 04 pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
 - `m0z0ti` [pending] 05 pending/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
 - `71vjbn` [pending] 06 pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
+
+## rununify
+
+- `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
 
 ## scopeattrib
 
@@ -207,14 +212,6 @@ Showing the 40 most-recent of 170 Sets; the full manifest is INDEX.json.
 ## 8t5ghsgi
 
 - `s2ufeo` [executed] 01 executed/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
-
-## awocrunner
-
-- `alkapp` [executed] 00 executed/20260824-awocrunner-00-alkapp-graduate-the-opencode-ipd-runner-into-the-aw-oc-command-grou.ipd.md
-- `ckxgx4` [executed] 01 executed/20260824-awocrunner-01-ckxgx4-extract-runipd-core-into-the-agent-workflows-package-unchang.ipd.md
-- `nfo184` [executed] 02 executed/20260824-awocrunner-02-nfo184-add-aw-oc-opencode-subcommand-group-dispatching-to-the-packa.ipd.md
-- `4tlkgj` [executed] 03 executed/20260824-awocrunner-03-4tlkgj-reduce-tools-ipdrunner-runipd-to-a-thin-compatibility-shim.ipd.md
-- `suks59` [executed] 04 executed/20260824-awocrunner-04-suks59-docs-sync-and-non-blocking-backlog-for-output-normalization.ipd.md
 
 ## (singletons: no Set)
 

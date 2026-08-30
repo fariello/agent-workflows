@@ -6,15 +6,15 @@
 - Scope: Array helpers in config.py, CLI subcommands add/remove/show/is in cli.py, "conf" alias in parser, and comprehensive tests.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/cli.py, tests/test_config.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: cfgverbs
 - Order: 2
 - Highest E allocated: 03
 - Author: antigravity
 - Id: k99n3m
-- Approval: 2026-08-30, human ("approved"): User requested add, remove, is in, show var, and conf alias
 
 ## Workflow history
+- 2026-08-30 executed (antigravity): Implemented array mutation and inspection verbs add, remove, is in, show var, and conf alias [Scope reconciliation - in-scope-unmodified agent_workflows/cli.py: acknowledged; in-scope-unmodified agent_workflows/config.py: acknowledged; in-scope-unmodified tests/test_config.py: acknowledged]
 - 2026-08-30 approved (aw set, --by-human): User requested add, remove, is in, show var, and conf alias
 - 2026-08-30 reviewed (aw set): plan authored
 
