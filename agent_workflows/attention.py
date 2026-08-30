@@ -19,7 +19,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
@@ -772,6 +772,67 @@ def render_board(
 # --------------------------------------------------------------------------------------
 
 
+def filter_items_by_selectors(
+    items: List[Item], selectors_list: Sequence[str], repo_root: Path
+) -> List[Item]:
+    """Filter scanned attention items by one or more selector tokens (id6, setid, path, tree, status, etc.)."""
+    tokens = [str(t).strip() for t in selectors_list if str(t).strip()]
+    if not tokens:
+        return items
+
+    from agent_workflows import selectors
+
+    record_types = (
+        "plans",
+        "specs",
+        "research",
+        "backlog",
+        "prompts",
+        "walkthroughs",
+        "roadmaps",
+        "releases",
+    )
+    matched_paths: set = set()
+    for tok in tokens:
+        for rt in record_types:
+            try:
+                for p in selectors.resolve_selectors(repo_root, rt, [tok]):
+                    matched_paths.add(p.resolve())
+            except Exception:
+                pass
+
+    filtered: List[Item] = []
+    for it in items:
+        p_resolved = (repo_root / it.path).resolve()
+        matches = False
+        if p_resolved in matched_paths:
+            matches = True
+        else:
+            for tok in tokens:
+                tok_lower = tok.lower()
+                if it.id and it.id.lower() == tok_lower:
+                    matches = True
+                    break
+                if it.tree and it.tree.lower() == tok_lower:
+                    matches = True
+                    break
+                if it.attention_class and it.attention_class.lower() == tok_lower:
+                    matches = True
+                    break
+                if it.native_status and it.native_status.lower() == tok_lower:
+                    matches = True
+                    break
+                if it.priority and it.priority.lower() == tok_lower:
+                    matches = True
+                    break
+                if tok_lower in it.path.lower():
+                    matches = True
+                    break
+        if matches:
+            filtered.append(it)
+    return filtered
+
+
 def run(args) -> int:
     # Climb to the project root so `aw attention` works from any subdirectory; an explicit --dir is
     # honored verbatim (IPD awretrofit Order 06).
@@ -825,6 +886,7 @@ def run(args) -> int:
             return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(no_project_message("attention") + "\n")
         return 3
+        return 3
 
     try:
         items, drift = scan(repo_root)
@@ -849,6 +911,15 @@ def run(args) -> int:
             return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(f"aw attention: could not run: {exc}\n")
         return 2
+
+    selectors_arg = getattr(args, "selectors", None) or []
+    if selectors_arg:
+        items = filter_items_by_selectors(items, selectors_arg, repo_root)
+        if drift:
+            selected_paths = {(repo_root / it.path).resolve() for it in items}
+            drift = [
+                d for d in drift if (repo_root / d.location).resolve() in selected_paths
+            ]
 
     fmt = getattr(args, "format", None)
 
@@ -944,10 +1015,11 @@ def run(args) -> int:
             sys.stdout.write(
                 "NOTE: setup not complete - run `aw setup` to configure this repo.\n\n"
             )
+        show_all = getattr(args, "all", False) or bool(selectors_arg)
         board = render_board(
             items,
             drift,
-            show_all=getattr(args, "all", False),
+            show_all=show_all,
             term=term,
             long=getattr(args, "long", False),
         )
@@ -978,6 +1050,13 @@ def run(args) -> int:
             from agent_workflows import check_engine as _ce
 
             gate_warnings = _ce.release_gate_warnings(repo_root)
+            if selectors_arg and gate_warnings:
+                selected_paths = {(repo_root / it.path).resolve() for it in items}
+                gate_warnings = [
+                    w
+                    for w in gate_warnings
+                    if (repo_root / w.location).resolve() in selected_paths
+                ]
         except Exception:
             gate_warnings = []
         if gate_warnings:

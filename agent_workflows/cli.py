@@ -2783,6 +2783,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Show the full repo-relative path instead of the compact identity stem.",
     )
+    p_attention.add_argument(
+        "selectors",
+        nargs="*",
+        default=[],
+        help="Optional selector tokens (id6, setid, path, filename, tree, or status) to filter items.",
+    )
 
     # awocrunner Order 02 (nfo184): the `oc` (alias `opencode`) host group surfaces the packaged
     # OpenCode IPD runner as `aw oc runipd`. `runipd` captures ALL remaining tokens verbatim

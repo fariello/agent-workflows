@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import re
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -424,6 +426,64 @@ class StaleResearchReclassifyTests(unittest.TestCase):
         self.assertEqual(A.class_of("research", "active"), "active")
         self.assertEqual(A.class_of("research", "reference"), "done")
         self.assertEqual(A.class_of("research", "archive"), "parked")
+
+    def test_filter_items_by_selectors(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            items, _drift = att.scan(root)
+            self.assertEqual(len(items), 3)
+
+            # Filter by id6
+            f1 = att.filter_items_by_selectors(items, ["abc123"], root)
+            self.assertEqual(len(f1), 1)
+            self.assertEqual(f1[0].id, "abc123")
+
+            # Filter by setid
+            f2 = att.filter_items_by_selectors(items, ["r"], root)
+            self.assertEqual(len(f2), 1)
+            self.assertEqual(f2[0].id, "def456")
+
+            # Filter by tree
+            f3 = att.filter_items_by_selectors(items, ["specs"], root)
+            self.assertEqual(len(f3), 1)
+
+            # Filter by attention class / status
+            f4 = att.filter_items_by_selectors(items, ["active"], root)
+            self.assertEqual(len(f4), 1)
+            self.assertEqual(f4[0].id, "def456")
+
+            # Multiple selectors OR-union
+            f5 = att.filter_items_by_selectors(items, ["abc123", "def456"], root)
+            self.assertEqual(len(f5), 2)
+            self.assertEqual({it.id for it in f5}, {"abc123", "def456"})
+
+            # Substring match
+            f6 = att.filter_items_by_selectors(items, ["s.md"], root)
+            self.assertEqual(len(f6), 1)
+
+    def test_run_with_selectors(self):
+        import io
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+
+            args = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=["abc123"],
+                no_color=True,
+                all=False,
+                long=False,
+            )
+            buf = io.StringIO()
+            with patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            self.assertEqual(len(data["items"]), 1)
+            self.assertEqual(data["items"][0]["id"], "abc123")
 
 
 if __name__ == "__main__":
