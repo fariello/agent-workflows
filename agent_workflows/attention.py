@@ -570,9 +570,11 @@ def _colorize_tree_segment(term: T.Term, path: str, tree: str) -> str:
 
 def setup_needed(repo_root: Path) -> bool:
     """setupmarker Order 01 (was awdoctor Order 02): True iff the per-repo reminder marker
-    `.aw/setup-repo-needed.md` is present (written by `aw install`, cleared by `aw setup` / the
-    `/setup-repo` workflow / the user deleting it). DERIVED read-only from the marker; NEVER creates
-    anything. Replaces the old open-`setup-repo`-action check (the ledger was deleted)."""
+    `.aw/setup-repo-needed.md` is present (written by `aw install`, cleared by the `/setup-repo`
+    workflow's successful terminal pass or by the user deleting it; NOT by `aw setup`, which is the
+    machine-wide install wizard and never touches the marker). DERIVED read-only from the marker;
+    NEVER creates anything. Replaces the old open-`setup-repo`-action check (the ledger was
+    deleted)."""
     try:
         return (Path(repo_root) / ".aw" / "setup-repo-needed.md").is_file()
     except Exception:
@@ -1013,7 +1015,7 @@ def run(args) -> int:
         # awdoctor Order 02: human-view-only notices (never in JSON/--check).
         if setup_needed(repo_root):
             sys.stdout.write(
-                "NOTE: setup not complete - run `aw setup` to configure this repo.\n\n"
+                "NOTE: setup not complete - run the `/setup-repo` workflow in this repo.\n\n"
             )
         show_all = getattr(args, "all", False) or bool(selectors_arg)
         board = render_board(

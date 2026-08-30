@@ -4154,25 +4154,38 @@ records/runs/
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
-# the old operational-action ledger. `aw install` writes it; `aw setup` (or the user deleting it)
-# clears it; `attention.setup_needed` DERIVES the pending state from its presence (read-only).
+# the old operational-action ledger. `aw install` writes it (on EVERY install/update, so a framework
+# update re-raises the conformance reminder); the `/setup-repo` WORKFLOW clears it on a successful
+# terminal pass (setup-repo.md "Clear the setup reminder"), or the user deletes it to dismiss;
+# `attention.setup_needed` DERIVES the pending state from its presence (read-only).
+# NOTE: `aw setup` does NOT clear this marker and is NOT the command to run here. `aw setup` is the
+# MACHINE-WIDE first-run wizard (it discovers every repo under the configured search roots and offers
+# to install into all of them); the per-repo conformance pass this marker asks for is `/setup-repo`.
 SETUP_MARKER_PATH = ".aw/setup-repo-needed.md"
 _SETUP_MARKER_TEMPLATE = """\
 # agent-workflows: setup not yet run in this repo
 
 This file is a REMINDER, not configuration. agent-workflows (`aw`) was installed
-here, but the stack-tailored setup / conformance pass (`aw setup`) has not been
-run in this repo yet.
+or updated here, but the stack-tailored setup / conformance pass has not been run
+in this repo since.
 
 ## What to do
 
-- Run `aw setup` in this repo to complete installation, OR
+- Run the `/setup-repo` workflow in this repo (in an agent that supports slash
+  commands, `/setup-repo`; in any other agent, "read and execute
+  `.aw/system/workflows/setup-repo/setup-repo.md`"). It is a guided, idempotent
+  conformance pass: it asks before each change, and on a re-run it reports what is
+  already conformant and only offers the gaps. It removes this file when it
+  completes successfully, OR
 - Delete this file to dismiss the reminder (`aw` will not recreate it on its own;
   only a fresh `aw install` would).
 
-Running `aw setup` removes this file automatically. It is per-machine and
-gitignored (via `.aw/.gitignore`), so it is never committed and never travels
-with the repo. It is safe to delete at any time.
+NOT `aw setup`: that is the MACHINE-WIDE first-run wizard (it discovers every repo
+under your configured search roots and offers to install into all of them). It does
+not clear this reminder and is not what this file is asking for.
+
+This file is per-machine and gitignored (via `.aw/.gitignore`), so it is never
+committed and never travels with the repo. It is safe to delete at any time.
 """
 # Inter-agent comms convention (D81). Scaffolded skeleton for `.agents/comms/`. `local/` is
 # box-local, ephemeral routing and is gitignored via a NESTED `.gitignore` (a created deliverable,

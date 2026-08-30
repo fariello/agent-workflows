@@ -58,11 +58,15 @@ class DoctorRemediationTests(unittest.TestCase):
         self.assertEqual(rem.summary_fix, "aw index")
 
     def test_setup_needed_remediation(self) -> None:
+        # setupmarker: the per-repo reminder is cleared by the `/setup-repo` WORKFLOW, never by
+        # `aw setup` (the machine-wide install wizard, which does not touch the marker).
         d = core.Drift("<setup>", "doctor.setup-needed", "initial setup needed")
         rem = doctor.build_remediation(d, self.repo_root)
-        self.assertEqual(rem.command, "aw setup")
-        self.assertIn("aw setup", rem.detailed_fix)
-        self.assertEqual(rem.summary_fix, "aw setup")
+        self.assertEqual(rem.command, "/setup-repo")
+        self.assertIn("/setup-repo", rem.detailed_fix)
+        self.assertEqual(rem.summary_fix, "/setup-repo")
+        # The remediation must NOT tell the user to run the machine-wide wizard.
+        self.assertNotIn("run 'aw setup'", rem.detailed_fix)
 
     def test_layout_split_brain_remediation(self) -> None:
         d = core.Drift("<layout>", "doctor.layout-split-brain", "dual layout")
@@ -205,9 +209,12 @@ class DoctorRemediationTests(unittest.TestCase):
             core.Drift("src/secret.py", "doctor.leak-secret", "token"),
         ]
         next_cmd, next_actions = doctor.resolve_next_actions(drift_list, self.repo_root)
-        self.assertEqual(next_cmd, "aw setup")
+        # setup-needed keeps the TOP priority slot, now as the `/setup-repo` workflow. Regression
+        # guard: giving that remediation a None command would drop it from raw_actions entirely and
+        # silently promote the leak fix to primary.
+        self.assertEqual(next_cmd, "/setup-repo")
         cmd_names = [a.command for a in next_actions]
-        self.assertIn("aw setup", cmd_names)
+        self.assertIn("/setup-repo", cmd_names)
         self.assertIn("aw sanitize --fix", cmd_names)
         self.assertIn("aw index plans", cmd_names)
 

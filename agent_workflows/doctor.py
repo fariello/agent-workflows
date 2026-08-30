@@ -863,12 +863,23 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         )
 
     if rule.startswith("doctor.setup-needed"):
+        # setupmarker: the per-repo reminder is cleared by the `/setup-repo` WORKFLOW, not by
+        # `aw setup` (the machine-wide install wizard, which never touches the marker). The
+        # remediation is a workflow to execute rather than an `aw` subcommand; `command` stays
+        # non-None so this keeps its top slot in the resolve_next_actions priority chain (a None
+        # command is dropped from raw_actions entirely, which would silently demote setup below
+        # leak/stale-index).
         title = "Initial repository setup pending"
-        cmd = "aw setup"
+        cmd = "/setup-repo"
         return Remediation(
             title=title,
             summary_fix=cmd,
-            detailed_fix="run 'aw setup' or execute .aw/system/workflows/setup-repo/setup-repo.md.",
+            detailed_fix=(
+                "run the /setup-repo workflow in this repo (or 'read and execute "
+                ".aw/system/workflows/setup-repo/setup-repo.md'); it clears the "
+                ".aw/setup-repo-needed.md reminder when it completes successfully. "
+                "NOT 'aw setup', which is the machine-wide install wizard."
+            ),
             command=cmd,
             file_path=None,
         )
@@ -938,15 +949,15 @@ def resolve_next_actions(
         return None, []
 
     # Priority ranking for single primary next command:
-    # 1. setup-needed ("aw setup")
+    # 1. setup-needed ("/setup-repo", a workflow rather than an `aw` subcommand)
     # 2. layout-split-brain ("aw migrate-layout")
     # 3. leak ("aw sanitize --fix")
     # 4. stale-index ("aw index" or "aw index <type>")
     # 5. first actionable command
     primary_cmd: Optional[str] = None
     for action in raw_actions:
-        if action.command == "aw setup":
-            primary_cmd = "aw setup"
+        if action.command == "/setup-repo":
+            primary_cmd = "/setup-repo"
             break
     if not primary_cmd:
         for action in raw_actions:
