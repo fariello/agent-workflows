@@ -896,12 +896,20 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
         )
 
     if rule.startswith("doctor.version-"):
+        # A stale/mismatched install is fixed by re-running the INSTALLER in THIS repo (`aw install`
+        # with no target acts on the current directory and is idempotent). NOT `aw setup`, which is
+        # the machine-wide first-run wizard: it discovers every repo under the configured search
+        # roots and offers to install into all of them, which is far wider than the one repo whose
+        # version drifted.
         title = "Framework version mismatch or stale installation"
-        cmd = "aw setup"
+        cmd = "aw install"
         return Remediation(
             title=title,
             summary_fix=cmd,
-            detailed_fix="run 'aw setup' or reinstall the framework to update files to the current package version.",
+            detailed_fix=(
+                "run 'aw install' in this repo to update its managed files to the current "
+                "package version (idempotent; backs up before overwrite)."
+            ),
             command=cmd,
             file_path=None,
         )

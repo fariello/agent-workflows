@@ -68,6 +68,17 @@ class DoctorRemediationTests(unittest.TestCase):
         # The remediation must NOT tell the user to run the machine-wide wizard.
         self.assertNotIn("run 'aw setup'", rem.detailed_fix)
 
+    def test_version_mismatch_remediation_is_install_not_setup(self) -> None:
+        # A stale install is fixed by re-running the installer in THIS repo. `aw setup` is the
+        # machine-wide wizard (it offers to install into every discovered repo), which is far too
+        # wide a remedy for one repo's version drift.
+        for rule in ("doctor.version-stale", "doctor.version-not-installed"):
+            d = core.Drift("<version>", rule, "installed=1.0.0 packaged=1.2.1")
+            rem = doctor.build_remediation(d, self.repo_root)
+            self.assertEqual(rem.command, "aw install", rule)
+            self.assertIn("aw install", rem.detailed_fix)
+            self.assertNotIn("aw setup", rem.detailed_fix)
+
     def test_layout_split_brain_remediation(self) -> None:
         d = core.Drift("<layout>", "doctor.layout-split-brain", "dual layout")
         rem = doctor.build_remediation(d, self.repo_root)
