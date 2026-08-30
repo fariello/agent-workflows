@@ -1,5 +1,5 @@
 - Id: 077yqc
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: scopeattrib
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw ipd finalize misattributes concurrent agents' uncommitted files to whichever plan finalizes first, because _paths_changed_by_this_execution unions the whole git status porcelain with no ownership filter
 
 ## Workflow history
+- 2026-08-30 graduated (aw set): design handed off to plan lbgzxg (scopeattrib-01, to-review, carries From-Backlog: 077yqc and Blocks-Release: next); gate preserved via handoff. Plan resolved both open design questions from measurement: candidate (2) lease/ledger ownership lookup ELIMINATED (no per-path ownership data exists in the begin receipt or any durable registry), candidate (3) opt-in flag ELIMINATED (defaults broken behavior on), so candidate (1) intersect-with-owned-paths ships. Also corrected the item's severity: the finalize commit is path-scoped, so no co-worker work is ever swept; harm is record pollution plus unbounded blocking, NOT data loss.
 - 2026-08-29 created (aw backlog): aw ipd finalize misattributes concurrent agents' uncommitted files to whichever plan finalizes first, because _paths_changed_by_this_execution unions the whole git status porcelain with no ownership filter
 
 OBSERVED 2026-08-29: finalizing wtiso-01 (8zgybk), whose own Scope-Paths were CLEAN and whose work was already committed, repeatedly refused and demanded --scope-reason for files another agent was editing concurrently and had not yet committed - the set grew during the attempts (agent_workflows/backlog.py, check_engine.py, ipd_schema.py, then also attention_contract.py and AGENTS.md). None were touched by 8zgybk. Re-running 'aw ipd begin' did not help because the foreign files are dirty NOW, so any base yields the same union.
