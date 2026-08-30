@@ -6,14 +6,16 @@
 - Scope: Refactor the user config schema in config.py to nest repository settings under repos (repos.search, repos.installed, repos.exclude, repos.ignore); bump config_version to 2 with a version-aware migrate() and a forward-compatibility guard so a newer config is never silently emptied; update accessors and every real call site in cli.py and project_context.py; keep the aw.agent/v1 status payload keys stable; sync the governing spec and CHANGELOG; update every affected test file.
 - Scope-Paths: agent_workflows/config.py, agent_workflows/cli.py, agent_workflows/project_context.py, .aw/records/specs/20260706-0000-01-pip-distribution-and-multi-repo-setup.spec.md, CHANGELOG.md, tests/test_config.py, tests/test_cli.py, tests/test_exclude_include_status.py, tests/test_exclude_guard.py, tests/test_installer.py, tests/test_empty_state_ux.py, tests/test_json_and_exitcodes.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: reposcfg
 - Order: 1
 - Highest E allocated: 14
 - Author: antigravity
 - Id: 8h9lap
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 
 - 2026-08-29 draft (antigravity): created.
 - 2026-08-29 to-review (antigravity): authored complete plan.

@@ -6,15 +6,17 @@
 - Scope: The CLI naming surface only: the `run` parser group in `agent_workflows/cli.py`, the dispatch in `agent_workflows/run_cli.py`, the `command_surface` declarations, the tests that invoke the verb, and the one workflow doc that cites it. No change to ledger semantics, storage, or the run viewer's rendering.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/run_cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, .aw/system/workflows/exec-set/exec-set.md, tests/test_run_recovery_cli.py, tests/test_run_evidence_completion.py, tests/test_run_viewer.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: runnamecollapse
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0soncw
+- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - From-Backlog: q5pdiy
 
 ## Workflow history
+- 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-006. BLOCKER: E-03's premise is unimplementable - argparse cannot combine targets nargs='*' with subparsers (verified: show/RUN1, RUN1, RUN1 RUN2 all exit 2), so routing needs pre-parse argv inspection plus a collision rule; raised as blocking OQ-03. Also corrected the suite baseline (2883/1 failed/7 skipped, not 2865 passed) and disclosed a pre-existing red test inside the plan's own Scope-Paths.
 
 - 2026-08-29 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.

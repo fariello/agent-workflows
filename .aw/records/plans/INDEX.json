@@ -3877,7 +3877,7 @@
     "path": "pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md",
     "plan_id": "8h9lap",
     "set_id": "reposcfg",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -3927,7 +3927,7 @@
     "path": "pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md",
     "plan_id": "0soncw",
     "set_id": "runnamecollapse",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4027,7 +4027,7 @@
     "path": "pending/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md",
     "plan_id": "kaga7s",
     "set_id": "stallfp",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
