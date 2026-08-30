@@ -55,9 +55,11 @@ from agent_workflows.oc_runipd import (
     pinned_child_env,
     pinned_module_argv,
 )
+
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
 from agent_workflows import runner_stop
+
 # --- Cross-IPD dependency API (lanetruth-03 / 8guhs0): IMPORTED, never re-declared --------------
 #
 # `oc_runipd` owns ONE definition of each of these and `agy_runipd` binds the SAME objects, so the
@@ -2212,6 +2214,8 @@ def dependency_status_detailed(
                     f"{dep}: plan is in `{bucket}/`, not executed/reviewed/approved",
                 )
     return not unsatisfied, unsatisfied, reasons
+
+
 # NOTE (8guhs0 E-01/E-03): `dependency_status` is NOT defined here. It is IMPORTED from `oc_runipd`
 # above, so the runtime satisfaction semantics exist exactly ONCE. The deleted copy was a verbatim
 # duplicate of oc's, which is how both drivers came to be equally unable to read the canonical field:
@@ -2511,7 +2515,7 @@ def _budget_breach_recorder(
     run_dir: Path,
     item: dict[str, Any],
     request: runner_stop.StopRequest,
-    observer: runner_stop.CheckpointObserver,
+    checkpoint_observer: runner_stop.CheckpointObserver,
 ) -> Callable[[], None]:
     """Build the callback `BudgetBreachWatch` invokes when the wind-down deadline passes.
 
@@ -2544,7 +2548,7 @@ def _record_checkpoint_stop(
     run_dir: Path,
     state: dict[str, Any],
     item: dict[str, Any],
-    observer: runner_stop.CheckpointObserver,
+    checkpoint_observer: runner_stop.CheckpointObserver,
 ) -> dict[str, Any]:
     """Record a level-3 stop on the item with KNOWN certainty (spec R18), returning the record.
 
@@ -2752,9 +2756,9 @@ def run_agy_turn(
             raise runner_stop.StopNowForce(
                 level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
                 requester=forced.get("requester", ""),
-                events_seen=observer.events_seen,
-                prior_completed_index=observer.last_checkpoint_index,
-                prior_completed_label=observer.last_checkpoint_label,
+                events_seen=checkpoint_observer.events_seen,
+                prior_completed_index=checkpoint_observer.last_checkpoint_index,
+                prior_completed_label=checkpoint_observer.last_checkpoint_label,
             )
 
         try:
@@ -2808,13 +2812,13 @@ def run_agy_turn(
                                     deadline_monotonic=time.monotonic()
                                     + max(0.0, remaining),
                                     on_breach=_budget_breach_recorder(
-                                        run_dir, item, request, observer
+                                        run_dir, item, request, checkpoint_observer
                                     ),
                                     is_alive=lambda: process.poll() is None,
                                 )
                                 breach_watch.__enter__()
                     if checkpoint_observer.observe(raw_line):
-                        raise runner_stop.StopAtCheckpoint(observer)
+                        raise runner_stop.StopAtCheckpoint(checkpoint_observer)
 
                     if output_mode == "raw":
                         sys.stdout.write(raw_line)

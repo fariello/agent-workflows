@@ -733,7 +733,9 @@ class BothDriversWireLevel3Tests(unittest.TestCase):
         # here and BEHAVIORALLY in `AllOutputModesTests`.
         oc_src = self._source("oc_runipd.py")
         observe_line = next(
-            line for line in oc_src.splitlines() if "checkpoint_observer.observe(" in line
+            line
+            for line in oc_src.splitlines()
+            if "checkpoint_observer.observe(" in line
         )
         self.assertNotIn("render_event", observe_line)
         # The observe call must precede the output-mode branch in the loop.
@@ -1416,3 +1418,83 @@ class ScopeFenceTests(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class ObserverBindingRegressionTests(unittest.TestCase):
+    """The two observers in the stream loop must never be confused for each other.
+
+    REGRESSION GUARD for a defect this suite did NOT catch. `stall_progress.SubagentProgressObserver`
+    (watchdog progress) and `runner_stop.CheckpointObserver` (safe checkpoints) both live in
+    `run_opencode`'s stream loop. Merging stallfp (kaga7s) with runstop foi1b3 put both in the same
+    scope, and the CheckpointObserver was renamed to `checkpoint_observer` to keep them apart. Several
+    uses were missed, which crashed a REAL run with
+
+        AttributeError: 'SubagentProgressObserver' object has no attribute 'observe'
+
+    at the per-line checkpoint parse. Every existing test passed, because none of them drives the
+    stream loop with a stop requested; the mistake was only reachable at runtime. In `agy_runipd`
+    there is no plain `observer` variable at all, so the same misuses were latent NameErrors.
+
+    Asserted on SOURCE rather than behavior deliberately: the failure mode is a name binding, the
+    attribute sets of the two classes are disjoint and known, and a source check costs nothing and
+    cannot be defeated by a test double.
+    """
+
+    _CHECKPOINT_ONLY = (
+        "events_seen",
+        "last_checkpoint_index",
+        "last_checkpoint_label",
+        "observe",
+        "pending",
+        "request",
+        "requested_level",
+        "requester",
+    )
+
+    def _sources(self):
+        import inspect
+
+        from agent_workflows import agy_runipd, oc_runipd
+
+        return (
+            ("oc_runipd", inspect.getsource(oc_runipd)),
+            ("agy_runipd", inspect.getsource(agy_runipd)),
+        )
+
+    def test_checkpoint_attributes_are_never_read_off_the_progress_observer(self):
+        import re
+
+        for name, src in self._sources():
+            for attr in self._CHECKPOINT_ONLY:
+                hits = re.findall(r"(?<!checkpoint_)\bobserver\.%s\b" % attr, src)
+                self.assertEqual(
+                    hits,
+                    [],
+                    f"{name}: `observer.{attr}` reads a CheckpointObserver attribute off the "
+                    f"subagent progress observer; use `checkpoint_observer`",
+                )
+
+    def test_stop_at_checkpoint_is_raised_with_the_checkpoint_observer(self):
+        import re
+
+        for name, src in self._sources():
+            wrong = re.findall(r"StopAtCheckpoint\((?!checkpoint_observer)\w", src)
+            self.assertEqual(
+                wrong,
+                [],
+                f"{name}: StopAtCheckpoint must carry the CheckpointObserver, not another object",
+            )
+
+    def test_the_two_observer_classes_have_disjoint_attributes(self):
+        # The premise the two guards above rely on: if these ever overlap, a name mix-up stops being
+        # detectable by attribute alone and the guards need rethinking rather than extending.
+        from agent_workflows.runner_stop import CheckpointObserver
+        from agent_workflows.stall_progress import SubagentProgressObserver
+
+        cp = {a for a in dir(CheckpointObserver) if not a.startswith("_")}
+        sp = {a for a in dir(SubagentProgressObserver) if not a.startswith("_")}
+        self.assertEqual(
+            cp & sp,
+            set(),
+            "the observers now share attribute names; the source guards above are no longer sound",
+        )

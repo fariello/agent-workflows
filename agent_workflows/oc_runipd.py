@@ -3515,12 +3515,12 @@ def run_opencode(
             raise runner_stop.StopNowForce(
                 level=forced.get("level", runner_stop.LEVEL_NOW_FORCE),
                 requester=forced.get("requester", ""),
-                events_seen=observer.events_seen,
+                events_seen=checkpoint_observer.events_seen,
                 # What had ALREADY been observed completing before the request. Passed so the record
                 # can carry it under its `prior_observed_*` keys; it is NEVER promoted to "the last
                 # completed operation", because the cut point itself was not observed.
-                prior_completed_index=observer.last_checkpoint_index,
-                prior_completed_label=observer.last_checkpoint_label,
+                prior_completed_index=checkpoint_observer.last_checkpoint_index,
+                prior_completed_label=checkpoint_observer.last_checkpoint_label,
             )
 
         try:
@@ -3595,7 +3595,7 @@ def run_opencode(
                                     deadline_monotonic=time.monotonic()
                                     + max(0.0, remaining),
                                     on_breach=_budget_breach_recorder(
-                                        run_dir, item, request, observer
+                                        run_dir, item, request, checkpoint_observer
                                     ),
                                     is_alive=lambda: process.poll() is None,
                                 )
@@ -3604,7 +3604,7 @@ def run_opencode(
                         # The turn stops HERE, after an event observed to have completed. Raising
                         # unwinds into the existing `except BaseException` below, which already
                         # routes to the shared reaper, so no second teardown path exists (spec R5).
-                        raise runner_stop.StopAtCheckpoint(observer)
+                        raise runner_stop.StopAtCheckpoint(checkpoint_observer)
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
