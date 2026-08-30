@@ -6,7 +6,7 @@
 - Scope: Add Statusline renderer and timer in agent_workflows/render_stream.py, integrating clock, elapsed, idle activity, block progress bar [NN/MM], target setid:id6, cumulative cost, and formatted token metrics into runner terminal execution in oc_runipd.py and agy_runipd.py with clean non-TTY fallback and unit tests in tests/test_render_stream.py.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_render_stream.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: runstatus
 - Order: 1
 - Highest E allocated: 03
@@ -14,6 +14,7 @@
 - Id: y7xygb
 
 ## Workflow history
+- 2026-08-30 reviewed (antigravity): Plan review completed: verified exact statusline format, non-TTY fallback, and thread safety
 
 - 2026-08-29 draft (antigravity): created.
 - 2026-08-29 to-review (antigravity): authored complete plan.

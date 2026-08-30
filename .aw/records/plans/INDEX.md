@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 171 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 173 Sets; the full manifest is INDEX.json.
 
 ## ackme8
 
@@ -60,6 +60,10 @@ Showing the 40 most-recent of 171 Sets; the full manifest is INDEX.json.
 
 - `jxqdcw` [pending] 01 pending/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
 
+## reposcfg
+
+- `8h9lap` [pending] 01 pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md
+
 ## revgate
 
 - `15zvu6` [pending] 01 pending/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md
@@ -74,6 +78,10 @@ Showing the 40 most-recent of 171 Sets; the full manifest is INDEX.json.
 ## runstale
 
 - `ssk6nf` [executed] 01 executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
+
+## runstatus
+
+- `y7xygb` [pending] 01 pending/20260829-runstatus-01-y7xygb-live-sticky-statusline-for-runner-terminal-streaming.ipd.md
 
 ## runstop
 
@@ -202,16 +210,6 @@ Showing the 40 most-recent of 171 Sets; the full manifest is INDEX.json.
 - `ryvoi5` [executed] 00 executed/20260825-runnernorm-00-ryvoi5-normalize-runner-interactive-output-and-graduate-remaining-t.ipd.md
 - `dg28i9` [executed] 01 executed/20260825-runnernorm-01-dg28i9-extract-runipd-render-event-palette-heartbeat-into-a-shared.ipd.md
 - `puot79` [executed] 02 executed/20260825-runnernorm-02-puot79-graduate-agy-run-sessions-view-and-pwatch-under-the-packaged.ipd.md
-
-## selfcommit
-
-- `88h0h8` [executed] 00 executed/20260825-selfcommit-00-88h0h8-records-mutating-commands-offer-to-commit-their-own-path-sco.ipd.md
-- `cv1rfd` [executed] 01 executed/20260825-selfcommit-01-cv1rfd-shared-commit-what-i-changed-helper-path-scoped-tty-gated-no.ipd.md
-- `jgcm68` [executed] 02 executed/20260825-selfcommit-02-jgcm68-adopt-the-self-commit-helper-across-aw-archive-group-rename.ipd.md
-
-## 8t5ghsgi
-
-- `s2ufeo` [executed] 01 executed/20260824-8t5ghsgi-01-s2ufeo-aw-install-ensures-records-runs-directory-is-gitignored.ipd.md
 
 ## (singletons: no Set)
 
