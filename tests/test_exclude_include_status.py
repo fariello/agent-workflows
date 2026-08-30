@@ -58,8 +58,8 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         self.assertIn("configured", out)
 
         cfg = CFG.load()
-        self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"])
-        self.assertIn(CFG._preserve_home(str(r2)), cfg["repos"])
+        self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"]["installed"])
+        self.assertIn(CFG._preserve_home(str(r2)), cfg["repos"]["installed"])
 
         # Listing included repos
         code, out = _run(["include"])
@@ -74,8 +74,8 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         self.assertIn("Config:", out)
 
         cfg = CFG.load()
-        self.assertIn(CFG._preserve_home(str(r1)), cfg["exclude"])
-        self.assertNotIn(CFG._preserve_home(str(r1)), cfg["repos"])
+        self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"]["exclude"])
+        self.assertNotIn(CFG._preserve_home(str(r1)), cfg["repos"]["installed"])
 
         # Listing excluded repos
         code, out = _run(["exclude"])
@@ -89,15 +89,15 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         self.assertIn("un-excluded", out)
 
         cfg = CFG.load()
-        self.assertNotIn(CFG._preserve_home(str(r1)), cfg["exclude"])
-        self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"])
+        self.assertNotIn(CFG._preserve_home(str(r1)), cfg["repos"]["exclude"])
+        self.assertIn(CFG._preserve_home(str(r1)), cfg["repos"]["installed"])
 
     def test_status_per_repo_details(self):
         r1 = self._repo("proj1")
         _run(["install", str(r1), "--yes"])
         cfg = CFG.load()
-        cfg["repos"] = [str(r1)]
-        cfg["exclude"] = ["~/src/legacy"]
+        CFG.set_repo_setting(cfg, "installed", [str(r1)])
+        CFG.set_repo_setting(cfg, "exclude", ["~/src/legacy"])
         CFG.save(cfg)
 
         code, out = _run(["status"])
@@ -115,8 +115,8 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         r1 = self._repo("proj1")
         _run(["install", str(r1), "--yes"])
         cfg = CFG.load()
-        cfg["repos"] = [str(r1)]
-        cfg["exclude"] = ["~/src/legacy"]
+        CFG.set_repo_setting(cfg, "installed", [str(r1)])
+        CFG.set_repo_setting(cfg, "exclude", ["~/src/legacy"])
         CFG.save(cfg)
 
         code, out = _run(["status", "--json"])
@@ -139,8 +139,8 @@ class ExcludeIncludeStatusTests(unittest.TestCase):
         (r_a / ".agents").mkdir(parents=True, exist_ok=True)
 
         cfg = CFG.load()
-        cfg["repos"] = [str(r_b), str(r_a)]
-        cfg["exclude"] = ["~/src/zeta", "~/src/alpha-exc"]
+        CFG.set_repo_setting(cfg, "installed", [str(r_b), str(r_a)])
+        CFG.set_repo_setting(cfg, "exclude", ["~/src/zeta", "~/src/alpha-exc"])
         CFG.save(cfg)
 
         code, out = _run(["status"])

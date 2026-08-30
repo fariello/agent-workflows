@@ -372,11 +372,13 @@ class ReadListVerbsEmptyStateSurfaceTests(unittest.TestCase):
         (hostile_cfg_dir / "config.json").write_text(
             json.dumps(
                 {
-                    "config_version": 1,
-                    "search_roots": [],
-                    "repos": [],
-                    "ignore": [],
-                    "exclude": [planted_exclude],
+                    "config_version": 2,
+                    "repos": {
+                        "search": [],
+                        "installed": [],
+                        "ignore": [],
+                        "exclude": [planted_exclude],
+                    },
                     "defaults": {"backup": True, "prune": True},
                 }
             ),

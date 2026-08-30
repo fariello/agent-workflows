@@ -27,7 +27,7 @@ class ExcludeGuardTests(unittest.TestCase):
         self.repo = Path(self._tmp.name) / "legacy-repo"
         self.repo.mkdir()
         cfg = CFG.default_config()
-        cfg["exclude"] = [str(self.repo.resolve())]
+        CFG.set_repo_setting(cfg, "exclude", [str(self.repo.resolve())])
         CFG.save(cfg)
         self.term = Term(color=False)
 
@@ -51,7 +51,7 @@ class ExcludeGuardTests(unittest.TestCase):
             result = CLI._exclude_guard(self.term, self.repo, _Args(yes=True))
         self.assertEqual(result, "skip")
         inp.assert_not_called()  # never prompted
-        self.assertIn(str(self.repo.resolve()), CFG.load()["exclude"])
+        self.assertIn(str(self.repo.resolve()), CFG.load()["repos"]["exclude"])
 
     def test_non_interactive_excluded_repo_skips_failsafe(self):
         with mock.patch("sys.stdin.isatty", return_value=False):
@@ -59,14 +59,14 @@ class ExcludeGuardTests(unittest.TestCase):
                 result = CLI._exclude_guard(self.term, self.repo, _Args(yes=False))
         self.assertEqual(result, "skip")
         inp.assert_not_called()
-        self.assertIn(str(self.repo.resolve()), CFG.load()["exclude"])
+        self.assertIn(str(self.repo.resolve()), CFG.load()["repos"]["exclude"])
 
     def test_interactive_decline_changes_nothing(self):
         with mock.patch("sys.stdin.isatty", return_value=True):
             with mock.patch("builtins.input", return_value="n"):
                 result = CLI._exclude_guard(self.term, self.repo, _Args(yes=False))
         self.assertEqual(result, "skip")
-        self.assertIn(str(self.repo.resolve()), CFG.load()["exclude"])
+        self.assertIn(str(self.repo.resolve()), CFG.load()["repos"]["exclude"])
 
     def test_interactive_continue_default_yes_keeps_exclude_when_unexclude_declined(
         self,
@@ -76,21 +76,21 @@ class ExcludeGuardTests(unittest.TestCase):
             with mock.patch("builtins.input", side_effect=["", "n"]):
                 result = CLI._exclude_guard(self.term, self.repo, _Args(yes=False))
         self.assertEqual(result, "proceed")
-        self.assertIn(str(self.repo.resolve()), CFG.load()["exclude"])
+        self.assertIn(str(self.repo.resolve()), CFG.load()["repos"]["exclude"])
 
     def test_interactive_continue_and_unexclude_removes_entry(self):
         with mock.patch("sys.stdin.isatty", return_value=True):
             with mock.patch("builtins.input", side_effect=["y", "y"]):
                 result = CLI._exclude_guard(self.term, self.repo, _Args(yes=False))
         self.assertEqual(result, "proceed")
-        self.assertNotIn(str(self.repo.resolve()), CFG.load()["exclude"])
+        self.assertNotIn(str(self.repo.resolve()), CFG.load()["repos"]["exclude"])
 
     def test_exclude_remove_matches_glob_entry(self):
         cfg = CFG.default_config()
-        cfg["exclude"] = ["*/legacy-repo"]
+        CFG.set_repo_setting(cfg, "exclude", ["*/legacy-repo"])
         CFG.save(cfg)
         CLI._exclude_remove(CFG.load(), self.repo)
-        self.assertEqual(CFG.load()["exclude"], [])
+        self.assertEqual(CFG.load()["repos"]["exclude"], [])
 
 
 class ConfigExcludeVerbTests(unittest.TestCase):
@@ -113,16 +113,16 @@ class ConfigExcludeVerbTests(unittest.TestCase):
 
         add_args = mock.Mock(exclude_command="add", path="~/src/legacy-repo")
         self.assertEqual(CLI._run_config_exclude(add_args, term), 0)
-        self.assertIn("~/src/legacy-repo", CFG.load()["exclude"])
+        self.assertIn("~/src/legacy-repo", CFG.load()["repos"]["exclude"])
 
         # list returns 0 and does not mutate.
         list_args = mock.Mock(exclude_command="list")
         self.assertEqual(CLI._run_config_exclude(list_args, term), 0)
-        self.assertIn("~/src/legacy-repo", CFG.load()["exclude"])
+        self.assertIn("~/src/legacy-repo", CFG.load()["repos"]["exclude"])
 
         rm_args = mock.Mock(exclude_command="rm", path="~/src/legacy-repo")
         self.assertEqual(CLI._run_config_exclude(rm_args, term), 0)
-        self.assertNotIn("~/src/legacy-repo", CFG.load()["exclude"])
+        self.assertNotIn("~/src/legacy-repo", CFG.load()["repos"]["exclude"])
 
     def test_rm_nonmatch_returns_nonzero(self):
         term = Term(color=False)
@@ -133,7 +133,7 @@ class ConfigExcludeVerbTests(unittest.TestCase):
         term = Term(color=False)
         add_args = mock.Mock(exclude_command="add", path="*/vendored-tool")
         self.assertEqual(CLI._run_config_exclude(add_args, term), 0)
-        self.assertIn("*/vendored-tool", CFG.load()["exclude"])
+        self.assertIn("*/vendored-tool", CFG.load()["repos"]["exclude"])
 
 
 if __name__ == "__main__":

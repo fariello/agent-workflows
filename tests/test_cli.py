@@ -76,7 +76,9 @@ class InstallVerbTests(CliTestBase):
         a = self._repo("a")
         b = self._repo("b")
         cfg = CFG.default_config()
-        cfg["repos"] = [str(a), str(b), str(self.base / "ghost")]
+        CFG.set_repo_setting(
+            cfg, "installed", [str(a), str(b), str(self.base / "ghost")]
+        )
         CFG.save(cfg)
         code, out = _run(["install", "all", "--yes"])
         # a and b install; ghost is skipped (not a directory) -> nothing silent.
@@ -99,7 +101,7 @@ class InstallVerbTests(CliTestBase):
         a = self._repo("a")
         b = self._repo("b")
         cfg = CFG.default_config()
-        cfg["repos"] = [str(a), str(b)]
+        CFG.set_repo_setting(cfg, "installed", [str(a), str(b)])
         CFG.save(cfg)
 
         calls = []
@@ -142,7 +144,7 @@ class InstallVerbTests(CliTestBase):
         a = self._repo("a")
         b = self._repo("b")
         cfg = CFG.default_config()
-        cfg["repos"] = [str(a), str(b)]
+        CFG.set_repo_setting(cfg, "installed", [str(a), str(b)])
         CFG.save(cfg)
 
         code, out = _run(["install", "all", "--yes"])
@@ -212,7 +214,7 @@ class InstallDiagnosticsTests(CliTestBase):
     def test_install_all_confirm_names_configured_count(self):
         a = self._repo("a")
         cfg = CFG.default_config()
-        cfg["repos"] = [str(a)]
+        CFG.set_repo_setting(cfg, "installed", [str(a)])
         CFG.save(cfg)
         code, out = _run(["install", "all", "--yes"])
         self.assertIn("configured", out)
@@ -239,7 +241,7 @@ class ListStatusTests(CliTestBase):
         repo = self._repo("r")
         _run(["install", str(repo), "--yes"])
         cfg = CFG.default_config()
-        cfg["repos"] = [str(repo)]
+        CFG.set_repo_setting(cfg, "installed", [str(repo)])
         CFG.save(cfg)
         code, out = _run(["list-repos"])
         self.assertEqual(code, 0, out)
@@ -254,7 +256,7 @@ class ListStatusTests(CliTestBase):
     def test_list_reports_not_installed(self):
         repo = self._repo("empty")  # a repo with no framework installed
         cfg = CFG.default_config()
-        cfg["repos"] = [str(repo)]
+        CFG.set_repo_setting(cfg, "installed", [str(repo)])
         CFG.save(cfg)
         code, out = _run(["list-repos"])
         self.assertIn("NOT-INSTALLED", out)
@@ -273,7 +275,7 @@ class SetupTests(CliTestBase):
         cfg = CFG.load()
         # Config stores paths with forward slashes for portability; compare by expanding
         # each stored root back to a Path (separator-independent) rather than string-eq.
-        expanded = [CFG.expand_path(r) for r in cfg["search_roots"]]
+        expanded = [CFG.expand_path(r) for r in cfg["repos"]["search"]]
         self.assertIn(self.base, expanded)
 
     def test_setup_skips_submodule(self):
@@ -305,10 +307,10 @@ class UninstallTests(CliTestBase):
         repo = self._repo("r")
         _run(["install", str(repo), "--yes"])
         cfg = CFG.default_config()
-        cfg["repos"] = [str(repo)]
+        CFG.set_repo_setting(cfg, "installed", [str(repo)])
         CFG.save(cfg)
         _run(["uninstall", str(repo), "--yes"])
-        self.assertEqual(CFG.load()["repos"], [])
+        self.assertEqual(CFG.load()["repos"]["installed"], [])
 
     def test_uninstall_not_installed_warns(self):
         repo = self._repo("bare")
@@ -437,7 +439,7 @@ class SetupPathValidationTests(CliTestBase):
             builtins.input = real_input
             __import__("sys").stdin = real_stdin
         self.assertEqual(code, 0)
-        roots = CFG.load().get("search_roots", [])
+        roots = CFG.repo_setting(CFG.load(), "search")
         # the non-dir must be absent; the good dir present.
         self.assertNotIn(str(notdir), roots)
         self.assertEqual(len(roots), 1)

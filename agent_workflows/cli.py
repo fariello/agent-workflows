@@ -34,7 +34,7 @@ import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
@@ -2337,13 +2337,14 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=(
             "EXAMPLES\n"
             "  aw config show               # display config file and current settings\n"
-            "  aw config show search_roots  # inspect a specific variable\n"
+            "  aw config show repos         # inspect a whole settings group\n"
+            "  aw config show repos.search  # inspect a specific variable\n"
             "  aw config get defaults.backup # get specific variable\n"
             "  aw config set defaults.backup to false  # set specific variable\n"
-            "  aw config set search_roots ~/src,~/work # set list variable\n"
-            "  aw config add ~/src to search_roots     # add item to list variable\n"
-            "  aw config remove ~/src from search_roots # remove item from list variable\n"
-            "  aw config is ~/src in search_roots      # check membership in list variable\n"
+            "  aw config set repos.search ~/src,~/work # set list variable\n"
+            "  aw config add ~/src to repos.search     # add item to list variable\n"
+            "  aw config remove ~/src from repos.search # remove item from list variable\n"
+            "  aw config is ~/src in repos.search      # check membership in list variable\n"
             "  aw config exclude list       # list never-install exclude entries\n"
             "  aw config exclude add ~/src/legacy  # add path to exclude list\n"
             "  aw config exclude rm ~/src/legacy   # remove path from exclude list\n"
@@ -2365,7 +2366,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "varname",
         nargs="?",
         default=None,
-        help="Optional variable name to inspect (e.g. 'search_roots', 'defaults.backup').",
+        help="Optional variable name to inspect (e.g. 'repos', 'repos.search', 'defaults.backup').",
     )
 
     p_config_get = config_sub.add_parser(
@@ -2375,7 +2376,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_config_get.add_argument(
         "varname",
-        help="Variable name to read (e.g. 'defaults.backup', 'search_roots', 'aw_home').",
+        help="Variable name to read (e.g. 'defaults.backup', 'repos.search', 'aw_home').",
     )
 
     p_config_set = config_sub.add_parser(
@@ -2386,7 +2387,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config_set.add_argument(
         "set_args",
         nargs="+",
-        help="Variable name and value (e.g. 'defaults.backup false', 'search_roots to ~/src,~/work').",
+        help="Variable name and value (e.g. 'defaults.backup false', 'repos.search to ~/src,~/work').",
     )
 
     p_config_add = config_sub.add_parser(
@@ -2397,7 +2398,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config_add.add_argument(
         "add_args",
         nargs="+",
-        help="Item value and variable name (e.g. '~/src to search_roots', '~/src search_roots').",
+        help="Item value and variable name (e.g. '~/src to repos.search', '~/src repos.search').",
     )
 
     p_config_remove = config_sub.add_parser(
@@ -2409,7 +2410,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config_remove.add_argument(
         "remove_args",
         nargs="+",
-        help="Item value and variable name (e.g. '~/src from search_roots', '~/src search_roots').",
+        help="Item value and variable name (e.g. '~/src from repos.search', '~/src repos.search').",
     )
 
     p_config_is = config_sub.add_parser(
@@ -2420,7 +2421,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config_is.add_argument(
         "is_args",
         nargs="+",
-        help="Item value and variable name (e.g. '~/src in search_roots', '~/src search_roots').",
+        help="Item value and variable name (e.g. '~/src in repos.search', '~/src repos.search').",
     )
 
     p_config_exclude = config_sub.add_parser(
@@ -3760,12 +3761,12 @@ def _exclude_remove(cfg, repo_root: Path) -> None:
     rp = repo_root.resolve()
     kept = [
         entry
-        for entry in cfg.get("exclude", [])
+        for entry in config.repo_setting(cfg, "exclude")
         if not discovery._is_excluded(
             rp, [os.path.expandvars(os.path.expanduser(str(entry)))]
         )
     ]
-    cfg["exclude"] = kept
+    config.set_repo_setting(cfg, "exclude", kept)
     config.save(cfg)
 
 
@@ -4650,11 +4651,10 @@ def _run_uninstall(args: argparse.Namespace, term: Term) -> int:
 
     # Drop the repo from the config allowlist, if present.
     cfg = config.load()
-    stored = [
-        p for p in cfg.get("repos", []) if config.expand_path(p).resolve() != repo_root
-    ]
-    if len(stored) != len(cfg.get("repos", [])):
-        cfg["repos"] = stored
+    installed = config.repo_setting(cfg, "installed")
+    stored = [p for p in installed if config.expand_path(p).resolve() != repo_root]
+    if len(stored) != len(installed):
+        config.set_repo_setting(cfg, "installed", stored)
         config.save(cfg)
         term.status("ok", f"removed {repo_root} from the config repo list.")
 
@@ -4748,7 +4748,7 @@ def _repos_for_report(recursive: bool) -> List[Path]:
     if roots:
         found = discovery.discover(
             roots,
-            ignore=cfg.get("ignore", []),
+            ignore=config.ignore_patterns(cfg),
             recursive=recursive,
             exclude=config.expanded_excludes(cfg),
         )
@@ -5041,7 +5041,9 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
 
     repo_details = [_collect_repo_status_details(r, packaged) for r in repos]
     repo_details.sort(key=lambda rd: str(rd["path"]).lower())
-    excluded_entries = sorted(cfg.get("exclude", []), key=lambda e: str(e).lower())
+    excluded_entries = sorted(
+        config.repo_setting(cfg, "exclude"), key=lambda e: str(e).lower()
+    )
     counts: dict = {}
     for rd in repo_details:
         state = rd["state"]
@@ -5053,8 +5055,10 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
         "git": engine.git_available(Path.cwd()),
         "config": str(config.config_path()),
         "config_present": config.config_path().is_file(),
-        "search_roots": cfg.get("search_roots", []),
-        "repos_configured": len(cfg.get("repos", [])),
+        # aw.agent/v1 payload keys are a published contract (docs/cli-output-contract.md):
+        # the on-disk layout moved to repos.*, these WIRE names deliberately did not.
+        "search_roots": config.repo_setting(cfg, "search"),
+        "repos_configured": len(config.repo_setting(cfg, "installed")),
         "repos_excluded": len(excluded_entries),
         "currency": counts,
         "repositories": repo_details,
@@ -5082,8 +5086,8 @@ def _run_status(args, term: Term, context: Optional[Any] = None) -> int:
         str(config.config_path())
         + ("" if config.config_path().is_file() else "  (none yet; run 'aw setup')"),
     )
-    term.kv("  Search roots", ", ".join(cfg.get("search_roots", [])) or "(none)")
-    term.kv("  Repos configured", str(len(cfg.get("repos", []))))
+    term.kv("  Search roots", ", ".join(config.repo_setting(cfg, "search")) or "(none)")
+    term.kv("  Repos configured", str(len(config.repo_setting(cfg, "installed"))))
     term.kv("  Repos excluded", str(len(excluded_entries)))
     term.line()
 
@@ -5217,8 +5221,12 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
         raw_repos = raw_repos[1:]
 
     cfg = config.load()
-    current_exclude = sorted(list(cfg.get("exclude", [])), key=lambda s: str(s).lower())
-    current_repos = sorted(list(cfg.get("repos", [])), key=lambda s: str(s).lower())
+    current_exclude = sorted(
+        config.repo_setting(cfg, "exclude"), key=lambda s: str(s).lower()
+    )
+    current_repos = sorted(
+        config.repo_setting(cfg, "installed"), key=lambda s: str(s).lower()
+    )
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
@@ -5259,8 +5267,8 @@ def _run_exclude(args: argparse.Namespace, term: Term) -> int:
         modified = True
 
     if modified:
-        cfg["exclude"] = current_exclude
-        cfg["repos"] = current_repos
+        config.set_repo_setting(cfg, "exclude", current_exclude)
+        config.set_repo_setting(cfg, "installed", current_repos)
         config.save(cfg)
     return 0
 
@@ -5274,8 +5282,12 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
         raw_repos = raw_repos[1:]
 
     cfg = config.load()
-    current_exclude = sorted(list(cfg.get("exclude", [])), key=lambda s: str(s).lower())
-    current_repos = sorted(list(cfg.get("repos", [])), key=lambda s: str(s).lower())
+    current_exclude = sorted(
+        config.repo_setting(cfg, "exclude"), key=lambda s: str(s).lower()
+    )
+    current_repos = sorted(
+        config.repo_setting(cfg, "installed"), key=lambda s: str(s).lower()
+    )
     cfg_path_str = config._preserve_home(str(config.config_path()))
     term.line(
         f"{term.colorize('Config:', 'bold')} {term.color256(cfg_path_str, 39)} "
@@ -5321,8 +5333,8 @@ def _run_include(args: argparse.Namespace, term: Term) -> int:
         )
 
     if modified:
-        cfg["exclude"] = current_exclude
-        cfg["repos"] = current_repos
+        config.set_repo_setting(cfg, "exclude", current_exclude)
+        config.set_repo_setting(cfg, "installed", current_repos)
         config.save(cfg)
     return 0
 
@@ -5351,7 +5363,7 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
             "Where do you keep your repositories? Enter one path per line "
             "(use ~ for home); blank to finish."
         )
-        existing = cfg.get("search_roots", [])
+        existing = config.repo_setting(cfg, "search")
         if existing:
             term.kv("Current roots", ", ".join(existing))
         while True:
@@ -5384,14 +5396,14 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
 
     if roots:
         # Merge (store ~-preserved via normalize on save).
-        merged = list(dict.fromkeys(list(cfg.get("search_roots", [])) + roots))
-        cfg["search_roots"] = merged
+        merged = list(dict.fromkeys(config.repo_setting(cfg, "search") + roots))
+        config.set_repo_setting(cfg, "search", merged)
 
     # Discover repos under the roots.
-    expanded_roots = [config.expand_path(r) for r in cfg.get("search_roots", [])]
+    expanded_roots = config.expanded_search_roots(cfg)
     found = discovery.discover(
         expanded_roots,
-        ignore=cfg.get("ignore", []),
+        ignore=config.ignore_patterns(cfg),
         recursive=args.recursive,
         exclude=config.expanded_excludes(cfg),
     )
@@ -5410,10 +5422,10 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
 
     # Record discovered repos into the allowlist.
     if found.targets:
-        cfg_repos = list(cfg.get("repos", []))
+        cfg_repos = config.repo_setting(cfg, "installed")
         for repo in found.targets:
             cfg_repos.append(str(repo))
-        cfg["repos"] = list(dict.fromkeys(cfg_repos))
+        config.set_repo_setting(cfg, "installed", list(dict.fromkeys(cfg_repos)))
 
     saved = config.save(cfg)
     term.status("ok", f"Saved config to {saved}")
@@ -5516,23 +5528,12 @@ def _run_config_show(args: argparse.Namespace, term: Term) -> int:
         )
         term.line()
         term.heading("Setting")
-        if isinstance(val, list):
-            if not val:
-                term.line(f"  {term.color256(canon_key, 244):<20} = []")
-            elif len(val) == 1:
-                term.line(
-                    f"  {term.color256(canon_key, 244):<20} = [{term.color256(str(val[0]), 39)}]"
-                )
-            else:
-                term.line(f"  {term.color256(canon_key, 244):<20} = [")
-                for item in val:
-                    term.line(f"      {term.color256(str(item), 39)},")
-                term.line("  ]")
+        if isinstance(val, dict):
+            # A container key such as `repos`: print each of its settings, not the raw mapping.
+            for sub_key in sorted(val):
+                _config_show_setting_line(term, f"{canon_key}.{sub_key}", val[sub_key])
         else:
-            disp_val = "-" if val is None else str(val)
-            term.line(
-                f"  {term.color256(canon_key, 244):<20} = {term.color256(disp_val, 39)}"
-            )
+            _config_show_setting_line(term, canon_key, val)
         return 0
 
     if getattr(args, "json", False) or getattr(args, "as_json", False):
@@ -5568,35 +5569,55 @@ def _run_config_show(args: argparse.Namespace, term: Term) -> int:
         f"({'present' if present else 'none yet; default values in effect'})"
     )
     term.line()
-    term.heading("Settings")
-    for key, spec in sorted(config.CONFIG_SCHEMA.items()):
-        if "." in key:
+    # Group the schema by section so the nested `repos.*` settings read as a unit. The bare
+    # container keys (`repos`, `defaults`) are section HEADINGS here, so they are never also
+    # printed as a raw mapping value; that would show the same data twice.
+    container_keys = {
+        key
+        for key, spec in config.CONFIG_SCHEMA.items()
+        if spec.type_name == "dict" and "." not in key
+    }
+    sections: List[Tuple[str, List[str]]] = []
+    plain_keys = sorted(
+        key
+        for key in config.CONFIG_SCHEMA
+        if "." not in key and key not in container_keys
+    )
+    if plain_keys:
+        sections.append(("Settings", plain_keys))
+    for container in sorted(container_keys):
+        child_keys = sorted(
+            key for key in config.CONFIG_SCHEMA if key.startswith(f"{container}.")
+        )
+        if child_keys:
+            sections.append((f"Settings ({container})", child_keys))
+
+    for heading, keys in sections:
+        term.heading(heading)
+        for key in keys:
             _, val = config.get_config_value(key, cfg)
-            term.line(
-                f"  {term.color256(key, 244):<20} = {term.color256(str(val), 39)}"
-            )
-        elif key == "defaults":
-            continue
-        else:
-            val = cfg.get(key)
-            if isinstance(val, list):
-                if not val:
-                    term.line(f"  {term.color256(key, 244):<20} = []")
-                elif len(val) == 1:
-                    term.line(
-                        f"  {term.color256(key, 244):<20} = [{term.color256(str(val[0]), 39)}]"
-                    )
-                else:
-                    term.line(f"  {term.color256(key, 244):<20} = [")
-                    for item in val:
-                        term.line(f"      {term.color256(str(item), 39)},")
-                    term.line("  ]")
-            else:
-                disp_val = "-" if val is None else str(val)
-                term.line(
-                    f"  {term.color256(key, 244):<20} = {term.color256(disp_val, 39)}"
-                )
+            _config_show_setting_line(term, key, val)
     return 0
+
+
+def _config_show_setting_line(term: Term, label: str, val: Any) -> None:
+    """Print one ``aw config show`` setting line, expanding a list over several lines."""
+
+    if isinstance(val, list):
+        if not val:
+            term.line(f"  {term.color256(label, 244):<20} = []")
+        elif len(val) == 1:
+            term.line(
+                f"  {term.color256(label, 244):<20} = [{term.color256(str(val[0]), 39)}]"
+            )
+        else:
+            term.line(f"  {term.color256(label, 244):<20} = [")
+            for item in val:
+                term.line(f"      {term.color256(str(item), 39)},")
+            term.line("  ]")
+        return
+    disp_val = "-" if val is None else str(val)
+    term.line(f"  {term.color256(label, 244):<20} = {term.color256(disp_val, 39)}")
 
 
 def _run_config_get(args: argparse.Namespace, term: Term) -> int:
@@ -5895,7 +5916,7 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
 
     sub = getattr(args, "exclude_command", None)
     cfg = config.load()
-    current = list(cfg.get("exclude", []))
+    current = config.repo_setting(cfg, "exclude")
 
     if sub == "add":
         entry = config._preserve_home(str(args.path))
@@ -5903,7 +5924,7 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
             term.status("ok", f"Already excluded: {entry}")
             return 0
         current.append(entry)
-        cfg["exclude"] = current
+        config.set_repo_setting(cfg, "exclude", current)
         config.save(cfg)
         term.status("ok", f"Added to the never-install exclude list: {entry}")
         return 0
@@ -5938,7 +5959,7 @@ def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
         if not removed:
             term.status("warn", f"No exclude entry matched: {args.path}")
             return 1
-        cfg["exclude"] = kept
+        config.set_repo_setting(cfg, "exclude", kept)
         config.save(cfg)
         for e in removed:
             term.status("ok", f"Removed from the exclude list: {e}")

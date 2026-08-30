@@ -5,22 +5,34 @@ re-interview. It lives at ``$XDG_CONFIG_HOME/agent-workflows/config.json`` (fall
 to ``~/.config/agent-workflows/config.json``); it is NEVER written directly under ``~/``
 (DECISIONS D46 / spec Goal 4).
 
-Schema (config_version 1) - a FIXED allowlist of NON-sensitive keys; no secret or
-per-project sensitive data is ever stored (spec Non-goal; IPD-2 R-5):
+Schema (config_version 2) - a FIXED allowlist of NON-sensitive keys; no secret or
+per-project sensitive data is ever stored (spec Non-goal; IPD-2 R-5). All repository
+management settings are grouped under the single ``repos`` mapping:
 
     {
-      "config_version": 1,
-      "search_roots": [ "~/src", ... ],   # dirs to discover repos under
-      "repos":        [ "~/src/foo", ... ],  # the explicit allowlist install-all uses
-      "ignore":       [ "*/vendor/*", ... ], # fnmatch globs, discovery-only NOISE filter
-      "exclude":      [ "~/src/legacy", "*/never-install/*", ... ], # deliberate NEVER-install blocklist
+      "config_version": 2,
+      "repos": {
+        "search":    [ "~/src", ... ],   # dirs to discover repos under
+        "installed": [ "~/src/foo", ... ],  # the explicit allowlist install-all uses
+        "ignore":    [ "*/vendor/*", ... ], # fnmatch globs, discovery-only NOISE filter
+        "exclude":   [ "~/src/legacy", "*/never-install/*", ... ] # deliberate NEVER-install blocklist
+      },
       "defaults":     { "backup": true, "prune": true }
     }
 
-``ignore`` and ``exclude`` are distinct: ``ignore`` is a discovery-only fnmatch NOISE filter
-(hide uninteresting paths from discovery), while ``exclude`` is a deliberate, user-curated
-blocklist of repos that must NEVER be installed into. ``exclude`` is honored by discovery AND
-guards an explicitly targeted install (interactive continue prompt; non-interactive skip).
+``repos.ignore`` and ``repos.exclude`` are distinct: ``repos.ignore`` is a discovery-only
+fnmatch NOISE filter (hide uninteresting paths from discovery), while ``repos.exclude`` is a
+deliberate, user-curated blocklist of repos that must NEVER be installed into.
+``repos.exclude`` is honored by discovery AND guards an explicitly targeted install
+(interactive continue prompt; non-interactive skip).
+
+Schema version 1 used flat top-level keys (``search_roots``, ``repos`` as a list, ``ignore``,
+``exclude``). ``normalize()`` migrates a v1 config forward automatically, keyed on the SHAPE of
+``repos`` rather than the recorded version, so a hand-edited file with a stale version still
+migrates. A config whose ``config_version`` is NEWER than this module understands is never
+normalized-and-dropped: ``load()`` returns it untouched and ``save()`` refuses to overwrite it
+(fail closed), because normalizing an unknown shape would silently discard the user's search
+roots, repo allowlist, and never-install blocklist.
 
 Paths are stored ``~``-preserved (portable, human-readable) and expanded at use-time.
 Writes are atomic (temp file + ``os.replace``) so an interrupted write cannot corrupt an
@@ -36,23 +48,31 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-CONFIG_VERSION = 1
+CONFIG_VERSION = 2
 _APP_DIR = "agent-workflows"
 _CONFIG_NAME = "config.json"
 
-# The only keys ever persisted. Anything else on load is dropped (R-5).
+# The only keys ever persisted. Anything else on load is dropped (R-5). `normalize()`
+# enforces this allowlist by rebuilding the output from `default_config()`.
 _ALLOWED_TOP_KEYS = frozenset(
     {
         "config_version",
-        "search_roots",
         "repos",
-        "ignore",
-        "exclude",
         "defaults",
         "aw_home",
     }
 )
+_ALLOWED_REPOS_KEYS = frozenset({"search", "installed", "exclude", "ignore"})
 _ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
+
+# The v1 flat keys and the v2 nested subkeys they migrate into (E-02). Kept as an explicit
+# mapping so the migration is data, not scattered conditionals.
+_LEGACY_KEY_MAP = {
+    "search_roots": "search",
+    "repos": "installed",
+    "exclude": "exclude",
+    "ignore": "ignore",
+}
 
 
 class ConfigError(Exception):
@@ -74,23 +94,28 @@ CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
         description="Configuration schema version",
         read_only=True,
     ),
-    "search_roots": ConfigKeySpec(
-        key="search_roots",
+    "repos": ConfigKeySpec(
+        key="repos",
+        type_name="dict",
+        description="Repository management settings mapping",
+    ),
+    "repos.search": ConfigKeySpec(
+        key="repos.search",
         type_name="list[path]",
         description="Search root directories for repository discovery",
     ),
-    "repos": ConfigKeySpec(
-        key="repos",
+    "repos.installed": ConfigKeySpec(
+        key="repos.installed",
         type_name="list[path]",
         description="Explicit repository allowlist for install operations",
     ),
-    "ignore": ConfigKeySpec(
-        key="ignore",
+    "repos.ignore": ConfigKeySpec(
+        key="repos.ignore",
         type_name="list[str]",
         description="fnmatch globs to filter noisy discovery paths",
     ),
-    "exclude": ConfigKeySpec(
-        key="exclude",
+    "repos.exclude": ConfigKeySpec(
+        key="repos.exclude",
         type_name="list[path|glob]",
         description="Deliberate never-install repository blocklist",
     ),
@@ -296,12 +321,66 @@ def _item_matches(
     return False
 
 
+# --------------------------------------------------------------------------------------
+# Nested-key resolution (E-04): ONE helper the mutators and readers share, so dotted-key
+# handling is not reimplemented per verb.
+# --------------------------------------------------------------------------------------
+
+
+def _resolve_nested(cfg: Dict[str, Any], canon_key: str) -> Any:
+    """Read a top-level or single-dotted key (``repos.search``, ``defaults.backup``).
+
+    Returns None when the parent is absent or is not a mapping.
+    """
+
+    if "." not in canon_key:
+        return cfg.get(canon_key)
+    parent, child = canon_key.split(".", 1)
+    container = cfg.get(parent)
+    if not isinstance(container, dict):
+        return None
+    return container.get(child)
+
+
+def _assign_nested(cfg: Dict[str, Any], canon_key: str, value: Any) -> None:
+    """Write a top-level or single-dotted key, creating the parent mapping as needed."""
+
+    if "." not in canon_key:
+        cfg[canon_key] = value
+        return
+    parent, child = canon_key.split(".", 1)
+    container = cfg.get(parent)
+    if not isinstance(container, dict):
+        container = {}
+    else:
+        container = dict(container)
+    container[child] = value
+    cfg[parent] = container
+
+
+def _bare_repos_list_verb_error(action: str, example: str) -> "ConfigError":
+    """Build the actionable error for a list verb aimed at the ``repos`` MAPPING (E-05).
+
+    ``repos`` was a ``list[path]`` in schema v1, so ``aw config add <path> to repos`` used to
+    work. It is now a mapping, and the generic "it is not a list" message would not tell the
+    user where their path should go. Name the subkeys explicitly instead.
+    """
+
+    return ConfigError(
+        f"Cannot {action} 'repos': it is now a group of settings, not a list. "
+        "Use one of: repos.installed (the explicit repository allowlist, which is what the "
+        "old flat 'repos' key was), repos.search (discovery search roots), "
+        "repos.exclude (the never-install blocklist), or repos.ignore (discovery noise globs). "
+        f"For example: {example}"
+    )
+
+
 def add_config_item(
     varname: str,
     item_raw: str,
     cfg: Optional[Dict[str, Any]] = None,
     auto_save: bool = True,
-) -> Tuple[Dict[str, Any], str, List[str], bool]:
+) -> Tuple[Dict[str, Any], str, List[str], bool, str]:
     """Add an item to a list-typed config key."""
     if cfg is None:
         cfg = load()
@@ -315,6 +394,10 @@ def add_config_item(
 
     spec = CONFIG_SCHEMA[norm_key]
     if not spec.type_name.startswith("list["):
+        if norm_key == "repos":
+            raise _bare_repos_list_verb_error(
+                "add item to", "aw config add <value> to repos.installed"
+            )
         raise ConfigError(
             f"Cannot add item to '{norm_key}': it is not a list (type is {spec.type_name})."
         )
@@ -324,7 +407,7 @@ def add_config_item(
         )
 
     stored, expanded = _normalize_item_for_key(item_raw, spec)
-    current_list: List[str] = list(cfg.get(norm_key, []))
+    current_list: List[str] = list(_resolve_nested(cfg, norm_key) or [])
 
     is_path = spec.type_name in ("list[path]", "list[path|glob]")
     already_present = any(
@@ -335,11 +418,17 @@ def add_config_item(
         return cfg, norm_key, current_list, False, stored
 
     current_list.append(stored)
-    cfg[norm_key] = current_list
+    _assign_nested(cfg, norm_key, current_list)
     normalized = normalize(cfg)
     if auto_save:
         save(normalized)
-    return normalized, norm_key, list(normalized.get(norm_key, [])), True, stored
+    return (
+        normalized,
+        norm_key,
+        list(_resolve_nested(normalized, norm_key) or []),
+        True,
+        stored,
+    )
 
 
 def remove_config_item(
@@ -361,6 +450,10 @@ def remove_config_item(
 
     spec = CONFIG_SCHEMA[norm_key]
     if not spec.type_name.startswith("list["):
+        if norm_key == "repos":
+            raise _bare_repos_list_verb_error(
+                "remove item from", "aw config remove <value> from repos.installed"
+            )
         raise ConfigError(
             f"Cannot remove item from '{norm_key}': it is not a list (type is {spec.type_name})."
         )
@@ -370,7 +463,7 @@ def remove_config_item(
         )
 
     stored, expanded = _normalize_item_for_key(item_raw, spec)
-    current_list: List[str] = list(cfg.get(norm_key, []))
+    current_list: List[str] = list(_resolve_nested(cfg, norm_key) or [])
     is_path = spec.type_name in ("list[path]", "list[path|glob]")
 
     kept = []
@@ -384,11 +477,17 @@ def remove_config_item(
     if not removed:
         return cfg, norm_key, current_list, False, stored
 
-    cfg[norm_key] = kept
+    _assign_nested(cfg, norm_key, kept)
     normalized = normalize(cfg)
     if auto_save:
         save(normalized)
-    return normalized, norm_key, list(normalized.get(norm_key, [])), True, stored
+    return (
+        normalized,
+        norm_key,
+        list(_resolve_nested(normalized, norm_key) or []),
+        True,
+        stored,
+    )
 
 
 def is_config_item_present(
@@ -406,12 +505,16 @@ def is_config_item_present(
 
     spec = CONFIG_SCHEMA[norm_key]
     if not spec.type_name.startswith("list["):
+        if norm_key == "repos":
+            raise _bare_repos_list_verb_error(
+                "check membership in", "aw config is <value> in repos.installed"
+            )
         raise ConfigError(
             f"Cannot check membership in '{norm_key}': it is not a list (type is {spec.type_name})."
         )
 
     stored, expanded = _normalize_item_for_key(item_raw, spec)
-    current_list: List[str] = list(cfg.get(norm_key, []))
+    current_list: List[str] = list(_resolve_nested(cfg, norm_key) or [])
     is_path = spec.type_name in ("list[path]", "list[path|glob]")
 
     present = any(_item_matches(stored, expanded, e, is_path) for e in current_list)
@@ -437,7 +540,12 @@ def get_config_value(
 
     if norm_key == "defaults":
         return "defaults", cfg.get("defaults", {"backup": True, "prune": True})
-    return norm_key, cfg.get(norm_key)
+    if norm_key == "repos":
+        value = cfg.get("repos")
+        if not isinstance(value, dict):
+            return "repos", default_config()["repos"]
+        return "repos", value
+    return norm_key, _resolve_nested(cfg, norm_key)
 
 
 def set_config_value(
@@ -538,19 +646,22 @@ def set_config_value(
     else:
         parsed_value = raw_value
 
-    if canon_key == "defaults.backup":
-        cfg.setdefault("defaults", {})["backup"] = parsed_value
-    elif canon_key == "defaults.prune":
-        cfg.setdefault("defaults", {})["prune"] = parsed_value
-    elif canon_key == "defaults":
-        cfg["defaults"] = parsed_value
-    elif canon_key == "aw_home":
+    if canon_key == "repos":
+        unknown = sorted(set(parsed_value) - _ALLOWED_REPOS_KEYS)
+        if unknown:
+            allowed = ", ".join(sorted(_ALLOWED_REPOS_KEYS))
+            raise ConfigError(
+                f"Unknown key(s) in 'repos': {', '.join(unknown)}. "
+                f"Allowed keys: {allowed}."
+            )
+
+    if canon_key == "aw_home":
         if parsed_value is None:
             cfg.pop("aw_home", None)
         else:
             cfg["aw_home"] = parsed_value
     else:
-        cfg[canon_key] = parsed_value
+        _assign_nested(cfg, canon_key, parsed_value)
 
     normalized = normalize(cfg)
     if auto_save:
@@ -582,10 +693,12 @@ def default_config() -> Dict[str, Any]:
 
     return {
         "config_version": CONFIG_VERSION,
-        "search_roots": [],
-        "repos": [],
-        "ignore": [],
-        "exclude": [],
+        "repos": {
+            "search": [],
+            "installed": [],
+            "exclude": [],
+            "ignore": [],
+        },
         "defaults": {"backup": True, "prune": True},
     }
 
@@ -622,25 +735,53 @@ def expand_path(stored: str) -> Path:
     return Path(os.path.expandvars(os.path.expanduser(stored)))
 
 
+def _coerce_repo_list(subkey: str, value: Any) -> Optional[List[str]]:
+    """Coerce one ``repos.*`` list value, or return None when it is not a list.
+
+    Path-typed subkeys are stored ``~``-preserved; ``ignore`` holds plain fnmatch globs.
+    """
+
+    if not isinstance(value, list):
+        return None
+    if subkey == "ignore":
+        return [str(v) for v in value]
+    return [_preserve_home(str(v)) for v in value]
+
+
 def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
     """Coerce an arbitrary mapping into a valid config, dropping unknown keys (R-5).
 
-    Missing keys are filled from defaults; list values are coerced to lists of
+    Accepts EITHER the v2 nested shape or the legacy v1 flat shape and always returns the
+    nested shape. Missing keys are filled from defaults; list values are coerced to lists of
     ``~``-preserved strings; ``defaults`` keeps only the allowed boolean keys.
+
+    Migration (E-02) is decided by the SHAPE of ``repos``, not by ``config_version``, so a
+    hand-edited file carrying a stale version still migrates. A legacy flat key is honored ONLY
+    when its nested counterpart is absent, which makes the migration idempotent and keeps a
+    partially migrated file from double-applying or losing the newer value.
     """
 
     out = default_config()
     if not isinstance(config, dict):
         return out
 
-    for key in ("search_roots", "repos", "exclude"):
-        value = config.get(key)
-        if isinstance(value, list):
-            out[key] = [_preserve_home(str(v)) for v in value]
+    raw_repos = config.get("repos")
+    nested: Dict[str, Any] = raw_repos if isinstance(raw_repos, dict) else {}
+    for subkey in _ALLOWED_REPOS_KEYS:
+        coerced = _coerce_repo_list(subkey, nested.get(subkey))
+        if coerced is not None:
+            out["repos"][subkey] = coerced
 
-    ignore = config.get("ignore")
-    if isinstance(ignore, list):
-        out["ignore"] = [str(v) for v in ignore]
+    # Legacy v1 flat keys migrate in only where the nested counterpart is absent.
+    for legacy_key, subkey in _LEGACY_KEY_MAP.items():
+        if legacy_key == "repos" and not isinstance(raw_repos, list):
+            # v2 `repos` is the mapping handled above; only a LIST is the v1 allowlist.
+            continue
+        if subkey in nested:
+            continue
+        coerced = _coerce_repo_list(subkey, config.get(legacy_key))
+        if coerced is not None:
+            out["repos"][subkey] = coerced
 
     defaults = config.get("defaults")
     if isinstance(defaults, dict):
@@ -654,7 +795,12 @@ def normalize(config: Dict[str, Any]) -> Dict[str, Any]:
 
     # config_version is managed by migrate(); keep the current version on write.
     out["config_version"] = CONFIG_VERSION
-    return out
+
+    # `_ALLOWED_TOP_KEYS` is the ACTUAL final allowlist (R-5), applied unconditionally rather
+    # than relied on implicitly: `out` is built from `default_config()`, so today nothing can
+    # slip through, but this keeps that guarantee true if a future edit adds a key to
+    # `default_config()` without allowlisting it. Not an assert, which `-O` would strip.
+    return {key: value for key, value in out.items() if key in _ALLOWED_TOP_KEYS}
 
 
 def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:
@@ -685,20 +831,55 @@ def get_aw_home(explicit_flag: Optional[str] = None) -> Tuple[Path, str]:
     return default_home.resolve(), "platform default (~/.aw)"
 
 
+def config_version_of(config: Any) -> int:
+    """Return a config mapping's declared ``config_version``, defaulting to 1.
+
+    A missing or non-integer version is treated as the original schema version 1, which is
+    what an un-versioned hand-written file effectively is. ``bool`` is rejected because it is
+    an ``int`` subclass and a ``true`` there is a typo, not a version.
+    """
+
+    if not isinstance(config, dict):
+        return CONFIG_VERSION
+    raw = config.get("config_version")
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        return 1
+    return raw
+
+
+def is_future_version(config: Any) -> bool:
+    """True when the config was written by a NEWER aw than this one (E-03).
+
+    Such a config must never be normalized-and-written: ``normalize()`` rebuilds from
+    ``default_config()`` and drops keys it does not recognize, so persisting the result would
+    silently destroy settings this version cannot see, including ``repos.exclude``, the
+    never-install blocklist that guards ``aw install``.
+    """
+
+    return config_version_of(config) > CONFIG_VERSION
+
+
 def migrate(config: Dict[str, Any]) -> Dict[str, Any]:
     """Migrate an older-versioned config forward to the current schema.
 
-    Currently only version 1 exists, so this normalizes and stamps the version. Future
-    versions add ordered upgrade steps here.
+    Version 1 (flat repository keys) migrates into version 2 (the nested ``repos`` mapping)
+    inside ``normalize()``, which keys the migration on shape so an unversioned or
+    stale-versioned file is handled too. A config from a FUTURE version is returned UNCHANGED
+    rather than normalized, so nothing is dropped; ``save()`` then refuses to overwrite it.
+    Future versions add ordered upgrade steps here.
     """
 
+    if is_future_version(config):
+        return config
     return normalize(config)
 
 
 def load() -> Dict[str, Any]:
     """Load the config, returning a fresh default if none exists or it is unreadable.
 
-    Always returns a normalized config (unknown/sensitive keys dropped, R-5).
+    Normally returns a normalized config (unknown/sensitive keys dropped, R-5). A config
+    written by a NEWER aw is returned as-is (passthrough) so its settings are visible rather
+    than silently emptied; ``save()`` refuses to write over it (E-03).
     """
 
     path = config_path()
@@ -715,9 +896,35 @@ def save(config: Dict[str, Any]) -> Path:
     Creates the config directory as needed. Never writes under ``~/`` directly. Uses a
     temp file in the same directory + ``os.replace`` so a crash mid-write cannot corrupt
     an existing config.
+
+    Fails closed (E-03) when the config in hand, or the file already on disk, declares a
+    ``config_version`` newer than this aw understands: refusing to write is strictly safer
+    than normalizing an unknown shape and destroying settings this version cannot see.
     """
 
     path = config_path()
+
+    if is_future_version(config):
+        raise ConfigError(
+            f"Refusing to write {path}: the configuration in memory declares "
+            f"config_version {config_version_of(config)}, but this aw understands up to "
+            f"{CONFIG_VERSION}. Nothing was changed. Upgrade aw "
+            "(for example 'pip install --upgrade agent-workflows') to manage this config."
+        )
+
+    if path.is_file():
+        try:
+            on_disk = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            on_disk = None
+        if is_future_version(on_disk):
+            raise ConfigError(
+                f"Refusing to overwrite {path}: it was written by a newer aw "
+                f"(config_version {config_version_of(on_disk)}; this aw understands up to "
+                f"{CONFIG_VERSION}). Nothing was changed. Upgrade aw "
+                "(for example 'pip install --upgrade agent-workflows') to manage this config."
+            )
+
     path.parent.mkdir(parents=True, exist_ok=True)
 
     payload = json.dumps(normalize(config), indent=2, sort_keys=True) + "\n"
@@ -738,29 +945,78 @@ def save(config: Dict[str, Any]) -> Path:
     return path
 
 
+def repo_setting(config: Dict[str, Any], subkey: str) -> List[str]:
+    """Return one ``repos.*`` list from a config mapping, or [] when absent/malformed.
+
+    The single read path for the nested layout, so callers never index the raw mapping and a
+    hand-broken config degrades to empty rather than raising.
+    """
+
+    repos = config.get("repos")
+    if not isinstance(repos, dict):
+        return []
+    value = repos.get(subkey)
+    return list(value) if isinstance(value, list) else []
+
+
+def set_repo_setting(
+    config: Dict[str, Any], subkey: str, values: Sequence[str]
+) -> Dict[str, Any]:
+    """Write one ``repos.*`` list into a config mapping in place and return it.
+
+    The single write path for the nested layout, so callers never have to create or repair the
+    ``repos`` container themselves. Raises on an unknown subkey rather than writing a key that
+    ``normalize()`` would silently drop on save.
+    """
+
+    if subkey not in _ALLOWED_REPOS_KEYS:
+        allowed = ", ".join(sorted(_ALLOWED_REPOS_KEYS))
+        raise ConfigError(f"Unknown repos subkey '{subkey}'. Allowed keys: {allowed}.")
+    repos = config.get("repos")
+    if not isinstance(repos, dict):
+        repos = {}
+        config["repos"] = repos
+    repos[subkey] = list(values)
+    return config
+
+
 def is_configured() -> bool:
-    """True if a config file exists with at least one search root or repo."""
+    """True if a config file exists with at least one search root or installed repo.
+
+    Tests the nested LISTS, never the ``repos`` container: the default mapping is a non-empty
+    dict, so a container truthiness check would report every brand-new user as configured and
+    suppress the smart-default setup path.
+    """
 
     if not config_path().is_file():
         return False
     cfg = load()
-    return bool(cfg.get("search_roots") or cfg.get("repos"))
+    return bool(repo_setting(cfg, "search") or repo_setting(cfg, "installed"))
 
 
 def expanded_search_roots(config: Dict[str, Any]) -> List[Path]:
-    """Return the config's search roots expanded to absolute Paths."""
+    """Return the config's search roots (``repos.search``) expanded to absolute Paths."""
 
-    return [expand_path(p) for p in config.get("search_roots", [])]
+    return [expand_path(p) for p in repo_setting(config, "search")]
 
 
 def expanded_repos(config: Dict[str, Any]) -> List[Path]:
-    """Return the config's repo allowlist expanded to absolute Paths."""
+    """Return the config's repo allowlist (``repos.installed``) expanded to absolute Paths."""
 
-    return [expand_path(p) for p in config.get("repos", [])]
+    return [expand_path(p) for p in repo_setting(config, "installed")]
+
+
+def ignore_patterns(config: Dict[str, Any]) -> List[str]:
+    """Return the config's discovery noise globs (``repos.ignore``) as plain strings.
+
+    These are fnmatch globs, never paths, so they are returned unexpanded.
+    """
+
+    return repo_setting(config, "ignore")
 
 
 def expanded_excludes(config: Dict[str, Any]) -> List[str]:
-    """Return the config's exclude entries with ``~``/vars expanded, as strings.
+    """Return the config's ``repos.exclude`` entries with ``~``/vars expanded, as strings.
 
     Entries may be absolute repo paths OR fnmatch globs (a deliberate NEVER-install
     blocklist), so this returns expanded STRINGS (not resolved ``Path`` objects) suitable
@@ -770,7 +1026,7 @@ def expanded_excludes(config: Dict[str, Any]) -> List[str]:
 
     return [
         os.path.expandvars(os.path.expanduser(str(e)))
-        for e in config.get("exclude", [])
+        for e in repo_setting(config, "exclude")
     ]
 
 

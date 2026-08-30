@@ -32,8 +32,8 @@ and use. It must work on Linux, macOS, and Windows, verified in CI.
    lives in `status`.
 4. **A JSON config file under `~/.config/agent-workflows/`** (honoring `XDG_CONFIG_HOME`),
    storing `config_version`, search roots, an explicit repo allowlist, an `ignore` glob list,
-   and defaults (backup/prune). No persisted opt-out (the `repos` allowlist + `ignore` list
-   cover exclusion). NEVER writes to `~/` directly.
+   and defaults (backup/prune). No persisted opt-out (the `repos.installed` allowlist +
+   `repos.ignore` list cover exclusion). NEVER writes to `~/` directly.
 5. **Thorough setup that also degrades to quick**: the wizard is thorough (discovers repos,
    looks for stale/legacy layouts, asks questions) but if a repo is already configured the
    user can run a one-line install/update without the full interview.
@@ -115,9 +115,10 @@ development cruft. This is an acceptance criterion, not a nicety.
    `$XDG_CONFIG_HOME/agent-workflows/config.json` (or `~/.config/...` when XDG unset) with the
    given roots/repo list; nothing is written directly under `~/`. Verified by a test that
    points XDG_CONFIG_HOME at a temp dir and asserts the file lands there and `~/` is untouched.
-4. `install all` installs/updates every repo in the config `repos` allowlist (idempotent; one
-   verb, no separate `update`), and reports per-repo installed/skipped(submodule|not-git)/
-   ignored/failed (nothing silently passed over). Verified in a test with multiple temp repos.
+4. `install all` installs/updates every repo in the config `repos.installed` allowlist
+   (idempotent; one verb, no separate `update`), and reports per-repo
+   installed/skipped(submodule|not-git)/ignored/failed (nothing silently passed over).
+   Verified in a test with multiple temp repos.
 5. `list` shows configured/discovered repos with each repo's installed framework version and
    its currency (not-installed / stale / current / ahead|dev) vs. the packaged VERSION, using
    the IPD-1 version resolver's state mapping. `status` summarizes currency AND carries the
@@ -272,10 +273,11 @@ is the index.
    `.agents/workflows/` tree from `site-packages` (replacing `install-workflows.py:218`'s
    sibling assumption). Copied-out tools keep reading their neighboring `VERSION` (unchanged).
 3. **Config** at `$XDG_CONFIG_HOME/agent-workflows/config.json` (fallback `~/.config/...`;
-   NEVER under `~/`). JSON schema: `{config_version:1, search_roots:[...], repos:[...],
-   ignore:[...], defaults:{backup,prune}}`. Paths stored `~`-preserved, expanded at use-time
-   (tilde + Windows). `ignore` = fnmatch globs, discovery-only. No persisted opt-out; `repos`
-   is the allowlist.
+   NEVER under `~/`). JSON schema (`config_version:2`, see the amendment below):
+   `{config_version:2, repos:{search:[...], installed:[...], exclude:[...], ignore:[...]},
+   defaults:{backup,prune}}`. Paths stored `~`-preserved, expanded at use-time
+   (tilde + Windows). `repos.ignore` = fnmatch globs, discovery-only. No persisted opt-out;
+   `repos.installed` is the allowlist.
 4. **CLI command set + design (OQ7 synthesis):** `install`, `setup`, `uninstall`, `list`,
    `status`; NO `update`, NO `doctor`. One shared install engine. `install <dir>|all` =
    workhorse (idempotent install+update); with no config it OFFERS setup. `setup` = guided
@@ -307,6 +309,46 @@ is the index.
 12. **Docs:** README quick-start/install -> pipx + CLI as primary path (clone-and-run kept as
     dev path); CONTRIBUTING; the `aw`-collision caveat; DECISIONS entry.
 
+## Amendment 2026-08-30: user config schema version 2 (nested `repos`)
+
+Amends Section 3 of "Sequencing: two IPDs" (the config schema) and the AC-3 config statement.
+Implemented by plan `8h9lap` (Set `reposcfg`).
+
+Schema version 1 stored repository settings as four FLAT top-level keys. Version 2 groups them
+under the single `repos` mapping, so every repository-management setting lives in one namespace
+and the redundant `_roots` suffix is gone:
+
+| v1 (flat) | v2 (nested) |
+|---|---|
+| `search_roots` | `repos.search` |
+| `repos` (a list) | `repos.installed` |
+| `exclude` | `repos.exclude` |
+| `ignore` | `repos.ignore` |
+
+Normative points:
+
+1. `config.normalize()` migrates a v1 config forward automatically. The migration is keyed on
+   the SHAPE of `repos` (list means v1, mapping means v2), not on the recorded
+   `config_version`, so a hand-edited file carrying a stale version still migrates. A legacy
+   flat key is honored only when its nested counterpart is absent, which makes the migration
+   idempotent and safe on a partially migrated file.
+2. Migration is LAZY on disk: `load()` never writes, so a v1 file is rewritten in v2 form only
+   when some mutating command saves.
+3. A config declaring a `config_version` GREATER than the running `aw` understands must NOT be
+   normalized and persisted. `load()` returns it unchanged and `save()` raises `ConfigError`.
+   Rationale: `normalize()` rebuilds from `default_config()` and drops keys it does not
+   recognize, so writing the normalized result would destroy settings the running version
+   cannot see, including `repos.exclude`, the never-install blocklist that guards `aw install`.
+   Refusing to write is strictly safer than silently emptying a user's config.
+4. No alias keys are retained in `CONFIG_SCHEMA`; the migration replaces them.
+5. The `aw.agent/v1` machine payload of `aw status` KEEPS its field names `search_roots` and
+   `repos_configured`. The on-disk schema and the wire schema are deliberately decoupled;
+   renaming those fields would be a breaking contract change requiring `aw.agent/v2` per
+   `docs/cli-output-contract.md`.
+6. One user-visible break: the `aw config` list verbs (`add`, `remove`, `is`) no longer accept a
+   bare `repos` target, because `repos` is now a mapping. They fail with an error naming the four
+   subkeys and pointing at `repos.installed` as the successor of the old flat `repos`.
+
 ## Next steps
 
 1. (done) `/advise spec-editor` interrogation of this spec.
@@ -314,4 +356,6 @@ is the index.
 3. Write IPD-2 (distribution/CLI/config/wizard/CI); `/plan-review`; implement in batches.
 
 ## Workflow history
+
 - 2026-08-08 migrated (aw specs): normalized status to `implemented` (was: DRAFT, spec-editor pass complete 2026-07-06 (all open questions resolved). Ready to)
+- 2026-08-30 note (aw specs): amended by plan 8h9lap: user config schema version 2 (nested repos.* mapping) with automatic forward migration and a fail-closed downgrade guard; see the Amendment 2026-08-30 section
