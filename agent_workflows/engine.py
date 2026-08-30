@@ -3704,6 +3704,10 @@ _DEEP_CLEANUP_ROOTS = (
     ".aw/records/walkthroughs",
     ".aw/records/roadmaps",
     ".aw/records/releases",
+    # revgate Order 01 (15zvu6) E-09: typed plan-review findings. Listed here or `aw uninstall --deep`
+    # would silently ORPHAN the tree while claiming to remove every records root. No `.agents/reviews`
+    # counterpart below: reviews are net-new, so no legacy tree can exist to clean up.
+    ".aw/records/reviews",
     # Legacy `.agents/*` roots (a not-yet-migrated repo). A repo has one layout or the other; the
     # per-root is_dir() check below skips whichever set is absent, so listing both is safe.
     ".agents/plans",
@@ -4235,6 +4239,10 @@ def _record_scaffold_dirs(target_layout: str) -> dict[str, str]:
             "walkthroughs": f"{base}/walkthroughs",
             "roadmaps": f"{base}/roadmaps",
             "releases": f"{base}/releases",
+            # revgate Order 01 (15zvu6) E-09: typed plan-review findings (`*.review.md`). Only in the
+            # `aw` layout; the legacy `.agents/` map below is deliberately NOT extended, because
+            # reviews are net-new and mapping them into a legacy tree would invent history.
+            "reviews": f"{base}/reviews",
         }
     # Legacy nested layout (a not-yet-migrated `.agents/workflows` repo).
     return {
@@ -5091,6 +5099,9 @@ def create_setup_artifacts(
     for sub in PLAN_LIFECYCLE_SUBDIRS:
         files.append((f"{dirs['plans']}/{sub}/.gitkeep", ""))
     # Flat doc-type leaves (aw) or nested docs buckets (legacy) - one .gitkeep each.
+    # revgate Order 01 (15zvu6) E-09: `reviews` is scaffolded so a fresh repo actually HAS the tree
+    # the reviews README documents. It is looked up with `.get` because it exists only in the `aw`
+    # layout map (like `releases`), so the legacy layout skips it instead of raising KeyError.
     for key in (
         "research",
         "specs",
@@ -5098,8 +5109,11 @@ def create_setup_artifacts(
         "roadmaps",
         "prompt_library",
         "backlog",
+        "reviews",
     ):
-        files.append((f"{dirs[key]}/.gitkeep", ""))
+        _dir = dirs.get(key)
+        if _dir:
+            files.append((f"{_dir}/.gitkeep", ""))
     for shard in research_shards:
         files.append((f"{shard}/.gitkeep", ""))
     for sub in PROMPT_LIFECYCLE_SUBDIRS:

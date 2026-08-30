@@ -4,9 +4,13 @@ This module is the ONLY place in the ``agent_workflows`` package that knows how 
 filename is SHAPED. It owns, exactly once:
 
 * the ONE clustered grammar ``YYYYMMDD-<set-id>-<NN>-<id6>-<slug>[.<facet>].md`` (``_CLUSTERED_RE``);
-* the ONE closed facet enum ``ARTIFACT_TYPE_FACETS`` (the ``.<type>.md`` tokens) - the canonical
-  facet POLICY is CLOSED (OQ-03 resolved by the Order 01 executor: reject unknown/typo facets,
-  matching ``check_engine._TYPE_FACET`` and the shipped normalizer);
+* the ONE closed facet enum ``ARTIFACT_TYPE_FACETS`` (the ``.<type>.md`` tokens: ``ipd``,
+  ``prompt``, ``spec``, ``walkthrough``, ``roadmap``, ``backlog``, ``comms``, ``release``,
+  ``review``, ``other``) - the canonical facet POLICY is CLOSED (OQ-03 resolved by the Order 01
+  executor: reject unknown/typo facets, matching ``check_engine._TYPE_FACET`` and the shipped
+  normalizer). NOTE that ``ARTIFACT_TYPE_FACETS`` (which names are LEGAL) and ``TYPE_FACET`` (which
+  record types have a status lifecycle) are deliberately NOT mirrors of each other: ``review`` is a
+  legal facet with no ``TYPE_FACET`` entry (revgate Order 01), just as research has its own grammar;
 * the ONE legacy ``YYYYMMDD-HHMM-NN-<slug>[.<facet>].md`` timestamp form (``_LEGACY_TIMESTAMP_RE``);
 * the ONE walkthrough dated/bare ``-walkthrough.md`` suffix forms (kept for rename back-compat) and
   the canonical ``.walkthrough.md`` FACET form (OQ-02 resolved: walkthroughs are uniform-facet);
@@ -65,11 +69,23 @@ ARTIFACT_TYPE_FACETS = (
     "backlog",
     "comms",
     "release",
+    "review",
     "other",
 )
 _FACET_ALT = "|".join(ARTIFACT_TYPE_FACETS)
 
 # Map a record type (plural, as used by check/status) to its canonical facet token.
+#
+# DELIBERATELY NOT a mirror of ARTIFACT_TYPE_FACETS (revgate Order 01 / 15zvu6, E-01 option b): this
+# map is ITERATED, not merely looked up, so an entry here is a behavioral claim that the type has a
+# STATUS LIFECYCLE. `status_set.detect_artifact_type` loops every item and returns the matched type,
+# which would make `aw set` accept the file as status-settable. A `review` findings artifact has NO
+# status lifecycle (its state is its Verdict plus per-finding Decision values, not a `- Status:`
+# bullet), and nothing that consumes a `.review.md` needs the plural->facet mapping: the writer
+# builds its own name via `build_clustered_name` and the parser is handed a path. So `reviews` is
+# ABSENT here on purpose, and `status_set.py` needs no `reviews` exemption beside its `comms` one.
+# If a future consumer genuinely needs the mapping, add it here AND add the matching skip in
+# `status_set.detect_artifact_type`, or `aw set` will silently accept a review file.
 TYPE_FACET = {
     "plans": "ipd",
     "specs": "spec",

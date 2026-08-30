@@ -117,6 +117,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
+    # revgate Order 01 (15zvu6) E-06: a `.review.md` whose `Plan-Id:` resolves to no plan. Same
+    # SHAPE as the `*-dangling` rules above (an unresolvable cross-tree reference), but deliberately
+    # `warning`, NOT `error` like its neighbours: a review left behind by a superseded or deleted plan
+    # is UNTIDY, not dangerous, and nothing downstream reads it, so it must not block a commit or set
+    # an exit code. The in-tree precedent for an advisory rule in this family is
+    # `check.orphaned-live-blocker` directly above. It IS deterministic (a literal id6 set lookup,
+    # no inference), hence DET_DETERMINISTIC rather than DET_HEURISTIC.
+    "check.review-dangling": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
+    ),
     # Cross-IPD dependency statements (catalog I-08).
     "check.ipd-dependency-malformed": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
@@ -1197,6 +1207,13 @@ def check_types(
             drift.extend(_releases.check_from_backlog(repo_root))
         except Exception:
             pass
+        # revgate Order 01 (15zvu6): a review file pointing at a nonexistent plan is the same class
+        # of cross-tree ref check, run once in the full sweep. ADVISORY (`warning`), so it reports
+        # without setting an exit code.
+        try:
+            drift.extend(check_review_dangling(repo_root))
+        except Exception:
+            pass
         # proclint 79li67: the COMMIT-SCOPED untooled-status detector rides `aw check`/`aw check all`
         # (a fast no-op when no plan status change is staged), the intermediate-transition sibling of
         # the dulzpy pre-commit gate. It examines only commit-changed plan files (no whole-tree scan).
@@ -1965,6 +1982,66 @@ def check_plan_priority(
                 observed=f"Priority: {value}",
                 required=f"one of {sorted(_backlog.PRIORITIES)} (or omit Priority)",
                 recovery=f"aw ipd set {id6} --priority <low|medium|high>  (or --priority - to clear)",
+            )
+        )
+    return drift
+
+
+_REVIEW_DANGLING_RULE = "check.review-dangling"
+_REVIEW_PLAN_ID_RE = _re.compile(r"(?m)^-[ \t]*Plan-Id:[ \t]*([0-9a-z]{6})[ \t]*$")
+
+
+def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
+    """Flag a `.review.md` whose `- Plan-Id:` does not resolve to any plan (revgate 15zvu6 E-06).
+
+    The cross-tree-reference sibling of `check.from-backlog-dangling`, but ADVISORY (`warning`): a
+    review whose plan was deleted or superseded is untidy, not dangerous. It therefore rides the same
+    full-sweep seam as the other dangling scans while never setting an exit code.
+
+    Discovery goes through `review_findings.iter_review_files`, which resolves the tree via the ONE
+    record-path authority (`record_producers.resolve_record_path`, registered by E-09). This function
+    deliberately contains NO `.aw/records/reviews` path literal: a second hardcoded path is exactly
+    the duplicate mechanism the house rules forbid.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import review_findings as _rf
+    except Exception:
+        return drift
+
+    known: set = set()
+    for _p, text in _iter_plan_ipds(repo_root):
+        mid = _ITEM_ID_RE.search(text)
+        if mid:
+            known.add(mid.group(1))
+
+    ignored_dirs = _core.get_ignored_dirs(repo_root)
+    for path in _rf.iter_review_files(repo_root):
+        if _core.is_ignored_path(path, repo_root, ignored_dirs):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _REVIEW_PLAN_ID_RE.search(text)
+        if m is None:
+            continue  # a missing/malformed Plan-Id is the parser's diagnostic, not this rule's
+        plan_id = m.group(1)
+        if plan_id in known:
+            continue
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(path),
+                    _REVIEW_DANGLING_RULE,
+                    f"Plan-Id {plan_id!r} does not resolve to any plan",
+                ),
+                observed=f"Plan-Id: {plan_id}",
+                required="a Plan-Id matching an existing plan's `- Id:`",
+                recovery=(
+                    "correct the Plan-Id to the reviewed plan's id6, or retire the review "
+                    "alongside the plan it reviewed"
+                ),
             )
         )
     return drift

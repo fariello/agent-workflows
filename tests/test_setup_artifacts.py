@@ -151,8 +151,11 @@ class SetupArtifactTests(unittest.TestCase):
         # + ONE .aw/.gitignore (awgitignore Order 01: consolidated; the two nested per-lane
         #   .gitignores are gone; the mkdir'd untracked/ dirs are side-effect-only, NOT counted)
         # + gitleaksignore + secret-scan CI
-        # + comms README + 3 comms shared/ gitkeeps + backlog/roadmaps/prompt-library + flat research/specs/walkthroughs (Order 08) = 25.
-        self.assertEqual(len(created), 25)
+        # + comms README + 3 comms shared/ gitkeeps + backlog/roadmaps/prompt-library + flat research/specs/walkthroughs (Order 08)
+        # + ONE .aw/records/reviews/.gitkeep (revgate Order 01/15zvu6 E-09: the typed review-findings
+        #   tree must exist in a fresh repo, or its README documents a tree `aw setup` never creates) = 26.
+        self.assertEqual(len(created), 26)
+        self.assertIn(".aw/records/reviews/.gitkeep", created)
 
     def test_install_does_not_touch_target_root_gitignore(self):
         # The comms nested .gitignore is a created deliverable; the ROOT .gitignore must not be
@@ -348,7 +351,8 @@ class LocalLeaksBackstopTests(unittest.TestCase):
         # G6: the off-by-default backstop MUST NOT leak into the always-on path.
         created = engine.create_setup_artifacts(self.repo, use_git=False)
         # awgitignore Order 01: 25 (two nested lane .gitignores consolidated into one .aw/.gitignore).
-        self.assertEqual(len(created), 25)
+        # revgate Order 01 (15zvu6) E-09: 26 (+ .aw/records/reviews/.gitkeep).
+        self.assertEqual(len(created), 26)
         # And neither backstop file is written by the default path.
         self.assertFalse((self.repo / engine.LOCAL_LEAKS_CI).exists())
         self.assertFalse((self.repo / engine.PRE_COMMIT_CONFIG).exists())
