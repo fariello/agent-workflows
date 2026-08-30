@@ -1639,17 +1639,13 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
     cost_steps_count = 0
     total_tokens: dict[str, int] = defaultdict(int)
 
-    total_exec_cost = 0.0
-    has_exec_cost = False
-    exec_tokens: dict[str, int] = defaultdict(int)
-    exec_steps_count = 0
-    exec_runs_present: set[int] = set()
-
-    total_verify_cost = 0.0
-    has_verify_cost = False
-    verify_tokens: dict[str, int] = defaultdict(int)
-    verify_steps_count = 0
-    verify_runs_present: set[int] = set()
+    # Scoped strictly to IPDs that were executed and verified
+    verified_steps_count = 0
+    verified_runs_present: set[int] = set()
+    verified_exec_cost = 0.0
+    verified_exec_tokens: dict[str, int] = defaultdict(int)
+    verified_verify_cost = 0.0
+    verified_verify_tokens: dict[str, int] = defaultdict(int)
 
     by_status: dict[str, dict[str, Any]] = defaultdict(
         lambda: {
@@ -1697,36 +1693,23 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
                     by_status[st]["tokens"][k] += v
                     by_action[act]["tokens"][k] += v
 
-            ec = (
-                step.exec_cost
-                if step.exec_cost is not None
-                else (step.cost if step.verify_cost is None else None)
+            # Compare execution vs verification ONLY for steps that were verified
+            has_verify = step.verify_cost is not None or (
+                bool(step.verify_tokens) and step.verify_tokens.get("total", 0) > 0
             )
-            et = (
-                step.exec_tokens
-                if step.exec_tokens
-                else (step.tokens if not step.verify_tokens else {})
-            )
-            vc = step.verify_cost
-            vt = step.verify_tokens
-
-            if ec is not None:
-                has_exec_cost = True
-                exec_steps_count += 1
-                exec_runs_present.add(run_idx)
-                total_exec_cost += ec
-            if et:
-                for k, v in et.items():
-                    exec_tokens[k] += v
-
-            if vc is not None:
-                has_verify_cost = True
-                verify_steps_count += 1
-                verify_runs_present.add(run_idx)
-                total_verify_cost += vc
-            if vt:
-                for k, v in vt.items():
-                    verify_tokens[k] += v
+            if has_verify:
+                verified_steps_count += 1
+                verified_runs_present.add(run_idx)
+                if step.exec_cost is not None:
+                    verified_exec_cost += step.exec_cost
+                if step.exec_tokens:
+                    for k, v in step.exec_tokens.items():
+                        verified_exec_tokens[k] += v
+                if step.verify_cost is not None:
+                    verified_verify_cost += step.verify_cost
+                if step.verify_tokens:
+                    for k, v in step.verify_tokens.items():
+                        verified_verify_tokens[k] += v
 
     avg_cost_per_run = (
         round(total_cost / total_runs, 4) if (total_runs > 0 and has_any_cost) else None
@@ -1785,60 +1768,68 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
             }
         action_summary[act] = entry
 
-    by_phase = {
-        "execution": {
-            "steps_with_cost": exec_steps_count,
-            "runs_count": len(exec_runs_present),
-            "total_cost": round(total_exec_cost, 4) if has_exec_cost else None,
-            "avg_cost_per_step": (
-                round(total_exec_cost / exec_steps_count, 4)
-                if exec_steps_count > 0
-                else None
-            ),
-            "avg_cost_per_run": (
-                round(total_exec_cost / total_runs, 4)
-                if (total_runs > 0 and has_exec_cost)
-                else None
-            ),
-            "tokens": dict(exec_tokens) if exec_tokens else {},
-            "avg_tokens_per_step": (
-                {k: int(v / exec_steps_count) for k, v in exec_tokens.items()}
-                if exec_steps_count > 0
-                else {}
-            ),
-            "avg_tokens_per_run": (
-                {k: int(v / total_runs) for k, v in exec_tokens.items()}
-                if total_runs > 0
-                else {}
-            ),
-        },
-        "verification": {
-            "steps_with_cost": verify_steps_count,
-            "runs_count": len(verify_runs_present),
-            "total_cost": round(total_verify_cost, 4) if has_verify_cost else None,
-            "avg_cost_per_step": (
-                round(total_verify_cost / verify_steps_count, 4)
-                if verify_steps_count > 0
-                else None
-            ),
-            "avg_cost_per_run": (
-                round(total_verify_cost / total_runs, 4)
-                if (total_runs > 0 and has_verify_cost)
-                else None
-            ),
-            "tokens": dict(verify_tokens) if verify_tokens else {},
-            "avg_tokens_per_step": (
-                {k: int(v / verify_steps_count) for k, v in verify_tokens.items()}
-                if verify_steps_count > 0
-                else {}
-            ),
-            "avg_tokens_per_run": (
-                {k: int(v / total_runs) for k, v in verify_tokens.items()}
-                if total_runs > 0
-                else {}
-            ),
-        },
-    }
+    by_phase = None
+    if verified_steps_count > 0:
+        by_phase = {
+            "steps_count": verified_steps_count,
+            "runs_count": len(verified_runs_present),
+            "execution": {
+                "total_cost": round(verified_exec_cost, 4),
+                "avg_cost_per_step": (
+                    round(verified_exec_cost / verified_steps_count, 4)
+                    if verified_steps_count > 0
+                    else None
+                ),
+                "avg_cost_per_run": (
+                    round(verified_exec_cost / total_runs, 4)
+                    if (total_runs > 0 and verified_exec_cost)
+                    else None
+                ),
+                "tokens": dict(verified_exec_tokens) if verified_exec_tokens else {},
+                "avg_tokens_per_step": (
+                    {
+                        k: int(v / verified_steps_count)
+                        for k, v in verified_exec_tokens.items()
+                    }
+                    if verified_steps_count > 0
+                    else {}
+                ),
+                "avg_tokens_per_run": (
+                    {k: int(v / total_runs) for k, v in verified_exec_tokens.items()}
+                    if total_runs > 0
+                    else {}
+                ),
+            },
+            "verification": {
+                "total_cost": round(verified_verify_cost, 4),
+                "avg_cost_per_step": (
+                    round(verified_verify_cost / verified_steps_count, 4)
+                    if verified_steps_count > 0
+                    else None
+                ),
+                "avg_cost_per_run": (
+                    round(verified_verify_cost / total_runs, 4)
+                    if (total_runs > 0 and verified_verify_cost)
+                    else None
+                ),
+                "tokens": (
+                    dict(verified_verify_tokens) if verified_verify_tokens else {}
+                ),
+                "avg_tokens_per_step": (
+                    {
+                        k: int(v / verified_steps_count)
+                        for k, v in verified_verify_tokens.items()
+                    }
+                    if verified_steps_count > 0
+                    else {}
+                ),
+                "avg_tokens_per_run": (
+                    {k: int(v / total_runs) for k, v in verified_verify_tokens.items()}
+                    if total_runs > 0
+                    else {}
+                ),
+            },
+        }
 
     return {
         "runs_count": total_runs,
@@ -1885,28 +1876,6 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         lines.append(
             f"Total Cost:   {cost_val_str} (across {cost_steps_count}/{total_steps} steps with usage; avg {avg_run_cost_str}/run)"
         )
-        has_verify = summary_data.get("by_phase", {}).get("verification", {}).get(
-            "total_cost"
-        ) is not None or bool(
-            summary_data.get("by_phase", {})
-            .get("verification", {})
-            .get("tokens", {})
-            .get("total")
-        )
-        if has_verify:
-            e_cost_val = summary_data["by_phase"]["execution"].get("total_cost") or 0.0
-            e_avg_run = (
-                summary_data["by_phase"]["execution"].get("avg_cost_per_run") or 0.0
-            )
-            v_cost_val = (
-                summary_data["by_phase"]["verification"].get("total_cost") or 0.0
-            )
-            v_avg_run = (
-                summary_data["by_phase"]["verification"].get("avg_cost_per_run") or 0.0
-            )
-            lines.append(f"  - Execute:  ${e_cost_val:.2f} (avg ${e_avg_run:.2f}/run)")
-            lines.append(f"  - Verify:   ${v_cost_val:.2f} (avg ${v_avg_run:.2f}/run)")
-
         if total_toks.get("total"):
             tok_str = format_tokens(total_toks.get("total", 0))
             in_str = format_tokens(total_toks.get("input", 0))
@@ -1916,37 +1885,16 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
             lines.append(
                 f"Total Tokens: {tok_str} ({in_str} in, {out_str} out, {cache_str} cached; avg {avg_tok_run_str}/run)"
             )
-            if has_verify:
-                e_tok_tot = format_tokens(
-                    summary_data["by_phase"]["execution"]
-                    .get("tokens", {})
-                    .get("total", 0)
-                )
-                e_tok_avg = format_tokens(
-                    summary_data["by_phase"]["execution"]
-                    .get("avg_tokens_per_run", {})
-                    .get("total", 0)
-                )
-                v_tok_tot = format_tokens(
-                    summary_data["by_phase"]["verification"]
-                    .get("tokens", {})
-                    .get("total", 0)
-                )
-                v_tok_avg = format_tokens(
-                    summary_data["by_phase"]["verification"]
-                    .get("avg_tokens_per_run", {})
-                    .get("total", 0)
-                )
-                lines.append(f"  - Execute:  {e_tok_tot} (avg {e_tok_avg}/run)")
-                lines.append(f"  - Verify:   {v_tok_tot} (avg {v_tok_avg}/run)")
 
-        # Phase Table (if verification present)
-        if has_verify:
+        # Phase Table (ONLY for verified IPDs, if any exist in the dataset)
+        by_phase = summary_data.get("by_phase")
+        if by_phase and by_phase.get("steps_count", 0) > 0:
+            v_cnt = by_phase["steps_count"]
             headers_ph = ["Phase", "Type", "Cost", "Tokens", "In", "Out", "Cached"]
             aligns_ph = ["left", "left", "right", "right", "right", "right", "right"]
             rows_ph = []
             for phase_name in ("execution", "verification"):
-                p_data = summary_data["by_phase"][phase_name]
+                p_data = by_phase[phase_name]
                 p_styled = (
                     term.color256(phase_name, 226)
                     if getattr(term, "color", False)
@@ -2000,10 +1948,9 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
                 rows_ph.append(["", "Avg", c_avg, t_avg, in_avg, out_avg, cache_avg])
 
             lines.append("")
+            table_title = f"Breakdown for Verified Executions ({v_cnt} step{'s' if v_cnt != 1 else ''}):"
             lines.append(
-                render_box_table(
-                    "Breakdown by Phase:", headers_ph, rows_ph, term, aligns_ph
-                )
+                render_box_table(table_title, headers_ph, rows_ph, term, aligns_ph)
             )
 
         # Status Table

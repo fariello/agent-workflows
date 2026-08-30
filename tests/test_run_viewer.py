@@ -931,12 +931,8 @@ class RunViewerTests(TestCase):
 
         sum_txt = run_viewer.format_multi_run_summary([run1], term)
         self.assertIn("Total Cost:   $10.00", sum_txt)
-        self.assertIn("- Execute:  $7.00 (avg $7.00/run)", sum_txt)
-        self.assertIn("- Verify:   $3.00 (avg $3.00/run)", sum_txt)
         self.assertIn("Total Tokens: 100.00K", sum_txt)
-        self.assertIn("- Execute:  70.00K (avg 70.00K/run)", sum_txt)
-        self.assertIn("- Verify:   30.00K (avg 30.00K/run)", sum_txt)
-        self.assertIn("Breakdown by Phase:", sum_txt)
+        self.assertIn("Breakdown for Verified Executions (1 step):", sum_txt)
         self.assertIn("execution", sum_txt)
         self.assertIn("verification", sum_txt)
 
