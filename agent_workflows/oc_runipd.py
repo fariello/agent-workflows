@@ -1423,6 +1423,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "queue": queue,
         "session_id": initial_session,
         "set_sessions": set_sessions,
+        "session_turn_counts": {},
         "options": {
             "opencode": getattr(args, "opencode", "opencode"),
             "model": getattr(args, "model", None),
@@ -1436,6 +1437,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "no_audit": not getattr(args, "validate", False),
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
+            "max_items_per_session": getattr(args, "max_items_per_session", 4),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1835,15 +1837,20 @@ def run_opencode(
     # 8zgybk's and streamed under 8zgybk's session; four consecutive lanes were lost this way.
     # Therefore an isolated turn (work_dir set) is ALWAYS a fresh session, exactly like the verifier.
     isolated_turn = bool(work_dir)
-    session = (
-        None
-        if (fresh_session or isolated_turn)
-        else (
-            state.get("session_id")
-            or state.get("set_sessions", {}).get(item["setid"])
-            or options.get("session")
-        )
+    max_items = options.get("max_items_per_session", 4)
+    raw_session = (
+        state.get("session_id")
+        or state.get("set_sessions", {}).get(item["setid"])
+        or options.get("session")
     )
+    is_rotation = False
+    if raw_session and max_items and max_items > 0:
+        session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
+        if session_turns >= max_items:
+            is_rotation = True
+            raw_session = None
+
+    session = None if (fresh_session or isolated_turn or is_rotation) else raw_session
     if session:
         argv.extend(["--session", session])
 
@@ -2212,13 +2219,20 @@ def execute_item(
         # lane after the first ("changed session unexpectedly"), aborting the run.
         attempt["session_id"] = session_id
         if not work_dir:
+            counts = state.setdefault("session_turn_counts", {})
             existing = state.setdefault("set_sessions", {}).get(item["setid"])
-            if existing and existing != session_id:
+            max_items = state.get("options", {}).get("max_items_per_session", 4)
+            existing_turns = counts.get(existing, 0) if existing else 0
+            is_planned_rotation = bool(
+                max_items and max_items > 0 and existing_turns >= max_items
+            )
+            if existing and existing != session_id and not is_planned_rotation:
                 raise DriverError(
                     f"Set {item['setid']} changed session unexpectedly: {existing} -> {session_id}"
                 )
             state["set_sessions"][item["setid"]] = session_id
             state["session_id"] = session_id
+            counts[session_id] = counts.get(session_id, 0) + 1
 
     attempt.update(
         {
@@ -3017,6 +3031,13 @@ AUTOMATIC STATUS ROUTING:
         "instead. Default: each IPD executes in an isolated worktree and its verified branch is "
         "integrated back to main.",
     )
+    start.add_argument(
+        "--max-items-per-session",
+        type=int,
+        default=4,
+        metavar="N",
+        help="Maximum consecutive non-isolated turns per session before starting a fresh session (default: 4; 0 to disable rotation)",
+    )
     _add_output_mode_flags(start)
 
     resume = sub.add_parser(
@@ -3058,6 +3079,13 @@ AUTOMATIC STATUS ROUTING:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Override turn-2 independent verification of executed plans",
+    )
+    resume.add_argument(
+        "--max-items-per-session",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Override maximum consecutive non-isolated turns per session before starting a fresh session",
     )
     _add_output_mode_flags(resume)
 
@@ -3142,6 +3170,12 @@ def main(argv: list[str] | None = None) -> int:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["validate"] = args.validate
                 state["options"]["no_audit"] = not args.validate
+                save_state(run_dir, state)
+            if getattr(args, "max_items_per_session", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["max_items_per_session"] = (
+                    args.max_items_per_session
+                )
                 save_state(run_dir, state)
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)

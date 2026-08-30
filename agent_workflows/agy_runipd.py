@@ -1491,6 +1491,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "queue": queue,
         "session_id": initial_session,
         "set_sessions": set_sessions,
+        "session_turn_counts": {},
         "options": {
             "agy_executable": getattr(args, "agy_executable", None)
             or getattr(args, "agy", None),
@@ -1508,6 +1509,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "full_auto": full_auto,
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
+            "max_items_per_session": getattr(args, "max_items_per_session", 4),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -2071,13 +2073,24 @@ def execute_item(
         prompt_text = build_prompt(item, state, run_dir, plan_path, recovery=recovery)
 
     prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
-    session_id = (
+    max_items = state.get("options", {}).get("max_items_per_session", 4)
+    raw_session = (
         state.get("session_id")
         or state.get("set_sessions", {}).get(item["setid"])
         or state.get("options", {}).get("session")
     )
+    is_rotation = False
+    if raw_session and max_items and max_items > 0:
+        session_turns = state.get("session_turn_counts", {}).get(raw_session, 0)
+        if session_turns >= max_items:
+            is_rotation = True
+            raw_session = None
+
+    session_id = raw_session
     use_continue = (
-        False if state.get("options", {}).get("new_session") else (session_id is None)
+        False
+        if (state.get("options", {}).get("new_session") or is_rotation)
+        else (session_id is None)
     )
 
     attempt = {
@@ -2277,8 +2290,10 @@ def execute_item(
         # fixes. Kept symmetric with oc_runipd.
         attempt["session_id"] = captured_session
         if not work_dir:
+            counts = state.setdefault("session_turn_counts", {})
             state.setdefault("set_sessions", {})[item["setid"]] = captured_session
             state["session_id"] = captured_session
+            counts[captured_session] = counts.get(captured_session, 0) + 1
 
     attempt.update(
         {
@@ -3000,6 +3015,13 @@ AUTOMATIC STATUS ROUTING:
         default=True,
         help="Auto-approve reviewed plans with GO verdict and immediately execute",
     )
+    start.add_argument(
+        "--max-items-per-session",
+        type=int,
+        default=4,
+        metavar="N",
+        help="Maximum consecutive non-isolated turns per session before starting a fresh session (default: 4; 0 to disable rotation)",
+    )
     _add_output_mode_flags(start)
 
     # resume
@@ -3038,6 +3060,13 @@ AUTOMATIC STATUS ROUTING:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Override full-auto mode",
+    )
+    resume.add_argument(
+        "--max-items-per-session",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Override maximum consecutive non-isolated turns per session before starting a fresh session",
     )
     _add_output_mode_flags(resume)
 
@@ -3123,6 +3152,12 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["stall_timeout"] = args.stall_timeout
+                save_state(run_dir, state)
+            if getattr(args, "max_items_per_session", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["max_items_per_session"] = (
+                    args.max_items_per_session
+                )
                 save_state(run_dir, state)
             if getattr(args, "agy_executable", None) is not None:
                 state = load_state(run_dir)
