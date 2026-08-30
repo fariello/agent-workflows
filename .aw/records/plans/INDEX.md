@@ -63,7 +63,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 - `y0gg8o` [pending] 00 pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md
 - `af7i6p` [executed] 01 executed/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md
 - `z2isfg` [executed] 02 executed/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md
-- `8guhs0` [pending] 03 pending/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md
+- `8guhs0` [executed] 03 executed/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md
 
 ## ocsync
 
