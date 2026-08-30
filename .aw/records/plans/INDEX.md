@@ -102,7 +102,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 - `2ouj70` [executed] 01 executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md
 - `gq6m2u` [executed] 02 executed/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md
 - `1qxuke` [executed] 03 executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md
-- `foi1b3` [pending] 04 pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
+- `foi1b3` [executed] 04 executed/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
 - `m0z0ti` [executed] 05 executed/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
 - `71vjbn` [pending] 06 pending/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
 

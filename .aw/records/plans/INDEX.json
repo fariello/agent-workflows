@@ -3763,16 +3763,6 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
-    "order": 5,
-    "path": "executed/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md",
-    "plan_id": "m0z0ti",
-    "set_id": "runstop",
-    "status": "executed"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "executed",
-    "kind": "child",
     "order": 1,
     "path": "executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md",
     "plan_id": "2ouj70",
@@ -3796,6 +3786,26 @@
     "order": 3,
     "path": "executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
     "plan_id": "1qxuke",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md",
+    "plan_id": "foi1b3",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md",
+    "plan_id": "m0z0ti",
     "set_id": "runstop",
     "status": "executed"
   },
@@ -4026,16 +4036,6 @@
     "order": 0,
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
-    "set_id": "runstop",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md",
-    "plan_id": "foi1b3",
     "set_id": "runstop",
     "status": "approved"
   },
