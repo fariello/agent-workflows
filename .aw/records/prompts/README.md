@@ -1,13 +1,24 @@
 # .aw/records/prompts/
 
 Operational STAGING for prompts, organized by lifecycle state. Prompt files are named
-`YYYYMMDD-HHMM-NN-<slug>.md` (the creating machine's local date and time; `NN` is a two-digit
-per-minute sequence; `<slug>` is lowercase kebab-case), the same convention as plans.
+`YYYYMMDD-HHMM-NN-<slug>.prompt.md` (the creating machine's local date and time; `NN` is a two-digit
+per-minute sequence; `<slug>` is lowercase kebab-case; `.prompt` is the uniform artifact-type facet).
+Do NOT hand-name a staged prompt: `aw prompts new` derives the name and writes the metadata for you
+(dry-run by default, `--apply` to write, never auto-staged).
 
-Recognized prompt kinds (front-matter `Kind:`): run-once / research prompts QUEUED to be executed
-(the original staging use), and `Kind: session-handoff` resume prompts produced by `/handoff` (a
-prompt for the NEXT session rather than a task to run now). Handoff drafts are written to the
-gitignored `local/` lane (below) and promoted only after review.
+Pipeline metadata lives in a SINGLE leading HTML comment, which must be the first line of the file:
+
+```text
+<!-- aw-prompt: Kind: research | Status: pending | Created: 2026-08-30 | Author: <agent> (<model>) | Targets: ... | Concerns: ... -->
+```
+
+An HTML comment is invisible when the file is pasted into a chat, so the prompt stays
+select-all-and-upload ready. YAML front-matter is NOT permitted (it renders as visible text or a
+stray table in many chat UIs, so it would become part of the prompt). Recognized prompt kinds
+(the `Kind:` field of that comment): `run-once` and `research` prompts QUEUED to be executed (the
+original staging use), and `session-handoff` resume prompts produced by `/handoff` (a prompt for the
+NEXT session rather than a task to run now). Handoff drafts are written to the gitignored `local/`
+lane (below) and promoted only after review.
 
 This is NOT the same as `.aw/records/prompt-library/`. The two prompt homes are:
 

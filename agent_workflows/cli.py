@@ -368,6 +368,17 @@ _DESCRIPTIONS = {
         "One-time first-normalization of a legacy/free-form spec status to the bare enum "
         "and canonical shape. Use only on pre-contract specs."
     ),
+    "prompts": (
+        "Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a "
+        "conforming staged prompt into pending/, and 'set' transitions a staged prompt's status. "
+        "The prompt's lifecycle is its directory, so a transition moves the file."
+    ),
+    "prompts new": (
+        "Mint a conforming staged prompt under .aw/records/prompts/pending/ (dry-run by default; "
+        "--apply to write). Derives the filename (YYYYMMDD-HHMM-NN-<slug>.prompt.md) and writes the "
+        "single leading `<!-- aw-prompt: ... -->` metadata comment, and NO body: the prompt body is "
+        "yours to author, since any other content would break prompt purity. Never auto-staged."
+    ),
     "set": (
         "Transition lifecycle status for one or more plan, spec, prompt, or backlog artifacts, "
         "or an entire set by set-id. Atomically validates that all targets exist, type constraints "
@@ -3274,6 +3285,87 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_specs_migrate.add_argument(
         "--date", default=None, help="Override the history date (YYYY-MM-DD)."
+    )
+
+    p_prompts = sub.add_parser(
+        "prompts",
+        parents=[common],
+        help="Owner verbs for the staged prompts tree. 'prompts new' mints a conforming staged prompt.",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw prompts new --kind research --slug token-compression\n"
+            "  aw prompts new --kind research --slug token-compression --apply\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Dry-run by default: nothing is written without --apply.\n"
+            "  A minted prompt is NEVER staged or committed; that stays a deliberate act.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 clean, 2 cannot-run/usage error.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+        description=(
+            "Owner verbs for the operational prompt STAGING tree in .aw/records/prompts/: 'new' mints a "
+            "conforming staged prompt (derived filename + the single leading `aw-prompt` metadata comment) "
+            "into pending/, so a prompt is a tooled artifact instead of a hand-named file."
+        ),
+    )
+    prompts_sub = p_prompts.add_subparsers(dest="prompts_command")
+    p_prompts_new = prompts_sub.add_parser(
+        "new",
+        parents=[common],
+        help="Mint a conforming staged prompt in pending/ (dry-run by default; --apply to write).",
+        description=(
+            "Create a conforming staged prompt under .aw/records/prompts/pending/ (dry-run by default; "
+            "--apply to write). Derives the filename (YYYYMMDD-HHMM-NN-<slug>.prompt.md, with NN a "
+            "per-minute sequence computed across the whole prompts tree) and writes the single leading "
+            "`<!-- aw-prompt: ... -->` metadata comment. It writes NO body: the prompt body is yours to "
+            "author, and any other content would violate the prompt-purity contract. Never auto-staged."
+        ),
+    )
+    p_prompts_new.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_prompts_new.add_argument(
+        "--slug",
+        default=None,
+        help="Short descriptive kebab slug (required; becomes the filename slug).",
+    )
+    p_prompts_new.add_argument(
+        "--kind",
+        default="research",
+        help="Prompt kind: run-once, research, or session-handoff (default: research).",
+    )
+    p_prompts_new.add_argument(
+        "--status",
+        default="pending",
+        help="Status recorded in the metadata comment (default: pending).",
+    )
+    p_prompts_new.add_argument(
+        "--author",
+        default=None,
+        help="Authoring agent and model (e.g. 'opencode (provider/model)'). Omitted from the "
+        "metadata comment when not supplied; never guessed.",
+    )
+    p_prompts_new.add_argument(
+        "--targets",
+        default=None,
+        help="The target AI(s) this prompt is written for (optional metadata field).",
+    )
+    p_prompts_new.add_argument(
+        "--concerns",
+        default=None,
+        help="One-line statement of what the prompt is about (optional metadata field).",
+    )
+    p_prompts_new.add_argument(
+        "--date", default=None, help="Override the created date (YYYY-MM-DD)."
+    )
+    p_prompts_new.add_argument(
+        "--time", default=None, help="Override the filename time component (HHMM)."
+    )
+    p_prompts_new.add_argument(
+        "--apply", action="store_true", help="Write the file (default is preview only)."
     )
 
     p_archive = sub.add_parser(
@@ -8949,6 +9041,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         prompt_cmd = getattr(args, "prompts_command", None) or getattr(
             args, "prompt_command", None
         )
+        if prompt_cmd == "new":
+            from agent_workflows import prompts as prompts_mod
+
+            return prompts_mod.run_new(args)
         if prompt_cmd == "set":
             from agent_workflows import status_set
 
@@ -8959,7 +9055,7 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 term=term,
             )
         return _show_family_help(
-            parser, "prompts", "aw prompts set <status> <target>", term, context
+            parser, "prompts", "aw prompts new --slug <slug>", term, context
         )
     if args.command == "research":
         research_cmd = getattr(args, "research_command", None)

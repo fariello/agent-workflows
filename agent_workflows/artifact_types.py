@@ -96,6 +96,7 @@ TYPE_BACKENDS: Dict[str, Dict[str, str]] = {
         "group": "artifact_rename.run_group_specs",
     },
     "prompts": {
+        "new": "prompts.run_new",
         "rename": "artifact_rename.run_rename_prompts",
         "group": "artifact_rename.run_group_prompts",
     },
