@@ -6,16 +6,16 @@
 - Scope: Make `check_scope_drift` ignore a receipt that cannot describe an in-flight execution: one whose plan is in a TERMINAL lifecycle directory, and one whose frozen base is no longer reachable from HEAD. Adds the liveness predicate and its tests only. Does NOT change the ownership/attribution rule (backlog `077yqc`), does NOT install the hook, does NOT touch the receipt-leak source in the runner, and does NOT delete or rewrite any receipt on disk (a terminal plan's receipt can still be transactionally live for finalize resume; see F7).
 - Scope-Paths: agent_workflows/check_engine.py, tests/test_check_engine_receipt_liveness.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: gatestale
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Id: rygds7
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): Narrowed check.scope-drift to trust only a LIVE begin receipt: added _receipt_is_live (rejects a plan in a terminal lifecycle dir, reusing plans.TERMINAL, and a base_head not an ancestor of HEAD), failing SAFE with the cost documented; disposition is the first path component so a <disposition>/YYYYMM/ shard still classifies terminal. Measured same-session on BOTH consumer surfaces: check_commit_invariants 222 -> 143 and aw check plans --agent 238 -> 159, terminal plans v58bvy 45 -> 0 and 8zgybk 34 -> 0 with all five in-flight plans unchanged (no over-skip). 18 new tests in their own temp repos, falsifiable in three directions (pre-fix, rule-disabled, parent.name). Existing consumers 31 passed unchanged; fast and full suites show zero net-new failures vs a pre-change baseline measured in the same session (full 19 failed/3239 passed -> 19 failed/3257 passed, +18 = the new tests). No receipt was deleted or rewritten (F7). [Scope reconciliation - in-scope-unmodified agent_workflows/check_engine.py: modified in commit 45f8156, before the receipt refresh; carries E-01/E-02 (_receipt_is_live + _plan_disposition) and E-04 (both docstrings + RULE_REGISTRY comment); in-scope-unmodified tests/test_check_engine_receipt_liveness.py: modified in commit 45f8156, before the receipt refresh; created by E-03 (18 tests, cases a-g)]
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-010. Independent review of a plan authored by another session in this same repo. Every material claim was re-measured rather than trusted, and four of the plan's own numbers were wrong. PR-001 (FIXED, HIGH): the headline measurement was stale and mis-attributed - the aggregator reports 72 findings not 74, and only TWO of the four terminal receipts actually emit findings (v58bvy 22, 8zgybk 5); qmt3yk and v7e88a emit ZERO because both are grandfathered, so _frozen_scope_paths returns [] and the PRE-EXISTING empty-allowlist skip already drops them. Crediting them to this fix would have made V-01's evidence literally unachievable. Corrected to 72 -> 45 with the per-plan breakdown. PR-002 (FIXED, HIGH): the plan framed this as hook-only, but check_scope_drift is ALSO reached via check_content(plans) at check_engine.py:471-476, which is what CI runs FAIL-CLOSED at tests.yml:140-142; measured aw check plans --agent exit 1 with 77 findings, 72 of them scope-drift. Added as F6; V-01 now measures both surfaces. PR-003 (FIXED, HIGH): added F7, the finding that BOUNDS the fix - v58bvy is in executed/ while its finalize journal is phase committed-incomplete, the documented resume state that re-runs finalize on a plan already in executed/ (ipd_lifecycle.py:1287-1300), so a terminal plan's receipt is NOT necessarily garbage. The plan is now explicit that terminal-directory licenses ignoring the receipt for scope ADVICE only, and deleting a receipt is forbidden as a correctness constraint rather than as tidiness. PR-004 (FIXED, HIGH): E-01 said to test the plan's directory, which would have been implemented as parent.name and silently broken the first time aw archive plans shards a terminal plan into <disposition>/YYYYMM/ (plans_archive.py:60-61); pinned to the first path component per plans_index.py:99 and added E-03 case (f) plus a falsifiability requirement against the parent.name form. PR-005 (FIXED, MEDIUM): E-01 re-listed the three terminal dir names, a fourth copy of a vocabulary centralized at plans.TERMINAL (plans.py:26) and already reused by plans_archive and ipd_lint; constrained to reuse it (verified no import cycle). PR-006 (FIXED, HIGH): the recorded test baseline could not be met as written - re-measured 2876 passed fast and 4 failed/3203 passed full, and test_run_viewer::test_run_viewer_cli_issues_flag, listed as a known failure, actually PASSES now; replaced with re-measured numbers, a measure-your-own-baseline rule, and the correct 4-failure known-unrelated set. PR-007 (FIXED, MEDIUM): the docstring update was required in Spec/documentation sync but assigned to no E-item, so nothing would have executed it; added E-04 + V-04, extended to the check_commit_invariants docstring which already claimed an ACTIVE receipt the code never verified. PR-008 (FIXED, MEDIUM): resolved OQ-02 from evidence instead of leaving it open - the advisory as conceived would be factually WRONG per F7, so a correct one must read the finalize journal and belongs outside the commit gate. PR-009 (FIXED, MEDIUM): E-03 lacked an aggregator-level case and a no-live-state rule (an active defect class here, i79rgh); added cases (f)/(g) and the isolation requirement. PR-010 (FIXED, LOW): corrected oc_runipd.py:2216 to :2219 and completed the gate's execution contract with the resolved-questions statement and the hard-MUST paste-the-actual-output honesty rule. Verified clean: aw ipd lint conforming at author and review-finalize; E/V bijection 4/4; tests_phase4_hooks + test_event_derived_lifecycle 31 passed unchanged; the simulated fix reproduces the corrected 72 -> 45 exactly.
 
@@ -34,29 +34,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: only trust a live receipt
 
-- [ ] E-01 In `agent_workflows/check_engine.py`, add a small pure predicate (e.g. `_receipt_is_live(repo_root, plan_path, receipt)`) that returns False when the receipt cannot describe an in-flight execution, and use it in `check_scope_drift` immediately after the existing `if not receipt: continue` (check_engine.py:985-987). It must reject two cases: (1) TERMINAL PLAN, the plan file resides in a terminal lifecycle directory, determined from the plan's own path rather than by re-parsing status text; (2) UNREACHABLE BASE, `base_head` is not an ancestor of HEAD, so the frozen baseline no longer describes this history. Keep the existing `unversioned`/empty-base skip. Do not change the comparison itself. Two REQUIRED implementation constraints, both derived from repository evidence: (a) reuse the shared terminal vocabulary `plans.TERMINAL` (plans.py:26, the single source of truth, imported without a cycle) rather than re-listing the three directory names, exactly as `plans_archive.TERMINAL_DIRS` and `ipd_lint._is_terminal_dir` already do; (b) derive the disposition as the FIRST path component under the plans dir, not the file's immediate parent, because `aw archive plans` shards a terminal plan into `<disposition>/YYYYMM/` (plans_archive.py:60-61, `_at_disposition_root` :45-47) and a `parent.name` test would silently stop matching a sharded plan (verified: `.aw/records/plans/executed/202608/x.ipd.md` has `parent.name == '202608'`). Reuse `plans_index.scan_plans`'s established derivation (plans_index.py:99 `rel.split("/", 1)[0]`) rather than inventing a third one.
+- [x] E-01 In `agent_workflows/check_engine.py`, add a small pure predicate (e.g. `_receipt_is_live(repo_root, plan_path, receipt)`) that returns False when the receipt cannot describe an in-flight execution, and use it in `check_scope_drift` immediately after the existing `if not receipt: continue` (check_engine.py:985-987). It must reject two cases: (1) TERMINAL PLAN, the plan file resides in a terminal lifecycle directory, determined from the plan's own path rather than by re-parsing status text; (2) UNREACHABLE BASE, `base_head` is not an ancestor of HEAD, so the frozen baseline no longer describes this history. Keep the existing `unversioned`/empty-base skip. Do not change the comparison itself. Two REQUIRED implementation constraints, both derived from repository evidence: (a) reuse the shared terminal vocabulary `plans.TERMINAL` (plans.py:26, the single source of truth, imported without a cycle) rather than re-listing the three directory names, exactly as `plans_archive.TERMINAL_DIRS` and `ipd_lint._is_terminal_dir` already do; (b) derive the disposition as the FIRST path component under the plans dir, not the file's immediate parent, because `aw archive plans` shards a terminal plan into `<disposition>/YYYYMM/` (plans_archive.py:60-61, `_at_disposition_root` :45-47) and a `parent.name` test would silently stop matching a sharded plan (verified: `.aw/records/plans/executed/202608/x.ipd.md` has `parent.name == '202608'`). Reuse `plans_index.scan_plans`'s established derivation (plans_index.py:99 `rel.split("/", 1)[0]`) rather than inventing a third one.
   - Depends on: none
   - Expected outcome: `check_commit_invariants` on this checkout drops from 72 findings to 45, with all 27 findings attributable to terminal plans (`v58bvy` 22, `8zgybk` 5) gone and every in-flight plan's findings unchanged (`58ha43` 31, `7p9n2v` 11, `qcqhj7` 3). A plan in a `<terminal>/YYYYMM/` shard is skipped too.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the predicate fail SAFE rather than fail OPEN. If liveness cannot be determined (git unavailable, unreadable path, `merge-base` error), treat the receipt as NOT live and skip it, because a false refusal blocks a legitimate commit while a missed advisory is recoverable, and this gate is explicitly documented as best-effort local FEEDBACK rather than an authority boundary (`hooks/precommit_scope_gate.py:17-19`). Record the choice in a comment citing that docstring so the asymmetry is not later "corrected". State plainly in the same comment what this direction COSTS: an environment where git cannot run silently disables the rule entirely rather than reporting that it could not run, which is acceptable only because the authoritative boundary is CI (`.github/workflows/tests.yml:140-142`) and NOT this local rule.
+- [x] E-02 Make the predicate fail SAFE rather than fail OPEN. If liveness cannot be determined (git unavailable, unreadable path, `merge-base` error), treat the receipt as NOT live and skip it, because a false refusal blocks a legitimate commit while a missed advisory is recoverable, and this gate is explicitly documented as best-effort local FEEDBACK rather than an authority boundary (`hooks/precommit_scope_gate.py:17-19`). Record the choice in a comment citing that docstring so the asymmetry is not later "corrected". State plainly in the same comment what this direction COSTS: an environment where git cannot run silently disables the rule entirely rather than reporting that it could not run, which is acceptable only because the authoritative boundary is CI (`.github/workflows/tests.yml:140-142`) and NOT this local rule.
   - Depends on: E-01
   - Expected outcome: an induced git/OS error in the liveness check yields a skip, not a finding and not a traceback; the aggregator's per-rule exception isolation (check_engine.py:1056-1059) is not relied upon for this path.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it, in both directions
 
-- [ ] E-03 Add `tests/test_check_engine_receipt_liveness.py` covering, in a temp git repo (mirror the existing fixture at `tests/test_event_derived_lifecycle.py:196-241`, including its `.gitignore` for `.aw/state/`, so the new module does not fork a second repo-builder): (a) a receipt whose plan is in `executed/` produces NO scope-drift finding even with an out-of-scope dirty path present; (b) a receipt whose plan is in `pending/` STILL produces the finding for the same dirty path, proving the rule was narrowed and not disabled; (c) a receipt whose `base_head` is not an ancestor of HEAD is skipped; (d) each terminal directory (`executed/`, `superseded/`, `not-executed/`) is rejected and `pending/`/`reusable/` are not; (e) a liveness-check error results in a skip (E-02); (f) a plan in a SHARD (`executed/YYYYMM/`) is also skipped, and a `pending/` plan is not, pinning E-01's first-path-component derivation against the `parent.name` regression; (g) the assertions run through `check_commit_invariants` (the aggregator the hook actually calls) at least once, not only through `check_scope_drift`, so the fix is proven on the surface that gates commits. Each assertion must be shown to FAIL against the pre-fix predicate where applicable. Every test asserts against its OWN temp repo; no test may read the live checkout (an ACTIVE defect class here, `i79rgh` E-01).
+- [x] E-03 Add `tests/test_check_engine_receipt_liveness.py` covering, in a temp git repo (mirror the existing fixture at `tests/test_event_derived_lifecycle.py:196-241`, including its `.gitignore` for `.aw/state/`, so the new module does not fork a second repo-builder): (a) a receipt whose plan is in `executed/` produces NO scope-drift finding even with an out-of-scope dirty path present; (b) a receipt whose plan is in `pending/` STILL produces the finding for the same dirty path, proving the rule was narrowed and not disabled; (c) a receipt whose `base_head` is not an ancestor of HEAD is skipped; (d) each terminal directory (`executed/`, `superseded/`, `not-executed/`) is rejected and `pending/`/`reusable/` are not; (e) a liveness-check error results in a skip (E-02); (f) a plan in a SHARD (`executed/YYYYMM/`) is also skipped, and a `pending/` plan is not, pinning E-01's first-path-component derivation against the `parent.name` regression; (g) the assertions run through `check_commit_invariants` (the aggregator the hook actually calls) at least once, not only through `check_scope_drift`, so the fix is proven on the surface that gates commits. Each assertion must be shown to FAIL against the pre-fix predicate where applicable. Every test asserts against its OWN temp repo; no test may read the live checkout (an ACTIVE defect class here, `i79rgh` E-01).
   - Depends on: E-01, E-02
   - Expected outcome: the module passes; case (a) FAILS against pre-fix code (that is the bug); case (b) FAILS if the receipt check is removed rather than narrowed; case (f) FAILS against a `parent.name`-based implementation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: leave the next reader the reason
 
-- [ ] E-04 Update `check_scope_drift`'s docstring (check_engine.py:960-971) to state that only a LIVE receipt is considered and why, and update the `check.scope-drift` line in `check_commit_invariants`'s docstring (check_engine.py:1041-1043), which currently says "for a plan with an ACTIVE begin receipt" while the code accepted any receipt. Both must name the two rejected cases and point at the fail-safe rationale, so the next reader does not restore the old behavior believing it was the intent. The plan already required this docstring work in `## Spec / documentation sync` but assigned it to no `E-*`; this item is that assignment.
+- [x] E-04 Update `check_scope_drift`'s docstring (check_engine.py:960-971) to state that only a LIVE receipt is considered and why, and update the `check.scope-drift` line in `check_commit_invariants`'s docstring (check_engine.py:1041-1043), which currently says "for a plan with an ACTIVE begin receipt" while the code accepted any receipt. Both must name the two rejected cases and point at the fail-safe rationale, so the next reader does not restore the old behavior believing it was the intent. The plan already required this docstring work in `## Spec / documentation sync` but assigned it to no `E-*`; this item is that assignment.
   - Depends on: E-01
   - Expected outcome: both docstrings describe the implemented behavior; no code path changes; the `RULE_REGISTRY` comment for `check.scope-drift` (check_engine.py:157-161) is consistent with them.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -139,25 +139,212 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the predicate's source and the `check_scope_drift` call site. Paste a before/after count from the SAME session with the tree state noted, for BOTH consumer surfaces (F6): `check_commit_invariants(Path("."))` and `python3 -m agent_workflows check plans --agent`. The after-state must show `v58bvy` and `8zgybk` contributing zero findings and the in-flight plans' per-plan counts UNCHANGED (paste the per-plan breakdown, not just the total, since a total alone cannot distinguish the intended skip from an accidental over-skip). Also paste proof of the two implementation constraints: that the terminal vocabulary comes from `plans.TERMINAL` rather than a fourth hardcoded list, and that the disposition is the first path component (a one-line demonstration that a `<terminal>/YYYYMM/` path is classified terminal).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: measured in-session on BOTH consumer surfaces with the import path pinned to the lane copy: `check_commit_invariants(<main>)` 222 -> 143 findings, and `aw check plans --dir <main> --agent` 238 -> 159 (its `check.scope-drift` 222 -> 143, the 16 unrelated `check.lifecycle-transition-invalid` untouched). Terminal plans `v58bvy` 45 -> 0 and `8zgybk` 34 -> 0; all five in-flight plans UNCHANGED to the finding (qcqhj7 30, rchpms 29, 58ha43 29, 2c122z 28, 1o4eif 27), so there is no over-skip. `qmt3yk`/`v7e88a` were 0 BEFORE as well (grandfathered per F2) and are not credited. Predicate reuses `plans.TERMINAL` (no hardcoded `"executed"` literal) and derives disposition as the first path component, so `executed/202608/x.ipd.md` classifies terminal where `parent.name` would read `'202608'`. Full transcripts below.
+    TREE STATE: executed in lane worktree `.aw/worktrees/rygds7` (branch `aw/lane/rygds7`, HEAD `ce1ae8e`), measured against the MAIN checkout as `repo_root` because receipts are gitignored runtime state that exists only there (`ls .aw/state` in the lane -> "No such file or directory"; DECISION 02-rygds7-D2). 14 receipts present; 11 lane worktrees concurrently in flight, so the working tree is dirty with other agents' files throughout. Counts differ from this document's authoring-time numbers (72 -> 45) because far more lanes are now active; the plan explicitly instructs re-measurement (DECISION 02-rygds7-D1). Import path pinned before measuring: `agent_workflows.__file__` == the LANE copy (DECISION 02-rygds7-D5 records a near-miss where a script run from /tmp silently measured the unmodified main-checkout module).
 
-- [ ] V-02 validates E-02
+    PREDICATE SOURCE + CALL SITE (`check_engine.py`): `_plan_disposition` (first-path-component derivation) and `_receipt_is_live` (terminal + unreachable-base rejection, fail-safe `except`). Call site, immediately after the existing `if not receipt: continue` as E-01 requires:
+    ```
+            receipt = _life.read_receipt(repo_root, plan_id)
+            if not receipt:
+                continue  # no active execution -> nothing to reconcile
+            if not _receipt_is_live(repo_root, p, receipt):
+                continue  # spent authority (terminal plan / unreachable base) -> not an in-flight scope
+            base_head = str(receipt.get("base_head") or "").strip()
+    ```
+
+    SURFACE 1, `check_commit_invariants(<main>)`, same session, fix toggled by restoring my own single file:
+    ```
+    ============ BEFORE ============          ============ AFTER =============
+    TOTAL: 222  {'check.scope-drift': 222}    TOTAL: 143  {'check.scope-drift': 143}
+      34  [executed ] ...8zgybk...              (absent)
+      45  [executed ] ...v58bvy...              (absent)
+      30  [pending  ] ...qcqhj7...              30  [pending  ] ...qcqhj7...
+      29  [pending  ] ...rchpms...              29  [pending  ] ...rchpms...
+      29  [pending  ] ...58ha43...              29  [pending  ] ...58ha43...
+      28  [pending  ] ...2c122z...              28  [pending  ] ...2c122z...
+      27  [pending  ] ...1o4eif...              27  [pending  ] ...1o4eif...
+      terminal v58bvy: 45   8zgybk: 34         terminal v58bvy: 0   8zgybk: 0
+      terminal qmt3yk:  0   v7e88a:  0         terminal qmt3yk: 0   v7e88a: 0
+    ```
+    NO OVER-SKIP: all five in-flight plans keep their counts to the finding (30/29/29/28/27 before and after); exactly the 79 findings belonging to the two terminal plans disappear. As F2 predicted, `qmt3yk` and `v7e88a` contributed ZERO both before and after (both grandfathered, `_frozen_scope_paths == []`, already dropped by the pre-existing empty-allowlist skip), so they are NOT credited to this fix.
+
+    SURFACE 2, `python3 -m agent_workflows check plans --dir <main> --agent` (the command CI runs fail-closed; note `--dir`, not a positional path - DECISION 02-rygds7-D3 records catching a misinvocation here):
+    ```
+    --- before ---                            --- after ---
+      exit: 1  total findings: 238              exit: 1  total findings: 159
+        16  check.lifecycle-transition-invalid    16  check.lifecycle-transition-invalid
+       222  check.scope-drift                    143  check.scope-drift
+    ```
+    The 16 unrelated `check.lifecycle-transition-invalid` findings are untouched, which is the signature of a NARROWED rule rather than a disabled one.
+
+    CONSTRAINT (a), shared vocabulary not a fourth list:
+    ```
+    references _plans.TERMINAL: True
+    hardcodes "executed" literal: False
+    plans.TERMINAL is: ('executed', 'superseded', 'not-executed')
+    ```
+    CONSTRAINT (b), disposition is the FIRST path component (a `parent.name` test would read the shard):
+    ```
+    executed/202608/x.ipd.md     -> disposition='executed'     terminal=True   (parent.name='202608')
+    executed/x.ipd.md            -> disposition='executed'     terminal=True   (parent.name='executed')
+    superseded/202601/x.ipd.md   -> disposition='superseded'   terminal=True   (parent.name='202601')
+    pending/202608/x.ipd.md      -> disposition='pending'      terminal=False  (parent.name='202608')
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the induced-error case showing a SKIP rather than a finding or a traceback, and paste the comment citing `precommit_scope_gate.py:17-19`'s best-effort-feedback limit as the basis for failing safe AND stating the cost (a git-less environment silently disables the rule). Confirm by inspection that the fail-safe path is inside the predicate and does not depend on the aggregator's blanket `except Exception` (check_engine.py:1056-1059), since that isolation would also swallow a genuine bug.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: induced `OSError` on `merge-base` yields a SKIP (healthy baseline 1 finding -> 0 findings with the error, no traceback) and `_receipt_is_live` returns False; the fail-safe `except` is INSIDE the predicate (proven by calling `check_scope_drift` directly, which has no handler of its own, so the aggregator's blanket `except Exception` was never in the path), and its comment cites `precommit_scope_gate.py:17-19`'s best-effort-feedback limit AND states the cost (a git-less environment silently disables the rule). Full transcripts below.
+    INDUCED ERROR -> SKIP, in a temp repo, with `_git_capture` patched to raise `OSError` on `merge-base`:
+    ```
+    healthy baseline (rule works here): 1 finding(s)
+    with git merge-base raising OSError -> 0 finding(s): SKIPPED, no traceback
+    _receipt_is_live(...) returns: False
+    ```
+    The healthy baseline is shown first so the skip is provably the induced error's effect and not an arrangement that never flagged. No traceback was raised; the call returned normally.
 
-- [ ] V-03 validates E-03
+    THE COMMENT (in `_receipt_is_live`'s docstring), citing the hook's own honest limit AND the cost:
+    ```
+    FAIL SAFE, NOT FAIL OPEN (E-02): when liveness cannot be determined (git unavailable, unreadable
+    path, ``merge-base`` error) the receipt is treated as NOT live and skipped. The asymmetry is
+    deliberate and must not later be "corrected": a false refusal blocks a legitimate commit, while a
+    missed advisory is recoverable, and this rule is explicitly documented as best-effort local
+    FEEDBACK rather than an authority boundary (``hooks/precommit_scope_gate.py:17-19``: "git hooks
+    are LOCAL, not cloned by default, and skippable with ``--no-verify``. This is OPT-IN best-effort
+    FEEDBACK, not an authority boundary; the authoritative boundary is phase-5 CI running the same
+    engine."). WHAT THIS DIRECTION COSTS, stated plainly: an environment where git cannot run
+    silently disables this rule entirely rather than reporting that it could not run. That is
+    acceptable ONLY because the authoritative boundary is CI (``.github/workflows/tests.yml`` runs
+    ``aw check`` fail-closed) and NOT this local rule.
+    ```
+
+    FAIL-SAFE IS INSIDE THE PREDICATE, not the aggregator. The predicate carries its own handler:
+    ```
+        except Exception:
+            # Fail safe (see the docstring): an undeterminable liveness is treated as NOT live. This
+            # local `except` is deliberate and must NOT be left to the aggregator's blanket
+            # `except Exception` in `check_commit_invariants`, which would also swallow a genuine bug in
+            # the comparison below.
+            return False
+        return True
+    ```
+    Proof it does not lean on the aggregator: the 0-finding result above came from calling `ce.check_scope_drift(d)` DIRECTLY, which has no try/except of its own, so `check_commit_invariants`' blanket handler (check_engine.py, "A single rule's failure must not take down the whole pre-commit gate") was never in the call path. Test `test_e_failsafe_is_inside_the_predicate_not_the_aggregator` pins this permanently.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new module passing with all seven cases (a)-(g). Then paste FALSIFIABILITY in all three directions: case (a) FAILS against the pre-fix predicate, case (b) FAILS when the receipt check is removed instead of narrowed, and case (f) FAILS against a `parent.name`-based disposition test. Paste `tests/test_phase4_hooks.py` and `tests/test_event_derived_lifecycle.py` passing unchanged (review-time baseline `31 passed`), plus the BARE fast and full suite results measured in your own session, with your own re-measured pre-change baseline shown alongside and the 4 known-unrelated CLI-parser-leaf failures named and not claimed. Also state explicitly that the new module reads no live repository state.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: the new 18-test module passes covering all cases (a)-(g); falsifiable in all three required directions: case (a) FAILS pre-fix (14 failed), case (b) FAILS when the rule is disabled rather than narrowed (7 failed), case (f) FAILS against a `parent.name` derivation (2 failed), with all sabotage reverted and the file verified byte-identical afterward. Existing consumers pass unchanged at `31 passed`, matching the review-time baseline. Bare suites measured pre- AND post-change in this session: fast 15 failed/2912 passed -> 15 failed/2930 passed; full 19 failed/3239 passed -> 19 failed/3257 passed, i.e. IDENTICAL failure sets and +18 = exactly the new tests. The 4 CLI-parser-leaf failures plus 15 lane-only `test_run_viewer.py` failures are named and NOT claimed. The module reads no live repository state (own temp git repo per test; no `Path(".")`/`Path.cwd()`). Full transcripts below.
+    NEW MODULE PASSING, all cases (a)-(g) across 18 tests:
+    ```
+    $ python3 -m pytest tests/test_check_engine_receipt_liveness.py -p no:randomly -v
+    12 workers [18 items]
+    ..................                                                       [100%]
+    ============================== 18 passed in 1.90s ==============================
+    ```
+    Case map: (a) `test_a_executed_plan_receipt_is_ignored`; (b) `test_b_pending_plan_still_flags_the_same_dirty_path` + `test_b_narrowing_is_the_only_difference`; (c) `test_c_base_head_not_ancestor_of_head_is_skipped`, `test_c_orphan_branch_commit_is_not_an_ancestor`, `test_c_empty_base_head_is_skipped`; (d) `test_d_every_terminal_dir_rejected_and_non_terminal_kept` (all three terminal dirs plus pending/reusable) + `test_d_terminal_vocabulary_is_the_shared_one`; (e) `test_e_liveness_error_results_in_a_skip`, `test_e_failsafe_is_inside_the_predicate_not_the_aggregator`, `test_e_missing_plan_location_is_not_live`; (f) `test_f_sharded_terminal_plan_is_skipped`, `test_f_sharded_pending_plan_is_not_skipped`, `test_f_disposition_is_the_first_path_component`; (g) `test_g_aggregator_terminal_plan_is_clean`, `test_g_aggregator_pending_plan_still_refuses`, `test_g_hook_exit_code_flips_with_liveness` (this last drives the REAL `precommit_scope_gate.check`, asserting exit 1 for a live plan and exit 0 once the same plan becomes terminal). Plus `test_ignoring_a_terminal_receipt_does_not_delete_it`, guarding F7's constraint that the rule is read-only.
 
-- [ ] V-04 validates E-04
+    FALSIFIABILITY 1 of 3, case (a) FAILS against the PRE-FIX predicate (change reverted, tests kept):
+    ```
+    14 failed, 4 passed in 3.25s
+    FAILED ...::test_a_executed_plan_receipt_is_ignored          <- the bug itself
+    FAILED ...::test_g_aggregator_terminal_plan_is_clean
+    FAILED ...::test_f_sharded_terminal_plan_is_skipped
+    FAILED ...::test_d_every_terminal_dir_rejected_and_non_terminal_kept
+    FAILED ...::test_c_base_head_not_ancestor_of_head_is_skipped
+    (+ 9 more)
+    ```
+    FALSIFIABILITY 2 of 3, case (b) FAILS when the receipt check is DISABLED rather than narrowed (sabotage: `if True: continue` in place of the liveness call):
+    ```
+    7 failed, 11 passed in 3.83s
+    E  AssertionError: [] is not true : pending is NOT terminal and must be enforced
+    FAILED ...::test_b_pending_plan_still_flags_the_same_dirty_path
+    FAILED ...::test_b_narrowing_is_the_only_difference
+    FAILED ...::test_g_aggregator_pending_plan_still_refuses
+    FAILED ...::test_f_sharded_pending_plan_is_not_skipped
+    FAILED ...::test_g_hook_exit_code_flips_with_liveness
+    ```
+    FALSIFIABILITY 3 of 3, case (f) FAILS against a `parent.name`-based derivation (sabotage: `return plan_path.parent.name`):
+    ```
+    2 failed, 16 passed in 3.32s
+    E  "changed path 'other/' is outside the plan's declared Scope-Paths"
+    FAILED ...::test_f_sharded_terminal_plan_is_skipped
+    FAILED ...::test_f_disposition_is_the_first_path_component
+    ```
+    All sabotage was reverted and the restored file verified byte-identical (`diff` clean) to the measured implementation before proceeding.
+
+    EXISTING CONSUMERS UNCHANGED, matching the review-time baseline of `31 passed` exactly:
+    ```
+    $ python3 -m pytest tests/test_phase4_hooks.py tests/test_event_derived_lifecycle.py
+    ...............................                                          [100%]
+    31 passed in 2.41s
+    ```
+
+    BARE SUITES (no redundant `-n`/`-q`; `-n auto --dist=worksteal` is already in `addopts`), each measured BOTH pre-change and post-change IN THIS SESSION. Pre-change runs were taken with the tree verified clean (`git status --porcelain` empty) and, for the full suite, with the new test module moved aside:
+    ```
+    FAST  (bare `python3 -m pytest`)
+      pre-change : 15 failed, 2912 passed, 3 skipped, 4 xfailed
+      post-change: 15 failed, 2930 passed, 3 skipped, 4 xfailed     (+18 = exactly the new tests)
+
+    FULL  (bare `python3 -m pytest -m ""`)
+      pre-change : 19 failed, 3239 passed, 3 skipped, 4 xfailed
+      post-change: 19 failed, 3257 passed, 3 skipped, 4 xfailed     (+18 = exactly the new tests)
+    ```
+    IDENTICAL failure sets before and after; zero net-new failures. NOT CLAIMED as caused or fixed by this change: the 4 known-unrelated CLI-parser-leaf failures from concurrent `run_cli` work - `tests/test_command_surface_declarations.py::CommandSurfaceDeclarationsTests::test_zero_undeclared_parser_leaves`, `tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description`, `tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves`, and `...::test_every_declared_leaf_gets_a_full_scenario_row_set` - plus 15 `tests/test_run_viewer.py` failures. The plan expected the run_viewer module to pass and warned it was flaky-by-state; measured cause is that it reads the LIVE cwd (`run_viewer.discover_run_dirs(Path("."))`) and a lane worktree has no `.aw/records/runs/`, so the whole module fails in ANY lane. `i79rgh` owns that defect; `tests/test_run_viewer.py` is outside this plan's Scope-Paths and was not touched (DECISION 02-rygds7-D4).
+
+    THE NEW MODULE READS NO LIVE REPOSITORY STATE: every test builds its own `tempfile.TemporaryDirectory` git repo in `setUp` (mirroring `tests/test_event_derived_lifecycle.py`'s fixture, including the `.gitignore` for `.aw/state/`) and asserts only against that temp root. There is no reference to the live checkout, no `Path(".")`, and no `Path.cwd()` anywhere in the module, so it cannot exhibit the `i79rgh` live-state defect class.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste both revised docstrings. `check_scope_drift`'s must name the two rejected cases; `check_commit_invariants`'s `check.scope-drift` bullet must no longer claim an "ACTIVE begin receipt" that the code does not verify. Confirm no behavioral line changed in this item (a diff limited to docstring/comment lines).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: both docstrings revised and pasted below: `check_scope_drift` now names both rejected cases (terminal directory incl. `<disposition>/YYYYMM/` shards, and base-not-ancestor-of-HEAD) plus the fail-safe rationale, and `check_commit_invariants`'s bullet no longer claims an "ACTIVE begin receipt" (now a LIVE receipt, verified); the `RULE_REGISTRY` comment was made consistent too. E-04 changed no behavioral line: all 7 removed lines in the file diff classify as comment or docstring prose, and the only added executable lines belong to E-01/E-02. Full transcripts below.
+    REVISED DOCSTRING 1, `check_scope_drift`, naming BOTH rejected cases and the fail-safe rationale:
+    ```
+        For each plan that has a LIVE begin receipt, compare the paths this execution changed since the
+        frozen base against the plan's declared Scope-Paths, REUSING the finalize scope helpers
+        ...
+        LIVE is checked by ``_receipt_is_live`` and is narrower than "a receipt exists" (IPD rygds7): a
+        receipt is IGNORED when (1) its plan sits in a TERMINAL lifecycle directory
+        (executed/superseded/not-executed, read from the plan's path so a ``<disposition>/YYYYMM/`` shard
+        still counts), or (2) its frozen ``base_head`` is NOT an ancestor of HEAD, so the baseline no
+        longer describes this history. Both cases are receipts that cannot describe work in progress, and
+        comparing the whole working tree against them attributed other agents' uncommitted files to a
+        finished plan. Liveness FAILS SAFE (undeterminable -> skip); see ``_receipt_is_live`` for the
+        rationale and its cost. Ignoring a terminal plan's receipt here is an ADVISORY decision only and
+        is NOT a claim that the receipt is dead - it may still be required by an unfinished finalize
+        transaction, and nothing here deletes one.
+    ```
+    REVISED DOCSTRING 2, `check_commit_invariants`; the phrase "ACTIVE begin receipt" is GONE, replaced by a LIVE claim the code actually verifies:
+    ```
+        * ``check.scope-drift`` (``check_scope_drift``) - for a plan with a LIVE begin receipt, a
+          changed path outside its declared ``Scope-Paths`` (findings 5.3: enforce the staged-paths-
+          within-declared-scope INVARIANT, not the command syntax). LIVE is verified, not assumed (IPD
+          rygds7): a receipt is IGNORED when its plan is in a TERMINAL lifecycle directory or when its
+          frozen ``base_head`` is not an ancestor of HEAD, since neither can describe an in-flight
+          execution. That liveness test fails SAFE (undeterminable -> skip), consistent with this being
+          best-effort local feedback; see ``_receipt_is_live``.
+    ```
+    ALSO made consistent, as the E-04 expected outcome requires, the `RULE_REGISTRY` comment for `check.scope-drift`:
+    ```
+        # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan with a
+        # LIVE begin receipt whose changed paths since the frozen base fall outside its Scope-Paths. LIVE
+        # excludes a receipt whose plan is in a terminal lifecycle dir or whose base is unreachable from
+        # HEAD (IPD rygds7; see `_receipt_is_live`).
+    ```
+    NO BEHAVIORAL LINE CHANGED BY E-04. Classifying every REMOVED line in the whole file diff shows all 7 are prose or comment; no executable line was deleted or edited:
+    ```
+    ALL REMOVED LINES (7) - every one must be prose/comment:
+      [comment        ] # Declared-file-scope drift (agentadhere Phase 3, IPD wqj1ne E-02; catalog I-01). A plan
+      [comment        ] # active begin receipt whose changed paths since the frozen base fall outside its Scope-
+      [docstring-prose] For each plan that has an ACTIVE begin receipt (an in-flight execution with a frozen bas
+      [docstring-prose] Scope-Paths), compare the paths this execution changed since the frozen base against the
+      [docstring-prose] declared Scope-Paths, REUSING the finalize scope helpers
+      [docstring-prose] * ``check.scope-drift`` (``check_scope_drift``) - for a plan with an ACTIVE begin receip
+      [docstring-prose] within-declared-scope INVARIANT, not the command syntax).
+    ```
+    The only ADDED executable lines in the file belong to E-01/E-02 (the two new functions plus the 2-line call site), confirming E-04 contributed documentation only.
+  - Result: pass
 
 ## Approval and execution gate
 
