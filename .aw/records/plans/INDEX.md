@@ -56,7 +56,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## laneorphan
 
-- `zwnjp3` [pending] 01 pending/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md
+- `zwnjp3` [executed] 01 executed/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md
 
 ## lanetruth
 
