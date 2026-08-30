@@ -3643,6 +3643,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 3,
+    "path": "executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
+    "plan_id": "1qxuke",
+    "set_id": "runstop",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md",
     "plan_id": "g40w37",
@@ -3966,16 +3976,6 @@
     "order": 2,
     "path": "pending/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md",
     "plan_id": "gq6m2u",
-    "set_id": "runstop",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md",
-    "plan_id": "1qxuke",
     "set_id": "runstop",
     "status": "approved"
   },
