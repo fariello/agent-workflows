@@ -2759,7 +2759,7 @@ class SplitBrainLayoutGuardTests(unittest.TestCase):
             from agent_workflows import config as CFG
 
             cfg = CFG.default_config()
-            cfg["repos"] = [str(split_repo), str(clean_repo)]
+            CFG.set_repo_setting(cfg, "installed", [str(split_repo), str(clean_repo)])
             CFG.save(cfg)
 
             split_tree_before = self._tree_files(split_repo)

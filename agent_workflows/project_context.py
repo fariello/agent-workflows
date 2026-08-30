@@ -244,6 +244,21 @@ def _read_json_file(path_str: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _is_repos_schema_mapping(value: Dict[str, Any]) -> bool:
+    """True when a dict-valued user-config ``repos`` is the schema mapping, not a binding table.
+
+    User config schema version 2 nests repository settings under ``repos`` as
+    ``{search, installed, exclude, ignore}``. Every key of the schema mapping is one of those
+    four names, whereas a per-repo binding table is keyed by ABSOLUTE REPO PATH, so the two are
+    distinguishable without importing the config module (this file reads raw JSON by design).
+    An empty dict is treated as the schema mapping: it carries no bindings either way.
+    """
+
+    from agent_workflows.config import _ALLOWED_REPOS_KEYS
+
+    return all(key in _ALLOWED_REPOS_KEYS for key in value)
+
+
 def _find_git_root(start_dir: str) -> Optional[str]:
     """Find the Git root directory by walking up from start_dir without subprocess."""
     curr = Path(start_dir).resolve()
@@ -474,10 +489,17 @@ def resolve_project_context(
     local_binding_file = os.path.join(repo_abs, ".aw", "config", "local.json")
     local_binding_data = _read_json_file(local_binding_file) or {}
 
+    # `repos` in the USER config (config_version 2) is the schema mapping of repository
+    # settings: exactly the keys search/installed/exclude/ignore. It has ONE meaning, and it is
+    # NOT a per-repo binding table keyed by absolute repo path. This read bypasses
+    # `config.normalize()` on purpose (raw JSON), so it must reject the schema mapping itself
+    # rather than probe it with a path key and quietly get nothing back.
     user_repos = user_cfg_data.get("repos")
     repo_cfg_in_user: Dict[str, Any] = {}
-    if isinstance(user_repos, dict):
-        repo_cfg_in_user = user_repos.get(repo_abs, {}) or {}
+    if isinstance(user_repos, dict) and not _is_repos_schema_mapping(user_repos):
+        candidate = user_repos.get(repo_abs)
+        if isinstance(candidate, dict):
+            repo_cfg_in_user = candidate
 
     # Merge local_binding_data with repo_cfg_in_user (local_binding_file takes priority for Level 2)
     merged_local_binding = dict(repo_cfg_in_user)
