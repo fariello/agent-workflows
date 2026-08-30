@@ -146,7 +146,7 @@ def render_event(
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
-        return pal("  " + _one_line(line), "dim")
+        return pal(_one_line(line), "dim")
     etype = event.get("type")
     part = event.get("part") or {}
     if etype == "text":
@@ -154,7 +154,7 @@ def render_event(
         text = _one_line(text, 400)
         if not text:
             return None
-        return pal("  \u2022 ", "cyan") + text
+        return pal("\u2022 ", "cyan") + text
     if etype == "tool_use":
         state = part.get("state") or {}
         tool = part.get("tool") or "tool"
@@ -175,7 +175,7 @@ def render_event(
             glyph = pal("\u2022", "gray")
         label = pal(f"{tool}", "bold")
         body = f": {title}" if title else ""
-        return f"    {glyph} {label}{body}"
+        return f"{glyph} {label}{body}"
     if etype == "step_finish":
         tok_dict = part.get("tokens") or {}
         cost_raw = part.get("cost")
@@ -192,37 +192,12 @@ def render_event(
         else:
             cache_val = 0
 
-        step_total = tok_dict.get("total")
-        if step_total is None:
-            step_total = inp + out + cache_val
-
         cost = cost_raw or 0.0
 
         if tracker is not None:
             tracker.update(inp=inp, out=out, cache=cache_val, cost=cost)
-            cum_inp = tracker.input_tokens
-            cum_out = tracker.output_tokens
-            cum_cache = tracker.cache_tokens
-            cum_cost = tracker.cost
-        else:
-            cum_inp = inp
-            cum_out = out
-            cum_cache = cache_val
-            cum_cost = cost
 
-        step_tok_str = format_tokens(step_total)
-        step_cost_str = f"${cost:.4f}"
-        cum_in_str = format_tokens(cum_inp)
-        cum_out_str = format_tokens(cum_out)
-        cum_cache_str = format_tokens(cum_cache)
-        cum_cost_str = f"${cum_cost:.2f}"
-
-        summary = (
-            f"{step_tok_str} tok, {step_cost_str}; "
-            f"tok: {cum_in_str} in, {cum_out_str} out, {cum_cache_str} cache, {cum_cost_str} tot"
-        )
-        return pal(f"    \u2014 step done ({summary})", "dim")
-    return None
+        return None
 
 
 def format_compact_tokens(n: int | float) -> str:

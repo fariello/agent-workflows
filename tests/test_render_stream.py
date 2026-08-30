@@ -37,7 +37,7 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertIn("Reading the plan.", line)
+        self.assertEqual(line, "\u2022 Reading the plan.")
         self.assertNotIn("\033[", line)
 
     def test_tool_use_renders_tool_and_title(self):
@@ -47,8 +47,7 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertIn("bash", line)
-        self.assertIn("git status --short", line)
+        self.assertEqual(line, "\u2713 bash: git status --short")
 
     def test_tool_use_derives_title_from_input_when_missing(self):
         line = render_stream.render_event(
@@ -57,8 +56,7 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertIn("read", line)
-        self.assertIn("a.py", line)
+        self.assertEqual(line, '\u2026 read: {"path": "a.py"}')
 
     def test_step_start_and_blank_are_suppressed(self):
         self.assertIsNone(
@@ -66,38 +64,29 @@ class RenderEventUnitTests(unittest.TestCase):
         )
         self.assertIsNone(render_stream.render_event("   ", self.plain))
 
-    def test_step_finish_summarizes_tokens_and_cost(self):
-        line = render_stream.render_event(
-            '{"type":"step_finish","part":{"tokens":{"total":1234},"cost":0.0042}}',
-            self.plain,
-        )
-        assert line is not None
-        self.assertIn("1.23K tok", line)
-        self.assertIn("$0.0042", line)
-        self.assertIn("tok: 0 in, 0 out, 0 cache, $0.00 tot", line)
-
-    def test_step_finish_with_full_tokens_and_cumulative_tracker(self):
+    def test_step_finish_updates_tracker_and_is_suppressed(self):
         tracker = render_stream.StreamTracker()
         evt1 = (
             '{"type":"step_finish","part":{"tokens":{"total":30476,"input":30371,'
             '"output":105,"cache":{"read":30000,"write":0}},"cost":0.15448}}'
         )
         line1 = render_stream.render_event(evt1, self.plain, tracker=tracker)
-        assert line1 is not None
-        self.assertIn("30.48K tok", line1)
-        self.assertIn("$0.1545", line1)
-        self.assertIn("tok: 30.37K in, 105 out, 30.00K cache, $0.15 tot", line1)
+        self.assertIsNone(line1)
+        self.assertEqual(tracker.input_tokens, 30371)
+        self.assertEqual(tracker.output_tokens, 105)
+        self.assertEqual(tracker.cache_tokens, 30000)
+        self.assertAlmostEqual(tracker.cost, 0.15448)
 
         evt2 = (
             '{"type":"step_finish","part":{"tokens":{"total":37480,"input":7000,'
             '"output":480,"cache":{"read":30000,"write":0}},"cost":0.0088}}'
         )
         line2 = render_stream.render_event(evt2, self.plain, tracker=tracker)
-        assert line2 is not None
-        self.assertIn("37.48K tok", line2)
-        self.assertIn("$0.0088", line2)
-        # Cumulative: input 37371 (37.37K), output 585 (585), cache 60000 (60.00K), cost 0.16328 ($0.16)
-        self.assertIn("tok: 37.37K in, 585 out, 60.00K cache, $0.16 tot", line2)
+        self.assertIsNone(line2)
+        self.assertEqual(tracker.input_tokens, 37371)
+        self.assertEqual(tracker.output_tokens, 585)
+        self.assertEqual(tracker.cache_tokens, 60000)
+        self.assertAlmostEqual(tracker.cost, 0.16328)
 
     def test_format_tokens_units(self):
         self.assertEqual(render_stream.format_tokens(0), "0")
@@ -223,12 +212,11 @@ class GoldenByteIdenticalTests(unittest.TestCase):
         transcript = _render_stream_transcript(_GOLDEN_EVENTS, pal)
         expected = "\n".join(
             [
-                "  \u2022 Reading the plan.",
-                "    \u2026 bash: git status",
-                "    \u2713 bash: git status",
-                "    \u2717 edit: patch failed",
-                "    \u2014 step done (1.23K tok, $0.0042; tok: 0 in, 0 out, 0 cache, $0.00 tot)",
-                "  a stray non-json log line",
+                "\u2022 Reading the plan.",
+                "\u2026 bash: git status",
+                "\u2713 bash: git status",
+                "\u2717 edit: patch failed",
+                "a stray non-json log line",
             ]
         )
         self.assertEqual(transcript, expected)

@@ -215,23 +215,18 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             summary = f": {_one_line(cmd, 120)}" if cmd else ""
             if state == "ACTIVE":
                 glyph = pal("\u2026", "yellow")
-                return f"    {glyph} {pal(tool_name, 'bold')}{summary}"
+                return f"{glyph} {pal(tool_name, 'bold')}{summary}"
             elif state == "DONE":
                 glyph = pal("\u2713", "green")
                 dur = step.get("duration_seconds")
                 dur_str = f" ({dur:.2f}s)" if dur is not None else ""
-                return f"    {glyph} {pal(tool_name, 'bold')}{summary}{pal(dur_str, 'dim')}"
+                return f"{glyph} {pal(tool_name, 'bold')}{summary}{pal(dur_str, 'dim')}"
             elif state in ("ERROR", "FAILED"):
                 glyph = pal("\u2717", "red")
-                return f"    {glyph} {pal(tool_name, 'bold')}{summary}"
+                return f"{glyph} {pal(tool_name, 'bold')}{summary}"
 
         if step_type == "agent_response" and state == "DONE":
-            usage = step.get("usage") or {}
-            toks = usage.get("total_tokens")
-            tok_str = f" ({toks} tok)" if toks else ""
-            dur = step.get("duration_seconds")
-            dur_str = f" in {dur:.2f}s" if dur is not None else ""
-            return pal(f"    \u2014 agent response done{tok_str}{dur_str}", "dim")
+            return None
 
         if step_type == "subagent":
             subagent = step.get("subagent_info") or {}
@@ -241,7 +236,7 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             glyph = (
                 pal("\u2713", "green") if state == "DONE" else pal("\u2026", "yellow")
             )
-            return f"    {glyph} {count} {noun} {state.lower()}"
+            return f"{glyph} {count} {noun} {state.lower()}"
 
     return None
 
