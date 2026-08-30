@@ -156,6 +156,125 @@ class CapabilityProbeTests(unittest.TestCase):
         self.assertFalse(detect_host_capabilities("opencode").supports_os_sandbox)
 
 
+class ProbeMustProveDenialTests(unittest.TestCase):
+    """Regressions found at independent verification: a rung must ENFORCE, not merely launch.
+
+    Both cases below are fail-OPEN, the direction x03wgn Section 8 Phase 6.3 forbids: they
+    would GRANT hardened mode (and publish its guarantees) on a host with no real boundary.
+    """
+
+    def setUp(self):
+        self._saved_cache = hsp._SANDBOX_PROBE_CACHE
+        self._saved_ladder = hsp._SANDBOX_LADDER
+
+    def tearDown(self):
+        hsp._SANDBOX_PROBE_CACHE = self._saved_cache
+        hsp._SANDBOX_LADDER = self._saved_ladder
+
+    def test_bare_userns_is_never_a_proven_sandbox_rung(self):
+        """`unshare -Umr` restricts NO path, so it must never report a sandbox."""
+        ok, note = hsp._probe_userns()
+        self.assertFalse(ok, "a bare user namespace enforces no per-path partition")
+        self.assertIn("no per-path partition", note)
+
+    def test_enter_sandbox_refuses_the_unenforcing_userns_mechanism(self):
+        """Even if a caller forces mechanism='userns', no unenforcing launcher is returned.
+
+        The old behavior returned ["unshare", "-Umr", "--", *argv] - an argv that names
+        none of the plan's writable/read-only/inaccessible paths, so the control root, main
+        worktree, sibling lanes and git common dir all stayed writable while the caller
+        believed hardened mode was active.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            lane = root / "lane"
+            scratch = lane / ".scratch"
+            scratch.mkdir(parents=True)
+            plan = build_sandbox_plan(
+                lane_worktree=lane,
+                lane_scratch=scratch,
+                control_root=root / "control",
+                main_worktree=root / "main",
+                toolchain_roots=["/usr"],
+            )
+            caps = HostSandboxCapabilities(
+                platform="linux",
+                supports_os_sandbox=True,
+                sandbox_mechanism="userns",
+            )
+            with self.assertRaises(HardModeUnavailableError):
+                enter_sandbox(["worker"], plan, caps, cwd=lane, scratch_dir=scratch)
+
+    def test_a_userns_only_host_does_not_get_hardened_mode(self):
+        """End to end: a host whose ONLY working rung is userns must FAIL CLOSED."""
+        hsp._SANDBOX_PROBE_CACHE = None
+        hsp._SANDBOX_LADDER = (
+            ("landlock", lambda: (False, "no landlock")),
+            ("bwrap", lambda: (False, "bwrap not installed")),
+            ("userns", hsp._probe_userns),
+        )
+        caps = detect_host_capabilities("opencode")
+        self.assertFalse(
+            caps.supports_os_sandbox,
+            "a userns-only host has no write boundary and must not report a sandbox",
+        )
+        self.assertIsNone(caps.sandbox_mechanism)
+        with self.assertRaises(HardModeUnavailableError):
+            select_execution_profile("hardened", caps)
+
+    def test_every_proven_rung_enforces_the_plan_partition(self):
+        """A rung may only be proven if `enter_sandbox` can express the partition for it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            lane = root / "lane"
+            scratch = lane / ".scratch"
+            scratch.mkdir(parents=True)
+            plan = build_sandbox_plan(
+                lane_worktree=lane,
+                lane_scratch=scratch,
+                control_root=root / "control",
+                main_worktree=root / "main",
+                toolchain_roots=["/usr"],
+            )
+            argv = ["worker", "--go"]
+            for mechanism, probe in hsp._SANDBOX_LADDER:
+                ok, _ = probe()
+                if not ok:
+                    continue
+                caps = HostSandboxCapabilities(
+                    platform="linux",
+                    supports_os_sandbox=True,
+                    sandbox_mechanism=mechanism,
+                )
+                wrapped = enter_sandbox(argv, plan, caps, cwd=lane, scratch_dir=scratch)
+                blob = " ".join(wrapped)
+                if wrapped[0] == sys.executable:
+                    blob += Path(wrapped[1]).read_text(encoding="utf-8")
+                with self.subTest(mechanism=mechanism):
+                    self.assertIn(
+                        str(lane.resolve()),
+                        blob,
+                        f"the {mechanism} launcher must name the writable lane",
+                    )
+
+    def test_bwrap_probe_requires_an_observed_denial(self):
+        """The bwrap probe must not pass on launch-exit-0 alone.
+
+        A jail built with `--bind / /` (fully writable) launches exactly as cleanly as one
+        built with `--ro-bind / /`, so the probe must assert the kernel REFUSED the outside
+        write. Proven structurally: the probe runs a checker script rather than `true`.
+        """
+        import inspect
+
+        src = inspect.getsource(hsp._probe_bwrap)
+        self.assertIn("_denial_checker_source", src)
+        self.assertNotIn(
+            '"true"',
+            src,
+            "probing with `true` proves only that the launcher started",
+        )
+
+
 class SandboxPlanTests(unittest.TestCase):
     """E-03 / E-04: the partition and the read-only git common dir."""
 

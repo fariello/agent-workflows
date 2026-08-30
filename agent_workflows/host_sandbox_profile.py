@@ -41,8 +41,17 @@ and every rung is decided by an EXECUTED probe, never by inspection:
   1. `landlock`  - the Landlock LSM (kernel >= 5.13, ABI >= 1), unprivileged, rules
                    inherited by every descendant process. VERIFIED on Linux
                    6.8.0-137-generic, Landlock ABI 4.
-  2. `bwrap`     - `bubblewrap` with `--unshare-user` bind mounts.
-  3. `userns`    - `unshare -Umr` mount/user namespaces.
+  2. `bwrap`     - `bubblewrap` with `--unshare-user` and the plan's bind set.
+  3. `userns`    - NOT A PROVEN RUNG. A bare `unshare -Umr` restricts no path, so it cannot
+                   enforce the partition above; its probe always reports False and
+                   `enter_sandbox` REFUSES it rather than returning a launcher that would
+                   enforce nothing. It stays listed only so its report says why.
+
+EVERY RUNG MUST PROVE A DENIAL, NOT A LAUNCH. A probe passes only if a real jail was built
+AND the kernel actually REFUSED a write outside the allowed root while permitting one
+inside it. "The launcher exited 0" is deliberately insufficient: a misconfigured jail (say
+`--bind / /` instead of `--ro-bind / /`) starts perfectly cleanly and enforces nothing, so a
+launch-only criterion cannot tell an enforcing jail from a permissive one.
 
 THE GUARANTEE IS VOID ON ANY HOST WHERE THE EXECUTED PROBE RETURNS False. There is no
 partial credit and no silent degradation: `supports_os_sandbox` is True only when a real
@@ -285,6 +294,33 @@ def _run_probe(argv: Sequence[str], **kwargs: Any) -> Tuple[int, str]:
     return proc.returncode, (proc.stderr or proc.stdout or "").strip()
 
 
+def _denial_checker_source(allowed_file: Path, denied_file: Path) -> str:
+    """A checker that EXITS 0 only if the jail let the allowed write through and REFUSED the other.
+
+    This is the standard EVERY rung must meet (see `_probe_bwrap`): "the launcher started"
+    is not evidence of enforcement, because a misconfigured jail starts perfectly well and
+    enforces nothing. Only an observed kernel REFUSAL proves a boundary exists.
+    """
+    return textwrap.dedent(
+        f"""\
+        import sys
+        ok = {str(allowed_file)!r}
+        bad = {str(denied_file)!r}
+        try:
+            open(ok, "w").write("x")
+        except OSError as exc:
+            sys.stderr.write("allowed write was DENIED: %s\\n" % exc)
+            raise SystemExit(3)
+        try:
+            open(bad, "w").write("x")
+        except OSError:
+            raise SystemExit(0)          # enforced
+        sys.stderr.write("denied write SUCCEEDED - not enforced\\n")
+        raise SystemExit(4)
+        """
+    )
+
+
 def _probe_landlock() -> Tuple[bool, str]:
     """ATTEMPT a Landlock jail and prove it actually DENIES a write outside the allowed root.
 
@@ -299,24 +335,7 @@ def _probe_landlock() -> Tuple[bool, str]:
         denied = Path(tmp) / "denied"
         allowed.mkdir()
         denied.mkdir()
-        checker = textwrap.dedent(
-            f"""\
-            import sys
-            ok = {str(allowed / "ok.txt")!r}
-            bad = {str(denied / "bad.txt")!r}
-            try:
-                open(ok, "w").write("x")
-            except OSError as exc:
-                sys.stderr.write("allowed write was DENIED: %s\\n" % exc)
-                raise SystemExit(3)
-            try:
-                open(bad, "w").write("x")
-            except OSError:
-                raise SystemExit(0)          # enforced
-            sys.stderr.write("denied write SUCCEEDED - not enforced\\n")
-            raise SystemExit(4)
-            """
-        )
+        checker = _denial_checker_source(allowed / "ok.txt", denied / "bad.txt")
         script = Path(tmp) / "check.py"
         script.write_text(checker, encoding="utf-8")
         boot = Path(tmp) / "boot.py"
@@ -338,28 +357,65 @@ def _probe_landlock() -> Tuple[bool, str]:
 
 
 def _probe_bwrap() -> Tuple[bool, str]:
-    """ATTEMPT a real `bwrap` jail (not a `which bwrap` check)."""
+    """ATTEMPT a real `bwrap` jail and prove it actually DENIES a write outside the lane.
+
+    Held to the SAME standard as the Landlock rung (found at verification): the previous
+    version returned True on `bwrap ... true` merely EXITING 0, which proves the launcher
+    started, NOT that the partition is enforced. A `--bind / /` jail (fully writable)
+    launches just as cleanly as a `--ro-bind / /` one, so a launch-only criterion cannot
+    tell an enforcing jail from a permissive one - and reporting True for the permissive
+    case is the fail-OPEN direction the design forbids. This now builds the REAL bind set
+    (writable allowed root, read-only elsewhere) and requires the kernel to refuse the
+    outside write.
+    """
     if not shutil.which("bwrap"):
         return False, "bwrap not installed"
-    rc, err = _run_probe(
-        ["bwrap", "--unshare-user", "--ro-bind", "/", "/", "--dev", "/dev", "true"]
-    )
-    if rc == 0:
-        return True, "bwrap jail launched"
-    return False, f"bwrap probe rc={rc}: {err[:300]}"
+    import tempfile
+
+    with tempfile.TemporaryDirectory(prefix="aw-bw-probe-") as tmp:
+        allowed = Path(tmp) / "allowed"
+        denied = Path(tmp) / "denied"
+        allowed.mkdir()
+        denied.mkdir()
+        script = Path(tmp) / "check.py"
+        script.write_text(
+            _denial_checker_source(allowed / "ok.txt", denied / "bad.txt"),
+            encoding="utf-8",
+        )
+        argv = ["bwrap", "--unshare-user", "--ro-bind", "/", "/", "--dev", "/dev"]
+        argv += ["--bind", str(allowed), str(allowed)]
+        argv += [sys.executable, str(script)]
+        rc, err = _run_probe(argv)
+        if rc == 0:
+            return True, "bwrap jail enforced: write outside the bound root was refused"
+        return False, f"bwrap probe rc={rc}: {err[:300]}"
 
 
 def _probe_userns() -> Tuple[bool, str]:
-    """ATTEMPT a real user namespace (not a sysctl read)."""
-    if not shutil.which("unshare"):
-        return False, "unshare not installed"
-    rc, err = _run_probe(["unshare", "-Umr", "true"])
-    if rc == 0:
-        return True, "unshare -Umr launched"
-    return False, f"unshare probe rc={rc}: {err[:300]}"
+    """A bare user namespace is NOT a per-path write boundary, so it is never a proven rung.
+
+    Found at verification: `unshare -Umr` was previously treated as a proven sandbox rung,
+    but `enter_sandbox` can only return `["unshare", "-Umr", "--", *argv]` for it - an argv
+    that communicates NOTHING about the plan's writable/read-only/inaccessible partition.
+    A worker launched that way shares the host mount namespace's paths and can still write
+    the control root, the main worktree, every sibling lane, and the git common dir. Yet
+    `detect_host_capabilities` would have set `supports_os_sandbox=True`,
+    `select_execution_profile("hardened", ...)` would have GRANTED hard mode, and the
+    module's published guarantees would have been claimed - with no boundary at all. That
+    is precisely the silent degradation x03wgn Section 8 Phase 6.3 forbids, so this rung
+    reports False until it is implemented as a real mount-namespace partition (mapping the
+    plan's classes via `mount --bind` + remount-ro inside the new namespace).
+    """
+    return (
+        False,
+        "a bare user namespace enforces no per-path partition; not a proven sandbox rung "
+        "(would fail OPEN - see _probe_userns docstring)",
+    )
 
 
-# The ladder, strongest-first. Each entry is (mechanism, probe).
+# The ladder, strongest-first. Each entry is (mechanism, probe). A rung may only appear
+# here if its probe proves an actual DENIAL and `enter_sandbox` can enforce the full
+# partition for it; `userns` stays listed so its report explains why it is never proven.
 _SANDBOX_LADDER: Tuple[Tuple[str, Callable[[], Tuple[bool, str]]], ...] = (
     ("landlock", _probe_landlock),
     ("bwrap", _probe_bwrap),
@@ -712,9 +768,18 @@ def enter_sandbox(
         return wrapped + list(argv)
 
     if mechanism == "userns":
-        # `unshare` alone gives no per-path partition; it is the weakest rung and is only
-        # honest about what it provides: a private mount/user namespace for the tree.
-        return ["unshare", "-Umr", "--"] + list(argv)
+        # REFUSED rather than returned (found at verification). `unshare -Umr -- <argv>`
+        # gives the worker a private user/mount namespace but does NOT restrict any path:
+        # the control root, main worktree, sibling lanes, and git common dir all remain
+        # writable. Returning it here would hand back a launcher that enforces nothing
+        # while the caller believes hardened mode is active - a fail-OPEN outcome. Hard
+        # mode fails CLOSED instead (x03wgn Section 8 Phase 6.3).
+        raise HardModeUnavailableError(
+            "the 'userns' mechanism cannot enforce the writable/read-only/inaccessible "
+            "partition: a bare user namespace restricts no path, so the worker could still "
+            "write the control root, main worktree, sibling lanes, and git common dir. "
+            "Refusing to claim hardened mode without a real write boundary."
+        )
 
     raise HardModeUnavailableError(
         f"no sandbox mechanism was proven on this host (mechanism={mechanism!r})"
