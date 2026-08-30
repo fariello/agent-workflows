@@ -225,6 +225,205 @@ def render_event(
     return None
 
 
+def format_compact_tokens(n: int | float) -> str:
+    """Format token count into compact string with k/m/g suffix (e.g. 24.5k, 4.1k, 1.2M)."""
+    val = float(n)
+    if val >= 1_000_000_000:
+        s = f"{val / 1_000_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{s}g"
+    if val >= 1_000_000:
+        s = f"{val / 1_000_000:.1f}".rstrip("0").rstrip(".")
+        return f"{s}m"
+    if val >= 1_000:
+        s = f"{val / 1_000:.1f}".rstrip("0").rstrip(".")
+        return f"{s}k"
+    return str(int(val))
+
+
+def format_progress_bar(current: int, total: int, width: int = 10) -> str:
+    """Format a block progress bar with percentage and item count (e.g. '████████░░ 80% [4/5]')."""
+    if total <= 0:
+        return "░" * width + "  0% [0/0]"
+    frac = max(0.0, min(1.0, float(current) / float(total)))
+    filled = int(round(frac * width))
+    bar = "█" * filled + "░" * (width - filled)
+    pct = int(round(frac * 100))
+    return f"{bar} {pct:>2}% [{current}/{total}]"
+
+
+def format_statusline(
+    now_ts: float,
+    start_ts: float,
+    last_act_ts: float,
+    current_idx: int,
+    total_items: int,
+    setid: str,
+    id6: str,
+    tracker: StreamTracker | None = None,
+) -> str:
+    """Format the unified runner statusline:
+
+    22:15:30 │ 14m22s (idle 3s) │ ████████░░ 80% [4/5] │ reposcfg:8h9lap │ $0.24 │ 24.5k in, 4.1k out, 88.2k cache
+    """
+    t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
+
+    elapsed = max(0, int(now_ts - start_ts))
+    el_m, el_s = divmod(elapsed, 60)
+    el_str = f"{el_m}m{el_s:02d}s"
+
+    idle = max(0, int(now_ts - last_act_ts))
+    if idle >= 60:
+        im, is_ = divmod(idle, 60)
+        idle_str = f"(idle {im}m{is_:02d}s)"
+    else:
+        idle_str = f"(idle {idle}s)"
+    seg2 = f"{el_str} {idle_str}"
+
+    seg3 = format_progress_bar(current_idx, total_items)
+    target = f"{setid}:{id6}" if setid and id6 else (setid or id6 or "-")
+
+    cost = tracker.cost if tracker is not None else 0.0
+    cost_str = f"${cost:.2f}"
+
+    inp = format_compact_tokens(tracker.input_tokens if tracker is not None else 0)
+    out = format_compact_tokens(tracker.output_tokens if tracker is not None else 0)
+    cache = format_compact_tokens(tracker.cache_tokens if tracker is not None else 0)
+    seg6 = f"{inp} in, {out} out, {cache} cache"
+
+    return f"{t_str} │ {seg2} │ {seg3} │ {target} │ {cost_str} │ {seg6}"
+
+
+class Statusline:
+    """A live sticky statusline pinned to the bottom of the terminal during execution."""
+
+    def __init__(
+        self,
+        pal: Palette,
+        stream: TextIO,
+        tracker: StreamTracker | None = None,
+        interval: float = 1.0,
+        current_idx: int = 0,
+        total_items: int = 0,
+        setid: str = "",
+        id6: str = "",
+    ) -> None:
+        self.pal = pal
+        self.stream = stream
+        self.tracker = tracker
+        self.interval = interval
+        self.current_idx = current_idx
+        self.total_items = total_items
+        self.setid = setid
+        self.id6 = id6
+
+        self._start_time = time.monotonic()
+        self._last_activity = time.monotonic()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._lock = threading.Lock()
+        self._is_tty = bool(getattr(stream, "isatty", None) and stream.isatty())
+        self._has_drawn = False
+
+    def touch(self) -> None:
+        with self._lock:
+            self._last_activity = time.monotonic()
+
+    def update_item(
+        self,
+        current_idx: int,
+        total_items: int,
+        setid: str = "",
+        id6: str = "",
+    ) -> None:
+        with self._lock:
+            self.current_idx = current_idx
+            self.total_items = total_items
+            if setid:
+                self.setid = setid
+            if id6:
+                self.id6 = id6
+
+    def render_line(self) -> str:
+        with self._lock:
+            now_wall = time.time()
+            start_mono = self._start_time
+            last_mono = self._last_activity
+            cur_mono = time.monotonic()
+            start_wall = now_wall - (cur_mono - start_mono)
+            last_wall = now_wall - (cur_mono - last_mono)
+            c_idx = self.current_idx
+            t_items = self.total_items
+            s_id = self.setid
+            i_id = self.id6
+            tr = self.tracker
+
+        return format_statusline(
+            now_ts=now_wall,
+            start_ts=start_wall,
+            last_act_ts=last_wall,
+            current_idx=c_idx,
+            total_items=t_items,
+            setid=s_id,
+            id6=i_id,
+            tracker=tr,
+        )
+
+    def redraw(self) -> None:
+        if not self._is_tty:
+            return
+        line = self.render_line()
+        with self._lock:
+            self.stream.write(f"\r\033[K{line}")
+            self.stream.flush()
+            self._has_drawn = True
+
+    def clear(self) -> None:
+        if not self._is_tty or not self._has_drawn:
+            return
+        with self._lock:
+            self.stream.write("\r\033[K")
+            self.stream.flush()
+            self._has_drawn = False
+
+    def write_event(self, rendered_text: str) -> None:
+        """Write a log event line above the live statusline."""
+        with self._lock:
+            if self._is_tty and self._has_drawn:
+                self.stream.write(f"\r\033[K{rendered_text}\n")
+                line = format_statusline(
+                    now_ts=time.time(),
+                    start_ts=time.time() - (time.monotonic() - self._start_time),
+                    last_act_ts=time.time() - (time.monotonic() - self._last_activity),
+                    current_idx=self.current_idx,
+                    total_items=self.total_items,
+                    setid=self.setid,
+                    id6=self.id6,
+                    tracker=self.tracker,
+                )
+                self.stream.write(line)
+                self.stream.flush()
+            else:
+                self.stream.write(f"{rendered_text}\n")
+                self.stream.flush()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.interval):
+            self.redraw()
+
+    def __enter__(self) -> Statusline:
+        if self._is_tty and self.interval > 0:
+            self.redraw()
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+        self.clear()
+
+
 class Heartbeat:
     """Prints a periodic 'still working' line to stderr when the child stream is quiet."""
 

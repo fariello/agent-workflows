@@ -31,6 +31,8 @@ import time
 from pathlib import Path
 from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
+from agent_workflows.render_stream import Statusline
+
 SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gemini-3.7-flash-high"
 DEFAULT_TIMEOUT = "240m"
@@ -1922,11 +1924,6 @@ def run_agy_turn(
 
     output_mode = options.get("output_mode", "clean")
     pal = Palette(should_color(sys.stdout))
-    action_label = item.get("action", "turn")
-    tag = f" {label_suffix}" if label_suffix else ""
-    label = (
-        pal(f"{item['id6']}", "bold") + f" ({action_label}{tag} attempt {attempt_no})"
-    )
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
     popen_kwargs: dict[str, Any] = {
@@ -1940,8 +1937,17 @@ def run_agy_turn(
         popen_kwargs["start_new_session"] = True
 
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
-    interval = 0.0 if output_mode == "raw" else 15.0
-    heartbeat = Heartbeat(pal, label, sys.stderr, interval=interval)
+
+    plan_queue = state.get("plan", [])
+    total_items = len(plan_queue)
+    item_id = item.get("id6")
+    current_idx = 1
+    for idx, p in enumerate(plan_queue, start=1):
+        if p.get("id6") == item_id:
+            current_idx = idx
+            break
+
+    is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(argv, **popen_kwargs)
@@ -1949,13 +1955,23 @@ def run_agy_turn(
             terminate_process(process)
             raise DriverError("Failed to open child agy stdout stream")
 
+        statusline = Statusline(
+            pal=pal,
+            stream=sys.stdout,
+            tracker=None,
+            interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+            current_idx=current_idx,
+            total_items=total_items or 1,
+            setid=item.get("setid", ""),
+            id6=item.get("id6", ""),
+        )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         try:
-            with heartbeat, watchdog:
+            with statusline, watchdog:
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
-                    heartbeat.touch()
+                    statusline.touch()
                     watchdog.touch()
 
                     if output_mode == "raw":
@@ -1964,8 +1980,7 @@ def run_agy_turn(
                     elif output_mode == "clean":
                         rendered = render_agy_event(raw_line, pal)
                         if rendered is not None:
-                            sys.stdout.write(rendered + "\n")
-                            sys.stdout.flush()
+                            statusline.write_event(rendered)
         except BaseException:
             terminate_process(process)
             log.flush()

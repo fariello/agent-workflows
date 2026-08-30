@@ -43,9 +43,13 @@ from agent_workflows.render_stream import (
     _STATUS_COLOR,
     Heartbeat,
     Palette,
+    Statusline,
     StreamTracker,
     _one_line,
     _strip_ansi,
+    format_compact_tokens,
+    format_progress_bar,
+    format_statusline,
     format_tokens,
     render_event,
 )
@@ -58,9 +62,13 @@ __all__ = [
     "_STATUS_COLOR",
     "Heartbeat",
     "Palette",
+    "Statusline",
     "StreamTracker",
     "_one_line",
     "_strip_ansi",
+    "format_compact_tokens",
+    "format_progress_bar",
+    "format_statusline",
     "format_tokens",
     "render_event",
     "should_color",
@@ -1873,7 +1881,6 @@ def run_opencode(
 
     output_mode = options.get("output_mode", "clean")
     pal = Palette(should_color(sys.stdout))
-    label = pal(f"{item['id6']}", "bold") + f" ({action_label} attempt {attempt_no})"
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
     popen_kwargs: dict[str, Any] = {
@@ -1888,18 +1895,37 @@ def run_opencode(
 
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
+    plan_queue = state.get("plan", [])
+    total_items = len(plan_queue)
+    item_id = item.get("id6")
+    current_idx = 1
+    for idx, p in enumerate(plan_queue, start=1):
+        if p.get("id6") == item_id:
+            current_idx = idx
+            break
+
+    is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
+
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(argv, **popen_kwargs)
         assert process.stdout is not None
-        interval = 0.0 if output_mode == "raw" else 15.0
-        heartbeat = Heartbeat(pal, label, sys.stderr, interval=interval)
+        statusline = Statusline(
+            pal=pal,
+            stream=sys.stdout,
+            tracker=tracker,
+            interval=1.0 if is_tty and output_mode == "clean" else 0.0,
+            current_idx=current_idx,
+            total_items=total_items or 1,
+            setid=item.get("setid", ""),
+            id6=item.get("id6", ""),
+        )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         try:
-            with heartbeat, watchdog:
+            with statusline, watchdog:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
-                    heartbeat.touch()
+                    statusline.touch()
                     watchdog.touch()
                     if output_mode == "raw":
                         sys.stdout.write(line)
@@ -1907,8 +1933,7 @@ def run_opencode(
                     elif output_mode == "clean":
                         rendered = render_event(line, pal, tracker=tracker)
                         if rendered is not None:
-                            sys.stdout.write(rendered + "\n")
-                            sys.stdout.flush()
+                            statusline.write_event(rendered)
         except BaseException:
             terminate_process(process)
             log.flush()
