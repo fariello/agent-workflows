@@ -3,13 +3,13 @@
 - Date: 2026-08-30
 - Kind: child
 - Concern: Worktree mutation failures currently risk leaving dirty paths in the main working tree or aborting entire multi-item runs rather than containing errors item-locally.
-- Scope: Implement worktree allocation with path leases, the 7-step deterministic containment transaction for failed/out-of-scope mutations, the exhaustive 6-class `ABORT RUN` engine, and the commit gateway appending `AW-Run:` and `AW-Item:` trailers. Implements spec 25kzda Sections 4.1, 4.2, 5.1, and 5.7.
+- Scope: Implement worktree allocation with path leases, the 7-step deterministic containment transaction for failed/out-of-scope mutations, the quarantine bundle directory, the exhaustive 6-class `ABORT RUN` engine, and the commit gateway appending `AW-Run:` and `AW-Item:` trailers. Implements spec 25kzda Sections 4.1, 4.2, 5.1, and 5.7.
 - Scope-Paths: agent_workflows/worktree_containment.py, agent_workflows/commit_gateway.py, agent_workflows/orchestrate_isolation.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_fault_containment.py
 - Item-Dependencies: executed:kaygwo
 - Status: to-review
 - Set: detrun
 - Order: 4
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: antigravity
 - Id: k7o7el
 - Blocks-Release: next
@@ -18,6 +18,7 @@
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): deepened 7-step containment transaction, quarantine bundle hashing, abort escalation rules, and commit gateway trailers.
 
 ## Goal
 
@@ -29,7 +30,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Worktree allocation and path lease management
 
-- [ ] E-01 Implement `WorktreeContext` in `agent_workflows/worktree_containment.py` integrating with `orchestrate_isolation.py` to allocate clean, isolated worktrees and acquire single-writer path leases before mutation starts.
+- [ ] E-01 Implement `WorktreeContext` in `agent_workflows/worktree_containment.py` integrating with `orchestrate_isolation.py` to allocate clean, isolated worktrees under `.aw/state/worktrees/` and acquire single-writer path leases before mutation starts.
   - Depends on: none
   - Expected outcome: Mutating actions run in an isolated worktree; coordinator-owned paths and non-leased paths are protected.
   - Execution state: pending
@@ -38,19 +39,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-02 Implement `contain_item_failure()` in `agent_workflows/worktree_containment.py` executing the 7-step containment transaction (terminate worker, freeze/hash quarantine bundle, restore baseline, verify clean worktree, release leases).
   - Depends on: E-01
-  - Expected outcome: Out-of-scope changes or failed validation restore isolated worktree to baseline with `contained: true` evidence, allowing independent queue items to proceed.
+  - Expected outcome: Out-of-scope changes or failed validation restore isolated worktree to baseline with `contained: true` evidence, writing `.aw/records/runs/<run-id>/quarantine/<item-id6>/` bundle, allowing independent queue items to proceed.
   - Execution state: pending
 
-- [ ] E-03 Implement the exhaustive 6-class `ABORT RUN` classifier in `agent_workflows/worktree_containment.py` (corrupt ledger, lease conflict, unknown outcome, push attempt, hook bypass, identity ambiguity).
+- [ ] E-03 Implement the exhaustive 6-class `ABORT RUN` classifier and containment escalation engine in `agent_workflows/worktree_containment.py` (corrupt ledger, lease conflict, unknown outcome, push attempt, hook bypass, identity ambiguity).
   - Depends on: E-02
-  - Expected outcome: Only the 6 enumerated fatal classes abort the full run; all other failures remain item-local.
+  - Expected outcome: Only the 6 enumerated fatal classes abort the full run; containment failures escalate to `ownership_conflict` or `unknown_outcome` when baseline restoration cannot be proven.
   - Execution state: pending
 
 ### Task group 3: Commit gateway and trailers
 
 - [ ] E-04 Implement `CommitGateway` in `agent_workflows/commit_gateway.py` executing path-scoped `git commit -- <paths>` with appended `AW-Run: <run-id>` and `AW-Item: <id6>` trailers while respecting commit hooks and conventional commit syntax.
   - Depends on: E-01
-  - Expected outcome: Commits are created only by the engine gateway, scoped to action-owned paths, with verifiable run/item trailers.
+  - Expected outcome: Commits are created only by the engine gateway, scoped to action-owned paths, with verifiable run/item trailers separated by a blank line at the end of the commit body.
   - Execution state: pending
 
 ### Task group 4: Runner integration
@@ -60,30 +61,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Runner executes items in confined worktrees, invokes commit gateway for lifecycle transitions, and executes containment on check failures.
   - Execution state: pending
 
-### Task group 5: Test suite coverage
+### Task group 5: Test suite coverage and edge cases
 
-- [ ] E-06 Create `tests/test_fault_containment.py` covering worktree allocation, baseline restoration on scope violation, quarantine hashing, abort classification, and commit trailer formatting.
+- [ ] E-06 Create `tests/test_fault_containment.py` covering worktree allocation, baseline restoration on scope violation, quarantine bundle generation, abort classification, and commit trailer formatting.
   - Depends on: E-01, E-02, E-03, E-04, E-05
   - Expected outcome: Full pytest suite passes with comprehensive fault containment and commit gateway coverage.
+  - Execution state: pending
+
+- [ ] E-07 Add adversarial containment tests: pre-existing dirty file conflict, untracked file deletion safety, containment escalation on failed rollback, and trailer formatting with multiline commit bodies.
+  - Depends on: E-06
+  - Expected outcome: All adversarial edge case tests assert correct containment receipts and fail-closed escalation.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
 - `orchestrate_isolation.py` defines the canonical worktree lease manager for parallel lanes.
 - Commit trailers must follow Git trailer conventions (`Key: Value` at the end of the commit body, separated by a blank line).
+- Quarantine bundles live under `.aw/records/runs/<run-id>/quarantine/<item-id6>/`.
 
 ## Findings
 
 - If an agent modifies an out-of-scope file today, the runner aborts without cleanly isolating and rolling back the untracked or modified files created in that turn.
+- A failed containment must escalate to a run-wide abort rather than risking corrupted workspace state.
 
 ## Proposed changes (ordered, validatable)
 
 1. Implement `WorktreeContext` in `worktree_containment.py` (E-01).
-2. Implement 7-step `contain_item_failure()` transaction (E-02).
-3. Implement 6-class `ABORT RUN` classifier (E-03).
+2. Implement 7-step `contain_item_failure()` transaction and quarantine bundles (E-02).
+3. Implement 6-class `ABORT RUN` classifier and escalation (E-03).
 4. Implement `CommitGateway` with `AW-Run:`/`AW-Item:` trailers (E-04).
 5. Integrate with runner dispatch loop (E-05).
-6. Cover with unit and integration tests (E-06).
+6. Cover with comprehensive unit and adversarial tests in `test_fault_containment.py` (E-06, E-07).
 
 ## Deferred / out of scope (with reason)
 
@@ -93,7 +101,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: none. Strictly implements worktree isolation, containment, and commit gateway mechanics.
-- Under-scope: none. Covers all 7 steps of the containment transaction and the 6 abort classes.
+- Under-scope: none. Covers all 7 steps of the containment transaction, quarantine bundles, and the 6 abort classes.
 
 ## Required tests / validation
 
@@ -124,12 +132,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: Test session showing out-of-scope mutation rolled back to baseline with `contained: true` recorded in output.
+  - Required evidence: Test session showing out-of-scope mutation rolled back to baseline with `contained: true` and quarantine bundle written to disk.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: Test demonstrating only the 6 fatal classes aborting the run, with other failures cascading item-locally.
+  - Required evidence: Test demonstrating only the 6 fatal classes aborting the run, with other failures cascading item-locally, and escalation on failed restoration.
   - Observed evidence:
   - Result: pending
 
@@ -145,6 +153,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-06 validates E-06
   - Required evidence: `pytest tests/test_fault_containment.py` passing with test counts pasted.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: Adversarial test suite asserting clean rollback and escalation on simulated dirty state conflicts.
   - Observed evidence:
   - Result: pending
 

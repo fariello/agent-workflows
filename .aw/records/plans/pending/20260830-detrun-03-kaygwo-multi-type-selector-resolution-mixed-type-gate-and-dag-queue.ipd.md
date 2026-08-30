@@ -18,6 +18,7 @@
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): deepened selector precedence, mixed-type confirmation, dispatch handlers, tiebreaking rules, and DAG cascade algorithms.
 
 ## Goal
 
@@ -31,17 +32,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Create `agent_workflows/run_selector.py` implementing pure multi-type selector resolution across all 7 canonical artifact types (`ipd`, `spec`, `backlog`, `prompt`, `research`, `release`, `walkthrough`).
   - Depends on: none
-  - Expected outcome: Resolution applies canonical precedence (path, id6, set, status, stem, substring), enforces `all` default (IPDs only unless `--type` specified), rejects ambiguous unique selectors, and deduplicates by identity.
+  - Expected outcome: Resolution applies canonical precedence (path, id6, set, status, stem, substring), enforces `all` default (IPDs only unless `--type` specified), rejects ambiguous unique selectors (exit 4), handles zero matches (exit 2), and deduplicates by `(type, stable_id, canonical_path)`.
   - Execution state: pending
 
 - [ ] E-02 Implement the mixed-type confirmation gate in `agent_workflows/run_selector.py` and wire into CLI runner entry points.
   - Depends on: E-01
-  - Expected outcome: Prints sorted item count and action breakdown preview; requires exact `run mixed` confirmation interactively and `--allow-mixed` in unattended mode.
+  - Expected outcome: Prints sorted item count and action breakdown preview; requires exact `run mixed` confirmation interactively and `--allow-mixed` in unattended mode, refusing work with `[RUN-MIXED-TYPES]` if unconfirmed.
   - Execution state: pending
 
 ### Task group 2: Per-type and status dispatch table
 
-- [ ] E-03 Create `agent_workflows/run_dispatch.py` implementing the complete per-type lifecycle dispatch table from spec Section 3.
+- [ ] E-03 Create `agent_workflows/run_dispatch.py` implementing the complete per-type lifecycle dispatch table from spec Section 3 for IPDs, specs, backlog items, prompt files, and non-runnable records.
   - Depends on: E-01
   - Expected outcome: Evaluates item type and status to choose next legal action packet, handling IPD review/execute, spec review/authoring, backlog graduation, prompt contract verification, and non-runnable skips.
   - Execution state: pending
@@ -55,12 +56,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 Create `agent_workflows/run_scheduler.py` implementing the pure DAG queue scheduler driven by declared `Item-Dependencies`.
   - Depends on: E-01, E-03
-  - Expected outcome: Constructs frozen queue DAG, evaluates runtime edge satisfaction, sorts ready items (dependency depth, type rank, Set, Order, id6), and yields actionable items sequentially.
+  - Expected outcome: Constructs frozen queue DAG, evaluates runtime edge satisfaction, sorts ready items (dependency depth, type rank `spec`->`backlog`->`ipd`->`prompt`, Set, Order, id6), and yields actionable items sequentially.
   - Execution state: pending
 
 - [ ] E-06 Implement the deterministic dependency failure cascade in `agent_workflows/run_scheduler.py`.
   - Depends on: E-05
-  - Expected outcome: When a prerequisite item fails, is capability-refused, or stops for input, direct and transitive dependents are marked `skipped` / `dependency_not_met` recording full root cause chains, while independent items continue.
+  - Expected outcome: When a prerequisite item fails, is capability-refused, or stops for input, direct and transitive dependents are marked `skipped` / `dependency_not_met` recording full root cause chains (`root_causes`, `blocking_dependency`, `chain`), while independent items continue.
   - Execution state: pending
 
 ### Task group 4: Runner integration and flags
@@ -70,9 +71,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Runners execute multi-item queues with full flag parity across interactive and unattended modes.
   - Execution state: pending
 
-### Task group 5: Test suite coverage
+### Task group 5: Test suite coverage and edge cases
 
-- [ ] E-08 Create `tests/test_run_selector_and_queue.py` covering resolution precedence, mixed-type confirmation, dispatch actions, spec/backlog handoffs, DAG topological scheduling, and cascade propagation.
+- [ ] E-08 Create `tests/test_run_selector_and_queue.py` covering resolution precedence, mixed-type confirmation, dispatch actions, spec/backlog handoffs, DAG topological scheduling, tiebreaking rules, and cascade propagation.
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-06, E-07
   - Expected outcome: Full pytest suite passes with comprehensive coverage across all selector and queue scheduling paths.
   - Execution state: pending
@@ -81,10 +82,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Precedence ordering: path -> id6 -> set -> status -> stem -> substring is the house standard across all `aw find` and selector commands.
 - Type rankings for scheduler tiebreaking: `spec`, `backlog`, `ipd`, `prompt`.
+- `--with-dependencies` expands the selection to the transitive declared dependency closure before freezing.
 
 ## Findings
 
 - Currently `oc_runipd.py` and `agy_runipd.py` assume all queue items are IPDs and order queue items solely by filename sort order.
+- Closing a backlog item `done` when its plans exist drops the release gate; the scheduler must enforce the `graduated` terminal state on graduation.
 
 ## Proposed changes (ordered, validatable)
 
@@ -151,7 +154,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: Test showing DAG queue scheduler executing independent nodes in correct topological priority order.
+  - Required evidence: Test showing DAG queue scheduler executing independent nodes in correct topological priority order with tiebreaking rules.
   - Observed evidence:
   - Result: pending
 

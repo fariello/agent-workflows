@@ -18,6 +18,7 @@
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
+- 2026-08-30 to-review (antigravity): deepened edge case integration, verification evidence matrices, and Set-level validation.
 
 ## Goal
 
@@ -31,7 +32,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-01 Execute and verify child plan `detrun-01` (`bmh754`): `Item-Dependencies` syntax parser, pure graph evaluator, and phased check/lint rules.
   - Depends on: none
-  - Expected outcome: `Item-Dependencies` grammar (`none`, `executed:<id6>`, `exists:<type>:<id6>`, `state:<type>:<status>:<id6>`) is enforced across `check_engine.py`, `ipd_lint.py`, `aw ipd dependencies set`, and the opt-in commit hook `ipd-dependency-statement-gate`.
+  - Expected outcome: `Item-Dependencies` grammar (`none`, `executed:<id6>`, `exists:<type>:<id6>`, `state:<type>:<status>:<id6>`) and `From-Spec` link metadata are enforced across `check_engine.py`, `ipd_lint.py`, `aw ipd dependencies set`, and the opt-in commit hook `ipd-dependency-statement-gate`.
   - Execution state: pending
 
 - [ ] E-02 Execute and verify child plan `detrun-02` (`a54m79`): Per-host capability descriptor, probe harness, and fail-closed action gating.
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Execute and verify child plan `detrun-03` (`kaygwo`): Multi-type selector resolution, mixed-type gate, and DAG queue scheduler.
   - Depends on: E-01, E-02
-  - Expected outcome: Unified `aw <host> run` resolves items across all 7 types (`ipd`, `spec`, `backlog`, `prompt`, `research`, `release`, `walkthrough`), enforces the `run mixed` confirmation gate, and executes ready items in pure DAG topological order.
+  - Expected outcome: Unified `aw <host> run` resolves items across all 7 types (`ipd`, `spec`, `backlog`, `prompt`, `research`, `release`, `walkthrough`), enforces the `run mixed` confirmation gate, and executes ready items in pure DAG topological order with dependency-not-met cascading.
   - Execution state: pending
 
 - [ ] E-04 Execute and verify child plan `detrun-04` (`k7o7el`): Isolated worktree fault containment, quarantine transaction, and commit gateway trailers.
@@ -51,14 +52,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 Execute and verify child plan `detrun-05` (`7f7782`): Fresh skeptical verifier session, tamper-evident run ledger, and deterministic completion checker.
   - Depends on: E-04
-  - Expected outcome: Fresh verifier session executes without inherited memory; deterministic checker validates Git state, receipts, and recipes; append-only ledger verifies run integrity; exit code policy and `--unverifiable-ok` aggregate neutrality are enforced.
+  - Expected outcome: Fresh verifier session executes without inherited memory; deterministic checker validates all 13 common checks; append-only ledger verifies run integrity; exit code policy and `--unverifiable-ok` aggregate neutrality are enforced.
   - Execution state: pending
 
 ## Child IPDs, sequence, and dependencies
 
 | Order | Id | Plan File | What it does | Item-Dependencies |
 |---|---|---|---|---|
-| 01 | `bmh754` | `20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md` | `Item-Dependencies` syntax parser, graph evaluator, phased checks, and setter | `none` |
+| 01 | `bmh754` | `20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md` | `Item-Dependencies` syntax parser, graph evaluator, `From-Spec` links, phased checks, and setter | `none` |
 | 02 | `a54m79` | `20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md` | Per-host capability descriptor, probe harnesses (`oc`/`agy`), and fail-closed preflight | `executed:bmh754` |
 | 03 | `kaygwo` | `20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md` | Multi-type selector resolution, mixed-type confirmation gate, and DAG queue scheduler | `executed:bmh754`, `executed:a54m79` |
 | 04 | `k7o7el` | `20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md` | Worktree isolation, fault containment transaction, and commit gateway trailers | `executed:kaygwo` |
