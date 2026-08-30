@@ -27,6 +27,8 @@
 
 - 2026-08-29 /plan-review (opencode (its_direct/pt3-claude-opus-5-1m-us)): APPROVE WITH REVISIONS APPLIED; PR-101..PR-108. Reviewed as the TARGET this pass (the previous entry was a cross-reference from the orchestrator review). The defect is real and F3's evidence re-verified exactly, but the FIX AS SPECIFIED WOULD NOT HAVE WORKED and two launch sites were missing. PR-101 (BLOCKER, FIXED): E-01/OQ-01 specified `-P` as the pin. Measured all four combinations against a decoy cwd with a distinguishable third copy present: plain `-m` imports the DECOY; `PYTHONPATH`-only STILL imports the decoy (because `sys.path[:2]` is `['', '<runner root>']`, so `''` wins); `-P`-only imports the DEFAULT-PATH copy, which equals the runner's own ONLY on an editable install; only `-P` PLUS the runner's package root on `PYTHONPATH` resolves to the runner's own copy. A `-P`-only fix would therefore have shipped green here (this checkout is editable) and silently run third-party code on a normal wheel install. E-01, OQ-01, Findings and the evidence bar now require the two-part positive pin. PR-102 (HIGH, FIXED): new F6. Both drivers' `run_checked` ALREADY prepend the runner's package root to the child `PYTHONPATH` (oc_runipd.py:190-196; agy_runipd.py:366-372), which reads as this plan's fix but is MEASURABLY INERT for the reason above, so two of the seven launch sites were falsely believed protected and the plan would have added a second pin beside a broken one. Added E-05/V-05 to repair it into ONE definition. PR-103 (HIGH, FIXED): new F7. Both drivers fall back to a bare `["aw", ...]` console script (oc_runipd.py:267-283; agy_runipd.py:440-456) that can carry no interpreter flag; the plan never mentioned it. Measured IMMUNE (a script's own dir, not cwd, heads `sys.path`: `aw --version` returned the real version from a decoy cwd while `-m` imported the decoy), so the fix is classification plus defence-in-depth env, not a rewrite. Added E-06/V-06 so the guard neither reports a false hole nor lets a later reader delete the fallback as if it were the vector. PR-104 (HIGH, FIXED): E-04's placement ("before the first nested `aw` of a run") had NO hook point, since every nested `aw` launches from per-item code (`execute_item`, oc_runipd.py:1885) and the first may be `set_plan_approved` or `driver_begin`; it now specifies a memoized check in the shared helper, or `run_queue` with the extra-subprocess cost stated. Also hardened its mechanism: the version string does discriminate (measured lane `dev1485+gb0a59cb` vs main `dev1499+g49096ee`) but is git-describe derived and collides for same-commit-different-content trees, so the module PATH is now the primary signal. PR-105 (HIGH, FIXED): OQ-02 was `Blocking: no / open / Owner: maintainer` while E-04 could not be implemented without it; resolved RUN-FATAL from spec `25kzda` 1.4/A1 (a control-plane identity mismatch is repo-wide, not item-scoped; contrast the correctly item-scoped `dependency-blocked` at oc_runipd.py:78), so no question remains open. PR-106 (MEDIUM, FIXED): falsifiability was one-directional and the fixture two-package, which cannot distinguish "pinned to the runner" from "merely not the lane" and passes trivially on this editable checkout; now four directions and a three-package fixture. PR-107 (MEDIUM, FIXED): the end-to-end check demanded a lane based before `6332a04`, which the runner CANNOT build (`base_commit="HEAD"` hardcoded, oc_runipd.py:478, no CLI override); replaced with a manual-worktree-or-unit-level form plus a cleanup requirement, and the stale test baseline was replaced with per-HEAD measurement (re-measured `1 failed, 2875 passed` fast / `5 failed, 3202 passed` full at `49096ee`) and by-name attribution including `i79rgh`'s oscillating test. PR-108 (LOW, FIXED): F2's lane `8zgybk` no longer exists so that observation is not re-runnable (noted, reproduce synthetically); all cited line numbers re-verified at `49096ee` and the drifted ones corrected (`driver_finalize` caller `:2198`->`:2217`, `:2212`->`:2231`; sites now cited by FUNCTION NAME); confirmed agy has 3 module-launch sites to oc's 4 so symmetry must not assert equal counts; added the missing scope fence, honesty rule, and questions-resolved statement to the gate. Verified clean: `aw ipd lint` conforming at author and review-finalize, E/V bijection 6/6, size 6 leaves / 2 groups (standard, re-checked), `stdin=DEVNULL` present at all six launches, leak scan clean. Readiness: GO - PENDING HUMAN APPROVAL.
 
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): EXECUTED at HEAD be49ac4 in lane worktree af7i6p, driver run-20260830T044535Z-4115669 position 02. All 6 E-items performed, all 6 V-items pass with pasted evidence. MECHANISM SHIPPED (E-01/OQ-01 required this be stated): option (i-b), a `-c` runpy bootstrap stripping the cwd from sys.path plus the runner's package root on PYTHONPATH, recorded as decision 02-af7i6p-D1. The floor gap the second review flagged as a BLOCKER is CLOSED WITH MEASUREMENT rather than deferred: I installed a real CPython 3.9.25 via `uv python install 3.9` (the plan believed 3.9/3.10 were unavailable here and that CI or a container would be needed) and confirmed on it that `-P` is REJECTED and PYTHONSAFEPATH=1 is SILENTLY IGNORED (it imported the decoy; sys.flags.safe_path ABSENT), then confirmed the shipped bootstrap resolves to the designated parent on 3.9.25, 3.11 and 3.12 alike. The floor was NOT narrowed, so no pyproject.toml/CI edit was needed and the scope fence held at exactly the three declared files. Four-way pin matrix reproduced as the reviews predicted: plain -m -> DECOY; PYTHONPATH-only -> DECOY (F6's half-pin inert, now repaired to ONE definition); suppression-only -> THIRD default-path copy (the wrong-copy case the editable install hides); both halves -> PARENT. End-to-end through the shipped helpers from a decoy cwd: BEFORE rc=42 'MARKER=DECOY-LANE', AFTER rc=0 real CLI. Guard enumerates 7 module-launch sites (4 oc + 3 agy) all pinned, 0 unpinned, plus 2 console-script sites classified explicitly, matching F8's corrected arithmetic exactly. TWO REAL TRAPS FOUND AND CLOSED that the plan did not name: (1) under `-m`, sys.path[0] is the ABSOLUTE cwd, not '', so a filter removing only ''/'.' would have been INERT -- the shipped filter removes the resolved cwd too; (2) ToolIdentityError subclasses DriverError, which `run_queue` already catches per-item, so the OQ-02 run-fatal abort would have been SILENTLY DOWNGRADED to one item `failed-safely` -- both drivers now catch it FIRST and re-raise, with the clause ordering asserted. Also fixed a genuine regression I introduced: naming the E-04 probe's local `argv` made the sibling ttywedge guard (test_nested_tty_noninteractive) miscount oc as having a 4th nested-`aw` launcher, breaking its 4-vs-3 symmetry assertion; renamed to `probe_argv` (it is a read-only import probe, not a CLI invocation), which restores 16/16 there, and added a test so the miscount cannot recur. TESTS at HEAD be49ac4: new module 24 passed; falsifiability 18 of 24 FAIL against pre-fix drivers and 24 pass restored; injected unpinned site makes the guard FAIL with a precise diagnostic. Fast subset 15 failed / 2937 passed / 3 skipped / 4 xfailed, against a MEASURED pre-fix baseline at the same HEAD of 15 failed / 2912 passed (+25 = my new tests; failure count IDENTICAL). Full suite 19 failed / 3264 passed. All residual failures are pre-existing and attributed, not fixed: 15 in tests/test_run_viewer.py (owned by i79rgh; verified failing identically with my changes stashed and it never references my modules) and 4 CLI parser-leaf failures named by the plan (test_command_surface_declarations, test_cli_conformance_matrix x2, test_cli; also verified failing with my changes stashed). Note the plan's recorded baselines were stale a fourth time (it expected 0 fast failures); per its own instruction I measured my own and did not reuse its counts. tests/test_lane_session_isolation.py 6 passed unchanged. stdin=DEVNULL preserved at every pre-existing launch site. Leak scan clean (findings 0). `aw ipd lint --phase pre-transition` conforming. No worktree created and none pruned; no push.
+
 ## Goal
 
 Make the tool the runner invokes be the tool the runner IS. Today a nested `aw` inside a lane silently runs the lane branch's version of the lifecycle machinery against the real repository, so a fix can be verified green in `main` and still not apply where it matters, and two lanes in one run can enforce different lifecycle rules depending on their base commits.
@@ -37,37 +39,37 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin the interpreter's import path
 
-- [ ] E-01 Introduce ONE shared helper in `oc_runipd.py` that builds BOTH the argv prefix AND the child environment for a nested `aw` invocation, pinning module resolution POSITIVELY to the runner's own installation. The pin is TWO PARTS and neither alone is sufficient (all four combinations re-measured independently at the second review, see Project conventions): (a) a SUPPRESSING part that REMOVES the `''` cwd entry, and (b) a SELECTING part, the runner's own package root `str(Path(agent_workflows.__file__).resolve().parent.parent)`, PREPENDED to the child's `PYTHONPATH`. Measured: `-P` alone falls through to the default path (verified WRONG copy when the designated parent differs from site-packages); `PYTHONPATH` alone is inert because `''` precedes it (`sys.path[:2] == ['', '<runner root>']`); both together resolve to the runner's own copy. FLOOR-VERSION CORRECTION (second review, BLOCKING for the mechanism choice): the suppressing part has NO pre-3.11 spelling. `PYTHONSAFEPATH` is itself a 3.11 feature, the env-var form of `-P`, so it is NOT a 3.9/3.10 fallback and the previous instruction to use it as one was wrong. Choose ONE of the resolutions recorded in OQ-01 and STATE which shipped: (i) suppress via `-P`/`PYTHONSAFEPATH` on 3.11+ AND use a measured floor-version mechanism on 3.9/3.10, either launching from a NEUTRAL cwd with `--dir` (both `ipd begin` and `ipd finalize` already accept it, verified) or a `-c` bootstrap that strips `''`/`.` from `sys.path` before importing; or (ii) if the maintainer prefers, narrow the runner's supported floor and say so explicitly rather than shipping a pin that silently degrades below 3.11. Do NOT use `-I` or `-E` for the suppressing part: both discard `PYTHONPATH` and so destroy the selecting half (verified: `-I` with `PYTHONPATH` set failed to import at all). Route all four existing nested-`aw` module-launch sites (`set_plan_approved` oc_runipd.py:248-249, `finalize_orchestrator` :317-318, `driver_begin` :356-357, `driver_finalize` :425-426; all re-verified at HEAD `96e3374`) through the helper, so the two that use `run_checked` and the two that call `subprocess.run` directly all get the same argv AND env. Do NOT change the host-agent `Popen`: the agent turn is supposed to run in the lane.
+- [x] E-01 Introduce ONE shared helper in `oc_runipd.py` that builds BOTH the argv prefix AND the child environment for a nested `aw` invocation, pinning module resolution POSITIVELY to the runner's own installation. The pin is TWO PARTS and neither alone is sufficient (all four combinations re-measured independently at the second review, see Project conventions): (a) a SUPPRESSING part that REMOVES the `''` cwd entry, and (b) a SELECTING part, the runner's own package root `str(Path(agent_workflows.__file__).resolve().parent.parent)`, PREPENDED to the child's `PYTHONPATH`. Measured: `-P` alone falls through to the default path (verified WRONG copy when the designated parent differs from site-packages); `PYTHONPATH` alone is inert because `''` precedes it (`sys.path[:2] == ['', '<runner root>']`); both together resolve to the runner's own copy. FLOOR-VERSION CORRECTION (second review, BLOCKING for the mechanism choice): the suppressing part has NO pre-3.11 spelling. `PYTHONSAFEPATH` is itself a 3.11 feature, the env-var form of `-P`, so it is NOT a 3.9/3.10 fallback and the previous instruction to use it as one was wrong. Choose ONE of the resolutions recorded in OQ-01 and STATE which shipped: (i) suppress via `-P`/`PYTHONSAFEPATH` on 3.11+ AND use a measured floor-version mechanism on 3.9/3.10, either launching from a NEUTRAL cwd with `--dir` (both `ipd begin` and `ipd finalize` already accept it, verified) or a `-c` bootstrap that strips `''`/`.` from `sys.path` before importing; or (ii) if the maintainer prefers, narrow the runner's supported floor and say so explicitly rather than shipping a pin that silently degrades below 3.11. Do NOT use `-I` or `-E` for the suppressing part: both discard `PYTHONPATH` and so destroy the selecting half (verified: `-I` with `PYTHONPATH` set failed to import at all). Route all four existing nested-`aw` module-launch sites (`set_plan_approved` oc_runipd.py:248-249, `finalize_orchestrator` :317-318, `driver_begin` :356-357, `driver_finalize` :425-426; all re-verified at HEAD `96e3374`) through the helper, so the two that use `run_checked` and the two that call `subprocess.run` directly all get the same argv AND env. Do NOT change the host-agent `Popen`: the agent turn is supposed to run in the lane.
   - Depends on: none
   - Expected outcome: all four oc module-launch sites build argv AND env through the one helper; a nested `aw` launched with `cwd` inside a lane resolves `agent_workflows` to the RUNNER's own module path, proven by equality with the parent's path and version, not merely by differing from the lane's; and the behavior on a 3.9/3.10 interpreter is stated explicitly as either pinned by a named mechanism or out of support, never left implicit.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Fix the `run_checked` half-pin rather than leaving a second, contradictory mechanism in place. Both drivers' `run_checked` ALREADY prepend the runner's package root to `PYTHONPATH` (oc_runipd.py:190-194; agy_runipd.py:366-372), which LOOKS like this plan's fix but is measurably INERT on its own: with a decoy package in the child cwd, the `run_checked` shape still imported the decoy, because `''` precedes `PYTHONPATH` in `sys.path`. Do NOT add a third path: make `run_checked` obtain its env from the E-01 helper (or add the suppressing part to what it already builds) so there is exactly ONE definition of the pin. Note `run_checked` backs THREE of the seven module-launch sites (oc :248, :317; agy :421), not two as F6 previously said (see F8), and it is also the caller used by the two console-script fallbacks, so repairing it is the highest-leverage single edit in this plan. Leaving the existing half-pin untouched would strand a mechanism that reads as protective but is not, which is the same silent-wrongness class this plan exists to remove.
+- [x] E-05 Fix the `run_checked` half-pin rather than leaving a second, contradictory mechanism in place. Both drivers' `run_checked` ALREADY prepend the runner's package root to `PYTHONPATH` (oc_runipd.py:190-194; agy_runipd.py:366-372), which LOOKS like this plan's fix but is measurably INERT on its own: with a decoy package in the child cwd, the `run_checked` shape still imported the decoy, because `''` precedes `PYTHONPATH` in `sys.path`. Do NOT add a third path: make `run_checked` obtain its env from the E-01 helper (or add the suppressing part to what it already builds) so there is exactly ONE definition of the pin. Note `run_checked` backs THREE of the seven module-launch sites (oc :248, :317; agy :421), not two as F6 previously said (see F8), and it is also the caller used by the two console-script fallbacks, so repairing it is the highest-leverage single edit in this plan. Leaving the existing half-pin untouched would strand a mechanism that reads as protective but is not, which is the same silent-wrongness class this plan exists to remove.
   - Depends on: E-01
   - Expected outcome: `run_checked` in both drivers pins via the single shared definition; a test proves the pre-fix `run_checked` shape imported a decoy and the post-fix one does not; no second copy of the pinning logic exists.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Apply the same pinning symmetrically in `agy_runipd.py` at its three nested-`aw` module-launch sites (`set_plan_approved` agy_runipd.py:422, `driver_begin` :482, `driver_finalize` :549), reusing the shared helper rather than duplicating the logic. Keeping the two drivers symmetric is a hard requirement; a one-driver-only fix is a defect. Note the asymmetry to preserve honestly: agy has THREE module-launch sites where oc has FOUR, because oc additionally has `finalize_orchestrator` (oc_runipd.py:318) and agy does not. Do not "fix" that by inventing a fourth agy site; assert symmetry over the sites that EXIST, and have the guard enumerate sites dynamically rather than hardcoding a count that a future commit will falsify.
+- [x] E-02 Apply the same pinning symmetrically in `agy_runipd.py` at its three nested-`aw` module-launch sites (`set_plan_approved` agy_runipd.py:422, `driver_begin` :482, `driver_finalize` :549), reusing the shared helper rather than duplicating the logic. Keeping the two drivers symmetric is a hard requirement; a one-driver-only fix is a defect. Note the asymmetry to preserve honestly: agy has THREE module-launch sites where oc has FOUR, because oc additionally has `finalize_orchestrator` (oc_runipd.py:318) and agy does not. Do not "fix" that by inventing a fourth agy site; assert symmetry over the sites that EXIST, and have the guard enumerate sites dynamically rather than hardcoding a count that a future commit will falsify.
   - Depends on: E-01
   - Expected outcome: all three agy module-launch sites route through the same helper; no driver-local reimplementation exists; the symmetry assertion passes without requiring equal site COUNTS.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove it and prevent recurrence
 
-- [ ] E-03 Add `tests/test_lane_tool_identity.py` asserting that a nested `aw` invoked for a lane resolves to the RUNNER's OWN `agent_workflows` (equal module path AND version to the parent), not merely something other than the lane's. Construct the adversarial case explicitly: a directory containing a DECOY `agent_workflows/` package used as the child `cwd`, plus a THIRD copy distinguishable from both parent and decoy, so a fix that lands on site-packages instead of the parent is caught rather than passing. Show the decoy is imported WITHOUT the fix and the parent's copy WITH it. FIXTURE DETAIL measured at the second review, which will otherwise cost the executor a confusing hour: probe with `-c "import agent_workflows; print(agent_workflows.__file__)"`, NOT with `-m agent_workflows --version`. A minimal decoy package has no `__main__.py`, so `-m` against it dies with "No module named agent_workflows.__main__; 'agent_workflows' is a package and cannot be directly executed" rather than reporting a wrong identity. That error still PROVES the decoy was selected, but it is an error path, so an assertion written against stdout will misread it as a failure to reproduce. Either give the decoy a `__main__.py` that prints its marker, or assert on the import probe; state which. Include a source/AST guard asserting every `sys.executable`+`-m agent_workflows` launch in both drivers carries BOTH pin parts (flag and env), enumerating the sites DYNAMICALLY so a new call site cannot be silently added and a drifting site count cannot falsify the guard. The guard must classify each site into one of THREE kinds, per F8's corrected arithmetic: `run_checked`-backed module launches (oc :248, :317; agy :421), raw-`subprocess.run` module launches (oc :356, :425; agy :481, :548), and console-script fallbacks (oc :270; agy :443, handled by E-06). Add a cross-driver symmetry assertion (over sites that exist, per E-02).
+- [x] E-03 Add `tests/test_lane_tool_identity.py` asserting that a nested `aw` invoked for a lane resolves to the RUNNER's OWN `agent_workflows` (equal module path AND version to the parent), not merely something other than the lane's. Construct the adversarial case explicitly: a directory containing a DECOY `agent_workflows/` package used as the child `cwd`, plus a THIRD copy distinguishable from both parent and decoy, so a fix that lands on site-packages instead of the parent is caught rather than passing. Show the decoy is imported WITHOUT the fix and the parent's copy WITH it. FIXTURE DETAIL measured at the second review, which will otherwise cost the executor a confusing hour: probe with `-c "import agent_workflows; print(agent_workflows.__file__)"`, NOT with `-m agent_workflows --version`. A minimal decoy package has no `__main__.py`, so `-m` against it dies with "No module named agent_workflows.__main__; 'agent_workflows' is a package and cannot be directly executed" rather than reporting a wrong identity. That error still PROVES the decoy was selected, but it is an error path, so an assertion written against stdout will misread it as a failure to reproduce. Either give the decoy a `__main__.py` that prints its marker, or assert on the import probe; state which. Include a source/AST guard asserting every `sys.executable`+`-m agent_workflows` launch in both drivers carries BOTH pin parts (flag and env), enumerating the sites DYNAMICALLY so a new call site cannot be silently added and a drifting site count cannot falsify the guard. The guard must classify each site into one of THREE kinds, per F8's corrected arithmetic: `run_checked`-backed module launches (oc :248, :317; agy :421), raw-`subprocess.run` module launches (oc :356, :425; agy :481, :548), and console-script fallbacks (oc :270; agy :443, handled by E-06). Add a cross-driver symmetry assertion (over sites that exist, per E-02).
   - Depends on: E-01, E-02, E-05
   - Expected outcome: the new module passes; the decoy-import assertion FAILS against pre-fix argv and passes after; the guard FAILS when an unpinned `-m agent_workflows` call site is injected AND when only one of the two pin parts is present; and every enumerated site is classified into one of the three kinds with none left `unknown`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Handle the `aw` CONSOLE-SCRIPT fallback that the argv/env pin CANNOT reach, so the guard's promise is honest. Both drivers fall back to a bare `["aw", ...]` invocation when the `-m` form raises `FileNotFoundError`/`OSError`, guarded by `shutil.which("aw")` (oc_runipd.py:267, argv at :270; agy_runipd.py:440, argv at :443; exactly one such site per driver, verified). That argv has no interpreter flags to carry the suppressing part. Measured at review and RE-CONFIRMED at the second review: the console script is ACTUALLY IMMUNE to this defect (from a decoy-containing cwd, `aw --version` reported the real installed version `1.3.0rc2.dev1503+g96e3374` while `python3 -m agent_workflows` resolved to the decoy), because a script's own directory, not the cwd, heads `sys.path`. So the correct action is NOT to "fix" it but to (a) pass the same pinned `PYTHONPATH` env for defence in depth, noting these fallbacks already route through `run_checked`, so E-05's repair reaches them for free and no separate env plumbing is needed, and (b) record the measured reason it is safe in a comment plus a test, so the E-03 guard does not silently treat a bare-`aw` site as an unpinned hole and a future reader does not delete the fallback believing it is the hijack vector.
+- [x] E-06 Handle the `aw` CONSOLE-SCRIPT fallback that the argv/env pin CANNOT reach, so the guard's promise is honest. Both drivers fall back to a bare `["aw", ...]` invocation when the `-m` form raises `FileNotFoundError`/`OSError`, guarded by `shutil.which("aw")` (oc_runipd.py:267, argv at :270; agy_runipd.py:440, argv at :443; exactly one such site per driver, verified). That argv has no interpreter flags to carry the suppressing part. Measured at review and RE-CONFIRMED at the second review: the console script is ACTUALLY IMMUNE to this defect (from a decoy-containing cwd, `aw --version` reported the real installed version `1.3.0rc2.dev1503+g96e3374` while `python3 -m agent_workflows` resolved to the decoy), because a script's own directory, not the cwd, heads `sys.path`. So the correct action is NOT to "fix" it but to (a) pass the same pinned `PYTHONPATH` env for defence in depth, noting these fallbacks already route through `run_checked`, so E-05's repair reaches them for free and no separate env plumbing is needed, and (b) record the measured reason it is safe in a comment plus a test, so the E-03 guard does not silently treat a bare-`aw` site as an unpinned hole and a future reader does not delete the fallback believing it is the hijack vector.
   - Depends on: E-01, E-02
   - Expected outcome: both console-script fallbacks receive the pinned env; a test documents and pins the measured immunity; the E-03 guard classifies these sites explicitly rather than by accident.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add a runtime identity assertion that FAILS CLOSED on mismatch instead of silently executing foreign code, recording its outcome in the run ledger (`append_jsonl` to the run's `events.jsonl`, oc_runipd.py:748) so a run is auditable after the fact. PLACEMENT (corrected at review): "before the first nested `aw` of a run" has no existing hook point, because every nested `aw` is launched from per-ITEM code (`execute_item`, oc_runipd.py:1885) and the first one may be `set_plan_approved` or `driver_begin` depending on the item's status. Implement it ONCE in the E-01 helper with a per-process memo so it runs on the first nested invocation whatever that is and costs nothing thereafter, rather than bolting it onto a specific verb; or, if placed in `run_queue` (oc_runipd.py:2515) instead, the executor must state that the probe is then an EXTRA subprocess rather than a check of a real invocation and justify it. MECHANISM: compare the child's reported version string against the parent's; measured at review this string DOES discriminate (a lane at its own base reported `1.3.0rc2.dev1485+gb0a59cb` versus the main tree's `1.3.0rc2.dev1499+g49096ee`), but it is derived from git describe, so it can COLLIDE when two trees sit on the same commit while differing in uncommitted content. Do not rely on the version alone: compare the resolved module PATH as the primary signal (there is no existing verb that prints it, so the probe must ask for it explicitly, e.g. `-c "import agent_workflows;print(agent_workflows.__file__)"`, and the executor must say which surface it used rather than assuming `--version` suffices). Per OQ-02 the mismatch is RUN-FATAL.
+- [x] E-04 Add a runtime identity assertion that FAILS CLOSED on mismatch instead of silently executing foreign code, recording its outcome in the run ledger (`append_jsonl` to the run's `events.jsonl`, oc_runipd.py:748) so a run is auditable after the fact. PLACEMENT (corrected at review): "before the first nested `aw` of a run" has no existing hook point, because every nested `aw` is launched from per-ITEM code (`execute_item`, oc_runipd.py:1885) and the first one may be `set_plan_approved` or `driver_begin` depending on the item's status. Implement it ONCE in the E-01 helper with a per-process memo so it runs on the first nested invocation whatever that is and costs nothing thereafter, rather than bolting it onto a specific verb; or, if placed in `run_queue` (oc_runipd.py:2515) instead, the executor must state that the probe is then an EXTRA subprocess rather than a check of a real invocation and justify it. MECHANISM: compare the child's reported version string against the parent's; measured at review this string DOES discriminate (a lane at its own base reported `1.3.0rc2.dev1485+gb0a59cb` versus the main tree's `1.3.0rc2.dev1499+g49096ee`), but it is derived from git describe, so it can COLLIDE when two trees sit on the same commit while differing in uncommitted content. Do not rely on the version alone: compare the resolved module PATH as the primary signal (there is no existing verb that prints it, so the probe must ask for it explicitly, e.g. `-c "import agent_workflows;print(agent_workflows.__file__)"`, and the executor must say which surface it used rather than assuming `--version` suffices). Per OQ-02 the mismatch is RUN-FATAL.
   - Depends on: E-01, E-02
   - Expected outcome: a deliberately mismatched child aborts the run with the named diagnostic and a ledger record; a matching child proceeds with the outcome recorded once per process; the check does not add a subprocess per nested call.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -156,35 +158,292 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the shared helper's source, showing it returns BOTH argv and env. Paste `grep -n` output showing all four oc module-launch sites (`set_plan_approved`, `finalize_orchestrator`, `driver_begin`, `driver_finalize`; at review oc_runipd.py:248, :317, :356, :425) routing through it, INCLUDING the two raw `subprocess.run` sites now receiving `env=`. Paste a launched child's argv AND its effective `PYTHONPATH`, showing both pin parts present. Paste the POSITIVE identity proof: the parent's `agent_workflows.__file__` and version, the child's, and an explicit equality, with the lane/decoy copy present and demonstrably not imported. Confirm `stdin=subprocess.DEVNULL` is still present at every launch site (the `g40w37` guarantee must not regress; re-verified at review as oc:203, :374, :450 and agy:379, :499, :573, all exact). ADDED AT THE SECOND REVIEW, and this V-item does NOT pass without it: state which suppressing mechanism shipped AND what happens on Python 3.9/3.10, where neither `-P` nor `PYTHONSAFEPATH` exists. Either paste evidence of the chosen floor-version mechanism working (neutral-cwd + `--dir`, or the `sys.path`-stripping `-c` bootstrap, per OQ-01), obtained from CI or a container since 3.9/3.10 are not installed on this machine, or state explicitly that the floor was narrowed with the maintainer's agreement. Do NOT record a pass whose evidence comes only from a 3.11+ interpreter while `requires-python` still says `>=3.9`; that is the same editable-install trap that made `-P`-only look correct.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2 (lane worktree .aw/worktrees/af7i6p).
 
-- [ ] V-02 validates E-02
+      MECHANISM THAT SHIPPED (E-01 required this be stated): OQ-01 option (i-b), the `-c` runpy
+      bootstrap, chosen and recorded as decision 02-af7i6p-D1. The helper returns BOTH argv and env:
+
+        def runner_package_root() -> str:          # SELECTING half's source of truth
+            return str(Path(__file__).resolve().parent.parent)
+
+        def pinned_child_env(env=None) -> dict[str,str]:   # SELECTING half
+            merged = os.environ.copy(); root = runner_package_root()
+            current = merged.get("PYTHONPATH","")
+            if root not in current.split(os.pathsep):
+                merged["PYTHONPATH"] = f"{root}{os.pathsep}{current}".rstrip(os.pathsep)
+            if env: merged.update(env)
+            return merged
+
+        def pinned_module_argv(args) -> list[str]:         # SUPPRESSING half
+            argv = [sys.executable]
+            if sys.version_info >= (3, 11): argv.append("-P")
+            argv.extend(["-c", _AW_PIN_BOOTSTRAP]); argv.extend(args); return argv
+
+      where _AW_PIN_BOOTSTRAP = _AW_PIN_STRIP + runpy.run_module("agent_workflows", "__main__"), and
+      _AW_PIN_STRIP drops {'', os.curdir, os.getcwd(), os.path.realpath(os.getcwd())} from sys.path.
+      NOTE a detail the plan did not state and which makes the naive filter INERT: under `-m`,
+      sys.path[0] is the ABSOLUTE cwd, not ''. Measured: `-m` reported path0='<TMP>/lane'. So
+      filtering only ''/'.' would have changed nothing; the shipped filter removes the absolute cwd.
+
+      ALL FOUR oc MODULE-LAUNCH SITES route through the helper (grep -n, HEAD above):
+        457:    cmd = pinned_module_argv(     <- set_plan_approved
+        535:    cmd = pinned_module_argv(     <- finalize_orchestrator
+        577:    cmd = pinned_module_argv(     <- driver_begin
+        591:        env=pinned_child_env(),   <-   ... its raw subprocess.run now receives env=
+        652:    cmd = pinned_module_argv(     <- driver_finalize
+        673:        env=pinned_child_env(),   <-   ... its raw subprocess.run now receives env=
+        405:    merged_env = pinned_child_env(env)   <- run_checked (E-05)
+      The two raw `subprocess.run` sites previously passed NO env= at all; both now do.
+
+      POSITIVE IDENTITY PROOF (four-way, with the decoy present and provably not imported):
+        FOUR-WAY PIN MATRIX (cwd contains a DECOY; a THIRD copy on the default path)
+          1. plain -c, no pin           -> DECOY-LANE
+          2. SELECTING half only        -> DECOY-LANE      (PYTHONPATH cannot beat cwd)
+          3. SUPPRESSING half only      -> THIRD-DEFAULT   (wrong copy!)
+          4. BOTH halves (shipped pin)  -> PARENT
+        REAL SHIPPED HELPERS vs the decoy CLI (decoy exits 42, prints its marker):
+          BEFORE (bare -m): rc=42 out='MARKER=DECOY-LANE'
+          AFTER  (pinned) : rc=0  out='agent-workflows 1.3.0rc2.dev1592+gbe49ac4.d20260830'
+        Child module path EQUALS the parent's, from a decoy cwd:
+          parent module : <REPO>/.aw/worktrees/af7i6p/agent_workflows/__init__.py
+          child module  : <REPO>/.aw/worktrees/af7i6p/agent_workflows/__init__.py
+          EQUAL to parent? True   (and the decoy's __init__.py existed throughout)
+
+      FLOOR-VERSION BEHAVIOR, MEASURED NOT ASSUMED. The plan said 3.9/3.10 are not installed here and
+      that evidence must come from CI or a container. I installed a REAL CPython 3.9.25 (`uv python
+      install 3.9`) and measured on it directly, which is strictly stronger:
+        $ python3.9 --version  ->  Python 3.9.25
+        [A] 3.9: `-P` flag exists?      -> usage: ... error (FLAG REJECTED)
+        [B] 3.9: PYTHONSAFEPATH=1 ?     -> DECOY-LANE  (SILENTLY IGNORED; imports the decoy)
+        [C] 3.9: sys.flags.safe_path    -> ABSENT
+      This CONFIRMS the plan's blocking finding: a `-P`/PYTHONSAFEPATH-only fix would leave every
+      floor interpreter hijackable while looking green on 3.11+. The SHIPPED bootstrap, run by that
+      same 3.9.25 from a decoy-containing cwd, resolves to the designated parent:
+        3.9 resolved -> PARENT-RUNNER <TMP>/parent/agent_workflows/__init__.py
+        py3.11: PARENT-RUNNER
+        py3.12: PARENT-RUNNER
+      So behavior is IDENTICAL across 3.9/3.11/3.12 and the floor was NOT narrowed (no pyproject.toml
+      or CI edit; option (ii) was not needed). Both drivers and the new test also parse under 3.9.
+      Test `test_pin_does_not_depend_on_the_version_specific_flag` omits `-P` entirely to pin this.
+
+      stdin=subprocess.DEVNULL NOT REGRESSED (g40w37): grep -c gives oc=4, agy=3. oc gained one
+      (the E-04 probe); all pre-existing launch sites keep it, and the ttywedge guard passes (16/16).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `grep -n` output for all three agy module-launch sites showing they use the same helper, plus an assertion demonstrating no driver-local duplicate of the pinning logic exists. Paste the symmetry assertion and show it does NOT depend on equal site counts (agy has three sites, oc four); state that the oc-only `finalize_orchestrator` asymmetry is expected and was not "fixed" by inventing a site.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2.
 
-- [ ] V-03 validates E-03
+      ALL THREE agy MODULE-LAUNCH SITES use the SAME helper (grep -n):
+        427:    cmd = pinned_module_argv(     <- set_plan_approved
+        495:    cmd = pinned_module_argv(     <- driver_begin
+        509:        env=pinned_child_env(),   <-   ... raw subprocess.run now receives env=
+        566:    cmd = pinned_module_argv(     <- driver_finalize
+        587:        env=pinned_child_env(),   <-   ... raw subprocess.run now receives env=
+        378:    merged_env = pinned_child_env(env)   <- run_checked (E-05)
+
+      NO DRIVER-LOCAL DUPLICATE. agy IMPORTS the single definition from oc_runipd:
+        from agent_workflows.oc_runipd import (ToolIdentityError, assert_child_tool_identity,
+                                               pinned_child_env, pinned_module_argv)
+      and a combined grep for `def pinned_child_env|def pinned_module_argv|merged_env["PYTHONPATH"]
+      = f"{repo_src}` in agy_runipd.py returns 0 matches. Identity of the function OBJECTS is
+      asserted, which is stronger than textual similarity:
+        agy_runipd.pinned_module_argv is oc_runipd.pinned_module_argv -> True
+        agy_runipd.pinned_child_env   is oc_runipd.pinned_child_env   -> True
+      (test_both_drivers_share_one_definition_of_the_pin). No import cycle: oc does not import agy.
+
+      SYMMETRY WITHOUT EQUAL COUNTS. test_both_drivers_are_fixed_symmetrically_over_existing_sites
+      asserts oc >= 4 and agy >= 3 pinned sites and that BOTH carry the af7i6p marker, rather than
+      comparing counts. The oc-only asymmetry is EXPECTED and was NOT "fixed" by inventing a site:
+        oc has finalize_orchestrator : True
+        agy has finalize_orchestrator: False
+      The test asserts `not hasattr(agy_runipd, "finalize_orchestrator")` so that if agy ever gains
+      one, the symmetry check FAILS loudly instead of passing by accident.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the new test module passing, then FALSIFIABILITY in FOUR directions, each with actual output: (a) plain `-m` imports the decoy and the test FAILS; (b) `PYTHONPATH`-only still imports the decoy (the F6 case); (c) `-P`-only imports the third default-path copy, not the parent's, and the test FAILS; (d) an injected unpinned or HALF-pinned call site makes the guard FAIL. Also paste (e) the one-driver-only case failing the symmetry assertion. Confirm the fixture contained three distinguishable packages, and state whether the probe used `-c "import agent_workflows; print(...)"` or a decoy `__main__.py`, since a bare `-m` against a `__main__`-less decoy exits on an error path rather than printing a wrong identity (measured at the second review). ADDED AT THE SECOND REVIEW: paste the guard's per-site classification output showing all seven module-launch sites plus the two console-script sites accounted for, matching F8's corrected split (3 `run_checked`-backed, 4 raw `subprocess.run`, 2 console-script), with none `unknown`. Restore and paste the passing run.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2.
 
-- [ ] V-04 validates E-04
+      NEW MODULE PASSES (24 tests):
+        $ python3 -m pytest tests/test_lane_tool_identity.py -o addopts="" -q -p no:randomly
+        ........................                                                 [100%]
+        24 passed in 1.19s
+
+      FALSIFIABILITY, FOUR DIRECTIONS (a)-(d) plus (e), each measured:
+      (a) plain `-m` imports the decoy -> test_unpinned_launch_imports_the_lane_decoy. Matrix row 1
+          gives DECOY-LANE, and the decoy CLI actually RAN: rc=42, out='MARKER=DECOY-LANE'.
+      (b) PYTHONPATH-only STILL imports the decoy (the F6 half-pin case) -> matrix row 2 gives
+          DECOY-LANE; test_selecting_half_alone_is_inert.
+      (c) suppression-only imports the THIRD default-path copy, NOT the parent -> matrix row 3 gives
+          THIRD-DEFAULT; test_suppression_only_lands_on_the_wrong_copy asserts BOTH that it is not
+          the decoy AND that it is not the parent, which is what the editable install otherwise hides.
+      (d) an injected UNPINNED call site makes the guard FAIL. Injected a real new site into
+          oc_runipd.py and ran the guard:
+            FAILED ...::test_no_unpinned_module_launch_sites_remain
+            oc_runipd has unpinned nested-`aw` launch site(s): [{'kind': 'module-unpinned',
+              'line': 550, 'src': "[sys.executable, '-m', 'agent_workflows', 'ipd', 'set',
+              'executed']"}]
+          Injection then reverted (grep for the injected name returns 0) and the guard passes again.
+          HALF-pinning is caught separately by test_guard_fails_on_a_half_pinned_site, which requires
+          BOTH a suppressing marker and a selecting marker per driver.
+      (e) a one-driver-only fix fails the symmetry assertion: proven by running the WHOLE new module
+          against the PRE-FIX drivers (git-stashed), where 18 of 24 failed including
+          test_both_drivers_are_fixed_symmetrically_over_existing_sites and
+          test_both_drivers_share_one_definition_of_the_pin:
+            18 failed, 6 passed in 0.80s        <- pre-fix drivers
+            24 passed in 1.25s                  <- fix restored
+          (The 6 that pass pre-fix are the defect-REPRODUCTION tests, which must pass either way.)
+
+      FIXTURE: THREE distinguishable packages, per the plan's requirement -- DECOY-LANE in the child
+      cwd, PARENT-RUNNER as the designated parent, THIRD-DEFAULTPATH reachable only later on the
+      path. PROBE SURFACE (the plan asked which was used): the import probe
+      `import agent_workflows as a, os; print(os.path.realpath(a.__file__))`, NOT `-m ... --version`.
+      The decoys are ALSO given a `__main__.py` that prints their marker and exits 42, so the
+      "would the hijacked CLI actually run" question is answered on a success path, avoiding the
+      "cannot be directly executed" error path the second review warned would cost an hour.
+
+      PER-SITE CLASSIFICATION, enumerated DYNAMICALLY, matching F8's corrected arithmetic exactly:
+        oc_runipd: 5 sites
+          line   450  module-pinned    pinned_module_argv
+          line   480  console-script   ['aw', 'set', 'approved', id6, ...]
+          line   528  module-pinned    pinned_module_argv
+          line   570  module-pinned    pinned_module_argv
+          line   645  module-pinned    pinned_module_argv
+        agy_runipd: 4 sites
+          line   427  module-pinned    pinned_module_argv
+          line   454  console-script   ['aw', 'set', 'approved', id6, ...]
+          line   495  module-pinned    pinned_module_argv
+          line   566  module-pinned    pinned_module_argv
+        TOTALS: {'module-pinned': 7, 'console-script': 2}
+        module-launch total (pinned+unpinned): 7
+      That is F8's SEVEN module-launch sites (4 oc + 3 agy) plus the 2 console-script sites, with
+      ZERO 'module-unpinned' and NONE 'unknown'. (Line numbers here are from the classifier's own
+      output at this HEAD, i.e. post-edit, not the plan's pre-edit hints.)
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the refusal firing on a deliberately mismatched child, showing the named diagnostic and the ledger record, and showing the whole RUN aborted (not one item marked blocked), per the OQ-02 resolution which you must cite. Paste the matching-child case proceeding with its outcome recorded once per process. State where the check was placed and, if in `run_queue` rather than the helper, justify the extra subprocess. Paste evidence that the check compares the resolved module PATH and not the version string alone, and state how a same-commit different-content collision is handled.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2.
 
-- [ ] V-05 validates E-05
+      MISMATCHED CHILD -> RUN-FATAL REFUSAL with the named diagnostic and a ledger record:
+        raised: ToolIdentityError
+        is DriverError subclass: True
+        | ABORTING RUN: nested `aw` tool-identity mismatch. A nested `aw` would execute code OTHER
+        | than this runner's own installation, so every lifecycle transition this run performs would
+        | be gated by tooling the runner is not.
+        |   expected module: <REPO>/.aw/worktrees/af7i6p/agent_workflows/__init__.py
+        |   child resolved : /evil/lane/agent_workflows/__init__.py
+        |   probe cwd      : /tmp/tmp3bwgos9z
+        |   child version  : 9.9.9-lane
+        | This is run-fatal by design (plan af7i6p OQ-02; spec 25kzda 1.4/A1 reserves ABORT RUN for
+        | the identity/integrity class). Marking a single item blocked would be misleading, since the
+        | remaining items would run under the same wrong tooling.
+        LEDGER RECORD (events.jsonl):
+        | {"event": "tool-identity-mismatch", "expected_module": "<REPO>/agent_workflows/
+        |  __init__.py", "child_module": "/evil/lane/agent_workflows/__init__.py",
+        |  "child_version": "9.9.9-lane"}
+
+      THE WHOLE RUN ABORTS, NOT ONE ITEM BLOCKED, citing OQ-02 as required. OQ-02's resolution is
+      RUN-FATAL because a control-plane identity mismatch is repository-wide, not attributable to
+      whichever item happened to trigger the probe (spec 25kzda 1.4/A1). A REAL TRAP was found and
+      closed here: ToolIdentityError subclasses DriverError, and `run_queue` already catches
+      DriverError to mark ONE item `failed-safely`. Without an earlier clause the run-fatal abort
+      would have been SILENTLY DOWNGRADED to exactly the misleading per-item outcome OQ-02 rejects.
+      Both drivers therefore catch it first and re-raise, and the ordering is asserted, not assumed:
+        test_mismatch_is_run_fatal_not_item_local asserts `except ToolIdentityError` appears BEFORE
+        `except DriverError` in each driver's run_queue source (index comparison), for oc and agy.
+
+      MATCHING CHILD proceeds, recorded ONCE PER PROCESS:
+        event: tool-identity-verified
+        child_module: <REPO>/.aw/worktrees/af7i6p/agent_workflows/__init__.py
+        ledger lines after 2 calls: 1 -> 1 (memoized)
+
+      PLACEMENT: in `execute_item` (both drivers), immediately BEFORE `driver_begin`, i.e. ahead of
+      the first nested `aw` that could perform a lifecycle transition, with a per-process memo. It is
+      NOT in `run_queue`, so the extra-subprocess justification the plan demanded for that
+      alternative does not apply; the memo means it costs one subprocess per RUN, not per nested
+      call (test_matching_child_passes_and_records_once proves the ledger does not grow on a second
+      call; test_assertion_is_invoked_before_the_first_nested_lifecycle_call proves the ordering).
+
+      PRIMARY SIGNAL IS THE MODULE PATH, not the version. The comparison is
+      `child_file != expected` on os.path.realpath'd module paths; the version is recorded as
+      secondary context only. COLLISION HANDLING (the plan asked how): two trees on the same commit
+      with different uncommitted content produce the SAME git-describe version, so a version-based
+      check would pass a hijack; the path differs whenever the tree differs, so the path is
+      authoritative and the version is never used to decide. test_identity_check_uses_the_module_
+      path_as_primary_signal pins this.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the pre-fix proof that `run_checked`'s existing `PYTHONPATH` prepend is INERT (its env shape importing the decoy), then the post-fix proof that the same shape imports the parent's copy. Paste `grep -n` showing exactly ONE definition of the pin across both drivers, with `run_checked` consuming it rather than carrying its own second copy.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2.
 
-- [ ] V-06 validates E-06
+      PRE-FIX PROOF THAT THE EXISTING PREPEND WAS INERT. The pre-fix `run_checked` env shape was
+      `PYTHONPATH=<runner root>` with no cwd suppression. Measured from a decoy-containing cwd:
+        2. SELECTING half only (== the old run_checked shape) -> DECOY-LANE
+      and the reason, measured directly:
+        PYTHONPATH=<parent> python3 -c 'print(sys.path[:3])'
+          -> ['', '<TMP>/parent', '<PYROOT>/python314.zip']
+      i.e. '' precedes PYTHONPATH, so the prepend could never win. Under `-m` it is worse still: the
+      absolute cwd, not '', occupies sys.path[0]. The mechanism read as protective and was not.
+
+      POST-FIX PROOF THE SAME SHAPE NOW RESOLVES THE PARENT:
+        4. BOTH halves (shipped pin) -> PARENT
+      and end-to-end through the real helpers from a decoy cwd: rc=0,
+      out='agent-workflows 1.3.0rc2.dev1592+gbe49ac4.d20260830' (vs pre-fix rc=42
+      'MARKER=DECOY-LANE').
+
+      EXACTLY ONE DEFINITION OF THE PIN across both drivers. `run_checked` now consumes it rather
+      than carrying a second copy:
+        oc_runipd.py:405:    merged_env = pinned_child_env(env)
+        agy_runipd.py:378:   merged_env = pinned_child_env(env)
+      and the old per-driver construction is GONE, not left beside the fix: grep for
+      `def pinned_child_env|def pinned_module_argv|merged_env["PYTHONPATH"] = f"{repo_src}` in
+      agy_runipd.py returns 0. `pinned_child_env`/`pinned_module_argv` are DEFINED once in
+      oc_runipd.py and imported by agy; function-object identity is asserted (`is`) in
+      test_both_drivers_share_one_definition_of_the_pin. test_run_checked_no_longer_carries_its_own_
+      half_pin additionally asserts the token `repo_src` no longer appears in either run_checked.
+
+      LEVERAGE CONFIRMED: run_checked backs THREE of the seven module-launch sites (oc set_plan_
+      approved + finalize_orchestrator; agy set_plan_approved) AND both console-script fallbacks,
+      so this single repair reaches the E-06 sites for free, exactly as the plan predicted.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste both console-script fallback sites showing they receive the pinned env. Paste the measured immunity evidence (a bare `aw` invocation from a decoy-containing cwd resolving to the real package while `-m` from the same cwd imports the decoy) and the test that pins it. Paste the guard's output showing these sites are classified EXPLICITLY as console-script (not silently counted as pinned, and not reported as unpinned holes).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: |
+      MEASURED AT HEAD be49ac476a49010e111b295104bd07e259bf54f2.
+
+      BOTH CONSOLE-SCRIPT FALLBACK SITES RECEIVE THE PINNED ENV, with no separate plumbing: each
+      bare `["aw", ...]` invocation is passed to `run_checked`, whose env now comes from
+      `pinned_child_env` (oc_runipd.py:405; agy_runipd.py:378). Sites classified at oc:480 and
+      agy:454 (see V-03's classification output), exactly one per driver.
+
+      MEASURED IMMUNITY, both directions from the SAME decoy-containing cwd:
+        test_console_script_is_immune_to_a_cwd_decoy      -> `aw --version` returns the REAL package
+          (stdout contains 'agent-workflows', rc=0, and never 'MARKER=DECOY-LANE')
+        test_the_m_form_from_the_same_cwd_would_have_been_hijacked -> the unpinned `-m` form from
+          that identical cwd yields 'MARKER=DECOY-LANE'
+      The contrast is what makes the immunity claim meaningful rather than incidental. REASON: a
+      console script places its OWN directory, not the cwd, at the head of sys.path, so no
+      interpreter flag is needed (and none can be passed on a bare `aw` argv). Recorded in a comment
+      at BOTH sites, including the explicit warning not to delete the fallback believing it is the
+      hijack vector -- it is not; the `-m` form was.
+
+      THE GUARD CLASSIFIES THESE SITES EXPLICITLY, not by accident: `_classify_sites` returns kind
+      'console-script' for them, and test_every_site_is_classified_and_none_unknown asserts EXACTLY
+      ONE per driver. So the guard neither reports a false unpinned hole nor silently counts them as
+      pinned. Output: {'module-pinned': 7, 'console-script': 2}, zero unpinned, none unknown.
+      The test skips cleanly if no `aw` console script is installed, rather than failing spuriously.
+  - Result: pass
 
 ## Approval and execution gate
 

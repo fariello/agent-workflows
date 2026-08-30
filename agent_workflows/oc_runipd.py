@@ -160,6 +160,205 @@ class StallTimeout(DriverError):
     pass
 
 
+class ToolIdentityError(DriverError):
+    """Raised when a nested ``aw`` would run code OTHER than the runner's own installation.
+
+    lanetruth Order 01 (af7i6p) / OQ-02: this is RUN-FATAL, not item-local. A tool-identity
+    mismatch means the control plane executing EVERY item's lifecycle transition is not the
+    code the runner believes it is, so the fault is not attributable to whichever item merely
+    happened to trigger the probe. Contrast ``dependency-blocked``, which is correctly
+    item-scoped. Spec 25kzda 1.4/A1 reserves ABORT RUN for exactly this identity class."""
+
+    pass
+
+
+# --- lanetruth Order 01 (af7i6p): pin nested `aw` to the RUNNER's OWN tooling -----------------
+#
+# THE DEFECT. Under worktree isolation the runner invokes a nested `aw` with `cwd` set to the
+# LANE worktree (`driver_finalize` receives the lane as its `repo` argument; see the
+# `finalize_repo` computation in `execute_item`). Python seeds `sys.path[0]` from the cwd for
+# both `-m` and `-c`, so a bare `[sys.executable, "-m", "agent_workflows", ...]` resolves the
+# package to the LANE BRANCH's checked-out copy. A lane that legitimately edits
+# `agent_workflows/` therefore had the runner execute that unreviewed, possibly mid-edit code
+# to perform the very transition meant to gate it, and two lanes in one run could enforce
+# different lifecycle rules depending on their base commits.
+#
+# THE PIN IS TWO PARTS AND NEITHER ALONE IS SUFFICIENT. Measured with three distinguishable
+# packages (a decoy in the child cwd, a designated parent copy, and a third copy reachable only
+# via the default path), because a two-package fixture cannot tell "pinned to the runner" from
+# "merely not the lane":
+#   1. plain `-m`                     -> imports the DECOY                      (the defect)
+#   2. PYTHONPATH=<runner root> only  -> STILL imports the decoy, because the cwd entry
+#                                        PRECEDES PYTHONPATH in sys.path        (inert)
+#   3. cwd suppression only           -> imports the DEFAULT-PATH copy, which equals the
+#                                        runner's own ONLY on an editable install (wrong copy)
+#   4. suppression + PYTHONPATH       -> imports the RUNNER's OWN copy          (correct)
+# So we need a SUPPRESSING part (remove the cwd entry) and a SELECTING part (put the runner's
+# own package root first). Only (4) satisfies the goal.
+#
+# WHY NOT `-P` / PYTHONSAFEPATH ALONE. `-P` and its env spelling `PYTHONSAFEPATH` are BOTH
+# CPython 3.11 features, so on the declared floor (`requires-python = ">=3.9"`, CI 3.9-3.14)
+# NEITHER exists. Measured on a real CPython 3.9.25: `python3.9 -P` is rejected outright, and
+# `PYTHONSAFEPATH=1` is SILENTLY IGNORED (it imported the decoy; `sys.flags.safe_path` is
+# absent). A `-P`-only fix would thus have left every floor interpreter hijackable while
+# looking green on 3.11+. `-I`/`-E` are NOT candidates either: both discard PYTHONPATH and so
+# destroy the selecting half (`-I` failed to import at all; `-E` imported the decoy).
+#
+# WHAT WE DO INSTEAD (OQ-01 option (i-b)). A tiny `-c` bootstrap strips the cwd entry from
+# `sys.path` and then hands off to `runpy.run_module("agent_workflows", run_name="__main__")`,
+# which is exactly what `-m` does. This is version-uniform (verified identical on 3.9.25 and
+# 3.14.6) and PRESERVES the lane cwd, which the plan requires: the lane cwd is deliberate for
+# path resolution, and only IMPORT resolution changes here. NOTE a detail that makes the naive
+# filter inert: under `-m`, `sys.path[0]` is the ABSOLUTE cwd, not `''`, so the bootstrap
+# removes `""`, `"."` AND the resolved cwd. On 3.11+ `-P` is ALSO passed as belt-and-braces (it
+# additionally blocks a cwd `sitecustomize.py`, which a post-startup filter cannot reach), but
+# correctness does NOT depend on it.
+#
+# The alternative of always launching from a NEUTRAL cwd and addressing the tree with `--dir`
+# was rejected: `--dir` is a PER-VERB flag (verified absent from `aw ipd lint`), so it cannot be
+# enforced at one guard-checkable choke point, and it would change the cwd the plan requires be
+# kept. See the plan's OQ-01 and decision 02-af7i6p-D1.
+
+# The suppressing half: drop the cwd entry BEFORE `agent_workflows` is ever imported.
+_AW_PIN_STRIP = (
+    "import os,sys\n"
+    "_cwd=os.getcwd()\n"
+    "_drop={'',os.curdir,_cwd,os.path.realpath(_cwd)}\n"
+    "sys.path[:]=[p for p in sys.path if p not in _drop]\n"
+)
+
+# Full bootstrap: strip the cwd, then do exactly what `-m agent_workflows` would do.
+_AW_PIN_BOOTSTRAP = (
+    _AW_PIN_STRIP
+    + "import runpy\n"
+    + 'runpy.run_module("agent_workflows",run_name="__main__",alter_sys=True)\n'
+)
+
+# Identity probe: same suppression, but report WHICH copy was selected instead of running the CLI.
+_AW_PIN_PROBE = _AW_PIN_STRIP + (
+    "import agent_workflows as _a\n"
+    "print(os.path.realpath(_a.__file__))\n"
+    "print(getattr(_a,'__version__',''))\n"
+)
+
+
+def runner_package_root() -> str:
+    """Absolute path of the directory CONTAINING the runner's own ``agent_workflows`` package.
+
+    This is the SELECTING half of the pin. Derived from this module's own location, so it names
+    the tooling the runner IS, not whatever a cwd or the default path happens to offer."""
+    return str(Path(__file__).resolve().parent.parent)
+
+
+def pinned_child_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Child environment with the runner's own package root PREPENDED to ``PYTHONPATH``.
+
+    The SELECTING half of the two-part pin (see the block comment above). Inert on its own,
+    because the cwd entry precedes ``PYTHONPATH`` in ``sys.path``; it must be paired with the
+    suppressing half from :func:`pinned_module_argv` (or, for the console-script fallback, with
+    that script's own inherent cwd-independence)."""
+    merged = os.environ.copy()
+    root = runner_package_root()
+    current = merged.get("PYTHONPATH", "")
+    if root not in current.split(os.pathsep):
+        merged["PYTHONPATH"] = f"{root}{os.pathsep}{current}".rstrip(os.pathsep)
+    if env:
+        merged.update(env)
+    return merged
+
+
+def pinned_module_argv(args: Sequence[str]) -> list[str]:
+    """argv invoking the RUNNER's OWN ``agent_workflows`` CLI with ``args``.
+
+    Replaces a bare ``[sys.executable, "-m", "agent_workflows", *args]``. Supplies the
+    SUPPRESSING half of the pin; pair it with :func:`pinned_child_env` for the selecting half.
+    Both halves are required (see the block comment above)."""
+    argv = [sys.executable]
+    # 3.11+ only: also blocks a cwd `sitecustomize.py`, which the bootstrap cannot. Correctness
+    # does not depend on it, so 3.9/3.10 behave identically via the bootstrap alone.
+    if sys.version_info >= (3, 11):
+        argv.append("-P")
+    argv.extend(["-c", _AW_PIN_BOOTSTRAP])
+    argv.extend(args)
+    return argv
+
+
+_TOOL_IDENTITY_VERIFIED: dict[str, Any] = {}
+
+
+def assert_child_tool_identity(
+    events_path: Path | None = None, cwd: Path | None = None
+) -> dict[str, Any]:
+    """Verify a pinned child resolves ``agent_workflows`` to the RUNNER's OWN copy; fail closed.
+
+    lanetruth Order 01 (af7i6p) E-04. Memoized per process, so it runs on the FIRST nested
+    invocation whatever that happens to be (``set_plan_approved`` or ``driver_begin`` depending
+    on the item's status) and costs nothing thereafter -- it does NOT add a subprocess per
+    nested call. Raises :class:`ToolIdentityError` on mismatch, which is RUN-FATAL per OQ-02.
+
+    The PRIMARY signal is the resolved module PATH, not the version string: the version is
+    derived from ``git describe`` and so can COLLIDE for two trees on the same commit that
+    differ in uncommitted content. The version is recorded as secondary context only."""
+    if _TOOL_IDENTITY_VERIFIED:
+        return _TOOL_IDENTITY_VERIFIED
+    parent_file = str(Path(__file__).resolve().parent / "__init__.py")
+    # Deliberately named `probe_argv`, NOT `argv`/`cmd`: this is a READ-ONLY identity probe that
+    # imports the package and prints a path, not a nested `aw` CLI invocation. The ttywedge guard
+    # (g40w37, tests/test_nested_tty_noninteractive.py) enumerates nested-`aw` launchers by that
+    # first-argument name and asserts the two drivers expose an EQUAL number of them; this probe
+    # is defined once here and merely IMPORTED by agy, so counting it as a launcher would create a
+    # false 4-vs-3 asymmetry. It still denies the child a terminal below, so the TTY guarantee is
+    # honored on the merits rather than by naming.
+    probe_argv = [sys.executable]
+    if sys.version_info >= (3, 11):
+        probe_argv.append("-P")
+    probe_argv.extend(["-c", _AW_PIN_PROBE])
+    # Probe from the most adversarial cwd available: the tree a nested call would use.
+    result = subprocess.run(
+        probe_argv,
+        cwd=str(cwd) if cwd else None,
+        env=pinned_child_env(),
+        text=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    lines = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
+    child_file = lines[0] if lines else ""
+    child_version = lines[1] if len(lines) > 1 else ""
+    expected = os.path.realpath(parent_file)
+    record: dict[str, Any] = {
+        "at": utc_now(),
+        "event": "tool-identity-verified",
+        "expected_module": expected,
+        "child_module": child_file,
+        "child_version": child_version,
+        "parent_version": globals().get("__version__", ""),
+        "probe_cwd": str(cwd) if cwd else os.getcwd(),
+    }
+    if child_file != expected:
+        record["event"] = "tool-identity-mismatch"
+        record["detail"] = (result.stderr or "").strip()[:500]
+        if events_path is not None:
+            append_jsonl(events_path, record)
+        raise ToolIdentityError(
+            "ABORTING RUN: nested `aw` tool-identity mismatch. A nested `aw` would execute "
+            "code OTHER than this runner's own installation, so every lifecycle transition "
+            "this run performs would be gated by tooling the runner is not.\n"
+            f"  expected module: {expected}\n"
+            f"  child resolved : {child_file or '<no output>'}\n"
+            f"  probe cwd      : {record['probe_cwd']}\n"
+            f"  child version  : {child_version or '<unknown>'}\n"
+            "This is run-fatal by design (plan af7i6p OQ-02; spec 25kzda 1.4/A1 reserves "
+            "ABORT RUN for the identity/integrity class). Marking a single item blocked would "
+            "be misleading, since the remaining items would run under the same wrong tooling."
+        )
+    if events_path is not None:
+        append_jsonl(events_path, record)
+    _TOOL_IDENTITY_VERIFIED.update(record)
+    return record
+
+
 class StallWatchdog:
     """Watchdog thread that terminates child process if stream is quiet for too long."""
 
@@ -235,13 +434,13 @@ def utc_now() -> str:
 def run_checked(
     argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    merged_env = os.environ.copy()
-    repo_src = str(Path(__file__).resolve().parent.parent)
-    cur_pp = merged_env.get("PYTHONPATH", "")
-    if repo_src not in cur_pp.split(os.pathsep):
-        merged_env["PYTHONPATH"] = f"{repo_src}{os.pathsep}{cur_pp}".rstrip(os.pathsep)
-    if env:
-        merged_env.update(env)
+    # lanetruth Order 01 (af7i6p) E-05: this function USED to build the PYTHONPATH prepend
+    # itself. That read as a pin but was MEASURABLY INERT, because the cwd entry precedes
+    # PYTHONPATH in sys.path, so a child launched from a lane still imported the lane's copy.
+    # It now delegates to the single shared definition (`pinned_child_env`), and callers pass
+    # module argv built by `pinned_module_argv`, which supplies the SUPPRESSING half that makes
+    # the selecting half actually bite. One definition of the pin, not two.
+    merged_env = pinned_child_env(env)
     result = subprocess.run(
         argv,
         cwd=str(cwd) if cwd else None,
@@ -292,26 +491,35 @@ def set_plan_approved(
     repo: Path, id6: str, message: str = "Full-auto approval via runipd"
 ) -> None:
     """Transition a reviewed plan to approved via aw set approved --by-human."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "set",
-        "approved",
-        id6,
-        "--by-human",
-        "--yes",
-        "--no-commit",
-        "--dir",
-        str(repo),
-        "-m",
-        message,
-    ]
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
+    cmd = pinned_module_argv(
+        [
+            "set",
+            "approved",
+            id6,
+            "--by-human",
+            "--yes",
+            "--no-commit",
+            "--dir",
+            str(repo),
+            "-m",
+            message,
+        ]
+    )
     try:
         run_checked(cmd, cwd=repo)
         return
     except (FileNotFoundError, OSError):
         pass
+    # lanetruth Order 01 (af7i6p) E-06: CONSOLE-SCRIPT FALLBACK, and it is deliberately NOT
+    # rewritten. A bare `aw` argv can carry no interpreter flag, so the suppressing half of the
+    # pin cannot be expressed here -- but it is not needed: a console script puts its OWN
+    # directory, not the cwd, at the head of `sys.path`. MEASURED: from a cwd containing a decoy
+    # `agent_workflows/`, `aw --version` reported the real installed version while
+    # `python3 -m agent_workflows` from that same cwd imported the decoy. So this site is
+    # genuinely IMMUNE to the lane-shadowing defect. It still routes through `run_checked`, which
+    # supplies the pinned env (E-05), giving defence in depth for free. DO NOT delete this
+    # fallback believing it is the hijack vector -- it is not; the `-m` form was.
     if shutil.which("aw"):
         run_checked(
             [
@@ -361,21 +569,21 @@ def finalize_orchestrator(repo: Path, id6: str, message: str) -> bool:
     """Administratively transition an orchestrator to executed via `aw ipd set executed`
     (no agent turn). Returns True on success, False if the gated transition refused
     (in which case the caller leaves it for a human). The runner NEVER forces it."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "ipd",
-        "set",
-        "executed",
-        id6,
-        "--actor",
-        "aw oc run (orchestrator rollup)",
-        "--dir",
-        str(repo),
-        "-m",
-        message,
-    ]
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "set",
+            "executed",
+            id6,
+            "--actor",
+            "aw oc run (orchestrator rollup)",
+            "--dir",
+            str(repo),
+            "-m",
+            message,
+        ]
+    )
     try:
         run_checked(cmd, cwd=repo)
         return True
@@ -400,21 +608,25 @@ def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
     mirroring `set_plan_approved`/`finalize_orchestrator`); begin writes the gitignored
     `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
     (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority)."""
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "ipd",
-        "begin",
-        id6,
-        "--actor",
-        actor,
-        "--dir",
-        str(repo),
-    ]
+    # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. NOTE this particular site
+    # is NOT itself lane-shadowed -- it runs with `cwd=str(repo)` (the MAIN tree) and the lane is
+    # allocated only AFTER begin returns -- but it is pinned anyway so exactly one shape exists
+    # across all launch sites and no future refactor can quietly make it lane-relative.
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "begin",
+            id6,
+            "--actor",
+            actor,
+            "--dir",
+            str(repo),
+        ]
+    )
     result = subprocess.run(
         cmd,
         cwd=str(repo),
+        env=pinned_child_env(),
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -469,21 +681,26 @@ def driver_finalize(
     forces the transition (mirrors `finalize_orchestrator`): a refusal returns nonzero and the
     caller records the child NOT-executed. Returns (exit_code, stderr)."""
     reasons, acks = _compute_scope_reconciliation(repo, plan_path)
-    cmd = [
-        sys.executable,
-        "-m",
-        "agent_workflows",
-        "ipd",
-        "finalize",
-        id6,
-        "--actor",
-        actor,
-        "--message",
-        message,
-        "--apply",
-        "--dir",
-        str(repo),
-    ]
+    # lanetruth Order 01 (af7i6p): THE primary lane-shadowed site. `repo` here is the LANE
+    # worktree (the caller passes `finalize_repo = Path(work_dir) if (work_dir and wt_handle)
+    # else repo`), and `cwd=str(repo)` below keeps it that way DELIBERATELY, because finalize
+    # must resolve paths against the tree it is finalizing. Only IMPORT resolution is pinned:
+    # without this the lane's own (unreviewed, possibly mid-edit) `agent_workflows` would be the
+    # code performing the transition meant to gate it.
+    cmd = pinned_module_argv(
+        [
+            "ipd",
+            "finalize",
+            id6,
+            "--actor",
+            actor,
+            "--message",
+            message,
+            "--apply",
+            "--dir",
+            str(repo),
+        ]
+    )
     for path, reason in reasons.items():
         cmd.extend(["--scope-reason", f"{path}={reason}"])
     for path, note in acks.items():
@@ -491,6 +708,7 @@ def driver_finalize(
     result = subprocess.run(
         cmd,
         cwd=str(repo),
+        env=pinned_child_env(),
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -2280,6 +2498,12 @@ def execute_item(
     work_dir: str | None = None
     if self_finalize and not is_review:
         actor = driver_actor(state)
+        # lanetruth Order 01 (af7i6p) E-04: verify, ONCE per process, that a pinned nested `aw`
+        # really resolves to this runner's own tooling before we let one perform a lifecycle
+        # transition. Memoized, so this is the FIRST nested invocation's cost only and adds no
+        # per-call subprocess. A mismatch raises ToolIdentityError, which is RUN-FATAL (OQ-02)
+        # and propagates out of the queue loop rather than marking this one item blocked.
+        assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
         begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
@@ -2960,6 +3184,14 @@ def run_queue(
             continue
         try:
             execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
+        except ToolIdentityError:
+            # lanetruth Order 01 (af7i6p) E-04 / OQ-02: RUN-FATAL, so it must NOT be caught by the
+            # item-local `except DriverError` below (ToolIdentityError subclasses DriverError, so
+            # without this clause the abort would be silently downgraded to one item marked
+            # `failed-safely` while the remaining items kept running under the same wrong tooling
+            # -- exactly the misleading outcome OQ-02 rejects). Re-raise to abort the whole run.
+            save_state(run_dir, state)
+            raise
         except DriverError as exc:
             runnable["status"] = "failed-safely"
             runnable["driver_error"] = str(exc)
