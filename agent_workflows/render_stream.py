@@ -270,26 +270,24 @@ def format_statusline(
     if pal is None or not pal.enabled:
         return plain
 
-    # 256-color palette styling with very-light warm orange-yellow background (color 222)
-    bg = "\033[48;5;222m"
-    fg_base = "\033[38;5;235m"
-    fg_bold = "\033[1;38;5;232m"
-    fg_div = "\033[38;5;137m"
-    fg_bar = "\033[38;5;22m"
-    fg_target = "\033[1;38;5;18m"
-    fg_cost = "\033[1;38;5;28m"
+    # Bold light blue styling (no background) with gentle foreground highlights
+    b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
+    b_clock = "\033[1;38;5;123m"  # pale bright cyan
+    b_bar = "\033[1;38;5;78m"  # light emerald green
+    b_target = "\033[1;38;5;229m"  # soft cream/yellow
+    b_cost = "\033[1;38;5;114m"  # light green
+    div = "\033[38;5;67m │ \033[1;38;5;117m"  # slate divider
     reset = _ANSI_RESET
 
-    c_clock = f"{fg_bold}{t_str}{fg_base}"
-    c_elapsed = f"{fg_base}{seg2}"
-    c_bar = f"{fg_bar}{seg3}{fg_base}"
-    c_target = f"{fg_target}{target}{fg_base}"
-    c_cost = f"{fg_cost}{cost_str}{fg_base}"
-    c_tokens = f"{fg_base}{seg6}"
+    c_clock = f"{b_clock}{t_str}{b_blue}"
+    c_elapsed = f"{b_blue}{seg2}"
+    c_bar = f"{b_bar}{seg3}{b_blue}"
+    c_target = f"{b_target}{target}{b_blue}"
+    c_cost = f"{b_cost}{cost_str}{b_blue}"
+    c_tokens = f"{b_blue}{seg6}"
 
-    div = f" {fg_div}│{fg_base} "
     content = div.join([c_clock, c_elapsed, c_bar, c_target, c_cost, c_tokens])
-    return f"{bg}{fg_base} {content} {reset}"
+    return f"{b_blue}{content}{reset}"
 
 
 class Statusline:

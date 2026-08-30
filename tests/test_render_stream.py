@@ -323,7 +323,8 @@ class StatuslineUnitTests(unittest.TestCase):
             pal=pal,
         )
 
-        self.assertIn("\033[48;5;222m", colored)  # 256-color warm background
+        self.assertIn("\033[1;38;5;117m", colored)  # Bold sky light blue
+        self.assertNotIn("\033[48;", colored)  # No background color
         self.assertIn("\033[0m", colored)
         # Stripping ANSI recovers clean content
         stripped = render_stream._strip_ansi(colored).strip()
