@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
 - Item-Dependencies: none
 - Status: to-review
+- Blocks-Release: next
 - Set: wtisoland
 - Order: 1
 - Highest E allocated: 07
@@ -15,6 +16,7 @@
 - From-Backlog: xmqv5l
 
 ## Workflow history
+- 2026-08-30 to-review (aw set): status set to to-review
 - 2026-08-30 to-review (aw set): status set to to-review
 
 - 2026-08-29 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

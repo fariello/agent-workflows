@@ -34,14 +34,23 @@ dependencies = []
 # in parallel and never serially. Install the test deps with `make install-dev`,
 # `pip install '.[test]'`, or `pip install --group dev` (PEP 735 group below). pytest is
 # only the runner; the tests themselves are plain stdlib `unittest.TestCase`.
+#
+# pytest-randomly is DECLARED because it CHANGES OBSERVED BEHAVIOR: it shuffles test order
+# every run, which is how order-dependence bugs get caught. It was previously present in
+# maintainer venvs but absent from this file, so a clean `pip install '.[test]'` (and CI)
+# ran a DIFFERENT, unshuffled suite than the maintainer did - an undeclared dep that alters
+# results is a reproducibility hole, not a convenience. Declaring it makes the shuffle a
+# property of the project. Reproduce a failing order with `-p randomly --randomly-seed=<n>`
+# (the seed is printed in the run header); never paper over an order failure with
+# `-p no:randomly`, which hides the bug instead of fixing it.
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-xdist>=3"]
+test = ["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3"]
 
 # PEP 735 dependency group so `pip install --group dev` (or `pip install -e . --group dev`)
 # always pulls the tools needed to work on this repo, guaranteeing pytest-xdist is present
 # and the suite runs in parallel. Mirrors the `test` extra; kept in sync with it.
 [dependency-groups]
-dev = ["pytest>=8", "pytest-xdist>=3"]
+dev = ["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3"]
 
 [project.urls]
 Homepage = "https://github.com/fariello/agent-workflows"

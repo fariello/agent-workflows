@@ -2476,3 +2476,55 @@ both execute the (large) set well.
 - **Honest limits:** finalize CAN deterministically catch out-of-scope edits (frozen-Scope-Paths diff) and greenwashed/unattributed terminal records (attribution lint); it CANNOT know the agent skipped files it should have changed beyond surfacing the in-scope-unmodified delta, nor judge whether tests were sufficient - those remain the job of V-item evidence, a fresh-context verifier, and human review.
 - **Open design tension (carried to Orders 02/03, not resolved here):** because unforeseen-but-legitimate mid-stream edits are common, the `Scope-Paths` schema (Order 02) and begin/finalize ergonomics (Order 03) MUST make owning such an edit light-touch (acknowledge + proceed), not a straitjacket; the granularity dial (directory/glob vs exact-file, and how narrow scope must be) is a real decision for Order 02, with the reviewer pushing back on lazily-broad scope at plan-review time rather than the gate adjudicating at execution time.
 - **Applied:** decomposed the reconciliation out of `ipdgates` Order 04 into a NEW Order 05 (`qmt3yk`, finalize two-way scope reconciliation) at the human's direction (density: distinct deliverable + test surface); the prior rollback order became 06 (`3xh53a`) and remove-bypass became 07 (`wezhxg`). Order 04 (`v7e88a`) keeps the scope-delta computation + baseline refusal and delegates the reconciliation prompt to Order 05. Order 07 (`wezhxg`) already carries the honest-limits + Recovery-paths sections and the delegate-not-refuse decision (OQ-03) reflecting this ADR. Orchestrator `do64fh` child table + sequence + completion criteria updated; affected plans reset to `to-review`. Recorded during /plan-review by opencode (its_direct/pt3-claude-opus-4.8-1m-us) at the maintainer's direction.
+
+### D142. The review-findings gate threshold is configurable and defaults to `high` (fail-CLOSED, deliberately diverging from the fail-open cutover precedent)
+
+- **Context:** the `revgate` Set adds a gate that blocks execution on unfixed review findings. The threshold had to be either hardcoded or configurable, and its ABSENT-key default had to be chosen. The repo already has a config-gated cutover precedent, `dependency_schema_cutover` (`config.py:282-316`), whose absent-default is fail-OPEN (missing key means the gate does not engage).
+- **Decision:** the threshold is a project-config key defaulting to `high`. Its absent-default is ACTIVE (fail-CLOSED): with no key set, findings at `high` and above gate execution. This DELIBERATELY diverges from the `dependency_schema_cutover` fail-open precedent, because that key gates a schema MIGRATION (where engaging early breaks working repos) whereas this one gates SHIPPING KNOWN DEFECTS (where not engaging is the harm). Maintainer's call.
+- **Boundaries / non-goals:** the threshold selects which SEVERITIES gate; it does not adjudicate whether a finding is legitimate, and it does not add a second gate (see D143).
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29) during revgate design.
+- **Applied:** constrains the unexecuted `revgate` plans (`15zvu6`, `plqjt7`, `7nkcgp`, `c621h9`). Recorded post-hoc from the session record, so the divergence is not "corrected" later by someone who assumes the fail-open precedent applies uniformly.
+
+### D143. Reuse the EXISTING blocking-open-question gate for review findings rather than building a second severity gate
+
+- **Context:** an unfixed review finding needs to block execution. The obvious implementation is a new severity-aware gate, but the repo already has a pre-execution gate that refuses a plan carrying an unresolved `Blocking: yes` open question (`ipd_lint.py:682-693`).
+- **Decision:** do NOT build a second gate. An unfixed finding must carry a `Blocking: yes` open question, which the existing gate already catches. Maintainer prefers fewer pieces of code. Evidence that the existing gate is trustworthy: of 28 blocking open questions inside executed plans, ALL 28 were resolved before execution; zero slipped through.
+- **Honest limits:** the existing gate is severity-BLIND. It enforces "a blocking question stops execution", not "a HIGH finding stops execution"; the severity mapping is the authoring step's job (D142 picks the threshold at which a finding must be recorded as blocking). So the gate is reused as a MECHANISM, and severity remains a convention enforced at review time, not by the linter.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** constrains the unexecuted `revgate` plans. Evidence: the 28/28 audit corrected an earlier alarming misreading of "44 plans executed with open questions" (non-blocking questions were being counted).
+
+### D144. A failed item blocks everything depending on it until resolved
+
+- **Context:** needed an explicit rule for what happens downstream when a run item fails, rather than letting each driver decide ad hoc.
+- **Decision:** if an item fails, everything depending on it is blocked until the failure is resolved. Maintainer's rule.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** became `revgate` item `7nkcgp`. Consistent with the observed `dependency-blocked` behavior of orchestrator `bl9q3d` when its children could not reach `executed`.
+
+### D145. Self-resolved agent decisions reuse the typed `autonomous_decision` record shape
+
+- **Context:** recording an agent's own decisions needed a data shape. Inventing fields risked drift from the existing, already-validated record.
+- **Decision:** reuse the `autonomous_decision` record shape (`run_ledger_schema.py:239`), which is already typed and schema-validated with `decision_id`/`selected_option`/`confidence`/`consultation_preferred`/`reversible`/`prev` and has actor validation (`RL-E057`).
+- **Honest limits:** this reuses a DEFINITION, not a working pipeline. The record lives in the run ledger, and the ledger is BUILT BUT UNWIRED, so adopting the shape does not by itself make decisions flow anywhere.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** constrains `revgate` `c621h9`.
+
+### D146. Decisions carry `Reversible: yes|no`, and the irreversible case is ESCALATED, not merely logged
+
+- **Context:** a self-resolved decision that cannot be undone carries different risk than one that can, but a uniform log treats them identically.
+- **Decision:** decisions carry an explicit `Reversible: yes|no`, and an irreversible decision is escalated to the human rather than only written to a record. Maintainer approved.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** `revgate` `c621h9`. Note `c621h9` OQ-01 (whether an UNESCALATED irreversible self-decision should BLOCK execution or only be reported) remains OPEN and is not settled by this entry.
+
+### D147. Review artifacts live in a FLAT `.aw/records/reviews/` tree, joined by the reviewed artifact's id6
+
+- **Context:** review artifacts could be filed per-type (mirroring the reviewed artifact's tree) or flat. Per-type placement raises the question of whether a review MOVES when the artifact it reviews moves through its lifecycle.
+- **Decision:** reviews live in a FLAT `.aw/records/reviews/` directory, joined to what they review by that artifact's id6, and they do NOT move when the plan moves. The maintainer conceded to this after weighing per-type placement; the rejected alternative stays captured in backlog `sv0sf3` with its revisit trigger, so this is a settled-for-now choice, not a permanent closure. Do not silently reverse it.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** `revgate` Set. Open backlog `sv0sf3` tracks the revisit condition.
+
+### D148. An agent must try hard to find a strong recommended path BEFORE refusing, and a refusal must show its work
+
+- **Context:** an agent that refuses a task with "cannot determine" or a bare blocker report pushes the whole diagnostic burden onto the human, who then has to re-derive what the agent already saw.
+- **Decision:** agents must try hard to find a strong recommended path before refusing. A refusal MUST state what was tried, the evidence blocking each candidate, and a concrete recommendation. Maintainer's rule.
+- **Status:** APPROVED verbally by the human maintainer (Gabriele Fariello, 2026-08-29).
+- **Applied:** written into all four `revgate` gates. Related but distinct from the AGENTS.md self-contained-question rule (which governs HOW a question is asked, whereas this governs WHETHER refusing is legitimate yet).
