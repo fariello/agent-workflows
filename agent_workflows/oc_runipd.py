@@ -57,6 +57,22 @@ from agent_workflows.render_stream import (
     render_event,
 )
 
+# wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
+# seam in `run_opencode` only; when no `execution_profile` is requested the default launch
+# is byte-for-byte unchanged and nothing in this module is invoked.
+from agent_workflows.host_sandbox_profile import (
+    SandboxProfileError,
+    build_sandbox_plan,
+    detect_host_capabilities,
+    enter_sandbox,
+    select_execution_profile,
+)
+from agent_workflows.worktree_lease import WORKTREES_SUBDIR
+
+# Where a hardened lane's scratch/submission channel lives, relative to the lane worktree
+# root. Lane-local so it is writable by construction and torn down with the lane.
+LANE_SCRATCH_SUBDIR = ".aw/lane-scratch"
+
 # Re-exported from render_stream for backward-compatible access via ``oc_runipd``.
 __all__ = [
     "_ANSI_CODES",
@@ -2183,6 +2199,110 @@ def _close_process_streams(process: subprocess.Popen) -> None:
                 stream.close()
 
 
+def _apply_execution_profile(
+    state: dict[str, Any],
+    item: dict[str, Any],
+    argv: list[str],
+    agent_dir: str,
+    work_dir: str | None,
+) -> list[str]:
+    """Wrap `argv` in the OS sandbox iff the hardened profile was explicitly requested.
+
+    wtiso-07 (`1o4eif`) E-05/E-06. Returns `argv` UNCHANGED for the default profile, which
+    is what keeps this phase strictly additive: no default-path behavior is altered.
+
+    Raises `HardModeUnavailableError` when `hardened` is requested on a host whose EXECUTED
+    probe reports it cannot enforce the sandbox (fail closed, never silent degradation), and
+    `SandboxProfileError` when hardened mode is requested without an isolated lane, because
+    there would be no lane boundary to enforce.
+    """
+    options = state.get("options", {})
+    requested = options.get("execution_profile")
+    capabilities = detect_host_capabilities("opencode")
+    # Raises rather than returning "default" when hardened is unavailable.
+    profile = select_execution_profile(requested, capabilities)
+    if profile != "hardened":
+        return argv
+
+    if not work_dir:
+        raise SandboxProfileError(
+            "the hardened execution profile requires an isolated lane worktree, but this "
+            "turn would run in the main checkout (work_dir is unset). There is no lane "
+            "boundary to enforce; refusing rather than pretending to sandbox."
+        )
+
+    lane_root = Path(work_dir).resolve()
+    # The lane's own scratch/submission channel, keyed by run and item so a retry or a
+    # co-resident lane never collides. Kept INSIDE the lane so it is writable by
+    # construction and disappears with the lane.
+    lane_scratch = lane_root / LANE_SCRATCH_SUBDIR / state["run_id"] / item["id6"]
+    lane_scratch.mkdir(parents=True, exist_ok=True)
+
+    repo_root = Path(state["repo"]).resolve()
+    sibling_lanes = [
+        p
+        for p in (repo_root / WORKTREES_SUBDIR).glob("*")
+        if p.is_dir() and p.resolve() != lane_root
+    ]
+    plan = build_sandbox_plan(
+        lane_worktree=lane_root,
+        lane_scratch=lane_scratch,
+        control_root=state.get("control_root")
+        or (repo_root / ".aw" / "records" / "runs"),
+        main_worktree=repo_root,
+        sibling_lane_roots=sibling_lanes,
+        git_common_dir=_git_common_dir(repo_root),
+        credential_paths=_hardened_credential_paths(),
+    )
+    return enter_sandbox(
+        argv,
+        plan,
+        capabilities,
+        cwd=agent_dir,
+        scratch_dir=lane_scratch,
+    )
+
+
+def _git_common_dir(repo_root: Path) -> str | None:
+    """The shared git common directory, which hardened mode keeps READ-ONLY."""
+    try:
+        raw = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if raw.returncode != 0:
+        return None
+    common = raw.stdout.strip()
+    if not common:
+        return None
+    return str((repo_root / common).resolve())
+
+
+def _hardened_credential_paths() -> list[str]:
+    """Credential locations a coding worker never needs, made INACCESSIBLE in hardened mode.
+
+    Only paths that exist are returned; a missing path is already unreachable.
+    """
+    home = Path(os.path.expanduser("~"))
+    candidates = [
+        home / ".ssh",
+        home / ".aws",
+        home / ".gnupg",
+        home / ".netrc",
+        home / ".git-credentials",
+        home / ".config" / "gh",
+        home / ".docker" / "config.json",
+        home / ".kube",
+        home / ".npmrc",
+        home / ".pypirc",
+    ]
+    return [str(p) for p in candidates if p.exists()]
+
+
 def run_opencode(
     state: dict[str, Any],
     run_dir: Path,
@@ -2265,6 +2385,22 @@ def run_opencode(
             prompt_path.read_text(encoding="utf-8"),
         ]
     )
+
+    # wtiso-07 (1o4eif) E-05/E-06: OPTIONAL hardened OS-sandbox profile.
+    #
+    # This is the ONLY hardened-mode seam in the launch path and it is inert unless
+    # `options["execution_profile"]` is explicitly "hardened": `select_execution_profile`
+    # returns "default" for unset/"default", so `argv` below is untouched and the default
+    # launch is byte-for-byte what it was before this phase.
+    #
+    # When "hardened" IS requested, `select_execution_profile` FAILS CLOSED - it raises
+    # `HardModeUnavailableError` on a host whose EXECUTED probe cannot enforce the sandbox,
+    # rather than silently running the worker unsandboxed (x03wgn Section 8 Phase 6.3).
+    # The worker gets a writable lane worktree + lane scratch and a READ-ONLY git common
+    # dir; the control root, main worktree, and every sibling lane are inaccessible. The
+    # DRIVER performs all git mutation after the worker exits, so a read-only common dir
+    # costs the worker nothing it is allowed to do (x03wgn Section 4).
+    argv = _apply_execution_profile(state, item, argv, agent_dir, work_dir)
 
     output_mode = options.get("output_mode", "clean")
     pal = Palette(should_color(sys.stdout))

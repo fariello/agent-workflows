@@ -773,6 +773,28 @@ def build_support_table(adapters: Mapping[str, HostAdapter]) -> str:
     return "\n".join(lines)
 
 
+def get_isolation_capabilities(host: str, platform_name: Optional[str] = None) -> Any:
+    """The x03wgn Layer 4 ISOLATION capability snapshot for `host` (wtiso-07 `1o4eif` E-02).
+
+    A thin pass-through to `host_sandbox_profile.detect_host_capabilities` so an adapter
+    consumer can read the snapshot without importing the sandbox module directly and
+    without this module reimplementing sandbox semantics (x03wgn Section 6 Layer 4: "the
+    shared orchestrator chooses the strongest safe protocol supported by the adapter";
+    adapters stay thin).
+
+    This is deliberately SEPARATE from the `host_capability_registry` skill-probe evidence
+    registry, which answers a different question (which SKILL features a host verifiably
+    supports). Isolation capability is decided by an EXECUTED sandbox probe, not by a
+    recorded evidence row, so the two must not be conflated.
+
+    Imported lazily to keep module import cost off the default path: the sandbox probe
+    module is only needed when someone actually asks about isolation.
+    """
+    from agent_workflows.host_sandbox_profile import detect_host_capabilities
+
+    return detect_host_capabilities(host, platform_name)
+
+
 # Re-export the engine symbols this module extends, so consumers/tests can confirm the
 # reused (not forked) shim-generation path.
 __all__ = [
@@ -795,6 +817,7 @@ __all__ = [
     "classify_discovery_policy",
     "disabled_skill_still_invocable",
     "build_support_table",
+    "get_isolation_capabilities",
     # extended engine.py symbols (reused, not forked):
     "generate_shim_members",
     "shim_body",
