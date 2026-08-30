@@ -235,6 +235,7 @@ def format_statusline(
     setid: str,
     id6: str,
     tracker: StreamTracker | None = None,
+    pal: Palette | None = None,
 ) -> str:
     """Format the unified runner statusline:
 
@@ -265,7 +266,30 @@ def format_statusline(
     cache = format_compact_tokens(tracker.cache_tokens if tracker is not None else 0)
     seg6 = f"{inp} in, {out} out, {cache} cache"
 
-    return f"{t_str} │ {seg2} │ {seg3} │ {target} │ {cost_str} │ {seg6}"
+    plain = f"{t_str} │ {seg2} │ {seg3} │ {target} │ {cost_str} │ {seg6}"
+    if pal is None or not pal.enabled:
+        return plain
+
+    # 256-color palette styling with very-light warm orange-yellow background (color 222)
+    bg = "\033[48;5;222m"
+    fg_base = "\033[38;5;235m"
+    fg_bold = "\033[1;38;5;232m"
+    fg_div = "\033[38;5;137m"
+    fg_bar = "\033[38;5;22m"
+    fg_target = "\033[1;38;5;18m"
+    fg_cost = "\033[1;38;5;28m"
+    reset = _ANSI_RESET
+
+    c_clock = f"{fg_bold}{t_str}{fg_base}"
+    c_elapsed = f"{fg_base}{seg2}"
+    c_bar = f"{fg_bar}{seg3}{fg_base}"
+    c_target = f"{fg_target}{target}{fg_base}"
+    c_cost = f"{fg_cost}{cost_str}{fg_base}"
+    c_tokens = f"{fg_base}{seg6}"
+
+    div = f" {fg_div}│{fg_base} "
+    content = div.join([c_clock, c_elapsed, c_bar, c_target, c_cost, c_tokens])
+    return f"{bg}{fg_base} {content} {reset}"
 
 
 class Statusline:
@@ -318,30 +342,28 @@ class Statusline:
             if id6:
                 self.id6 = id6
 
-    def render_line(self) -> str:
-        with self._lock:
-            now_wall = time.time()
-            start_mono = self._start_time
-            last_mono = self._last_activity
-            cur_mono = time.monotonic()
-            start_wall = now_wall - (cur_mono - start_mono)
-            last_wall = now_wall - (cur_mono - last_mono)
-            c_idx = self.current_idx
-            t_items = self.total_items
-            s_id = self.setid
-            i_id = self.id6
-            tr = self.tracker
-
+    def _render_line_unlocked(self) -> str:
+        now_wall = time.time()
+        start_mono = self._start_time
+        last_mono = self._last_activity
+        cur_mono = time.monotonic()
+        start_wall = now_wall - (cur_mono - start_mono)
+        last_wall = now_wall - (cur_mono - last_mono)
         return format_statusline(
             now_ts=now_wall,
             start_ts=start_wall,
             last_act_ts=last_wall,
-            current_idx=c_idx,
-            total_items=t_items,
-            setid=s_id,
-            id6=i_id,
-            tracker=tr,
+            current_idx=self.current_idx,
+            total_items=self.total_items,
+            setid=self.setid,
+            id6=self.id6,
+            tracker=self.tracker,
+            pal=self.pal,
         )
+
+    def render_line(self) -> str:
+        with self._lock:
+            return self._render_line_unlocked()
 
     def redraw(self) -> None:
         if not self._is_tty:
@@ -365,16 +387,7 @@ class Statusline:
         with self._lock:
             if self._is_tty and self._has_drawn:
                 self.stream.write(f"\r\033[K{rendered_text}\n")
-                line = format_statusline(
-                    now_ts=time.time(),
-                    start_ts=time.time() - (time.monotonic() - self._start_time),
-                    last_act_ts=time.time() - (time.monotonic() - self._last_activity),
-                    current_idx=self.current_idx,
-                    total_items=self.total_items,
-                    setid=self.setid,
-                    id6=self.id6,
-                    tracker=self.tracker,
-                )
+                line = self._render_line_unlocked()
                 self.stream.write(line)
                 self.stream.flush()
             else:

@@ -302,6 +302,40 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(segments[4], "$0.24")
         self.assertEqual(segments[5], "24.5k in, 4.1k out, 88.2k cache")
 
+    def test_format_statusline_colorized(self):
+        tracker = render_stream.StreamTracker()
+        tracker.update(inp=24500, out=4100, cache=88200, cost=0.24)
+        pal = render_stream.Palette(True)
+
+        now_ts = 1700000000.0
+        start_ts = now_ts - (14 * 60 + 22)
+        last_act_ts = now_ts - 3
+
+        colored = render_stream.format_statusline(
+            now_ts=now_ts,
+            start_ts=start_ts,
+            last_act_ts=last_act_ts,
+            current_idx=4,
+            total_items=5,
+            setid="reposcfg",
+            id6="8h9lap",
+            tracker=tracker,
+            pal=pal,
+        )
+
+        self.assertIn("\033[48;5;222m", colored)  # 256-color warm background
+        self.assertIn("\033[0m", colored)
+        # Stripping ANSI recovers clean content
+        stripped = render_stream._strip_ansi(colored).strip()
+        segments = stripped.split(" │ ")
+        self.assertEqual(len(segments), 6)
+        self.assertRegex(segments[0], r"^\d{2}:\d{2}:\d{2}$")
+        self.assertEqual(segments[1], "14m22s (idle 3s)")
+        self.assertEqual(segments[2], "████████░░ 80% [4/5]")
+        self.assertEqual(segments[3], "reposcfg:8h9lap")
+        self.assertEqual(segments[4], "$0.24")
+        self.assertEqual(segments[5], "24.5k in, 4.1k out, 88.2k cache")
+
     def test_statusline_write_event_non_tty(self):
         buf = io.StringIO()
         pal = render_stream.Palette(False)
