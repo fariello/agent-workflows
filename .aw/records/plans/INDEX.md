@@ -124,7 +124,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## testinvoke
 
-- `uyd3lw` [pending] 01 pending/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md
+- `uyd3lw` [executed] 01 executed/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md
 - `i79rgh` [executed] 02 executed/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md
 
 ## ttywedge
