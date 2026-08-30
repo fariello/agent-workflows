@@ -6,16 +6,16 @@
 - Scope: Extend dependency satisfaction so a target carrying unresolved gating findings does NOT satisfy an `executed:` edge, in both host drivers and in the shared `Item-Dependencies` evaluator. Reuses the existing `dependency-blocked` state and cascade rather than adding a new outcome.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/check_engine.py, agent_workflows/review_findings.py, agent_workflows/ipd_set_plan.py, tests/test_review_findings_cascade.py
 - Item-Dependencies: executed:plqjt7
-- Status: approved
+- Status: executed
 - Set: revgate
 - Order: 3
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7nkcgp
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): revgate Order 03: findings-blocked plans no longer satisfy an executed: edge on any of the four authority surfaces
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 fixed in place
 
