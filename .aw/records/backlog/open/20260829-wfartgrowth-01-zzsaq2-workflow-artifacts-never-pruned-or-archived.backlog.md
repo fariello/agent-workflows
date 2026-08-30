@@ -2,7 +2,7 @@
 - Status: open
 - Set: wfartgrowth
 - Priority: low
-- Kind: chore
+- Work-Kind: chore
 - Summary: Nothing prunes or archives .aw/workflow-artifacts/, so per-run workflow dirs accumulate unbounded in a gitignored tree
 
 ## Workflow history

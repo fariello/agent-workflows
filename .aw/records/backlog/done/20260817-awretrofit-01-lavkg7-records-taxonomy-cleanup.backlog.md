@@ -2,7 +2,7 @@
 - Status: done
 - Set: awretrofit
 - Priority: high
-- Kind: chore
+- Work-Kind: chore
 - Summary: RELEASE BLOCKER: clean up .aw/records/ taxonomy (run-artifacts home, dup prompts, flatten docs/) before release
 
 ## Workflow history

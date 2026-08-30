@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: stalereceipt
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw ipd finalize self-execution deadlock: begin freezes a whole-file plan_content_digest, but executing an IPD REQUIRES editing that same file (mark E performed / fill V evidence), so the digest always goes stale and finalize/merge-back refuses 'stale receipt' on every self-finalizing run
 
 ## Workflow history

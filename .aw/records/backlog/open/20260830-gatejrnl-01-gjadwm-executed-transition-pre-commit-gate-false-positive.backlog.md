@@ -2,7 +2,7 @@
 - Status: open
 - Set: gatejrnl
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: executed-transition pre-commit gate false-positives on any follow-up commit to a legitimately finalized plan, because the finalize journal it looks for is deleted on success
 
 ## Workflow history

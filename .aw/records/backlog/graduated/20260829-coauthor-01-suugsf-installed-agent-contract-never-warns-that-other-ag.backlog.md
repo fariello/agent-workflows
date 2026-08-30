@@ -2,7 +2,7 @@
 - Status: graduated
 - Set: coauthor
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: installed agent contract never warns that other agents or humans share the checkout, so agents sweep others' uncommitted work into their own commits
 
 ## Workflow history

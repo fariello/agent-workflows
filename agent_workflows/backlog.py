@@ -14,13 +14,21 @@ Layout (dual-path like plans: `.agents/backlog/` pre-migration, `.aw/records/bac
       done/      completed/closed                 (attention: done)
 
 One item is one file with `- Field:` BULLET metadata (consistent with specs/plans, and so the
-existing attention `Gate-Kind`/`Gate-Ref` grammar is reused verbatim), then a prose body:
+existing attention `Gate-Kind`/`Gate-Ref` grammar is reused verbatim), then a prose body.
+
+The work-nature field is `- Work-Kind:` (wkindname Order 01 / 9trlc3). It was formerly spelled
+`- Kind:`, which collided with four unrelated uses of that token (an IPD's structural kind, a research
+document type, a comms message kind, and this module's own `- Gate-Kind:`). The legacy spelling is
+still ACCEPTED on read via a deliberately retained dual-read window; only the canonical spelling is
+ever WRITTEN. The field remains REQUIRED here (an absent value is `backlog.kind-invalid`), which is
+deliberately asymmetric with plans and specs where it is optional: the Set unified the NAME, not the
+requiredness.
 
     - Id: <id6>
     - Status: open | blocked | parked | done
     - Set: <terse-id>
     - Priority: high | medium | low
-    - Kind: bug | feature | chore | security | followup
+    - Work-Kind: bug | feature | chore | security | followup
     - Summary: <one line>
     - Gate-Kind: <artifact|decision|todo|issue|date|external>   # iff blocked
     - Gate-Ref: <ref>                                            # iff blocked
@@ -66,6 +74,13 @@ _ID_RE = re.compile(r"^- Id:[ \t]*(?P<value>\S+)[ \t]*$")
 _STATUS_RE = re.compile(r"^- Status:[ \t]*(?P<value>\S+)[ \t]*$")
 _SET_RE = re.compile(r"^- Set:[ \t]*(?P<value>\S+)[ \t]*$")
 _PRIORITY_RE = re.compile(r"^- Priority:[ \t]*(?P<value>\S+)[ \t]*$")
+# wkindname Order 01 (9trlc3) E-01: DUAL-READ window for the work-nature field. `- Work-Kind:` is the
+# canonical on-disk spelling; `- Kind:` is the legacy one, still ACCEPTED so a partially migrated tree,
+# a long-lived branch, or a stash never stops parsing. Both patterns are anchored on the FULL LINE and
+# never on the bare token `Kind`, because this same module parses a DISTINCT `- Gate-Kind:` field
+# (see `A.GATE_KIND_RE` below) that a substring-based match would silently capture or corrupt.
+# The window is deliberately RETAINED after the corpus migration as cheap insurance; it is not dead code.
+_WORK_KIND_RE = re.compile(r"^- Work-Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _KIND_RE = re.compile(r"^- Kind:[ \t]*(?P<value>\S+)[ \t]*$")
 _SUMMARY_RE = re.compile(r"^- Summary:[ \t]*(?P<value>.+?)[ \t]*$")
 _BLOCKS_RELEASE_RE = re.compile(r"^- Blocks-Release:[ \t]*(?P<value>\S+)[ \t]*$")
@@ -102,6 +117,10 @@ def parse_item(text: str) -> BacklogItem:
     """Parse the leading bullet-metadata block. Missing fields stay None (validation reports them)."""
 
     item = BacklogItem()
+    # E-01 dual-read: collect the two spellings separately so precedence is resolved ONCE, after the
+    # scan, rather than depending on which line happened to come first in the file.
+    work_kind = None
+    legacy_kind = None
     for line in text.split("\n"):
         if line.startswith("## ") or (line and not line.startswith("- ")):
             # metadata block ends at the first non-bullet, non-blank line or the first H2
@@ -115,19 +134,29 @@ def parse_item(text: str) -> BacklogItem:
             ("status", _STATUS_RE),
             ("set", _SET_RE),
             ("priority", _PRIORITY_RE),
-            ("kind", _KIND_RE),
             ("summary", _SUMMARY_RE),
             ("blocks_release", _BLOCKS_RELEASE_RE),
         ):
             m = rx.match(line)
             if m and getattr(item, attr) is None:
                 setattr(item, attr, m.group("value"))
+        # E-01 dual-read: match each spelling on its OWN full-line pattern. `- Gate-Kind:` cannot
+        # satisfy either, which is the whole point of anchoring on the full line.
+        mw = _WORK_KIND_RE.match(line)
+        if mw and work_kind is None:
+            work_kind = mw.group("value")
+        mk_legacy = _KIND_RE.match(line)
+        if mk_legacy and legacy_kind is None:
+            legacy_kind = mk_legacy.group("value")
         mk = A.GATE_KIND_RE.match(line)
         if mk and item.gate_kind is None:
             item.gate_kind = mk.group("value")
         mr = A.GATE_REF_RE.match(line)
         if mr and item.gate_ref is None:
             item.gate_ref = mr.group("value")
+    # E-01 precedence: the canonical spelling WINS when an item somehow carries both (e.g. a
+    # half-merged branch). Absent both, `kind` stays None and validation reports it, unchanged.
+    item.kind = work_kind if work_kind is not None else legacy_kind
     return item
 
 
@@ -291,7 +320,8 @@ def _render_item(item: BacklogItem, body: str, message: Optional[str] = None) ->
         f"- Status: {item.status}",
         f"- Set: {item.set}",
         f"- Priority: {item.priority}",
-        f"- Kind: {item.kind}",
+        # E-02: only the canonical spelling is ever WRITTEN (the legacy one stays readable).
+        f"- Work-Kind: {item.kind}",
         f"- Summary: {item.summary}",
     ]
     if item.status == "blocked":
@@ -327,7 +357,12 @@ def run_new(args) -> int:
     item.status = status
     item.set = getattr(args, "set", None) or item.id  # singleton set defaults to the id
     item.priority = getattr(args, "priority", None) or "medium"
-    item.kind = getattr(args, "kind", None) or "chore"
+    # E-02 / OQ-01: `--work-kind` is the preferred CLI spelling and `--kind` is KEPT as an accepted
+    # alias, so no existing script, habit, or agent instruction breaks. The preferred spelling wins
+    # when both are supplied. Both parse into distinct dests so "was it passed?" stays answerable.
+    item.kind = (
+        getattr(args, "work_kind", None) or getattr(args, "kind", None) or "chore"
+    )
     item.summary = (getattr(args, "summary", None) or "").strip()
     item.gate_kind = getattr(args, "gate_kind", None)
     item.gate_ref = getattr(args, "gate_ref", None)
@@ -337,7 +372,9 @@ def run_new(args) -> int:
         )
         return 2
     if item.kind not in KINDS:
-        sys.stderr.write(f"aw backlog new: --kind must be one of {sorted(KINDS)}\n")
+        sys.stderr.write(
+            f"aw backlog new: --work-kind must be one of {sorted(KINDS)}\n"
+        )
         return 2
     if not (item.summary or "").strip():
         sys.stderr.write("aw backlog new: --summary is required\n")

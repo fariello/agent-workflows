@@ -2,7 +2,7 @@
 - Status: parked
 - Set: ju93oc
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Re-evaluate delivery model around host-native SKILLS (.agents/skills/SKILL.md); we ship commands/shims + no SKILL.md
 
 ## Workflow history

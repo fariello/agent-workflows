@@ -2,7 +2,7 @@
 - Status: done
 - Set: awretrofit
 - Priority: high
-- Kind: chore
+- Work-Kind: chore
 - Summary: RELEASE BLOCKER: uniform artifact-naming grammar (.type.md suffix, one grammar for all record types) before release
 
 ## Workflow history

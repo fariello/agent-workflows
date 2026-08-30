@@ -2,7 +2,7 @@
 - Status: open
 - Set: runverdict
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: 40% of verifier turns never ran: self-finalize moves the plan pending/ -> executed/ before the verifier launches, the verify prompt still cites the pending/ path, and opencode exits instantly with 'File not found' leaving verification silently skipped
 
 ## Workflow history

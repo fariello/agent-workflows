@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: lanebegin
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: begin's in-scope-dirty gate measures the MAIN tree for an isolated lane, so another agent's uncommitted edit to a commonly-scoped file (cli.py) withholds execution authority from an unrelated lane that would run clean at its frozen base
 
 ## Workflow history

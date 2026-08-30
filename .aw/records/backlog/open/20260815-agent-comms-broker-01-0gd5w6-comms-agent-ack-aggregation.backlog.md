@@ -2,7 +2,7 @@
 - Status: open
 - Set: agent-comms-broker
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: agent-comms IPD 3: agent-side ack writing + per-message status aggregation (depends on the broker)
 
 ## Workflow history

@@ -2,7 +2,7 @@
 - Status: parked
 - Set: agent-comms-trust
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Verifiable message provenance for agent-comms (signed messages / append-only log / allowlist) to make trust tiers enforceable
 
 ## Workflow history

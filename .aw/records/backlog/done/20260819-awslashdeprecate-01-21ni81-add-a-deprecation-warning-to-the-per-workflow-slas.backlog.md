@@ -2,7 +2,7 @@
 - Status: done
 - Set: awslashdeprecate
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: Add a deprecation warning to the per-workflow slash-command aliases once the single /aw <verb> dispatcher ships (backlog-medhigh-260819 Order 05 keeps the aliases working; this warns users to migrate to /aw <verb> before eventual pruning). Follow-on to q19z5t.
 
 ## Workflow history

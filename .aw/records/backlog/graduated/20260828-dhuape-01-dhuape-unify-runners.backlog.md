@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: dhuape
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: Unify aw oc run and aw agy run onto a shared tool-agnostic runner library
 
 ## Workflow history

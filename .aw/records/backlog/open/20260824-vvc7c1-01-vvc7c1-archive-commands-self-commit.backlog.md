@@ -2,7 +2,7 @@
 - Status: open
 - Set: vvc7c1
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: Records-mutating commands (aw archive, and likely group/rename/research regroup) should offer to commit their own path-scoped changes when run interactively
 
 ## Workflow history

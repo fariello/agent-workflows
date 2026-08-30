@@ -2,7 +2,7 @@
 - Status: done
 - Set: puot79e04
 - Priority: medium
-- Kind: followup
+- Work-Kind: followup
 - Summary: Complete runnernorm puot79 E-04: graduate agy_run.py under a non-colliding surface (aw agy exec, NOT aw agy run) + migrate tools/test_agy_run.py; then puot79 + runnernorm-00 can finalize
 
 ## Workflow history

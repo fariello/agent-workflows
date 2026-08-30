@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: wtextperm
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Worktree-isolated aw oc run hangs forever on opencode's external_directory permission prompt (agent cwd is the lane worktree but the driver forces main-repo run-dir access; --auto non-interactive has no answerer)
 
 ## Workflow history

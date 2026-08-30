@@ -2,7 +2,7 @@
 - Status: open
 - Set: runverdict
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Run records cannot attribute a turn to a model or price it: state.json records model=null and 0 of 9757 cost-bearing steps carry a modelID, while the rate card that produced the recorded costs lives only in the user's opencode.json outside the repo
 
 ## Workflow history

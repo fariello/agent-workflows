@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: runnerstop
 - Priority: high
-- Kind: feature
+- Work-Kind: feature
 - Summary: Graceful-quit protocol for aw oc/agy run: 4 stop levels (after-call / after-set / now / now-clean) via escalating signals + aw oc run stop <run-id>, each ending in a coherent ledger+lock+worktree cleanup (no orphaned children, no stale lock, no contaminated tree)
 
 ## Workflow history

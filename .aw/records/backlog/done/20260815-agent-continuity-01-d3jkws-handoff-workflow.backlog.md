@@ -2,7 +2,7 @@
 - Status: done
 - Set: agent-continuity
 - Priority: medium
-- Kind: feature
+- Work-Kind: feature
 - Summary: /handoff workflow: on-demand cold-start session-handoff generator (has an IPD at to-review: agentcont-03)
 
 ## Workflow history

@@ -2,7 +2,7 @@
 - Status: parked
 - Set: agent-comms-trust
 - Priority: low
-- Kind: feature
+- Work-Kind: feature
 - Summary: Inter-agent-comms helper (aw comms check/send/archive/sweep/promote) - discuss scope/shape with maintainer before any IPD
 
 ## Workflow history

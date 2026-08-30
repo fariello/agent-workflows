@@ -2,7 +2,7 @@
 - Status: done
 - Set: w6mqc0
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw ipd set approved must write the required Approval field (approved IPDs currently fail aw ipd lint IPD-M104)
 - Blocks-Release: next
 

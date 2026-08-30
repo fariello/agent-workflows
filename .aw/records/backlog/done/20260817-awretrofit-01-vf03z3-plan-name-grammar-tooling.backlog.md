@@ -2,7 +2,7 @@
 - Status: done
 - Set: awretrofit
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: Plan-name tooling: scaffold/mv/plan-names/AGENTS.md disagree on the Set-clustering filename grammar
 
 ## Workflow history

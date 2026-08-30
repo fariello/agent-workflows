@@ -2,7 +2,7 @@
 - Status: graduated
 - Set: runnamecollapse
 - Priority: medium
-- Kind: chore
+- Work-Kind: chore
 - Summary: aw run list duplicates aw runs byte-for-byte; collapse run inspection under aw runs and retire the aw run noun
 
 ## Workflow history

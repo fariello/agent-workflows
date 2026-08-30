@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: 8iy2dk
 - Priority: high
-- Kind: followup
+- Work-Kind: followup
 - Summary: plan-review and IPD-authoring/assessing workflows must explicitly check whether an IPD is too large and should be split into smaller IPDs (context/attention/execution sizing)
 
 ## Workflow history

@@ -2,7 +2,7 @@
 - Status: done
 - Set: awphysical-resume
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: migration inventory sweeps .aw/state/runtime/ (locks + tx journal), creating a self-referential stale-input trap that blocks resume after an interrupted/rolled-back migration
 
 ## Workflow history

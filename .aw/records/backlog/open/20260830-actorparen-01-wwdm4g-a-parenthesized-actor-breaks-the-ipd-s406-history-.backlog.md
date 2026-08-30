@@ -2,7 +2,7 @@
 - Status: open
 - Set: actorparen
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: A parenthesized actor breaks the IPD-S406 history regex, so finalize commits the lifecycle transition then refuses post-transition validation
 
 ## Workflow history

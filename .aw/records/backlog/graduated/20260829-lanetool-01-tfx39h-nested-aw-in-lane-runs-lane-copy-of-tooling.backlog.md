@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: lanetool
 - Priority: high
-- Kind: bug
+- Work-Kind: bug
 - Summary: Nested aw invoked inside a lane worktree executes the LANE BRANCH's copy of agent_workflows, so lifecycle fixes are void in lanes and unreviewed lane tool code runs the driver's own transitions
 
 ## Workflow history

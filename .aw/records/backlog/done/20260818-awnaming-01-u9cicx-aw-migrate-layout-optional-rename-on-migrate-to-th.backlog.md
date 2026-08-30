@@ -2,7 +2,7 @@
 - Status: done
 - Set: awnaming
 - Priority: low
-- Kind: chore
+- Work-Kind: chore
 - Summary: aw migrate-layout: optional rename-on-migrate to the .type.md grammar
 
 ## Workflow history

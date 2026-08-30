@@ -2,7 +2,7 @@
 - Status: done
 - Set: ith2xd
 - Priority: medium
-- Kind: bug
+- Work-Kind: bug
 - Summary: aw_layout_inventory _walk must honor .gitignore (skip node_modules and other ignored subtrees)
 
 ## Workflow history

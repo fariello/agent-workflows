@@ -2,7 +2,7 @@
 - Status: done
 - Set: z1zo8r
 - Priority: low
-- Kind: bug
+- Work-Kind: bug
 - Summary: Test-isolation flake: test_undo_removes_prompts_scaffold fails intermittently in full-run interleavings; make it hermetic
 
 ## Workflow history

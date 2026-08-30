@@ -3,7 +3,7 @@
 - Blocks-Release: next
 - Set: awuiux
 - Priority: high
-- Kind: followup
+- Work-Kind: followup
 - Summary: Broad empty/loading/error-state UX pass across all CLI verbs (echo active filters + suggest next step on empty results; consistent success/error feedback)
 
 ## Workflow history

@@ -3049,10 +3049,21 @@ def _build_parser() -> argparse.ArgumentParser:
     p_backlog_new.add_argument(
         "--priority", default="medium", help="high | medium | low (default: medium)."
     )
+    # wkindname Order 01 (9trlc3) E-02 / OQ-01: `--work-kind` is the PREFERRED spelling, matching the
+    # on-disk `- Work-Kind:` field; `--kind` is KEPT as an accepted alias so no existing caller breaks.
+    # Neither carries an argparse default: the "chore" fallback lives in `backlog.run_new`, because a
+    # default here would make `--kind` indistinguishable from "not passed" and mask `--work-kind`.
+    p_backlog_new.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        help="bug | feature | chore | security | followup (default: chore).",
+    )
     p_backlog_new.add_argument(
         "--kind",
-        default="chore",
-        help="bug | feature | chore | security | followup (default: chore).",
+        dest="kind",
+        default=None,
+        help="Alias of --work-kind (accepted for compatibility).",
     )
     p_backlog_new.add_argument(
         "--slug",
