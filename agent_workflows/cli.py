@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import re
 import sys
@@ -2271,10 +2272,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_config = sub.add_parser(
         "config",
         parents=[common],
-        help="Manage user CLI config (the never-install exclude list).",
+        help="Manage user CLI config (show, get, set, and exclude list).",
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
+            "  aw config show               # display config file and current settings\n"
+            "  aw config get defaults.backup # get specific variable\n"
+            "  aw config set defaults.backup to false  # set specific variable\n"
+            "  aw config set search_roots ~/src,~/work # set list variable\n"
             "  aw config exclude list       # list never-install exclude entries\n"
             "  aw config exclude add ~/src/legacy  # add path to exclude list\n"
             "  aw config exclude rm ~/src/legacy   # remove path from exclude list\n"
@@ -2285,6 +2290,33 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     config_sub = p_config.add_subparsers(dest="config_command")
+
+    config_sub.add_parser(
+        "show",
+        parents=[common],
+        help="Display the configuration file location, status, and all current settings.",
+    )
+
+    p_config_get = config_sub.add_parser(
+        "get",
+        parents=[common],
+        help="Get the value of a configuration variable (e.g. 'defaults.backup', 'repos').",
+    )
+    p_config_get.add_argument(
+        "varname",
+        help="Variable name to read (e.g. 'defaults.backup', 'search_roots', 'aw_home').",
+    )
+
+    p_config_set = config_sub.add_parser(
+        "set",
+        parents=[common],
+        help="Set the value of a configuration variable (syntax: 'var val', 'var=val', 'var = val', 'var to val').",
+    )
+    p_config_set.add_argument(
+        "set_args",
+        nargs="+",
+        help="Variable name and value (e.g. 'defaults.backup false', 'search_roots to ~/src,~/work').",
+    )
 
     p_config_exclude = config_sub.add_parser(
         "exclude",
@@ -5321,9 +5353,173 @@ def _orient(term: Term) -> None:
     _teach(term)
 
 
-# --------------------------------------------------------------------------------------
-# dispatch
-# --------------------------------------------------------------------------------------
+def _run_config_show(args: argparse.Namespace, term: Term) -> int:
+    """Display the configuration file location, status, and all current settings."""
+    cfg = config.load()
+    cfg_file = config.config_path()
+    present = cfg_file.is_file()
+    cfg_path_str = config._preserve_home(str(cfg_file))
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        payload = {
+            "config_file": str(cfg_file),
+            "config_present": present,
+            "config": cfg,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-show",
+                outcome="clean",
+                exit_code=0,
+                extra={
+                    "config_file": str(cfg_file),
+                    "config_present": present,
+                    "config": cfg,
+                },
+            )
+        )
+        return 0
+
+    term.heading("agent-workflows configuration")
+    term.line(
+        f"  {term.colorize('File:', 'bold')}    {term.color256(cfg_path_str, 39)} "
+        f"({'present' if present else 'none yet; default values in effect'})"
+    )
+    term.line()
+    term.heading("Settings")
+    for key, spec in sorted(config.CONFIG_SCHEMA.items()):
+        if "." in key:
+            _, val = config.get_config_value(key, cfg)
+            term.line(
+                f"  {term.color256(key, 244):<20} = {term.color256(str(val), 39)}"
+            )
+        elif key == "defaults":
+            continue
+        else:
+            val = cfg.get(key)
+            if isinstance(val, list):
+                if not val:
+                    term.line(f"  {term.color256(key, 244):<20} = []")
+                elif len(val) == 1:
+                    term.line(
+                        f"  {term.color256(key, 244):<20} = [{term.color256(str(val[0]), 39)}]"
+                    )
+                else:
+                    term.line(f"  {term.color256(key, 244):<20} = [")
+                    for item in val:
+                        term.line(f"      {term.color256(str(item), 39)},")
+                    term.line("  ]")
+            else:
+                disp_val = "-" if val is None else str(val)
+                term.line(
+                    f"  {term.color256(key, 244):<20} = {term.color256(disp_val, 39)}"
+                )
+    return 0
+
+
+def _run_config_get(args: argparse.Namespace, term: Term) -> int:
+    """Get the value of a configuration variable."""
+    cfg = config.load()
+    varname = getattr(args, "varname", "").strip()
+    if not varname:
+        term.status("fail", "Missing variable name. Usage: aw config get <varname>")
+        return 2
+
+    try:
+        canon_key, val = config.get_config_value(varname, cfg)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(json.dumps({canon_key: val}, indent=2, sort_keys=True))
+        return 0
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-get",
+                outcome="clean",
+                exit_code=0,
+                extra={"key": canon_key, "value": val},
+            )
+        )
+        return 0
+
+    if isinstance(val, bool):
+        print(str(val).lower())
+    elif isinstance(val, (list, dict)):
+        print(json.dumps(val))
+    elif val is None:
+        print("")
+    else:
+        print(str(val))
+    return 0
+
+
+def _run_config_set(args: argparse.Namespace, term: Term) -> int:
+    """Set the value of a configuration variable."""
+    raw_tokens = getattr(args, "set_args", []) or []
+    try:
+        varname, val_expr = config.parse_set_args(raw_tokens)
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    try:
+        updated_cfg, canon_key, final_val = config.set_config_value(
+            varname, val_expr, auto_save=True
+        )
+    except config.ConfigError as exc:
+        term.status("fail", str(exc))
+        return 2
+
+    cfg_file = config.config_path()
+    cfg_path_str = config._preserve_home(str(cfg_file))
+
+    if getattr(args, "json", False) or getattr(args, "as_json", False):
+        print(
+            json.dumps(
+                {canon_key: final_val, "config_file": str(cfg_file)},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    if getattr(args, "agent", False):
+        from agent_workflows.term import format_agent_json
+
+        print(
+            format_agent_json(
+                kind="result",
+                cmd="config-set",
+                outcome="clean",
+                exit_code=0,
+                extra={
+                    "key": canon_key,
+                    "value": final_val,
+                    "config_file": str(cfg_file),
+                },
+            )
+        )
+        return 0
+
+    term.status(
+        "ok",
+        f"{term.color256(canon_key, 39, bold=True)} = {term.colorize(str(final_val), 'bold')} (saved to {cfg_path_str})",
+    )
+    return 0
 
 
 def _run_config_exclude(args: argparse.Namespace, term: Term) -> int:
@@ -8210,11 +8406,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             return _run_storage_preflight(args, term)
         return _show_family_help(parser, "storage", "aw storage status", term, context)
     if args.command == "config":
-        if getattr(args, "config_command", None) == "exclude":
+        subcmd = getattr(args, "config_command", None)
+        if subcmd == "show":
+            return _run_config_show(args, term)
+        if subcmd == "get":
+            return _run_config_get(args, term)
+        if subcmd == "set":
+            return _run_config_set(args, term)
+        if subcmd == "exclude":
             return _run_config_exclude(args, term)
-        return _show_family_help(
-            parser, "config", "aw config exclude list", term, context
-        )
+        return _show_family_help(parser, "config", "aw config show", term, context)
     if args.command == "todo":
         # awcmdsurf Order 04 (item 32/D5): `todo` is an alias of `attention` (the cross-tree board).
         from agent_workflows import attention as att

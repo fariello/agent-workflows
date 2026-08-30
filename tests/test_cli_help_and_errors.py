@@ -118,7 +118,7 @@ class HelpAndUsageErrorTests(unittest.TestCase):
         empty_calls = [
             (["project"], "aw project status"),
             (["storage"], "aw storage status"),
-            (["config"], "aw config exclude list"),
+            (["config"], "aw config show"),
             (["backlog"], "aw backlog check"),
             (["specs"], "aw specs check"),
             (["research"], "aw research find"),

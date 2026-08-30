@@ -32,8 +32,9 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 CONFIG_VERSION = 1
 _APP_DIR = "agent-workflows"
@@ -52,6 +53,245 @@ _ALLOWED_TOP_KEYS = frozenset(
     }
 )
 _ALLOWED_DEFAULT_KEYS = frozenset({"backup", "prune"})
+
+
+class ConfigError(Exception):
+    """Raised on invalid configuration key or value."""
+
+
+@dataclass(frozen=True)
+class ConfigKeySpec:
+    key: str
+    type_name: str
+    description: str
+    read_only: bool = False
+
+
+CONFIG_SCHEMA: Dict[str, ConfigKeySpec] = {
+    "config_version": ConfigKeySpec(
+        key="config_version",
+        type_name="int",
+        description="Configuration schema version",
+        read_only=True,
+    ),
+    "search_roots": ConfigKeySpec(
+        key="search_roots",
+        type_name="list[path]",
+        description="Search root directories for repository discovery",
+    ),
+    "repos": ConfigKeySpec(
+        key="repos",
+        type_name="list[path]",
+        description="Explicit repository allowlist for install operations",
+    ),
+    "ignore": ConfigKeySpec(
+        key="ignore",
+        type_name="list[str]",
+        description="fnmatch globs to filter noisy discovery paths",
+    ),
+    "exclude": ConfigKeySpec(
+        key="exclude",
+        type_name="list[path|glob]",
+        description="Deliberate never-install repository blocklist",
+    ),
+    "defaults": ConfigKeySpec(
+        key="defaults",
+        type_name="dict",
+        description="Default operational flags mapping",
+    ),
+    "defaults.backup": ConfigKeySpec(
+        key="defaults.backup",
+        type_name="bool",
+        description="Whether to create backups before modifying repositories",
+    ),
+    "defaults.prune": ConfigKeySpec(
+        key="defaults.prune",
+        type_name="bool",
+        description="Whether to prune stale workflow shims on install",
+    ),
+    "aw_home": ConfigKeySpec(
+        key="aw_home",
+        type_name="path",
+        description="Configured toolkit home directory",
+    ),
+}
+
+
+def parse_set_args(tokens: Sequence[str]) -> Tuple[str, str]:
+    """Parse flexible assignment syntax: 'var val', 'var=val', 'var = val', 'var to val'."""
+    if not tokens:
+        raise ConfigError(
+            "Missing variable name and value. Usage: aw config set <varname> [to|=| = ] <value>"
+        )
+    first = str(tokens[0]).strip()
+    if "=" in first:
+        k, v = first.split("=", 1)
+        rest = [v] + list(tokens[1:]) if v else list(tokens[1:])
+        val_str = " ".join(str(x) for x in rest).strip()
+        if not val_str:
+            raise ConfigError(
+                f"Missing value for '{k.strip()}'. Usage: aw config set {k.strip()} = <value>"
+            )
+        return k.strip(), val_str
+
+    varname = first
+    rest_tokens = list(tokens[1:])
+    if not rest_tokens:
+        raise ConfigError(
+            f"Missing value for '{varname}'. Usage: aw config set {varname} <value>"
+        )
+
+    if rest_tokens[0] in ("=", "to", ":"):
+        rest_tokens = rest_tokens[1:]
+        if not rest_tokens:
+            raise ConfigError(
+                f"Missing value for '{varname}'. Usage: aw config set {varname} = <value>"
+            )
+
+    val_str = " ".join(str(x) for x in rest_tokens).strip()
+    return varname, val_str
+
+
+def get_config_value(
+    key: str,
+    cfg: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Any]:
+    """Get the value of a config key (top-level or dotted)."""
+    if cfg is None:
+        cfg = load()
+    norm_key = key.strip().lower()
+    if norm_key in ("backup", "defaults.backup"):
+        return "defaults.backup", cfg.get("defaults", {}).get("backup", True)
+    if norm_key in ("prune", "defaults.prune"):
+        return "defaults.prune", cfg.get("defaults", {}).get("prune", True)
+
+    if norm_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{key}'. Valid keys: {valid_keys}")
+
+    if norm_key == "defaults":
+        return "defaults", cfg.get("defaults", {"backup": True, "prune": True})
+    return norm_key, cfg.get(norm_key)
+
+
+def set_config_value(
+    key: str,
+    raw_value: Any,
+    cfg: Optional[Dict[str, Any]] = None,
+    auto_save: bool = True,
+) -> Tuple[Dict[str, Any], str, Any]:
+    """Validate, coerce, set a config key, and optionally save config.json atomically."""
+    if cfg is None:
+        cfg = load()
+    else:
+        cfg = dict(cfg)
+
+    norm_key = key.strip().lower()
+    if norm_key in ("backup", "defaults.backup"):
+        canon_key = "defaults.backup"
+    elif norm_key in ("prune", "defaults.prune"):
+        canon_key = "defaults.prune"
+    else:
+        canon_key = norm_key
+
+    if canon_key not in CONFIG_SCHEMA:
+        valid_keys = ", ".join(sorted(CONFIG_SCHEMA.keys()))
+        raise ConfigError(f"Unknown config key '{key}'. Valid keys: {valid_keys}")
+
+    spec = CONFIG_SCHEMA[canon_key]
+    if spec.read_only:
+        raise ConfigError(
+            f"Config key '{canon_key}' is read-only and cannot be modified."
+        )
+
+    type_name = spec.type_name
+    parsed_value: Any = None
+
+    if type_name == "bool":
+        if isinstance(raw_value, bool):
+            parsed_value = raw_value
+        elif isinstance(raw_value, str):
+            s = raw_value.strip().lower()
+            if s in ("true", "1", "yes", "on", "t", "y"):
+                parsed_value = True
+            elif s in ("false", "0", "no", "off", "f", "n"):
+                parsed_value = False
+            else:
+                raise ConfigError(
+                    f"Invalid boolean value for '{canon_key}': '{raw_value}'. Expected true/false, yes/no, 1/0."
+                )
+        else:
+            raise ConfigError(f"Invalid boolean value for '{canon_key}': {raw_value}")
+    elif type_name == "path":
+        if raw_value is None or (
+            isinstance(raw_value, str) and raw_value.strip() in ("", "none", "null")
+        ):
+            parsed_value = None
+        elif isinstance(raw_value, (str, Path)):
+            parsed_value = _preserve_home(str(raw_value).strip())
+        else:
+            raise ConfigError(f"Invalid path value for '{canon_key}': {raw_value}")
+    elif type_name in ("list[path]", "list[str]", "list[path|glob]"):
+        if isinstance(raw_value, list):
+            items = raw_value
+        elif isinstance(raw_value, str):
+            s = raw_value.strip()
+            if s.startswith("[") and s.endswith("]"):
+                try:
+                    loaded = json.loads(s)
+                    items = loaded if isinstance(loaded, list) else [s]
+                except Exception:
+                    items = [x.strip() for x in s[1:-1].split(",") if x.strip()]
+            elif "," in s:
+                items = [x.strip() for x in s.split(",") if x.strip()]
+            elif s in ("", "[]", "none", "null"):
+                items = []
+            else:
+                items = [s]
+        else:
+            raise ConfigError(f"Invalid list value for '{canon_key}': {raw_value}")
+
+        if type_name in ("list[path]", "list[path|glob]"):
+            parsed_value = [_preserve_home(str(x)) for x in items]
+        else:
+            parsed_value = [str(x) for x in items]
+    elif type_name == "dict":
+        if isinstance(raw_value, dict):
+            parsed_value = raw_value
+        elif isinstance(raw_value, str):
+            try:
+                loaded = json.loads(raw_value)
+                if isinstance(loaded, dict):
+                    parsed_value = loaded
+                else:
+                    raise ValueError
+            except Exception:
+                raise ConfigError(f"Invalid dict JSON for '{canon_key}': '{raw_value}'")
+        else:
+            raise ConfigError(f"Invalid dict value for '{canon_key}': {raw_value}")
+    else:
+        parsed_value = raw_value
+
+    if canon_key == "defaults.backup":
+        cfg.setdefault("defaults", {})["backup"] = parsed_value
+    elif canon_key == "defaults.prune":
+        cfg.setdefault("defaults", {})["prune"] = parsed_value
+    elif canon_key == "defaults":
+        cfg["defaults"] = parsed_value
+    elif canon_key == "aw_home":
+        if parsed_value is None:
+            cfg.pop("aw_home", None)
+        else:
+            cfg["aw_home"] = parsed_value
+    else:
+        cfg[canon_key] = parsed_value
+
+    normalized = normalize(cfg)
+    if auto_save:
+        save(normalized)
+
+    _, final_val = get_config_value(canon_key, normalized)
+    return normalized, canon_key, final_val
 
 
 def config_dir() -> Path:

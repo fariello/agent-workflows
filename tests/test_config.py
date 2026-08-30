@@ -155,5 +155,190 @@ class PathExpansionTests(unittest.TestCase):
         self.assertEqual(CFG.expand_path(stored), p)
 
 
+class ConfigSchemaAndGetSetTests(unittest.TestCase):
+    def test_config_schema_contains_all_allowed_keys(self):
+        for k in (
+            "search_roots",
+            "repos",
+            "exclude",
+            "ignore",
+            "defaults.backup",
+            "defaults.prune",
+            "aw_home",
+            "config_version",
+        ):
+            self.assertIn(k, CFG.CONFIG_SCHEMA)
+
+    def test_get_config_value_top_level_and_dotted(self):
+        cfg = CFG.default_config()
+        cfg["search_roots"] = ["~/src"]
+        cfg["defaults"] = {"backup": False, "prune": True}
+
+        k, v = CFG.get_config_value("search_roots", cfg)
+        self.assertEqual(k, "search_roots")
+        self.assertEqual(v, ["~/src"])
+
+        k, v = CFG.get_config_value("defaults.backup", cfg)
+        self.assertEqual(k, "defaults.backup")
+        self.assertFalse(v)
+
+        k, v = CFG.get_config_value("backup", cfg)
+        self.assertEqual(k, "defaults.backup")
+        self.assertFalse(v)
+
+        k, v = CFG.get_config_value("prune", cfg)
+        self.assertEqual(k, "defaults.prune")
+        self.assertTrue(v)
+
+    def test_get_config_value_unknown_raises(self):
+        with self.assertRaises(CFG.ConfigError):
+            CFG.get_config_value("nonexistent_key")
+
+    def test_set_config_value_bool_coercion(self):
+        cfg = CFG.default_config()
+        for t_val in ("true", "1", "yes", "on", "t", "y", True):
+            cfg, k, v = CFG.set_config_value(
+                "defaults.backup", t_val, cfg=cfg, auto_save=False
+            )
+            self.assertEqual(k, "defaults.backup")
+            self.assertTrue(v)
+            self.assertTrue(cfg["defaults"]["backup"])
+
+        for f_val in ("false", "0", "no", "off", "f", "n", False):
+            cfg, k, v = CFG.set_config_value(
+                "defaults.backup", f_val, cfg=cfg, auto_save=False
+            )
+            self.assertEqual(k, "defaults.backup")
+            self.assertFalse(v)
+            self.assertFalse(cfg["defaults"]["backup"])
+
+    def test_set_config_value_invalid_bool_raises(self):
+        with self.assertRaises(CFG.ConfigError):
+            CFG.set_config_value("defaults.backup", "invalid_bool", auto_save=False)
+
+    def test_set_config_value_list_and_paths(self):
+        cfg = CFG.default_config()
+        cfg, k, v = CFG.set_config_value(
+            "search_roots", "~/src, ~/work", cfg=cfg, auto_save=False
+        )
+        self.assertEqual(k, "search_roots")
+        self.assertEqual(v, ["~/src", "~/work"])
+
+        cfg, k, v = CFG.set_config_value(
+            "search_roots", '["~/projects"]', cfg=cfg, auto_save=False
+        )
+        self.assertEqual(v, ["~/projects"])
+
+    def test_set_config_value_read_only_raises(self):
+        with self.assertRaises(CFG.ConfigError):
+            CFG.set_config_value("config_version", 2, auto_save=False)
+
+    def test_set_config_value_aw_home(self):
+        cfg = CFG.default_config()
+        cfg, k, v = CFG.set_config_value(
+            "aw_home", "~/toolkit", cfg=cfg, auto_save=False
+        )
+        self.assertEqual(k, "aw_home")
+        self.assertEqual(v, "~/toolkit")
+
+        cfg, k, v = CFG.set_config_value("aw_home", "", cfg=cfg, auto_save=False)
+        self.assertIsNone(v)
+        self.assertNotIn("aw_home", cfg)
+
+    def test_parse_set_args_syntax_variants(self):
+        var, val = CFG.parse_set_args(["defaults.backup", "false"])
+        self.assertEqual((var, val), ("defaults.backup", "false"))
+
+        var, val = CFG.parse_set_args(["defaults.backup", "=", "false"])
+        self.assertEqual((var, val), ("defaults.backup", "false"))
+
+        var, val = CFG.parse_set_args(["defaults.backup", "to", "false"])
+        self.assertEqual((var, val), ("defaults.backup", "false"))
+
+        var, val = CFG.parse_set_args(["defaults.backup=false"])
+        self.assertEqual((var, val), ("defaults.backup", "false"))
+
+        var, val = CFG.parse_set_args(["search_roots", "~/src,", "~/work"])
+        self.assertEqual((var, val), ("search_roots", "~/src, ~/work"))
+
+    def test_parse_set_args_error_cases(self):
+        with self.assertRaises(CFG.ConfigError):
+            CFG.parse_set_args([])
+
+        with self.assertRaises(CFG.ConfigError):
+            CFG.parse_set_args(["defaults.backup"])
+
+        with self.assertRaises(CFG.ConfigError):
+            CFG.parse_set_args(["defaults.backup", "="])
+
+
+class ConfigCliCommandTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        os.environ["XDG_CONFIG_HOME"] = self._tmp.name
+
+    def tearDown(self):
+        os.environ.pop("XDG_CONFIG_HOME", None)
+        self._tmp.cleanup()
+
+    def test_cli_config_show_and_json(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = cli.main(["config", "show"])
+        self.assertEqual(rc, 0)
+        self.assertIn("agent-workflows configuration", out.getvalue())
+        self.assertIn("defaults.backup", out.getvalue())
+
+        out_json = io.StringIO()
+        with redirect_stdout(out_json):
+            rc = cli.main(["config", "show", "--json"])
+        self.assertEqual(rc, 0)
+        data = json.loads(out_json.getvalue())
+        self.assertIn("config_file", data)
+        self.assertIn("config", data)
+
+    def test_cli_config_get_and_set_roundtrip(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        # Set value with 'to'
+        out_set = io.StringIO()
+        with redirect_stdout(out_set):
+            rc = cli.main(["config", "set", "defaults.backup", "to", "false"])
+        self.assertEqual(rc, 0)
+        self.assertIn("defaults.backup = False", out_set.getvalue())
+
+        # Get value
+        out_get = io.StringIO()
+        with redirect_stdout(out_get):
+            rc = cli.main(["config", "get", "defaults.backup"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(out_get.getvalue().strip(), "false")
+
+        # Get value with --json
+        out_get_json = io.StringIO()
+        with redirect_stdout(out_get_json):
+            rc = cli.main(["config", "get", "defaults.backup", "--json"])
+        self.assertEqual(rc, 0)
+        data = json.loads(out_get_json.getvalue())
+        self.assertEqual(data, {"defaults.backup": False})
+
+    def test_cli_config_set_errors(self):
+        from agent_workflows import cli
+        import io
+        from contextlib import redirect_stdout
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            rc = cli.main(["config", "set", "invalid_key", "foo"])
+        self.assertEqual(rc, 2)
+        self.assertIn("FAIL", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
