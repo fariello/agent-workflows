@@ -6,16 +6,16 @@
 - Scope: Define one host-neutral concise-reporting contract; render it into installed managed instructions as a separately owned `aw:reporting` section; deliver it to Claude/OpenCode command sessions by POINTER (not by duplicating prose into 48 shims); inject it into OpenCode and Agy IPD-driver execution, verification, AND review turns; resolve the workflow-required-report precedence conflict explicitly; document precedence and limits; regenerate owned artifacts; and add reachability, parity, no-clobber, and prompt-construction tests. The contract governs conversational progress and final responses, not the completeness of code, tests, IPDs, reports, JSON outcomes, safety warnings, or workflow-required evidence.
 - Scope-Paths: agent_workflows/reporting_contract.py, agent_workflows/engine.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/, docs/, README.md, AGENTS.md, .opencode/commands/**, .claude/commands/**
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Priority: high
 - Set: terseout
 - Order: 1
 - Highest E allocated: 09
 - Author: codex gpt-5.6
 - Id: ntf6sx
-- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 
 ## Workflow history
+- 2026-08-30 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): One portable concise-reporting contract delivered via the aw:reporting managed section, a pointer line in all 48 command shims, and both drivers' worker/verifier prompts; review command string untouched; 53 new tests with observed-failing budget and parity guards; full suite 3628 passed with only the 15 pre-existing test_run_viewer failures. [Scope reconciliation - in-scope-unmodified .claude/commands/**: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified .opencode/commands/**: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified AGENTS.md: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified README.md: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified agent_workflows/agy_runipd.py: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified agent_workflows/engine.py: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified agent_workflows/oc_runipd.py: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified agent_workflows/reporting_contract.py: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified docs/: modified-in-commit-fb0774b2-before-begin-receipt-was-written; in-scope-unmodified tests/: modified-in-commit-fb0774b2-before-begin-receipt-was-written]
 - 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 
 - 2026-08-29 draft (codex gpt-5.6): created.

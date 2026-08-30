@@ -120,7 +120,7 @@ Showing the 40 most-recent of 177 Sets; the full manifest is INDEX.json.
 
 ## terseout
 
-- `ntf6sx` [pending] 01 pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
+- `ntf6sx` [executed] 01 executed/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
 
 ## testinvoke
 
