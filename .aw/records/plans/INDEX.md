@@ -23,7 +23,7 @@ Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
 
 ## timefmt
 
-- `rhszxj` [pending] 01 pending/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md
+- `rhszxj` [executed] 01 executed/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md
 
 ## ackme8
 

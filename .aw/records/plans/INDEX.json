@@ -3910,6 +3910,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md",
+    "plan_id": "rhszxj",
+    "set_id": "timefmt",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4177,16 +4187,6 @@
     "path": "pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
     "plan_id": "7f7782",
     "set_id": "detrun",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md",
-    "plan_id": "rhszxj",
-    "set_id": "timefmt",
     "status": "approved"
   },
   {
