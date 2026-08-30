@@ -6,7 +6,7 @@
 - Scope: Implement the `HostCapabilityDescriptor` schema, on-disk descriptor cache, live and mock probe harnesses for `oc` and `agy` (worktree isolation, commit gateway, push denial, session separation, argv capture, timeout), action-level capability requirement mapping, and the fail-closed `RUN-HOST-CAPABILITY` preflight gate. Implements spec 25kzda Sections 5.2 and 4.2.
 - Scope-Paths: agent_workflows/host_capabilities.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_host_capabilities.py
 - Item-Dependencies: executed:bmh754
-- Status: to-review
+- Status: reviewed
 - Set: detrun
 - Order: 2
 - Highest E allocated: 07
@@ -15,14 +15,42 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 to-review (antigravity): deepened probe specifications, mock injection harness, degraded assurance states, and CLI introspection.
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-002. E-01..E-03 largely duplicate the shipped `host_capability_registry.py` (1593 lines, TTL expiry, unverified default, fail-closed migration, degraded/fail-closed-verified states, 9-class negative probes). The typed host capability contract is ALSO claimed by APPROVED `wtiso-07` (`1o4eif`), so two approved plans would own one contract (BLOCKING OQ-02). E-05 adds code to both runners, fighting APPROVED `rununify` (`5e4sb6`) (BLOCKING OQ-03). Genuine residue: the runner-safety capability vocabulary (greps to zero hits) and the action-to-capability map with fail-closed preflight, as an EXTENSION of the shipped registry. Gate closed. NO-GO.
 
 ## Goal
 
-Provide a rigorous per-host capability descriptor and probe system that evaluates whether an agent host (`oc` or `agy`) can enforce required safety guarantees (worktree isolation, commit gateway, push denial, session separation) before starting work, failing closed item-locally when required guarantees cannot be proven.
+**REPLAN - DO NOT EXECUTE (/plan-review 2026-08-30, PR-001/PR-002 BLOCKER).** This plan is PARTLY
+shipped and PARTLY owned by an approved sibling Set. Verified at HEAD `d4d265b6`:
+
+- E-01 (descriptor schema, cache, TTL) and E-02/E-03 (positive and negative probe harnesses) largely
+  duplicate the shipped `agent_workflows/host_capability_registry.py` (1593 lines, awoptimize Order
+  `4fttzq`), which already provides a capability-evidence registry with an `unverified` default,
+  TTL-based expiry (`DEFAULT_EVIDENCE_TTL_DAYS`), fail-closed migration from static matrices,
+  `STATUS_DEGRADED`/`STATUS_FAIL_CLOSED_VERIFIED` states, secret redaction, host version detection,
+  and a 9-class negative probe harness. Creating a new `host_capabilities.py` beside it would give the
+  repo two capability registries (violates GUIDING_PRINCIPLES P8).
+- The typed host capability contract plus fail-closed dispatch is ALSO explicitly claimed by
+  `wtiso-07` (`1o4eif`), which is APPROVED. Two approved plans must not own one contract. This is
+  BLOCKING open question OQ-02 on the parent Set and needs a maintainer decision.
+- E-05 wires the preflight into BOTH `oc_runipd.py` and `agy_runipd.py`, which fights `rununify`
+  (`5e4sb6`, approved), whose whole purpose is to collapse the ~93 percent duplication between those
+  two files. Sequencing is BLOCKING open question OQ-03 on the parent Set.
+
+What IS genuinely unbuilt and worth keeping: the runner-safety capability VOCABULARY
+(`isolated_worktree`, `commit_gateway`, `deny_push`, `fresh_verifier_session`, `argv_capture`,
+`timeout_cancel`) greps to ZERO hits anywhere in `agent_workflows/`, so the shipped registry does not
+cover these specific guarantees; and the action-to-capability requirement map (E-04) with its
+fail-closed `RUN-HOST-CAPABILITY` preflight is real, needed work. That residue should EXTEND the
+shipped registry rather than replace it, and only after OQ-02 assigns ownership.
+
+Original goal, retained for the record: provide a rigorous per-host capability descriptor and probe
+system that evaluates whether an agent host (`oc` or `agy`) can enforce required safety guarantees
+before starting work, failing closed item-locally when required guarantees cannot be proven.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -166,3 +194,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+**GATE: CLOSED. `REJECT - NEEDS REPLAN` (/plan-review 2026-08-30).** Do NOT execute and do NOT approve.
+Blocked by parent-Set open questions OQ-02 (who owns the host capability contract: this Set,
+`wtiso-07`, or the shipped registry) and OQ-03 (sequencing against `rununify`), both of which require a
+maintainer decision. See `## Goal` for evidence. An executor reaching this gate must STOP and report.
+Retire with the parent Set `detrun` (`r4mbcw`); do not file under `executed/`.

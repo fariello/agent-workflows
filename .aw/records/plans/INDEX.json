@@ -4117,7 +4117,7 @@
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
     "plan_id": "r4mbcw",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4127,7 +4127,7 @@
     "path": "pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md",
     "plan_id": "bmh754",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4137,7 +4137,7 @@
     "path": "pending/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md",
     "plan_id": "a54m79",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4147,7 +4147,7 @@
     "path": "pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md",
     "plan_id": "kaygwo",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4157,7 +4157,7 @@
     "path": "pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md",
     "plan_id": "k7o7el",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4167,7 +4167,7 @@
     "path": "pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
     "plan_id": "7f7782",
     "set_id": "detrun",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

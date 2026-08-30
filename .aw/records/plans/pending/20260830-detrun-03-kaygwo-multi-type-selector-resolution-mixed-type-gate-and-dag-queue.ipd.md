@@ -6,7 +6,7 @@
 - Scope: Implement multi-type selector resolution across all 7 canonical artifact types, the mixed-type confirmation gate, the unified per-type dispatch table, and the pure DAG queue scheduler with dependency-not-met cascade. Implements spec 25kzda Sections 2.1-2.6, 3.1-3.6, and 5.4.
 - Scope-Paths: agent_workflows/run_selector.py, agent_workflows/run_scheduler.py, agent_workflows/run_dispatch.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_selector_and_queue.py
 - Item-Dependencies: executed:bmh754, executed:a54m79
-- Status: to-review
+- Status: reviewed
 - Set: detrun
 - Order: 3
 - Highest E allocated: 08
@@ -15,14 +15,40 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 to-review (antigravity): deepened selector precedence, mixed-type confirmation, dispatch handlers, tiebreaking rules, and DAG cascade algorithms.
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-003. Least-duplicated child but still not executable: E-05/E-06 duplicate APPROVED `lanetruth-03` (`8guhs0`), which explicitly owns runner consumption of the shared dependency predicate and the 25kzda 2.9/5.4 runtime satisfaction semantics; a DAG release surface also ships (`run_engine.get_runnable_steps`, run_engine.py:273). E-07 collides with APPROVED `rununify` (`5e4sb6`). The three proposed `run_*` modules were authored without inventorying the ELEVEN shipped `run_*` modules. Salvageable residue: E-01..E-04 (multi-type selector, mixed-type gate, dispatch table). Gate closed. NO-GO.
 
 ## Goal
 
-Provide the core selector resolution, dispatch, and DAG scheduling layer for `aw <host> run` that parses work items across all artifact types, enforces interactive/unattended mixed-type gates, executes ready items in dependency order, and cascades failure skips deterministically.
+**REPLAN - DO NOT EXECUTE (/plan-review 2026-08-30, PR-001/PR-003 BLOCKER).** This is the LEAST
+duplicated child of the Set and the most salvageable, but it is still not executable as written.
+Verified at HEAD `d4d265b6`:
+
+- E-05/E-06 (DAG queue scheduler and dependency-not-met cascade) collide with `lanetruth-03`
+  (`8guhs0`), which is APPROVED and explicitly owns making runner preflight consume the SHARED
+  `Item-Dependencies` predicate and implementing the spec 25kzda 2.9/5.4 runtime satisfaction
+  semantics in `oc_runipd.py`/`agy_runipd.py`. That plan's Concern notes the runner currently freezes
+  every queue item with `dependencies: []`. Two approved plans must not implement one behavior.
+  A shipped DAG release surface also already exists (`run_engine.get_runnable_steps`,
+  `agent_workflows/run_engine.py:273`).
+- E-07 integrates into BOTH `oc_runipd.py` and `agy_runipd.py`, fighting `rununify` (`5e4sb6`,
+  approved). See parent-Set OQ-03.
+- The three new modules (`run_selector.py`, `run_scheduler.py`, `run_dispatch.py`) must be reconciled
+  with the ELEVEN shipped `run_*` modules the Set never inventoried (`run_engine`, `run_state`,
+  `run_ledger_schema`, `run_ledger_store`, `run_evidence`, `run_freeze`, `run_gates`, `run_packet`,
+  `run_recovery`, `run_cli`, `run_viewer`). `run_scheduler.py` in particular overlaps `run_engine.py`.
+
+What IS genuinely unbuilt and worth keeping: E-01..E-04, the multi-type selector resolution across the
+7 canonical artifact types, the mixed-type confirmation gate, and the per-type/status dispatch table
+including the spec-to-IPD and backlog-graduation handoffs. A replacement plan should keep those, drop
+E-05/E-06 to `lanetruth-03`, and sequence E-07 after `rununify`.
+
+Original goal, retained for the record: provide the core selector resolution, dispatch, and DAG
+scheduling layer for `aw <host> run`.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -177,3 +203,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+**GATE: CLOSED. `REJECT - NEEDS REPLAN` (/plan-review 2026-08-30).** Do NOT execute and do NOT approve.
+E-05/E-06 duplicate approved plan `lanetruth-03` (`8guhs0`); E-07 collides with approved Set `rununify`
+(`5e4sb6`); the three proposed `run_*` modules were authored without inventorying the eleven shipped
+ones. Blocked by parent-Set OQ-03. See `## Goal`. An executor reaching this gate must STOP and report.
+Retire with the parent Set `detrun` (`r4mbcw`); do not file under `executed/`. E-01..E-04 are the
+salvageable residue and should be re-cut into a smaller plan.

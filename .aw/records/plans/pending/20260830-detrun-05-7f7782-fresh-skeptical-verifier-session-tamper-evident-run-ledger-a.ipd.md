@@ -6,7 +6,7 @@
 - Scope: Implement the fresh skeptical verifier session harness, append-only hash-chained run ledger, the deterministic completion checker implementing all 13 common checks, run resume mechanics, aggregate exit code calculation, and `--unverifiable-ok` neutrality handling. Implements spec 25kzda Sections 1.1, 4.2, 5.1, 5.3, 5.5, and 5.6.
 - Scope-Paths: agent_workflows/run_verifier.py, agent_workflows/run_ledger.py, agent_workflows/deterministic_checker.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, tests/test_deterministic_checker.py
 - Item-Dependencies: executed:k7o7el
-- Status: to-review
+- Status: reviewed
 - Set: detrun
 - Order: 5
 - Highest E allocated: 08
@@ -15,14 +15,45 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 to-review (antigravity): deepened 13 common deterministic checks, ledger hash chaining, run resume validation, and exit code aggregation.
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001. E-02/E-03/E-04/E-06 are ALREADY SHIPPED: hash-chained append-only ledger with corruption refusal (`run_ledger_store.py`: prev_hash/GENESIS_HASH/BrokenChainError), `aw run show|evidence|verify-ledger` (`run_cli.py`), completion predicates + false-completion validators (`run_evidence.py`), resume/cancel/crash recovery (`run_recovery.py`), plus `run_ledger_schema.py`, `run_freeze.py`, `run_gates.py`. Building a second ledger and a second completion authority in the one component that must be the single trustworthy authority is worse than none: two disagreeing checkers mean neither can authorize completion. Residue: the fresh verifier harness (E-01), after inventorying `run_evidence.py`. Gate closed. NO-GO.
 
 ## Goal
 
-Provide the skeptical verification and deterministic authority layer that launches unpolluted verifier sessions, records a tamper-evident hash-chained run ledger, evaluates deterministic repository state for completion authorization, supports safe run resumption, and computes honest aggregate exit codes.
+**REPLAN - DO NOT EXECUTE (/plan-review 2026-08-30, PR-001 BLOCKER).** This plan is the second-worst
+duplication in the Set after child 01. Verified at HEAD `d4d265b6`:
+
+| This plan's E-item | Already shipped as | Evidence |
+| --- | --- | --- |
+| E-02 append-only hash-chained ledger + `verify_ledger` | `run_ledger_store.py` | `prev_hash` chaining, `GENESIS_HASH`, `BrokenChainError`, `compute_record_hash`, single-writer lock, typed `LedgerCorruption` refusal, redaction hooks (`agent_workflows/run_ledger_store.py:405,476,507`) |
+| E-03 `aw runs show/evidence/verify` | `aw run show`, `aw run evidence`, `aw run verify-ledger` | `agent_workflows/run_cli.py`; `aw run --help` lists them |
+| E-04 deterministic completion checker | `run_evidence.py` completion predicates + false-completion validators | module docstring E-01..E-03: capture provenance, mechanically validate against "every known false-completion class", deterministic completion predicates |
+| E-06 resume mechanics | `run_recovery.py` | E-02 "resume / cancel / crash recovery"; `aw run resume` shipped and "refuse on interrupted side effects" |
+| record vocabulary the checker needs | `run_ledger_schema.py` | typed records separating REQUIRED / ATTEMPTED / OBSERVED / VERIFIED |
+| requirement freezing the checker compares against | `run_freeze.py` | frozen requirement digests, `requirement_revision`, evidence invalidation |
+| human-gate `needs_input` behavior | `run_gates.py` | "consent is NEVER synthesized"; headless stop with stable `needs_input` |
+
+Creating `run_ledger.py` beside the shipped `run_ledger_store.py`, and `deterministic_checker.py`
+beside the shipped `run_evidence.py`, would give the repo two ledgers and two completion authorities.
+That is precisely the drift GUIDING_PRINCIPLES P8 forbids, and in a component whose entire value is
+being the SINGLE trustworthy authority, a second implementation is worse than none: two disagreeing
+checkers mean neither can be trusted to authorize completion.
+
+What IS genuinely unbuilt and worth keeping: the fresh skeptical verifier session harness (E-01) is
+real work not obviously shipped (`agy_verifier.py` is only 301 lines and
+`orchestrate_isolation.py` defines a `ForkedVerifierForbiddenError`, so the boundary needs
+investigation, not assumption); and the specific 13 `RUN-*` common checks of spec 25kzda 4.2 may need
+wiring ON TOP of the shipped predicates. A replacement plan must first inventory `run_evidence.py` and
+state which of the 13 checks already exist there before proposing to write any.
+
+Original goal, retained for the record: provide the skeptical verification and deterministic authority
+layer that launches unpolluted verifier sessions, records a tamper-evident hash-chained run ledger,
+evaluates deterministic repository state for completion authorization, supports safe run resumption,
+and computes honest aggregate exit codes.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -176,3 +207,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+**GATE: CLOSED. `REJECT - NEEDS REPLAN` (/plan-review 2026-08-30).** Do NOT execute and do NOT approve.
+E-02/E-03/E-04/E-06 are already shipped as `run_ledger_store.py`, `run_cli.py`, `run_evidence.py`, and
+`run_recovery.py` (see the table under `## Goal`). Building them again would create a second run ledger
+and a second completion authority in the one component that must be a single source of truth. The plan
+also depends on child 04, which is itself REPLAN. An executor reaching this gate must STOP and report.
+Retire with the parent Set `detrun` (`r4mbcw`); do not file under `executed/`. The verifier-session
+harness (E-01) is the salvageable residue, after an inventory of `run_evidence.py`.

@@ -6,7 +6,7 @@
 - Scope: Implement worktree allocation with path leases, the 7-step deterministic containment transaction for failed/out-of-scope mutations, the quarantine bundle directory, the exhaustive 6-class `ABORT RUN` engine, and the commit gateway appending `AW-Run:` and `AW-Item:` trailers. Implements spec 25kzda Sections 4.1, 4.2, 5.1, and 5.7.
 - Scope-Paths: agent_workflows/worktree_containment.py, agent_workflows/commit_gateway.py, agent_workflows/orchestrate_isolation.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_fault_containment.py
 - Item-Dependencies: executed:kaygwo
-- Status: to-review
+- Status: reviewed
 - Set: detrun
 - Order: 4
 - Highest E allocated: 07
@@ -15,14 +15,39 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 to-review (antigravity): deepened 7-step containment transaction, quarantine bundle hashing, abort escalation rules, and commit gateway trailers.
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001/PR-003. E-01 duplicates the APPROVED 7-plan `wtiso` Set and the shipped `orchestrate_isolation.py` (1152 lines) that this plan's own conventions section names as the canonical lease manager. E-05 collides with APPROVED `rununify` (`5e4sb6`). Depends on child 03, itself REPLAN. Genuine residue: the `AW-Run:`/`AW-Item:` trailers (zero hits today) plus CommitGateway, and the 7-step containment transaction / 6-class abort classifier, as an EXTENSION of `orchestrate_isolation.py`. Gate closed. NO-GO.
 
 ## Goal
 
-Provide a robust worktree isolation and fault-containment system that isolates mutations, automatically quarantines and rolls back out-of-scope or failed item mutations without polluting the workspace, restricts run aborts to six fatal integrity violations, and formats commit trailers immutably.
+**REPLAN - DO NOT EXECUTE (/plan-review 2026-08-30, PR-001/PR-003 BLOCKER).** Verified at HEAD
+`d4d265b6`:
+
+- E-01 (`WorktreeContext`, worktree allocation, path leases) overlaps the entire APPROVED `wtiso` Set
+  (7 plans, `bl9q3d` orchestrator), which owns worktree isolation and the driver-owned control plane,
+  and the shipped `agent_workflows/orchestrate_isolation.py` (1152 lines), which already provides lane
+  requests, concurrency-conflict detection, isolation contexts, host isolation capabilities, and an
+  integration gate. This plan's own `## Project conventions discovered` even names
+  `orchestrate_isolation.py` as "the canonical worktree lease manager", yet E-01 proposes a new
+  `worktree_containment.py` to do it again.
+- E-05 integrates into BOTH `oc_runipd.py` and `agy_runipd.py`, fighting `rununify` (`5e4sb6`,
+  approved). See parent-Set OQ-03.
+- The plan claims `Item-Dependencies: executed:kaygwo`, so it inherits every blocker of child 03.
+
+What IS genuinely unbuilt and worth keeping: the `AW-Run:`/`AW-Item:` commit trailers (E-04) grep to
+ZERO hits in `agent_workflows/`, and the `CommitGateway` that emits them is real, needed work; the
+7-step containment transaction (E-02) and the 6-class `ABORT RUN` classifier (E-03) are specified
+precisely in spec 25kzda 4.1 and are not obviously shipped. That residue should EXTEND
+`orchestrate_isolation.py` and the shipped ledger, be reconciled with `wtiso` ownership, and be
+sequenced after `rununify` so trailers are added once to a unified runner rather than twice.
+
+Original goal, retained for the record: provide a robust worktree isolation and fault-containment
+system that isolates mutations, quarantines and rolls back out-of-scope or failed item mutations,
+restricts run aborts to six fatal integrity violations, and formats commit trailers immutably.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -165,3 +190,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+**GATE: CLOSED. `REJECT - NEEDS REPLAN` (/plan-review 2026-08-30).** Do NOT execute and do NOT approve.
+E-01 duplicates the approved `wtiso` Set and the shipped `orchestrate_isolation.py`; E-05 collides with
+approved Set `rununify` (`5e4sb6`); the plan depends on child 03, which is itself REPLAN. Blocked by
+parent-Set OQ-03. See `## Goal`. An executor reaching this gate must STOP and report. Retire with the
+parent Set `detrun` (`r4mbcw`); do not file under `executed/`. The commit-trailer/gateway work (E-04)
+and the containment transaction (E-02/E-03) are the salvageable residue.

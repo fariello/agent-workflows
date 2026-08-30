@@ -6,7 +6,7 @@
 - Scope: Implement the mandatory id6-grounded `Item-Dependencies` metadata grammar, `From-Spec` link metadata recognition, pure shared DAG evaluator, the 6 stable `check.ipd-dependency-*` rules in `check_engine.py`, `check.from-spec-dangling`, phased `ipd_lint.py` enforcement, `aw ipd dependencies set` CLI, and the opt-in `ipd-dependency-statement-gate` commit hook. Implements spec 25kzda Sections 2.7-2.11 and 4.3.
 - Scope-Paths: agent_workflows/artifact_dependencies.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/config.py, tests/test_item_dependencies.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: detrun
 - Order: 1
 - Highest E allocated: 09
@@ -15,14 +15,42 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored from approved spec 25kzda (20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md).
 - 2026-08-30 to-review (antigravity): deepened edge cases, From-Spec schema recognition, cycle detection, and grandfathering cutover helpers.
+- 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001. Verified at HEAD `d4d265b6` that E-01..E-09 are ALREADY SHIPPED: `ipd_schema.parse_item_dependencies`/`canonical_item_dependencies` (ipd_schema.py:634,690, executed live), `META_ITEM_DEPENDENCIES` in META_RECOGNIZED (:207), `check_engine.evaluate_ipd_dependencies` with cycle detection (check_engine.py:1750), all six `check.ipd-dependency-*` rules (:121-137), `config.dependency_cutover_date` (config.py:816), phased lint consumption (ipd_lint.py:1046), the `aw ipd dependencies set` verb, the `ipd-dependency-statement-gate` hook, and 626 lines of tests. All graduated from this SAME spec 25kzda by the executed `ipddeps` Set (r7xku3/g69y23/ovbnyq/mp88bl). Only residue: `From-Spec` recognition + `check.from-spec-dangling`. Gate closed. NO-GO.
 
 ## Goal
 
-Provide a single, pure, canonical `Item-Dependencies` parser, schema validator, and graph evaluator that enforces explicit prerequisite edges across IPDs, specs, and backlog items, ensuring no IPD can be reviewed or executed with missing, malformed, cyclic, or unsatisfied prerequisites.
+**REPLAN - DO NOT EXECUTE (/plan-review 2026-08-30, PR-001 BLOCKER).** This plan's goal is already
+SHIPPED. It would build a second copy of working machinery. Verified at HEAD `d4d265b6`:
+
+| This plan's E-item | Already shipped as | Evidence |
+| --- | --- | --- |
+| E-01 grammar parser/serializer | `ipd_schema.parse_item_dependencies`, `canonical_item_dependencies` | `agent_workflows/ipd_schema.py:634,690` (ran it: parses all edge types, canonicalizes, rejects duplicates and `state:ipd:executed:`) |
+| E-02 `Item-Dependencies` recognition | `META_ITEM_DEPENDENCIES` in `META_RECOGNIZED` | `agent_workflows/ipd_schema.py:168,207` |
+| E-03 pure graph evaluator + cycle detection | `check_engine.evaluate_ipd_dependencies` | `agent_workflows/check_engine.py:1750`, cycles via `item_dependency_cycles` |
+| E-04 six `check.ipd-dependency-*` rules | all six registered | `agent_workflows/check_engine.py:121-137` |
+| E-05 cutover helper + phased lint | `config.dependency_cutover_date`; lint consumes shared evaluator | `agent_workflows/config.py:816`; `agent_workflows/ipd_lint.py:1046` |
+| E-06 `aw ipd dependencies set` | shipped verb | `aw ipd dependencies --help` |
+| E-07 opt-in commit hook | shipped | `agent_workflows/hooks/ipd_dependency_statement_gate.py`; `ipd-dependency-statement-gate` verb |
+| E-08/E-09 tests | shipped | `tests/test_ipd_dependency_check.py` (373 lines), `tests/test_ipd_dependency_statement_gate.py` (253 lines) |
+
+All of it was graduated from THIS SAME spec `25kzda` by the earlier `ipddeps` Set (`r7xku3`, `g69y23`,
+`ovbnyq`, `mp88bl` - all verified `executed`), whose plans cite spec sections 2.7-2.11 by name. This
+plan was authored at `453673b6` (2026-08-30 00:08) against a spec paragraph that wrongly called the
+design net-new; the maintainer corrected that paragraph at `a59f2c53` (00:35), and the corrected spec
+now says a graduating Set "must CONSUME, not rebuild" this machinery.
+
+The ONLY genuinely unbuilt residue here is `From-Spec` recognition plus a `check.from-spec-dangling`
+rule (`From-Spec` is absent from `META_RECOGNIZED`, and no `from-spec` rule exists in
+`check_engine.py`). That is a small, self-contained change and does not need a plan of this size.
+
+Original goal, retained for the record: provide a single, pure, canonical `Item-Dependencies` parser,
+schema validator, and graph evaluator that enforces explicit prerequisite edges across IPDs, specs,
+and backlog items.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -190,3 +218,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+**GATE: CLOSED. `REJECT - NEEDS REPLAN` (/plan-review 2026-08-30).** Do NOT execute and do NOT approve.
+Nearly every E-item here is already shipped (see the table under `## Goal` for per-item evidence). An
+executor reaching this gate must STOP and report. Retire with the parent Set `detrun` (`r4mbcw`); do not
+file under `executed/`. The surviving residue (`From-Spec` + `check.from-spec-dangling`) belongs in a
+new, much smaller plan.
