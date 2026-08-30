@@ -91,6 +91,7 @@ class StepSummary:
     exec_tokens: dict[str, int] = field(default_factory=dict)
     verify_cost: float | None = None
     verify_tokens: dict[str, int] = field(default_factory=dict)
+    is_live: bool = False
 
     @property
     def is_projected(self) -> bool:
@@ -364,6 +365,7 @@ class StepArtifactAudit:
     expected_dir: str | None = None
     file_status: str | None = None
     actual_path: Path | None = None
+    is_live: bool = False
 
 
 def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
@@ -430,6 +432,7 @@ def audit_step_artifact(
             expected_dir=expected_dir_name,
             file_status=None,
             actual_path=None,
+            is_live=step.is_live,
         )
 
     actual_dir_name = actual_file.parent.name
@@ -478,6 +481,7 @@ def audit_step_artifact(
         expected_dir=expected_dir_name,
         file_status=file_status,
         actual_path=actual_file,
+        is_live=step.is_live,
     )
 
 
@@ -966,6 +970,10 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
         run_dir, created_at, updated_at, start_dt
     )
 
+    if is_live:
+        for s in steps:
+            s.is_live = True
+
     return RunSummary(
         run_id=run_id,
         run_dir=run_dir,
@@ -1279,7 +1287,16 @@ def format_artifact_audit_summary(
     rows = []
 
     for a in discrepancies:
-        item_id = a.stem or a.step_id6
+        raw_item_id = a.stem or a.step_id6
+        if a.is_live:
+            flag_txt = (
+                term.color256("[in flight]", 214)
+                if getattr(term, "color", False)
+                else "[in flight]"
+            )
+            item_id = f"{raw_item_id} {flag_txt}"
+        else:
+            item_id = raw_item_id
         exp_loc = f"{a.expected_dir}/" if a.expected_dir else "-"
         if a.missing_entirely:
             act_loc_disp = (
@@ -1402,11 +1419,18 @@ def render_steps_table(
             audit.missing_entirely or audit.location_mismatch or audit.status_mismatch
         )
         if has_issue:
-            issue_disp = (
-                term.color256("YES", 196, bold=True)
-                if getattr(term, "color", False)
-                else "YES"
-            )
+            if audit.is_live:
+                issue_disp = (
+                    term.color256("YES (in flight)", 214, bold=True)
+                    if getattr(term, "color", False)
+                    else "YES (in flight)"
+                )
+            else:
+                issue_disp = (
+                    term.color256("YES", 196, bold=True)
+                    if getattr(term, "color", False)
+                    else "YES"
+                )
         else:
             issue_disp = (
                 term.color256("no", 46) if getattr(term, "color", False) else "no"

@@ -1112,6 +1112,25 @@ class RunViewerTests(TestCase):
             self.assertIn("YES", tbl)
             self.assertIn("no", tbl)
 
+            # Check in-flight tagging when step is live
+            st1_live = run_viewer.StepSummary(
+                position=1,
+                id6="item01",
+                setid="test",
+                action="execute",
+                status="complete",
+                configured_file="",
+                stem="20260829-test-01-item01",
+                is_live=True,
+            )
+            a1_live = run_viewer.audit_step_artifact(st1_live, repo_root=root)
+            self.assertTrue(a1_live.is_live)
+            sum_live_txt = run_viewer.format_artifact_audit_summary([a1_live], term)
+            self.assertIn("[in flight]", sum_live_txt)
+
+            tbl_live = run_viewer.render_steps_table([st1_live], term, repo_root=root)
+            self.assertIn("YES (in flight)", tbl_live)
+
     def test_run_viewer_cli_issues_flag(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
