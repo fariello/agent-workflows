@@ -60,6 +60,7 @@ import fcntl
 import json
 import os
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -93,6 +94,26 @@ __all__ = [
     "WindDown",
     "deliberate_stop_event",
     "deliberate_stop_exit_code",
+    # level 3 (runstop Phase 3, `foi1b3`): the observed safe checkpoint, the KNOWN disposition,
+    # and the bounded-wait breach DETECTOR (escalation itself is Phase 5's).
+    "OC_STEP_COMPLETE_TYPE",
+    "OC_TOOL_EVENT_TYPE",
+    "OC_COMPLETED_STATUS",
+    "AGY_STEP_EVENT_TYPE",
+    "AGY_COMPLETED_STATE",
+    "is_oc_safe_checkpoint",
+    "is_agy_safe_checkpoint",
+    "event_label",
+    "CheckpointObserver",
+    "StopAtCheckpoint",
+    "STOPPED_DISPOSITION",
+    "CERTAINTY_KNOWN",
+    "stopped_disposition",
+    "stopped_stop_event",
+    "BUDGET_BREACH_EVENT",
+    "budget_breach_event",
+    "deadline_seconds_remaining",
+    "BudgetBreachWatch",
 ]
 
 # --- the record's on-disk identity ----------------------------------------------------------------
@@ -682,3 +703,464 @@ def deliberate_stop_exit_code(
         if all(status in success_states for status in remaining if status != "queued")
         else 1
     )
+
+
+# --- level 3: the OBSERVED safe checkpoint (spec `c4gd2h` R10/R18, A3) -----------------------------
+#
+# Owned by Set `runstop` Phase 3 (`foi1b3`). Level 3 is the first level that interrupts the RUNNING
+# turn, so unlike levels 1-2 its correctness is not about the dequeue decision but about WHEN the
+# turn is cut. Spec R10 forbids defining that instant by elapsed time, so it is defined by an
+# OBSERVATION of the child's own event stream.
+#
+# THE DEFINITION (spec OQ-01's resolution, which this module implements). A SAFE CHECKPOINT is the
+# instant AFTER a COMPLETED tool/step event has been consumed and BEFORE the next one is dispatched.
+# That is observable from the per-line loop the drivers already run, so no agent cooperation, prompt
+# change, or per-agent capability handshake is required (all three were explicitly rejected by that
+# resolution; do not reintroduce them).
+#
+# VERIFIED AGAINST A REAL SESSION, not assumed (2026-08-29, re-verified 2026-08-30 while executing
+# this phase, parsing `.aw/records/runs/run-20260829T053827Z-2084502/sessions/01-jolfpj-attempt-1.jsonl`):
+# that file holds 122 `step_start`, 122 `step_finish`, 135 `tool_use` (EVERY ONE carrying
+# `part.state.status == "completed"`), and 85 `text` records. So "completed" is an OBSERVED field
+# rather than an inference, and `step_finish` is the cleaner completion signal than `step_start`.
+#
+# WHY THE PARSE LIVES HERE AND NOT IN `render_event`. `render_event` (`render_stream.py`) is invoked
+# ONLY under `output_mode == "clean"` (`oc_runipd.py`, the `elif output_mode == "clean"` branch). In
+# `raw` and `quiet` modes NOTHING parses the event line, so a checkpoint detector built on
+# `render_event` would silently never fire in two of the three output modes - the feature would
+# appear to work and not work depending on an unrelated display flag. The detector below therefore
+# does its own minimal `json.loads` + type/status read, reusing only the FIELD NAMES, never the
+# rendering. Do not route it back through `render_event`.
+#
+# THE TWO DRIVERS HAVE DIFFERENT EVENT SCHEMAS (orchestrator CID-3 requires the same SEMANTICS in
+# both, not the same field reads). `oc` emits `{"type": "tool_use", "part": {"state": {"status":
+# "completed"}}}` plus `step_start`/`step_finish`; `agy` emits `{"type": "step_update",
+# "step_update": {"state": "DONE"}}` (see `agy_runipd.render_agy_event`). Hence two detectors with
+# one shared meaning.
+#
+# WHAT "SAFE" HONESTLY MEANS, stated so a reader does not overstate it. The driver cannot see INSIDE
+# a tool call, so it cannot promise nothing was mid-flight; it can only promise that no PREVIOUSLY
+# OBSERVED operation was cut mid-flight. Anything the agent began after emitting its last event is
+# unobserved, and uncommitted work is not covered at all (the runbook has the agent commit and write
+# its outcome JSON at turn END). That limit is exactly why `stopped_disposition` below must intercept
+# the disposition path rather than trust it.
+
+# The oc event types that can carry a completion. `step_finish` is a completion by definition;
+# `tool_use` is one only when its `part.state.status` says so.
+OC_STEP_COMPLETE_TYPE = "step_finish"
+OC_TOOL_EVENT_TYPE = "tool_use"
+OC_COMPLETED_STATUS = "completed"
+
+# The agy counterpart: a `step_update` whose `state` is DONE.
+AGY_STEP_EVENT_TYPE = "step_update"
+AGY_COMPLETED_STATE = "DONE"
+
+
+def _decode_event(line: str) -> dict | None:
+    """Decode ONE stream line as a JSON object, or None when it is not one.
+
+    Returns None for a blank line, a partial/interleaved line, or any non-object payload. This is
+    the whole reason a partial line cannot be mistaken for a checkpoint: an incomplete JSON line
+    does not decode, so it reports nothing rather than defaulting to "safe".
+    """
+
+    text = line.strip()
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def is_oc_safe_checkpoint(line: str) -> bool:
+    """Does this `oc` stream line END at a safe checkpoint (spec R10)?
+
+    True for a `step_finish`, and for a `tool_use` whose `part.state.status` is `completed`. Any
+    other status (`running`, `error`, `pending`, absent) is NOT a checkpoint: the operation it
+    describes is not known to have finished, so stopping there would cut it mid-flight.
+
+    Deliberately independent of `output_mode` and of `render_event` (see the module comment above).
+    """
+
+    event = _decode_event(line)
+    if event is None:
+        return False
+    event_type = event.get("type")
+    if event_type == OC_STEP_COMPLETE_TYPE:
+        return True
+    if event_type != OC_TOOL_EVENT_TYPE:
+        return False
+    part = event.get("part")
+    if not isinstance(part, dict):
+        return False
+    state = part.get("state")
+    if not isinstance(state, dict):
+        return False
+    return state.get("status") == OC_COMPLETED_STATUS
+
+
+def is_agy_safe_checkpoint(line: str) -> bool:
+    """Does this `agy` stream line END at a safe checkpoint (spec R10)?
+
+    The agy schema is NOT the oc schema: completion is `{"type": "step_update", "step_update":
+    {"state": "DONE"}}`, so this reads `step_update.state`, never oc's `part.state.status`. `ACTIVE`,
+    `ERROR`, and `FAILED` are not checkpoints.
+    """
+
+    event = _decode_event(line)
+    if event is None:
+        return False
+    if event.get("type") != AGY_STEP_EVENT_TYPE:
+        return False
+    step = event.get(AGY_STEP_EVENT_TYPE)
+    if not isinstance(step, dict):
+        return False
+    return str(step.get("state", "")).upper() == AGY_COMPLETED_STATE
+
+
+def event_label(line: str) -> str:
+    """A short, human-readable name for the operation an event line describes.
+
+    Recorded on the interrupted item so the ledger names the LAST COMPLETED OPERATION rather than
+    only its index (spec R18). Best-effort by design: an unrecognized line yields a generic label
+    instead of raising, because a stop must never fail on a cosmetic detail.
+    """
+
+    event = _decode_event(line)
+    if event is None:
+        return "unknown"
+    event_type = str(event.get("type") or "unknown")
+    part = event.get("part")
+    if isinstance(part, dict):
+        tool = part.get("tool")
+        if isinstance(tool, str) and tool:
+            return f"{event_type}:{tool}"
+    step = event.get(AGY_STEP_EVENT_TYPE)
+    if isinstance(step, dict):
+        info = step.get("tool_info")
+        name = None
+        if isinstance(info, dict):
+            name = info.get("name")
+        name = name or step.get("tool_name") or step.get("step_type")
+        if isinstance(name, str) and name:
+            return f"{event_type}:{name}"
+    return event_type
+
+
+@dataclass
+class CheckpointObserver:
+    """Tracks whether a level-3 stop is pending and whether a safe checkpoint has been reached.
+
+    Fed ONE stream line at a time from the driver's existing per-line loop, so it adds no new
+    observation channel (spec R5's single-source discipline: the loop that already touches the
+    statusline, the stall watchdog, and the stop poll).
+
+    `detector` is the per-driver completion predicate (`is_oc_safe_checkpoint` /
+    `is_agy_safe_checkpoint`), injected rather than branched on so the two drivers share this
+    control flow while reading their own schemas.
+
+    THIS CLASS DECIDES *WHEN*, NOT *HOW*. The actual stop is a TERMINATION performed by the caller
+    through `runner_shutdown.clean_shutdown` (spec R5). See `StopAtCheckpoint` for why there is no
+    cooperative alternative.
+    """
+
+    detector: Callable[[str], bool]
+    requested_level: int | None = None
+    requester: str = ""
+    # Every line consumed, whether or not it was a checkpoint. This is the honest denominator for
+    # "the turn stopped after event N".
+    events_seen: int = 0
+    # The 1-based index and label of the last COMPLETED event observed. `None` means no completed
+    # event has been seen yet, so no checkpoint is reachable from what we have observed.
+    last_checkpoint_index: int | None = None
+    last_checkpoint_label: str | None = None
+    stop_at_checkpoint: bool = False
+
+    def request(self, level: int, requester: str = "") -> None:
+        """Record that a level-3 stop is in force; the next checkpoint becomes the stop point.
+
+        Monotonic in the same spirit as the durable record: a level already at or above `level`
+        is not lowered here either.
+        """
+
+        if self.requested_level is None or level > self.requested_level:
+            self.requested_level = level
+            self.requester = requester or self.requester
+
+    @property
+    def pending(self) -> bool:
+        return self.requested_level is not None
+
+    def observe(self, line: str) -> bool:
+        """Consume one stream line; return True when the turn must stop NOW.
+
+        Order matters: the line is classified FIRST, so the checkpoint the driver stops at is one it
+        has actually observed completing, and the recorded position is that event's - never the
+        position of a line that merely arrived after the request.
+        """
+
+        self.events_seen += 1
+        if self.detector(line):
+            self.last_checkpoint_index = self.events_seen
+            self.last_checkpoint_label = event_label(line)
+            if self.pending:
+                self.stop_at_checkpoint = True
+                return True
+        return False
+
+
+class StopAtCheckpoint(Exception):
+    """Raised inside the per-line loop when a level-3 stop reached its safe checkpoint.
+
+    THE MECHANISM, STATED PLAINLY SO IT IS NOT OVERSTATED. The child is a ONE-SHOT
+    `opencode run` / `agy` subprocess with NO cooperative stop channel: the driver's only controls
+    over a running turn are reading its stdout and signalling it. There is no "please wind down"
+    input, and adding one (a prompt change or a per-agent handshake) was explicitly rejected by spec
+    `c4gd2h` OQ-01's resolution.
+
+    So "stopping the turn at a checkpoint" IS TERMINATION - at an instant chosen by observation. The
+    in-repo precedent does exactly the same thing: `StallWatchdog._run` calls `terminate_process`
+    when it fires. Levels 3 and 4 therefore SHARE this mechanism and differ ONLY in WHEN it is
+    issued: level 3 waits for an observed completed-event boundary, level 4 does not wait at all.
+
+    Consequently "KNOWN" certainty means "no PREVIOUSLY OBSERVED operation was cut mid-flight", NOT
+    "the agent finished tidily". The agent may still have had unflushed intent, and anything it began
+    after its last emitted event is unobserved.
+
+    Raising is deliberate: it unwinds to the driver's existing `except BaseException` handler, which
+    already routes to the shared reaper, so no second teardown path is introduced (spec R5).
+    """
+
+    def __init__(self, observer: CheckpointObserver) -> None:
+        self.observer = observer
+        level = observer.requested_level
+        super().__init__(
+            f"level-{level} stop honored at safe checkpoint after event "
+            f"{observer.last_checkpoint_index} ({observer.last_checkpoint_label})"
+        )
+
+
+# --- level 3: the KNOWN disposition (spec R18/R21/R22) --------------------------------------------
+#
+# WHY THIS EXISTS AT ALL, measured rather than assumed. A level-3 stop leaves NO per-item outcome
+# JSON (the runbook has the AGENT write `outcomes/<NN>-<id6>.json` at turn END, so a mid-turn stop
+# never produces it), the plan is still in `pending/`, and the terminated child exits NONZERO.
+# `reconcile_disposition` in both drivers therefore falls through every branch to its final
+# `return ("partial" if exit_code == 0 else "failed-safely")` and labels a DELIBERATE OPERATOR STOP
+# as `failed-safely`. That is precisely the crash-versus-intent conflation spec R21 forbids and the
+# unearned verdict R22 forbids. So the drivers must consult this BEFORE that fallback.
+#
+# It must equally NOT be recorded `unknown_outcome` (that term is spec-owned and reserved for
+# level 4's INDETERMINATE case) and NOT be recorded executed/complete/successful (R22).
+
+# The status a level-3-interrupted item carries. `interrupted` is deliberately an EXISTING status in
+# both drivers' vocabulary and in `runner_shutdown.KNOWN_ITEM_STATUSES`, so the ledger stays coherent
+# (spec R3) and `resume` already re-queues it in recovery mode. Inventing a new status would have
+# broken Phase 0's coherence check and the resume path at once.
+STOPPED_DISPOSITION = "interrupted"
+
+# The certainty vocabulary. `known` is level 3's; level 4's INDETERMINATE value is owned by Phase 4
+# and deliberately not defined here.
+CERTAINTY_KNOWN = "known"
+
+
+def stopped_disposition(
+    *,
+    level: int,
+    requester: str,
+    last_completed_index: int | None,
+    last_completed_label: str | None,
+    git_state: str = "",
+    events_seen: int | None = None,
+    at: str = "",
+) -> dict:
+    """The KNOWN-certainty record for an item interrupted by a level-3 stop (spec R18).
+
+    Records the level that interrupted it, the certainty, the last COMPLETED operation observed,
+    the observed git state, and what a resume must do first - so a reader never has to guess whether
+    the item broke or was deliberately stopped.
+
+    `resume_action` is prose on purpose: the driver's existing `requeue_interrupted` already
+    re-queues an `interrupted` item in recovery mode, so this describes that mechanism rather than
+    inventing a second one.
+    """
+
+    return {
+        "stopped_deliberately": True,
+        "failure": False,
+        "level": level,
+        "level_name": LEVEL_NAMES.get(level, "unknown"),
+        "requester": requester,
+        "certainty": CERTAINTY_KNOWN,
+        "last_completed_event_index": last_completed_index,
+        "last_completed_event": last_completed_label,
+        "events_observed": events_seen,
+        "git_state": git_state,
+        "resume_action": (
+            "re-run this item in recovery mode; it was interrupted at an observed safe checkpoint "
+            "after the operation named above, so re-read the plan and the repository state before "
+            "continuing (no previously observed operation was cut mid-flight, but work the agent "
+            "began after its last emitted event is unobserved and may be uncommitted)"
+        ),
+        "at": at,
+    }
+
+
+def stopped_stop_event(record: dict, *, id6: str, at: str) -> dict:
+    """The ledger event for a level-3 stop, recorded as a NON-FAILURE (spec R21).
+
+    Rides the drivers' established append-only `events.jsonl` channel, exactly as
+    `deliberate_stop_event` does for levels 1-2. No new ledger substrate.
+    """
+
+    return {
+        "at": at,
+        "event": "deliberate-stop-at-checkpoint",
+        "deliberate": True,
+        "failure": False,
+        "id6": id6,
+        "level": record.get("level"),
+        "level_name": record.get("level_name"),
+        "requester": record.get("requester"),
+        "certainty": record.get("certainty"),
+        "last_completed_event_index": record.get("last_completed_event_index"),
+        "last_completed_event": record.get("last_completed_event"),
+    }
+
+
+# --- level 3: the BOUNDED wait (spec R11; this phase DETECTS, Phase 5 ENFORCES) --------------------
+#
+# THE R10 BOUNDARY, STATED DELIBERATELY so a later reader does not "simplify" the checkpoint into a
+# timeout. R10 forbids defining the SAFE CHECKPOINT by elapsed time, and nothing below does that:
+# the checkpoint is still and only an observed completed event. This deadline defines the GIVE-UP
+# point - the instant after which no checkpoint will be AWAITED any longer - which is a different
+# question and is necessarily time-based (spec R11's bounded wind-down budget).
+#
+# WHY IT NEEDS ITS OWN THREAD. The drivers consume the child with a BLOCKING `for line in
+# process.stdout`. When a child goes silent that iteration simply does not return, so a deadline
+# check placed "after the next line arrives" would never run in the exact scenario it exists for. The
+# breach detector therefore takes the out-of-band supervisor shape `StallWatchdog` already uses: a
+# daemon thread observing the process independently of the read loop.
+#
+# WHAT THIS PHASE DELIBERATELY DOES NOT DO: escalate. Escalation spans levels 3 and 4 and spec A7
+# validates it in Phase 5 (`71vjbn`), so this records ONE authoritative breach signal for Phase 5 to
+# act on, and takes no action itself.
+
+BUDGET_BREACH_EVENT = "stop-budget-breached"
+
+
+def deadline_seconds_remaining(
+    request: StopRequest, *, now: dt.datetime | None = None
+) -> float:
+    """Seconds left on `request`'s recorded wind-down deadline; <= 0 means already breached.
+
+    Reads the deadline the durable record already carries (written by Phase 1 as
+    `requested_at + budget_seconds`), so the budget is not re-derived here. An unparseable deadline
+    reads as breached: failing toward "bounded" can never hang, whereas failing toward "infinite"
+    could.
+    """
+
+    current = now or _utc_now()
+    try:
+        deadline = dt.datetime.fromisoformat(request.deadline)
+    except (ValueError, TypeError):
+        return 0.0
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=dt.timezone.utc)
+    return (deadline - current).total_seconds()
+
+
+def budget_breach_event(
+    request: StopRequest,
+    *,
+    at: str,
+    id6: str = "",
+    observed_events: int | None = None,
+    last_completed_index: int | None = None,
+) -> dict:
+    """The ledger record of a wind-down BUDGET BREACH: escalation REQUIRED, not performed.
+
+    `escalation_required` is the single signal Phase 5 (`71vjbn`) acts on. `escalation_performed` is
+    recorded explicitly False so the history cannot be misread as claiming this phase escalated
+    (spec R23's never-claim-what-you-did-not-do discipline, and spec A7's placement of enforcement in
+    Phase 5).
+    """
+
+    return {
+        "at": at,
+        "event": BUDGET_BREACH_EVENT,
+        "deliberate": True,
+        "failure": False,
+        "id6": id6,
+        "level": request.level,
+        "level_name": request.level_name,
+        "requester": request.requester,
+        "budget_seconds": request.budget_seconds,
+        "deadline": request.deadline,
+        "reason": "no safe checkpoint observed before the wind-down deadline",
+        "observed_events": observed_events,
+        "last_completed_event_index": last_completed_index,
+        "escalation_required": True,
+        "escalation_to_level": LEVEL_NOW_FORCE,
+        # This phase DETECTS only. Phase 5 owns the action (spec A7).
+        "escalation_performed": False,
+    }
+
+
+class BudgetBreachWatch:
+    """Out-of-band watch that RECORDS a level-3 wind-down budget breach and returns (spec R11).
+
+    Same shape as `StallWatchdog` and for the same reason: the driver's read loop blocks, so a
+    silent child can only be noticed from another thread. On breach it invokes `on_breach` ONCE and
+    stops; it does NOT terminate the child and does NOT escalate, because the escalation ACTION
+    belongs to Phase 5 (spec A7). Bounded by construction: the thread wakes on an interval, so it
+    cannot wait indefinitely for a line that will never arrive.
+    """
+
+    def __init__(
+        self,
+        *,
+        deadline_monotonic: float,
+        on_breach: Callable[[], None],
+        check_interval: float = 0.05,
+        is_alive: Callable[[], bool] | None = None,
+    ) -> None:
+        self.deadline_monotonic = deadline_monotonic
+        self._on_breach = on_breach
+        # Never sleep past the deadline: with a sub-second injected budget a fixed 1s interval would
+        # report the breach a second late and a bounded-time assertion would fail.
+        remaining = max(0.0, deadline_monotonic - time.monotonic())
+        self.check_interval = max(
+            0.005, min(check_interval, remaining if remaining else check_interval)
+        )
+        self._is_alive = is_alive
+        self._stop = threading.Event()
+        self._breached = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    @property
+    def breached(self) -> bool:
+        return self._breached.is_set()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.check_interval):
+            if self._is_alive is not None and not self._is_alive():
+                return
+            if time.monotonic() >= self.deadline_monotonic:
+                self._breached.set()
+                with contextlib.suppress(Exception):
+                    self._on_breach()
+                return
+
+    def __enter__(self) -> "BudgetBreachWatch":
+        thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = thread
+        thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
