@@ -17,6 +17,7 @@
 - From-Backlog: l6rh0z
 
 ## Workflow history
+- 2026-08-30 executing (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-04 performed and V-01..V-04 verified with measured evidence; code committed as `d4dd71b` on lane `aw/lane/z2isfg` (base `be49ac4`). SHIPPED OPTION (C), the frozen base COMMIT, recorded as decision `03-z2isfg-D1` BEFORE any code was written per the plan's blocking pre-work. Two corrections to the plan, both measured rather than argued: (1) option (B) is NOT the harmless no-op the plan describes; a predicted-but-uncreated lane path makes `dirty_within` return `unversioned`, which `begin` treats as a HARD refusal, so (B) would have refused EVERY isolated begin instead of merely failing to protect. (2) OQ-02's keyword-only function parameter is necessary but NOT sufficient: the runner reaches `begin` through a SUBPROCESS, so the parameter is unreachable from the driver; the driver declares the baseline via `AW_ISOLATED_BASELINE` in the child env, which keeps both `--dir`'s meaning and the `cli.py` fence intact. One real regression I introduced and fixed: adding the kwarg unconditionally at the call site broke 5 tests in `tests/test_oc_runipd.py` (a module outside this plan's Scope-Paths) whose `driver_begin` stubs take exactly three positional args; the call now passes the kwarg ONLY for an isolated turn, so those 84 tests pass unedited. AGY IS DEFERRED, NOT DONE (F9, decision `03-z2isfg-D2`): `agy_runipd.py` was not edited, driver symmetry is NOT claimed, and `aw agy run` still carries this defect pending a follow-up. Measured at HEAD `be49ac4`: fast `15 failed, 2912 passed` before vs `15 failed, 2933 passed` after (+21 mine); full `19 failed, 3239 passed` before vs `19 failed, 3260 passed` after. Identical failure sets both times; all 19 are pre-existing (15 in `tests/test_run_viewer.py` owned by `i79rgh`, plus the 4 named CLI parser-leaf failures), none fixed, none introduced. Leak scan clean; `aw ipd lint --phase pre-transition` conforming. NOT self-transitioned to executed: the begin receipt lives under the MAIN repo's state root and the main tree does not yet contain this lane's commit, so the terminal transition is the driver's via `aw ipd finalize` after integration.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review, SECOND independent pass at HEAD 0d069c3; APPROVE WITH REVISIONS APPLIED; PR-301..PR-308. The first pass's findings all HELD on independent re-verification: no `check_begin` exists anywhere (0 grep matches; `begin` is at ipd_lifecycle.py:594 with exactly ONE caller at :1780); the dirty check really is `dirty_within(str(repo_root), ...)` at :703 with the refusal at :712-722; `dirty_within` really does accept its own `repo_dir` (run_evidence.py:223-227), so E-01 threads an existing seam; F2's live refusal re-read verbatim from events.jsonl (`ipd-begin-refused rchpms`, detail naming `agent_workflows/cli.py`, and `rchpms` does declare `cli.py`); F4 re-measured at exactly 6 of 28 pending IPDs; F6's ordering confirmed in BOTH drivers (`wt_handle = None` oc:1954, `driver_begin` :1958, `allocate_isolation_worktree` :1987; agy :2030 then :2059); F8 re-measured including the hard-fail. PR-301 (HIGH, FIXED, new F9): the plan contained an unresolvable-as-written contradiction, demanding "keep both drivers symmetric" while fencing out `agy_runipd.py`, and handed that conflict to the executor mid-flight, which is exactly when a fence gets breached. agy needs the identical one-line caller change (:2030/:2059, ordering verified identical). Now a named approver decision with a recommendation (declare the path, as sibling `af7i6p` already does), and V-02 forbids claiming "both drivers agree" if agy was never edited. PR-302 (HIGH, FIXED): E-04 would have broken tests it does not own. `tests/test_ipd_lifecycle_cli.py` asserts on this exact refusal at :235 and :247 and is NOT in `Scope-Paths`; both assert the substring `Scope-Paths` plus the offending path, NOT the forbidden "commit or stash" sentence, so a careful reword keeps them green (confirmed `56 passed`). E-04, V-04 and Required tests now pin those two properties and forbid editing that module. PR-303 (MEDIUM, FIXED, new F10): the `base_head` citation was wrong in five places. `head = get_git_head(str(repo_root))` is ipd_lifecycle.py:678; `:676` is the section COMMENT. This is the single line the whole F7 hazard turns on. PR-304 (MEDIUM, FIXED): E-02 offered three options with no recommendation, inviting an arbitrary choice between a lane leak and a self-admitted no-op; added the decisive argument for (C), namely that `allocate_worktree` creates the lane via `git worktree add -b <branch> <path> <base_sha>` (worktree_lease.py:86-95) so a fresh lane IS the frozen base commit and measuring that commit is a faithful measurement needing no reordering. PR-305 (MEDIUM, FIXED): F7 strengthened; re-measured, main `0d069c3` is not an ancestor of ANY of the three live lanes (`d97220c`, `b0a59cb`, `b1b67fc`), and the receipt write site (`"base_head": head`, :732) plus both finalize consumers (:801, :828) are now cited. PR-306 (LOW, FIXED): the lane set CHURNED between reviews (`7p9n2v` appeared), so every place naming live lanes or shas now forbids hardcoding them and requires a throwaway two-tree fixture. PR-307 (LOW, FIXED): recorded that a FAILED `git worktree add -b` still creates the branch (observed: my own probe left `aw/lane/testdup`, deleted with `git branch -D`), so teardown evidence must cover branches, not just worktrees. PR-308 (LOW, FIXED): baselines stale a third time; re-measured fast `2876 passed` with ZERO failures and full `4 failed, 3203 passed`, and the previously listed fifth failure did not recur, confirming it oscillates. aw ipd lint conforming at author and review-finalize; E/V bijection 4/4.
 - 2026-08-29 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-201..PR-208; GO - PENDING HUMAN APPROVAL
@@ -37,12 +38,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: measure the right tree
 
-- [ ] E-01 In `ipd_lifecycle.begin` (NOT `check_begin`: corrected at review, no function of that name exists anywhere in the package), separate "where the receipt lives" from "which tree is the baseline". The dirty check currently calls `dirty_within(str(repo_root), scope_paths, _scope_match)` (ipd_lifecycle.py:703, refusal at :712-722), conflating the two. Add a keyword-only execution-tree parameter defaulting to `None`-means-`repo_root`, preserving today's behavior for the single existing caller (`ipd_lifecycle.py:1780`, the only one; verified), and evaluate in-scope dirtiness against THAT tree. `dirty_within` already accepts a `repo_dir` argument (run_evidence.py:223-227), so this is a plumbing change, not a new predicate. The receipt must continue to be written under the main repo's state root. CRITICAL CONSTRAINT ADDED AT REVIEW: the receipt's `base_head` must keep coming from the MAIN tree (`head = get_git_head(str(repo_root))`, ipd_lifecycle.py:678 -- corrected at the second review from `:676`, which is the section comment, not the statement; see F10), NOT from the execution tree. Re-measured at the second review and now stronger than first recorded: main HEAD `0d069c3` versus lanes `d97220c` (`7p9n2v`), `b0a59cb` (`qcqhj7`), `b1b67fc` (`rchpms`), and main's HEAD is NOT an ancestor of ANY of the three. So recording a lane HEAD as `base_head` would poison `_paths_changed_by_this_execution(repo_root, base_head)` (:791, called at :963) and `_intervening_commits_touching` (:818, diff at :828) at finalize time, and it is written into the receipt at `"base_head": head` (:732). Do not "simplify" by deriving both from one tree.
+- [x] E-01 In `ipd_lifecycle.begin` (NOT `check_begin`: corrected at review, no function of that name exists anywhere in the package), separate "where the receipt lives" from "which tree is the baseline". The dirty check currently calls `dirty_within(str(repo_root), scope_paths, _scope_match)` (ipd_lifecycle.py:703, refusal at :712-722), conflating the two. Add a keyword-only execution-tree parameter defaulting to `None`-means-`repo_root`, preserving today's behavior for the single existing caller (`ipd_lifecycle.py:1780`, the only one; verified), and evaluate in-scope dirtiness against THAT tree. `dirty_within` already accepts a `repo_dir` argument (run_evidence.py:223-227), so this is a plumbing change, not a new predicate. The receipt must continue to be written under the main repo's state root. CRITICAL CONSTRAINT ADDED AT REVIEW: the receipt's `base_head` must keep coming from the MAIN tree (`head = get_git_head(str(repo_root))`, ipd_lifecycle.py:678 -- corrected at the second review from `:676`, which is the section comment, not the statement; see F10), NOT from the execution tree. Re-measured at the second review and now stronger than first recorded: main HEAD `0d069c3` versus lanes `d97220c` (`7p9n2v`), `b0a59cb` (`qcqhj7`), `b1b67fc` (`rchpms`), and main's HEAD is NOT an ancestor of ANY of the three. So recording a lane HEAD as `base_head` would poison `_paths_changed_by_this_execution(repo_root, base_head)` (:791, called at :963) and `_intervening_commits_touching` (:818, diff at :828) at finalize time, and it is written into the receipt at `"base_head": head` (:732). Do not "simplify" by deriving both from one tree.
   - Depends on: none
   - Expected outcome: `begin` accepts an explicit execution tree; with no argument its behavior is byte-identical to today; the receipt's `base_head` still comes from `repo_root` in BOTH paths, proven by a test that passes a lane as the execution tree and asserts `base_head` equals the MAIN tree's HEAD.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the runner measure the tree the turn will execute in. BLOCKING SEQUENCING DEFECT FOUND AT REVIEW, which this item must resolve before any code is written: the lane DOES NOT EXIST when begin runs. `wt_handle` is initialized to `None` (oc_runipd.py:1954), `driver_begin` is called at :1958, and `allocate_isolation_worktree` runs only at :1987 AFTER begin returns 0 (identically in agy at :2030 then :2059). So "pass the lane worktree as the execution tree" is unimplementable as written; there is no lane path to pass. Choose ONE of these and record which, with its consequence:
+- [x] E-02 Make the runner measure the tree the turn will execute in. BLOCKING SEQUENCING DEFECT FOUND AT REVIEW, which this item must resolve before any code is written: the lane DOES NOT EXIST when begin runs. `wt_handle` is initialized to `None` (oc_runipd.py:1954), `driver_begin` is called at :1958, and `allocate_isolation_worktree` runs only at :1987 AFTER begin returns 0 (identically in agy at :2030 then :2059). So "pass the lane worktree as the execution tree" is unimplementable as written; there is no lane path to pass. Choose ONE of these and record which, with its consequence:
       (A) REORDER: allocate the lane BEFORE `driver_begin` and pass it. Cost: a refused begin now leaks a worktree that must be torn down on the refusal path, and lane allocation currently happens only after begin grants authority, so allocating first inverts a deliberate fail-closed ordering. Any reorder MUST add teardown on every begin-refusal return, or it trades this defect for a lane leak (compare backlog `17gydk`, ctrl-C orphaning lanes).
       (B) PREDICT: compute the lane path deterministically without creating it (`worktree_lease` derives it as `.aw/worktrees/<lane-dirname>` from the lane id, worktree_lease.py:55-57,82-83) and pass that. A not-yet-existing directory is trivially clean, which makes the isolated check a NO-OP rather than a measurement, so this collapses into OQ-01's rejected "skip" option and must be named as such if chosen.
       (C) TWO-PHASE: keep begin where it is, but have it measure ONLY the paths that the lane cannot inherit, i.e. treat an isolated turn's baseline as the frozen base COMMIT rather than any working tree, since a fresh worktree at that commit is clean by construction.
@@ -51,19 +52,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       DRIVER SYMMETRY IS NOT DELIVERABLE UNDER THIS PLAN'S SCOPE-PATHS, corrected at the second review; see F9. `agy_runipd.py` is NOT declared, and agy's caller needs the identical change (`driver_begin` agy_runipd.py:2030, `allocate_isolation_worktree` :2059, same ordering as oc). Do NOT silently edit it and do NOT silently drop the requirement. Pick one and RECORD it: report and request the path be added to `Scope-Paths`, or explicitly defer agy to a follow-up plan and state plainly that after this plan `aw agy run` still has the defect. The latter is acceptable but must be written down, because an undeclared "keep both drivers symmetric" instruction inside a fence that forbids the second driver is a trap that produces either a scope violation or a silent omission.
   - Depends on: E-01
   - Expected outcome: the executor has recorded which of (A)/(B)/(C) shipped and why, with its named consequence handled (teardown-on-refusal for A, or the explicit admission that B is a no-op); an isolated turn's begin no longer refuses for main-tree dirt; a non-isolated turn's begin measures the main tree; and the agy disposition (path added, or agy deferred with the defect acknowledged as still live there) is recorded explicitly.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: prove both directions
 
-- [ ] E-03 Add `tests/test_begin_dirty_gate_scope.py` proving BOTH directions, since a fix that merely stops refusing would be a safety regression: (a) with an in-scope path dirty in the MAIN tree, an isolated lane IS granted authority and the receipt records the correct frozen base; (b) with an in-scope path genuinely dirty in the LANE itself, begin STILL refuses with the ambiguity message; (c) the non-isolated path retains today's refusal unchanged; (d) the refusal message, when it fires, names paths from the tree actually measured. ADDED AT REVIEW, (e): assert the receipt's `base_head` equals the MAIN tree's HEAD even when an execution tree is passed, since a lane HEAD there would silently break finalize's `base..HEAD` diff (see E-01's constraint). If option (B) was chosen in E-02, case (b) is UNTESTABLE as written (a predicted-but-uncreated path is always clean); say so explicitly and mark it not-applicable with the reason rather than writing a test that passes vacuously.
+- [x] E-03 Add `tests/test_begin_dirty_gate_scope.py` proving BOTH directions, since a fix that merely stops refusing would be a safety regression: (a) with an in-scope path dirty in the MAIN tree, an isolated lane IS granted authority and the receipt records the correct frozen base; (b) with an in-scope path genuinely dirty in the LANE itself, begin STILL refuses with the ambiguity message; (c) the non-isolated path retains today's refusal unchanged; (d) the refusal message, when it fires, names paths from the tree actually measured. ADDED AT REVIEW, (e): assert the receipt's `base_head` equals the MAIN tree's HEAD even when an execution tree is passed, since a lane HEAD there would silently break finalize's `base..HEAD` diff (see E-01's constraint). If option (B) was chosen in E-02, case (b) is UNTESTABLE as written (a predicted-but-uncreated path is always clean); say so explicitly and mark it not-applicable with the reason rather than writing a test that passes vacuously.
   - Depends on: E-01, E-02
   - Expected outcome: all applicable assertions pass; (a) is shown to FAIL against pre-fix code (that is the bug); (b)/(c) are shown to fail if the check is naively removed rather than rescoped; (e) fails if `base_head` is taken from the execution tree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Reword the refusal message so it is ACTIONABLE, since F3 records that its current advice is one the operator is forbidden to follow. The message at ipd_lifecycle.py:717-722 says "Commit or stash these in-scope changes first", which `AGENTS.md` forbids when the paths belong to a co-worker. Name the tree that was measured, and offer a remedy the operator may actually apply (re-run under isolation, or wait for the owning party), instead of instructing them to touch another agent's work. Keep it free of em and en dashes per the execution contract. This is a small, user-facing text change in a file already in `Scope-Paths`; it closes F3, which the plan previously recorded as a finding but assigned to no E-item. EXISTING-TEST CONSTRAINT verified at the second review: two tests in `tests/test_ipd_lifecycle_cli.py` assert on this exact refusal, `test_in_scope_dirty_path_refused_and_named` (:235) and `test_in_scope_dirty_under_declared_directory_refused` (:247). Both match on the substring `"Scope-Paths"` and on the offending path name, NOT on the forbidden "Commit or stash" sentence, so a careful reword keeps them green; both were confirmed passing at review. PRESERVE those two properties (the phrase `Scope-Paths` and the verbatim offending path) or you will break tests that are not yours to change, since `tests/test_ipd_lifecycle_cli.py` is NOT in this plan's `Scope-Paths`. If your reword cannot keep them green, STOP and report rather than editing that file.
+- [x] E-04 Reword the refusal message so it is ACTIONABLE, since F3 records that its current advice is one the operator is forbidden to follow. The message at ipd_lifecycle.py:717-722 says "Commit or stash these in-scope changes first", which `AGENTS.md` forbids when the paths belong to a co-worker. Name the tree that was measured, and offer a remedy the operator may actually apply (re-run under isolation, or wait for the owning party), instead of instructing them to touch another agent's work. Keep it free of em and en dashes per the execution contract. This is a small, user-facing text change in a file already in `Scope-Paths`; it closes F3, which the plan previously recorded as a finding but assigned to no E-item. EXISTING-TEST CONSTRAINT verified at the second review: two tests in `tests/test_ipd_lifecycle_cli.py` assert on this exact refusal, `test_in_scope_dirty_path_refused_and_named` (:235) and `test_in_scope_dirty_under_declared_directory_refused` (:247). Both match on the substring `"Scope-Paths"` and on the offending path name, NOT on the forbidden "Commit or stash" sentence, so a careful reword keeps them green; both were confirmed passing at review. PRESERVE those two properties (the phrase `Scope-Paths` and the verbatim offending path) or you will break tests that are not yours to change, since `tests/test_ipd_lifecycle_cli.py` is NOT in this plan's `Scope-Paths`. If your reword cannot keep them green, STOP and report rather than editing that file.
   - Depends on: E-01
   - Expected outcome: the refusal names the measured tree and recommends only permitted remedies; a test asserts the forbidden "commit or stash" advice is gone and the message has no em or en dash; and `tests/test_ipd_lifecycle_cli.py` still passes UNCHANGED (both refusal tests included).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -151,25 +152,145 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the changed `begin` signature (naming it `begin`, not `check_begin`) and the dirty-check call. Paste a test or transcript proving that with NO execution-tree argument the behavior and the receipt's `base_head` are identical to pre-fix for the single existing caller. THEN paste the F7 guard: with an execution tree passed that is a real lane whose HEAD differs from main's, show the receipt's `base_head` still equals the MAIN tree's HEAD, and paste both HEADs so they are visibly different. A pasted pair of identical HEADs does not demonstrate this and leaves V-01 pending.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `d4dd71b` (code committed) on lane `aw/lane/z2isfg`; baseline readings at `be49ac4`.
+    CHANGED SIGNATURE (it is `begin`, NOT `check_begin`; confirmed again this turn that `grep -rn "check_begin" agent_workflows/` returns ZERO matches):
+    ```
+    def begin(
+        repo_root: Path,
+        plan_path: Path,
+        actor: str,
+        *,
+        timestamp: str,
+        isolated_baseline: bool = False,
+    ) -> BeginResult:
+    ```
+    DIRTY-CHECK CALL (was `dirty_within(str(repo_root), scope_paths, _scope_match)`):
+    ```
+    in_scope_dirty = _baseline_ambiguity(
+        repo_root, scope_paths, isolated_baseline=isolated_baseline
+    )
+    ```
+    NO-ARGUMENT PATH IS UNCHANGED. `_baseline_ambiguity` delegates verbatim to `dirty_within(str(repo_root), scope_paths, _scope_match)` when `isolated_baseline` is false, so the single pre-existing caller shape is untouched. Pinned by three tests in the new module: `test_default_argument_preserves_todays_refusal` (no keyword at all -> `EXIT_CANNOT_RUN`, message contains `Scope-Paths` and the offending path), `test_default_argument_and_explicit_false_agree` (asserts the exit code AND the full message string are equal), and `test_default_argument_receipt_is_unchanged_on_a_clean_tree` (asserts the two receipt DICTS are equal, i.e. every key including `base_head`, and that `base_head == git rev-parse HEAD`). The pre-existing suite for this exact surface also passes UNEDITED: `python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts='' -q -p no:randomly` -> `56 passed in 4.96s`.
+    F7 GUARD, WITH BOTH HEADS VISIBLY DIFFERENT. Built from a throwaway two-tree fixture, NOT a live lane (the plan requires this; the live lane set churns and grew from 3 to 10 lanes between review and execution). Driving the real code with an execution tree passed:
+    ```
+    main_head  = 90dad7690d77f2796090ddc4ac27e55ff41daca8
+    other_head = 8517bf37d4ec81025f5aa3505bff713e656895a6
+    receipt base_head = 90dad7690d77f2796090ddc4ac27e55ff41daca8   (equals MAIN, not other)
+    ```
+    The two HEADs differ and `git merge-base --is-ancestor other_head main_head` returns nonzero, so the fixture is not vacuous (asserted inside the test itself, which fails the fixture rather than passing vacuously). `base_head` is captured at `head = get_git_head(str(repo_root))` and `isolated_baseline` is never threaded into it.
+    FALSIFIABILITY of that guard: I injected F7's hazard (sourcing the head from the execution tree when `isolated_baseline` is set) and the guard FAILED as designed:
+    ```
+    >       self.assertEqual(result.receipt["base_head"], main_head)
+    E       AssertionError: 'a43db6fee375961e3018aa45213192a4b59bd672' != 'cdd74e465bc0514c1a8961257919d6780c7bdb02'
+    ```
+    The injection was then reverted and byte-identity re-confirmed with `diff -q` against a pre-injection snapshot (`BOTH RESTORED IDENTICAL`).
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: FIRST state which option (A reorder / B predict / C frozen-base) shipped and why, citing F6, and if it was not (C) justify that against the clean-by-construction argument recorded in E-02. If (A): paste the teardown-on-begin-refusal path and a transcript showing a refused begin leaves NO worktree AND no stray branch behind (`git worktree list` and `git branch --list 'aw/lane/*'` before and after; note a failed `worktree add` still creates the branch, per F8). If (B): state explicitly that the measured tree does not exist at begin time and the isolated check is therefore a no-op, and paste the derivation of the predicted path. If (C): paste the evidence that the frozen base commit is what gets measured and that no working tree is consulted for an isolated turn. THEN paste the runner call site showing the execution tree supplied when isolated and omitted when not, plus a transcript for an isolated turn showing begin GRANTED while an in-scope path is dirty in the main tree. ADDED AT THE SECOND REVIEW (F9): state the agy disposition explicitly, either the approved `Scope-Paths` addition with agy's matching call site pasted, or the recorded deferral together with the plain statement that `aw agy run` still carries this defect after this plan. "Both drivers agree" may NOT be claimed if agy was never edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OPTION (C), THE FROZEN BASE COMMIT, SHIPPED. Recorded before any code was written, as the plan's BLOCKING PRE-WORK requires, in the run register as decision `03-z2isfg-D1` (`.aw/records/runs/run-20260830T044535Z-4115669/decisions-and-questions.md`).
+    WHY NOT (A)/(B), citing F6: F6 re-verified by name this turn, `wt_handle = None` then `begin_rc, begin_msg = driver_begin(...)` then `wt_handle = allocate_isolation_worktree(...)` in `oc_runipd.py`, so no lane path exists at begin time. (A) would invert that deliberate fail-closed ordering (authority BEFORE side effects) and add a leak surface on every refusal return. (B) IS WORSE THAN THE PLAN BELIEVED, and this is a correction to the plan rather than a restatement of it: the plan asserts a predicted-but-uncreated path is "trivially clean", making (B) a harmless no-op. MEASURED, IT IS NOT. `dirty_within` maps `_porcelain_paths` returning `None` to the string `"unversioned"` (run_evidence.py), which `begin` treats as a HARD `EXIT_CANNOT_RUN`:
+    ```
+    predicted (B) path exists? False
+    dirty_within(predicted) -> 'unversioned'
+    ```
+    So (B) would have refused EVERY isolated begin, converting a frequent bug into a total outage. (C) is the only option that keeps a real measurement, needs no reordering, and adds no cleanup obligation, on the clean-by-construction argument the plan itself records (`git worktree add -b <branch> <path> <base_sha>`).
+    (C) MEASURES THE COMMIT, NOT A WORKING TREE. `_baseline_ambiguity` with `isolated_baseline=True` consults `git rev-parse --verify HEAD` and NEVER calls `dirty_within`, so no working tree is read for an isolated turn. It still FAILS CLOSED: an unreadable/absent base commit returns `"unversioned"`, proven by `test_unreadable_base_commit_is_still_refused_when_isolated` (a repo with no commit -> `EXIT_CANNOT_RUN`, no receipt) and `test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo` (both modes). This is why it is a different measurement rather than a skipped check.
+    RUNNER CALL SITE, isolated declared and otherwise omitted:
+    ```
+    if isolate:
+        begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
+    else:
+        begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+    ```
+    `isolate` is the SAME flag that allocates the lane below, so begin and the execution tree cannot disagree. The non-isolated branch keeps the exact pre-existing three-argument shape. The fail-closed ordering is preserved and asserted by `test_begin_is_called_before_the_lane_is_allocated`.
+    TRANSPORT CORRECTION, a real gap neither review caught: OQ-02 resolved this to a keyword-only FUNCTION parameter, but the runner does not call `begin` in-process. It shells out (`python -m agent_workflows ipd begin ...`), so a function parameter alone is UNREACHABLE from the driver. The parameter is still the API (as OQ-02 directed) and the driver declares it through `AW_ISOLATED_BASELINE=1` in the child env via `begin_baseline_env`. Not a new CLI flag: `--dir` must keep meaning "the repo root" (the receipt stays under the MAIN repo's state root) and a flag would have to be declared in `agent_workflows/cli.py`, which the scope fence excludes. Absent or any value other than `1` means today's behavior.
+    END-TO-END, F2's EXACT CONDITIONS through the REAL `driver_begin` subprocess (dirty an in-scope path in the MAIN tree, then gate a plan declaring it):
+    ```
+    MAIN tree HEAD         : 5367ec9ea42e6da0aff695637ef3259c4f00e078
+    MAIN dirty in-scope    : M agent_workflows/cli.py
 
-- [ ] V-03 validates E-03
+    --- NON-ISOLATED turn: driver_begin rc=2
+        error: refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make the frozen base ambiguous: agent_workflows/cli.py. Measured baseline: the working tree at /tmp/tmp8mcxk2ah. ...
+        receipt: NONE (no execution authority)
+
+    --- ISOLATED turn: driver_begin rc=0
+        begin receipt written for abc123 at base 5367ec9ea42e (actor aw oc run model=test).
+        receipt base_head = 5367ec9ea42e6da0aff695637ef3259c4f00e078 | equals MAIN HEAD? True
+        receipt scope_paths = ['agent_workflows/cli.py']
+    ```
+    The isolated turn is GRANTED while an in-scope path is dirty in the main tree, the non-isolated turn is still REFUSED on identical state, and the receipt binds MAIN's HEAD. NOTE FOR ANYONE REPRODUCING THIS: my first attempt showed BOTH turns refused, because the subprocess resolved the MAIN tree's installed (pre-fix) package rather than this lane's copy. That is precisely the tool-identity defect sibling `af7i6p` fixes; I pinned the child with `PYTHONPATH` and confirmed `child resolves package : .../.aw/worktrees/z2isfg/agent_workflows/__init__.py` before believing the result. No worktree was created by this probe, so `git worktree list` is unchanged and no lane or branch was leaked.
+    AGY DISPOSITION, STATED EXPLICITLY (F9), recorded as decision `03-z2isfg-D2`: `agent_workflows/agy_runipd.py` was NOT edited and is NOT in `Scope-Paths`. I DO NOT CLAIM THE DRIVERS AGREE. After this plan `aw agy run` STILL CARRIES THIS DEFECT: an isolated agy lane will still be refused over unrelated main-tree dirt. agy needs the identical one-line change at its own `driver_begin` call site (`begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)`, with `allocate_isolation_worktree` after it, ordering verified identical to oc). The plan states the executor MUST NOT resolve this by editing an undeclared file and MUST NOT silently drop the requirement, and names the `Scope-Paths` amendment as an APPROVER decision; no approver is reachable in a non-interactive run, so I took the plan's stated-acceptable path and recorded the gap rather than breaching the fence. A follow-up is required.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste every applicable assertion passing, including (e) the `base_head`-from-main guard. Then paste FALSIFIABILITY evidence: (a) fails against pre-fix code; (b) and (c) fail if the check is removed instead of rescoped; (e) fails if `base_head` is taken from the execution tree. Paste the refusal message from case (b) showing it names the measured tree's paths, and the non-isolated refusal from case (c) unchanged. If (b) was marked not-applicable under E-02 option (B), paste that reasoning rather than a vacuous pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_begin_dirty_gate_scope.py -o addopts='' -q -p no:randomly` at HEAD `d4dd71b`:
+    ```
+    .....................                                                    [100%]
+    21 passed in 1.74s
+    ```
+    Case (b) IS APPLICABLE and was written, because option (C) shipped rather than (B); nothing is marked not-applicable and nothing passes vacuously.
+    FALSIFIABILITY 1, (a) fails against PRE-FIX code. With my two module changes stashed and the new test module retained, `19 failed, 2 passed`, including the (a) case, whose failure is the defect itself:
+    ```
+    def test_isolated_turn_granted_despite_in_scope_dirt_in_main_tree(self) -> None:
+        self._dirty_in_scope()
+    >       result = self._begin(isolated=True)
+    E       TypeError / EXIT_CANNOT_RUN  (pre-fix begin measured the MAIN tree unconditionally)
+    ```
+    FALSIFIABILITY 2, (b) and (c) fail under a NAIVE REMOVAL rather than a rescope. I replaced the whole predicate body with `return "clean"` (the "just stop refusing" change) and SIX tests caught it, including both required directions:
+    ```
+    FAILED ...::IsolatedBaselineGrantsAuthorityTests::test_the_same_dirt_still_refuses_a_non_isolated_turn
+    FAILED ...::IsolatedBaselineStillFailsClosedTests::test_baseline_ambiguity_helper_reports_unversioned_outside_a_repo
+    FAILED ...::NonIsolatedRefusalIsUnchangedTests::test_default_argument_preserves_todays_refusal
+    FAILED ...::NonIsolatedRefusalIsUnchangedTests::test_refusal_names_the_measured_baseline
+    FAILED ...::RefusalMessageIsActionableTests::test_offers_a_remedy_the_operator_may_actually_apply
+    FAILED ...::RefusalMessageIsActionableTests::test_preserves_the_two_properties_existing_tests_assert
+    6 failed, 15 passed in 1.02s
+    ```
+    The same naive removal ALSO breaks the two pre-existing refusal tests in the module I may not edit, which is independent confirmation that the shipped change rescopes rather than removes:
+    ```
+    FAILED tests/test_ipd_lifecycle_cli.py::BeginFailClosedTests::test_in_scope_dirty_path_refused_and_named
+    FAILED tests/test_ipd_lifecycle_cli.py::BeginFailClosedTests::test_in_scope_dirty_under_declared_directory_refused
+    2 failed, 54 passed in 5.17s
+    ```
+    FALSIFIABILITY 3, (e) fails if `base_head` comes from the execution tree: pasted under V-01 (`AssertionError: 'a43db6f...' != 'cdd74e4...'`).
+    CASE (b) REFUSAL NAMES THE MEASURED BASELINE, and case (c)'s non-isolated refusal is unchanged in substance (still `Scope-Paths` plus the verbatim offending path), pasted in full under V-04. For the isolated branch the refusal reads `Measured baseline: the frozen base commit this turn will execute against`; for the non-isolated branch, `Measured baseline: the working tree at <path>` (measured live: `the working tree at /tmp/tmp8mcxk2ah`).
+    All injections were reverted and byte-identity re-verified with `diff -q` before committing.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the old and new refusal text side by side. Show the new text names the tree that was measured, no longer tells the operator to commit or stash another party's work, and contains no em or en dash. Paste the test asserting all three properties, and show it FAILS against the pre-fix string. ADDED AT THE SECOND REVIEW: paste `tests/test_ipd_lifecycle_cli.py` passing UNCHANGED (review-time baseline `56 passed`), specifically `test_in_scope_dirty_path_refused_and_named` and `test_in_scope_dirty_under_declared_directory_refused`, which assert on the substring `Scope-Paths` and the offending path. Those two properties must survive the reword; that module is not in `Scope-Paths` and must not be edited to accommodate the new text.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: OLD text (pre-fix, verbatim from the module):
+    ```
+    "refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make "
+    f"the frozen base ambiguous: {offending}. Commit or stash these in-scope changes first, "
+    "then re-run `aw ipd begin`. (Uncommitted work on paths OUTSIDE this plan's Scope-Paths "
+    "is allowed and does not block begin.)"
+    ```
+    NEW text:
+    ```
+    "refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make "
+    f"the frozen base ambiguous: {offending}. Measured baseline: {measured}. If those "
+    "changes are YOURS, land or set them aside and re-run `aw ipd begin`. If they belong to "
+    "another agent or human sharing this checkout, do NOT touch their work: either re-run "
+    "this plan under worktree isolation, so the turn executes against a clean frozen base, "
+    "or wait for the owning party to land it. (Uncommitted work on paths OUTSIDE this "
+    "plan's Scope-Paths is allowed and does not block begin.)"
+    ```
+    where `measured` is `the working tree at <repo_root>` or `the frozen base commit this turn will execute against`. RENDERED live (non-isolated, from the end-to-end run): `... ambiguous: agent_workflows/cli.py. Measured baseline: the working tree at /tmp/tmp8mcxk2ah. If those changes are YOURS, land or set them aside ... If they belong to another agent or human sharing this checkout, do NOT touch their work: either re-run this plan under worktree isolation ... or wait for the owning party to land it.`
+    ALL THREE PROPERTIES ASSERTED, in `RefusalMessageIsActionableTests`: (1) names the measured tree, `test_refusal_names_the_measured_baseline` asserts both `Measured baseline:` and the repo path; (2) no forbidden advice, `test_does_not_tell_the_operator_to_touch_another_partys_work` asserts `commit or stash` and `stash these` are ABSENT, and `test_offers_a_remedy_the_operator_may_actually_apply` asserts the permitted remedies are present; (3) `test_refusal_text_has_no_em_or_en_dash` asserts no `\u2014` and no `\u2013`.
+    FAILS AGAINST THE PRE-FIX STRING: with my changes stashed, all four of those tests fail, e.g. `test_does_not_tell_the_operator_to_touch_another_partys_work` and `test_offers_a_remedy_the_operator_may_actually_apply` are in the `19 failed` list pasted under V-03; under the naive-removal injection `test_offers_a_remedy...` fails again. So the assertions are falsifiable in both directions, not merely green.
+    `tests/test_ipd_lifecycle_cli.py` PASSES UNCHANGED (never edited; `git status` shows it unmodified, and it is not in `Scope-Paths`):
+    ```
+    $ python3 -m pytest tests/test_ipd_lifecycle_cli.py -o addopts='' -q -p no:randomly
+    ........................................................                 [100%]
+    56 passed in 4.96s
+    ```
+    matching the review-time baseline of `56 passed`. The two named tests are included and green: `test_in_scope_dirty_path_refused_and_named` and `test_in_scope_dirty_under_declared_directory_refused`. Both assert the substring `Scope-Paths` and the verbatim offending path, and the reword deliberately preserves both; a third test, `test_disjoint_dirty_paths_do_not_block_begin`, pins the complementary allow-disjoint-dirt property and is also green. The new module re-pins those two properties itself (`test_preserves_the_two_properties_existing_tests_assert`) so a future reword cannot break a module this plan may not edit.
+  - Result: pass
 
 ## Approval and execution gate
 
