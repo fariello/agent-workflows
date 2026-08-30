@@ -43,7 +43,7 @@ the record and the reason.
 
 ## The `local/` quarantine lane (gitignored) - DECISIONS D94
 
-`.aw/records/prompts/local/` is a GITIGNORED quarantine lane for raw, sensitive, or work-in-progress
+`.aw/records/prompts/untracked/` is a GITIGNORED quarantine lane for raw, sensitive, or work-in-progress
 prompts that must NOT be accidentally committed - most importantly `/handoff` session-handoff drafts,
 which capture raw session context. It mirrors the inter-agent comms `local/` lane (D81): the directory
 you write to IS the privilege level.
@@ -56,5 +56,5 @@ you write to IS the privilege level.
   repo, visible to other agents and humans.
 
 To make a `local/` prompt durable: REVIEW and scrub it (remove secrets, personal/sensitive content;
-consider `aw check-local-leaks`), then `git mv .aw/records/prompts/local/<file> .aw/records/prompts/pending/<file>`.
+consider `aw check-local-leaks`), then `git mv .aw/records/prompts/untracked/<file> .aw/records/prompts/pending/<file>`.
 Promotion is a deliberate human act, never automatic.

@@ -227,6 +227,6 @@ def ack_filename(msg_id: str, from_agent: str, state: str) -> str:
 
     Purely a name builder (no I/O). The caller is responsible for validating ``state`` against the
     closed enum first (via :func:`validate_ack`) and for placing the file under
-    ``.agents/comms/local/acks/``.
+    ``.aw/records/comms/untracked/acks/``.
     """
     return f"{msg_id}.{from_agent}.{state}.json"

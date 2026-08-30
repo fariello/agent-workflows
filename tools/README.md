@@ -25,8 +25,8 @@ The logic is packaged as `agent_workflows.agy_run` and the canonical surface is 
 
 3. **Prompt File Mode**:
    ```bash
-   aw agy exec --file .agents/prompts/local/brief.md
-   aw agy exec -f .agents/prompts/local/brief.md
+   aw agy exec --file .aw/records/prompts/untracked/brief.md
+   aw agy exec -f .aw/records/prompts/untracked/brief.md
    ```
    Executes an external prompt brief with post-run verification.
 
