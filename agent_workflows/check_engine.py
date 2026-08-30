@@ -161,6 +161,23 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.ipd-dependency-unresolved": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
     ),
+    # revgate Order 03 (7nkcgp) E-03: an `executed:<id6>` edge whose target RESOLVES FINE but carries
+    # recorded unresolved gating findings, so it must not satisfy the edge.
+    #
+    # WHY A NEW ID RATHER THAN REUSING ONE. Reuse was evaluated and REJECTED on evidence. `_resolve_edge`
+    # returns exactly three verdicts - `ok`, `dangling`, `ambiguous` - and all three are about IDENTITY
+    # resolution: `dangling` means NO artifact has that id6, `ambiguous` means SEVERAL do. Reporting a
+    # findings-blocked target (whose id6 resolves to exactly one artifact) as either would be a FALSE
+    # statement about identity and would corrupt both rules' meaning for every other consumer. This
+    # condition is about target QUALITY, which the existing vocabulary has no verdict for.
+    #
+    # Catalog invariant I-08 IS claimed here, unlike the Order 02 rule: this is a statement about a
+    # cross-IPD DEPENDENCY edge's satisfaction, which is exactly what I-08 covers; only the input
+    # (review findings) is new. Severity mirrors the rest of the family (`error`), and the evaluator
+    # keeps the same phase split, so a pre-cutover corpus is not mass-failed.
+    "check.ipd-dependency-findings-blocked": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
+    ),
     "check.ipd-missing-dependency-statement": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
     ),
@@ -1749,6 +1766,27 @@ class _DepIndex(NamedTuple):
     owners: Dict[str, List[Tuple[str, Optional[str], str]]]
 
 
+# revgate Order 03 (7nkcgp) E-03. An `executed:` edge whose target resolves but carries recorded
+# unresolved gating findings. See the RULE_REGISTRY entry for why reuse of `dangling`/`ambiguous` was
+# evaluated and rejected (they are identity verdicts; this is a target-quality verdict).
+_REVIEW_DEP_BLOCKED_RULE = "check.ipd-dependency-findings-blocked"
+
+
+def _findings_blocks_for(repo_root: Path, dep_id6: str, threshold: Optional[str]):
+    """The shared predicate's verdict for one dependency target, or `()` when it does not block.
+
+    Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the SAME function both host runners
+    consume, so `aw check` and a live run cannot disagree about what blocks. This function
+    re-implements no severity comparison, holds no threshold default, and never raises.
+    """
+    try:
+        from agent_workflows import review_findings as _rf
+
+        return _rf.plan_gating_blocks(repo_root, dep_id6, threshold)
+    except Exception:
+        return ()
+
+
 def build_dependency_index(repo_root: Path) -> _DepIndex:
     """Build the repo identity index for dependency resolution: id6 -> [(record_type,status,path)].
 
@@ -1822,6 +1860,12 @@ def evaluate_ipd_dependencies(
 
     cutover_date = _config.dependency_cutover_date(repo_root)
     index = build_dependency_index(repo_root)
+    # revgate Order 03 (7nkcgp) E-03: resolve the findings threshold ONCE per evaluation rather than
+    # per edge. `off` short-circuits the new check entirely inside the shared predicate.
+    try:
+        _findings_thr: Optional[str] = _config.findings_gate_threshold(repo_root)
+    except Exception:
+        _findings_thr = None
 
     # Gather every plan's declared Id + Item-Dependencies value (whole repo, for the graph). The
     # staged overlay (if any) overrides on-disk text and contributes any newly-staged plan path.
@@ -1934,6 +1978,31 @@ def evaluate_ipd_dependencies(
                 drift.append(_core.Drift(ps, _S.RULE_IPD_DEP_DANGLING, detail or ""))
             elif verdict == "ambiguous":
                 drift.append(_core.Drift(ps, _S.RULE_IPD_DEP_AMBIGUOUS, detail or ""))
+            elif verdict == "ok":
+                # (7) revgate Order 03 (7nkcgp) E-03: the edge's identity is fine, but an `executed:`
+                # edge additionally requires the target to be sound. Spec 25kzda Section 2.9 is
+                # explicit that an `executed:` edge is satisfied only by "verified terminal execution,
+                # not merely a file whose status text says `executed`", so an unresolved gating finding
+                # on the target is a legitimate non-satisfaction rather than a novel restriction.
+                #
+                # Scoped to `executed:` DELIBERATELY: only that edge kind asserts work was completed
+                # and verified. `exists:`/`state:` are structural checks and keep their semantics.
+                if e.kind == "executed":
+                    for blk in _findings_blocks_for(repo_root, e.id6, _findings_thr):
+                        drift.append(
+                            _core.Drift(
+                                ps,
+                                _REVIEW_DEP_BLOCKED_RULE,
+                                (
+                                    "dependency `{0}` resolves but does not satisfy the edge: "
+                                    "{1} (recorded in {2})".format(
+                                        e.canonical(),
+                                        blk.describe(),
+                                        Path(blk.review_path).name,
+                                    )
+                                ),
+                            )
+                        )
 
     # (6) cycles - report once per cycle, located at the (sorted-first) member's path if known.
     target_ids = {own_id.get(str(p)) for p, _t in target_plans}

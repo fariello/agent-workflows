@@ -706,3 +706,145 @@ def is_gating(severity: str, threshold: str) -> bool:
     if sev not in _SEVERITY_RANK or thr not in _SEVERITY_RANK:
         return False
     return _SEVERITY_RANK[sev] >= _SEVERITY_RANK[thr]
+
+
+# --------------------------------------------------------------------------------------
+# The shared "does this plan's review block its dependents?" predicate (Order 03 / 7nkcgp).
+#
+# WHY IT LIVES HERE AND NOT IN A RUNNER. Order 03 must apply one identical rule on FOUR
+# authority surfaces: `oc_runipd.dependency_status`, `agy_runipd.dependency_status`,
+# `check_engine.evaluate_ipd_dependencies`, and `ipd_set_plan`'s Set compiler. Verified at
+# execution time: NEITHER runner imports the other and neither imports any shared runner
+# library, which is the exact duplication the in-flight `rununify` Set (orchestrator
+# `5e4sb6`) exists to fix. Importing one runner from the other would create the first such
+# coupling and collide with that extraction, so the predicate lands in THIS module, which
+# already owns findings parsing and is already imported by `check_engine`.
+#
+# SCOPE LIMIT, stated plainly because it is easy to overread: this blocks on a RECORDED
+# unresolved gating finding. A reviewer who records nothing is outside deterministic reach
+# (the deliberate `absent -> silent` design of Order 02's E-07(a)), so the honest claim is
+# "recorded unresolved gating findings now block dependents", NOT "unsound work cannot
+# release dependents".
+# --------------------------------------------------------------------------------------
+
+
+class GatingBlock(NamedTuple):
+    """Why a plan's review blocks its dependents: enough to name the ROOT CAUSE to an operator.
+
+    ``kind`` is ``"finding"`` (a real unresolved gating row) or ``"malformed"`` (a review artifact
+    that exists but cannot be parsed, so its findings cannot be checked). ``finding_id`` and
+    ``severity`` are the empty string for the malformed case, where no row could be read.
+    """
+
+    plan_id6: str
+    finding_id: str
+    severity: str
+    decision: str
+    kind: str
+    review_path: str
+    detail: str
+
+    def describe(self) -> str:
+        """One operator-facing clause naming the blocking cause (never a bare 'not satisfied')."""
+        if self.kind == "malformed":
+            return "{0}: review artifact is malformed ({1})".format(
+                self.plan_id6, self.detail
+            )
+        return "{0}: review finding {1} is {2}/{3} and unresolved".format(
+            self.plan_id6, self.finding_id, self.severity, self.decision
+        )
+
+
+def plan_gating_blocks(
+    repo_root, plan_id6: str, threshold: Optional[str] = None
+) -> Tuple[GatingBlock, ...]:
+    """Every recorded reason ``plan_id6``'s review blocks its dependents, in deterministic order.
+
+    An EMPTY tuple means "nothing recorded blocks dependents", which is the answer for a plan with
+    no review artifact at all. The three failure modes deliberately MIRROR Order 02's
+    ``check_engine.evaluate_review_finding_escalation`` so the cascade and the escalation gate cannot
+    disagree about what counts as blocking:
+
+    (a) NO review artifact -> EMPTY (silent). Required for safety, not laziness: zero ``.review.md``
+        files exist against 428 plans, so a fail-closed absent case would block the entire corpus.
+    (b) Artifact PRESENT but malformed -> BLOCKING. A file that exists but cannot be trusted is an
+        error, not an absence; treating it as an absence is the evasion path (a ``HGIH`` typo would
+        otherwise slip past :func:`is_gating` silently).
+    (c) Threshold ``off`` -> EMPTY, the gate is disabled entirely.
+
+    Current-round semantics come from :meth:`ReviewDocument.current_findings`, so a finding raised in
+    round 1 and fixed in round 2 never blocks. Only decisions OTHER than ``fixed`` block, matching
+    :attr:`Finding.is_resolved`.
+
+    Never raises: an unreadable tree or a missing config yields an empty tuple, because a crashing
+    gate is a disabled gate.
+    """
+    root = Path(repo_root)
+    if threshold is None:
+        try:
+            from agent_workflows import config as _cfg
+
+            threshold = _cfg.findings_gate_threshold(root)
+        except Exception:
+            return ()
+    thr = str(threshold).strip().lower()
+    if thr in ("off", ""):
+        return ()  # (c) disabled outright: do no work at all.
+
+    wanted = (plan_id6 or "").strip()
+    if not wanted:
+        return ()
+
+    out: List[GatingBlock] = []
+    try:
+        review_paths = sorted(iter_review_files(root), key=lambda p: str(p))
+    except Exception:
+        return ()
+    for path in review_paths:
+        doc = parse_review_file(path)
+        if (doc.plan_id or "").strip() != wanted:
+            continue
+        if doc.diagnostics:
+            # (b) present but unparseable -> block, and say which codes so the operator can repair it.
+            codes = ", ".join(sorted({d.code for d in doc.diagnostics}))
+            out.append(
+                GatingBlock(
+                    plan_id6=wanted,
+                    finding_id="",
+                    severity="",
+                    decision="",
+                    kind="malformed",
+                    review_path=str(path),
+                    detail=codes,
+                )
+            )
+            continue
+        for finding in doc.current_findings():
+            if finding.is_resolved:
+                continue
+            if not is_gating(finding.severity, thr):
+                continue
+            out.append(
+                GatingBlock(
+                    plan_id6=wanted,
+                    finding_id=finding.id,
+                    severity=finding.severity,
+                    decision=finding.decision,
+                    kind="finding",
+                    review_path=str(path),
+                    detail="",
+                )
+            )
+    return tuple(out)
+
+
+def plan_blocks_dependents(
+    repo_root, plan_id6: str, threshold: Optional[str] = None
+) -> bool:
+    """True iff ``plan_id6`` carries a recorded reason NOT to satisfy an ``executed:`` edge.
+
+    The boolean convenience over :func:`plan_gating_blocks` for a caller that needs only the verdict.
+    A caller that must TELL THE OPERATOR WHY should use :func:`plan_gating_blocks` instead; a block
+    whose message does not name its cause is the failure mode this Set exists to remove.
+    """
+    return bool(plan_gating_blocks(repo_root, plan_id6, threshold))
