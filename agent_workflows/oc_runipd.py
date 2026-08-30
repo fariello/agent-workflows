@@ -617,13 +617,37 @@ def driver_actor(state: dict[str, Any]) -> str:
     return f"aw oc run model={model}" if model else "aw oc run"
 
 
-def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
+def begin_baseline_env(isolated: bool) -> dict[str, str]:
+    """The child-env overlay declaring WHICH baseline `aw ipd begin` should measure.
+
+    lanetruth Order 02 (z2isfg). `begin` gates execution authority on this plan's in-scope paths being
+    unambiguous in the baseline the turn will EXECUTE against. For an isolated turn that baseline is a
+    fresh worktree cut at the frozen base commit, which is clean by construction, so uncommitted work
+    in the MAIN tree cannot reach it. Measuring the main tree there refused unrelated lanes over a
+    co-worker's edit to a commonly-scoped file, and the message's own remedy (commit or stash it) is
+    one the shared-checkout contract forbids. Only the DRIVER knows which case applies, so it declares
+    it here; a non-isolated turn sends nothing and the existing main-tree refusal is preserved verbatim.
+
+    Env rather than a CLI flag: `--dir` must keep meaning "the repo root" (the receipt stays under the
+    MAIN repo's state root even for an isolated turn) and a new flag would have to be declared in
+    `agent_workflows/cli.py`, which this plan's scope fence excludes."""
+    return {"AW_ISOLATED_BASELINE": "1"} if isolated else {}
+
+
+def driver_begin(
+    repo: Path, id6: str, actor: str, *, isolated: bool = False
+) -> tuple[int, str]:
     """Run the fail-closed `aw ipd begin <id6> --actor` gate before an execute turn.
 
     Reuses the packaged `aw ipd begin` surface (subprocess to `python -m agent_workflows`,
     mirroring `set_plan_approved`/`finalize_orchestrator`); begin writes the gitignored
     `.aw/state/ipd-lifecycle/<id6>.receipt.json` receipt (execution authority) itself. Returns
-    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority)."""
+    (exit_code, stderr): exit 0 = receipt written; nonzero = refusal (no execution authority).
+
+    `isolated` declares that the gated turn will execute in a fresh isolated worktree rather than in
+    `repo` itself, which selects the baseline begin measures (see `begin_baseline_env`). It does NOT
+    change where the receipt lives, nor the receipt's frozen `base_head`, which is always this repo's
+    HEAD because finalize consumes it as a git revision."""
     # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling. NOTE this particular site
     # is NOT itself lane-shadowed -- it runs with `cwd=str(repo)` (the MAIN tree) and the lane is
     # allocated only AFTER begin returns -- but it is pinned anyway so exactly one shape exists
@@ -642,7 +666,13 @@ def driver_begin(repo: Path, id6: str, actor: str) -> tuple[int, str]:
     result = subprocess.run(
         cmd,
         cwd=str(repo),
-        env=pinned_child_env(),
+        # lanetruth Order 01 (af7i6p) + Order 02 (z2isfg): the pinned env is the BASE and the
+        # baseline declaration is layered on top, so the turn measures the tree it will really
+        # execute in WITHOUT unpinning the tooling. Written as one expression because the af7i6p
+        # guard (tests/test_lane_tool_identity.py) asserts the literal `env=pinned_child_env()`
+        # shape at this site; keeping that literal visible is what proves the pin still reaches
+        # the child.
+        env={**pinned_child_env(), **begin_baseline_env(isolated)},
         text=True,
         # ttywedge Order 01 (g40w37): DENY the child a terminal. Without this, stdin is INHERITED, so a
         # nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever
@@ -2640,7 +2670,17 @@ def execute_item(
         # per-call subprocess. A mismatch raises ToolIdentityError, which is RUN-FATAL (OQ-02)
         # and propagates out of the queue loop rather than marking this one item blocked.
         assert_child_tool_identity(run_dir / "events.jsonl", cwd=repo)
-        begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
+        # lanetruth Order 02 (z2isfg): declare the baseline the turn will ACTUALLY execute against.
+        # `isolate` is the same flag that allocates the lane below, so begin and the execution tree
+        # cannot disagree. Note the lane does not exist yet at this point (it is allocated only after
+        # begin grants authority, and that fail-closed ordering is deliberately preserved), which is
+        # exactly why this is a declaration of the frozen-base-commit baseline rather than a path.
+        # The kwarg is passed ONLY for an isolated turn so the non-isolated path keeps its exact
+        # pre-existing three-argument call shape (the default already means "measure this tree").
+        if isolate:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor, isolated=True)
+        else:
+            begin_rc, begin_msg = driver_begin(repo, item["id6"], actor)
         if begin_rc != 0:
             attempt["ended_at"] = utc_now()
             attempt["begin_refused"] = begin_msg

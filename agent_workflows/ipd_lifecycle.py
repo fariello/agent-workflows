@@ -600,12 +600,58 @@ def receipt_is_current(receipt: Dict[str, Any], plan_text: str) -> bool:
 # --------------------------------------------------------------------------------------
 
 
+def _baseline_ambiguity(
+    repo_root: Path,
+    scope_paths: List[str],
+    *,
+    isolated_baseline: bool = False,
+) -> str:
+    """Is this plan's frozen ``scope_paths`` content AMBIGUOUS in the baseline the turn will use?
+
+    Returns the same three-way vocabulary as :func:`run_evidence.dirty_within` so ``begin``'s ordered
+    checks are unchanged: ``"clean"``, ``"unversioned"`` (fail-closed), or a ``\\n``-joined list of the
+    offending in-scope paths.
+
+    Two baselines, selected by the CALLER because only the caller knows where the turn will run
+    (lanetruth-02, z2isfg):
+
+      * ``isolated_baseline=False`` - the turn executes in THIS working tree, so the tree is the
+        baseline and its in-scope uncommitted state is the ambiguity. This delegates to ``dirty_within``
+        against ``repo_root`` exactly as ``begin`` always has.
+      * ``isolated_baseline=True`` - the turn executes in a FRESH worktree cut at this repository's
+        current commit (``worktree_lease.allocate_worktree`` runs ``git worktree add -b <branch> <path>
+        <base_sha>``), whose tracked content therefore IS that commit. Uncommitted work in THIS tree
+        cannot reach that lane and so cannot make its baseline ambiguous; measuring it would withhold
+        authority over state the turn will never see. What CAN make a commit-shaped baseline ambiguous
+        is the commit itself being unreadable, so that is what is measured. Git is still consulted (a
+        non-repo still fails closed as ``unversioned``); this is a different measurement, not a skipped
+        one.
+
+    Note the asymmetry is deliberate and narrow: an isolated turn is NOT exempted from scope
+    discipline. Its writes are still reconciled against the frozen ``scope_paths`` by ``finalize``, and
+    an intervening commit touching an in-scope path is still refused there.
+    """
+    from agent_workflows.run_evidence import dirty_within
+
+    if not isolated_baseline:
+        return dirty_within(str(repo_root), scope_paths, _scope_match)
+    if not scope_paths:
+        return "clean"
+    # Fail closed identically to dirty_within when git cannot speak for this tree: without a readable
+    # commit there is no frozen base to cut a lane from, so the baseline IS ambiguous.
+    rc, _out, _err = _git(repo_root, ["rev-parse", "--verify", "HEAD"])
+    if rc != 0:
+        return "unversioned"
+    return "clean"
+
+
 def begin(
     repo_root: Path,
     plan_path: Path,
     actor: str,
     *,
     timestamp: str,
+    isolated_baseline: bool = False,
 ) -> BeginResult:
     """Run the fail-closed pre-execution gate and, on success, write the atomic begin receipt.
 
@@ -623,11 +669,30 @@ def begin(
          THIS execution owns (scopeattrib Order 01 aligned it with this same disjoint-unowned rule).
     Only when all pass is the receipt built and written atomically. Steps 5 and 6 are ordered so the
     baseline check can scope itself to the frozen ``Scope-Paths``.
+
+    ``isolated_baseline`` (lanetruth-02, z2isfg) selects WHICH BASELINE step 6 measures, separating
+    "where the receipt lives" from "what the turn will actually execute against":
+
+      * ``False`` (the default, and every non-isolated turn): the caller's own WORKING TREE at
+        ``repo_root`` is the execution tree, so its in-scope uncommitted state genuinely does make the
+        frozen base ambiguous and is refused, exactly as before. Behavior is unchanged.
+      * ``True``: the caller declares the turn will execute in a FRESH worktree cut at the frozen base
+        COMMIT (``git worktree add -b <branch> <path> <base_sha>``), not in this working tree. Such a
+        tree's tracked content IS that commit and is clean by construction, so uncommitted work in
+        THIS tree cannot make that baseline ambiguous and must not withhold execution authority. The
+        commit-shaped baseline is measured instead (see :func:`_baseline_ambiguity`), which is a real
+        measurement rather than a skipped check.
+
+    ``isolated_baseline`` deliberately does NOT influence ``base_head``. The receipt's ``base_head`` is
+    always captured from ``repo_root`` because finalize consumes it as a GIT REVISION
+    (``_paths_changed_by_this_execution`` diffs ``base..HEAD``, and ``_intervening_commits_touching``
+    re-diffs the same range); a lane's HEAD is not this tree's HEAD and is not even its ancestor, so
+    sourcing both from one "execution tree" would silently corrupt the finalize delta.
     """
     from agent_workflows import ipd_lint as _lint
     from agent_workflows import ipd_schema as _schema
     from agent_workflows import run_freeze
-    from agent_workflows.run_evidence import dirty_within, get_git_head
+    from agent_workflows.run_evidence import get_git_head
 
     # 1. actor required (non-empty).
     if not actor or not actor.strip():
@@ -712,8 +777,12 @@ def begin(
     #    changes THIS EXECUTION made (its commits since the frozen base, plus dirty paths it can be
     #    shown to own); since scopeattrib Order 01 it no longer demands a reason for a disjoint
     #    UNOWNED dirty path, which is exactly the rule applied here, so the two gates now agree.
+    #    WHICH baseline is measured depends on `isolated_baseline` (lanetruth-02, z2isfg): this tree
+    #    when the turn will execute here, the frozen base COMMIT when it will execute in a fresh lane.
     scope_paths = _frozen_scope_paths(plan_text)
-    in_scope_dirty = dirty_within(str(repo_root), scope_paths, _scope_match)
+    in_scope_dirty = _baseline_ambiguity(
+        repo_root, scope_paths, isolated_baseline=isolated_baseline
+    )
     if in_scope_dirty == "unversioned":
         return BeginResult(
             EXIT_CANNOT_RUN,
@@ -724,14 +793,22 @@ def begin(
         )
     if in_scope_dirty != "clean":
         offending = in_scope_dirty.replace("\n", ", ")
+        measured = (
+            "the frozen base commit this turn will execute against"
+            if isolated_baseline
+            else f"the working tree at {repo_root}"
+        )
         return BeginResult(
             EXIT_CANNOT_RUN,
             None,
             rcpt_path,
             "refusing to begin: uncommitted changes to paths INSIDE this plan's Scope-Paths make "
-            f"the frozen base ambiguous: {offending}. Commit or stash these in-scope changes first, "
-            "then re-run `aw ipd begin`. (Uncommitted work on paths OUTSIDE this plan's Scope-Paths "
-            "is allowed and does not block begin.)",
+            f"the frozen base ambiguous: {offending}. Measured baseline: {measured}. If those "
+            "changes are YOURS, land or set them aside and re-run `aw ipd begin`. If they belong to "
+            "another agent or human sharing this checkout, do NOT touch their work: either re-run "
+            "this plan under worktree isolation, so the turn executes against a clean frozen base, "
+            "or wait for the owning party to land it. (Uncommitted work on paths OUTSIDE this "
+            "plan's Scope-Paths is allowed and does not block begin.)",
         )
 
     receipt: Dict[str, Any] = {
@@ -1904,6 +1981,15 @@ def run_begin(args) -> int:
             print(f"  {d.rule} {d.detail}")
         return exit_code
 
+    # lanetruth-02 (z2isfg): the DRIVER, not this process, knows whether the turn it is gating will
+    # execute in a fresh isolated worktree or in this very tree, so the caller must be able to declare
+    # it. The transport is the `AW_ISOLATED_BASELINE` env var rather than a new CLI flag: OQ-02
+    # resolved that `--dir` must keep meaning "the repo root" (the receipt stays under the main repo's
+    # state root), and this plan's scope fence excludes `agent_workflows/cli.py`, where a new flag
+    # would have to be declared. Absent or any value other than "1" means today's behavior, so an
+    # operator's plain `aw ipd begin` is unaffected and the gate stays fail-closed by default.
+    isolated_baseline = os.environ.get("AW_ISOLATED_BASELINE") == "1"
+
     # Resolve the plan selector (must resolve to exactly one plan).
     if not selector:
         return _emit(
@@ -1925,7 +2011,13 @@ def run_begin(args) -> int:
         )
     plan_path = resolution.paths[0]
 
-    result = begin(repo_root, plan_path, actor or "", timestamp=now)
+    result = begin(
+        repo_root,
+        plan_path,
+        actor or "",
+        timestamp=now,
+        isolated_baseline=isolated_baseline,
+    )
 
     if result.exit_code == EXIT_OK and result.receipt is not None:
         receipt = result.receipt
