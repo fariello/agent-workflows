@@ -223,6 +223,16 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.priority-invalid": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # Recognized-but-optional Work-Kind enum on a plan's own metadata (wkindname ng2blv). Same class
+    # as its Priority sibling above: an out-of-vocab `- Work-Kind:` value is an error; an ABSENT
+    # Work-Kind is silent (optional), which is what keeps the existing corpus from being mass-failed.
+    # The shared vocab is backlog.KINDS (not forked). NOTE this rule covers PLANS (and specs report
+    # through `spec.work-kind-invalid` in validate_spec); BACKLOG keeps its own pre-existing
+    # `backlog.kind-invalid` contract-drift path, where the field is REQUIRED. Two mechanisms by
+    # design; nothing routes backlog through this registry.
+    "check.work-kind-invalid": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # Authoring-lifecycle nudge (catalog I-12): a finished draft should advance to to-review. This
     # is GUIDANCE and only detectable (placeholder-free draft), so info-severity + heuristic.
     "check.ipd-draft-ready-to-review": RuleSpec(
@@ -529,6 +539,15 @@ def check_content(
         try:
             drift.extend(
                 check_plan_priority(repo_root, include_untracked=include_untracked)
+            )
+        except Exception:
+            pass
+        # wkindname ng2blv E-05: validate the recognized-but-optional `- Work-Kind:` enum on each plan
+        # against the shared backlog.KINDS (out-of-vocab -> error; absent -> silent). Same placement
+        # and shape as the Priority sibling above, so both surface exactly once per check run.
+        try:
+            drift.extend(
+                check_plan_work_kind(repo_root, include_untracked=include_untracked)
             )
         except Exception:
             pass
@@ -1444,6 +1463,9 @@ def check_types(
 _ID6_RE = _re.compile(r"\A[0-9a-z]{6}\Z")
 _ITEM_ID_RE = _re.compile(r"(?m)^- Id:[ \t]*([0-9a-z]{6})[ \t]*$")
 _ITEM_PRIORITY_RE = _re.compile(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$")
+# wkindname ng2blv: FULL-LINE anchored on `- Work-Kind:` so it can never match the unrelated
+# `- Gate-Kind:` field nor an IPD's REQUIRED structural `- Kind:` (both are distinct vocabularies).
+_ITEM_WORK_KIND_RE = _re.compile(r"(?m)^- Work-Kind:[ \t]*(\S+)[ \t]*$")
 _META_BLOCKS_RELEASE_RE = _re.compile(r"(?m)^- Blocks-Release:[ \t]*(\S+)[ \t]*$")
 _META_FROM_BACKLOG_RE = _re.compile(r"(?m)^- From-Backlog:[ \t]*(\S+)[ \t]*$")
 _PLAN_STATUS_RE = _re.compile(r"(?m)^- Status:[ \t]*(\S+)[ \t]*$")
@@ -2233,6 +2255,56 @@ def check_plan_priority(
                 observed=f"Priority: {value}",
                 required=f"one of {sorted(_backlog.PRIORITIES)} (or omit Priority)",
                 recovery=f"aw ipd set {id6} --priority <low|medium|high>  (or --priority - to clear)",
+            )
+        )
+    return drift
+
+
+_WORK_KIND_INVALID_RULE = "check.work-kind-invalid"
+
+
+def check_plan_work_kind(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Validate the recognized-but-optional `- Work-Kind:` enum on each plan (wkindname ng2blv E-05).
+
+    Work-Kind is OPTIONAL on an IPD (schema RECOGNIZES it; the enum value check lives HERE, in
+    `aw check`, per the documented convention). A plan carrying an out-of-vocab `- Work-Kind:` value
+    is flagged `check.work-kind-invalid`; a plan with a valid value (or NO Work-Kind at all) is
+    silent. The vocabulary is the SHARED `backlog.KINDS` (imported, never forked). This is a plain
+    metadata-enum check on the plan's OWN field, NOT a cross-tree dangling/reference check, so it runs
+    in the plans-type content path (reached by both `aw check plans` and the `aw check all` fan-out,
+    exactly once). Mirrors `check_plan_priority` line-for-line.
+    """
+    from agent_workflows import backlog as _backlog
+
+    drift: List[_core.Drift] = []
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _ITEM_WORK_KIND_RE.search(text)
+        if not m:
+            continue  # absent Work-Kind is fine (optional)
+        value = m.group(1).strip()
+        if value in _backlog.KINDS:
+            continue
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else p.stem
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(p),
+                    _WORK_KIND_INVALID_RULE,
+                    f"work kind not in {sorted(_backlog.KINDS)}: {value!r}",
+                ),
+                observed=f"Work-Kind: {value}",
+                required=f"one of {sorted(_backlog.KINDS)} (or omit Work-Kind)",
+                recovery=(
+                    f"aw ipd set {id6} --work-kind "
+                    "<bug|feature|chore|security|followup>  (or --work-kind - to clear)"
+                ),
             )
         )
     return drift

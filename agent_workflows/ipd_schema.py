@@ -195,6 +195,18 @@ META_FROM_BACKLOG = "From-Backlog"
 # surface (check.priority-invalid), NOT the schema layer, mirroring Scope-Paths/Blocks-Release/
 # From-Backlog. Absent = unprioritized (no forced default; existing plans are not mass-failed).
 META_PRIORITY = "Priority"
+# wkindname Order ng2blv (graduated from backlog 1ap48y): a recognized-but-OPTIONAL `Work-Kind` field
+# recording the NATURE of the work (bug/feature/chore/security/followup). The shared vocabulary is
+# `backlog.KINDS` (imported by the `aw check` rule; do NOT fork it and do NOT define a per-type
+# subset). The name is `Work-Kind`, NOT `Kind`, because `Kind` is already booked four times over on
+# disjoint vocabularies: this schema's own REQUIRED structural `Kind` (KINDS = child|orchestrator),
+# `research_contract.KINDS` (17 document types), `comms.KINDS` (ask|reply|task|handoff|fyi), and
+# `backlog.KINDS` (the work-nature set, renamed on disk to `- Work-Kind:` by Order 9trlc3).
+# Recognition here only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in
+# the `aw check` surface (check.work-kind-invalid), NOT the schema layer, mirroring Priority/
+# Scope-Paths/Blocks-Release/From-Backlog. Absent = unclassified (no forced default; existing plans
+# are not mass-failed).
+META_WORK_KIND = "Work-Kind"
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
@@ -208,6 +220,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_BLOCKS_RELEASE,
         META_FROM_BACKLOG,
         META_PRIORITY,
+        META_WORK_KIND,
     )
 )
 

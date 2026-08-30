@@ -1083,6 +1083,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Set the plan's Priority (low|medium|high); '-' clears it (xprio). Persists on a no-op "
         "transition.",
     )
+    # wkindname ng2blv: the recognized-but-optional `- Work-Kind:` field (the NATURE of the work),
+    # mirroring `--priority` above. Named `--work-kind`, not `--kind`, because `Kind` is already the
+    # plan's REQUIRED structural field (child|orchestrator). Shared vocab is backlog.KINDS.
+    p_ipd_set.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        choices=["bug", "feature", "chore", "security", "followup", "-"],
+        help="Set the plan's Work-Kind (bug|feature|chore|security|followup); '-' clears it "
+        "(wkindname). Persists on a no-op transition.",
+    )
     p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."
     )
@@ -3371,6 +3382,18 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["low", "medium", "high", "-"],
         help="Set the spec's Priority (low|medium|high); '-' clears it (xprio). Written as a "
         "side-effect of the status transition; an out-of-vocab value is refused.",
+    )
+    # wkindname ng2blv: the same recognized-but-optional Work-Kind field on a spec, mirroring
+    # `--priority` above. A spec will mostly use `feature` or `chore`; the vocabulary is shared with
+    # backlog and plans by design (OQ-01) rather than forked per type.
+    p_specs_set.add_argument(
+        "--work-kind",
+        dest="work_kind",
+        default=None,
+        choices=["bug", "feature", "chore", "security", "followup", "-"],
+        help="Set the spec's Work-Kind (bug|feature|chore|security|followup); '-' clears it "
+        "(wkindname). Written as a side-effect of the status transition; an out-of-vocab value "
+        "is refused.",
     )
     p_specs_set.add_argument(
         "--evidence",

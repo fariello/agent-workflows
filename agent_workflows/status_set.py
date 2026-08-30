@@ -672,6 +672,19 @@ def apply_status_change(
         tmp_text = _releases.set_priority_line(tmp_text, prio)
         new_lines = tmp_text.splitlines()
 
+    # Work-Kind write (wkindname ng2blv): the SAME hoisted, status-branch-independent shape as the
+    # Priority write above, so `aw ipd set --work-kind <bug|feature|chore|security|followup|->`
+    # persists even on a no-op (same-status) transition. Funnels through the single shared
+    # `releases.set_work_kind_line` primitive (no duplicate write path). `-`/None clears. The ENUM
+    # value is validated by `aw check` (check.work-kind-invalid), not here.
+    work_kind = getattr(args, "work_kind", None)
+    if work_kind is not None:
+        from agent_workflows import releases as _releases
+
+        tmp_text = "\n".join(new_lines)
+        tmp_text = _releases.set_work_kind_line(tmp_text, work_kind)
+        new_lines = tmp_text.splitlines()
+
     if rec.record_type == "plans" and norm_status != "approved":
         new_lines = [
             line_item
