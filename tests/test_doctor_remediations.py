@@ -6,9 +6,12 @@ import io
 import unittest
 from pathlib import Path
 
+from unittest import mock
+
 from agent_workflows import artifact_core as core
 from agent_workflows import doctor
 from agent_workflows import term as T
+from agent_workflows import versioning
 
 
 class DoctorRemediationTests(unittest.TestCase):
@@ -78,6 +81,18 @@ class DoctorRemediationTests(unittest.TestCase):
             self.assertEqual(rem.command, "aw install", rule)
             self.assertIn("aw install", rem.detailed_fix)
             self.assertNotIn("aw setup", rem.detailed_fix)
+
+    def test_pypi_update_remediation_is_pip_upgrade(self) -> None:
+        # awpypi: a newer PUBLISHED release upgrades the running PACKAGE (pip), which is a
+        # different remedy from doctor.version-* (refresh one repo's managed files).
+        d = core.Drift(
+            "<pypi>", "doctor.pypi-update-available", "running=1.0.0 published=2.0.0"
+        )
+        rem = doctor.build_remediation(d, self.repo_root)
+        self.assertEqual(rem.command, "pip install -U agent-workflows")
+        self.assertIn("pip install -U agent-workflows", rem.detailed_fix)
+        # It must also tell the user to refresh each repo afterwards.
+        self.assertIn("aw install", rem.detailed_fix)
 
     def test_layout_split_brain_remediation(self) -> None:
         d = core.Drift("<layout>", "doctor.layout-split-brain", "dual layout")
@@ -274,6 +289,85 @@ class DoctorRemediationTests(unittest.TestCase):
             self.assertTrue(
                 any("aw rename plans" in cmd or "aw setup" in cmd for cmd in cmd_list)
             )
+
+
+class DoctorPypiProbeTests(unittest.TestCase):
+    """awpypi: the OPT-IN 'is a newer release published?' probe.
+
+    Correctness rules under test: it never runs unless asked; a lookup failure is never a
+    finding; a dev/dirty checkout ahead of the last release is not an upgrade signal; and a
+    genuinely behind clean release IS reported.
+    """
+
+    def setUp(self) -> None:
+        self.repo_root = Path(".")
+
+    def test_default_makes_no_network_call(self) -> None:
+        # The strongest form of "off by default": if the probe were called, this raises.
+        with mock.patch.object(
+            versioning,
+            "latest_pypi_version",
+            side_effect=AssertionError("network called without --check-pypi"),
+        ):
+            res = doctor.probe_environment(self.repo_root)
+        self.assertFalse(res.pypi_checked)
+        self.assertIsNone(res.pypi_latest)
+        self.assertEqual(
+            [d for d in res.drift if "pypi" in d.rule],
+            [],
+        )
+
+    def test_behind_published_release_is_reported(self) -> None:
+        with mock.patch.object(
+            versioning, "latest_pypi_version", return_value="2.0.0"
+        ), mock.patch.object(versioning, "resolve_version", return_value="1.0.0"):
+            res = doctor.probe_environment(self.repo_root, check_pypi=True)
+        self.assertTrue(res.pypi_checked)
+        self.assertEqual(res.pypi_latest, "2.0.0")
+        rules = [d.rule for d in res.drift]
+        self.assertIn("doctor.pypi-update-available", rules)
+
+    def test_lookup_failure_is_not_a_finding(self) -> None:
+        # Offline/timeout/unpublished all surface as None. An offline box must not be told it
+        # is out of date, and must not be told it is up to date either.
+        with mock.patch.object(
+            versioning, "latest_pypi_version", return_value=None
+        ), mock.patch.object(versioning, "resolve_version", return_value="1.0.0"):
+            res = doctor.probe_environment(self.repo_root, check_pypi=True)
+        self.assertTrue(res.pypi_checked)
+        self.assertIsNone(res.pypi_latest)
+        self.assertEqual([d for d in res.drift if "pypi" in d.rule], [])
+
+    def test_dev_build_ahead_of_release_is_silent(self) -> None:
+        # A source checkout normally sits ahead of the last published release; reporting that
+        # as an available upgrade would be pure noise.
+        for running in (
+            "1.3.0rc2.dev1571+g4ee5282.d20260830",
+            "1.3.0.dev1+gabc1234",
+        ):
+            with mock.patch.object(
+                versioning, "latest_pypi_version", return_value="1.2.0"
+            ), mock.patch.object(versioning, "resolve_version", return_value=running):
+                res = doctor.probe_environment(self.repo_root, check_pypi=True)
+            self.assertEqual(
+                [d for d in res.drift if "pypi" in d.rule], [], f"running={running}"
+            )
+
+    def test_current_release_is_silent(self) -> None:
+        with mock.patch.object(
+            versioning, "latest_pypi_version", return_value="1.2.0"
+        ), mock.patch.object(versioning, "resolve_version", return_value="1.2.0"):
+            res = doctor.probe_environment(self.repo_root, check_pypi=True)
+        self.assertEqual([d for d in res.drift if "pypi" in d.rule], [])
+
+    def test_env_evidence_carries_pypi_facts_for_machine_consumers(self) -> None:
+        # Fact parity: the --agent/--json payload must expose the same facts the human
+        # renderer prints, including the not-checked case.
+        result = doctor.inspect_repo(self.repo_root)
+        env = next(e for e in result.evidence if e.key == "env")
+        self.assertIn("pypi_checked", env.value)
+        self.assertIn("pypi_latest", env.value)
+        self.assertFalse(env.value["pypi_checked"])
 
 
 if __name__ == "__main__":

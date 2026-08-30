@@ -69,6 +69,12 @@ class EnvironmentProbeResult:
     preset: Optional[str] = None
     backend: Optional[str] = None
     setup_needed: bool = False
+    # awpypi: the latest version published on PyPI, when an OPT-IN network probe ran.
+    # None means "not known" (probe not requested, offline, timeout, unpublished, or parse
+    # error) and is never reported as an upgrade signal. `pypi_checked` distinguishes
+    # "we did not look" from "we looked and learned nothing".
+    pypi_latest: Optional[str] = None
+    pypi_checked: bool = False
     drift: List[core.Drift] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -81,6 +87,8 @@ class EnvironmentProbeResult:
             "preset": self.preset,
             "backend": self.backend,
             "setup_needed": self.setup_needed,
+            "pypi_latest": self.pypi_latest,
+            "pypi_checked": self.pypi_checked,
             "drift": [
                 {"location": d.location, "rule": d.rule, "detail": d.detail}
                 for d in self.drift
@@ -288,8 +296,16 @@ def probe_git(repo_root: Path) -> GitProbeResult:
     return res
 
 
-def probe_environment(repo_root: Path) -> EnvironmentProbeResult:
-    """Inspect framework layout, configuration preset/backend, and version currency."""
+def probe_environment(
+    repo_root: Path, *, check_pypi: bool = False
+) -> EnvironmentProbeResult:
+    """Inspect framework layout, configuration preset/backend, and version currency.
+
+    ``check_pypi`` (awpypi) opts INTO a network lookup of the latest published release. It is
+    OFF by default so `aw doctor` stays offline, deterministic, and fast unless the caller
+    asks; the probe degrades to "unknown" on any failure and never turns a network problem
+    into a repo finding.
+    """
     res = EnvironmentProbeResult()
     try:
         # Detect framework source repository
@@ -362,6 +378,31 @@ def probe_environment(repo_root: Path) -> EnvironmentProbeResult:
                         "<version>",
                         f"doctor.version-{res.version_status}",
                         f"installed={res.installed_version!r} packaged={res.packaged_version!r}",
+                    )
+                )
+
+        # awpypi: OPT-IN "is a newer release published?" probe. Compared against the version
+        # actually RUNNING (packaged_version), not the per-repo installed marker, because a new
+        # PyPI release is upgraded with `pip install -U`, which replaces the running package.
+        # A dev/dirty checkout is skipped: it is normal and expected for a source tree to sit
+        # ahead of the last published release, so reporting that as an upgrade would be noise.
+        if check_pypi:
+            res.pypi_checked = True
+            res.pypi_latest = versioning.latest_pypi_version("agent-workflows")
+            running = res.packaged_version
+            running_parsed = versioning.parse_our_version(running) if running else None
+            is_dev_build = bool(running and (".dev" in running or "+" in running))
+            if (
+                res.pypi_latest
+                and running_parsed is not None
+                and not is_dev_build
+                and versioning.compare(res.pypi_latest, running) > 0
+            ):
+                res.drift.append(
+                    core.Drift(
+                        "<pypi>",
+                        "doctor.pypi-update-available",
+                        f"running={running!r} published={res.pypi_latest!r}",
                     )
                 )
 
@@ -522,15 +563,20 @@ def collect_doctor_report(
     include_executed: bool = False,
     term: Optional[T.Term] = None,
     verbose_progress: bool = False,
+    check_pypi: bool = False,
 ) -> DoctorReport:
-    """Run all doctor probes with periodic status updates and assemble the DoctorReport."""
+    """Run all doctor probes with periodic status updates and assemble the DoctorReport.
+
+    ``check_pypi`` (awpypi) opts into the network PyPI lookup; default off keeps the whole
+    report offline and deterministic.
+    """
     if verbose_progress and term is not None:
         term.line(
             f"{term.severity_label('info')} Checking environment and framework installation..."
         )
         term.stream.flush()
 
-    env_res = probe_environment(repo_root)
+    env_res = probe_environment(repo_root, check_pypi=check_pypi)
 
     if verbose_progress and term is not None:
         term.line(
@@ -895,6 +941,25 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=None,
         )
 
+    if rule.startswith("doctor.pypi-update-available"):
+        # awpypi: a NEWER RELEASE IS PUBLISHED. This is distinct from doctor.version-* (which
+        # compares a repo's installed marker against the running package): here the running
+        # PACKAGE itself is behind PyPI, so the remedy is a pip upgrade, followed by
+        # `aw install` in each repo to refresh its managed files to the new version.
+        title = "A newer agent-workflows release is published on PyPI"
+        cmd = "pip install -U agent-workflows"
+        return Remediation(
+            title=title,
+            summary_fix=cmd,
+            detailed_fix=(
+                "run 'pip install -U agent-workflows' (or 'pipx upgrade agent-workflows') to "
+                "upgrade the running package, then 'aw install' in each repo to refresh its "
+                "managed files to the new version."
+            ),
+            command=cmd,
+            file_path=None,
+        )
+
     if rule.startswith("doctor.version-"):
         # A stale/mismatched install is fixed by re-running the INSTALLER in THIS repo (`aw install`
         # with no target acts on the current directory and is idempotent). NOT `aw setup`, which is
@@ -1094,6 +1159,14 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         if env.packaged_version:
             ver_info += f" (packaged: {env.packaged_version})"
         lines.append(f"  Version:     {ver_info} [{env.version_status}]")
+
+    # awpypi: only shown when the opt-in probe actually ran, and it distinguishes a failed
+    # lookup ("unknown") from a successful one, so an offline box is never read as up to date.
+    if env.pypi_checked:
+        if env.pypi_latest:
+            lines.append(f"  PyPI latest: {env.pypi_latest}")
+        else:
+            lines.append("  PyPI latest: unknown (lookup failed or unpublished)")
 
     layout_info = env.layout
     if env.preset or env.backend:
@@ -1329,6 +1402,7 @@ def inspect_repo(
     include_executed: bool = False,
     term: Optional[T.Term] = None,
     verbose_progress: bool = False,
+    check_pypi: bool = False,
 ) -> CommandResult:
     """Run all doctor probes and assemble a typed CommandResult with fact parity across renderers."""
     report = collect_doctor_report(
@@ -1337,6 +1411,7 @@ def inspect_repo(
         include_executed=include_executed,
         term=term,
         verbose_progress=verbose_progress,
+        check_pypi=check_pypi,
     )
 
     # Honor monkeypatched run_doctor in unit test suites
@@ -1401,6 +1476,11 @@ def inspect_repo(
                 "is_source_repo": report.env.is_source_repo,
                 "layout": report.env.layout,
                 "version_status": report.env.version_status,
+                # awpypi: fact parity with the human renderer's "PyPI latest" line. Always
+                # present so a machine consumer can tell "not checked" (False/None) from
+                # "checked, lookup failed" (True/None) from a real answer (True/"1.2.0").
+                "pypi_checked": report.env.pypi_checked,
+                "pypi_latest": report.env.pypi_latest,
             },
             status="clean" if not report.env.drift else "findings",
         ),
@@ -1475,6 +1555,9 @@ def run(
     include_all = getattr(args, "include_all", False)
     include_untracked = include_all or getattr(args, "include_untracked", False)
     include_executed = include_all or getattr(args, "include_executed", False)
+    # awpypi: NOT folded into -a/--all; --all widens WHICH ARTIFACTS are checked, whereas this
+    # adds a network call. Keeping it separate means `aw doctor -a` stays offline.
+    check_pypi = getattr(args, "check_pypi", False)
 
     if context.is_human:
         # Human CLI mode: immediate start announcement and single probe execution
@@ -1489,6 +1572,7 @@ def run(
         include_executed=include_executed,
         term=term,
         verbose_progress=context.is_human,
+        check_pypi=check_pypi,
     )
 
     renderer = get_renderer(context)

@@ -829,6 +829,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include both untracked/ artifacts and strict executed/ checks.",
     )
+    # awpypi: OPT-IN network probe. Off by default so `aw doctor` stays offline, deterministic,
+    # and fast; a failed lookup degrades to "unknown" and never becomes a finding.
+    p_doctor.add_argument(
+        "--check-pypi",
+        action="store_true",
+        help="Also check PyPI for a newer published release (network; off by default).",
+    )
 
     # aw exclude [repo|repos] repodir1 [repodir2 ...]
     p_exclude = sub.add_parser(
