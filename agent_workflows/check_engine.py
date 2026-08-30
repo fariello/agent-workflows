@@ -145,6 +145,41 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.review-finding-unescalated": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # revgate Order 04 (c621h9) E-07: a self-resolved review decision marked IRREVERSIBLE that was
+    # never surfaced (no `Blocking: yes` open question, no note that the maintainer was told), or a
+    # decision row with no `Reversible` judgement at all.
+    #
+    # `warning`, NOT `error`, and the difference from its Order 02 sibling directly above is
+    # deliberate rather than an oversight. The preventive control already exists in the workflow (a
+    # reviewer must escalate an irreversible decision at DECISION time), so this rule is the BACKSTOP
+    # for someone who skipped it. Blocking here would be a third overlapping enforcement path
+    # alongside Order 02's escalation gate and Order 03's dependency cascade, which
+    # GUIDING_PRINCIPLES 6 warns against ("fix by default invites gold-plating"). The plan's OQ-01
+    # resolved this as report-only on exactly that evidence. Registration is NOT bookkeeping: an
+    # unregistered id falls back to `_DEFAULT_RULESPEC`, which is `error` with an EMPTY invariant, so
+    # omitting this entry would silently contradict the report-only posture. In-tree advisory
+    # precedents: `check.orphaned-live-blocker` and `check.review-dangling`.
+    #
+    # DO NOT READ `warning` AS "cannot fail anything" (measured, not assumed):
+    # `artifact_core.drift_exit_code` exempts only `info`, so a `warning` DOES drive a nonzero
+    # findings exit. The distinction this severity buys is that it adds no LIFECYCLE gate (no `aw ipd
+    # lint` checkpoint, no begin/finalize refusal, no dependency block), unlike its `error` sibling
+    # which Order 02 wired into two lint checkpoints. `info` is the severity that cannot affect an
+    # exit code; this is deliberately not `info`, because an unescalated irreversible decision is a
+    # real obligation, not a nudge.
+    #
+    # Deterministic: a closed-vocabulary `Reversible` classification (shared with `aw reviews
+    # decisions` via `reviews.classify_reversible`) plus a literal `Blocking: yes` lookup in the
+    # plan's parsed open questions. No inference, hence DET_DETERMINISTIC.
+    #
+    # Invariant `""`, deliberate and for the same reason the Order 02 rule states: the Phase-0 catalog
+    # (spec pqsx96) covers naming (I-09), lifecycle-status authority (I-03), release gates (I-07),
+    # declared scope (I-01), dependency statements (I-08), and authoring nudges (I-12). None is about
+    # REVIEW-TIME DECISIONS, which did not exist as machine-readable data until this Set. Claiming a
+    # neighbouring id would be a false trace.
+    "check.review-decision-unescalated": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
     # Cross-IPD dependency statements (catalog I-08).
     "check.ipd-dependency-malformed": RuleSpec(
         "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-08"
@@ -512,6 +547,24 @@ def check_content(
         try:
             drift.extend(
                 check_review_finding_unescalated(
+                    repo_root, include_untracked=include_untracked
+                )
+            )
+        except Exception:
+            pass
+        # revgate Order 04 (c621h9 E-07): a self-resolved review decision marked IRREVERSIBLE that
+        # was never surfaced to the maintainer. Same PLACEMENT as the Order 02 rule directly above,
+        # and for the same documented reason (`check_ipd_dependencies`' "every dependency source is
+        # an IPD" precedent): the concern is keyed off the PLAN, so it belongs in the plans-type
+        # content path, reached by BOTH `aw check plans` and the `aw check all` fan-out exactly once,
+        # and deliberately NOT in the collisions-only cross-tree sweep (which the full sweep alone
+        # reaches). Note the consequence honestly: the rule fires while checking PLANS even though
+        # the artifact it reads is a REVIEW. `aw check reviews` is not a valid type today and adding
+        # one is out of scope. Advisory (`warning`), so it never sets an exit code. Fail-isolated in
+        # the same shape as its neighbours.
+        try:
+            drift.extend(
+                check_review_decision_unescalated(
                     repo_root, include_untracked=include_untracked
                 )
             )
@@ -2424,6 +2477,271 @@ def check_review_finding_unescalated(
                 plan_path=p,
                 plan_text=text,
                 threshold=threshold,
+                review_index=index,
+            )
+        )
+    return drift
+
+
+# --------------------------------------------------------------------------------------
+# revgate Order 04 (c621h9 E-07): an IRREVERSIBLE self-resolved review decision that was never
+# surfaced to the maintainer.
+#
+# WHY THIS IS ADVISORY AND NOT A GATE. The workflow already carries the PREVENTIVE control: E-03
+# requires a reviewer to escalate an irreversible decision at DECISION time. This rule is the
+# BACKSTOP for a reviewer who skipped that step. Adding a third BLOCKING path would overlap Order
+# 02's escalation gate and Order 03's dependency cascade for no additional safety
+# (GUIDING_PRINCIPLES 6: "fix by default invites gold-plating"), and the plan's own OQ-01 resolved
+# this as report-only on that evidence.
+#
+# WHAT "ADVISORY" DOES AND DOES NOT MEAN HERE, stated precisely because it is easy to overclaim.
+# The rule is registered `warning`, as the approved plan's E-07 directs. MEASURED: `warning` DOES
+# contribute to a nonzero `aw check` findings exit - `artifact_core.drift_exit_code` exempts only
+# `info` severity - so this rule CAN turn an otherwise-clean `aw check` into exit 1. What it does
+# NOT do is block a LIFECYCLE transition: it adds no gate to `aw ipd lint`, no `begin`/`finalize`
+# refusal, and no dependency-edge block, which is the sense in which OQ-01 resolved "nothing
+# blocks". If you want a finding that cannot affect an exit code at all, that is `info` severity
+# (the `check.ipd-draft-ready-to-review` detect-and-nudge shape), NOT this. If a skipped escalation
+# is ever OBSERVED in practice, the fix is to add the gate deliberately, not to re-read this
+# severity as stronger than it is.
+# --------------------------------------------------------------------------------------
+
+_REVIEW_DECISION_RULE = "check.review-decision-unescalated"
+
+
+def evaluate_review_decision_escalation(
+    repo_root: Path,
+    *,
+    plan_path: Path,
+    plan_text: str,
+    open_questions=None,
+    review_index: Optional[Dict[str, List[Path]]] = None,
+) -> List[_core.Drift]:
+    """The ONE evaluator for `check.review-decision-unescalated`.
+
+    A CURRENT-ROUND decision row marked `Reversible: no` must be surfaced, not merely logged: either
+    raised in the reviewed plan as a `Blocking: yes` open question, or explicitly noted as told to the
+    maintainer. A row that is neither is reported.
+
+    CURRENT-ROUND ONLY, unlike `aw reviews decisions` (which audits every round on purpose). The two
+    differ deliberately and the difference is not an inconsistency: an AUDIT asks "what did the agents
+    decide" and a round-1 decision was still made, while a CHECK asks "is there an outstanding
+    obligation today", and a decision superseded by a later round no longer carries one. This mirrors
+    `current_findings()` usage in the Order 02 rule.
+
+    `Reversible` classification is delegated to `reviews.classify_reversible`, so the check and the
+    audit verb cannot disagree about what "irreversible" means.
+
+    THE STATE MATRIX IS EXPLICIT, not inherited from an enclosing ``except Exception: pass``:
+
+    (a) NO review artifact for this plan -> SILENT. Mandatory, not a preference: zero `.review.md`
+        files exist against a 400+ plan corpus, so a fail-closed absent case would mass-report the
+        entire tree on day one. It is also the honest consequence of the acknowledged under-scope, a
+        reviewer who records nothing is outside deterministic reach.
+    (b) Artifact PRESENT but malformed -> REPORTED, via the parser's own diagnostics. A file that
+        exists but cannot be trusted is not an absence.
+    (c) `Reversible` EMPTY or unrecognized -> REPORTED as unjudged. A blank is not a judgement, and
+        silently reading it as "reversible" would let the whole obligation be skipped by omission.
+
+    Neither (a), (b), nor (c) may raise.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import review_findings as _rf
+        from agent_workflows import reviews as _reviews
+    except Exception:
+        return drift
+
+    mid = _ITEM_ID_RE.search(plan_text)
+    if mid is None:
+        return drift  # no `- Id:` to join on; the metadata linter owns that complaint
+    plan_id6 = mid.group(1)
+
+    index = _review_index(repo_root) if review_index is None else review_index
+    reviews = index.get(plan_id6) or []
+    if not reviews:
+        return drift  # (a) absent -> silent, by design
+
+    if open_questions is None:
+        try:
+            from agent_workflows import ipd_lint as _lint
+
+            open_questions = _lint.parse(plan_text).open_questions
+        except Exception:
+            open_questions = []
+    # Any blocking open question at all counts as escalation here, deliberately UNLIKE the Order 02
+    # finding rule, which requires a typed `- Finding: <ID>` naming the specific finding. A decision
+    # row has no equivalent typed back-reference field in the artifact schema, so demanding one would
+    # be unsatisfiable. The honest residual: a plan with one blocking question and two irreversible
+    # decisions satisfies this rule for both. Stated rather than hidden.
+    has_blocking_question = any(
+        str(oq.get("Blocking", "")).strip().lower() == "yes"
+        for oq in (open_questions or [])
+    )
+
+    for review_path in reviews:
+        doc = _rf.parse_review_file(review_path)
+        if doc.diagnostics:
+            # (b) present but malformed -> reported at the REVIEW path, the file to repair.
+            codes = ", ".join(sorted({d.code for d in doc.diagnostics}))
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(review_path),
+                        _REVIEW_DECISION_RULE,
+                        (
+                            "review artifact for plan {0} is malformed ({1}), so its recorded "
+                            "decisions cannot be checked for escalation".format(
+                                plan_id6, codes
+                            )
+                        ),
+                    ),
+                    observed="unparseable review artifact: {0}".format(codes),
+                    required=(
+                        "a review artifact whose Decisions section parses, so an irreversible "
+                        "self-made decision is machine-checkable"
+                    ),
+                    recovery=(
+                        "repair the review artifact's tables (see the reviews tree README); a "
+                        "malformed artifact is reported rather than skipped so a typo cannot hide "
+                        "an unescalated irreversible decision"
+                    ),
+                )
+            )
+            continue
+
+        for dec in doc.current_decisions():
+            verdict = _reviews.classify_reversible(dec.reversible)
+            if verdict == "yes":
+                continue
+            if verdict == "no" and has_blocking_question:
+                continue
+            if verdict == "no" and _decision_notes_maintainer_told(dec):
+                continue
+            if verdict == "unknown":
+                drift.append(
+                    enrich_drift(
+                        _core.Drift(
+                            str(review_path),
+                            _REVIEW_DECISION_RULE,
+                            (
+                                "recorded decision {0} has no `Reversible` judgement ({1!r}), so "
+                                "whether it needs escalation cannot be determined".format(
+                                    dec.id, dec.reversible
+                                )
+                            ),
+                        ),
+                        observed="{0}: Reversible is {1}".format(
+                            dec.id,
+                            "empty"
+                            if not dec.reversible.strip()
+                            else repr(dec.reversible),
+                        ),
+                        required="`Reversible: yes` or `Reversible: no` on every decision row",
+                        recovery=(
+                            "judge {0} on the COST OF BEING WRONG (can a later maintainer undo it?) "
+                            "and set `Reversible` accordingly in {1}".format(
+                                dec.id, review_path.name
+                            )
+                        ),
+                    )
+                )
+                continue
+            drift.append(
+                enrich_drift(
+                    _core.Drift(
+                        str(plan_path),
+                        _REVIEW_DECISION_RULE,
+                        (
+                            "decision {0} was self-resolved and marked irreversible, but it was "
+                            "never surfaced: no `Blocking: yes` open question and no note that the "
+                            "maintainer was told".format(dec.id)
+                        ),
+                    ),
+                    observed="{0}: Reversible no, not escalated ({1})".format(
+                        dec.id, (dec.question or "").strip()[:80] or "no question text"
+                    ),
+                    required=(
+                        "an irreversible self-made decision is escalated: an open question with "
+                        "`- Blocking: yes`, or a note on the row that the maintainer was told"
+                    ),
+                    recovery=(
+                        "either add an `### OQ-NN:` entry carrying `- Blocking: yes` to the plan's "
+                        "`## Open questions`, or tell the maintainer and record that on {0}'s row "
+                        "in {1} (e.g. `Basis: ...; maintainer told <date>`)".format(
+                            dec.id, review_path.name
+                        )
+                    ),
+                )
+            )
+    return drift
+
+
+#: Phrases on a decision row that assert the maintainer was told directly.
+#:
+#: A deliberately NARROW allowlist. The alternative, accepting any mention of "maintainer", would let
+#: the row "the maintainer will hate this" satisfy the rule, which is the spoofable-prose failure mode
+#: the Order 02 rule avoided by matching a typed field instead. There is no typed field available on a
+#: decision row, so the match is at least pinned to an explicit told/notified/informed claim.
+_MAINTAINER_TOLD_PHRASES = (
+    "maintainer told",
+    "told maintainer",
+    "maintainer notified",
+    "notified maintainer",
+    "maintainer informed",
+    "informed maintainer",
+    "maintainer was told",
+    "maintainer asked",
+    "raised with maintainer",
+    "raised with the maintainer",
+)
+
+
+def _decision_notes_maintainer_told(dec) -> bool:
+    """True iff a decision row explicitly claims the maintainer was told.
+
+    Checks the `Basis`, `Chosen`, and `Alternatives considered` cells, because a reviewer may
+    reasonably note it in any of them, and the workflow's own example puts it in `Basis`.
+    """
+    blob = " ".join(
+        (
+            getattr(dec, "basis", "") or "",
+            getattr(dec, "chosen", "") or "",
+            getattr(dec, "alternatives", "") or "",
+        )
+    ).lower()
+    return any(p in blob for p in _MAINTAINER_TOLD_PHRASES)
+
+
+def check_review_decision_unescalated(
+    repo_root: Path, include_untracked: bool = False
+) -> List[_core.Drift]:
+    """Sweep every PENDING-lane plan for an unescalated irreversible recorded decision (c621h9 E-07).
+
+    Scoped to pending-lane plans, following the same grandfathering precedents as
+    ``check_ipd_draft_ready`` and ``check_lifecycle_transitions``: a terminal plan's review predates
+    this rule, and retroactively litigating the terminal corpus would be a whole-tree false-positive
+    explosion.
+
+    The review index is built ONCE for the whole sweep rather than per plan.
+    """
+    drift: List[_core.Drift] = []
+    index = _review_index(repo_root)
+    if not index:
+        return drift  # nothing reviewed: every plan is the (a) absent case
+
+    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+        if "pending" not in p.parts:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        drift.extend(
+            evaluate_review_decision_escalation(
+                repo_root,
+                plan_path=p,
+                plan_text=text,
                 review_index=index,
             )
         )

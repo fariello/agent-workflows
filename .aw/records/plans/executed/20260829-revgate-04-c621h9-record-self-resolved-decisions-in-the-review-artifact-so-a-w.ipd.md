@@ -6,16 +6,16 @@
 - Scope: Make a reviewer or executor RECORD each decision it made instead of asking, into the tracked `## Decisions` section defined by `15zvu6`, and give the maintainer one command to audit them. (The drafted second clause, "fix the location defect in the gitignored autonomous-decisions register", was REMOVED at review: F-7 refutes the premise and E-05 now leaves `set_records.py` untouched.)
 - Scope-Paths: .aw/system/workflows/plan-review/plan-review.md, .aw/system/workflows/plan-review-long/02-review-and-revise.md, .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md, agent_workflows/review_findings.py, agent_workflows/reviews.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/check_engine.py, .aw/records/reviews/README.md, tests/test_review_decisions.py, tests/test_plan_review_parity.py
 - Item-Dependencies: executed:15zvu6
-- Status: approved
+- Status: executed
 - Set: revgate
 - Order: 4
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: c621h9
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): revgate Order 04: recorded self-resolved review decisions are auditable; all 8 E and 8 V verified [Scope reconciliation - in-scope-unmodified .aw/system/workflows/plan-review-long/02-review-and-revise.md: E-02 makes this file CONDITIONAL (amend only if E-01 touched the single-file Step 2.2 findings-recording step). E-01 landed in Step 3.1 (question resolution) instead, so the corresponding long-variant surface is 03-resolve-and-finalize.md alone. Amending 02 would have duplicated a decision-recording instruction into the findings step where it does not belong.; in-scope-unmodified agent_workflows/review_findings.py: No change needed: Order 01 (15zvu6) already shipped the Decision NamedTuple, DECISION_COLUMNS, the Decisions parser/writer, and current_decisions(). This plan CONSUMES that API (check_engine.py:2613 calls doc.current_decisions(); reviews.py delegates all parsing and discovery to it) rather than extending it, which is the correct dependency direction for an Order 04 consumer.]
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 reviewed (aw set): /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-007 fixed in place (wrong long-variant file; three unstated CLI declaration gates; unspecified selector + absent-tree crash; E-06 bundled build+test+parity and the check rule lacked placement/registry/grandfathering/fail-mode; duplicate parity harness; own history order invalid)
 
@@ -34,7 +34,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make recording mandatory, not optional
 
-- [ ] E-01 Amend the plan-review workflow body (`.aw/system/workflows/plan-review/plan-review.md`,
+- [x] E-01 Amend the plan-review workflow body (`.aw/system/workflows/plan-review/plan-review.md`,
       Step 3.1 "Build the question set" and 3.2, which today say to resolve from authoritative evidence
       and cite the source) to require that EVERY question resolved from evidence rather than asked is
       recorded as a row in the review artifact's `## Decisions` section. State the rule positively: a
@@ -42,9 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       and a basis that can be checked. Keep the existing citation requirement.
   - Depends on: none
   - Expected outcome: the workflow instruction demands a decision row for each self-resolution.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Mirror the same amendment into the long variant, which the manifest states is kept in
+- [x] E-02 Mirror the same amendment into the long variant, which the manifest states is kept in
       DELIBERATE PARITY with the single-file variant. Parity is a documented property, so an
       instruction added to one and not the other is a defect.
       DO NOT EDIT `plan-review-long/plan-review-long.md`, which the draft named (F-11, the identical
@@ -61,9 +61,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: both variants carry equivalent decision-recording wording, with the long
     variant's text in the STEP file that actually instructs the reviewer, not in the orchestrator.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Require a `Reversible: yes|no` judgement on each decision row and require that an
+- [x] E-03 Require a `Reversible: yes|no` judgement on each decision row and require that an
       IRREVERSIBLE self-made decision ALSO be surfaced, not merely logged: it must either be raised as a
       blocking open question, or carry an explicit note that the maintainer was told. The distinction is
       the point of the whole plan: a reversible wrong turn costs a rewrite, an irreversible one cannot
@@ -71,11 +71,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01
   - Expected outcome: the instruction distinguishes reversible from irreversible self-resolution and
     escalates the irreversible case.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: give the maintainer one command
 
-- [ ] E-04 Add a read-only `aw reviews decisions [<selector>]` verb that prints the recorded decisions
+- [x] E-04 Add a read-only `aw reviews decisions [<selector>]` verb that prints the recorded decisions
       for one plan, a Set, or the whole tree, reading the `## Decisions` sections through `15zvu6`'s
       parser. Support `--agent`/`--json` per the house machine-output contract, and `--irreversible` to
       filter to the rows that matter most. Read-only: it makes no writes. Put the implementation in a new
@@ -130,9 +130,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     59 undeclared leaves and 47 description gaps are untouched, selector resolution goes through the
     shared resolver, an absent `reviews/` tree yields a clean empty state at exit 0, and a maintainer can
     answer "what did the agents decide without asking me?" in one command instead of grepping the corpus.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 DO NOT "FIX" `set_records`; it is not the defect this plan thought it was, and touching it
+- [x] E-05 DO NOT "FIX" `set_records`; it is not the defect this plan thought it was, and touching it
       would damage a working design. The draft called `set_records.py:152-153` a LOCATION DEFECT because
       `.aw/workflow-artifacts/` is gitignored. That premise is REFUTED by the module itself (F-7): the
       untracked projections are DELIBERATE ("Local run projections written under the untracked
@@ -157,11 +157,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `set_records.py` is UNMODIFIED (prove it with a diff); the review path's tracked
     source of truth is documented as the `.review.md` `## Decisions` section; and the distinction between
     the two registers is recorded so a later agent does not "fix" the Set one either.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it cannot silently regress
 
-- [ ] E-07 BUILD THE `aw check` RULE THIS PLAN NEEDS, as its own execution item. The draft buried this
+- [x] E-07 BUILD THE `aw check` RULE THIS PLAN NEEDS, as its own execution item. The draft buried this
       inside E-06's test item, which is a category error: E-06 is the test surface, and an item that both
       builds a production rule and writes the suite is two concerns in one pass (right-sizing). The
       draft's deeper defect was that NO E-item created the rule at all while E-06 demanded evidence of it
@@ -202,9 +202,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the rule exists, is registered at `warning` with a stated invariant, fires on an
     unescalated `Reversible: no` row in a pending-lane plan's current round, is silent on an absent
     artifact, reports a malformed one, and is reached by both `aw check plans` and `aw check all`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Write `tests/test_review_decisions.py` proving: a decisions row round-trips; the
+- [x] E-06 Write `tests/test_review_decisions.py` proving: a decisions row round-trips; the
       `aw reviews decisions` verb prints a recorded decision and exits per the house contract;
       `--irreversible` filters correctly; the machine mode is ANSI-free and parses as JSON; and the
       adversarial case, that E-07's rule REPORTS a `Reversible: no` row with no escalation and does NOT
@@ -218,9 +218,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02, E-03, E-04, E-05, E-07, E-08
   - Expected outcome: the mechanism is covered by fixture-isolated tests, and the adversarial guard is
     demonstrated both firing and staying quiet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Put the workflow-body PARITY assertion in the file that already owns this exact parity pair,
+- [x] E-08 Put the workflow-body PARITY assertion in the file that already owns this exact parity pair,
       rather than starting a second parity harness in `tests/test_review_decisions.py` as the draft did.
       `tests/test_plan_review_parity.py` exists for precisely this purpose: it holds `PLAN_REVIEW`,
       `PRL_02`, and `PRL_03` handles (`:18-23`) and already asserts content parity across the single-file
@@ -232,7 +232,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-01, E-02
   - Expected outcome: the parity guard lives in the existing parity module, covers the step file rather
     than the orchestrator, and fails if either variant loses the instruction.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -419,30 +419,131 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the amended Step 3 wording from `plan-review.md`, showing it requires a
     recorded decision row for each self-resolved question and that the pre-existing citation requirement
     survived. Paste a `git diff` of the hunk proving no other instruction was weakened.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. plan-review.md Step 3.1 amended as a pure addition (46 insertions, 0 deletions); the citation requirement survived and is now test-asserted. Transcript below.
+    Amended `plan-review.md` Step 3.1 (a PURE ADDITION of 46 lines after the existing
+    "Mark which questions block..." line; `git diff` shows 46 insertions, 0 deletions, so nothing was
+    weakened or replaced). The instruction now reads:
 
-- [ ] V-02 validates E-02
+        A question you resolve yourself is not GONE. It is a RECORDED DECISION: a judgement call you
+        made on your own authority, with an alternative you rejected and a basis someone else can
+        check. So for EVERY question you resolve from evidence instead of asking, add one row to the
+        `### Decisions` section of the current `## Round <n>` in the typed review record:
+
+            ID | Question | Chosen | Alternatives considered | Basis | Reversible
+
+        - **ID:** `D-1`, `D-2`, ... within the round.
+        - **Question:** what you would have asked the human.
+        - **Chosen:** what you decided.
+        - **Alternatives considered:** what you rejected. "None" is a claim you must mean.
+        - **Basis:** the `path:line` or artifact that authorized it. This is the same citation the
+          paragraph above already requires; the row is where it becomes checkable.
+        - **Reversible:** `yes` or `no`, judged as below.
+
+        This is why the rule "resolve from evidence rather than asking" is safe: it converts a
+        question into a decision, not into silence. [...] Recording costs one row.
+
+        Read them back with `aw reviews decisions` (add `--irreversible` for the ones that matter
+        most).
+
+    THE PRE-EXISTING CITATION REQUIREMENT SURVIVED, verified by assertion rather than by eye:
+    `tests/test_plan_review_parity.py::ReviewDecisionRecordingParityTests::test_citation_requirement_survived`
+    asserts the literal line "Resolve questions from authoritative evidence first. Cite the source."
+    is still present, and it passes. The new `Basis` bullet explicitly reinforces it ("the same
+    citation the paragraph above already requires").
+    `git diff --stat -- .aw/system/workflows/plan-review/plan-review.md`:
+        .aw/system/workflows/plan-review/plan-review.md | 46 ++++++++++++++++++++++
+        1 file changed, 46 insertions(+)
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the corresponding wording from `03-resolve-and-finalize.md` (and
     `02-review-and-revise.md` if amended) and a diff showing the two variants' decision-recording text is
     equivalent. State explicitly that parity was checked, not assumed. ALSO paste a `git diff --stat` (or
     a grep) proving `plan-review-long/plan-review-long.md` was NOT edited, since the draft named that
     orchestrator by mistake and editing it would leave the real instruction surface untouched (F-11).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. 03-resolve-and-finalize.md amended (46 insertions); the orchestrator plan-review-long.md is untouched (empty git diff --stat) and a test now guards that; parity compared mechanically (EQUIVALENT: True). Transcript below.
+    Amended `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md` section
+    "1. Resolve open questions", immediately after its own "Resolve questions already answered by
+    authoritative evidence and cite it." line. `git diff --stat`:
+        .../plan-review-long/03-resolve-and-finalize.md    | 46 ++++++++++++++++++++++
+        1 file changed, 46 insertions(+)
 
-- [ ] V-03 validates E-03
+    `02-review-and-revise.md` was NOT amended, and that is the correct branch of E-02's conditional:
+    E-01's edit landed in Step 3.1 (question resolution), NOT in Step 2.2 (findings recording), so the
+    corresponding long-variant surface is the resolve step alone.
+
+    PARITY CHECKED, NOT ASSUMED. Mechanical comparison of the two inserted blocks after normalizing
+    only (a) heading depth (`####` in the single file vs `###` in the step file, forced by the files'
+    different heading levels) and (b) one self-reference phrase ("the paragraph above" vs "this
+    section"), which differ because the surrounding prose differs:
+        $ python3 (normalize + compare)
+        EQUIVALENT: True
+        single-file block chars: 2584  long-variant block chars: 2576
+    Additionally `test_decision_recording_instruction_in_both_variants` asserts all 8 load-bearing
+    clauses appear in BOTH files, and passes.
+
+    THE ORCHESTRATOR WAS NOT EDITED (the F-11 trap):
+        $ git diff --stat -- .aw/system/workflows/plan-review-long/plan-review-long.md
+        (empty output = untouched)
+    That is additionally guarded by a test, not just by this observation:
+    `test_the_orchestrator_was_not_edited_instead_of_the_step_file` asserts the instruction is ABSENT
+    from `plan-review-long.md`, so a future agent cannot "fix parity" by editing the step index.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `Reversible` instruction, and paste the escalation rule for the
     irreversible case. Then paste a worked example of each: one reversible decision recorded and left as
     a row, one irreversible decision recorded AND escalated, showing the two are treated differently.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Reversible instruction + escalation rule present in both variants; one reversible and one irreversible decision worked end-to-end and shown treated differently. Transcript below.
+    THE `Reversible` INSTRUCTION (present in both variants, asserted by
+    `test_reversible_judgement_and_escalation_in_both_variants`):
 
-- [ ] V-04 validates E-04
+        Judge `Reversible` on the COST OF BEING WRONG, not on your confidence:
+        - `yes`: a later maintainer can undo it by editing the plan or the code. Wrong costs a rewrite.
+        - `no`: it cannot be cleanly undone. Published interfaces, data or file migrations, deletions,
+          a released artifact, anything another party may already depend on.
+
+    THE ESCALATION RULE FOR THE IRREVERSIBLE CASE:
+
+        A `Reversible: no` decision MUST NOT rest on your authority alone. Record the row AND do one of:
+        - raise it in the reviewed plan as an open question carrying `- Blocking: yes`, so the existing
+          pre-execution gate stops the run until the human answers; or
+        - tell the maintainer directly and note that on the row (e.g. `Basis: ... ; maintainer told
+          2026-08-29`), which is the honest path in a non-interactive run where no blocking question
+          would be seen in time.
+
+        Recording alone is enough for a reversible decision and is NOT enough for an irreversible one.
+
+    WORKED EXAMPLE OF EACH, on the /tmp/opencode/e2e fixture, showing the two are treated DIFFERENTLY
+    by the same tooling. D-1 is reversible, D-2 irreversible:
+
+        $ aw reviews decisions --dir /tmp/opencode/e2e
+        zz9plq  D-1  round 1  reversible    should the verb page output or stream it?
+                chose: stream it
+                instead of: a pager wrapper
+                basis: GUIDING_PRINCIPLES 6 (KISS)
+        zz9plq  D-2  round 1  IRREVERSIBLE  should the on-disk record format change to v2?
+                chose: yes, migrate now
+                instead of: keep v1 and dual-read
+                basis: config.py:88
+        2 recorded decision(s) across 1 reviewed plan(s); 1 marked irreversible
+
+    (1) THE REVERSIBLE ONE is recorded and left as a row: with D-2 escalated, the check is silent even
+    though D-1 is still only logged (see V-07), i.e. a reversible decision incurs NO further duty.
+    (2) THE IRREVERSIBLE ONE, recorded but NOT escalated, is reported:
+        decision D-2 was self-resolved and marked irreversible, but it was never surfaced: no
+        `Blocking: yes` open question and no note that the maintainer was told
+    then after adding a `Blocking: yes` open question to the plan, findings: 0 (QUIET).
+    Both directions are also pinned as tests (`test_fires_on_unescalated_irreversible_decision`,
+    `test_quiet_when_escalated_via_blocking_open_question`, `test_quiet_on_reversible_decision`,
+    `test_quiet_when_maintainer_was_told`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `aw reviews decisions` human output for a fixture with at least two
     decisions, the `--irreversible` filtered output, and the `--agent` output showing it parses as JSON
     and contains no ANSI escape (`\x1b[`). Paste the exit codes.
@@ -457,10 +558,110 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     or `resolve_selectors` and that no hand-rolled id6/status matcher was added; a statement of which
     selector kinds actually resolve given the artifact carries `- Plan-Id:` rather than `- Id:`; and the
     ABSENT-TREE run on a repo with no `.aw/records/reviews/` showing a clean empty state at EXIT 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Human, --irreversible, and --agent outputs pasted with exit codes; ANSI-free and JSON-parsing; declaration in COMMAND_INVENTORY with renderer_boundary + exit_contract (0,2); both _DESCRIPTIONS entries added; undeclared leaves still 59 and description gaps still 45 with my leaves absent from both; selectors resolved through the shared resolver; absent-tree run exits 0. Transcript below.
+    HUMAN OUTPUT, fixture with two decisions (exit code printed after each run):
+        $ aw reviews decisions --dir /tmp/opencode/e2e   ; echo EXIT=$?
+        zz9plq  D-1  round 1  reversible    should the verb page output or stream it?
+                chose: stream it
+                instead of: a pager wrapper
+                basis: GUIDING_PRINCIPLES 6 (KISS)
+                in: .aw/records/reviews/20260830-demo-01-zz9plq-a-scratch-plan.review.md:20
+        zz9plq  D-2  round 1  IRREVERSIBLE  should the on-disk record format change to v2?
+                chose: yes, migrate now
+                instead of: keep v1 and dual-read
+                basis: config.py:88
+                in: .aw/records/reviews/20260830-demo-01-zz9plq-a-scratch-plan.review.md:21
 
-- [ ] V-05 validates E-05
+        2 recorded decision(s) across 1 reviewed plan(s); 1 marked irreversible
+        EXIT=0
+
+    `--irreversible` FILTERED OUTPUT:
+        $ aw reviews decisions --dir /tmp/opencode/e2e --irreversible ; echo EXIT=$?
+        zz9plq  D-2  round 1  IRREVERSIBLE  should the on-disk record format change to v2?
+                chose: yes, migrate now
+                instead of: keep v1 and dual-read
+                basis: config.py:88
+        1 recorded decision(s) across 1 reviewed plan(s); 1 marked irreversible
+        EXIT=0
+
+    `--agent`, ANSI-FREE AND VALID JSON:
+        $ aw reviews decisions --dir /tmp/opencode/e2e --agent ; echo EXIT=$?
+        {"schema":"aw.agent/v1","kind":"result","cmd":"reviews decisions","outcome":"clean","exit":0,
+         "verified":true,"complete":true,"findings":0,"evidence":["decisions"],
+         "next":"aw reviews decisions --irreversible"}
+        EXIT=0
+        $ python3 -c (check bytes)
+        contains ANSI escape: False
+        parses as JSON: True
+
+    DECLARATION EVIDENCE, all four parts.
+    (i) The `CommandDeclaration` (`command_surface.py`, Reviews Family block):
+        CommandDeclaration(
+            command="reviews decisions", command_class="read", human_recipe="table",
+            agent_record_kind="result", mutation_gate="none",
+            empty_error_renderer="renderer_boundary",
+            legacy_flags=("--irreversible", "--agent", "--json"), exit_contract=(0, 2))
+        HOW THE CONTRADICTION WAS RESOLVED (one line, as required): declared
+        `renderer_boundary`, NOT the `shared_empty_result` that CONTRIBUTING item 8 asks of a query
+        verb, because `test_empty_error_renderer_classification_consistency` gates on a HARDCODED
+        literal query set and requires `renderer_boundary` for anything outside it; the test is the
+        mechanical gate, the closest in-tree precedents (`run decisions`/`run questions`, read-class
+        decision printers) already declare `renderer_boundary`, and this verb renders its own empty
+        state anyway, so the shared path would add nothing observable. I did NOT add the leaf to the
+        test's query set. NOTE a plan claim corrected on evidence: the plan said "20 of 21 existing
+        `read` leaves already do this"; MEASURED the real split is 11 `shared_empty_result` to 10
+        `renderer_boundary` among 21 read leaves. The choice stands on the test and the precedent, not
+        on the miscounted majority.
+        `exit_contract=(0, 2)` deliberately omits 1, so the matrix demands no `domain_failure`
+        scenario; verified it does not: scenarios_for('reviews decisions') ==
+        ['agent','help','json','no_color','non_tty','tty','usage_error'] (7 rows, no domain_failure).
+    (ii) The two `_DESCRIPTIONS` entries (`cli.py`), each strictly longer than its `help=`:
+        "reviews": "Tooling for the typed plan-review records under .aw/records/reviews. ..."
+        "reviews decisions": "Audit the judgement calls reviewers made on their own authority ..."
+    (iii) THE ALREADY-RED GATES, run with `-m ''`, counts UNCHANGED and my leaves ABSENT:
+        $ pytest tests/test_command_surface_declarations.py -m ''
+        AssertionError: 59 != 0   (baseline was also exactly 59)
+        1 failed, 13 passed
+        $ python3 -c "find_undeclared_leaves(_build_parser())"
+        undeclared count: 59
+        reviews in set? False
+        reviews decisions in set? False
+        any leaf mentioning reviews? []
+        $ pytest tests/test_cli.py::SubcommandDescriptionTests -m ''
+        First list contains 45 additional   (baseline also 45; grep for "reviews" in the report: 0 hits)
+        MEASUREMENT CORRECTION: the plan recorded the description-gap baseline as 47; the true
+        measured baseline in this tree is 45, both before and after my change. Neither count GREW,
+        which is the condition this item sets.
+        $ pytest tests/test_cli_conformance_matrix.py -m ''
+        2 failed, 9 passed   -- IDENTICAL to the stashed baseline (2 failed, 9 passed), so unchanged.
+        The plan anticipated one failure here; there are two, and BOTH pre-date this change (verified
+        by re-running with my work stashed).
+    (iv) SELECTOR EVIDENCE:
+        $ grep -n "selectors\|resolve_selectors" agent_workflows/reviews.py
+        191:    from agent_workflows import selectors as _sel
+        202:        paths = _sel.resolve_selectors(repo_root, "reviews", [tok])
+        $ grep -nE "ID6_RE|\^- Id:|- Status:|re\.compile" agent_workflows/reviews.py
+        NONE (no hand-rolled matcher)
+        WHICH SELECTOR KINDS ACTUALLY RESOLVE, stated honestly: because the artifact carries
+        `- Plan-Id:` and the shared resolver's `id6` rule matches `- Id:` only, an id6 selector does
+        NOT match the front matter; it resolves via the `stem`/`substring` rules because the naming
+        grammar embeds the reviewed plan's id6 in the FILENAME. Demonstrated working:
+        `test_selector_resolves_through_the_shared_resolver` passes selector "abc123" and gets that
+        plan's D-1 while excluding the other fixture's D-7. A direct path also works (checked first).
+        An unmatched selector is a clean empty state at exit 0, not an error.
+        ABSENT-TREE RUN on a repo with no `.aw/records/reviews/` (a fresh git init):
+        $ aw reviews decisions --dir /tmp/opencode/bare_repo ; echo EXIT=$?
+        aw reviews decisions: no decisions recorded
+        EXIT=0
+        $ aw reviews decisions --dir /tmp/opencode/bare_repo --agent ; echo EXIT=$?
+        {"schema":"aw.agent/v1",...,"exit":0,...}
+        EXIT=0
+        No crash, exit 0, clean empty state. (Note: F-13 measured `record_dirs(...,'reviews') == []`
+        pre-15zvu6; with Order 01 executed it now resolves, so both the populated and absent paths
+        were exercised.)
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `git diff --stat -- agent_workflows/set_records.py` showing it is UNMODIFIED,
     since E-05 was rewritten at review to leave that module alone (F-7). Paste the evidence that refutes
     the original premise, so the record shows WHY it was not "fixed": the `promote_local_checkpoints`
@@ -468,10 +669,52 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `write_local_projections` has no production caller. Then paste the README text documenting that the
     tracked `.review.md` `## Decisions` section is the review path's source of truth and that the
     Set-coordination register is a separate surface. Confirm `.aw/workflow-artifacts/` is still ignored.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. set_records.py UNMODIFIED (empty git diff --stat and git status); the original location-defect premise re-refuted from source at execution time; the review path source of truth documented in the reviews README; .aw/workflow-artifacts/ still ignored. Transcript below.
+    `set_records.py` IS UNMODIFIED:
+        $ git diff --stat -- agent_workflows/set_records.py
+        (empty output)
+        $ git status --porcelain -- agent_workflows/set_records.py
+        (empty output)
 
-- [ ] V-07 validates E-07
+    EVIDENCE REFUTING THE ORIGINAL "LOCATION DEFECT" PREMISE, so the record shows WHY it was not
+    "fixed" (re-verified at execution, not taken on faith from the review):
+        $ sed -n (promote_local_checkpoints docstring), set_records.py
+        """On recovery, promote any untracked local decision/question checkpoint into a
+        tracked walkthrough. ... write a tracked ``partial`` walkthrough capturing it BEFORE releasing
+        another lane, so a crash never loses a recorded decision. Idempotent: ..."""
+        $ grep -n "write_walkthrough" agent_workflows/set_records.py
+        200:def write_walkthrough(...)   -> docstring: "Write a TRACKED walkthrough"
+        $ grep -rn "write_local_projections" --include=*.py .   (excluding its own module)
+        ./tests/test_set_coordination.py:446
+        ./tests/test_exec_set_workflow.py:74
+        i.e. TWO TEST CALLERS AND NO PRODUCTION CALLER, so plan-review decisions would never have
+        flowed through it. The untracked/tracked split is the same
+        disposable-projection-plus-durable-record convention this plan cites as its own precedent,
+        already implemented. There was no lost-decision defect to fix.
+
+    THE REVIEW PATH'S TRACKED SOURCE OF TRUTH IS NOW DOCUMENTED, in
+    `.aw/records/reviews/README.md` (new section "This tree is the source of truth for review-time
+    decisions"):
+        The tracked `.review.md` `## Decisions` section is THE record of what a reviewer decided on
+        its own authority. It is tracked deliberately: a decision that survives only in a session
+        transcript or an untracked scratch file is not auditable.
+
+        Do not confuse it with `agent_workflows/set_records.py`, which is a DIFFERENT and legitimate
+        register. That module serves `/exec-set` SET COORDINATION, not plan review, and its untracked
+        projections under `.aw/workflow-artifacts/` are deliberate ("the local authoritative run
+        convention"), not a location defect. They already have a tracked counterpart: [...]
+        `promote_local_checkpoints` promotes an untracked decision checkpoint into it before releasing
+        another lane, specifically "so a crash never loses a recorded decision". Two registers, two
+        surfaces, both with a tracked source of truth. A later agent should not "fix" either one into
+        the other.
+
+    `.aw/workflow-artifacts/` IS STILL IGNORED:
+        $ grep -n "workflow-artifacts" .gitignore
+        52:workflow-artifacts/
+        68:.aw/workflow-artifacts/
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the new rule's code hunk showing (a) its call site in the plans-type content
     path beside `check_ipd_dependencies`, NOT the collisions block; (b) its `RULE_REGISTRY` entry with the
     `warning` severity and the stated invariant id (or `""` plus the one-line reason); (c) the pending-lane
@@ -479,10 +722,70 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     and after the change, showing the live corpus gains NO new finding (the tree has no `.review.md`
     files, so the absent case must be silent). Also paste `aw check all` reaching the rule exactly once
     (no double report).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Rule wired in the plans-type content path beside the Order 02 rule (not the collisions block), registered warning with a stated empty invariant and a reason, pending-lane scoped, absent silent / malformed reported; live corpus gains no finding (7 before, 7 after; check all 87 before, 87 after); reached exactly once by both check plans and check all. A false claim in my own first-draft comments was corrected (warning DOES drive a nonzero findings exit; only info is exempt) and pinned by tests. Transcript below.
+    (a) CALL SITE, in the plans-type content path beside the Order 02 rule, NOT the collisions block
+    (`check_engine.py`, inside `check_content`, immediately after `check_review_finding_unescalated`):
+        # revgate Order 04 (c621h9 E-07): ... Same PLACEMENT as the Order 02 rule directly above,
+        # and for the same documented reason (`check_ipd_dependencies`' "every dependency source is
+        # an IPD" precedent) ... reached by BOTH `aw check plans` and the `aw check all` fan-out
+        # exactly once, and deliberately NOT in the collisions-only cross-tree sweep ...
+        try:
+            drift.extend(
+                check_review_decision_unescalated(
+                    repo_root, include_untracked=include_untracked
+                )
+            )
+        except Exception:
+            pass
+    (b) `RULE_REGISTRY` ENTRY, `warning` severity with the invariant stated:
+        "check.review-decision-unescalated": RuleSpec(
+            "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+        ),
+        Invariant is `""` WITH A REASON, not an omission: the Phase-0 catalog (spec pqsx96) covers
+        naming (I-09), lifecycle-status authority (I-03), release gates (I-07), declared scope (I-01),
+        dependency statements (I-08) and authoring nudges (I-12); none is about review-time DECISIONS,
+        which did not exist as machine-readable data until this Set, so claiming a neighbouring id
+        would be a false trace. Verified registration is live and is not the default:
+        $ python3 -c "RULE_REGISTRY['check.review-decision-unescalated']"
+        RuleSpec(severity='warning', assurance='repository', determinism='deterministic', invariant='')
+        is default? False
+        AND A CORRECTION MADE AT EXECUTION (recorded as decision 04-c621h9-D2): `warning` DOES drive a
+        nonzero findings exit. MEASURED: `artifact_core.drift_exit_code` (`:405-415`) exempts only
+        `info`, and `drift_exit_code([my finding])` returns 1. My first draft comments claimed the rule
+        "never sets an exit code", which was FALSE; the comments and the README now state the true
+        distinction (it adds no LIFECYCLE gate: no `aw ipd lint` checkpoint, no begin/finalize refusal,
+        no dependency block, unlike its `error` sibling which Order 02 wired into two checkpoints), and
+        two new tests pin both halves.
+    (c) PENDING-LANE SCOPING GUARD, following `check_ipd_draft_ready`/`check_lifecycle_transitions`:
+        for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+            if "pending" not in p.parts:
+                continue
+        Demonstrated by `test_terminal_lane_plans_are_grandfathered` (an executed/ plan with an
+        unescalated irreversible decision yields []).
+    (d) ABSENT/MALFORMED HANDLING, as explicit branches rather than an enclosing except:
+        index = _review_index(repo_root); if not index: return drift      # (a) absent -> silent
+        reviews = index.get(plan_id6) or []; if not reviews: return drift  # (a) per-plan absent
+        doc = _rf.parse_review_file(review_path)
+        if doc.diagnostics: ... drift.append(... "is malformed ...")       # (b) present -> REPORTED
+        plus (c) an empty/unrecognized `Reversible` reported as unjudged.
 
-- [ ] V-06 validates E-06
+    `aw check plans` ON THIS REPO, BEFORE AND AFTER: the live corpus gains NO finding.
+        BEFORE findings 7 exit 1
+        AFTER  findings 7 exit 1
+        rule delta: NONE
+    (The tree holds only `.aw/records/reviews/README.md` and no `.review.md`, so the absent case must
+    be and is silent.) Same for the full sweep:
+        check all BEFORE 87 AFTER 87
+        delta: NONE
+
+    `aw check all` REACHES THE RULE EXACTLY ONCE (no double report), asserted on a fixture that DOES
+    have a finding, since a zero-finding tree cannot distinguish once from twice:
+        test_reached_by_both_check_plans_and_check_all: for target in (["plans"], ["all"]):
+            len([d for d in check_types(repo, target) if d.rule == "check.review-decision-unescalated"]) == 1
+        PASSES for both. Plus a source guard: exactly 1 definition and exactly 1 call site.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test file result with counts, AND the adversarial guard OBSERVED BOTH
     WAYS: construct a fixture review artifact with `Reversible: no` and no escalation, paste `aw check`
     reporting it, then escalate the fixture row and paste the clean run showing the rule goes quiet. A
@@ -490,17 +793,107 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     absent-artifact SILENT case and the malformed-artifact REPORTED case. Paste proof the tests use
     ISOLATED FIXTURE REPOS and not this checkout's live `.aw/records/` (e.g. the tmpdir setup), since a
     live-state assertion would break the moment a real review lands.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. 51 passed across the two modules (27 in test_review_decisions.py); the guard OBSERVED FIRING and OBSERVED QUIET on a live fixture and in tests; absent silent, malformed reported, neither raising; fixture isolation via TemporaryDirectory proven; full suite 15 failed/3050 passed before -> 15 failed/3081 passed after, failure set unchanged. Transcript below.
+    $ python3 -m pytest tests/test_review_decisions.py tests/test_plan_review_parity.py
+        51 passed in 2.24s
+    (`tests/test_review_decisions.py` alone: 27 passed. Run BARE as required; the repo `addopts`
+    supply `-q -n auto --dist=worksteal -m 'not slow'`, and no `-n0` or extra `-q` was passed.)
 
-- [ ] V-08 validates E-08
+    THE ADVERSARIAL GUARD OBSERVED BOTH WAYS, on the live /tmp/opencode/e2e fixture, not only in
+    unittest. FIRING, with D-2 marked `Reversible: no` and no escalation:
+        $ python3 -c "check_review_decision_unescalated(Path('/tmp/opencode/e2e'))"
+        findings: 1
+        RULE: check.review-decision-unescalated
+        DETAIL: decision D-2 was self-resolved and marked irreversible, but it was never surfaced:
+                no `Blocking: yes` open question and no note that the maintainer was told
+    Then STAYING QUIET after escalating the SAME fixture row via a `Blocking: yes` open question:
+        $ (append OQ-01 with `- Blocking: yes` to the fixture plan)
+        $ python3 -c "check_review_decision_unescalated(Path('/tmp/opencode/e2e'))"
+        findings: 0
+        QUIET
+    Both directions are additionally pinned as tests: `test_fires_on_unescalated_irreversible_decision`,
+    `test_quiet_when_escalated_via_blocking_open_question`, `test_quiet_when_maintainer_was_told`,
+    `test_quiet_on_reversible_decision`, and `test_only_the_current_round_carries_an_obligation`.
+
+    THE STATE CASES:
+      - ABSENT artifact SILENT: `test_absent_artifact_is_silent` (a pending plan with no `.review.md`
+        yields []). Mandatory, not cosmetic: zero `.review.md` files exist against 433 plan files, so
+        a fail-closed absent case would mass-report the corpus.
+      - MALFORMED artifact REPORTED: `test_malformed_artifact_is_reported_and_does_not_raise` writes a
+        review whose severity cell reads `HGIH` and asserts a "malformed" finding is produced and that
+        nothing raises.
+      - NEITHER RAISES: both tests above call the sweep directly (no enclosing try), so an exception
+        would fail them rather than being swallowed by the call site's fail-isolation.
+      - EMPTY-TREE verb case: `test_empty_tree_is_a_clean_empty_status_at_exit_zero` asserts rc == 0
+        and "no decisions recorded" on a repo with no `reviews/` dir, in both human and agent mode.
+
+    FIXTURE ISOLATION PROVEN, not asserted: every test builds its own repo under `TemporaryDirectory`
+    via the `_Repo` helper, which creates `<tmp>/.aw/records/plans/pending` and
+    `<tmp>/.aw/records/reviews` and nothing else, and every sweep/verb call is passed that tmp root
+    (`self._sweep(repo)` -> `check_review_decision_unescalated(repo.root)`;
+    `self._args(root, ...)` sets `dir=str(root)`). No test reads this checkout's `.aw/records/`, so
+    none can break when a real review record lands (the live-state defect class `i79rgh` addresses).
+
+    FULL DEFAULT SUITE, baseline measured at execution time rather than reused:
+        BEFORE (my changes stashed): 15 failed, 3050 passed, 3 skipped, 4 xfailed in 26.70s
+        AFTER:                       15 failed, 3081 passed, 3 skipped, 4 xfailed in 25.32s
+    Passed +31 (exactly my new tests). FAILURE SET UNCHANGED at 15, all in
+    `tests/test_run_viewer.py`, all pre-existing live-repo-state assertions that fail in any worktree
+    lacking a `.aw/records/runs/` tree; pending plan `i79rgh` already records that class. Not touched.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the new assertion(s) as they appear in `tests/test_plan_review_parity.py`,
     proving the parity guard lives in the module that already owns this pair rather than in a second
     harness. Then paste it FAILING when the instruction is removed from ONE variant and PASSING when
     restored, naming which file you removed it from. Confirm no duplicate parity harness was added to
     `tests/test_review_decisions.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Parity assertions added to the EXISTING tests/test_plan_review_parity.py using its existing PLAN_REVIEW/PRL_03 handles; observed FAILING with the instruction removed from the long variant only (2 failed) and PASSING when restored byte-exactly (4 passed); no duplicate harness in test_review_decisions.py (grep count 0). Transcript below.
+    THE PARITY ASSERTIONS AS THEY APPEAR IN `tests/test_plan_review_parity.py` (the module that
+    already owns this pair; NO second harness was created):
+        class ReviewDecisionRecordingParityTests(unittest.TestCase):
+            REQUIRED_CLAUSES = (
+                "A question you resolve yourself is not GONE",
+                "ID | Question | Chosen | Alternatives considered | Basis | Reversible",
+                "### Decisions",
+                "aw reviews decisions",
+                "COST OF BEING WRONG",
+                "MUST NOT rest on your authority alone",
+                "- Blocking: yes",
+                "check.review-decision-unescalated",
+            )
+
+            def test_decision_recording_instruction_in_both_variants(self):
+                for path in (PLAN_REVIEW, PRL_03):
+                    t = _read(path)
+                    for clause in self.REQUIRED_CLAUSES:
+                        self.assertIn(clause, t, ...)
+        plus `test_reversible_judgement_and_escalation_in_both_variants`,
+        `test_the_orchestrator_was_not_edited_instead_of_the_step_file`, and
+        `test_citation_requirement_survived`. It uses the module's existing `PLAN_REVIEW` and `PRL_03`
+        handles (`:18-23`) rather than introducing new path constants.
+
+    OBSERVED FAILING WHEN THE INSTRUCTION IS REMOVED FROM ONE VARIANT. I removed the block from
+    `.aw/system/workflows/plan-review-long/03-resolve-and-finalize.md` ONLY (the long variant),
+    leaving `plan-review.md` intact:
+        $ python3 -m pytest tests/test_plan_review_parity.py::ReviewDecisionRecordingParityTests
+        FAILED ...::test_decision_recording_instruction_in_both_variants
+        FAILED ...::test_reversible_judgement_and_escalation_in_both_variants
+        E  AssertionError: 'reversible' not found in '# step 3: resolve, finalize, and report ...'
+           : 03-resolve-and-finalize.md must require a Reversible judgement on each decision row
+        2 failed, 2 passed in 1.95s
+    OBSERVED PASSING WHEN RESTORED (restored from a byte-exact backup):
+        $ diff -q /tmp/opencode/prl03.bak .aw/system/workflows/plan-review-long/03-resolve-and-finalize.md
+        IDENTICAL
+        $ python3 -m pytest tests/test_plan_review_parity.py::ReviewDecisionRecordingParityTests
+        4 passed in 1.88s
+
+    NO DUPLICATE PARITY HARNESS IN `tests/test_review_decisions.py`:
+        $ grep -cE "PLAN_REVIEW|PRL_0|plan-review-long|SOURCE_WORKFLOWS" tests/test_review_decisions.py
+        0
+    That module contains no workflow-body path handles at all, so the parity contract lives in exactly
+    one place.
+  - Result: pass
 
 ## Approval and execution gate
 

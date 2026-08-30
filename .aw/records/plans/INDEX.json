@@ -3653,6 +3653,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 4,
+    "path": "executed/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md",
+    "plan_id": "c621h9",
+    "set_id": "revgate",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
@@ -3927,16 +3937,6 @@
     "path": "pending/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md",
     "plan_id": "8h9lap",
     "set_id": "reposcfg",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md",
-    "plan_id": "c621h9",
-    "set_id": "revgate",
     "status": "approved"
   },
   {

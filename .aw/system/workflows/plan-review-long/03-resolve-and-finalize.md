@@ -18,6 +18,52 @@ Resolve questions already answered by authoritative evidence and cite it.
 Deduplicate overlapping questions. Mark which block correctness, security,
 scope, architecture, or GO readiness.
 
+A question you resolve yourself is not GONE. It is a RECORDED DECISION: a judgement call you
+made on your own authority, with an alternative you rejected and a basis someone else can
+check. So for EVERY question you resolve from evidence instead of asking, add one row to the
+`### Decisions` section of the current `## Round <n>` in the typed review record:
+
+```text
+ID | Question | Chosen | Alternatives considered | Basis | Reversible
+```
+
+- **ID:** `D-1`, `D-2`, ... within the round.
+- **Question:** what you would have asked the human.
+- **Chosen:** what you decided.
+- **Alternatives considered:** what you rejected. "None" is a claim you must mean.
+- **Basis:** the `path:line` or artifact that authorized it. This is the same citation this
+  section already requires; the row is where it becomes checkable.
+- **Reversible:** `yes` or `no`, judged as below.
+
+This is why the rule "resolve from evidence rather than asking" is safe: it converts a question
+into a decision, not into silence. A reviewer who resolves ten questions and records none has
+taken ten unreviewable turns, and a wrong one is then discoverable only by reading the code it
+produced. Recording costs one row.
+
+Read them back with `aw reviews decisions` (add `--irreversible` for the ones that matter most).
+
+### Reversible or not, and what that obliges
+
+Judge `Reversible` on the COST OF BEING WRONG, not on your confidence:
+
+- `yes`: a later maintainer can undo it by editing the plan or the code. Wrong costs a rewrite.
+- `no`: it cannot be cleanly undone. Published interfaces, data or file migrations, deletions,
+  a released artifact, anything another party may already depend on.
+
+A `Reversible: no` decision MUST NOT rest on your authority alone. Record the row AND do one of:
+
+- raise it in the reviewed plan as an open question carrying `- Blocking: yes`, so the existing
+  pre-execution gate stops the run until the human answers; or
+- tell the maintainer directly and note that on the row (e.g. `Basis: ... ; maintainer told
+  2026-08-29`), which is the honest path in a non-interactive run where no blocking question
+  would be seen in time.
+
+Recording alone is enough for a reversible decision and is NOT enough for an irreversible one.
+That distinction is the whole point: a reversible wrong turn costs a rewrite, an irreversible one
+cannot be undone, and resolving-instead-of-asking must never silently authorize the second.
+`check.review-decision-unescalated` reports an unescalated `Reversible: no` row as a warning; it
+is a backstop for a reviewer who skipped this step, not a substitute for doing it.
+
 In an interactive run, ask one to three related questions at a time.
 
 For each question provide:

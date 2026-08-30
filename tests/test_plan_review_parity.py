@@ -351,5 +351,98 @@ class ReviewFindingsEmitAndEscalateParityTests(unittest.TestCase):
             )
 
 
+class ReviewDecisionRecordingParityTests(unittest.TestCase):
+    """revgate Order 04 (c621h9 E-08): both variants must require a RECORDED DECISION for every
+    question the reviewer resolved from evidence instead of asking.
+
+    These assertions live HERE rather than in `tests/test_review_decisions.py` because this module
+    ALREADY owns single-file-vs-long parity for this exact pair (it holds the `PLAN_REVIEW`, `PRL_02`,
+    and `PRL_03` handles and already asserts cross-variant content parity). A second parity harness
+    would be the duplicate mechanism the house rules forbid, and it would drift from the one the suite
+    already trusts.
+
+    The long variant is asserted on `03-resolve-and-finalize.md`, the STEP file that actually carries
+    the question-resolution instruction, NOT on the `plan-review-long.md` orchestrator. That
+    orchestrator only lists the steps and has no question-resolution section at all, so a parity check
+    pointed at it would pass while long-variant reviewers received no instruction.
+    """
+
+    #: The instruction's load-bearing clauses. Each must appear in BOTH variants, so removing the
+    #: instruction from either one fails this test.
+    REQUIRED_CLAUSES = (
+        "A question you resolve yourself is not GONE",
+        "ID | Question | Chosen | Alternatives considered | Basis | Reversible",
+        "### Decisions",
+        "aw reviews decisions",
+        "COST OF BEING WRONG",
+        "MUST NOT rest on your authority alone",
+        "- Blocking: yes",
+        "check.review-decision-unescalated",
+    )
+
+    def test_decision_recording_instruction_in_both_variants(self):
+        for path in (PLAN_REVIEW, PRL_03):
+            t = _read(path)
+            for clause in self.REQUIRED_CLAUSES:
+                self.assertIn(
+                    clause,
+                    t,
+                    f"{path.name} must carry the decision-recording clause {clause!r}; "
+                    "the two review variants are kept in deliberate parity, so an instruction "
+                    "added to one and not the other is a defect",
+                )
+
+    def test_reversible_judgement_and_escalation_in_both_variants(self):
+        """E-03: the reversible/irreversible distinction and the escalation duty, in both variants."""
+        for path in (PLAN_REVIEW, PRL_03):
+            low = _read(path).lower()
+            self.assertIn(
+                "reversible",
+                low,
+                f"{path.name} must require a Reversible judgement on each decision row",
+            )
+            self.assertIn(
+                "irreversible",
+                low,
+                f"{path.name} must distinguish the irreversible case",
+            )
+            self.assertIn(
+                "maintainer",
+                low,
+                f"{path.name} must offer telling the maintainer as an escalation path",
+            )
+
+    def test_the_orchestrator_was_not_edited_instead_of_the_step_file(self):
+        """Guards the exact mistake the draft plan made (F-11) and a sibling made before it.
+
+        `plan-review-long.md` is a step INDEX. If a later change puts the instruction there instead of
+        in the step file, long-variant reviewers get nothing while a naive parity check passes.
+        """
+        orchestrator = PRL_DIR / "plan-review-long.md"
+        self.assertTrue(
+            orchestrator.is_file(), "the long-variant orchestrator must exist"
+        )
+        t = _read(orchestrator)
+        self.assertNotIn(
+            "A question you resolve yourself is not GONE",
+            t,
+            "the decision-recording instruction belongs in 03-resolve-and-finalize.md (the step "
+            "file that instructs the reviewer), NOT in the orchestrator that merely lists steps",
+        )
+
+    def test_citation_requirement_survived(self):
+        """The new instruction ADDS to the existing citation rule; it must not have replaced it."""
+        self.assertIn(
+            "Resolve questions from authoritative evidence first. Cite the source.",
+            _read(PLAN_REVIEW),
+            "plan-review.md must retain the pre-existing cite-the-source requirement",
+        )
+        self.assertIn(
+            "Resolve questions already answered by authoritative evidence and cite it.",
+            _read(PRL_03),
+            "03-resolve-and-finalize.md must retain the pre-existing cite-it requirement",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
