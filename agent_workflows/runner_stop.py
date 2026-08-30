@@ -114,6 +114,20 @@ __all__ = [
     "budget_breach_event",
     "deadline_seconds_remaining",
     "BudgetBreachWatch",
+    # level 4 (runstop Phase 4, `m0z0ti`): the IMMEDIATE interrupt, the INDETERMINATE record, and
+    # the resume REFUSAL. Cleanliness is identical to level 3; only CERTAINTY differs.
+    "CERTAINTY_INDETERMINATE",
+    "FORCED_DISPOSITION",
+    "FORCED_STOP_EVENT",
+    "RECONCILIATION_ACTION",
+    "StopNowForce",
+    "ForceStopWatch",
+    "forced_disposition",
+    "forced_stop_event",
+    "is_indeterminate",
+    "indeterminate_items",
+    "resume_refusal_message",
+    "refused_resume_event",
 ]
 
 # --- the record's on-disk identity ----------------------------------------------------------------
@@ -1164,3 +1178,338 @@ class BudgetBreachWatch:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+
+
+# --- level 4: STOP-NOW-FORCE (spec `c4gd2h` R18-R19, R21-R22, A2/A6) ------------------------------
+#
+# Owned by Set `runstop` Phase 4 (`m0z0ti`).
+#
+# CLEANLINESS IS IDENTICAL TO LEVEL 3. Spec `c4gd2h` section 3 says so in as many words: "The only
+# difference between 3 and 4 is outcome CERTAINTY, not cleanliness." So level 4 runs the SAME
+# `runner_shutdown.clean_shutdown` and the SAME process-group escalation. DO NOT "optimize" level 4
+# into a bare `kill`/`SIGKILL`: spec R5 forbids a second reaper, and the spec describes level 4 as
+# "interrupt + the reconciliation routine", never a raw kill.
+#
+# THE ONE DIFFERENCE, and why it is load-bearing. Level 3 waits for an OBSERVED completed event
+# before cutting the turn, so it can honestly name the last completed operation. Level 4 cuts the
+# turn at an UNOBSERVED point, so:
+#
+#   | what the driver knows after an immediate interrupt   | consequence                            |
+#   |-----------------------------------------------------|----------------------------------------|
+#   | the turn was cut at an unobserved point             | last completed operation is NOT knowable|
+#   | the tree may hold a partial edit                   | git state must be CAPTURED, not assumed |
+#   | the outcome artifact may be absent or half-written  | its presence proves nothing            |
+#
+# Recording anything definite would therefore be a FABRICATION, which is precisely what spec R22
+# forbids and what this level exists to prevent. Hence `certainty: "indeterminate"`.
+#
+# THE RECONCILIATION ROUTINE IS NOT DEFINED HERE. Research `ud28vy`
+# (`.aw/records/research/20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md`,
+# finding 6) owns the model: "a killed `executing` is `unknown_outcome` until a deterministic check
+# reconciles actually-changed paths vs frozen scope ... only then resume or roll back". The in-repo
+# realization of that model is `agent_workflows/run_recovery` (`UNKNOWN_OUTCOME`,
+# `detect_unknown_outcomes`, `resume` raising `UnknownOutcomeError`, `reconcile_unknown_outcome`).
+# This module CONSUMES the term and the stance (record, refuse, require explicit reconciliation) and
+# must NOT reimplement the algorithm (spec c4gd2h non-goal + GUIDING_PRINCIPLES P8).
+#
+# ------------------------------------------------------------------------------------------------
+# THE STATUS REPRESENTATION, DECIDED AND RECORDED (spec R18/R19; plan E-02)
+# ------------------------------------------------------------------------------------------------
+# A future reader will be tempted to "normalize" the `certainty` flag below into a per-item
+# `status: "unknown_outcome"`. DO NOT. Both naive options are broken, and this was VERIFIED against
+# the drivers rather than reasoned about:
+#
+#   (i)  a NEW per-item status `unknown_outcome` makes the item INERT. `reconcile_interrupted` only
+#        inspects items whose status is `running`; `requeue_interrupted` only requeues `interrupted`;
+#        the dequeue only selects `queued`; and `TERMINAL_STATES` /
+#        `runner_shutdown.KNOWN_ITEM_STATUSES` do not contain it, so Phase 0's R3 ledger-coherence
+#        check would call the ledger incoherent. The item would never be reconciled, never refused,
+#        never reported, and never run.
+#   (ii) reusing `interrupted` ALONE hands the item to `requeue_interrupted`, which flips every
+#        `interrupted` item straight back to `queued` with `recovery_next = True` and NO operator
+#        gate. The indeterminate item would be silently re-run, violating R19.
+#
+# THE DECISION: carry the indeterminacy as an EXPLICIT PER-ITEM FLAG (`certainty` ==
+# `CERTAINTY_INDETERMINATE`, plus the stop level) ALONGSIDE the status `interrupted`, which the
+# existing state machine already understands. That keeps the ledger coherent (R3) and keeps the item
+# VISIBLE to reconcile/refuse/report, while `is_indeterminate` below is the ONE predicate the gates
+# branch on. The word `unknown_outcome` still appears - as the recorded DISPOSITION and the
+# operator-facing vocabulary - it is simply not the per-item `status` field.
+
+# The certainty vocabulary's INDETERMINATE value. Level 3's `CERTAINTY_KNOWN` is its sibling; the two
+# are the only values, and they are what separates the two levels (spec section 0).
+CERTAINTY_INDETERMINATE = "indeterminate"
+
+# The DISPOSITION recorded for a force-interrupted item. Deliberately the same token research
+# `ud28vy` and `run_recovery.UNKNOWN_OUTCOME` use, because it is the same concept; see the status
+# note above for why this is a disposition/certainty field and NOT the item's `status`.
+FORCED_DISPOSITION = "unknown_outcome"
+
+# The ledger event name for a level-4 stop, on the drivers' established append-only `events.jsonl`
+# channel. Distinct from level 3's `deliberate-stop-at-checkpoint` precisely so an operator (and a
+# test) can tell the two levels apart in history.
+FORCED_STOP_EVENT = "deliberate-stop-now-force"
+
+# What a resume MUST do first (spec R18's "what a resume must do first", R19's refusal message).
+# Prose on purpose: the ACTION belongs to research `ud28vy` / `run_recovery`, so this names that
+# routine rather than describing a second one.
+RECONCILIATION_ACTION = (
+    "reconcile before resuming: this turn was interrupted IMMEDIATELY (level 4), at a point the "
+    "driver did not observe, so its outcome is indeterminate. Inspect the recorded git state and "
+    "the actually-changed paths against the plan's frozen scope (the `ud28vy` reconciliation model, "
+    "implemented by `aw`'s run-recovery layer), decide whether the work landed, was partial, or "
+    "never happened, and only then either resume the item explicitly or roll it back. Do NOT let a "
+    "resume re-run it blindly."
+)
+
+
+class StopNowForce(Exception):
+    """Raised to cut the current turn IMMEDIATELY for a level-4 stop (spec R7's level 4).
+
+    THE MECHANISM, stated so it is not overstated or "simplified". Like level 3 (see
+    :class:`StopAtCheckpoint`) this is a TERMINATION, because the child is a one-shot
+    ``opencode run``/``agy`` subprocess with NO cooperative stop channel. Levels 3 and 4 SHARE that
+    mechanism and the SAME `runner_shutdown.clean_shutdown` endpoint; they differ ONLY in WHEN it is
+    issued. Level 3 waits for an observed completed event. Level 4 does not wait at all - not for a
+    checkpoint, not for the next line, not for a budget.
+
+    Raising (rather than reaping in place) is deliberate and identical to level 3's choice: it unwinds
+    into the driver's existing ``except BaseException`` teardown, which already routes to the ONE
+    shared reaper, so no second teardown path and no second reaper is introduced (spec R5).
+
+    ``events_seen`` is the honest denominator: how many stream lines had been consumed when the cut
+    happened. It is NOT a claim about what completed. ``last_completed_index``/``label`` are carried
+    only when the driver had ALREADY observed a completed event before the request arrived, and they
+    are recorded as PRIOR observations, never as "the operation that finished last".
+    """
+
+    def __init__(
+        self,
+        *,
+        level: int = LEVEL_NOW_FORCE,
+        requester: str = "",
+        events_seen: int = 0,
+        prior_completed_index: int | None = None,
+        prior_completed_label: str | None = None,
+    ) -> None:
+        self.level = level
+        self.requester = requester
+        self.events_seen = events_seen
+        self.prior_completed_index = prior_completed_index
+        self.prior_completed_label = prior_completed_label
+        super().__init__(
+            f"level-{level} stop honored IMMEDIATELY after {events_seen} observed event(s); "
+            f"outcome is indeterminate"
+        )
+
+
+class ForceStopWatch:
+    """Out-of-band watch that notices a level-4 request IMMEDIATELY, without waiting for a line.
+
+    WHY THIS IS NECESSARY AND NOT DECORATION (the same measured hazard Phase 3 hit with its budget
+    watch). "Immediately" is only true if the driver can NOTICE the request immediately, and the
+    drivers consume the child with a BLOCKING ``for line in process.stdout``. A poll placed in that
+    loop only runs when the NEXT LINE ARRIVES, so on a silent or slow child a level-4 stop would wait
+    an unbounded time for an event - the exact opposite of "not at a checkpoint". That silent case is
+    also precisely the escalation TARGET of Phase 3's budget breach (spec A7), i.e. the case where no
+    further line is coming by definition.
+
+    So the level-4 observation takes the out-of-band supervisor shape ``StallWatchdog`` and
+    ``BudgetBreachWatch`` already use: a daemon thread polling the durable record on a short interval.
+    On observing level >= 4 it invokes ``on_force`` ONCE and stops. It performs no reaping itself: the
+    reap is the ONE shared ``runner_shutdown.clean_shutdown`` (spec R5), reached through the driver's
+    existing teardown.
+
+    NOTE this adds no second REQUEST channel and no second reaper: it reads the same
+    :func:`poll_stop` and hands off to the same shutdown routine. It is an extra OBSERVER of one
+    record, which is what makes the interrupt prompt rather than line-driven.
+    """
+
+    def __init__(
+        self,
+        run_dir: Path | str,
+        *,
+        on_force: Callable[[int, str], None],
+        check_interval: float = 0.05,
+        is_alive: Callable[[], bool] | None = None,
+    ) -> None:
+        self.run_dir = Path(run_dir)
+        self._on_force = on_force
+        self.check_interval = max(0.005, check_interval)
+        self._is_alive = is_alive
+        self._stop = threading.Event()
+        self._fired = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    @property
+    def fired(self) -> bool:
+        return self._fired.is_set()
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.check_interval):
+            if self._is_alive is not None and not self._is_alive():
+                return
+            try:
+                level = poll_stop(self.run_dir)
+            except Exception:  # noqa: BLE001 - an observer must never crash the turn
+                continue
+            if level is not None and level >= LEVEL_NOW_FORCE:
+                request = read_stop_request(self.run_dir)
+                requester = request.requester if request is not None else "unknown"
+                self._fired.set()
+                with contextlib.suppress(Exception):
+                    self._on_force(level, requester)
+                return
+
+    def __enter__(self) -> "ForceStopWatch":
+        thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = thread
+        thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+
+
+def forced_disposition(
+    *,
+    level: int = LEVEL_NOW_FORCE,
+    requester: str,
+    git_state: str = "",
+    events_seen: int | None = None,
+    prior_completed_index: int | None = None,
+    prior_completed_label: str | None = None,
+    at: str = "",
+) -> dict:
+    """The INDETERMINATE record for an item cut by a level-4 stop (spec R18, R21, R22).
+
+    Uses Phase 3's record SHAPE (`stopped_disposition`) so there is one schema and not two, with
+    three deliberate differences:
+
+    * ``certainty`` is :data:`CERTAINTY_INDETERMINATE` and ``disposition`` is
+      :data:`FORCED_DISPOSITION`, so the ledger says plainly that the result is unknown.
+    * ``last_completed_event``/``last_completed_event_index`` are ALWAYS ``None``. This is the point
+      of the level: the driver did not observe where the turn was cut, so naming a last completed
+      operation would be a fabricated field. Anything it HAD observed earlier is carried under the
+      explicit ``prior_observed_*`` keys instead, which cannot be misread as "this finished last".
+    * ``requires_reconciliation`` is True and ``resume_action`` names the reconciliation routine
+      (spec R19), so a resume cannot treat the item as ordinarily retryable.
+
+    ``stopped_deliberately`` is True and ``failure`` is False for spec R21: the history must show the
+    OPERATOR'S INTENT, not imply a crash. ``git_state`` is the git state OBSERVED at stop time and
+    must be passed by the caller; it is never inferred here.
+    """
+
+    return {
+        "stopped_deliberately": True,
+        "failure": False,
+        "level": level,
+        "level_name": LEVEL_NAMES.get(level, "unknown"),
+        "requester": requester,
+        "certainty": CERTAINTY_INDETERMINATE,
+        "disposition": FORCED_DISPOSITION,
+        "requires_reconciliation": True,
+        # NEVER invented for level 4: the cut point was not observed (spec R22). Kept present and
+        # explicitly None so a reader sees the absence was deliberate rather than a missing field.
+        "last_completed_event_index": None,
+        "last_completed_event": None,
+        # What HAD been observed before the request, labelled so it cannot be mistaken for the above.
+        "prior_observed_completed_index": prior_completed_index,
+        "prior_observed_completed_event": prior_completed_label,
+        "events_observed": events_seen,
+        "git_state": git_state,
+        "resume_action": RECONCILIATION_ACTION,
+        "at": at,
+    }
+
+
+def forced_stop_event(record: dict, *, id6: str, at: str) -> dict:
+    """The ledger event for a level-4 stop: DELIBERATE, non-failure, and INDETERMINATE (R21/R22).
+
+    Rides the drivers' established append-only ``events.jsonl`` channel exactly as
+    `deliberate_stop_event` (levels 1-2) and `stopped_stop_event` (level 3) do. No new substrate.
+
+    ``deliberate: True`` is what distinguishes this from a CRASH in the history (spec R21): a crash
+    is unrequested and produces the drivers' pre-existing ``interrupted-detected`` event with no
+    ``deliberate`` key and no stop level, so the two are trivially separable by a reader or a test.
+    """
+
+    return {
+        "at": at,
+        "event": FORCED_STOP_EVENT,
+        "deliberate": True,
+        "failure": False,
+        "id6": id6,
+        "level": record.get("level"),
+        "level_name": record.get("level_name"),
+        "requester": record.get("requester"),
+        "certainty": record.get("certainty"),
+        "disposition": record.get("disposition"),
+        "requires_reconciliation": True,
+        "events_observed": record.get("events_observed"),
+        "reconciliation_required": RECONCILIATION_ACTION,
+    }
+
+
+def is_indeterminate(item: Any) -> bool:
+    """Is this queue item flagged as having an INDETERMINATE outcome (spec R18/R19)?
+
+    THE ONE PREDICATE every level-4 gate branches on, so the gates cannot drift apart or disagree
+    with the recorder. It reads the explicit ``certainty`` flag on the item's ``stopped`` record
+    rather than the item's ``status``, for the reasons recorded in the status-representation note
+    above (a bare ``unknown_outcome`` status would make the item inert).
+
+    Fail SAFE: any shape that is not clearly a flagged record reads as False, so an ordinary item is
+    never mistaken for an indeterminate one and ordinary recovery keeps working unchanged.
+    """
+
+    if not isinstance(item, dict):
+        return False
+    stopped = item.get("stopped")
+    if not isinstance(stopped, dict):
+        return False
+    return stopped.get("certainty") == CERTAINTY_INDETERMINATE
+
+
+def indeterminate_items(queue: Iterable[Any]) -> list[dict]:
+    """Every item in the queue flagged indeterminate, in queue order."""
+
+    return [item for item in queue if is_indeterminate(item)]
+
+
+def resume_refusal_message(item: dict) -> str:
+    """The operator-facing REFUSAL for a resume over an indeterminate item (spec R19, A6).
+
+    Refusing must not be indistinguishable from an opaque error: the operator needs to know WHICH
+    item, WHY, and WHAT TO DO. So the message names the item id, its indeterminate state and the stop
+    level that produced it, and the reconciliation action required.
+    """
+
+    stopped = item.get("stopped") if isinstance(item, dict) else None
+    stopped = stopped if isinstance(stopped, dict) else {}
+    level = stopped.get("level", LEVEL_NOW_FORCE)
+    return (
+        f"refusing to resume {item.get('id6', '?')}: its turn was force-interrupted by a level "
+        f"{level} ({LEVEL_NAMES.get(level, 'unknown')}) stop, so its outcome is "
+        f"{FORCED_DISPOSITION} (certainty {CERTAINTY_INDETERMINATE}) and this run will NOT re-run it "
+        f"blindly (spec c4gd2h R19). {RECONCILIATION_ACTION}"
+    )
+
+
+def refused_resume_event(item: dict, *, at: str) -> dict:
+    """The ledger event recording that a resume REFUSED an indeterminate item (spec R19)."""
+
+    stopped = item.get("stopped") if isinstance(item, dict) else None
+    stopped = stopped if isinstance(stopped, dict) else {}
+    return {
+        "at": at,
+        "event": "resume-refused-unknown-outcome",
+        "id6": item.get("id6", ""),
+        "level": stopped.get("level"),
+        "certainty": CERTAINTY_INDETERMINATE,
+        "disposition": FORCED_DISPOSITION,
+        "requires_reconciliation": True,
+        "reason": resume_refusal_message(item),
+    }

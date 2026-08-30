@@ -1342,14 +1342,34 @@ class BudgetBreachDetectionTests(_InvariantAssertions):
 class ScopeFenceTests(unittest.TestCase):
     """What this phase deliberately does NOT implement (Phases 4 and 5 own it)."""
 
-    def test_level_4_semantics_are_not_implemented_here(self):
-        source = (REPO_ROOT / "agent_workflows" / "runner_stop.py").read_text(
-            encoding="utf-8"
+    def test_level_3_does_not_claim_level_4s_certainty(self):
+        # CONSCIOUSLY NARROWED by runstop Phase 4 (`m0z0ti`), not deleted (orchestrator CID-4).
+        #
+        # As written for Phase 3 this asserted that `runner_stop.py` contained NO `"unknown_outcome"`
+        # literal at all, which was the right fence WHILE Phase 4 was unwritten: it stopped Phase 3
+        # from inventing level 4's vocabulary early. Phase 4 has now landed level 4 in this same
+        # shared module (`FORCED_DISPOSITION = "unknown_outcome"`,
+        # `CERTAINTY_INDETERMINATE`), so a whole-file absence check would now fail for the very
+        # reason it existed: the term arrived, from its OWNER.
+        #
+        # The still-live invariant is the one that actually protects level 3: level 3's own record and
+        # constants must keep KNOWN certainty and must never claim the indeterminate one. That is what
+        # is asserted now, on the API rather than on file text, so it cannot rot into a text check
+        # again.
+        self.assertEqual(runner_stop.CERTAINTY_KNOWN, "known")
+        self.assertNotEqual(
+            runner_stop.CERTAINTY_KNOWN, runner_stop.CERTAINTY_INDETERMINATE
         )
-        # Phase 4 owns the term and the value. This phase may NAME level 4 as an escalation TARGET
-        # (the breach event does) but must not define an `unknown_outcome` certainty value.
-        self.assertNotIn('"unknown_outcome"', source)
-        self.assertNotIn("CERTAINTY_UNKNOWN", source)
+        record = runner_stop.stopped_disposition(
+            level=runner_stop.LEVEL_NOW,
+            requester="operator",
+            last_completed_index=5,
+            last_completed_label="tool_use:read",
+        )
+        self.assertEqual(record["certainty"], runner_stop.CERTAINTY_KNOWN)
+        self.assertNotIn("unknown_outcome", json.dumps(record))
+        # And level 3's status must not have been quietly swapped for a level-4 concept.
+        self.assertEqual(runner_stop.STOPPED_DISPOSITION, "interrupted")
 
     def test_no_cli_verb_was_added(self):
         for name in ("oc_runipd.py", "agy_runipd.py"):

@@ -11,6 +11,7 @@ from unittest import mock
 from pathlib import Path
 
 from agent_workflows import oc_runipd as driver
+from agent_workflows import runner_stop
 from tests.support import REPO_ROOT
 
 # Launch the packaged driver as a module (`-m agent_workflows.oc_runipd`) with PYTHONPATH pinned to
@@ -425,6 +426,45 @@ class ResumeRequeueTests(unittest.TestCase):
             self.assertIn("aaaaaa", requeued)
             self.assertEqual(state["queue"][0]["status"], "queued")
             self.assertTrue(state["queue"][0].get("recovery_next"))
+
+    def test_bare_resume_refuses_to_requeue_an_indeterminate_item(self):
+        # CONSCIOUSLY ADDED beside the test above by runstop Phase 4 (`m0z0ti`, E-04), which changed
+        # `requeue_interrupted` from unconditional to gated (orchestrator CID-4). The test above still
+        # pins the ORDINARY behavior and is deliberately unchanged: an ordinary interrupted item is
+        # still auto-requeued in recovery mode, so the gate cannot be mistaken for a blanket disabling
+        # of recovery.
+        #
+        # THE NEW BEHAVIOR (spec c4gd2h R19): an item whose turn was FORCE-interrupted (level 4) has an
+        # INDETERMINATE outcome, so re-running it blindly could repeat work the driver never
+        # established the result of. It must be SKIPPED and REPORTED instead.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            queue = [
+                {
+                    "position": 1,
+                    "id6": "aaaaaa",
+                    "setid": "demo",
+                    "configured_file": ".aw/records/plans/pending/20260824-demo-01-aaaaaa-test.ipd.md",
+                    "dependencies": [],
+                    "status": "interrupted",
+                    "attempts": [],
+                    "stopped": {
+                        "stopped_deliberately": True,
+                        "level": 4,
+                        "certainty": "indeterminate",
+                        "disposition": "unknown_outcome",
+                    },
+                }
+            ]
+            run_dir = _make_run_dir(root, queue)
+            state = driver.load_state(run_dir)
+
+            requeued = driver.requeue_interrupted(run_dir, state)
+
+            self.assertEqual(requeued, [], "an indeterminate item must NOT be requeued")
+            self.assertEqual(state["queue"][0]["status"], "interrupted")
+            self.assertNotIn("recovery_next", state["queue"][0])
+            self.assertTrue(state["queue"][0].get("requires_reconciliation"))
 
     def test_bare_resume_does_not_requeue_partial_or_failed(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -1095,6 +1135,16 @@ class StallWatchdogTests(unittest.TestCase):
             self.assertIn("interrupted_at", attempt)
             self.assertIn("ended_at", attempt)
 
+            # Still auto-requeued, and deliberately so after runstop Phase 4 (`m0z0ti`, E-04) made
+            # `requeue_interrupted` gated: a STALL is an ordinary interruption with no indeterminate
+            # flag, so recovery must keep working exactly as before. This assertion is therefore now
+            # ALSO the control proving the R19 gate did not disable ordinary recovery. Left unchanged
+            # on purpose (orchestrator CID-4); the new refused case is asserted separately in
+            # `ResumeRequeueTests.test_bare_resume_refuses_to_requeue_an_indeterminate_item`.
+            self.assertFalse(
+                runner_stop.is_indeterminate(item),
+                "a stalled turn is not an indeterminate force-stop",
+            )
             requeued = driver.requeue_interrupted(
                 repo / ".aw" / "records" / "runs" / run_id, state
             )
