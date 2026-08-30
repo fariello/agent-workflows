@@ -36,6 +36,7 @@ from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 # here (see ``__all__`` below) so existing ``oc_runipd`` call sites and tests keep
 # referencing these names. ``should_color`` (the TTY color decision) stays local to the
 # caller per OQ-01.
+from agent_workflows import stall_progress
 from agent_workflows.render_stream import (
     _ANSI_CODES,
     _ANSI_RESET,
@@ -49,6 +50,7 @@ from agent_workflows.render_stream import (
     _strip_ansi,
     format_compact_tokens,
     format_progress_bar,
+    format_stall_countdown,
     format_statusline,
     format_statusline_lines,
     format_tokens,
@@ -69,6 +71,7 @@ __all__ = [
     "_strip_ansi",
     "format_compact_tokens",
     "format_progress_bar",
+    "format_stall_countdown",
     "format_statusline",
     "format_statusline_lines",
     "format_tokens",
@@ -165,6 +168,23 @@ class StallWatchdog:
     @property
     def stalled(self) -> bool:
         return self._stalled.is_set()
+
+    def idle_seconds(self) -> float:
+        """Seconds since the last observed progress, from the watchdog's OWN clock."""
+        return max(0.0, time.monotonic() - self._last_activity)
+
+    def remaining(self) -> float | None:
+        """Seconds until this watchdog would kill the child, or None if disabled.
+
+        This is the SINGLE authority for the countdown a display shows. The display must
+        read it rather than keeping its own timestamp, otherwise the number an operator
+        sees can disagree with the clock that actually kills the turn (which is precisely
+        why the old "still working" heartbeat was misleading: it tracked
+        ``Heartbeat._last_activity``, a variable independent of this one).
+        """
+        if not self.enabled:
+            return None
+        return max(0.0, self.timeout - self.idle_seconds())
 
     def _run(self) -> None:
         while not self._stop.wait(self.check_interval):
@@ -1505,6 +1525,29 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
 _SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id")
 
 
+def _event_session_id(raw_line: str) -> str | None:
+    """Return the `ses_...` session id carried by ONE streamed stdout event, if any.
+
+    Used LIVE during the turn (unlike :func:`extract_session_id`, which reads the finished
+    log) so the subagent-progress observer learns the parent session id from the very first
+    event. Fail-safe: a blank/unparseable line yields None.
+    """
+    line = raw_line.strip()
+    if not line:
+        return None
+    try:
+        event = json.loads(line)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(event, dict):
+        return None
+    for key in _SESSION_ID_KEYS:
+        value = event.get(key)
+        if isinstance(value, str) and value.startswith("ses_"):
+            return value
+    return None
+
+
 def extract_session_id(log_path: Path) -> str | None:
     """Return the session id from a streamed JSONL log."""
     if not log_path.exists():
@@ -1934,13 +1977,45 @@ def run_opencode(
             run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
+        # The countdown the operator sees must come from the watchdog that kills, so the
+        # display reads it directly rather than keeping a second timestamp.
+        statusline.watchdog = watchdog
+
+        # SUBAGENT PROGRESS (stallfp kaga7s): stdout carries ONLY parent-session events, so a
+        # turn working inside a Task/subagent looks idle and used to be killed at the timeout.
+        # This observer supplies the missing signal from opencode's own log. It is BEST-EFFORT
+        # by contract: if the log is missing/unreadable/changed, it yields nothing and the
+        # watchdog behaves exactly as it did before (stdout-only). It must never raise into
+        # the turn, and it counts ONLY agent-loop lines, so a permission-deadlocked child
+        # (which keeps emitting housekeeping lines) is still correctly killed.
+        observer = stall_progress.SubagentProgressObserver()
+
+        def _subagent_progress() -> None:
+            watchdog.touch()
+            statusline.touch("subagent")
+
+        # Poll often enough that progress is always seen before the watchdog could fire.
+        # Mirrors StallWatchdog.check_interval's own timeout/4 clamp, so a short timeout (as
+        # used by tests) is still sampled several times per timeout window.
+        poll_interval = (
+            min(1.0, max(0.05, stall_timeout / 4.0)) if stall_timeout else 1.0
+        )
+        poller = stall_progress.ProgressPoller(
+            observer, touch_callbacks=(_subagent_progress,), interval=poll_interval
+        )
         try:
-            with statusline, watchdog:
+            # The poller shares the turn's scope, so its thread cannot outlive the turn or
+            # leak across attempts.
+            with statusline, watchdog, poller:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
-                    statusline.touch()
+                    statusline.touch("stdout")
                     watchdog.touch()
+                    # Learn our PARENT session id from the stream; it is the key the observer
+                    # needs to attribute a subagent's log lines to THIS turn.
+                    if observer.parent_session_id is None:
+                        observer.set_parent_session(_event_session_id(line))
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
@@ -2997,7 +3072,12 @@ AUTOMATIC STATUS ROUTING:
         "--stall-timeout",
         type=float,
         default=DEFAULT_STALL_TIMEOUT,
-        help="Timeout in seconds with no output from child agent before terminating (default: 600; 0 to disable)",
+        help=(
+            "Timeout in seconds with no observed PROGRESS from the child agent before "
+            "terminating. Progress counts events on the child's stdout AND best-effort "
+            "subagent activity from opencode's own log, so a turn working inside a "
+            "subagent is not killed for a quiet stdout (default: 600; 0 to disable)"
+        ),
     )
     start.add_argument(
         "--full-auto",
@@ -3063,7 +3143,10 @@ AUTOMATIC STATUS ROUTING:
         "--stall-timeout",
         type=float,
         default=None,
-        help="Override timeout in seconds with no output from child agent (default: 600; 0 to disable)",
+        help=(
+            "Override timeout in seconds with no observed progress from the child agent "
+            "(stdout events or best-effort subagent activity; default: 600; 0 to disable)"
+        ),
     )
     resume.add_argument(
         "--full-auto",

@@ -31,6 +31,17 @@ import time
 from pathlib import Path
 from typing import Any, Iterable, NamedTuple, Sequence, TextIO
 
+# stallfp kaga7s: `Heartbeat` was a byte-identical INLINE COPY here, so a display fix in
+# `render_stream` silently did not reach `aw agy run`. It is now imported, like `Statusline`,
+# so there is exactly ONE definition. This unifies only the already-identical display class;
+# it does NOT unify the two runners (that is backlog `dhuape`), and agy's watchdog wiring is
+# unchanged because agy's stdout stream ALREADY carries `step_type == "subagent"` events and
+# therefore has no subagent blind spot to fix.
+# `Heartbeat` is re-exported (not used directly in this module): it is part of this module's
+# public surface, because the `agy_runipd` shim re-exports it and asserts OBJECT IDENTITY with
+# `agy_runipd.Heartbeat`. The explicit alias keeps a linter from stripping it as unused without
+# introducing a partial `__all__` that would understate the rest of the public surface.
+from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows.render_stream import Statusline
 
 SCHEMA_VERSION = 1
@@ -241,57 +252,6 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
     return None
 
 
-class Heartbeat:
-    def __init__(
-        self, pal: Palette, label: str, stream: TextIO, interval: float = 15.0
-    ) -> None:
-        self.pal = pal
-        self.label = label
-        self.stream = stream
-        self.interval = interval
-        self._last_activity = time.monotonic()
-        self._start = time.monotonic()
-        self._stop = threading.Event()
-        self._thread: threading.Thread | None = None
-        self._enabled = interval > 0
-
-    def touch(self) -> None:
-        self._last_activity = time.monotonic()
-
-    def format_idle(self) -> str:
-        idle = int(time.monotonic() - self._last_activity)
-        idle_m, idle_s = divmod(idle, 60)
-        return f"{idle_m}m{idle_s:02d}s"
-
-    def format_message(self) -> str:
-        elapsed = int(time.monotonic() - self._start)
-        mins, secs = divmod(elapsed, 60)
-        idle_str = self.format_idle()
-        return (
-            f"    \u2026 still working on {self.label} "
-            f"({mins}m{secs:02d}s elapsed, {idle_str} since last event)"
-        )
-
-    def _run(self) -> None:
-        while not self._stop.wait(self.interval):
-            idle = time.monotonic() - self._last_activity
-            if idle >= self.interval:
-                msg = self.pal(self.format_message(), "dim")
-                self.stream.write(msg + "\n")
-                self.stream.flush()
-
-    def __enter__(self) -> Heartbeat:
-        if self._enabled:
-            self._thread = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
-        return self
-
-    def __exit__(self, *exc: object) -> None:
-        self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=1.0)
-
-
 class DriverError(RuntimeError):
     pass
 
@@ -328,6 +288,21 @@ class StallWatchdog:
     @property
     def stalled(self) -> bool:
         return self._stalled.is_set()
+
+    def idle_seconds(self) -> float:
+        """Seconds since the last observed progress, from the watchdog's OWN clock."""
+        return max(0.0, time.monotonic() - self._last_activity)
+
+    def remaining(self) -> float | None:
+        """Seconds until this watchdog would kill the child, or None if disabled.
+
+        Parity with the OpenCode driver (stallfp kaga7s): the live display reads the
+        countdown from HERE, the clock that actually kills, so the number shown cannot
+        disagree with reality.
+        """
+        if not self.enabled:
+            return None
+        return max(0.0, self.timeout - self.idle_seconds())
 
     def _run(self) -> None:
         while not self._stop.wait(self.check_interval):
@@ -1968,12 +1943,17 @@ def run_agy_turn(
             run_start_mono=run_start_mono,
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
+        # stallfp kaga7s (display parity only): show the countdown from the clock that kills.
+        # agy needs NO progress observer: its stdout stream already carries
+        # `step_type == "subagent"` events (see render_agy_event), so every subagent step
+        # already touches the watchdog below.
+        statusline.watchdog = watchdog
         try:
             with statusline, watchdog:
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
-                    statusline.touch()
+                    statusline.touch("stdout")
                     watchdog.touch()
 
                     if output_mode == "raw":

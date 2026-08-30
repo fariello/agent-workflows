@@ -1,0 +1,23 @@
+timestamp=2026-08-30T07:27:36.500Z level=INFO run=74347d25 message=created id=ses_<redacted>parent slug=brave-otter version=1.18.25 projectID=449edf331178f4340ef9a39c043dc8b88beeda08 directory=/tmp/example/worktree path="" workspaceID=undefined parentID=undefined title=aw-exec-run-example-set-abc123
+timestamp=2026-08-30T07:27:36.588Z level=INFO run=74347d25 message=loop session.id=ses_<redacted>parent step=0
+timestamp=2026-08-30T07:27:37.010Z level=INFO run=74347d25 message="llm runtime selected" runtime=node
+timestamp=2026-08-30T07:27:37.220Z level=INFO run=74347d25 message=evaluated permission=bash pattern="git status" action.permission=* action.action=allow action.pattern=*
+timestamp=2026-08-30T07:28:56.790Z level=INFO run=74347d25 message=created id=ses_<redacted>child slug=crisp-mountain version=1.18.25 projectID=449edf331178f4340ef9a39c043dc8b88beeda08 directory=/tmp/example/worktree path="" workspaceID=undefined parentID=ses_<redacted>parent title="Find lane branch integration convention (@explore subagent)" agent=explore model=undefined metadata=undefined
+timestamp=2026-08-30T07:28:56.851Z level=INFO run=74347d25 message=loop session.id=ses_<redacted>child step=0
+timestamp=2026-08-30T07:28:57.067Z level=INFO run=74347d25 message=process session.id=ses_<redacted>child messageID=msg_<redacted>aaa
+timestamp=2026-08-30T07:28:57.068Z level=INFO run=74347d25 message=stream providerID=uri modelID=example/model session.id=ses_<redacted>child small=false agent=explore mode=subagent
+timestamp=2026-08-30T07:28:57.400Z level=INFO run=74347d25 message=evaluated permission=read pattern="/tmp/example/worktree/README.md" action.permission=* action.action=allow action.pattern=*
+timestamp=2026-08-30T07:28:57.401Z level=INFO run=74347d25 message=tracking hash=0000000000000000000000000000000000000000
+timestamp=2026-08-30T07:28:59.849Z level=INFO run=74347d25 message=loop session.id=ses_<redacted>child step=1
+timestamp=2026-08-30T07:28:59.968Z level=INFO run=74347d25 message=process session.id=ses_<redacted>child messageID=msg_<redacted>bbb
+timestamp=2026-08-30T07:28:59.969Z level=INFO run=74347d25 message=stream providerID=uri modelID=example/model session.id=ses_<redacted>child small=false agent=explore mode=subagent
+timestamp=2026-08-30T07:29:00.100Z level=INFO run=99999999 message=created id=ses_<redacted>other slug=distant-run version=1.18.25 projectID=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef directory=/tmp/other/repo path="" workspaceID=undefined parentID=ses_<redacted>stranger title="An unrelated concurrent turn"
+timestamp=2026-08-30T07:29:00.200Z level=INFO run=99999999 message=loop session.id=ses_<redacted>other step=0
+timestamp=2026-08-30T07:29:00.201Z level=INFO run=99999999 message=process session.id=ses_<redacted>other messageID=msg_<redacted>ccc
+timestamp=2026-08-30T07:29:00.202Z level=INFO run=99999999 message=stream providerID=uri modelID=example/model session.id=ses_<redacted>other small=false agent=build mode=primary
+timestamp=2026-08-30T07:29:01.000Z level=INFO run=74347d25 message="resolved path" path=/tmp/example/worktree
+timestamp=2026-08-30T07:29:01.500Z level=INFO run=74347d25 message="touching file" path=/tmp/example/worktree/AGENTS.md
+timestamp=2026-08-30T07:29:02.000Z level=INFO run=74347d25 message=asking id=per_<redacted>001 permission=external_directory patterns="[\"/tmp/example/*\"]"
+timestamp=2026-08-30T07:29:03.436Z level=INFO run=74347d25 message=loop session.id=ses_<redacted>child step=2
+timestamp=2026-08-30T07:29:07.990Z level=INFO run=74347d25 message=loop session.id=ses_<redacted>child step=3
+timestamp=2026-08-30T07:29:08.100Z level=INFO run=74347d25 message="exiting" session.id=ses_<redacted>child

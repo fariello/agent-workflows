@@ -873,8 +873,11 @@ class HeartbeatFormattingTests(unittest.TestCase):
         hb._last_activity = time.monotonic() - 75.0  # 1m15s idle
         self.assertEqual(hb.format_idle(), "1m15s")
         msg = hb.format_message()
-        self.assertIn("1m15s since last event", msg)
+        # stallfp kaga7s: the line reports LACK OF PROGRESS (and, when a watchdog is
+        # attached, the kill countdown) instead of the old reassuring "still working".
+        self.assertIn("no progress 1m15s", msg)
         self.assertIn("2m30s elapsed", msg)
+        self.assertNotIn("still working", msg)
 
     def test_heartbeat_idle_formatting_under_60s(self):
         import io
@@ -887,8 +890,9 @@ class HeartbeatFormattingTests(unittest.TestCase):
         hb._last_activity = time.monotonic() - 20.0
         self.assertEqual(hb.format_idle(), "0m20s")
         msg = hb.format_message()
-        self.assertIn("0m20s since last event", msg)
+        self.assertIn("no progress 0m20s", msg)
         self.assertIn("0m45s elapsed", msg)
+        self.assertNotIn("still working", msg)
 
 
 class ProcessGroupTerminationTests(unittest.TestCase):

@@ -21,6 +21,7 @@ import json
 import time
 import unittest
 
+from agent_workflows import agy_runipd as agy_driver
 from agent_workflows import oc_runipd as driver
 from agent_workflows import render_stream
 
@@ -158,14 +159,18 @@ class HeartbeatLifecycleTests(unittest.TestCase):
         with hb:
             time.sleep(0.2)
         out = buf.getvalue()
-        self.assertIn("still working on test-ipd", out)
+        # stallfp kaga7s: the line names the IPD and reports LACK OF PROGRESS, rather than
+        # the old bare "still working" that read as reassurance while a kill clock ran.
+        self.assertIn("test-ipd", out)
+        self.assertIn("no progress", out)
 
     def test_touch_resets_idle_and_format_message(self):
         buf = io.StringIO()
         pal = render_stream.Palette(False)
         hb = render_stream.Heartbeat(pal, "lbl", buf, interval=1.0)
         hb.touch()
-        self.assertIn("still working on lbl", hb.format_message())
+        self.assertIn("lbl", hb.format_message())
+        self.assertIn("no progress", hb.format_message())
         self.assertRegex(hb.format_idle(), r"^\d+m\d{2}s$")
 
 
@@ -430,6 +435,30 @@ class SingleDefinitionTests(unittest.TestCase):
         self.assertNotIn("def _strip_ansi(", src)
         # It must import them from the shared module instead.
         self.assertIn("from agent_workflows.render_stream import", src)
+
+    def test_agy_runipd_has_no_inline_heartbeat_copy(self):
+        # stallfp kaga7s: agy carried a byte-identical INLINE `class Heartbeat:`, so a
+        # display fix in render_stream silently did NOT reach `aw agy run`. Guard both
+        # drivers, not just oc, or the duplicate can come back unnoticed.
+        src = inspect.getsource(agy_driver)
+        self.assertNotIn("class Heartbeat:", src)
+        self.assertIn("from agent_workflows.render_stream import", src)
+
+    def test_heartbeat_is_the_same_object_in_both_drivers(self):
+        self.assertIs(agy_driver.Heartbeat, render_stream.Heartbeat)
+        self.assertIs(driver.Heartbeat, render_stream.Heartbeat)
+
+    def test_exactly_one_heartbeat_definition_in_the_package(self):
+        # Source-level: only render_stream may DEFINE it, anywhere in the package.
+        import pathlib
+
+        pkg = pathlib.Path(render_stream.__file__).parent
+        definers = sorted(
+            p.name
+            for p in pkg.glob("*.py")
+            if "class Heartbeat:" in p.read_text(encoding="utf-8")
+        )
+        self.assertEqual(definers, ["render_stream.py"])
 
 
 if __name__ == "__main__":

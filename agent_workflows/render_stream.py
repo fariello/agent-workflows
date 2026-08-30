@@ -226,6 +226,28 @@ def format_progress_bar(current: int, total: int, width: int = 10) -> str:
     return f"{bar} {pct:>2}% [{current}/{total}]"
 
 
+def format_stall_countdown(
+    remaining: float | None, progress_source: str | None = None
+) -> str:
+    """Render the stall-kill countdown for the live display.
+
+    ``remaining`` MUST come from the watchdog that actually kills the turn (see
+    ``StallWatchdog.remaining``), never from a second independent timestamp.
+
+    Returns ``""`` when ``remaining`` is None, i.e. when no stall timeout is configured
+    (``--stall-timeout 0``). Claiming a countdown in that case would be a lie: nothing is
+    going to kill the turn.
+    """
+    if remaining is None:
+        return ""
+    secs = max(0, int(remaining))
+    mins, rem = divmod(secs, 60)
+    label = f"kill in {mins}m{rem:02d}s" if mins else f"kill in {rem}s"
+    if progress_source:
+        return f"{label} (last: {progress_source})"
+    return label
+
+
 def format_statusline_lines(
     now_ts: float,
     run_start_ts: float,
@@ -237,6 +259,8 @@ def format_statusline_lines(
     id6: str,
     tracker: StreamTracker | None = None,
     pal: Palette | None = None,
+    stall_remaining: float | None = None,
+    progress_source: str | None = None,
 ) -> tuple[str, str]:
     """Format the 2-line runner statusline (header line and value line):
 
@@ -257,6 +281,14 @@ def format_statusline_lines(
     else:
         idle_str = f"idle: {idle}s"
     col2_val = f"{run_el_str} {idle_str}"
+    # The stall countdown is ADDITIVE: with no configured timeout (`--stall-timeout 0`) the
+    # column is byte-identical to before, so no false or infinite countdown is ever claimed.
+    # `idle:` alone was the misleading part: it reported quiet time while a kill clock ran
+    # invisibly. The countdown comes from the watchdog's own clock (see
+    # StallWatchdog.remaining) so the displayed number cannot disagree with the killer.
+    countdown = format_stall_countdown(stall_remaining, progress_source)
+    if countdown:
+        col2_val = f"{col2_val} {countdown}"
 
     # Item Elapsed & Progress bar
     item_elapsed = max(0, int(now_ts - item_start_ts))
@@ -285,7 +317,11 @@ def format_statusline_lines(
     )
 
     h1 = "Time    "
-    h2 = "From start       "
+    # Column 2 grows to fit the countdown when one is shown, so the header and value lines
+    # stay the SAME width (a pinned invariant: len(l1) == len(l2)) and the countdown is never
+    # clipped. With no countdown the width is the original 17, keeping the layout unchanged.
+    col2_w = max(17, len(col2_val))
+    h2 = f"{'From start':<{col2_w}s}"
     col3_w = 32
     h3 = f"{target_hdr:<{col3_w}s}"
     h4 = "Spend  "
@@ -295,7 +331,7 @@ def format_statusline_lines(
     h8 = "Tok cache"
 
     v1 = f"{t_str:<8s}"
-    v2 = f"{col2_val:<17s}"
+    v2 = f"{col2_val:<{col2_w}s}"
     v3 = f"{col3_val:<{col3_w}s}"
     v4 = f"{cost_str:<7s}"
     v5 = f"{tot_str:>8s}"
@@ -363,6 +399,8 @@ def format_statusline(
     tracker: StreamTracker | None = None,
     pal: Palette | None = None,
     item_start_ts: float | None = None,
+    stall_remaining: float | None = None,
+    progress_source: str | None = None,
 ) -> str:
     """Format the 2-line unified runner statusline as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
@@ -377,6 +415,8 @@ def format_statusline(
         id6=id6,
         tracker=tracker,
         pal=pal,
+        stall_remaining=stall_remaining,
+        progress_source=progress_source,
     )
     return f"{l1}\n{l2}"
 
@@ -395,6 +435,7 @@ class Statusline:
         setid: str = "",
         id6: str = "",
         run_start_mono: float | None = None,
+        watchdog: object | None = None,
     ) -> None:
         self.pal = pal
         self.stream = stream
@@ -404,6 +445,13 @@ class Statusline:
         self.total_items = total_items
         self.setid = setid
         self.id6 = id6
+        # The stall watchdog is the SINGLE authority for the countdown. It is duck-typed
+        # (anything exposing `remaining()`) so this display module keeps no dependency on a
+        # driver module, and stays None-safe for callers that pass no watchdog.
+        self.watchdog = watchdog
+        # Which source last showed progress: "stdout" or "subagent". Names WHY the turn is
+        # considered alive, so a quiet-stdout turn is not mistaken for a dead one.
+        self.progress_source: str | None = None
 
         mono_now = time.monotonic()
         self._item_start_mono = mono_now
@@ -417,9 +465,25 @@ class Statusline:
         self._is_tty = bool(getattr(stream, "isatty", None) and stream.isatty())
         self._has_drawn = False
 
-    def touch(self) -> None:
+    def touch(self, source: str | None = None) -> None:
         with self._lock:
             self._last_activity = time.monotonic()
+            if source:
+                self.progress_source = source
+
+    def stall_remaining(self) -> float | None:
+        """Remaining time before the stall kill, read from the watchdog itself.
+
+        Returns None when there is no watchdog or it is disabled, so the display omits the
+        countdown rather than inventing one.
+        """
+        watchdog = self.watchdog
+        if watchdog is None:
+            return None
+        try:
+            return watchdog.remaining()  # type: ignore[attr-defined]
+        except Exception:
+            return None
 
     def update_item(
         self,
@@ -454,6 +518,8 @@ class Statusline:
             id6=self.id6,
             tracker=self.tracker,
             pal=self.pal,
+            stall_remaining=self.stall_remaining(),
+            progress_source=self.progress_source,
         )
 
     def render_line(self) -> str:
@@ -513,23 +579,53 @@ class Statusline:
 
 
 class Heartbeat:
-    """Prints a periodic 'still working' line to stderr when the child stream is quiet."""
+    """Periodic quiet-stream line for a driver turn, stating the stall countdown.
+
+    The line deliberately does NOT say a bare "still working": that wording read as
+    reassurance while a kill countdown ran invisibly, making a doomed turn
+    indistinguishable from a healthy one. Instead it reports time since the last OBSERVED
+    PROGRESS, the remaining time before the stall kill, and WHICH source last showed
+    progress (``stdout`` or ``subagent``).
+
+    The countdown is sourced from the stall watchdog itself (duck-typed ``remaining()``),
+    never from ``self._last_activity``, so the number displayed cannot disagree with the
+    clock that actually terminates the child.
+    """
 
     def __init__(
-        self, pal: Palette, label: str, stream: TextIO, interval: float = 15.0
+        self,
+        pal: Palette,
+        label: str,
+        stream: TextIO,
+        interval: float = 15.0,
+        watchdog: object | None = None,
     ) -> None:
         self.pal = pal
         self.label = label
         self.stream = stream
         self.interval = interval
+        self.watchdog = watchdog
+        self.progress_source: str | None = None
         self._last_activity = time.monotonic()
         self._start = time.monotonic()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._enabled = interval > 0
 
-    def touch(self) -> None:
+    def touch(self, source: str | None = None) -> None:
         self._last_activity = time.monotonic()
+        if source:
+            self.progress_source = source
+
+    def stall_remaining(self) -> float | None:
+        """Remaining time before the stall kill, read from the watchdog (None if absent)."""
+        watchdog = self.watchdog
+        if watchdog is None:
+            return None
+        try:
+            return watchdog.remaining()  # type: ignore[attr-defined]
+        except Exception:
+            return None
 
     def format_idle(self) -> str:
         idle = int(time.monotonic() - self._last_activity)
@@ -540,9 +636,11 @@ class Heartbeat:
         elapsed = int(time.monotonic() - self._start)
         mins, secs = divmod(elapsed, 60)
         idle_str = self.format_idle()
+        countdown = format_stall_countdown(self.stall_remaining(), self.progress_source)
+        tail = f", stall {countdown}" if countdown else ""
         return (
-            f"    \u2026 still working on {self.label} "
-            f"({mins}m{secs:02d}s elapsed, {idle_str} since last event)"
+            f"    \u2026 {self.label}: no progress {idle_str} "
+            f"({mins}m{secs:02d}s elapsed{tail})"
         )
 
     def _run(self) -> None:
