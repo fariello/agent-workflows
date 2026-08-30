@@ -928,6 +928,7 @@ class RunViewerTests(TestCase):
         self.assertIn("by_phase", summary_dict)
         self.assertEqual(summary_dict["by_phase"]["execution"]["total_cost"], 7.00)
         self.assertEqual(summary_dict["by_phase"]["verification"]["total_cost"], 3.00)
+        self.assertEqual(summary_dict["by_phase"]["total"]["total_cost"], 10.00)
 
         sum_txt = run_viewer.format_multi_run_summary([run1], term)
         self.assertIn("Total Cost:   $10.00", sum_txt)
@@ -935,6 +936,10 @@ class RunViewerTests(TestCase):
         self.assertIn("Breakdown for Verified Executions (1 step):", sum_txt)
         self.assertIn("execution", sum_txt)
         self.assertIn("verification", sum_txt)
+        self.assertIn("total", sum_txt)
+        self.assertIn("70%", sum_txt)
+        self.assertIn("30%", sum_txt)
+        self.assertIn("100%", sum_txt)
 
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(

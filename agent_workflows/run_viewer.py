@@ -1770,6 +1770,14 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
 
     by_phase = None
     if verified_steps_count > 0:
+        # Scoped strictly to IPDs that were executed and verified
+        total_verified_cost = round(verified_exec_cost + verified_verify_cost, 4)
+        total_verified_tokens: dict[str, int] = defaultdict(int)
+        for k, v in verified_exec_tokens.items():
+            total_verified_tokens[k] += v
+        for k, v in verified_verify_tokens.items():
+            total_verified_tokens[k] += v
+
         by_phase = {
             "steps_count": verified_steps_count,
             "runs_count": len(verified_runs_present),
@@ -1825,6 +1833,35 @@ def build_multi_run_summary_dict(summaries: list[RunSummary]) -> dict[str, Any]:
                 ),
                 "avg_tokens_per_run": (
                     {k: int(v / total_runs) for k, v in verified_verify_tokens.items()}
+                    if total_runs > 0
+                    else {}
+                ),
+            },
+            "total": {
+                "total_cost": total_verified_cost,
+                "avg_cost_per_step": (
+                    round(total_verified_cost / verified_steps_count, 4)
+                    if verified_steps_count > 0
+                    else None
+                ),
+                "avg_cost_per_run": (
+                    round(total_verified_cost / total_runs, 4)
+                    if (total_runs > 0 and total_verified_cost)
+                    else None
+                ),
+                "tokens": (
+                    dict(total_verified_tokens) if total_verified_tokens else {}
+                ),
+                "avg_tokens_per_step": (
+                    {
+                        k: int(v / verified_steps_count)
+                        for k, v in total_verified_tokens.items()
+                    }
+                    if verified_steps_count > 0
+                    else {}
+                ),
+                "avg_tokens_per_run": (
+                    {k: int(v / total_runs) for k, v in total_verified_tokens.items()}
                     if total_runs > 0
                     else {}
                 ),
@@ -1890,62 +1927,123 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
         by_phase = summary_data.get("by_phase")
         if by_phase and by_phase.get("steps_count", 0) > 0:
             v_cnt = by_phase["steps_count"]
-            headers_ph = ["Phase", "Type", "Cost", "Tokens", "In", "Out", "Cached"]
-            aligns_ph = ["left", "left", "right", "right", "right", "right", "right"]
+            headers_ph = [
+                "Phase",
+                "Type",
+                "Cost",
+                "%",
+                "Tokens",
+                "%",
+                "In",
+                "%",
+                "Out",
+                "%",
+                "Cached",
+                "%",
+            ]
+            aligns_ph = [
+                "left",
+                "left",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+                "right",
+            ]
             rows_ph = []
-            for phase_name in ("execution", "verification"):
-                p_data = by_phase[phase_name]
+
+            tot_phase_cost = by_phase.get("total", {}).get("total_cost") or 0.0
+            tot_phase_toks = by_phase.get("total", {}).get("tokens", {})
+
+            def _pct(num: float | int | None, denom: float | int | None) -> str:
+                if num is None or not denom:
+                    return "-"
+                pct_val = round((num / denom) * 100)
+                return f"{pct_val}%"
+
+            for phase_name in ("execution", "verification", "total"):
+                p_data = by_phase.get(phase_name, {})
                 p_styled = (
-                    term.color256(phase_name, 226)
+                    term.color256(phase_name, 226, bold=(phase_name == "total"))
                     if getattr(term, "color", False)
                     else phase_name
                 )
                 td = p_data.get("tokens", {})
                 avg_td = p_data.get("avg_tokens_per_step", {})
-                if p_data.get("total_cost") is not None or td:
-                    c_tot = f"${(p_data.get('total_cost') or 0.0):.2f}"
-                    c_avg = f"${(p_data.get('avg_cost_per_step') or 0.0):.2f}"
-                    t_tot = (
-                        format_tokens(td.get("total", 0)) if td.get("total") else "-"
-                    )
-                    t_avg = (
-                        format_tokens(avg_td.get("total", 0))
-                        if avg_td.get("total")
-                        else "-"
-                    )
-                    in_tot = (
-                        format_tokens(td.get("input", 0)) if td.get("input") else "-"
-                    )
-                    in_avg = (
-                        format_tokens(avg_td.get("input", 0))
-                        if avg_td.get("input")
-                        else "-"
-                    )
-                    out_tot = (
-                        format_tokens(td.get("output", 0)) if td.get("output") else "-"
-                    )
-                    out_avg = (
-                        format_tokens(avg_td.get("output", 0))
-                        if avg_td.get("output")
-                        else "-"
-                    )
-                    cache_tot = (
-                        format_tokens(td.get("cache", 0)) if td.get("cache") else "-"
-                    )
-                    cache_avg = (
-                        format_tokens(avg_td.get("cache", 0))
-                        if avg_td.get("cache")
-                        else "-"
-                    )
+
+                c_val = p_data.get("total_cost")
+                c_avg_val = p_data.get("avg_cost_per_step")
+                c_pct = _pct(c_val, tot_phase_cost)
+
+                t_val = td.get("total")
+                t_avg_val = avg_td.get("total")
+                t_pct = _pct(t_val, tot_phase_toks.get("total"))
+
+                in_val = td.get("input")
+                in_avg_val = avg_td.get("input")
+                in_pct = _pct(in_val, tot_phase_toks.get("input"))
+
+                out_val = td.get("output")
+                out_avg_val = avg_td.get("output")
+                out_pct = _pct(out_val, tot_phase_toks.get("output"))
+
+                cache_val = td.get("cache")
+                cache_avg_val = avg_td.get("cache")
+                cache_pct = _pct(cache_val, tot_phase_toks.get("cache"))
+
+                if c_val is not None or td:
+                    c_tot = f"${(c_val or 0.0):.2f}"
+                    c_avg = f"${(c_avg_val or 0.0):.2f}"
+                    t_tot = format_tokens(t_val) if t_val else "-"
+                    t_avg = format_tokens(t_avg_val) if t_avg_val else "-"
+                    in_tot = format_tokens(in_val) if in_val else "-"
+                    in_avg = format_tokens(in_avg_val) if in_avg_val else "-"
+                    out_tot = format_tokens(out_val) if out_val else "-"
+                    out_avg = format_tokens(out_avg_val) if out_avg_val else "-"
+                    cache_tot = format_tokens(cache_val) if cache_val else "-"
+                    cache_avg = format_tokens(cache_avg_val) if cache_avg_val else "-"
                 else:
                     c_tot = c_avg = t_tot = t_avg = in_tot = in_avg = out_tot = (
                         out_avg
                     ) = cache_tot = cache_avg = "-"
 
                 rows_ph.append(
-                    [p_styled, "Total", c_tot, t_tot, in_tot, out_tot, cache_tot]
+                    [
+                        p_styled,
+                        "Total",
+                        c_tot,
+                        c_pct,
+                        t_tot,
+                        t_pct,
+                        in_tot,
+                        in_pct,
+                        out_tot,
+                        out_pct,
+                        cache_tot,
+                        cache_pct,
+                    ]
                 )
-                rows_ph.append(["", "Avg", c_avg, t_avg, in_avg, out_avg, cache_avg])
+                rows_ph.append(
+                    [
+                        "",
+                        "Avg",
+                        c_avg,
+                        c_pct,
+                        t_avg,
+                        t_pct,
+                        in_avg,
+                        in_pct,
+                        out_avg,
+                        out_pct,
+                        cache_avg,
+                        cache_pct,
+                    ]
+                )
 
             lines.append("")
             table_title = f"Breakdown for Verified Executions ({v_cnt} step{'s' if v_cnt != 1 else ''}):"
