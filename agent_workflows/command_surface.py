@@ -1194,6 +1194,26 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     ),
     # --- Prompts Family ---
     CommandDeclaration(
+        command="prompts new",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--slug",
+            "--kind",
+            "--status",
+            "--author",
+            "--targets",
+            "--concerns",
+            "--date",
+            "--time",
+            "--apply",
+        ),
+        exit_contract=(0, 2),
+    ),
+    CommandDeclaration(
         command="prompts set",
         command_class="mutation",
         human_recipe="status",

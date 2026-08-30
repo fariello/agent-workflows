@@ -6,7 +6,7 @@ This workflow is a PRODUCER: it drafts a prompt for another AI to execute. It do
 
 ## What this workflow does and does not do
 
-- It PRODUCES one upload-ready research handoff prompt (`.prompt.md`) and writes it to `.aw/records/prompts/pending/YYYYMMDD-HHMM-NN-research-<slug>.prompt.md`.
+- It PRODUCES one upload-ready research handoff prompt (`.prompt.md`), minted by `aw prompts new` into `.aw/records/prompts/pending/`. The verb derives the filename (`YYYYMMDD-HHMM-NN-<slug>.prompt.md`); never hand-name it.
 - It is read-only with respect to product code and durable reference records.
 - It writes a `Status: pending` draft and does NOT `git add`, stage, commit, or push the prompt file.
 - It does NOT execute the research inquiry or write research result documents (the prompt instructs the target AI to produce the research report).
@@ -24,8 +24,8 @@ Re-read before drafting and before the exit gate:
    - **Only the prompt:** The emitted file contains ONLY the prompt addressed to the target AI. Put NO instructions for the user inside it (no "copy this", no "paste below the line", no user-facing instructions inside).
    - **Self-contained:** The prompt is completely self-contained, so the user can select-all-and-copy it, or upload it and say "read and execute the attached prompt", with nothing to edit or supply.
    - **Downloadable `.md`:** The prompt explicitly instructs the target AI to return its entire answer as a DOWNLOADABLE markdown (`.md`) file so the result can be saved directly.
-2. **Leading HTML Comment Pipeline Metadata:** Carry pipeline metadata as a single leading HTML comment line (`<!-- aw-prompt: ... -->`). This comment is invisible when pasted into an LLM chat and preserves staging metadata without violating prompt purity.
-3. **Target Tracked Pending Lane:** Write to `.aw/records/prompts/pending/` with `Status: pending`. Never auto-stage or commit.
+2. **Leading HTML Comment Pipeline Metadata:** Pipeline metadata is a single leading HTML comment line (`<!-- aw-prompt: ... -->`), written by `aw prompts new`, not by hand. This comment is invisible when pasted into an LLM chat and preserves staging metadata without violating prompt purity.
+3. **Target Tracked Pending Lane:** `aw prompts new` writes to `.aw/records/prompts/pending/` with `Status: pending`. Never auto-stage or commit.
 4. **Leak Sanitizer Awareness:** Run `aw check-local-leaks` on the finished file before concluding.
 
 ## Inputs
@@ -36,7 +36,7 @@ Re-read before drafting and before the exit gate:
 
 1. Survey the repository for relevant background:
    - Check `AGENTS.md` for prompt authoring rules.
-   - Check `.aw/records/prompts/README.md` for prompt staging conventions and naming format (`YYYYMMDD-HHMM-NN-<slug>.prompt.md`).
+   - Check `.aw/records/prompts/README.md` for prompt staging conventions. Do NOT derive the filename yourself; `aw prompts new` owns it.
    - Check whether related research records exist under `.aw/records/research/` to avoid duplicate inquiries.
 
 ## Step 1: Gather topic, scope, and constraints
@@ -61,12 +61,11 @@ Deconstruct the topic into a structured inquiry for the target AI:
    - Be concrete: provide literal syntax, schemas, or file paths rather than generalities.
 6. **Deliverable Specification:** Instruct the target AI to return its complete output as a single DOWNLOADABLE markdown (`.md`) file, naming the expected filename and required section layout.
 
-## Step 3: Draft the prompt
+## Step 3: Draft the prompt body
 
-Structure the emitted prompt following the standard `.prompt.md` format:
+Draft the PROMPT BODY only. The leading `<!-- aw-prompt: ... -->` metadata comment is written for you by `aw prompts new` in Step 4, so do not compose or copy one by hand:
 
 ```markdown
-<!-- aw-prompt: Kind: research | Status: pending | Created: YYYY-MM-DD | Author: <agent> (<model>) | Targets: <target-ai-models> | Concerns: <short-summary> | Results-go-to: FILED under .aw/records/research/<topic>/ once completed. This HTML comment is pipeline metadata only; it is invisible when pasted into a chat and is not part of the prompt. -->
 You are a <expert persona>. <Clear statement of the primary research objective>.
 
 # Background (what I am building)
@@ -93,20 +92,32 @@ Return your entire answer as a single DOWNLOADABLE markdown file named `<topic>-
 5. References list with URLs and access dates.
 ```
 
-## Step 4: Write output
+## Step 4: Mint the file with `aw prompts new`, then write the body into it
 
-1. Determine the timestamp and sequence number: `YYYYMMDD-HHMM-NN-research-<slug>.prompt.md` (e.g. `20260820-0100-01-research-token-compression.prompt.md`).
-2. Write the file to `.aw/records/prompts/pending/`.
+1. MINT the staged file with the verb. It derives the filename and writes the metadata comment; you supply the metadata fields:
+
+   ```bash
+   aw prompts new --kind research \
+     --slug <topic-slug> \
+     --author '<agent> (<model>)' \
+     --targets '<target-ai-models>' \
+     --concerns '<short-summary>' \
+     --apply
+   ```
+
+   Omit `--apply` first if you want to preview the path it will use. The verb prints the path it wrote; use that path for the remaining steps. Do NOT compute a timestamp or sequence number, and do NOT hand-write the `<!-- aw-prompt: ... -->` comment: both are the verb's job, and hand-writing them is what drifted the existing corpus.
+
+2. APPEND your Step 3 prompt body to that file, after the metadata comment the verb wrote. Add nothing else: no user-facing instructions, no delimiters, no template scaffolding.
 3. Run `aw check-local-leaks <the-file>` (or `python3 -m agent_workflows check-local-leaks <the-file> --agent`) to ensure no machine or maintainer identifying leaks were introduced.
 4. Do NOT stage or commit the file.
 
 ## Exit gate (satisfy every item before reporting done)
 
-- [ ] File created under `.aw/records/prompts/pending/YYYYMMDD-HHMM-NN-research-<slug>.prompt.md`.
+- [ ] File was MINTED by `aw prompts new` (not hand-named, not hand-written metadata) and landed under `.aw/records/prompts/pending/`.
 - [ ] Emitted prompt contains ONLY the prompt addressed to the target AI (no user-facing instructions inside it).
 - [ ] Emitted prompt is completely self-contained.
 - [ ] Emitted prompt instructs the target AI to return its output as a DOWNLOADABLE markdown (`.md`) file.
-- [ ] File begins with the standard `<!-- aw-prompt: Kind: research | Status: pending ... -->` metadata comment.
+- [ ] File begins with the single-line `<!-- aw-prompt: Kind: research | Status: pending ... -->` metadata comment the verb emitted, with nothing before it.
 - [ ] `aw check-local-leaks` run on the finished file with zero violations.
 - [ ] No product code modified; prompt file is NOT auto-staged or committed.
 - [ ] User informed of the staged prompt path and how to upload/paste it to the target AI.
@@ -115,4 +126,5 @@ Return your entire answer as a single DOWNLOADABLE markdown file named `<topic>-
 
 - Read-only with respect to product code and durable reference records.
 - `/aw research` produces a prompt for another AI; `aw research new` creates a research document once results return.
+- `aw prompts new` mints the staged file; you never hand-name a prompt or hand-write its metadata comment.
 - Never auto-commit the generated prompt.
