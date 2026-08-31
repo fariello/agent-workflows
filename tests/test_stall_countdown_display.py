@@ -137,8 +137,8 @@ class StatuslineCountdownTests(unittest.TestCase):
         self.assertIn("idle:", out)
 
     def test_layout_invariant_holds_with_the_countdown(self):
-        # The pinned invariant: the two rendered lines stay the same width.
-        l1, l2 = render_stream.format_statusline_lines(
+        # The pinned invariant: all rendered lines stay the same width.
+        top, l1, l2, bot = render_stream.format_statusline_lines(
             now_ts=1700000000.0,
             run_start_ts=1700000000.0 - 100,
             item_start_ts=1700000000.0 - 50,
@@ -150,8 +150,11 @@ class StatuslineCountdownTests(unittest.TestCase):
             stall_remaining=150.0,
             progress_source="subagent",
         )
+        self.assertEqual(len(top), len(l1))
         self.assertEqual(len(l1), len(l2))
-        self.assertIn("kill in 2m30s", l2)
+        self.assertEqual(len(l2), len(bot))
+        self.assertIn("kill in 2m30s", l1)
+        self.assertIn("(last: subagent)", l2)
 
     def test_layout_is_unchanged_when_no_countdown(self):
         # Additive: with no stall timeout the original pinned layout is preserved exactly.
@@ -165,9 +168,13 @@ class StatuslineCountdownTests(unittest.TestCase):
             setid="revgate",
             id6="7nkcgp",
         )
-        l1, l2 = render_stream.format_statusline_lines(**kw)
-        self.assertEqual(l2.split(" │ ")[1].strip(), "1h04m21s idle: 14s")
+        top, l1, l2, bot = render_stream.format_statusline_lines(**kw)
+        self.assertEqual(len(top), len(l1))
         self.assertEqual(len(l1), len(l2))
+        self.assertEqual(len(l2), len(bot))
+        self.assertEqual(
+            [s.strip() for s in l2.split("│")[1:-1]][1], "1h04m21s idle: 14s"
+        )
 
 
 class HeartbeatCountdownTests(unittest.TestCase):

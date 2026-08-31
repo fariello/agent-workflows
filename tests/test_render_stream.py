@@ -299,7 +299,7 @@ class StatuslineUnitTests(unittest.TestCase):
         item_start_ts = now_ts - (4 * 60 + 8)  # 4m08s
         last_act_ts = now_ts - 14  # idle 14s
 
-        l1, l2 = render_stream.format_statusline_lines(
+        top, l1, l2, bot = render_stream.format_statusline_lines(
             now_ts=now_ts,
             run_start_ts=run_start_ts,
             item_start_ts=item_start_ts,
@@ -311,34 +311,76 @@ class StatuslineUnitTests(unittest.TestCase):
             tracker=tracker,
         )
 
+        self.assertEqual(len(top), len(l1))
         self.assertEqual(len(l1), len(l2))
-        self.assertFalse(l1.startswith(" "))
-        self.assertFalse(l2.startswith(" "))
+        self.assertEqual(len(l2), len(bot))
+        self.assertTrue(top.startswith("╭") and top.endswith("╮"))
+        self.assertTrue(bot.startswith("╰") and bot.endswith("╯"))
+        self.assertTrue(l1.startswith("│") and l1.endswith("│"))
+        self.assertTrue(l2.startswith("│") and l2.endswith("│"))
 
-        seg1 = l1.split(" │ ")
-        seg2 = l2.split(" │ ")
-        self.assertEqual(len(seg1), 8)
-        self.assertEqual(len(seg2), 8)
+        seg1 = [s.strip() for s in l1.split("│")[1:-1]]
+        seg2 = [s.strip() for s in l2.split("│")[1:-1]]
+        self.assertEqual(len(seg1), 9)
+        self.assertEqual(len(seg2), 9)
 
         # Header line segments
-        self.assertEqual(seg1[0].strip(), "Time")
-        self.assertEqual(seg1[1].strip(), "From start")
-        self.assertEqual(seg1[2].strip(), "set: revgate id6: 7nkcgp")
-        self.assertEqual(seg1[3].strip(), "Spend")
-        self.assertEqual(seg1[4].strip(), "Tok tot")
-        self.assertEqual(seg1[5].strip(), "Tok in")
-        self.assertEqual(seg1[6].strip(), "Tok out")
-        self.assertEqual(seg1[7].rstrip(" │").strip(), "Tok cache")
+        self.assertEqual(seg1[0], "Time")
+        self.assertEqual(seg1[1], "From start")
+        self.assertEqual(seg1[2], "set: revgate id6: 7nkcgp")
+        self.assertEqual(seg1[3], "Spend")
+        self.assertEqual(seg1[4], "Tok")
+        self.assertEqual(seg1[5], "Total")
+        self.assertEqual(seg1[6], "in")
+        self.assertEqual(seg1[7], "out")
+        self.assertEqual(seg1[8], "cache")
 
         # Value line segments
-        self.assertRegex(seg2[0].strip(), r"^\d{2}:\d{2}:\d{2}$")
-        self.assertEqual(seg2[1].strip(), "1h04m21s idle: 14s")
-        self.assertEqual(seg2[2].strip(), "4m08s ██████████ 100% [1/1]")
-        self.assertEqual(seg2[3].strip(), "$15.27")
-        self.assertEqual(seg2[4].strip(), "16.2m")
-        self.assertEqual(seg2[5].strip(), "214.1k")
-        self.assertEqual(seg2[6].strip(), "195.7k")
-        self.assertEqual(seg2[7].rstrip(" │").strip(), "15.8m")
+        self.assertRegex(seg2[0], r"^\d{2}:\d{2}:\d{2}$")
+        self.assertEqual(seg2[1], "1h04m21s idle: 14s")
+        self.assertEqual(seg2[2], "4m08s ██████████ 100% [1/1]")
+        self.assertEqual(seg2[3], "$15.27")
+        self.assertEqual(seg2[4], "ens")
+        self.assertEqual(seg2[5], "16.2m")
+        self.assertEqual(seg2[6], "214.1k")
+        self.assertEqual(seg2[7], "195.7k")
+        self.assertEqual(seg2[8], "15.8m")
+
+    def test_format_statusline_user_example_box_layout(self):
+        class MockTracker:
+            cost = 6.16
+            input_tokens = 119000
+            output_tokens = 110700
+            cache_tokens = 4500000
+
+        top, l1, l2, bot = render_stream.format_statusline_lines(
+            now_ts=1700000000.0,
+            run_start_ts=1700000000.0 - (27 * 60 + 48),
+            item_start_ts=1700000000.0 - (27 * 60 + 48),
+            last_act_ts=1700000000.0 - 8,
+            current_idx=1,
+            total_items=1,
+            setid="wtisoland",
+            id6="6knsrx",
+            tracker=MockTracker(),
+            stall_remaining=9 * 60 + 51,
+            progress_source="stdout",
+        )
+
+        expected_top = "╭─────────┬────────────────────────────────┬───────────────────────────────┬─────────┬─────┬───────┬──────┬────────┬───────╮"
+        expected_l1 = "│Time     │ From start       kill in 9m51s │ set: wtisoland id6: 6knsrx    │ Spend   │ Tok │ Total │   in │    out │ cache │"
+        expected_bot = "╰─────────┴────────────────────────────────┴───────────────────────────────┴─────────┴─────┴───────┴──────┴────────┴───────╯"
+
+        self.assertEqual(top, expected_top)
+        self.assertEqual(l1, expected_l1)
+        self.assertEqual(bot, expected_bot)
+        self.assertIn("27m48s idle: 8s (last: stdout)", l2)
+        self.assertIn("27m48s ██████████ 100% [1/1]", l2)
+        self.assertIn("$6.16", l2)
+        self.assertIn("4.7m", l2)
+        self.assertIn("119k", l2)
+        self.assertIn("110.7k", l2)
+        self.assertIn("4.5m", l2)
 
     def test_format_statusline_colorized(self):
         tracker = render_stream.StreamTracker()
@@ -350,7 +392,7 @@ class StatuslineUnitTests(unittest.TestCase):
         item_start_ts = now_ts - (4 * 60 + 8)
         last_act_ts = now_ts - 14
 
-        l1, l2 = render_stream.format_statusline_lines(
+        top, l1, l2, bot = render_stream.format_statusline_lines(
             now_ts=now_ts,
             run_start_ts=run_start_ts,
             item_start_ts=item_start_ts,
@@ -368,9 +410,13 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertNotIn("\033[48;", l2)
 
         # Stripping ANSI recovers clean content
+        s_top = render_stream._strip_ansi(top)
         s1 = render_stream._strip_ansi(l1)
         s2 = render_stream._strip_ansi(l2)
+        s_bot = render_stream._strip_ansi(bot)
+        self.assertEqual(len(s_top), len(s1))
         self.assertEqual(len(s1), len(s2))
+        self.assertEqual(len(s2), len(s_bot))
         self.assertIn("Time", s1)
         self.assertIn("set: revgate id6: 7nkcgp", s1)
         self.assertIn("1h04m21s idle: 14s", s2)

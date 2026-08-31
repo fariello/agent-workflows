@@ -264,15 +264,18 @@ def format_statusline_lines(
     pal: Palette | None = None,
     stall_remaining: float | None = None,
     progress_source: str | None = None,
-) -> tuple[str, str]:
-    """Format the 2-line runner statusline (header line and value line):
+    use_unicode: bool = True,
+) -> tuple[str, str, str, str]:
+    """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
-    Time     │ From start        │ set: revgate id6: 7nkcgp         │ Spend   │  Tok tot │   Tok in │  Tok out │ Tok cache │
-    23:11:21 │ 64m21s idle: 14s  │ 4m08s ██████████ 100% [1/1]      │ $15.27  │    16.2m │   214.1k │   195.7k │     15.8m │
+    ╭─────────┬────────────────────────────────┬───────────────────────────────┬─────────┬─────┬───────┬──────┬────────┬───────╮
+    │Time     │ From start       kill in 9m51s │ set: wtisoland id6: 6knsrx    │ Spend   │ Tok │ Total │   in │    out │ cache │
+    │20:27:24 │ 27m48s idle: 8s (last: stdout) │ 27m48s ██████████ 100% [1/1]  │ $6.16   │ ens │  4.7m │ 119k │ 110.7k │  4.5m │
+    ╰─────────┴────────────────────────────────┴───────────────────────────────┴─────────┴─────┴───────┴──────┴────────┴───────╯
     """
     t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
 
-    # Run Elapsed & Idle
+    # 1. Run Elapsed & Idle (Col 2)
     run_elapsed = max(0, int(now_ts - run_start_ts))
     run_el_str = format_compact_duration(run_elapsed)
 
@@ -281,76 +284,115 @@ def format_statusline_lines(
         idle_str = f"idle: {format_compact_duration(idle)}"
     else:
         idle_str = f"idle: {idle}s"
-    col2_val = f"{run_el_str} {idle_str}"
-    # The stall countdown is ADDITIVE: with no configured timeout (`--stall-timeout 0`) the
-    # column is byte-identical to before, so no false or infinite countdown is ever claimed.
-    # `idle:` alone was the misleading part: it reported quiet time while a kill clock ran
-    # invisibly. The countdown comes from the watchdog's own clock (see
-    # StallWatchdog.remaining) so the displayed number cannot disagree with the killer.
-    countdown = format_stall_countdown(stall_remaining, progress_source)
-    if countdown:
-        col2_val = f"{col2_val} {countdown}"
+    val2_left = f" {run_el_str} {idle_str}"
 
-    # Item Elapsed & Progress bar
+    countdown = format_stall_countdown(stall_remaining, None)
+    hdr2_left = " From start"
+    src_str = f"(last: {progress_source})" if progress_source else ""
+    val2_right = f"{src_str} " if src_str else ""
+    hdr2_right = f"{countdown} " if countdown else ""
+
+    col2_w = max(
+        32,
+        len(hdr2_left) + len(hdr2_right) + 1,
+        len(val2_left) + len(val2_right) + 1,
+    )
+
+    h2 = f"{hdr2_left}{hdr2_right:>{col2_w - len(hdr2_left)}s}"
+    v2 = f"{val2_left}{val2_right:>{col2_w - len(val2_left)}s}"
+
+    # 2. Item Elapsed & Progress Bar (Col 3)
     item_elapsed = max(0, int(now_ts - item_start_ts))
     item_el_str = format_compact_duration(item_elapsed)
-
     bar = format_progress_bar(current_idx, total_items)
-    col3_val = f"{item_el_str} {bar}"
-    target_hdr = f"set: {setid} id6: {id6}" if (setid or id6) else "-"
+    val3 = f" {item_el_str} {bar}"
+    target_hdr = f" set: {setid} id6: {id6}" if (setid or id6) else " -"
+    col3_w = max(31, len(target_hdr) + 1, len(val3) + 1)
+    h3 = f"{target_hdr:<{col3_w}s}"
+    v3 = f"{val3:<{col3_w}s}"
 
-    # Spend
+    # 3. Spend (Col 4)
     cost = tracker.cost if tracker is not None else 0.0
     cost_str = f"${cost:.2f}"
+    col4_w = 9
+    h4 = f"{' Spend':<{col4_w}s}"
+    v4 = f"{' ' + cost_str:<{col4_w}s}"
 
-    # Tokens
+    # 4. Token Sub-columns (Cols 5-9)
+    # Col 5: Tok / ens
+    col5_w = 5
+    h5 = " Tok "
+    v5 = " ens "
+
+    # Col 6: Total
     tot_tok = (
         (tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
         if tracker is not None
         else 0
     )
     tot_str = format_compact_tokens(tot_tok)
-    in_str = format_compact_tokens(tracker.input_tokens if tracker is not None else 0)
-    out_str = format_compact_tokens(tracker.output_tokens if tracker is not None else 0)
-    cache_str = format_compact_tokens(
-        tracker.cache_tokens if tracker is not None else 0
-    )
+    col6_w = max(7, len(tot_str) + 2)
+    h6 = " Total ".rjust(col6_w)
+    v6 = f"{tot_str:>{col6_w - 1}s} "
 
-    h1 = "Time    "
-    # Column 2 grows to fit the countdown when one is shown, so the header and value lines
-    # stay the SAME width (a pinned invariant: len(l1) == len(l2)) and the countdown is never
-    # clipped. With no countdown the width is the original 17, keeping the layout unchanged.
-    col2_w = max(17, len(col2_val))
-    h2 = f"{'From start':<{col2_w}s}"
-    col3_w = 32
-    h3 = f"{target_hdr:<{col3_w}s}"
-    h4 = "Spend  "
-    h5 = " Tok tot"
-    h6 = "  Tok in"
-    h7 = " Tok out"
-    h8 = "Tok cache"
+    # Col 7: In
+    in_tok = tracker.input_tokens if tracker is not None else 0
+    in_str = format_compact_tokens(in_tok)
+    col7_w = max(6, len(in_str) + 2)
+    h7 = "   in ".rjust(col7_w)
+    v7 = f"{in_str:>{col7_w - 1}s} "
 
-    v1 = f"{t_str:<8s}"
-    v2 = f"{col2_val:<{col2_w}s}"
-    v3 = f"{col3_val:<{col3_w}s}"
-    v4 = f"{cost_str:<7s}"
-    v5 = f"{tot_str:>8s}"
-    v6 = f"{in_str:>8s}"
-    v7 = f"{out_str:>8s}"
-    v8 = f"{cache_str:>9s}"
+    # Col 8: Out
+    out_tok = tracker.output_tokens if tracker is not None else 0
+    out_str = format_compact_tokens(out_tok)
+    col8_w = max(8, len(out_str) + 2)
+    h8 = "    out ".rjust(col8_w)
+    v8 = f"{out_str:>{col8_w - 1}s} "
 
-    div_plain = " │ "
-    l1_plain = (
-        f"{h1}{div_plain}{h2}{div_plain}{h3}{div_plain}{h4}"
-        f"{div_plain}{h5}{div_plain}{h6}{div_plain}{h7}{div_plain}{h8} │"
-    )
-    l2_plain = (
-        f"{v1}{div_plain}{v2}{div_plain}{v3}{div_plain}{v4}"
-        f"{div_plain}{v5}{div_plain}{v6}{div_plain}{v7}{div_plain}{v8} │"
-    )
+    # Col 9: Cache
+    cache_tok = tracker.cache_tokens if tracker is not None else 0
+    cache_str = format_compact_tokens(cache_tok)
+    col9_w = max(7, len(cache_str) + 2)
+    h9 = " cache ".rjust(col9_w)
+    v9 = f"{cache_str:>{col9_w - 1}s} "
+
+    # Col 1: Time
+    col1_w = 9
+    h1 = f"{'Time':<{col1_w}s}"
+    v1 = f"{t_str:<8s} "
+
+    col_widths = [
+        col1_w,
+        col2_w,
+        col3_w,
+        col4_w,
+        col5_w,
+        col6_w,
+        col7_w,
+        col8_w,
+        col9_w,
+    ]
+
+    if use_unicode:
+        c_tl, c_tm, c_tr = "╭", "┬", "╮"
+        c_bl, c_bm, c_br = "╰", "┴", "╯"
+        c_v, c_h = "│", "─"
+    else:
+        c_tl, c_tm, c_tr = "+", "+", "+"
+        c_bl, c_bm, c_br = "+", "+", "+"
+        c_v, c_h = "|", "-"
+
+    top_border = c_tl + c_tm.join(c_h * w for w in col_widths) + c_tr
+    bot_border = c_bl + c_bm.join(c_h * w for w in col_widths) + c_br
+
+    hdrs = [h1, h2, h3, h4, h5, h6, h7, h8, h9]
+    vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9]
+
+    l1_plain = c_v + c_v.join(hdrs) + c_v
+    l2_plain = c_v + c_v.join(vals) + c_v
 
     if pal is None or not pal.enabled:
-        return l1_plain, l2_plain
+        return top_border, l1_plain, l2_plain, bot_border
 
     # Colorized 256-color palette styling:
     b_blue = "\033[1;38;5;117m"  # soft bold sky light blue
@@ -358,34 +400,57 @@ def format_statusline_lines(
     b_bar = "\033[1;38;5;78m"  # light emerald green
     b_target = "\033[1;38;5;229m"  # soft cream/yellow
     b_cost = "\033[1;38;5;114m"  # light green
+    b_warn = "\033[1;38;5;208m"  # warm amber/orange for countdown
     dim_hdr = "\033[38;5;110m"  # soft muted slate blue for headers
-    div = "\033[38;5;67m │ \033[0m"
+    dim_src = "\033[38;5;110m"
+    bdr_color = "\033[38;5;67m"
     reset = _ANSI_RESET
 
-    hdrs = [
-        f"{dim_hdr}{h1}",
-        f"{dim_hdr}{h2}",
-        f"{b_target}{h3}",
-        f"{dim_hdr}{h4}",
-        f"{dim_hdr}{h5}",
-        f"{dim_hdr}{h6}",
-        f"{dim_hdr}{h7}",
-        f"{dim_hdr}{h8}",
-    ]
-    l1_color = div.join(hdrs) + f"\033[38;5;67m │{reset}"
+    top_color = f"{bdr_color}{top_border}{reset}"
+    bot_color = f"{bdr_color}{bot_border}{reset}"
 
-    vals = [
-        f"{b_clock}{v1}",
-        f"{b_blue}{v2}",
-        f"{b_bar}{v3}",
-        f"{b_cost}{v4}",
-        f"{b_blue}{v5}",
-        f"{b_blue}{v6}",
-        f"{b_blue}{v7}",
-        f"{b_blue}{v8}",
-    ]
-    l2_color = div.join(vals) + f"\033[38;5;67m │{reset}"
-    return l1_color, l2_color
+    c_h1 = f"{dim_hdr}{h1}"
+    if countdown:
+        pad_len = col2_w - len(hdr2_left) - len(hdr2_right)
+        c_h2 = f"{dim_hdr}{hdr2_left}{' ' * pad_len}{b_warn}{hdr2_right}"
+    else:
+        c_h2 = f"{dim_hdr}{h2}"
+
+    c_h3 = f"{b_target}{h3}"
+    c_h4 = f"{dim_hdr}{h4}"
+    c_h5 = f"{dim_hdr}{h5}"
+    c_h6 = f"{dim_hdr}{h6}"
+    c_h7 = f"{dim_hdr}{h7}"
+    c_h8 = f"{dim_hdr}{h8}"
+    c_h9 = f"{dim_hdr}{h9}"
+
+    c_v1 = f"{b_clock}{v1}"
+    if src_str:
+        pad_len = col2_w - len(val2_left) - len(val2_right)
+        c_v2 = f"{b_blue}{val2_left}{' ' * pad_len}{dim_src}{val2_right}"
+    else:
+        c_v2 = f"{b_blue}{v2}"
+
+    c_v3 = f"{b_bar}{v3}"
+    c_v4 = f"{b_cost}{v4}"
+    c_v5 = f"{dim_hdr}{v5}"
+    c_v6 = f"{b_blue}{v6}"
+    c_v7 = f"{b_blue}{v7}"
+    c_v8 = f"{b_blue}{v8}"
+    c_v9 = f"{b_blue}{v9}"
+
+    c_hdrs = [c_h1, c_h2, c_h3, c_h4, c_h5, c_h6, c_h7, c_h8, c_h9]
+    c_vals = [c_v1, c_v2, c_v3, c_v4, c_v5, c_v6, c_v7, c_v8, c_v9]
+
+    div = f"{bdr_color}{c_v}{reset}"
+    l1_color = (
+        f"{bdr_color}{c_v}{reset}" + div.join(c_hdrs) + f"{bdr_color}{c_v}{reset}"
+    )
+    l2_color = (
+        f"{bdr_color}{c_v}{reset}" + div.join(c_vals) + f"{bdr_color}{c_v}{reset}"
+    )
+
+    return top_color, l1_color, l2_color, bot_color
 
 
 def format_statusline(
@@ -401,10 +466,11 @@ def format_statusline(
     item_start_ts: float | None = None,
     stall_remaining: float | None = None,
     progress_source: str | None = None,
+    use_unicode: bool = True,
 ) -> str:
-    """Format the 2-line unified runner statusline as a newline-delimited string."""
+    """Format the 4-line unified runner statusline box as a newline-delimited string."""
     item_ts = start_ts if item_start_ts is None else item_start_ts
-    l1, l2 = format_statusline_lines(
+    lines = format_statusline_lines(
         now_ts=now_ts,
         run_start_ts=start_ts,
         item_start_ts=item_ts,
@@ -417,8 +483,9 @@ def format_statusline(
         pal=pal,
         stall_remaining=stall_remaining,
         progress_source=progress_source,
+        use_unicode=use_unicode,
     )
-    return f"{l1}\n{l2}"
+    return "\n".join(lines)
 
 
 class Statusline:
@@ -501,7 +568,7 @@ class Statusline:
             if id6:
                 self.id6 = id6
 
-    def _render_lines_unlocked(self) -> tuple[str, str]:
+    def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
         now_wall = time.time()
         cur_mono = time.monotonic()
         run_wall = now_wall - (cur_mono - self._run_start_mono)
@@ -524,18 +591,22 @@ class Statusline:
 
     def render_line(self) -> str:
         with self._lock:
-            l1, l2 = self._render_lines_unlocked()
-            return f"{l1}\n{l2}"
+            top, l1, l2, bot = self._render_lines_unlocked()
+            return f"{top}\n{l1}\n{l2}\n{bot}"
 
     def redraw(self) -> None:
         if not self._is_tty:
             return
         with self._lock:
-            l1, l2 = self._render_lines_unlocked()
+            top, l1, l2, bot = self._render_lines_unlocked()
             if self._has_drawn:
-                self.stream.write(f"\033[1A\r\033[K{l1}\n\r\033[K{l2}")
+                self.stream.write(
+                    f"\033[3A\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
+                )
             else:
-                self.stream.write(f"\r\033[K{l1}\n\r\033[K{l2}")
+                self.stream.write(
+                    f"\r\033[K{top}\n\r\033[K{l1}\n\r\033[K{l2}\n\r\033[K{bot}"
+                )
             self.stream.flush()
             self._has_drawn = True
 
@@ -543,17 +614,17 @@ class Statusline:
         if not self._is_tty or not self._has_drawn:
             return
         with self._lock:
-            self.stream.write("\033[1A\r\033[K\n\r\033[K\033[1A\r")
+            self.stream.write("\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r")
             self.stream.flush()
             self._has_drawn = False
 
     def write_event(self, rendered_text: str) -> None:
-        """Write a log event line above the live 2-line statusline."""
+        """Write a log event line above the live 4-line boxed statusline."""
         with self._lock:
             if self._is_tty and self._has_drawn:
-                l1, l2 = self._render_lines_unlocked()
+                top, l1, l2, bot = self._render_lines_unlocked()
                 self.stream.write(
-                    f"\033[1A\r\033[K\n\r\033[K\033[1A\r{rendered_text}\n{l1}\n{l2}"
+                    f"\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r{rendered_text}\n{top}\n{l1}\n{l2}\n{bot}"
                 )
                 self.stream.flush()
             else:
