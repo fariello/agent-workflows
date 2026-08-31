@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 186 Sets; the full manifest is INDEX.json.
 
 ## attdetails
 
 - `8h4eoc` [executed] 01 executed/20260830-attdetails-01-8h4eoc-add-details-flag-to-aw-attention-to-surface-item-summary-and.ipd.md
+
+## atttype
+
+- `3vx9sj` [executed] 01 executed/20260830-atttype-01-3vx9sj-add-type-flag-to-aw-attention-for-single-and-multi-type-arti.ipd.md
 
 ## boxstat
 
@@ -16,7 +20,7 @@ Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
 ## detrun
 
 - `r4mbcw` [pending] 00 pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
-- `bmh754` [pending] 01 pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
+- `bmh754` [superseded] 01 superseded/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
 - `a54m79` [superseded] 02 superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
 - `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
 - `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
@@ -29,6 +33,14 @@ Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
 ## hostcap
 
 - `mjx7ne` [pending] 01 pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
+
+## locksafe
+
+- `y6mfgo` [pending] 01 pending/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md
+
+## runmixed
+
+- `6lu3rq` [pending] 01 pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md
 
 ## sessrot
 
@@ -109,6 +121,15 @@ Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
 
 - `0soncw` [pending] 01 pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md
 
+## runprofile
+
+- `3m0urk` [pending] 00 pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md
+- `f2mrsw` [pending] 01 pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
+- `p0l1to` [pending] 02 pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
+- `3cm15q` [pending] 03 pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
+- `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
+- `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
+
 ## runstale
 
 - `ssk6nf` [executed] 01 executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
@@ -142,6 +163,7 @@ Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
 ## terseout
 
 - `ntf6sx` [executed] 01 executed/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
+- `ntf6sx` [pending] 01 pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
 
 ## testinvoke
 
@@ -169,35 +191,6 @@ Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
 ## assessdocs
 
 - `pky603` [executed] 01 executed/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
-
-## puot79e04
-
-- `ynix69` [executed] 01 executed/20260828-puot79e04-01-ynix69-graduate-tools-agy-run-py-to-packaged-aw-agy-exec-non-collid.ipd.md
-
-## tabcomp
-
-- `e6h1p3` [executed] 00 executed/20260828-tabcomp-00-e6h1p3-comprehensive-shell-tab-completion-for-aw-across-bash-zsh-fi.ipd.md
-- `bja8og` [executed] 01 executed/20260828-tabcomp-01-bja8og-tab-completion-for-the-aw-cli-across-bash-zsh-fish-with-dyna.ipd.md
-- `4f1j25` [executed] 02 executed/20260828-tabcomp-02-4f1j25-integrate-tab-completion-into-aw-install-wizard-and-cli-setu.ipd.md
-- `jolfpj` [executed] 03 executed/20260828-tabcomp-03-jolfpj-drop-in-auto-discovery-installation-wizard-integration-and-c.ipd.md
-
-## wtiso
-
-- `bl9q3d` [pending] 00 pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md
-- `8zgybk` [executed] 01 executed/20260828-wtiso-01-8zgybk-phase-0-freeze-state-taxonomy-characterization-and-adversari.ipd.md
-- `qcqhj7` [pending] 02 pending/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md
-- `rchpms` [pending] 03 pending/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md
-- `7p9n2v` [pending] 04 pending/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md
-- `58ha43` [pending] 05 pending/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md
-- `2c122z` [pending] 06 pending/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md
-- `1o4eif` [pending] 07 pending/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md
-
-## driverfin
-
-- `yt93ir` [executed] 00 executed/20260827-driverfin-00-yt93ir-aw-oc-agy-run-self-finalize-each-verified-ipd-and-isolate-ea.ipd.md
-- `p7peqf` [executed] 01 executed/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md
-- `emus4n` [executed] 02 executed/20260827-driverfin-02-emus4n-per-run-worktree-isolation-execute-each-ipd-in-its-own-git-w.ipd.md
-- `7kbtkw` [executed] 03 executed/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md
 
 ## (singletons: no Set)
 

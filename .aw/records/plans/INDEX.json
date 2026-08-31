@@ -3924,6 +3924,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-atttype-01-3vx9sj-add-type-flag-to-aw-attention-for-single-and-multi-type-arti.ipd.md",
+    "plan_id": "3vx9sj",
+    "set_id": "atttype",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
     "plan_id": "iy5u3m",
     "set_id": "boxstat",
@@ -4114,6 +4124,66 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
+    "path": "pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
+    "plan_id": "3m0urk",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md",
+    "plan_id": "f2mrsw",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md",
+    "plan_id": "p0l1to",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md",
+    "plan_id": "3cm15q",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md",
+    "plan_id": "ygzq71",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md",
+    "plan_id": "p7xhhm",
+    "set_id": "runprofile",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
     "path": "pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md",
     "plan_id": "zpbx7o",
     "set_id": "runstop",
@@ -4142,6 +4212,16 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md",
+    "plan_id": "ntf6sx",
+    "set_id": "terseout",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
@@ -4166,16 +4246,6 @@
     "order": 0,
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
     "plan_id": "r4mbcw",
-    "set_id": "detrun",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md",
-    "plan_id": "bmh754",
     "set_id": "detrun",
     "status": "to-review"
   },
@@ -4218,6 +4288,26 @@
     "plan_id": "mjx7ne",
     "set_id": "hostcap",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md",
+    "plan_id": "y6mfgo",
+    "set_id": "locksafe",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md",
+    "plan_id": "6lu3rq",
+    "set_id": "runmixed",
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
@@ -4327,6 +4417,16 @@
     "path": "superseded/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
     "plan_id": "a6cej0",
     "set_id": "workkind",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md",
+    "plan_id": "bmh754",
+    "set_id": "detrun",
     "status": "superseded"
   },
   {
