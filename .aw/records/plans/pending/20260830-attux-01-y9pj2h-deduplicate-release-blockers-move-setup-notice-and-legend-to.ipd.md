@@ -30,24 +30,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Deduplicate Release Blockers from Main Readiness Sections
 
-- [ ] E-01 Update `attention.run` to partition scanned items such that live items in `release_blockers` are excluded from the `active`/`ready`/`blocked` sections rendered by `render_board` and appear only in `release-blockers`.
+- [x] E-01 Update `attention.run` to partition scanned items such that live items in `release_blockers` are excluded from the `active`/`ready`/`blocked` sections rendered by `render_board` and appear only in `release-blockers`.
   - Depends on: none
   - Expected outcome: Release-blocking items are listed exactly once in the board output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Footer Placement & Header Styling
 
-- [ ] E-02 Move `setup_needed` notice and `legend` string to the bottom of the output in `agent_workflows/attention.py`, strip excessive blank lines, and format interactive section headers with bold styling and no "## " prefix (retaining "## " in uncolored/machine output).
+- [x] E-02 Move `setup_needed` notice and `legend` string to the bottom of the output in `agent_workflows/attention.py`, strip excessive blank lines, and format interactive section headers with bold styling and no "## " prefix (retaining "## " in uncolored/machine output).
   - Depends on: E-01
   - Expected outcome: Clean interactive header styling and footer placement with no duplicate spacing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Unit Tests & Regression Verification
 
-- [ ] E-03 Update unit tests in `tests/test_attention.py` to assert deduplicated blocker rendering, footer notice/legend order, and colored vs uncolored header formatting.
+- [x] E-03 Update unit tests in `tests/test_attention.py` to assert deduplicated blocker rendering, footer notice/legend order, and colored vs uncolored header formatting.
   - Depends on: E-01, E-02
   - Expected outcome: Full pytest suite passes cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -91,20 +91,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Test asserting release-blocking items do not appear in ready/active/blocked sections when blockers section is present.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_run_deduplicates_release_blockers` in `tests/test_attention.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Output assertions confirming legend and setup notice appear at the bottom, and interactive headers are bold without "## ".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_footer_placement_and_interactive_headers` and `test_render_board_colored_human_view` in `tests/test_attention.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Full repository test suite passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3816 passed, 3 skipped, 4 xfailed in 45.79s` and clean leak check.
+  - Result: pass
 
 ## Approval and execution gate
 
