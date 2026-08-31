@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 190 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 191 Sets; the full manifest is INDEX.json.
+
+## setgraph
+
+- `4ot0r6` [executed] 01 executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md
 
 ## attcompact
 
@@ -185,10 +189,6 @@ Showing the 40 most-recent of 190 Sets; the full manifest is INDEX.json.
 
 - `uyd3lw` [executed] 01 executed/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md
 - `i79rgh` [executed] 02 executed/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md
-
-## ttywedge
-
-- `g40w37` [executed] 01 executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md
 
 ## (singletons: no Set)
 

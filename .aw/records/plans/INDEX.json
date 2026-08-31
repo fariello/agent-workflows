@@ -4000,6 +4000,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-31",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md",
+    "plan_id": "4ot0r6",
+    "set_id": "setgraph",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
