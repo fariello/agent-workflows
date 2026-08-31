@@ -183,6 +183,37 @@ important change is F-7/F-10: the conflict surface grew from 4 paths to 6, and f
 to **26**, while lane `1o4eif` LANDED on its own. Re-verify again immediately before executing,
 because main is under active concurrent development and will move again.
 
+**RE-MEASURED AGAIN 2026-08-31 at HEAD `cbe144fd`, and the surface GREW A SECOND TIME.** A peer
+agent flagged the decay (comms fyi `20260831-0126-01`) and the orchestrator verified it
+independently with a throwaway worktree probe. The conflict set merging `aw/lane/2c122z` is now
+**7 paths**, not the 6 recorded above:
+
+    .aw/records/plans/INDEX.md
+    agent_workflows/agy_runipd.py
+    agent_workflows/cli.py
+    agent_workflows/ipd_lifecycle.py
+    agent_workflows/oc_runipd.py
+    agent_workflows/worktree_lease.py
+    tests/test_wtiso_adversarial.py
+
+Newly conflicting since the `144f3347` re-verification: `ipd_lifecycle.py`, `cli.py`,
+`worktree_lease.py`, `tests/test_wtiso_adversarial.py`. Cause: the orchestrator landed nine lane
+branches into main on 2026-08-30/31 (`j4v6ga`, `z2isfg`, `zwnjp3`, the five-plan `runstop` chain,
+`8guhs0`) plus `ntf6sx`, several of which touch exactly these files. `worktree_lease.py` is new to
+the set because `zwnjp3` rewrote lane allocation there.
+
+CONSEQUENCE FOR THIS PLAN: E-01's stop condition is now KNOWN to trigger. It says "if the surface
+differs from F-7's re-verified 6 paths / 26 hunks, STOP and report rather than proceeding on a stale
+map" - and it does differ. So this plan must be RE-SCOPED before execution, not merely re-verified:
+its `Scope-Paths` and its E-02/E-03 hunk-by-hunk instructions name only the two runner modules, so
+four of the seven conflicting paths fall outside its declared fence. That is exactly the F-13
+condition it warns about.
+
+Nothing here changes the plan's underlying DIAGNOSIS, which was re-checked and still holds:
+`frozen_region_digest` is absent from `ipd_lifecycle.py` and `TurnBounds` is absent from
+`oc_runipd.py`. Phases 1-5 remain a linear stack, so merging `2c122z` brings all five; `1o4eif` has
+since landed independently, leaving five stranded lanes rather than six.
+
 | id | Finding | Evidence |
 | --- | --- | --- |
 | F-1 | **CORRECTED.** FIVE lanes (not six) are preserved and unmerged; `1o4eif` has LANDED. Re-verified at `144f3347`: `git rev-list --count main..aw/lane/<id6>` gives qcqhj7 3, rchpms 10, 7p9n2v 16, 58ha43 22, 2c122z 26, **1o4eif 0**. Also **the "~79 commits" figure in the Goal/E-07 is wrong**: those counts are CUMULATIVE over a linear stack (F-2), so summing them double-counts. The true unique unmerged total is **26** (`git rev-list --count main..aw/lane/2c122z`), which is the whole stack. | `git worktree list` still shows all six dirs; `git merge-base --is-ancestor aw/lane/1o4eif main` now SUCCEEDS. |
