@@ -2,13 +2,13 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 180 Sets; the full manifest is INDEX.json.
 
 ## detrun
 
 - `r4mbcw` [pending] 00 pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
 - `bmh754` [pending] 01 pending/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
-- `a54m79` [pending] 02 pending/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
+- `a54m79` [superseded] 02 superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
 - `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
 - `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
 - `7f7782` [pending] 05 pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
@@ -16,6 +16,10 @@ Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
 ## exittbl
 
 - `bds6nd` [executed] 01 executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
+
+## hostcap
+
+- `mjx7ne` [pending] 01 pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
 
 ## sessrot
 
@@ -198,13 +202,6 @@ Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
 - `dh5gnl` [executed] 00 executed/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md
 - `p3o9je` [executed] 01 executed/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md
 - `lpqy64` [executed] 02 executed/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md
-
-## xprio
-
-- `u5vyye` [executed] 00 executed/20260827-xprio-00-u5vyye-uniform-priority-field-low-medium-high-across-research-plans.ipd.md
-- `1b45el` [executed] 01 executed/20260827-xprio-01-1b45el-add-recognized-but-optional-priority-to-the-ipd-schema-plus.ipd.md
-- `rp859c` [executed] 02 executed/20260827-xprio-02-rp859c-add-priority-to-the-spec-contract-plus-aw-specs-set-and-atte.ipd.md
-- `6vgd0k` [executed] 03 executed/20260827-xprio-03-6vgd0k-add-priority-to-the-research-frontmatter-contract-plus-aw-re.ipd.md
 
 ## (singletons: no Set)
 

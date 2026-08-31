@@ -4153,16 +4153,6 @@
     "date": "2026-08-30",
     "disposition": "pending",
     "kind": "child",
-    "order": 2,
-    "path": "pending/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md",
-    "plan_id": "a54m79",
-    "set_id": "detrun",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
     "order": 3,
     "path": "pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md",
     "plan_id": "kaygwo",
@@ -4188,6 +4178,16 @@
     "plan_id": "7f7782",
     "set_id": "detrun",
     "status": "approved"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
+    "plan_id": "mjx7ne",
+    "set_id": "hostcap",
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
@@ -4297,6 +4297,16 @@
     "path": "superseded/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
     "plan_id": "a6cej0",
     "set_id": "workkind",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 2,
+    "path": "superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md",
+    "plan_id": "a54m79",
+    "set_id": "detrun",
     "status": "superseded"
   }
 ]
