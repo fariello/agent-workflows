@@ -4262,46 +4262,6 @@
   {
     "date": "2026-08-30",
     "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
-    "plan_id": "r4mbcw",
-    "set_id": "detrun",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md",
-    "plan_id": "kaygwo",
-    "set_id": "detrun",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md",
-    "plan_id": "k7o7el",
-    "set_id": "detrun",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
-    "plan_id": "7f7782",
-    "set_id": "detrun",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
     "kind": "child",
     "order": 1,
     "path": "pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
@@ -4324,6 +4284,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md",
+    "plan_id": "wlxkoz",
+    "set_id": "runcodes",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md",
     "plan_id": "6lu3rq",
     "set_id": "runmixed",
@@ -4337,7 +4307,7 @@
     "path": "pending/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md",
     "plan_id": "m73aet",
     "set_id": "runtrail",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
@@ -4452,6 +4422,16 @@
   {
     "date": "2026-08-30",
     "disposition": "superseded",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "superseded/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
+    "plan_id": "r4mbcw",
+    "set_id": "detrun",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
     "kind": "child",
     "order": 1,
     "path": "superseded/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md",
@@ -4466,6 +4446,36 @@
     "order": 2,
     "path": "superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md",
     "plan_id": "a54m79",
+    "set_id": "detrun",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 3,
+    "path": "superseded/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md",
+    "plan_id": "kaygwo",
+    "set_id": "detrun",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 4,
+    "path": "superseded/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md",
+    "plan_id": "k7o7el",
+    "set_id": "detrun",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 5,
+    "path": "superseded/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md",
+    "plan_id": "7f7782",
     "set_id": "detrun",
     "status": "superseded"
   }

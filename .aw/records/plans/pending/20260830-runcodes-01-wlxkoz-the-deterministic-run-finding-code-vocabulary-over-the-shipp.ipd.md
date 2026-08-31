@@ -1,0 +1,185 @@
+# IPD: the deterministic RUN- finding-code vocabulary over the shipped evidence layer
+
+- Date: 2026-08-30
+- Kind: child
+- Concern: Spec `25kzda` 4.2 specifies 13 stable `RUN-*` finding codes, each with an exact operator-facing message and a recovery command, as the deterministic checker's public vocabulary. NONE of them exists: all 13 grep to ZERO hits across `agent_workflows/` at HEAD `738980ec`. The underlying checking machinery largely DOES ship (`run_evidence.py` carries a 13-class false-completion taxonomy under `EV-*` codes; `run_ledger_store.verify_chain` proves the hash chain; `run_recovery` handles retry and unknown outcomes), so what is missing is not the detection but the STABLE NAMES, MESSAGES, and RECOVERY COMMANDS an operator and a checker can rely on. Two further small gaps are also unbuilt: `--unverifiable-ok` aggregate neutrality (ZERO hits) and the spec's 0..10 bound on the retry budget.
+- Scope: Define the 13 `RUN-*` finding codes with the spec's verbatim messages and recovery commands as a thin, data-driven vocabulary layer over the SHIPPED predicates in `run_evidence.py`, mapping each code to the shipped predicate that already decides it and marking explicitly those whose underlying machinery does NOT yet exist. Add `--unverifiable-ok` aggregate neutrality and bounds-check the retry budget at 0..10. Excludes creating any new checker module, excludes reimplementing any shipped predicate, excludes wiring the codes into either runner module (deferred, see OQ-01), and excludes renaming the `aw run` verb group.
+- Scope-Paths: agent_workflows/run_evidence.py, agent_workflows/run_recovery.py, tests/test_run_evidence_completion.py, tests/test_run_recovery_cli.py
+- Item-Dependencies: none
+- Status: to-review
+- Set: runcodes
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: wlxkoz
+- Blocks-Release: next
+- From-Spec: 25kzda
+
+## Workflow history
+- 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): SUPERSEDES `7f7782` (detrun-05), inheriting ONLY the residue its own second review left standing, and inheriting its `- Blocks-Release: next` gate so retiring `7f7782` does not silently drop it. `7f7782` was `REJECT - NEEDS REPLAN` twice, and its second pass REMOVED its last remaining substantive item: the fresh-verifier harness it wanted to build ships twice over (`agy_verifier.run_fresh_verifier:142` as an enforced contract, and a live runner turn at `oc_runipd.py:1663`/`:2281`), while its ledger, inspection CLI, completion checker, and resume all ship as `run_ledger_store.py`, `run_cli.py`, `run_evidence.py`, and `run_recovery.py`. This plan also DISCHARGES that plan's blocking OQ-03, which asked for the per-check mapping of the 13 codes onto existing predicates BEFORE any were written: the mapping is measured and recorded in this plan's Findings table.
+- 2026-08-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+Give the deterministic checker the stable finding codes, exact messages, and recovery commands the spec specifies, as a thin named layer over the checking logic that already ships, so operators get actionable text and no second completion authority is created.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: the code vocabulary, mapped rather than invented
+
+- [ ] E-01 Add the 13 `RUN-*` codes to `run_evidence.py` as a DATA table (code, message template, recovery command, failure action), transcribing the message and action text VERBATIM from spec `25kzda` 4.2. Do not compose your own wording: each row of the spec's table fixes the exact operator-facing string and the failure action (`ABORT RUN`, `FAIL ITEM`, `RETRY`, `SKIP ITEM`, `SKIP DEPENDENCY-NOT-MET`, `NEEDS INPUT`), and the action semantics are load-bearing because `ABORT RUN` is an EXHAUSTIVE six-class set per spec 4.1 and no other finding may abort the queue. Keep it data, not branching logic, so the whole policy is readable in one place. MEASURED: all 13 codes grep to ZERO in the package, and the module already holds the parallel shipped `EV-*` table, so follow that module's existing convention rather than inventing a new shape.
+  - Depends on: none
+  - Expected outcome: all 13 codes exist as data with the spec's verbatim message templates, recovery commands, and failure actions; the table is a single readable structure; a test can enumerate it and compare against the spec; nothing about the shipped `EV-*` codes changes.
+  - Execution state: pending
+
+- [ ] E-02 Bind each `RUN-*` code to the SHIPPED predicate that already decides it, and mark explicitly the ones whose machinery does not exist yet. This discharges the retired plan's blocking OQ-03, which required exactly this mapping before any code was written; the measured mapping is in this plan's Findings table (F3) and MUST be re-verified rather than trusted, because HEAD moves hourly here. The three states each code can be in: BOUND (a shipped predicate decides it, so the code is a name over existing logic); UNBOUND-BY-DEPENDENCY (the predicate needs machinery another plan owns, for example the commit trailers of `runtrail-01` (`m73aet`) or the host capability contract of `hostcap-01` (`mjx7ne`)); and UNBOUND-UNBUILT (nothing decides it yet). Record the state per code IN THE TABLE. Do NOT implement a missing predicate here: an unbound code that honestly reports itself unbound is safe, whereas a code silently wired to a predicate that does not answer its question is a fail-OPEN checker.
+  - Depends on: E-01
+  - Expected outcome: every one of the 13 codes carries its state and, when BOUND, the shipped predicate it delegates to; no code is bound to a predicate that does not answer its question; the UNBOUND ones name the plan or the missing machinery they wait on; a reader can see at a glance how much of the checker actually decides anything.
+  - Execution state: pending
+
+- [ ] E-03 Add `--unverifiable-ok` aggregate neutrality. MEASURED: `unverifiable_ok` and `unverifiable-ok` grep to ZERO hits. The spec constrains this flag tightly and the constraints are the whole point, so implement them exactly: it affects ONLY aggregate success and exit-code calculation, and NEVER an item's outcome or its verification label (spec 2.1 and 4.10's `PROMPT-UNVERIFIABLE` row); and it is LEGAL ONLY when contractless prompts were explicitly admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation, so passing it alone must be refused rather than silently honored. Implement the aggregation predicate purely, so it is testable without a run.
+  - Depends on: E-01
+  - Expected outcome: an unverifiable item contributes 1 to the aggregate exit by default and is NEUTRAL under the flag; the item's own outcome and verification label are provably identical either way; the flag is refused when its precondition flag is absent; the predicate is pure and needs no live run to test.
+  - Execution state: pending
+
+- [ ] E-04 Bounds-check the retry budget at the spec's 0 through 10 inclusive, on the SHIPPED helper rather than a new one. MEASURED: `run_recovery.retry_budget_remaining` is at `agent_workflows/run_recovery.py:340` and `DEFAULT_RETRY_LIMIT` is `3` at `:47`. NOTE THE DISCREPANCY AND DO NOT SILENTLY "FIX" IT: spec 2.1 says the default correction budget is 2 while the shipped default is 3. Report the conflict and leave the shipped default alone unless the maintainer says otherwise; changing a shipped default is a behavior change with callers, and it is not what this plan is for. Add only the RANGE validation the spec fixes (reject below 0 and above 10, at the boundary where the value enters), plus the spec's rule that the frozen value cannot change on resume if that is cheap to assert where the value is read.
+  - Depends on: none
+  - Expected outcome: a budget outside 0..10 is refused at entry with a clear message; 0 and 10 are both accepted (boundaries tested, not just the middle); the shipped default is unchanged and the spec-versus-code default discrepancy is REPORTED rather than silently resolved.
+  - Execution state: pending
+
+- [ ] E-05 Extend the SHIPPED test modules (`tests/test_run_evidence_completion.py`, `tests/test_run_recovery_cli.py`) rather than creating a new one. The retired plan proposed `tests/test_deterministic_checker.py`, which its review rejected because these modules plus `tests/test_run_viewer.py` already cover these surfaces. Cases MUST include: the 13 codes enumerated and each message asserted against the SPEC TEXT (so rewording fails the test); every code's recorded state matching a live re-measurement (so the mapping cannot silently rot); `--unverifiable-ok` changing ONLY the aggregate and provably not the item label, in both directions; and the retry-budget boundaries 0, 10, -1, and 11. Do NOT weaken, remove, or alter any existing assertion in either file.
+  - Depends on: E-01, E-02, E-03, E-04
+  - Expected outcome: all cases pass; the message assertions fail if any message is reworded; the mapping test fails if a code's state stops matching reality; existing assertions in both shipped files pass unchanged.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- THE COMPLETION AUTHORITY ALREADY EXISTS AND MUST STAY SINGLE. `run_evidence.py` (1099 lines) holds `validate_evidence`, `validate_ledger_evidence`, `evaluate_completion`, and `is_complete`, with a documented 13-class false-completion taxonomy under `EV-*` codes. Its review said it best: building a second completion checker in the one component whose entire value is being the single trustworthy one means two disagreeing checkers, so neither can authorize completion. This plan adds NAMES over it, never a rival.
+- THE SHIPPED TAXONOMY IS THE PRECEDENT TO FOLLOW. The `EV-*` codes (`EV-MISSING-OUTPUT`, `EV-FABRICATED-TEXT`, `EV-STALE-HEAD`, `EV-WRONG-CWD`, `EV-WRONG-WORKTREE`, `EV-COMMAND-MISMATCH`, `EV-EXPIRED-PROBE`, `EV-TRUNCATED-OUTPUT`, `EV-FAILED-EXIT`, `EV-ABSENT-ARTIFACT`, `EV-HASH-MISMATCH`, `EV-EXECUTOR-VERIFIER`, `EV-REDACTION-CONFLICT`) are exactly the shape this plan's table should take. Reuse the convention.
+- THE LEDGER IS HASH-CHAINED AND SELF-VERIFYING. `run_ledger_store.verify_chain` (`:529`) plus `BrokenChainError` (`:71`) already decide ledger integrity, which is what `RUN-LEDGER-INTEGRITY` names. The retired plan proposed `run_ledger.py` beside `run_ledger_store.py`, at the same on-disk path; the module itself already warns against confusing its store with the drivers' `events.jsonl`.
+- THE FRESH VERIFIER SHIPS TWICE. As an enforced contract (`agy_verifier.run_fresh_verifier:142`, `assert_distinct_sessions:131`, over `verify_roles.py`) and as a live runner turn (`oc_runipd.build_verifier_prompt:1663`, launched `:2281` with `fresh_session=True`). The retired plan judged this "not obviously shipped" partly from line count; its second pass corrected that, noting the module is small because it consumes a 2158-line `verify_roles.py`. LINE COUNT IS NOT AN INVENTORY.
+- TERMINAL AUTHORITY IS RESERVED. `verify_roles` reserves terminal authority to the coordinator and `aw ipd finalize` owns the transition. No new checker may claim it "alone authorizes terminal transitions".
+- THE VERB GROUP IS BEING RENAMED BY SOMEONE ELSE. Approved `runnamecollapse-01` (`0soncw`) owns collapsing run inspection under `aw runs` and retiring `aw run`. Do not touch that surface; note that spec 4.2's recovery commands say `aw runs show|verify`, which is where that rename lands, so transcribing the spec verbatim is consistent with it.
+
+## Findings
+
+| # | Sev | Location | Finding | Evidence |
+| --- | --- | --- | --- | --- |
+| F1 | HIGH | `agent_workflows/` (absence) | All 13 `RUN-*` codes are absent, so the checker has no stable public vocabulary and no operator-facing recovery text. This is the real, narrow gap the retired Set was circling. | each of the 13 codes greps to 0 files under `agent_workflows/` at HEAD `738980ec` |
+| F2 | HIGH | retired `7f7782` E-01 | Its last surviving item was removed by its own second review after the inventory it had DEFERRED was finally done: the fresh-verifier harness ships twice. The lesson is recorded because it is the failure mode of this whole Set: deferring an inventory is how a duplicate survives a review. | `agy_verifier.run_fresh_verifier:142`; `oc_runipd.py:1663`, `:2281`; `7f7782`'s pass-2 gate text |
+| F3 | HIGH | spec 4.2 vs shipped code | THE MAPPING (discharging the retired plan's blocking OQ-03, measured; re-verify before use). BOUND to shipped predicates: `RUN-LEDGER-INTEGRITY` (`run_ledger_store.verify_chain:529`, `BrokenChainError:71`); `RUN-HOST-ATTEMPT` (`run_evidence` `EV-FAILED-EXIT`/`EV-MISSING-OUTPUT`/`EV-COMMAND-MISMATCH` plus `capture_command:435`); `RUN-FRESH-VERIFIER` (`EV-EXECUTOR-VERIFIER` plus `agy_verifier.assert_distinct_sessions:131`); `RUN-CHECK-FRESHNESS` (`EV-STALE-HEAD`, `EV-WRONG-CWD`, `EV-WRONG-WORKTREE`, `EV-TRUNCATED-OUTPUT`); `RUN-FROZEN-IDENTITY` (`run_freeze` `FrozenItem:37`, `refuse_drop_or_redefine:245`, `EV-HASH-MISMATCH`); `RUN-STRUCTURE-PREFLIGHT` (`ipd_lint` phases plus `aw check`); `RUN-CROSS-TREE` (`check_engine` rules via `aw check all`); `RUN-SCOPE-DELTA` (`ipd_lifecycle._frozen_scope_paths:316`, `_reconcile_scope:1275`). UNBOUND-BY-DEPENDENCY: `RUN-COMMIT-CONTENTS` and `RUN-COMMIT-GATEWAY` need the `AW-Run:`/`AW-Item:` trailers (`runtrail-01`, `m73aet`, unbuilt); `RUN-HOST-CAPABILITY` needs the capability contract (`hostcap-01`, `mjx7ne`, approved, unexecuted). UNBOUND-UNBUILT: `RUN-BASELINE-OWNERSHIP` (needs the path-lease overlap check) and `RUN-NO-PUSH` (needs host push-denial ENFORCEMENT, the same unbuilt security boundary `hostcap-01`'s OQ-03 escalated). | each predicate read at HEAD; the `EV-*` table in `run_evidence.py`; `run_freeze.py`; `ipd_lifecycle.py` |
+| F4 | HIGH | spec 4.1 | `ABORT RUN` is an EXHAUSTIVE six-class set and "no other finding may abort the whole queue". So the failure ACTION is as much a part of each code as its message, and transcribing the message while inventing the action would silently license aborting a queue on an item-local fault. That distinction is what makes independent items able to continue. | spec 4.1 abort table and its closing rule |
+| F5 | MED | spec 2.1 vs `run_recovery.py:47` | THE SPEC AND THE CODE DISAGREE on the default retry budget: spec 2.1 says the default is 2, `DEFAULT_RETRY_LIMIT` is 3. Only the 0..10 RANGE is unambiguous. Reporting this rather than silently picking a side, because changing a shipped default has callers and is not this plan's job. | spec 2.1 `--retry-budget` bullet; `DEFAULT_RETRY_LIMIT: int = 3` at `run_recovery.py:47` |
+| F6 | MED | spec 2.1, 4.10 | `--unverifiable-ok` is doubly constrained: it may change ONLY the aggregate exit, never an item's outcome or verification label, and it is legal ONLY after `--allow-unverifiable` or the interactive confirmation. A flag that quietly relabeled an item, or that worked standalone, would be a fail-OPEN reading of the same words. | spec 2.1 bullet; 4.10 `PROMPT-UNVERIFIABLE` row |
+| F7 | LOW | retired `7f7782` proposed modules | Its `run_verifier.py`, `run_ledger.py`, and `deterministic_checker.py` would each have forked a shipped module, and `run_ledger.py` would have collided at the same on-disk path as `run_ledger_store.py`. Recorded so a successor does not resurrect them. | `7f7782`'s pass-2 prohibitions; `run_ledger_store.py:373` warning about path confusion |
+
+## Proposed changes (ordered, validatable)
+
+1. Transcribe the 13 codes, messages, recovery commands, and failure actions as data (E-01).
+2. Bind each to the shipped predicate that decides it, or mark it honestly unbound (E-02).
+3. Add `--unverifiable-ok` aggregate neutrality within its two constraints (E-03).
+4. Bounds-check the retry budget 0..10 on the shipped helper, reporting the default discrepancy (E-04).
+5. Extend the shipped test modules with spec-anchored, non-vacuous cases (E-05).
+
+## Deferred / out of scope (with reason)
+
+- WIRING THE CODES INTO `oc_runipd.py` / `agy_runipd.py`. Deferred so this plan touches neither runner, removing the `rununify` (`5e4sb6`) sequencing conflict rather than answering it. Same move that unblocked `hostcap-01` (`mjx7ne`). Consequence stated in the Scope check.
+- IMPLEMENTING THE UNBOUND PREDICATES. `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` wait on the trailers (`runtrail-01`, `m73aet`); `RUN-HOST-CAPABILITY` waits on `hostcap-01` (`mjx7ne`); `RUN-BASELINE-OWNERSHIP` and `RUN-NO-PUSH` need machinery nobody has built. Naming them unbound is the deliverable; building them is not.
+- ANY NEW CHECKER MODULE (`run_verifier.py`, `run_ledger.py`, `deterministic_checker.py`). Explicitly rejected (F7).
+- RENAMING THE `aw run` VERB GROUP. Owned by approved `runnamecollapse-01` (`0soncw`).
+- CHANGING THE SHIPPED RETRY DEFAULT. Reported, not changed (F5).
+- CLAIMING TERMINAL AUTHORITY. `verify_roles` reserves it to the coordinator and `aw ipd finalize` owns the transition.
+
+## Scope check
+
+- Over-scope: none. Two shipped modules gain an additive data table and two small validations; two shipped test modules gain cases. No new module, which is the point.
+- Under-scope, DELIBERATE and stated plainly: when this plan completes, no live run emits any of these codes, because the runner wiring is deferred. The vocabulary lands tested and importable and nothing consults it yet.
+- Under-scope, HONEST AND CENTRAL: FOUR of the 13 codes will exist as NAMES with no predicate behind them (F3: two waiting on sibling plans, two on unbuilt machinery). That is deliberate and is why E-02 records state per code. A named-but-unbound code is safe when it says so; the danger this plan exists to avoid is a code silently bound to a predicate that does not answer its question, which is a checker that passes because nothing was checked.
+- CONTENTION: `run_evidence.py` and `run_recovery.py` are shared modules, and `cli.py`/`run_cli.py`/both runners are claimed by approved `runnamecollapse-01` and `rununify`. This plan touches none of the latter. Re-read the two modules immediately before editing and verify the staged set before every commit.
+
+## Required tests / validation
+
+- The two SHIPPED test modules must pass with every case in E-05, and every PRE-EXISTING assertion must pass unchanged.
+- ANCHOR ASSERTIONS TO THE SPEC (HARD): each message must be asserted against spec 4.2's text such that REWORDING fails the test. An assertion written from the implementation cannot detect a transcription error, which is the only defect this plan can realistically ship.
+- THE MAPPING MUST BE RE-MEASURED, NOT TRUSTED: F3 was measured at a HEAD that has since moved. Re-verify each binding and paste the evidence; if a binding changed, correct the table rather than the measurement.
+- FALSIFIABILITY: `--unverifiable-ok` must be shown changing the aggregate in one direction and NOT changing the item label in either. Retry bounds must test 0, 10, -1, and 11, not just a middle value.
+- INVOKE THE SUITE BARE: `python3 -m pytest`. `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`. Do NOT add `-n0`, a second `-q`, or `-p no:randomly`.
+- VALIDATE IN THE PRIMARY CHECKOUT, NOT A SCRATCH WORKTREE: `tests/test_run_viewer.py` fails about 15 tests in a detached worktree that PASS in the primary tree, because state resolves relative to the worktree (backlog `dh0uno`). A run validated only in a scratch tree shows phantom failures.
+- BASELINE IS A MEASUREMENT: take before/after counts yourself with the `git rev-parse HEAD` they were measured at.
+- `aw check plans` is RED on pre-existing findings owned by other Sets (measured 901 at HEAD `7e5ba287`). Do NOT claim it passes; the bar is NO-WORSENING against your own fresh baseline.
+- `aw sanitize --agent` clean; `aw ipd lint --phase pre-transition` conforming.
+
+## Spec / documentation sync
+
+- This plan implements the code-vocabulary half of spec `25kzda` 4.2, plus the `--unverifiable-ok` rule of 2.1/4.10 and the retry-budget range of 2.1. It does not change the spec text.
+- RECORD THE PER-CODE STATE where a successor will find it, since three sibling plans (`runmixed-01` `6lu3rq` for `RUN-MIXED-TYPES`, `runtrail-01` `m73aet` for the commit codes, `hostcap-01` `mjx7ne` for `RUN-HOST-CAPABILITY`) each own one code's machinery. Without one shared record, each plan re-derives which codes exist and at least one gets it wrong.
+- REPORT the spec-versus-code retry default discrepancy (F5) so the maintainer can decide which is authoritative; do not resolve it by editing either side.
+
+## Open questions
+
+### OQ-01: Must the code wiring wait for `rununify`?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: THE QUESTION IS DISSOLVED, not answered, which is what lets this plan proceed now. The retired `7f7782` carried it as a BLOCKING maintainer question (its OQ-02) because its items added code to both runner modules, increasing the duplication `rununify` (`5e4sb6`) exists to remove. This plan defers the runner wiring entirely and touches neither runner, so the conflict cannot arise. The precedent is `hostcap-01` (`mjx7ne`), which dissolved the identical question the identical way at the maintainer's direction. The honest cost is in the Scope check: no live run emits these codes until a follow-up wires them.
+
+### OQ-02: Which of the 13 codes have shipped predicates behind them?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY MEASUREMENT, and this discharges the retired plan's blocking OQ-03, which demanded exactly this mapping before any code was written. The full per-code result is Finding F3: nine BOUND to shipped predicates, two UNBOUND-BY-DEPENDENCY on sibling plans (`runtrail-01` `m73aet` for the commit trailers, `hostcap-01` `mjx7ne` for the capability contract), and two UNBOUND-UNBUILT (`RUN-BASELINE-OWNERSHIP` needs a path-lease overlap check; `RUN-NO-PUSH` needs host push-denial enforcement, the same unbuilt security boundary `hostcap-01`'s own OQ-03 escalated to the maintainer). The retired plan called this unanswerable inside a review without authoring the successor, which was correct: it is answered HERE, in the successor, as a plan finding rather than as a review verdict. E-02 requires re-verifying it rather than trusting it, because HEAD moves hourly in this repo.
+
+### OQ-03: Is the shipped retry default (3) or the spec's (2) authoritative?
+
+- Blocking: no
+- Status: deferred
+- Owner: maintainer (decide which side is authoritative; this plan changes NEITHER and only adds the unambiguous 0..10 range check)
+- Resolution or deferral rationale: DEFERRED DELIBERATELY, and non-blocking because the work this plan actually does is unaffected either way. MEASURED: spec 2.1 states "The default correction budget is 2; the valid frozen range is 0 through 10", while the shipped `run_recovery.DEFAULT_RETRY_LIMIT` is `3` (`:47`). Only the RANGE is unambiguous, and only the range is implemented here (E-04). The default is a behavior question with existing callers: lowering it changes how many automatic correction attempts every run makes, which costs money and changes outcomes, so it is a maintainer call and not a transcription error to quietly fix. An executor who "aligns the code to the spec" while implementing a bounds check would be making that decision silently, which is exactly what this deferral prevents.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the 13-row table. Paste a diff or side-by-side of each message against spec 4.2's corresponding row, proving VERBATIM transcription including the recovery command. Paste each row's failure action beside the spec's action column, and paste evidence that no code outside spec 4.1's six abort classes is marked `ABORT RUN` (F4). Paste evidence the shipped `EV-*` codes are unchanged.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the per-code state (BOUND / UNBOUND-BY-DEPENDENCY / UNBOUND-UNBUILT) with, for each BOUND code, the shipped predicate and a live demonstration that the predicate actually decides that code's question. Paste your OWN re-measurement of F3's mapping at the HEAD you worked at, and state explicitly any binding that changed since F3 was recorded. Paste evidence no code is bound to a predicate that does not answer its question.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the aggregate exit for an unverifiable item WITHOUT the flag (contributing 1) and WITH it (neutral). Paste the item's own outcome and verification label in BOTH runs, proving they are identical, which is the constraint that matters. Paste the refusal when `--unverifiable-ok` is passed without `--allow-unverifiable` or the interactive confirmation. Paste evidence the predicate was tested without a live run.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste the refusals for -1 and 11 and the acceptances for 0 and 10 (boundaries, not a middle value). Paste `DEFAULT_RETRY_LIMIT` proving it is UNCHANGED at 3, and paste your written report of the spec-versus-code discrepancy (F5, OQ-03). A silent alignment of the default fails this item.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste both shipped test modules passing with counts, and the BARE `python3 -m pytest` summary line with the `git rev-parse HEAD` it was measured at plus your own before-baseline at that HEAD, measured in the PRIMARY checkout (not a scratch worktree; see Required tests). Paste `git diff` of both test files proving no existing assertion was weakened, removed, or altered. Paste proof the new tests are NOT VACUOUS: reword one message in the implementation and show the assertion FAILING. Paste the no-worsening comparison for `aw check plans` (both counts measured, not remembered).
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required. 5 E-leaves in one task group, under the thresholds. One concern throughout: give the checker the spec's stable code vocabulary over predicates that already ship.
+
+Open questions: NONE is blocking. OQ-01 is DISSOLVED by deferring the runner wiring (the `hostcap-01` precedent). OQ-02 is RESOLVED by measurement and discharges the retired plan's blocking OQ-03; E-02 requires re-verifying it rather than trusting it. OQ-03 is DEFERRED to the maintainer and is non-blocking because this plan implements only the unambiguous 0..10 range and changes no default.
+
+Scope fence: touch ONLY `agent_workflows/run_evidence.py`, `agent_workflows/run_recovery.py`, `tests/test_run_evidence_completion.py`, and `tests/test_run_recovery_cli.py` (test files: additive cases only; no existing assertion weakened, removed, or altered). Do NOT create `run_verifier.py`, `run_ledger.py`, `deterministic_checker.py`, or `tests/test_deterministic_checker.py`. Do NOT edit `run_ledger_store.py`, `agy_verifier.py`, `verify_roles.py`, `run_cli.py`, `cli.py`, `oc_runipd.py`, or `agy_runipd.py`. Do NOT implement any UNBOUND predicate (F3). Do NOT claim any checker "alone authorizes terminal transitions". Do NOT rename the `aw run` verb group (owned by `0soncw`). Do NOT change `DEFAULT_RETRY_LIMIT` (OQ-03). If it seems to need more, STOP and report.
+
+Honesty rule (HARD MUST): paste ACTUAL runner output with the `git rev-parse HEAD` it was measured at, measured in the PRIMARY checkout. Do NOT claim `aw check plans` passes; it is RED on 901 pre-existing findings owned by other Sets (measured at HEAD `7e5ba287`), and the bar is no-worsening against your own fresh baseline. Do NOT describe the checker as complete or as making runs verifiable: FOUR of the 13 codes land as names with no predicate behind them, and no live run emits any of them until a follow-up wires the runners. State both plainly in the terminal history.
+
+Execution contract: commit ONLY the files changed, path-scoped (`git commit -m msg -- <paths>`), never `git add -A`, never `-a`, and never push. Several sessions commit to this checkout CONCURRENTLY: run `git diff --cached --name-only` before every commit and unstage anything you did not modify, with `git restore --staged <path>`. A pre-commit hook failure INVALIDATES that check, so re-run it after any failed commit attempt before retrying. Prefer `aw commit <plan> -- <paths>`, which is immune to index pollution by construction.
+
+Post-gate lifecycle: do not claim done or move this plan until every `V-*` item is verified with concrete pasted evidence and `aw ipd lint --phase pre-transition` reports conforming; the transition is performed by `aw ipd finalize`, never by hand.

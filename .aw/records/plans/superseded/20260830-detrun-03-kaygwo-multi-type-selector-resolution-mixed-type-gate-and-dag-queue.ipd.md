@@ -1,3 +1,5 @@
+RETIRED 2026-08-30: superseded by `.aw/records/plans/pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md` (`runmixed-01`, id `6lu3rq`). This plan was `REJECT - NEEDS REPLAN` twice by its own reviews, and it is retired rather than re-scoped because the fix is a different, much smaller decomposition, not a bounded edit. What its residue turned into: the ONE genuinely unbuilt item, the mixed-type confirmation gate (`RUN-MIXED-TYPES`/`--allow-mixed`, re-verified at ZERO hits at HEAD `738980ec`), is carried forward in full by the successor, together with the thin runner-facing selector policy. What did NOT survive, and why: E-01's selector precedence is byte-identical to the shipped `selectors._PRECEDENCE` (`selectors.py:48`); E-05/E-06's runtime dependency satisfaction and cascade are now not merely duplicative but OBSOLETE, because `lanetruth-03` (`8guhs0`) has since EXECUTED and the runner consumes the shared predicate directly (`oc_runipd.py:2778`); half of E-04 belongs to `bkclose-01` (`zhr6mc`), which has also since EXECUTED (`oc_runipd.py:851`); and E-07's runner edits are deferred out of the successor entirely so it touches neither runner, which dissolves the `rununify` conflict rather than answering it. Both of this plan's BLOCKING open questions are therefore resolved WITHOUT a maintainer decision: OQ-02's scheduling-authority question is recorded as a non-blocking deferred question in the successor (with its measurement preserved: `ipd_set_plan.py` greps ZERO for `Item-Dependencies`), and OQ-03's `rununify` sequencing is dissolved by the deferral. Release gate PRESERVED, not dropped: the successor carries `- Blocks-Release: next` and `- From-Spec: 25kzda`. Retired, not deleted; NOT filed under `executed/`, because nothing here was ever implemented.
+
 # IPD: Multi-type selector resolution, mixed-type gate, and DAG queue scheduler
 
 - Date: 2026-08-30
@@ -6,7 +8,7 @@
 - Scope: Implement multi-type selector resolution across all 7 canonical artifact types, the mixed-type confirmation gate, the unified per-type dispatch table, and the pure DAG queue scheduler with dependency-not-met cascade. Implements spec 25kzda Sections 2.1-2.6, 3.1-3.6, and 5.4.
 - Scope-Paths: agent_workflows/run_selector.py, agent_workflows/run_scheduler.py, agent_workflows/run_dispatch.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_run_selector_and_queue.py
 - Item-Dependencies: executed:bmh754
-- Status: to-review
+- Status: superseded
 - Set: detrun
 - Order: 3
 - Highest E allocated: 08
@@ -15,6 +17,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-31 superseded (aw set): RETIRED: superseded by runmixed-01 (6lu3rq). REJECT - NEEDS REPLAN twice; retired rather than re-scoped because the fix is a smaller decomposition, not a bounded edit. Residue CARRIED FORWARD: the mixed-type confirmation gate (RUN-MIXED-TYPES/--allow-mixed, re-verified ZERO hits at HEAD 738980ec) plus the thin runner-facing selector policy. NOT carried: E-01 duplicates selectors._PRECEDENCE byte-for-byte; E-05/E-06 are now OBSOLETE because lanetruth-03 (8guhs0) has since EXECUTED and the runner consumes the shared predicate at oc_runipd.py:2778; half of E-04 belongs to bkclose-01 (zhr6mc), also since EXECUTED. Both BLOCKING OQs resolved WITHOUT a maintainer decision: OQ-02 recorded as a non-blocking deferred question in the successor with its measurement preserved, OQ-03 dissolved by deferring the runner wiring. Release gate PRESERVED on the successor (Blocks-Release: next, From-Spec: 25kzda), not dropped.
 - 2026-08-31 to-review (aw set): REVERTING MY OWN ERRONEOUS APPROVAL. I set this approved on 2026-08-30 from the maintainer's blanket instruction 'I APPROVE all the reviewed IPDs', which swept up a plan whose OWN newest /plan-review verdict is REJECT - NEEDS REPLAN. The --by-human attestation was real but the maintainer plainly did not intend to approve a do-not-execute plan; approving on status alone without reading each verdict was my mistake. Flagged by a peer agent (comms fyi 20260831-0126-01) and independently verified: all FIVE detrun plans carry REJECT, not just bmh754. Returning to to-review so 'approved' does not license a rebuild of shipped machinery.
 - 2026-08-31 approved (aw set): set Item-Dependencies to executed:bmh754
 - 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).

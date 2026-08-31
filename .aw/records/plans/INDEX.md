@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 189 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 190 Sets; the full manifest is INDEX.json.
 
 ## attcompact
 
@@ -27,12 +27,12 @@ Showing the 40 most-recent of 189 Sets; the full manifest is INDEX.json.
 
 ## detrun
 
-- `r4mbcw` [pending] 00 pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
+- `r4mbcw` [superseded] 00 superseded/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
 - `bmh754` [superseded] 01 superseded/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
 - `a54m79` [superseded] 02 superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
-- `kaygwo` [pending] 03 pending/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
-- `k7o7el` [pending] 04 pending/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
-- `7f7782` [pending] 05 pending/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
+- `kaygwo` [superseded] 03 superseded/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
+- `k7o7el` [superseded] 04 superseded/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
+- `7f7782` [superseded] 05 superseded/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
 
 ## exittbl
 
@@ -45,6 +45,10 @@ Showing the 40 most-recent of 189 Sets; the full manifest is INDEX.json.
 ## locksafe
 
 - `y6mfgo` [pending] 01 pending/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md
+
+## runcodes
+
+- `wlxkoz` [pending] 01 pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md
 
 ## runmixed
 
@@ -185,12 +189,6 @@ Showing the 40 most-recent of 189 Sets; the full manifest is INDEX.json.
 ## ttywedge
 
 - `g40w37` [executed] 01 executed/20260829-ttywedge-01-g40w37-nested-aw-subprocesses-must-never-inherit-a-tty-and-finalize.ipd.md
-
-## wkindname
-
-- `c2tvmm` [pending] 00 pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md
-- `9trlc3` [executed] 01 executed/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md
-- `ng2blv` [executed] 02 executed/20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md
 
 ## (singletons: no Set)
 
