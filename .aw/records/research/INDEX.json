@@ -253,6 +253,28 @@
   },
   {
     "consumed_by": [],
+    "created": "20260830",
+    "date": "20260830",
+    "id6": "5ek188",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md",
+    "priority": "",
+    "set_id": "humanchk",
+    "status": "todo",
+    "summary": "Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.",
+    "topic": [
+      "human-tasks",
+      "attention",
+      "records",
+      "reminders",
+      "cli"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260802",
     "date": "20260731",
     "id6": "5zczmo",
