@@ -12,3 +12,4 @@ The first argument names the CONCERN to assess (e.g. `security`, `prose`, `compl
 If the user provided arguments, treat them as the concern to assess plus an optional scope, e.g. `security` or `prose src/`; bare invocation lists the concerns and asks: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

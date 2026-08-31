@@ -81,6 +81,7 @@ from typing import Callable, NamedTuple, Optional
 
 from . import versioning as _VERSIONING
 from . import manifest as manifest_mod
+from . import reporting_contract
 from ._compat import packaged_source_root
 from .term import Term
 import json
@@ -219,6 +220,11 @@ AGENTS_END = "<!-- AGENT-WORKFLOWS:END -->"
 AW_BLOCK_OPEN_BODY = "aw:block"
 AW_BLOCK_CLOSE_BODY = "/aw:block"
 AW_POINTER_SLUG = "pointer"
+# The SIBLING managed section carrying the concise-reporting contract (terseout `ntf6sx` E-02).
+# Its prose is owned by `agent_workflows/reporting_contract.py`, not written here, so the same
+# semantics reach the shims and the driver prompts. It is separately owned: a user may decline
+# `AGENTS.md#aw:reporting` (tombstone) or hand-edit its body without affecting `aw:pointer`.
+AW_REPORTING_SLUG = reporting_contract.REPORTING_SLUG
 
 ARTIFACTS_DIR = "workflow-artifacts/"
 LEGACY_ARTIFACTS_DIR = "repository-review/"  # pre-D19 name; migrated on install
@@ -852,6 +858,11 @@ def shim_body(
         f"{lens_note}\n"
         f"{arguments_line}"
         "Treat the referenced file as the controlling instruction and follow it fully.\n"
+        # terseout `ntf6sx` E-03: a POINTER, never a copy. Duplicating the ~1.7KB contract into
+        # all 48 generated shims would add ~+80% to the shim corpus, re-read on EVERY
+        # invocation, defeating the token-cost goal the contract serves. Full prose lives once
+        # per instruction surface (`AGENTS.md#aw:reporting`).
+        f"{reporting_contract.shim_pointer_line()}"
     )
 
 
@@ -895,6 +906,8 @@ def aw_dispatcher_shim(
         "If the user provided arguments, treat the first argument as the workflow verb and "
         "remaining arguments as its parameters: $ARGUMENTS\n\n"
         "Treat the referenced file as the controlling instruction and follow it fully.\n"
+        # terseout `ntf6sx` E-03: pointer, not a copy (see shim_body).
+        f"{reporting_contract.shim_pointer_line()}"
     )
 
 
@@ -1412,16 +1425,26 @@ def render_aw_block(
 def agents_managed_sections(target_layout: str = "legacy") -> list[AwSection]:
     """The agent-workflows-managed sections written into a shared instruction file.
 
-    On this first conversion the whole pointer prose is a single `aw:pointer` section
-    (maintainer decision, IPD 02); consumer IPDs add sibling sections. Keeping this as the one
-    source lets the manifest key per-section identity/drift by slug + normalized hash.
+    The whole workflow pointer prose is a single `aw:pointer` section (maintainer decision,
+    IPD 02); consumer IPDs add sibling sections. Keeping this as the one source lets the
+    manifest key per-section identity/drift by slug + normalized hash.
+
+    Siblings currently emitted:
+    - `aw:pointer`   the workflow pointer + repository conventions (`agents_pointer_prose`).
+    - `aw:reporting` the concise-reporting contract, owned by `reporting_contract.py` so the
+      SAME prose reaches the shims (by pointer) and both driver prompts (terseout `ntf6sx`).
+      Separately owned: declining or hand-editing one section does not affect the other.
     """
 
     return [
         AwSection(
             slug=AW_POINTER_SLUG,
             lines=agents_pointer_prose(target_layout=target_layout).splitlines(),
-        )
+        ),
+        AwSection(
+            slug=AW_REPORTING_SLUG,
+            lines=reporting_contract.contract_text().splitlines(),
+        ),
     ]
 
 
@@ -1429,7 +1452,7 @@ def agents_managed_block(
     style: AwCommentStyle = AW_STYLE_MARKDOWN,
     target_layout: str = "legacy",
 ) -> str:
-    """The sectioned managed block the installer writes (wrapper + `aw:pointer`)."""
+    """The sectioned managed block the installer writes (wrapper + `aw:pointer`/`aw:reporting`)."""
 
     return render_aw_block(
         agents_managed_sections(target_layout=target_layout), style=style
@@ -2973,6 +2996,9 @@ def is_stale_shim_customized(content: str) -> bool:
         # generic sentence (a workflow with an arg-hint is still a generated, non-customized shim).
         "If the user provided arguments,",
         "Treat the referenced file as the controlling instruction and follow it fully.",
+        # The generated concise-reporting POINTER line (terseout `ntf6sx` E-03). Recognized as
+        # installer-owned so a regenerated shim is not misflagged as user-customized.
+        "Reporting: follow `AGENTS.md#aw:reporting`",
         # Parameterized / lens helper prefixes:
         "The first argument names the CONCERN to assess",
         "any further arguments narrow the scope",

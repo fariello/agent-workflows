@@ -10,3 +10,4 @@ Read and execute @.aw/system/workflows/research-prompt/research-prompt.md.
 If the user provided arguments, treat them as the research topic and optional scope; omit to be prompted for the topic: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

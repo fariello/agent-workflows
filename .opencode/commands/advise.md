@@ -12,3 +12,4 @@ The first argument names the expert PERSONA (e.g. `skeptic`, `spec-editor`, `arc
 If the user provided arguments, treat them as the persona to consult plus an optional artifact, e.g. `skeptic` or `spec-editor plan.md`; bare invocation lists the personas and asks: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

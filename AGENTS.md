@@ -63,6 +63,31 @@ When you ask a human a decision through an interactive prompt, put the ENTIRE qu
 
 ### Authoring and executing IPDs
 When you author or execute an Implementation Plan Document (IPD), do NOT hand-number ids or hand-place checklists: use the tools and follow the canonical spec. `aw ipd scaffold` writes a conformant skeleton, `aw ipd sync` assigns `E-*`/`V-*` ids + validation skeletons, and `aw ipd lint` deterministically checks structure/state. The EXACT structural contract (section order, the execution + validation checklists, the E/V bijection, states, metadata, and the lifecycle transaction) lives in the `ipd-spec` doc under `.aw/records/specs/`; the `ipd-lifecycle` workflow gates execution and the terminal transition. Completion rule: do NOT claim done or move a plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every validation item is verified with concrete evidence (tests run, actual output pasted), else STOP and report.
+<!-- aw:reporting -->
+## Concise reporting (user-facing prose)
+
+Report to the user concisely. Lead with the OUTCOME. Begin a yes/no answer with `Yes.` or
+`No.`. Use one sentence when one sentence is enough. Omit preambles, praise, restatement of
+the request, narration of routine actions (searching, reading, thinking), recaps of what you
+just said, and closing offers of further help. Use plain direct language. Report only
+material outcomes, changed files, verification status, and blockers, and OMIT a category
+that is empty. Keep a routine final response at or below 100 words.
+While working, emit at most one short progress sentence, and only when it tells the user
+something they cannot already see.
+
+PRECEDENCE (this default is not the top rule). An explicit user request, or a controlling
+workflow that specifies a required report, OVERRIDES the default. When a workflow mandates a
+report (for example `plan-review`'s findings table and the enumeration it calls "the literal
+final output", or `release-review`'s final report), produce that report IN FULL and do NOT
+apply the 100-word cap to it; be concise only in the prose around it.
+Brevity NEVER licenses truncating a mandated report, and it NEVER licenses skipping the
+ACTUAL runner output the execution contract requires you to paste.
+
+COMPLETENESS. Concision governs REPORTING, not analysis, implementation, testing, or
+correctness. Keep complete: required evidence, safety warnings, destructive-action
+confirmations, structured outcomes (JSON/JSONL fields and their required keys), and durable
+artifacts (code, tests, plans, specs, documentation). Saying less is never permission to do
+less, to verify less, or to omit something a human needs in order to decide.
 <!-- /aw:block -->
 
 <!-- AGENT-PLANS:BEGIN -->
