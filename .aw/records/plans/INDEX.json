@@ -4142,6 +4142,16 @@
   {
     "date": "2026-08-30",
     "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md",
+    "plan_id": "158ds3",
+    "set_id": "boxstat",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
