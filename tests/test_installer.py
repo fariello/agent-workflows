@@ -24,6 +24,7 @@ from tests.support import REPO_ROOT, init_repo, run_installer, SOURCE_WORKFLOWS
 # the subprocess-based end-to-end tests via run_installer().
 from agent_workflows import engine as INS
 from agent_workflows import cli as CLI
+from agent_workflows import reporting_contract
 from agent_workflows.term import Term
 
 # Heavy subprocess/install suite; excluded from the fast default run (see pyproject addopts
@@ -114,13 +115,14 @@ class ArgHintShimTests(unittest.TestCase):
         for tool in ("opencode", "claude"):
             body = INS.shim_body("demo", self._wf(arg_hint=""), tool)
             self.assertIn(self.GENERIC_LINE, body, tool)
-            self.assertTrue(
-                body.endswith(
-                    "Treat the referenced file as the controlling instruction "
-                    "and follow it fully.\n"
-                ),
+            self.assertIn(
+                "Treat the referenced file as the controlling instruction "
+                "and follow it fully.\n",
+                body,
                 tool,
             )
+            # terseout `ntf6sx` E-03: the reporting POINTER line is now the shim's tail.
+            self.assertTrue(body.endswith(reporting_contract.shim_pointer_line()), tool)
 
     def test_hint_renders_specific_clause(self):
         hint = (

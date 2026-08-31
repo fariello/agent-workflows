@@ -10,3 +10,4 @@ The first argument names the workflow VERB (e.g. `assess`, `plan-review`, `verif
 If the user provided arguments, treat the first argument as the workflow verb and remaining arguments as its parameters: $ARGUMENTS
 
 Treat the referenced file as the controlling instruction and follow it fully.
+Reporting: follow `AGENTS.md#aw:reporting` (concise prose; required reports still in full).

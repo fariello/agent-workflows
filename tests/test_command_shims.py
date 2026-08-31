@@ -11,6 +11,7 @@ from __future__ import annotations
 import unittest
 
 from agent_workflows import engine as INS
+from agent_workflows import reporting_contract as RC
 from tests.support import SOURCE_WORKFLOWS
 
 
@@ -73,11 +74,14 @@ class CommandShimsTests(unittest.TestCase):
         )
         self.assertIn("$ARGUMENTS", body_aw)
         self.assertIn("If the user provided arguments,", body_aw)
-        self.assertTrue(
-            body_aw.endswith(
-                "Treat the referenced file as the controlling instruction and follow it fully.\n"
-            )
+        self.assertIn(
+            "Treat the referenced file as the controlling instruction and follow it fully.\n",
+            body_aw,
         )
+        # terseout `ntf6sx` E-03: the reporting POINTER is now the shim's last line. Asserted
+        # here (not just its presence) so the controlling-instruction line keeps its place
+        # immediately before it.
+        self.assertTrue(body_aw.endswith(RC.shim_pointer_line()))
 
         body_legacy = INS.aw_dispatcher_shim(
             self.workflows, "opencode", target_layout="legacy"
@@ -98,11 +102,12 @@ class CommandShimsTests(unittest.TestCase):
         )
         self.assertIn("$ARGUMENTS", body_aw)
         self.assertIn("If the user provided arguments,", body_aw)
-        self.assertTrue(
-            body_aw.endswith(
-                "Treat the referenced file as the controlling instruction and follow it fully.\n"
-            )
+        self.assertIn(
+            "Treat the referenced file as the controlling instruction and follow it fully.\n",
+            body_aw,
         )
+        # terseout `ntf6sx` E-03: the reporting POINTER is now the shim's last line.
+        self.assertTrue(body_aw.endswith(RC.shim_pointer_line()))
 
         body_legacy = INS.aw_dispatcher_shim(
             self.workflows, "claude", target_layout="legacy"

@@ -180,6 +180,19 @@ clean, `1` findings, `2` cannot run. See the [Human TTY guide](docs/cli-human-gu
 [migration guide](docs/cli-migration.md), and the normative
 [CLI Output Mode Contract](docs/cli-output-contract.md).
 
+### Concise agent reporting
+
+Installing agent-workflows also makes concise, essential-information-only reporting the
+default for the AGENT's own prose: lead with the outcome, skip preambles and narration and
+recaps, and report only material outcomes, changed files, verification status, and blockers.
+It reaches OpenCode, Codex CLI, Claude Code, and Antigravity through the managed
+`AGENTS.md#aw:reporting` section, a pointer line in every generated command shim, and both IPD
+drivers' worker and verifier prompts. Concision governs REPORTING only: a workflow that
+mandates a long report still gets it in full, required evidence is still pasted, and nothing is
+truncated. It is a separately owned managed section, so you may decline it or edit it and the
+installer will not clobber your version. See the
+[concise reporting contract](docs/reporting-contract.md).
+
 ### Core workflows
 
 | Command | What it does | Changes code? |
