@@ -369,5 +369,153 @@ class GrandfatheringTests(unittest.TestCase):
         self.assertNotIn("- Item-Dependencies: none", src)
 
 
+# --------------------------------------------------------------------------------------
+# detrun Order bmh754: `From-Spec` schema recognition + `check.from-spec-dangling`.
+#
+# These live in THIS module rather than a new `tests/test_item_dependencies.py` on purpose: the
+# reviewed plan explicitly prohibits creating that module because it would duplicate this one. The
+# `From-Spec` link is the spec-side twin of `From-Backlog` and its dangling rule is a sibling of the
+# `check.ipd-dependency-dangling` family already covered above, so it belongs beside them.
+# --------------------------------------------------------------------------------------
+
+
+def _plan_from_spec(repo: Path, *, id6: str, order: int, from_spec: str) -> Path:
+    """A plan carrying a `- From-Spec:` line (the fixture `_plan` does not emit one)."""
+    pend = repo / ".aw" / "records" / "plans" / "pending"
+    pend.mkdir(parents=True, exist_ok=True)
+    date = "2026-08-30"
+    p = pend / f"{date.replace('-', '')}-demo-{order:02d}-{id6}-p.ipd.md"
+    p.write_text(
+        f"# IPD: {id6}\n\n"
+        f"- Date: {date}\n- Kind: child\n- Scope-Paths: x.py\n"
+        f"- Item-Dependencies: none\n"
+        f"- From-Spec: {from_spec}\n"
+        f"- Status: draft\n- Set: demo\n- Order: {order}\n- Id: {id6}\n\n"
+        f"## Workflow history\n- {date} draft (t): x\n\n## Goal\ng\n",
+        encoding="utf-8",
+    )
+    return p
+
+
+class FromSpecSchemaRecognitionTests(unittest.TestCase):
+    """`From-Spec` must be RECOGNIZED but OPTIONAL, exactly like `From-Backlog`."""
+
+    def test_from_spec_is_recognized(self):
+        self.assertIn(S.META_FROM_SPEC, S.META_RECOGNIZED)
+
+    def test_from_spec_is_not_required(self):
+        # Recognition must not make it mandatory: that would mass-fail every existing plan.
+        self.assertNotIn(S.META_FROM_SPEC, S.META_REQUIRED)
+
+    def test_from_spec_mirrors_from_backlog_optionality(self):
+        # The two graduation-source carriers must agree on optionality, or one handoff shape
+        # would be enforceable and the other not.
+        self.assertIn(S.META_FROM_BACKLOG, S.META_RECOGNIZED)
+        self.assertEqual(
+            S.META_FROM_SPEC in S.META_REQUIRED,
+            S.META_FROM_BACKLOG in S.META_REQUIRED,
+        )
+
+    def test_from_spec_does_not_raise_unknown_field(self):
+        # IPD-M103 ("unknown field") is the error recognition exists to prevent.
+        repo = _mkrepo()
+        _spec(repo, id6="spec01")
+        p = _plan_from_spec(repo, id6="aaaaaa", order=1, from_spec="spec01")
+        res = ipd_lint.lint_file(p, checkpoint="author")
+        blob = "\n".join(
+            f"{getattr(d, 'code', '')} {getattr(d, 'message', '')}"
+            for d in res.diagnostics
+        )
+        self.assertNotIn(
+            "IPD-M103",
+            blob,
+            f"From-Spec must not be an unknown field; got {blob}",
+        )
+
+
+class FromSpecDanglingRuleTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = _mkrepo()
+
+    def _rules(self):
+        return [d.rule for d in ce.check_from_spec_dangling(self.repo)]
+
+    def test_resolvable_from_spec_is_silent(self):
+        _spec(self.repo, id6="spec01")
+        _plan_from_spec(self.repo, id6="aaaaaa", order=1, from_spec="spec01")
+        self.assertEqual(self._rules(), [])
+
+    def test_unresolvable_from_spec_fires(self):
+        _spec(self.repo, id6="spec01")
+        _plan_from_spec(self.repo, id6="aaaaaa", order=1, from_spec="zzzzzz")
+        self.assertEqual(self._rules(), ["check.from-spec-dangling"])
+
+    def test_plan_without_from_spec_is_silent(self):
+        _spec(self.repo, id6="spec01")
+        _plan(self.repo, id6="aaaaaa", order=1, item_deps="none")
+        self.assertEqual(self._rules(), [])
+
+    def test_no_specs_tree_is_fail_safe(self):
+        # With NO discoverable spec identity we cannot distinguish a dangling link from an
+        # invisible corpus, so the rule must report NOTHING rather than flag every link.
+        # Regression guard for a real false positive found during execution: in an
+        # externally-redirected project the spec read-path resolver returns a dir outside the
+        # repo, so a single-source known-set was empty and every valid link looked dangling.
+        _plan_from_spec(self.repo, id6="aaaaaa", order=1, from_spec="zzzzzz")
+        self.assertEqual(self._rules(), [])
+
+    def test_rule_is_registered_as_error_like_its_backlog_twin(self):
+        # An UNREGISTERED rule id silently falls back to the default RuleSpec, so registration is
+        # a behavioural contract, not bookkeeping. Severity must match the From-Backlog twin.
+        spec = ce.rule_spec("check.from-spec-dangling")
+        twin = ce.rule_spec("check.from-backlog-dangling")
+        self.assertEqual(spec.severity, "error")
+        self.assertEqual(spec.severity, twin.severity)
+        self.assertEqual(spec.invariant, twin.invariant)
+
+    def test_finding_carries_actionable_recovery(self):
+        _spec(self.repo, id6="spec01")
+        _plan_from_spec(self.repo, id6="aaaaaa", order=1, from_spec="zzzzzz")
+        d = ce.check_from_spec_dangling(self.repo)[0]
+        self.assertTrue(d.recovery, "a dangling finding must teach the fix")
+        self.assertIn("zzzzzz", d.detail)
+
+    def test_dangling_from_spec_on_a_spec_is_also_scanned(self):
+        # The link's primary home is a plan, but the scan tolerates it on a spec for the same
+        # symmetry reason check_from_backlog does.
+        _spec(self.repo, id6="spec01")
+        d = self.repo / ".aw" / "records" / "specs"
+        (d / "20260101-1200-02-spec02-s.spec.md").write_text(
+            "# Spec spec02\n\n- Id: spec02\n- Status: draft\n"
+            "- From-Spec: zzzzzz\n\n## Summary\ns\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._rules(), ["check.from-spec-dangling"])
+
+    def test_current_repo_has_no_from_spec_findings(self):
+        # The REAL checkout must not gain findings from this new rule.
+        repo = Path(__file__).resolve().parents[1]
+        self.assertEqual(ce.check_from_spec_dangling(repo), [])
+
+
+class FourNodeCycleTests(unittest.TestCase):
+    """OQ-02: the shipped tests covered 2- and 3-node cycles but not 4.
+
+    Cycle detection is a general strongly-connected-components routine rather than length-specific
+    logic, so this adds little assurance beyond the existing cases; it is included because it is a
+    one-test guard against a future length-limited rewrite.
+    """
+
+    def test_cycle_four_node(self):
+        repo = _mkrepo()
+        _set_cutover(repo, "2020-01-01")
+        _plan(repo, id6="aaaaaa", order=1, item_deps="executed:bbbbbb")
+        _plan(repo, id6="bbbbbb", order=2, item_deps="executed:cccccc")
+        _plan(repo, id6="cccccc", order=3, item_deps="executed:dddddd")
+        _plan(repo, id6="dddddd", order=4, item_deps="executed:aaaaaa")
+        drift = ce.evaluate_ipd_dependencies(repo, phase="check")
+        self.assertIn(S.RULE_IPD_DEP_CYCLE, _rules(drift))
+
+
 if __name__ == "__main__":
     unittest.main()

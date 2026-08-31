@@ -189,6 +189,19 @@ META_BLOCKS_RELEASE = "Blocks-Release"
 # lint error; value validation (does the target resolve to a backlog item id6) lives in the
 # `aw check` surface (check.from-backlog-dangling), not the schema layer.
 META_FROM_BACKLOG = "From-Backlog"
+# From-Spec (detrun Order bmh754, spec 25kzda; the surviving residue of an otherwise-shipped Set): the
+# SPEC-side sibling of META_FROM_BACKLOG - an optional, single-valued link field naming the spec id6
+# this plan graduated from, so the spec->plan graduation relationship is machine-readable in the same
+# shape the backlog->plan one already is. This is a SECOND graduation SOURCE, not a second mechanism:
+# `From-Backlog` and `From-Spec` are the two legitimate carriers of one handoff (AGENTS.md already
+# treats a spec as "an equally valid gate carrier" for a release gate), so recognizing both here is
+# what makes that documented parity true of the schema instead of only of the prose.
+# Recognized but OPTIONAL (NOT in META_REQUIRED), mirroring META_FROM_BACKLOG exactly: recognition
+# here only stops the IPD-M103 "unknown field" lint error, so no existing plan is mass-failed (the
+# grandfather guarantee). Value validation (does the target resolve to a spec id6) lives in the
+# `aw check` surface (check.from-spec-dangling), NOT the schema layer - the same split every other
+# recognized-but-optional field uses (Scope-Paths / Blocks-Release / From-Backlog / Priority).
+META_FROM_SPEC = "From-Spec"
 # xprio Order 1b45el (graduated from backlog p9o1oo): a UNIFORM, recognized-but-OPTIONAL `Priority`
 # field (the shared low/medium/high vocab is backlog.PRIORITIES; do NOT fork it). Recognition here
 # only stops the IPD-M103 "unknown field" lint error; the ENUM value check lives in the `aw check`
@@ -219,6 +232,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_ITEM_DEPENDENCIES,
         META_BLOCKS_RELEASE,
         META_FROM_BACKLOG,
+        META_FROM_SPEC,
         META_PRIORITY,
         META_WORK_KIND,
     )
