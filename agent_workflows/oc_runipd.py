@@ -3556,12 +3556,51 @@ def build_recovery_lane_notice(
     return "\n".join(lines)
 
 
+def build_isolation_notice(lane_root: Path | None) -> str:
+    """The WORK HERE block for an isolated turn, or "" for a main-checkout turn.
+
+    laneprompt: isolation used to be conveyed ONLY by `cwd` + `--dir`, while every absolute path in
+    the prompt body was MAIN's and one line told the agent to "leave the main execution checkout
+    safe". Measured consequence (run-20260831T153226Z-3424176, plan y6mfgo): the driver allocated a
+    lane, launched with `--dir <lane>`, and the agent nonetheless read `../../../DECISIONS.md` and
+    committed 18 files into MAIN while the lane branch stayed at zero commits.
+
+    This block is the CHEAP layer and is honestly limited: `host_sandbox_profile`'s own docstring
+    records that a same-user agent with shell access "cannot be cryptographically or filesystem-
+    enforced from prompts, hooks, environment variables, or Python role checks alone". So this stops a
+    FORGETFUL agent, not a determined one; the enforcing layer is the opt-in hardened profile
+    (`_apply_execution_profile`), which binds main read-only.
+    """
+    if lane_root is None:
+        return ""
+    return f"""
+
+## Work here
+
+You are running in an ISOLATED GIT WORKTREE (a "lane"), not the main checkout:
+
+    {lane_root}
+
+Do EVERY edit, test run, and commit inside that directory. It is a full checkout of this
+repository on its own branch, so the whole tree you need is already there.
+
+Do NOT read or write the main checkout, and do NOT climb out with a relative path such as
+`../../../<file>`. If you need a repository file, use the copy inside the lane. When a path
+below is given as an absolute path outside the lane, it is a DRIVER-OWNED control path (the
+run directory, the outcome JSON, the decisions register); those are the only exceptions and
+you write them exactly as given.
+
+The driver integrates your lane back into the main checkout after this turn. Leaving work
+outside the lane defeats that integration and can corrupt another agent's tree."""
+
+
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
     run_dir: Path,
     plan_path: Path,
     recovery: bool,
+    lane_root: Path | None = None,
 ) -> str:
     setid = item["setid"]
     decisions = run_dir / "decisions-and-questions.md"
@@ -3570,9 +3609,10 @@ def build_prompt(
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    isolation_notice = build_isolation_notice(lane_root)
     return f"""# OpenCode IPD Driver Turn
 
-Mode: {mode}{lane_notice}
+Mode: {mode}{lane_notice}{isolation_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -3616,8 +3656,8 @@ git add ., git commit -a, --no-verify, destructive reset/clean, or stashing that
 ownership. Use the lifecycle available at this bootstrap stage and path-scoped commits.
 
 If the IPD cannot validly finalize, preserve partial work using the repository-supported
-nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave the
-main execution checkout safe for subsequent turns. Never claim executed unless the real
+nonterminal checkpoint mechanism or an attributable isolated branch/worktree. Leave every
+checkout you did not own safe for subsequent turns. Never claim executed unless the real
 terminal state and acceptance criteria support it.
 
 Before exiting, write valid JSON to {outcome} with at least:
@@ -4653,6 +4693,41 @@ def execute_item(
                     file=sys.stderr,
                 )
                 return
+
+    # laneprompt: REBUILD the prompt now that the lane exists, so its paths and its instructions
+    # describe the tree the turn will actually run in.
+    #
+    # WHY IT IS REBUILT RATHER THAN BUILT LATER: the prompt must exist BEFORE this point because the
+    # begin-refused and allocation-failed paths above write it to the run directory as evidence of an
+    # attempt that never launched. And the lane cannot exist any earlier, because allocation is
+    # deliberately sequenced AFTER `driver_begin` grants execution authority (fail-closed). So the
+    # first build is the fallback, and this is the authoritative one.
+    #
+    # THE BUG THIS FIXES (measured, run-20260831T153226Z-3424176, plan y6mfgo): the prompt was built
+    # only from `repo`, so an isolated turn received MAIN's absolute path for its own plan file and no
+    # statement that it was in a lane. The agent read `../../../DECISIONS.md` and committed 18 files
+    # into MAIN while the lane branch stayed at zero commits. `--dir` alone does not convey isolation.
+    if work_dir and not is_review:
+        lane_root = Path(work_dir)
+        # Prefer the LANE's copy of the plan. `sync_receipt_into_worktree` and the verifier turn
+        # already resolve the plan this way (see the `plan_repo` branch below); the executor turn was
+        # the one place that did not.
+        try:
+            lane_plan_path = resolve_plan_path(
+                lane_root, item["configured_file"], item["id6"]
+            )
+        except DriverError:
+            lane_plan_path = plan_path
+        prompt = build_prompt(
+            item, state, run_dir, lane_plan_path, recovery, lane_root=lane_root
+        )
+        prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        # Keep the digest honest: it must describe the prompt the agent actually received, not the
+        # pre-lane draft it replaced.
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_plan_path)
+        save_state(run_dir, state)
 
     try:
         exit_code, session_id, log_path, argv = run_opencode(

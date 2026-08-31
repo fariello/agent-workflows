@@ -2993,5 +2993,135 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
 
 
+class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
+    """laneprompt: an isolated turn's prompt must name the LANE's paths, not main's.
+
+    OBSERVED in a real run (run-20260831T153226Z-3424176, plan y6mfgo): the driver allocated
+    `.aw/worktrees/y6mfgo` and launched with `--dir <lane>`, yet every commit landed in MAIN and the
+    lane branch stayed at zero commits. Root cause: `execute_item` builds the prompt from
+    `resolve_plan_path(repo, ...)` BEFORE the worktree is allocated, so every absolute path handed to
+    the agent is main's. Isolation was enforced only by cwd, while the instructions pointed out of it.
+    """
+
+    def _prompt_paths(self, prompt: str) -> list[str]:
+        import re
+
+        return re.findall(r"/[^\s`'\"]+", prompt)
+
+    def test_prompt_prefers_the_lane_copy_of_the_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            lane = repo / ".aw" / "worktrees" / "aaaaaa"
+            rel = ".aw/records/plans/pending/20260101-s-01-aaaaaa-x.ipd.md"
+            for root in (repo, lane):
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text("# IPD: x\n\n- Id: aaaaaa\n", encoding="utf-8")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-x"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item = {
+                "id6": "aaaaaa",
+                "setid": "s",
+                "position": 1,
+                "configured_file": rel,
+                "attempts": [],
+                "action": "execute",
+            }
+            state = {"run_id": "run-x", "repo": str(repo), "options": {}}
+
+            # The lane-aware resolution the driver performs for the VERIFIER turn already exists
+            # (oc_runipd.py:4823 `plan_repo = Path(work_dir) if work_dir else repo`). The EXECUTOR
+            # turn must do the same, otherwise it hands the agent main's path.
+            lane_plan = driver.resolve_plan_path(lane, rel, "aaaaaa")
+            self.assertTrue(str(lane_plan).startswith(str(lane)))
+
+            prompt = driver.build_prompt(item, state, run_dir, lane_plan, False)
+            self.assertIn(str(lane_plan), prompt)
+            self.assertNotIn(str(repo / rel), prompt)
+
+    def test_isolated_prompt_states_the_lane_requirement(self):
+        """The prompt must TELL the agent it is in a lane and must stay there.
+
+        Enforcement by cwd alone is not enough: `host_sandbox_profile`'s own docstring concedes a
+        same-user agent cannot be constrained by prompts, hooks or env vars, so the prompt is the
+        cheap layer that stops a FORGETFUL agent from reaching out with `../../..`.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            lane = repo / ".aw" / "worktrees" / "aaaaaa"
+            lane.mkdir(parents=True, exist_ok=True)
+            run_dir = repo / ".aw" / "records" / "runs" / "run-x"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item = {
+                "id6": "aaaaaa",
+                "setid": "s",
+                "position": 1,
+                "configured_file": "x.ipd.md",
+                "attempts": [],
+                "action": "execute",
+            }
+            state = {
+                "run_id": "run-x",
+                "repo": str(repo),
+                "options": {},
+                # The lane the driver allocated for THIS item.
+                "_lane_root": str(lane),
+            }
+            prompt = driver.build_prompt(
+                item, state, run_dir, lane / "x.ipd.md", False, lane_root=lane
+            )
+            low = prompt.lower()
+            # Assert the BLOCK, not just the word "worktree" (which appears in unrelated prose) and
+            # not just the lane path (which leaks in via plan_path anyway). Both weaker assertions
+            # passed against a stubbed-out notice, so they proved nothing.
+            self.assertIn("## Work here", prompt)
+            self.assertIn("ISOLATED GIT WORKTREE", prompt)
+            self.assertIn("do NOT climb out with a relative path", prompt)
+            # The lane must be named INSIDE the block, not merely somewhere in the prompt.
+            block = prompt[
+                prompt.index("## Work here") : prompt.index("## Concurrent Work")
+            ]
+            self.assertIn(str(lane), block)
+            # It must not tell an isolated agent to keep the MAIN checkout safe, which reads as
+            # permission to work there.
+            self.assertNotIn("leave the main execution checkout safe", low)
+
+    def test_both_drivers_emit_the_same_isolation_notice(self):
+        """A one-driver-only fix is the known failure mode here (see `lanesess xd9sll`), so pin it."""
+        from agent_workflows import agy_runipd
+
+        lane = Path("/tmp/repo/.aw/worktrees/aaaaaa")
+        self.assertEqual(
+            driver.build_isolation_notice(lane),
+            agy_runipd.build_isolation_notice(lane),
+        )
+        # And a NON-isolated turn gets no block at all, so the default path is unchanged.
+        self.assertEqual(driver.build_isolation_notice(None), "")
+        self.assertEqual(agy_runipd.build_isolation_notice(None), "")
+
+    def test_non_isolated_prompt_is_unchanged_by_the_lane_feature(self):
+        """The main-checkout path must keep its exact prior shape (strictly additive)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            run_dir = repo / ".aw" / "records" / "runs" / "run-x"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            item = {
+                "id6": "aaaaaa",
+                "setid": "s",
+                "position": 1,
+                "configured_file": "x.ipd.md",
+                "attempts": [],
+                "action": "execute",
+            }
+            state = {"run_id": "run-x", "repo": str(repo), "options": {}}
+            without = driver.build_prompt(
+                item, state, run_dir, repo / "x.ipd.md", False
+            )
+            explicit_none = driver.build_prompt(
+                item, state, run_dir, repo / "x.ipd.md", False, lane_root=None
+            )
+            self.assertEqual(without, explicit_none)
+            self.assertNotIn("## Work here", without)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2379,12 +2379,25 @@ def build_recovery_lane_notice(
     return "\n".join(lines)
 
 
+def build_isolation_notice(lane_root: Path | None) -> str:
+    """The WORK HERE block for an isolated turn, or "" for a main-checkout turn.
+
+    laneprompt: the SHARED text lives in `oc_runipd.build_isolation_notice`; this delegates so the two
+    drivers cannot drift (the same reason `rununify` exists). See that docstring for the measured
+    defect this closes.
+    """
+    from agent_workflows.oc_runipd import build_isolation_notice as _shared
+
+    return _shared(lane_root)
+
+
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
     run_dir: Path,
     plan_path: Path,
     recovery: bool,
+    lane_root: Path | None = None,
 ) -> str:
     setid = item["setid"]
     decisions = run_dir / "decisions-and-questions.md"
@@ -2393,9 +2406,10 @@ def build_prompt(
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    isolation_notice = build_isolation_notice(lane_root)
     return f"""# Antigravity IPD Driver Turn
 
-Mode: {mode}{lane_notice}
+Mode: {mode}{lane_notice}{isolation_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -3246,6 +3260,29 @@ def execute_item(
                     file=sys.stderr,
                 )
                 return
+
+    # laneprompt: REBUILD the prompt now that the lane exists, so its paths and its instructions
+    # describe the tree the turn will actually run in. Kept symmetric with
+    # `oc_runipd.execute_item`; see `oc_runipd.build_isolation_notice` for the measured defect and
+    # for why this is a rebuild rather than a later first build (the pre-launch refusal paths above
+    # need a prompt on disk as evidence, and the lane cannot exist before `driver_begin` grants
+    # authority).
+    if work_dir and not is_review:
+        lane_root = Path(work_dir)
+        try:
+            lane_plan_path = resolve_plan_path(
+                lane_root, item.get("configured_file", ""), item["id6"]
+            )
+        except DriverError:
+            lane_plan_path = plan_path
+        prompt_text = build_prompt(
+            item, state, run_dir, lane_plan_path, recovery=recovery, lane_root=lane_root
+        )
+        prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
+        attempt["prompt"] = str(prompt_path)
+        attempt["prompt_sha256"] = sha256_file(prompt_path)
+        attempt["lane_plan_path"] = str(lane_plan_path)
+        save_state(run_dir, state)
 
     try:
         rc, captured_session, log_file, argv = run_agy_turn(
