@@ -6,8 +6,7 @@
 - Scope: Update `agent_workflows/attention.py` to remove blank lines between sections in the board, suppress hidden done/parked placeholder lines in interactive colored mode, attach the `legend` directly beneath the last section item with no blank line, unify the setup warning and `--all` hint into a single compact footer line (`TODO: Run `/aw setup-repo` to set up this repo. Use `aw att --all` to see old stuff.`), and update unit tests.
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py, tests/test_attention_notices.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user provided verbatim visual example of desired compact output)
+- Status: executed
 - Set: attcompact
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +14,7 @@
 - Id: af1dxn
 
 ## Workflow history
+- 2026-08-31 executed (antigravity): Compact attention board layout: continuous sections, suppress hidden group rows, and unified footer hint [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: acknowledged; in-scope-unmodified tests/test_attention.py: acknowledged; in-scope-unmodified tests/test_attention_notices.py: acknowledged]
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored complete plan.

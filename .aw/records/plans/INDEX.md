@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 187 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 189 Sets; the full manifest is INDEX.json.
+
+## attcompact
+
+- `af1dxn` [executed] 01 executed/20260830-attcompact-01-af1dxn-compact-attention-board-layout-with-continuous-sections-and.ipd.md
 
 ## attdetails
 
@@ -45,6 +49,10 @@ Showing the 40 most-recent of 187 Sets; the full manifest is INDEX.json.
 ## runmixed
 
 - `6lu3rq` [pending] 01 pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md
+
+## runtrail
+
+- `m73aet` [pending] 01 pending/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md
 
 ## sessrot
 
@@ -183,14 +191,6 @@ Showing the 40 most-recent of 187 Sets; the full manifest is INDEX.json.
 - `c2tvmm` [pending] 00 pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md
 - `9trlc3` [executed] 01 executed/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md
 - `ng2blv` [executed] 02 executed/20260829-wkindname-02-ng2blv-add-the-recognized-but-optional-work-kind-field-to-ipds-and.ipd.md
-
-## workkind
-
-- `a6cej0` [superseded] 01 superseded/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md
-
-## wtisoland
-
-- `6knsrx` [pending] 01 pending/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md
 
 ## (singletons: no Set)
 
