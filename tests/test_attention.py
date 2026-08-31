@@ -239,8 +239,9 @@ class ScanTests(unittest.TestCase):
         # last_history_at yields a '?' age marker.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
         self.assertRegex(stripped, r"- \??\s*active\s+research\s+r")
-        # Blocked gate folds into the section header, not each line.
-        self.assertIn("## blocked (1) in TODO.md", board)
+        # Blocked gate folds into the section header, not each line. Dropped '## ' in colored view.
+        self.assertIn("blocked (1) in TODO.md", stripped)
+        self.assertNotIn("## blocked", stripped)
         self.assertNotIn("[gate artifact: TODO.md]", board)
         # No trailing " tree" tag after the status.
         self.assertNotIn("(active) research", stripped)
@@ -699,6 +700,86 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             data3 = json.loads(buf3.getvalue())
             self.assertEqual(len(data3["items"]), 2)
             self.assertEqual({it["tree"] for it in data3["items"]}, {"specs", "plans"})
+
+    def test_run_deduplicates_release_blockers(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            # Write a planned release
+            rel_dir = root / ".aw" / "records" / "releases"
+            rel_dir.mkdir(parents=True, exist_ok=True)
+            (rel_dir / "20260830-rel001-01-rel001-release.release.md").write_text(
+                "# Release: 1.0.0\n\n- Id: rel001\n- Version: 1.0.0\n- Status: planned\n- Summary: Test\n",
+                encoding="utf-8",
+            )
+            # Add - Blocks-Release: next to the spec
+            (root / ".agents" / "docs" / "specs" / "s.md").write_text(
+                "# Spec: s\n\n- Date: 2026-08-08\n- Status: approved\n- Blocks-Release: next\n- Author: t\n\n## Body\n\nx\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                encoding="utf-8",
+            )
+
+            args = argparse.Namespace(
+                dir=str(root),
+                format=None,
+                check=False,
+                selectors=[],
+                types=["specs"],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            output = buf.getvalue()
+
+            # Spec should appear in release-blockers section, but NOT in ## ready section!
+            self.assertIn("## release-blockers", output)
+            self.assertIn(".agents/docs/specs/s.md", output)
+            self.assertNotIn("## ready", output)
+
+    def test_footer_placement_and_interactive_headers(self):
+        from agent_workflows import engine
+
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            engine.write_setup_marker(root)
+
+            # Test colored output
+            args = argparse.Namespace(
+                dir=str(root),
+                format=None,
+                check=False,
+                selectors=[],
+                types=[],
+                no_color=False,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            term = att.T.Term(stream=buf, color=True)
+            with mock.patch("sys.stdout", buf), mock.patch(
+                "agent_workflows.attention.T.Term", return_value=term
+            ):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            stripped = re.sub(r"\033\[[0-9;]*m", "", out)
+
+            # Interactive headers should NOT have "## "
+            self.assertIn("active (1)", stripped)
+            self.assertNotIn("## active", stripped)
+            self.assertIn("ready (2)", stripped)
+            self.assertNotIn("## ready", stripped)
+
+            # Note and Legend must be at the very bottom
+            self.assertTrue(
+                stripped.endswith(
+                    "NOTE: setup not complete - run the `/setup-repo` workflow in this repo.\n\nlegend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]\n"
+                )
+            )
 
 
 if __name__ == "__main__":

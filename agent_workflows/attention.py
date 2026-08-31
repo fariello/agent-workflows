@@ -820,6 +820,7 @@ def render_board(
     term: T.Term | None = None,
     long: bool = False,
     details: bool = False,
+    legend: bool | None = None,
 ) -> str:
     """Render the attention board.
 
@@ -832,6 +833,8 @@ def render_board(
     if term is None:
         term = T.Term(color=False)
     colored = bool(getattr(term, "color", False))
+    if legend is None:
+        legend = colored
 
     lines: List[str] = []
     if drift:
@@ -840,12 +843,6 @@ def render_board(
         )
         for d in drift:
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
-        lines.append("")
-    # awdoctorfix Order 01: a legend for the compact markers, colored HUMAN view only.
-    if colored:
-        lines.append(
-            "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
-        )
         lines.append("")
     by_class: Dict[str, List[Item]] = {}
     for it in items:
@@ -856,7 +853,7 @@ def render_board(
             continue
 
         # Section header. In the colored human view, fold a shared gate artifact into the
-        # header (e.g. "## blocked (2) in TODO.md") instead of repeating it on every line.
+        # header (e.g. "blocked (2) in TODO.md") instead of repeating it on every line.
         header_extra = ""
         if colored and cls == A.BLOCKED:
             artifacts = {
@@ -869,19 +866,32 @@ def render_board(
                 header_extra = f" in {next(iter(artifacts))}"
 
         if cls in (A.DONE, A.PARKED) and not show_all:
-            lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
+            hidden_title = f"{cls} ({len(group)}) [hidden; use --all]"
+            if colored:
+                lines.append(term.color256(hidden_title, 244, bold=True))
+            else:
+                lines.append(f"## {hidden_title}")
             continue
 
         # awdoctorfix Order 02: the colored default view shows a compact identity stem per item
         # (tree-independent), so no directory prefix is folded into the header. `--long` restores
         # full paths (rendered per-item below); either way the header carries no path prefix.
-        lines.append(f"## {cls} ({len(group)}){header_extra}")
+        header_title = f"{cls} ({len(group)}){header_extra}"
+        if colored:
+            code = _CLASS_COLOR_256.get(cls, 244)
+            lines.append(term.color256(header_title, code, bold=True))
+        else:
+            lines.append(f"## {header_title}")
 
         for it in group:
             lines.append(
                 _render_item_row(it, cls, term, colored, long, details=details)
             )
         lines.append("")
+    if colored and legend:
+        lines.append(
+            "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
+        )
     return "\n".join(lines).rstrip("\n") + "\n"
 
 
@@ -1137,24 +1147,26 @@ def run(args) -> int:
         # --no-color forces plain, which also yields the machine-readable [tree] form.
         color = False if getattr(args, "no_color", False) else None
         term = T.Term(stream=sys.stdout, color=color)
-        # awdoctor Order 02: human-view-only notices (never in JSON/--check).
-        if setup_needed(repo_root):
-            sys.stdout.write(
-                "NOTE: setup not complete - run the `/setup-repo` workflow in this repo.\n\n"
-            )
+        colored = bool(getattr(term, "color", False))
+        long = getattr(args, "long", False)
         show_all = getattr(args, "all", False) or bool(selectors_arg)
         details = getattr(args, "details", False)
+
+        blockers = release_blockers(items, repo_root)
+        blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
+        main_items = [
+            it for it in items if (repo_root / it.path).resolve() not in blocker_keys
+        ]
+
         board = render_board(
-            items,
+            main_items,
             drift,
             show_all=show_all,
             term=term,
-            long=getattr(args, "long", False),
+            long=long,
             details=details,
+            legend=False,
         )
-        colored = bool(getattr(term, "color", False))
-        long = getattr(args, "long", False)
-        blockers = release_blockers(items, repo_root)
         if blockers:
             # Name the release the blockers gate (id6 + version), not just a count, so the
             # planned release is visible during ordinary tool use - not only a hidden record.
@@ -1165,7 +1177,13 @@ def run(args) -> int:
             except Exception:
                 _rel = None
             _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
-            board += f"\n## release-blockers{_rel_label} ({len(blockers)})\n"
+            rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
+            if board.strip():
+                board += "\n"
+            if colored:
+                board += term.color256(rel_header, 196, bold=True) + "\n"
+            else:
+                board += f"## {rel_header}\n"
             # Render each blocker in the SAME compact columnar form as active/ready/blocked
             # (not a raw absolute path), so the section reads consistently with the board.
             for it in blockers:
@@ -1192,7 +1210,13 @@ def run(args) -> int:
         except Exception:
             gate_warnings = []
         if gate_warnings:
-            board += f"\n## release-gate-warnings ({len(gate_warnings)})\n"
+            gw_header = f"release-gate-warnings ({len(gate_warnings)})"
+            if board.strip():
+                board += "\n"
+            if colored:
+                board += term.color256(gw_header, 214, bold=True) + "\n"
+            else:
+                board += f"## {gw_header}\n"
             # Consistent identity-stem form + an indented, cut-and-paste Fix: line (the detail
             # carries a '\n    Fix: <cmd>' suffix). Uncolored/agent view keeps the full path.
             for w in gate_warnings:
@@ -1203,6 +1227,20 @@ def run(args) -> int:
                 board += f"- {ident}: {w.rule}: {detail}\n"
                 if fix.strip():
                     board += f"    Fix: {fix.strip()}\n"
+
+        footer_parts: list[str] = []
+        if setup_needed(repo_root):
+            footer_parts.append(
+                "NOTE: setup not complete - run the `/setup-repo` workflow in this repo."
+            )
+        if colored:
+            footer_parts.append(
+                "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
+            )
+        if footer_parts:
+            board = board.rstrip("\n") + "\n\n" + "\n\n".join(footer_parts) + "\n"
+        else:
+            board = board.rstrip("\n") + "\n"
         sys.stdout.write(board)
     # a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative
     return core.drift_exit_code(drift)
