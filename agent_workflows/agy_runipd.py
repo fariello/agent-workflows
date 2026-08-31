@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import contextlib
 import datetime as dt
-import fcntl
 import hashlib
 import json
 import os
@@ -42,7 +41,7 @@ from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 # `agy_runipd.Heartbeat`. The explicit alias keeps a linter from stripping it as unused without
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
-from agent_workflows import runner_shutdown
+from agent_workflows import platform_lock, runner_shutdown
 from agent_workflows.render_stream import (
     Statusline,
     render_run_summary_table,
@@ -1323,31 +1322,37 @@ def run_lock(run_dir: Path):
 
     Yields a :class:`runner_shutdown.RunLockHandle` so the clean-shutdown routine can release
     the lock OBSERVABLY (spec `c4gd2h` R2: drop the ``flock`` AND remove the lock file). Kept
-    symmetric with ``oc_runipd.run_lock`` (orchestrator CID-3).
+    symmetric with ``oc_runipd.run_lock`` (orchestrator CID-3), including the ``platform_lock``
+    acquisition and the ``dup``ed-descriptor write of the ``pid=`` record (IPD `y6mfgo`).
     """
 
     lock_path = run_dir / "driver.lock"
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    handle = lock_path.open("a+")
     try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as exc:
-        handle.close()
+        held = platform_lock.acquire(lock_path)
+    except platform_lock.LockBusy as exc:
         raise DriverError(
             f"Run is already controlled by another process: {run_dir.name}"
         ) from exc
+    handle = held.dup_stream()
+    try:
+        if handle is not None:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(f"pid={os.getpid()} started={utc_now()}\n")
+            handle.flush()
     except BaseException:
-        handle.close()
+        with contextlib.suppress(Exception):
+            if handle is not None:
+                handle.close()
+        held.release()
         raise
-    handle.seek(0)
-    handle.truncate()
-    handle.write(f"pid={os.getpid()} started={utc_now()}\n")
-    handle.flush()
     lock = runner_shutdown.RunLockHandle(path=lock_path, handle=handle)
     try:
         yield lock
     finally:
         lock.release()
+        held.release()
 
 
 def _read_id(text: str) -> str | None:

@@ -22,15 +22,18 @@ handler, the out-of-band `stop` command's decision logic, the spec-R16 progress 
 budget-breach ESCALATION. What still does NOT live here is any reaping: the ONE shared reaper is
 `runner_shutdown.clean_shutdown` (spec R5).
 
-PLATFORM SUPPORT: POSIX ONLY, stated plainly rather than aspirationally (spec A10; orchestrator
-OQ-02). This module imports `fcntl` unconditionally above, and so do both drivers, so on a host
-without `fcntl` the module does not load AT ALL - there is no partial or "portable subset" mode in
-which level 1 or the out-of-band `stop` would still work. Every trigger described here therefore
-requires a POSIX host. What IS implemented for A10's second half is LOUD failure rather than a silent
-no-op: `install_stop_signal_handlers` returns a per-trigger status and `render_trigger_support`
-renders whatever could not be installed, for the caller to print. A cross-platform lock
-(`platform_lock`) and a Windows process-tree kill are owned by Set `wtiso` Phase 5 (`2c122z`); do not
-build a second one here (GUIDING_PRINCIPLES P8).
+PLATFORM SUPPORT: the SIGNAL TRIGGERS are POSIX ONLY, stated plainly rather than aspirationally
+(spec A10; orchestrator OQ-02). What changed, and what did not (IPD `y6mfgo`): this module no longer
+imports `fcntl`, and neither do the drivers. The lock now comes from `platform_lock`, the one
+cross-platform helper, so this module and both drivers IMPORT on a non-POSIX host, where previously
+they could not load at all. That removes the import-time barrier and nothing else. The SIGINT/SIGTERM
+ladder still needs POSIX signal semantics, and the process-tree kill (`os.killpg`/`getpgid`) still has
+no Windows equivalent, so the honest claim remains: the signal triggers require a POSIX host, and NO
+text here may promise a working Windows subset. What IS implemented for A10's second half is LOUD
+failure rather than a silent no-op: `install_stop_signal_handlers` returns a per-trigger status and
+`render_trigger_support` renders whatever could not be installed, for the caller to print. The Windows
+process-tree kill remains owned by Set `wtiso` Phase 5 (`2c122z`); do not build a second one here
+(GUIDING_PRINCIPLES P8).
 
 WHERE THE FLAG LIVES (spec `c4gd2h` OQ-03, RESOLVED). The stop request is per-machine CONTROL
 state and lives INSIDE the driver's run directory, as `<run_dir>/stop-request.json`, beside the
@@ -55,14 +58,21 @@ nothing. Removing the sidecar lock silently reintroduces the exact operator-visi
 that R9 exists to prevent.
 
 WHY THE HANDLER PATH NEVER BLOCKS (do not "simplify" this away either). Because a later phase
-calls this writer from SIGINT/SIGTERM handlers, a BLOCKING lock acquire is a deadlock: `flock`
-locks attach to the open file description, so a second acquire from the same process fails or
-waits, and a signal arriving while the main thread already holds the sidecar lock re-enters on the
-SAME thread. Measured directly: the handler entered and then hung until a 10s timeout killed it.
-`request_stop_nowait` therefore makes ONE `LOCK_EX | LOCK_NB` attempt and, on contention, records
-the level in a process-local slot that the already-required polling loop drains durably at its
-next checkpoint. `request_stop` likewise never issues a blocking `flock`; it retries the
-non-blocking acquire under a bounded deadline and fails loudly instead of hanging.
+calls this writer from SIGINT/SIGTERM handlers, a BLOCKING lock acquire is a deadlock: the lock
+attaches to the open file description, so a second acquire from the same process fails or waits,
+and a signal arriving while the main thread already holds the sidecar lock re-enters on the SAME
+thread. Measured directly: the handler entered and then hung until a 10s timeout killed it.
+`request_stop_nowait` therefore makes ONE non-blocking attempt and, on contention, records the
+level in a process-local slot that the already-required polling loop drains durably at its next
+checkpoint. `request_stop` likewise never issues a blocking acquire; it retries the non-blocking
+acquire under a bounded deadline and fails loudly instead of hanging.
+
+THIS DEPENDS ON THE LOCK BEING NON-RE-ENTRANT, which is why `platform_lock.acquire` guarantees it
+(IPD `y6mfgo` F7). `filelock`, which backs that helper, is re-entrant PER LOCK OBJECT, so the helper
+constructs a fresh object per acquisition and a same-process second acquire is refused exactly as a
+second acquire from another process would be. If that ever regresses, the handler would be ALLOWED
+into the read-modify-write below while the main thread is mid-update, silently losing a stop level
+and breaking the R9 monotonicity guarantee this module exists to provide.
 """
 
 from __future__ import annotations
@@ -70,7 +80,6 @@ from __future__ import annotations
 import contextlib
 import datetime as dt
 import errno
-import fcntl
 import json
 import os
 import signal
@@ -82,7 +91,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Container, Iterable, Iterator, Sequence, TextIO, Tuple
 
-from agent_workflows import runner_shutdown
+from agent_workflows import platform_lock, runner_shutdown
 
 __all__ = [
     "STOP_REQUEST_FILENAME",
@@ -470,27 +479,32 @@ def _sidecar_lock(run_dir: Path, *, timeout: float) -> Iterator[None]:
 
     lock_path = stop_request_lock_path(run_dir)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
-    handle = lock_path.open("a+")
-    try:
-        deadline = time.monotonic() + max(0.0, timeout)
-        while True:
-            try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                break
-            except OSError as exc:
-                if exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EWOULDBLOCK):
-                    raise
+    held = None
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        try:
+            # NON-BLOCKING, always. `platform_lock.acquire` defaults to non-blocking and is NOT
+            # re-entrant, which this code REQUIRES: a signal handler re-entering on the same
+            # thread must be REFUSED so the level is diverted to the process-local slot. A
+            # re-entrant lock would let the handler walk into the monotonic read-modify-write
+            # mid-update and silently lose a stop level (IPD `y6mfgo` F7).
+            held = platform_lock.acquire(lock_path)
+            break
+        except OSError as exc:
+            if isinstance(exc, platform_lock.LockBusy) or exc.errno in (
+                errno.EACCES,
+                errno.EAGAIN,
+                errno.EWOULDBLOCK,
+            ):
                 if timeout <= 0 or time.monotonic() >= deadline:
                     raise _LockBusy(str(lock_path)) from exc
                 time.sleep(_LOCK_RETRY_SLEEP_SECONDS)
-        try:
-            yield
-        finally:
-            with contextlib.suppress(OSError):
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                continue
+            raise
+    try:
+        yield
     finally:
-        with contextlib.suppress(OSError):
-            handle.close()
+        held.release()
 
 
 def _apply_request(run_dir: Path, level: int, requester: str) -> StopRequestResult:
@@ -1581,14 +1595,15 @@ def refused_resume_event(item: dict, *, at: str) -> dict:
 # other logic (`terminate_process`). So the DECISIONS (which level a press maps to, what the report
 # says, how liveness is probed, what the exit code is) live once here and each driver only wires them.
 #
-# PLATFORM SUPPORT, STATED HONESTLY AND NOT ASPIRATIONALLY (spec A10; orchestrator OQ-02). This
-# module imports `fcntl` unconditionally at its top, and so do both drivers, so on a host without
-# `fcntl` NOTHING here loads - not level 1, not the out-of-band `stop`. Therefore this Set's honest
-# platform claim is POSIX-ONLY, and no text in this module may promise a working Windows subset. The
-# cross-platform lock (`platform_lock`) and the Windows process-tree kill are owned by Set `wtiso`
-# Phase 5 (`2c122z`); building a second one here is forbidden (GUIDING_PRINCIPLES P8). What IS
-# implemented for A10's second half is the LOUD failure: `install_stop_signal_handlers` reports each
-# trigger it could not install rather than silently no-opping, and the caller prints that report.
+# PLATFORM SUPPORT, STATED HONESTLY AND NOT ASPIRATIONALLY (spec A10; orchestrator OQ-02). The
+# import-time barrier is GONE: this module and both drivers no longer import `fcntl`, taking the lock
+# from `platform_lock` instead (IPD `y6mfgo`), so they now LOAD on a non-POSIX host. But loading is not
+# supporting. The SIGINT/SIGTERM ladder needs POSIX signal semantics and the process-tree kill has no
+# Windows equivalent, so this Set's honest platform claim for the TRIGGERS remains POSIX-ONLY, and no
+# text in this module may promise a working Windows subset. The Windows process-tree kill is owned by
+# Set `wtiso` Phase 5 (`2c122z`); building a second one here is forbidden (GUIDING_PRINCIPLES P8).
+# What IS implemented for A10's second half is the LOUD failure: `install_stop_signal_handlers`
+# reports each trigger it could not install rather than silently no-opping, and the caller prints it.
 
 
 # Spec R12: the escalation LADDER. The Nth SIGINT requests `SIGINT_LADDER[N-1]`; further presses hold
@@ -1857,8 +1872,9 @@ def render_trigger_support(status: dict[str, str]) -> str | None:
     return (
         f"stop-trigger support is INCOMPLETE on this host ({detail}). The out-of-band "
         f"`stop <run-id> --after-call|--after-set|--now|--now-force` command is unaffected and "
-        f"remains the way to request any level here. NOTE: these drivers require POSIX `fcntl` to "
-        f"import at all, so there is no supported non-POSIX subset to fall back to."
+        f"remains the way to request any level here. NOTE: the signal triggers require POSIX "
+        f"signal semantics, so on a host without them the out-of-band command is the ONLY way to "
+        f"request a stop."
     )
 
 
@@ -1890,10 +1906,9 @@ LIVENESS_UNDETERMINED = "undetermined"
 STOP_VERB_HELP = "Request a graceful stop of a LIVE run, out-of-band (from a second terminal or a script)"
 
 STOP_PLATFORM_NOTE = (
-    "PLATFORM SUPPORT: POSIX only. This command and the SIGINT/SIGTERM triggers all require a POSIX "
-    "host, because the driver requires `fcntl` to import at all; there is therefore NO non-POSIX "
-    "subset in which some triggers still work. A trigger that cannot be installed is reported loudly "
-    "rather than silently ignored."
+    "PLATFORM SUPPORT: POSIX only. The SIGINT/SIGTERM triggers require POSIX signal semantics, and "
+    "the process-tree reap has no non-POSIX equivalent, so a stop is only fully supported on a POSIX "
+    "host. A trigger that cannot be installed is reported loudly rather than silently ignored."
 )
 
 STOP_VERB_DESCRIPTION = (

@@ -7,7 +7,10 @@ mutation, insertion, deletion, or reordering detectable at an exact sequence num
 corruption refusal (subclasses of LedgerCorruption) fails closed on any corrupted state. Redaction
 hooks sanitize secrets before persistence while keeping the chain valid over redacted bytes.
 
-Pure stdlib implementation conforming to D138 (dependency minimization) and D139 (no runtime YAML).
+Stdlib apart from the shared file lock, and conforming to D138 (dependency minimization) and D139
+(no runtime YAML). The single-writer lock comes from ``agent_workflows.platform_lock``, which is
+backed by ``filelock``, the package's one declared runtime dependency (IPD `y6mfgo`); it replaced a
+top-level ``import fcntl`` that made this module unimportable on a non-POSIX host.
 """
 
 from __future__ import annotations
@@ -15,7 +18,6 @@ from __future__ import annotations
 import contextlib
 import copy
 import datetime
-import fcntl
 import hashlib
 import json
 import os
@@ -38,6 +40,7 @@ from typing import (
     Union,
 )
 
+from agent_workflows import platform_lock
 from agent_workflows import run_ledger_schema as schema
 from agent_workflows.run_ledger_schema import Finding
 
@@ -329,16 +332,17 @@ class RunLedgerStore:
             )
 
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_file = None
+        file_lock = None
         try:
-            lock_file = open(self._lock_path, "a+")
-            fd = lock_file.fileno()
+            # NON-BLOCKING acquire retried under a bounded deadline, unchanged in behavior from the
+            # raw `LOCK_EX | LOCK_NB` retry loop this replaced (IPD `y6mfgo`): still never waits in
+            # the OS primitive, still fails with LedgerLockError at the deadline rather than hanging.
             start_time = time.monotonic()
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    file_lock = platform_lock.acquire(self._lock_path)
                     break
-                except (BlockingIOError, IOError, OSError):
+                except OSError:
                     if (time.monotonic() - start_time) >= lock_timeout:
                         raise LedgerLockError(
                             f"Failed to acquire advisory lock on {self._lock_path} within {lock_timeout}s"
@@ -346,15 +350,8 @@ class RunLedgerStore:
                     time.sleep(0.01)
             yield
         finally:
-            if lock_file is not None:
-                try:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                except (IOError, OSError):
-                    pass
-                try:
-                    lock_file.close()
-                except (IOError, OSError):
-                    pass
+            if file_lock is not None:
+                file_lock.release()
             self._process_lock.release()
 
     def _require_ledger_shape(self) -> None:

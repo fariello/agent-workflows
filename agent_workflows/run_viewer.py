@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from agent_workflows import platform_lock
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
 from agent_workflows.render_stream import format_tokens
 from agent_workflows.term import Term, strip_ansi
@@ -43,28 +44,23 @@ def driver_holder_state(run_dir: Path) -> str:
     ``driver.lock``, for two measured reasons: the OS releases an ``flock`` when its holder dies (so
     acquirability is authoritative), and a recorded PID can be REUSED by an unrelated process (so a
     ``kill(pid, 0)`` probe can report a live driver that is really something else). A missing lock file
-    means no holder. Anything we cannot determine (no ``fcntl`` on this platform, or any OSError) is
-    ``HOLDER_UNKNOWN``, never ``HOLDER_NONE``: failing to prove a driver is alive is not proof it is
-    dead, and only a proven-dead run may be projected (ssk6nf E-01).
+    means no holder. Anything we cannot determine (no POSIX lock primitive on this platform, or any
+    OSError) is ``HOLDER_UNKNOWN``, never ``HOLDER_NONE``: failing to prove a driver is alive is not
+    proof it is dead, and only a proven-dead run may be projected (ssk6nf E-01).
+
+    The probe itself is ``platform_lock.probe_free``, shared with ``runner_shutdown.lock_is_free``
+    rather than reimplemented here (IPD `y6mfgo`). It observes without creating or truncating, which
+    this function's contract requires: the driver records ``pid=`` INSIDE this file and
+    :func:`inspect_run_pid_and_runtime` reads it back, so a probe that truncated would destroy a live
+    driver's own record.
     """
     lock_path = Path(run_dir) / "driver.lock"
     if not lock_path.is_file():
         return HOLDER_NONE
-    try:
-        import fcntl
-    except ImportError:  # pragma: no cover - POSIX-only primitive
+    free = platform_lock.probe_free(lock_path)
+    if free is None:
         return HOLDER_UNKNOWN
-    try:
-        with lock_path.open("a+") as handle:
-            try:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                return HOLDER_LIVE
-            # Acquired, so nothing else holds it. Release immediately and leave the file in place.
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-            return HOLDER_NONE
-    except OSError:
-        return HOLDER_UNKNOWN
+    return HOLDER_NONE if free else HOLDER_LIVE
 
 
 @dataclass

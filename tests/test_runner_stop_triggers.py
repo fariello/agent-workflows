@@ -37,13 +37,17 @@ because each would otherwise have shipped:
    free. `LivenessProbeTests` asserts the decision is made by lock ACQUIRABILITY and would fail an
    implementation that checked `Path.exists()`.
 
-PLATFORM SCOPE, STATED HONESTLY (spec A10; orchestrator OQ-02 is still OPEN). These drivers
-`import fcntl` unconditionally at module top, so on a non-POSIX host the module does not LOAD and
-there is no "portable subset" in which level 1 or the out-of-band `stop` still work. This suite
-therefore does NOT assert a working Windows subset, and `PlatformHonestyTests` asserts the OPPOSITE:
-that no user-facing text claims one, and that an uninstallable trigger is reported LOUDLY rather than
-silently no-opping. A `sys.platform` monkeypatch is deliberately NOT used as evidence about imports,
-because the failing `import fcntl` happens before any such patch could run.
+PLATFORM SCOPE, STATED HONESTLY (spec A10; orchestrator OQ-02's lock half is now ANSWERED). UPDATED
+by IPD `y6mfgo`: the drivers and `runner_stop` NO LONGER `import fcntl`; the lock comes from
+`platform_lock`, so those modules now IMPORT on a non-POSIX host where before they could not load at
+all. That is the import-time barrier removed, and nothing more. This suite still does NOT assert a
+working Windows subset, because the SIGINT/SIGTERM ladder needs POSIX signal semantics and the
+process-tree reap has no Windows equivalent, both of which are out of `y6mfgo`'s scope.
+`PlatformHonestyTests` therefore keeps asserting the OPPOSITE of support: that no user-facing text
+claims a working Windows subset, and that an uninstallable trigger is reported LOUDLY rather than
+silently no-opping. What CHANGED in this suite is only the premise tripwire, which now asserts that
+the top-level `fcntl` imports are GONE and that `platform_lock` owns the one guarded import; a
+`sys.platform` monkeypatch is still deliberately NOT used as evidence about imports.
 """
 
 from __future__ import annotations
@@ -64,7 +68,7 @@ import pytest
 
 from agent_workflows import agy_runipd as agy
 from agent_workflows import oc_runipd as oc
-from agent_workflows import runner_shutdown, runner_stop
+from agent_workflows import platform_lock, runner_shutdown, runner_stop
 from tests.support import REPO_ROOT
 
 _DRIVER_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
@@ -1916,20 +1920,25 @@ class BudgetEscalationEndToEndTests(_InvariantAssertions):
 class PlatformHonestyTests(unittest.TestCase):
     """A10's SECOND half only: an unsupported trigger fails LOUDLY. The CLAIM is E-07/E-08's.
 
-    WHAT IS DELIBERATELY NOT ASSERTED HERE, and why. Spec A10's FIRST half says a non-POSIX host still
-    gets "the documented portable subset". That is UNREACHABLE as the spec words it, verified rather
-    than argued: both drivers `import fcntl` unconditionally at module top, so with `fcntl` masked
-    `import agent_workflows.oc_runipd` raises `ModuleNotFoundError` and NOTHING works there - not
-    level 1, not the out-of-band `stop`. Deciding what to do about that is orchestrator `zpbx7o`
-    OQ-02, a HUMAN decision (narrow A10 to a documented POSIX-only limitation, depend on `wtiso`
-    Phase 5, or build a Windows primitive here), so E-07's platform CLAIM and E-08's decision remain
-    BLOCKED and this suite asserts no working Windows subset.
+    WHAT CHANGED, AND WHAT DID NOT (updated by IPD `y6mfgo`). Spec A10's FIRST half says a non-POSIX
+    host still gets "the documented portable subset". That used to be UNREACHABLE for a blunt reason:
+    both drivers `import fcntl` at module top, so with `fcntl` masked `import
+    agent_workflows.oc_runipd` raised `ModuleNotFoundError` and NOTHING worked there. `y6mfgo` FIXED
+    that half by routing every lock through `platform_lock`, so those modules now import on a
+    non-POSIX host, which is what unblocks E-07's platform claim from being a guess.
 
-    A `sys.platform` monkeypatch is also NOT used as evidence about imports: the failing `import fcntl`
-    happens at import time, before any such patch could run, so it could not detect the real failure.
+    This suite STILL asserts no working Windows subset, and that is not stale caution: importing is
+    not supporting. The SIGINT/SIGTERM ladder needs POSIX signal semantics and the process-tree reap
+    (`os.killpg`/`getpgid`) has no Windows equivalent, and `y6mfgo` deliberately scoped both OUT.
+    So the honest claim for the TRIGGERS is still POSIX-only, and E-07/E-08 must state that boundary
+    rather than a broader one.
+
+    A `sys.platform` monkeypatch is still NOT used as evidence about imports: an import-time failure
+    happens before any such patch could run, so it could not detect the real behavior either way.
 
     What IS assertable today, and is asserted: the user-facing text does not CLAIM Windows support,
-    and an uninstallable trigger is reported rather than silently ignored.
+    an uninstallable trigger is reported rather than silently ignored, and the `fcntl` import barrier
+    is provably gone.
     """
 
     def test_the_unsupported_trigger_path_reports_loudly_rather_than_no_opping(self):
@@ -2016,25 +2025,45 @@ class PlatformHonestyTests(unittest.TestCase):
             )
             self.assertIn("POSIX only", result.stdout, driver)
 
-    def test_a10s_first_half_is_recorded_as_blocked_not_silently_claimed(self):
-        # The premise E-07/E-08 are blocked ON, asserted so this suite cannot drift into implying the
-        # portable subset exists. Both drivers import `fcntl` unconditionally, so there is nothing to
-        # fall back to on a non-POSIX host.
-        for name in ("oc_runipd.py", "agy_runipd.py", "runner_stop.py"):
+    def test_the_fcntl_import_barrier_is_gone_and_stays_gone(self):
+        """IPD `y6mfgo`: the import-time barrier A10's first half tripped over is REMOVED.
+
+        This REPLACES the former `test_a10s_first_half_is_recorded_as_blocked_not_silently_claimed`,
+        which asserted the OPPOSITE (that each module still carried a top-level `import fcntl`). That
+        assertion was a deliberate premise TRIPWIRE, not a semantic guarantee: its own failure message
+        instructed the reader to revisit the framing once `fcntl` was no longer imported
+        unconditionally, which is exactly what `y6mfgo` did. So it is inverted here rather than
+        deleted, and it is now a STRONGER statement of the same property: no module may reintroduce a
+        POSIX-only top-level import, and the one guarded import lives in exactly one place.
+        """
+
+        for name in (
+            "oc_runipd.py",
+            "agy_runipd.py",
+            "runner_stop.py",
+            "runner_shutdown.py",
+            "agy_sessions.py",
+            "project_registry.py",
+            "run_ledger_store.py",
+        ):
             source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertIn(
+            self.assertNotIn(
                 "\nimport fcntl\n",
                 source,
-                f"{name}: premise changed - `fcntl` is no longer imported unconditionally, so "
-                f"orchestrator OQ-02's framing (and this suite's platform scope) must be revisited",
+                f"{name}: a top-level `import fcntl` is back, which makes the whole package "
+                f"unimportable on a non-POSIX host again (IPD `y6mfgo`). Route the lock through "
+                f"`platform_lock` instead.",
             )
-        # `runner_shutdown` is the ONE module that already guards the import, and that asymmetry is
-        # exactly why the portable subset is unreachable today: the reaper could load, the drivers
-        # could not.
-        shutdown_src = (REPO_ROOT / "agent_workflows" / "runner_shutdown.py").read_text(
+        # The primitive is owned in ONE place, behind a guard, so there is exactly one thing to reason
+        # about on a non-POSIX host (GUIDING_PRINCIPLES P8).
+        lock_src = (REPO_ROOT / "agent_workflows" / "platform_lock.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("except ImportError:", shutdown_src)
+        self.assertIn("except ImportError:", lock_src)
+        print(
+            "fcntl import barrier: no top-level `import fcntl` in any of the 7 affected modules; "
+            "platform_lock owns the single guarded import"
+        )
 
 
 # =============================================================================================
@@ -2059,17 +2088,22 @@ class ScopeFenceTests(unittest.TestCase):
             self.assertIn("runner_stop.ForceStopWatch(", source, name)
 
     def test_no_second_lock_abstraction_was_added(self):
-        # Orchestrator CID-5 / GUIDING_PRINCIPLES P8: `platform_lock` and the Windows Job Object kill
-        # are owned by `wtiso` Phase 5 (`2c122z`). This phase consumes the existing acquirability
-        # helper (`runner_shutdown.lock_is_free`) instead of growing a second lock layer.
+        # Orchestrator CID-5 / GUIDING_PRINCIPLES P8: there must be exactly ONE lock abstraction, and
+        # `runner_stop` must CONSUME it rather than grow its own.
         #
-        # ASSERTED ON THE AST for the same reason as the reaper check below: the module docstring
-        # DELIBERATELY names `platform_lock` in order to forbid building one, so a text grep would fail
-        # on the very prose that prevents the defect. What must be absent is a DEFINITION or a CALL.
+        # UPDATED by IPD `y6mfgo`, preserving the intent while fixing the mechanism. This test used to
+        # forbid the NAME `platform_lock` anywhere in `runner_stop`, because at the time the module did
+        # not exist and was owned by `wtiso` Phase 5 (`2c122z`); banning the name was then a valid
+        # proxy for "do not build one". `y6mfgo` BUILT that one shared module (superseding `2c122z`'s
+        # copy of the work), so the name is now the thing `runner_stop` is SUPPOSED to import, and the
+        # old proxy would forbid the correct design. What the fence actually protects is unchanged and
+        # is asserted directly below: `runner_stop` must not DEFINE lock machinery of its own, and the
+        # Windows Job Object kill remains out of scope entirely.
         import ast
 
         tree = ast.parse(self._source("runner_stop.py"))
-        forbidden_names = {"platform_lock", "CreateJobObject", "TerminateJobObject"}
+        # Still absolutely forbidden: a Job Object kill (that is `2c122z`'s, not this Set's).
+        forbidden_names = {"CreateJobObject", "TerminateJobObject"}
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 self.assertNotIn(node.name, forbidden_names, node.name)
@@ -2077,11 +2111,37 @@ class ScopeFenceTests(unittest.TestCase):
                 self.assertNotIn(node.id, forbidden_names, node.id)
             if isinstance(node, ast.Attribute):
                 self.assertNotIn(node.attr, forbidden_names, node.attr)
-        # And the liveness probe must reach the EXISTING shared helper, not a local re-implementation.
+        # `runner_stop` must not DEFINE a lock abstraction. `_sidecar_lock` is the one permitted
+        # definition: it is a thin context manager around the shared helper implementing this module's
+        # own bounded-retry/handler-safe policy, NOT a lock primitive.
+        defined = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        }
+        self.assertEqual(
+            {name for name in defined if "FileLock" in name or "flock" in name.lower()},
+            set(),
+            "runner_stop must not define its own lock primitive; it consumes platform_lock",
+        )
+        # And it must consume THE shared modules by identity, not a local re-implementation: the lock
+        # helper it acquires through, and the acquirability probe.
+        self.assertIs(
+            runner_stop.platform_lock,
+            platform_lock,
+            "the lock must be the one shared platform_lock module",
+        )
         self.assertIs(
             runner_stop.runner_shutdown.lock_is_free,
             runner_shutdown.lock_is_free,
             "the acquirability probe must be the one shared helper",
+        )
+        # And the shared probe DELEGATES to the shared helper rather than reimplementing the primitive,
+        # so there is exactly one probe implementation in the package.
+        self.assertIn(
+            "platform_lock.probe_free",
+            self._source("runner_shutdown.py"),
+            "lock_is_free must delegate to the one probe implementation",
         )
 
     def test_no_second_process_reaper_was_added(self):

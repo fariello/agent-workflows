@@ -43,10 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
-try:  # POSIX-only primitive; the module must stay importable without it.
-    import fcntl
-except ImportError:  # pragma: no cover - exercised only on non-POSIX hosts
-    fcntl = None  # type: ignore[assignment]
+from agent_workflows import platform_lock
 
 
 # Per-signal grace before escalating. These are the DEFAULTS; each driver passes its own
@@ -251,9 +248,10 @@ class RunLockHandle:
                 self.unlinked = True
             except OSError:
                 self.unlinked = False
-        if fcntl is not None:
-            with contextlib.suppress(Exception):
-                fcntl.flock(self.handle.fileno(), fcntl.LOCK_UN)
+        # Best-effort unlock of the descriptor this handle was given. The driver's `run_lock` also
+        # releases its own `platform_lock` handle afterwards, and both are idempotent, so a caller
+        # that goes through `clean_shutdown` is not double-released (IPD `y6mfgo`).
+        platform_lock.release_raw(self.handle)
         with contextlib.suppress(Exception):
             self.handle.close()
         self.released = True
@@ -265,27 +263,15 @@ def lock_is_free(lock_path: Path) -> bool | None:
     ``True`` when the file is absent (nothing can hold a lock on it) or present and lockable,
     ``False`` when a live holder has it, ``None`` when this platform or an OS error leaves it
     undetermined. Never creates the file, so probing cannot resurrect a lock we just removed.
+
+    Delegates to ``platform_lock.probe_free``, which is the ONE probe implementation in the
+    package and which deliberately does NOT go through ``filelock``: ``filelock`` opens with
+    ``O_CREAT | O_TRUNC``, so probing through it would create a lock file that was just removed
+    and would blank the live holder's ``pid=`` record even when the probe correctly fails
+    (measured; IPD `y6mfgo`).
     """
 
-    if not Path(lock_path).exists():
-        return True
-    if fcntl is None:  # pragma: no cover - exercised only on non-POSIX hosts
-        return None
-    try:
-        fd = os.open(str(lock_path), os.O_RDWR)
-    except OSError:
-        return None
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return False
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        return True
-    except OSError:
-        return None
-    finally:
-        os.close(fd)
+    return platform_lock.probe_free(lock_path)
 
 
 # --------------------------------------------------------------------------------------

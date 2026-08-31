@@ -15,7 +15,6 @@ Invariants:
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -31,6 +30,7 @@ from agent_workflows.project_schema import (
     DurabilityState,
     RecordsBackend,
 )
+from agent_workflows import platform_lock
 
 
 class ProjectRegistryError(Exception):
@@ -271,28 +271,27 @@ def save_registry(registry_data: Dict[str, Any], registry_path: str) -> None:
     lock_path = target_p.parent / "registry.json.lock"
     payload = json.dumps(registry_data, indent=2, sort_keys=True) + "\n"
 
-    # Acquire same-directory lock file
-    with open(lock_path, "w", encoding="utf-8") as lock_file:
-        try:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        except OSError as exc:
-            raise RegistryLockError(f"Failed to acquire lock on {lock_path}: {exc}")
+    # Acquire the same-directory lock file, BLOCKING. This is the ONE blocking acquisition in the
+    # package and the only caller permitted to pass `blocking=True` (IPD `y6mfgo` E-07, option
+    # (a)): a registry writer must WAIT for a concurrent writer and then take its turn, exactly as
+    # the bare `fcntl.LOCK_EX` here did. Converting it to the non-blocking default would change
+    # "wait for the registry lock" into "fail if contended", a behavior change, not a refactor.
+    try:
+        lock = platform_lock.acquire(lock_path, blocking=True)
+    except OSError as exc:
+        raise RegistryLockError(f"Failed to acquire lock on {lock_path}: {exc}")
+    try:
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(target_p.parent), prefix=".registry.", suffix=".tmp"
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
 
-        try:
-            fd, tmp_name = tempfile.mkstemp(
-                dir=str(target_p.parent), prefix=".registry.", suffix=".tmp"
-            )
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.write(payload)
-                fh.flush()
-                os.fsync(fh.fileno())
-
-            os.replace(tmp_name, str(target_p))
-        finally:
-            try:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-            except OSError:
-                pass
+        os.replace(tmp_name, str(target_p))
+    finally:
+        lock.release()
 
 
 def find_project(

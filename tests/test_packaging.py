@@ -148,21 +148,61 @@ class PackagingTests(unittest.TestCase):
             leaked, [], f"dev/meta content leaked into the wheel: {leaked}"
         )
 
-    def test_wheel_declares_no_runtime_dependencies(self):
-        # AC-12: zero UNCONDITIONAL runtime deps (D44/D46). Optional-dependency extras
-        # (declared with `; extra == '<name>'`, e.g. the test-only pytest/pytest-xdist
-        # runner) are allowed: they are never installed unless a user asks for the extra
-        # and are not imported at runtime. Only unconditional Requires-Dist lines count.
+    def test_wheel_declares_only_the_allowlisted_runtime_dependency(self):
+        # AC-12, NARROWED from "zero runtime deps" to "an ALLOWLIST of exactly one" by IPD
+        # `y6mfgo`, which declared `filelock`. The original blanket-zero assertion was written
+        # under the framing DECISIONS D138 later corrected: D46 stated a FACT about the build of
+        # the day (this wheel happens to have no runtime deps), and the "rule" reading was a
+        # back-reference a later author added, never a policy D46 established. D138 makes the
+        # operative principle dependency MINIMIZATION, not prohibition.
+        #
+        # So the gate still does real work, and arguably more of it: it PINS the exact dependency
+        # set, so an accidental or unreviewed new runtime dep still fails here and has to be added
+        # deliberately, with justification, exactly as `filelock` was. It just no longer forbids
+        # the category outright.
+        #
+        # Why `filelock` earned it: six modules used to `import fcntl` at top level, so the package
+        # failed at IMPORT on Windows before any of its own code could run. Hand-rolling the
+        # replacement is the trap, because `msvcrt.locking` locks a BYTE RANGE rather than the whole
+        # file, letting two processes hold "exclusive" locks on one file simultaneously. See
+        # `agent_workflows/platform_lock.py`.
+        #
+        # Optional-dependency extras (declared with `; extra == '<name>'`, e.g. the test-only
+        # pytest/pytest-xdist runner) remain unrestricted: they are never installed unless a user
+        # asks for the extra and are not imported at runtime.
+        ALLOWED_RUNTIME_DEPS = {"filelock"}
+
         meta = [n for n in self.names if n.endswith("METADATA")]
         self.assertTrue(meta, "no METADATA in wheel")
         text = zipfile.ZipFile(self.wheel).read(meta[0]).decode("utf-8")
         requires = [ln for ln in text.splitlines() if ln.startswith("Requires-Dist")]
         unconditional = [ln for ln in requires if "extra ==" not in ln]
+
+        def _dist_name(line: str) -> str:
+            # `Requires-Dist: filelock>=3` -> `filelock`
+            spec = line.split(":", 1)[1].strip()
+            for boundary in ("=", ">", "<", "!", "~", " ", "[", ";"):
+                spec = spec.split(boundary, 1)[0]
+            return spec.strip().lower()
+
+        declared = {_dist_name(line) for line in unconditional}
+        unexpected = sorted(declared - ALLOWED_RUNTIME_DEPS)
         self.assertEqual(
-            unconditional,
+            unexpected,
             [],
-            f"unexpected unconditional runtime dependencies: {unconditional}",
+            f"unexpected unconditional runtime dependencies {unexpected}: a new runtime dep "
+            f"needs a deliberate justification (DECISIONS D138) and an update to this allowlist, "
+            f"not a silent addition. Full set: {unconditional}",
         )
+        # And the declared one must actually be there, so a silent DROP is caught too: the package
+        # cannot import without it.
+        self.assertEqual(
+            declared,
+            ALLOWED_RUNTIME_DEPS,
+            f"the required runtime dependency is missing from the wheel: expected "
+            f"{sorted(ALLOWED_RUNTIME_DEPS)}, got {sorted(declared)}",
+        )
+        print(f"wheel runtime deps (allowlisted): {unconditional}")
 
     def test_wheel_registers_three_console_scripts(self):
         ep = [n for n in self.names if n.endswith("entry_points.txt")]

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import fcntl
 import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+from agent_workflows import platform_lock
 
 
 @dataclass
@@ -29,18 +30,18 @@ class SessionInfo:
 
 
 def _is_session_active(app_data_dir: Path, conversation_id: str) -> bool:
-    """Check if the session has an active flock on its presence lockfile."""
+    """Check if the session has an active lock on its presence lockfile.
+
+    A read-only PROBE, via ``platform_lock.probe_free`` (IPD `y6mfgo`): these lockfiles belong
+    to the Antigravity application, not to us, so observing one must never create, truncate, or
+    otherwise touch it. An UNDETERMINED probe is reported as ACTIVE, preserving this function's
+    prior behavior exactly, where any ``OSError`` (including a permission failure) meant "in
+    use": for a liveness read, wrongly claiming a session is busy is the safe direction.
+    """
     lock_file = app_data_dir / "presence" / f"{conversation_id}.lock"
     if not lock_file.exists():
         return False
-    try:
-        f = open(lock_file, "r+")
-        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.flock(f, fcntl.LOCK_UN)
-        f.close()
-        return False
-    except (BlockingIOError, PermissionError, OSError):
-        return True
+    return platform_lock.probe_free(lock_file) is not True
 
 
 def _format_duration(

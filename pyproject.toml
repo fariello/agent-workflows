@@ -23,13 +23,34 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
     "Topic :: Utilities",
 ]
-# No runtime dependencies today (DECISIONS D44/D46). This is dependency MINIMIZATION,
-# not a prohibition (D138): add a runtime dep when it adds real value, weighing the cost
-# to users; prefer the stdlib when it does the job easily. Currently the stdlib suffices.
-dependencies = []
+# ONE runtime dependency, declared deliberately. Dependency MINIMIZATION is the operative
+# principle here, NOT a prohibition (DECISIONS D138, which clarifies D44/D46): add a runtime
+# dep only when it adds real value, weighing the cost to users; prefer the stdlib when it does
+# the job easily. Everywhere else the stdlib still suffices, and this is the only exception.
+#
+# WHY `filelock` EARNS IT. Six modules used to `import fcntl` at TOP LEVEL. `fcntl` is
+# POSIX-only, so on Windows the package failed at IMPORT, before any of its own code could run
+# - including the code whose job is to report the limitation. Replacing it needs a real
+# cross-platform file lock, and hand-rolling one is the trap: the Windows primitive
+# `msvcrt.locking` locks a BYTE RANGE from the current file position rather than the whole
+# file, so two processes can lock DISJOINT ranges of the same file and BOTH believe they hold
+# an exclusive lock. That is a SILENT mutual-exclusion failure, in the code that serializes
+# every driver run and every registry write. `filelock` is a single, small, mature, widely
+# deployed library that handles it, so this buys correctness we would otherwise have to
+# re-derive and re-test ourselves. See `agent_workflows/platform_lock.py` for the contract.
+#
+# A version FLOOR, not a pin: `>=3` is where the modern `filelock` API (`FileLock`, `Timeout`,
+# and the `timeout=` semantics this code relies on) has been stable, and pinning tighter would
+# pick fights with the lockfiles of the repos that install this tool.
+#
+# DECLARED EVEN THOUGH IT ALREADY IMPORTS on a maintainer machine, where `filelock` is present
+# only as a TRANSITIVE dependency of something else. Relying on that is exactly the
+# reproducibility hole documented in the `pytest-randomly` note below, where a maintainer venv
+# and a clean install ran different code. An accidental transitive install is not a dependency.
+dependencies = ["filelock>=3"]
 
-# TEST-ONLY dependencies. These are NOT runtime deps (the shipped package currently needs
-# none) and are never imported by agent_workflows/*. pytest-xdist is REQUIRED to run the
+# TEST-ONLY dependencies. These are NOT runtime deps (the shipped package needs only the one
+# declared above) and are never imported by agent_workflows/*. pytest-xdist is REQUIRED to run the
 # suite: `-n auto` is the default (addopts below + `make test`), so the suite ALWAYS runs
 # in parallel and never serially. Install the test deps with `make install-dev`,
 # `pip install '.[test]'`, or `pip install --group dev` (PEP 735 group below). pytest is

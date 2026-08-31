@@ -36,7 +36,7 @@ from unittest import mock
 
 import pytest
 
-from agent_workflows import runner_stop
+from agent_workflows import platform_lock, runner_stop
 from tests.support import REPO_ROOT
 
 _CHILD_ENV = {**os.environ, "PYTHONPATH": str(REPO_ROOT)}
@@ -732,42 +732,61 @@ class SignalHandlerSafetyTests(unittest.TestCase):
         with self.assertRaises(subprocess.TimeoutExpired):
             _run_child(self._HANDLER_PROBE, str(run_dir), "blocking", timeout=8.0)
 
+    # The two tests below assert the SAME property they always did (no acquisition on either writer
+    # path may WAIT), observed at a new seam. IPD `y6mfgo` moved the primitive out of `runner_stop`
+    # into `platform_lock`, so `runner_stop.fcntl` no longer exists to patch; the acquisition
+    # parameters are now recorded on `platform_lock.acquire` itself, which is strictly more direct
+    # evidence than the raw `flock` operation flags were, because it observes the CONTRACT the caller
+    # requests rather than one backend's bit flags.
+
+    def _recording_acquire(self, calls):
+        real_acquire = platform_lock.acquire
+
+        def recording_acquire(path, *, blocking=False, timeout=None):
+            calls.append({"blocking": blocking, "timeout": timeout})
+            return real_acquire(path, blocking=blocking, timeout=timeout)
+
+        return recording_acquire
+
+    def _assert_never_waits(self, calls):
+        self.assertTrue(calls, "expected an exclusive acquire attempt")
+        for call in calls:
+            self.assertFalse(
+                call["blocking"],
+                f"a stop writer must never take a blocking acquire; it deadlocks a signal "
+                f"handler (recorded {call})",
+            )
+            # A non-zero timeout would WAIT inside the primitive, which is the same hazard by
+            # another name. Waiting is done by the module's own bounded RETRY loop, above the lock.
+            self.assertIn(
+                call["timeout"],
+                (None, 0, 0.0),
+                f"a stop writer must not wait inside the lock (recorded {call})",
+            )
+
     def test_handler_path_takes_no_blocking_acquire(self):
         calls = []
-        real_flock = fcntl.flock
-
-        def recording_flock(fd, operation):
-            calls.append(operation)
-            return real_flock(fd, operation)
-
         run_dir = Path(tempfile.mkdtemp())
         runner_stop.reset_deferred_request()
         self.addCleanup(runner_stop.reset_deferred_request)
-        with mock.patch.object(runner_stop.fcntl, "flock", recording_flock):
+        with mock.patch.object(
+            runner_stop.platform_lock, "acquire", self._recording_acquire(calls)
+        ):
             runner_stop.request_stop_nowait(run_dir, 3, "handler")
-        acquires = [op for op in calls if op & fcntl.LOCK_EX]
-        self.assertTrue(acquires, "expected an exclusive acquire attempt")
-        for op in acquires:
-            self.assertTrue(
-                op & fcntl.LOCK_NB,
-                "the handler-safe path must use LOCK_NB; a blocking acquire deadlocks",
-            )
+        self._assert_never_waits(calls)
+        print(f"handler-path acquisitions (all non-blocking): {calls}")
 
     def test_request_stop_also_never_issues_a_blocking_acquire(self):
-        # Even the non-handler writer must not block indefinitely: it retries LOCK_NB under a
-        # bounded deadline and fails loudly.
+        # Even the non-handler writer must not block indefinitely: it retries the non-blocking
+        # acquire under a bounded deadline and fails loudly.
         calls = []
-        real_flock = fcntl.flock
-
-        def recording_flock(fd, operation):
-            calls.append(operation)
-            return real_flock(fd, operation)
-
         run_dir = Path(tempfile.mkdtemp())
-        with mock.patch.object(runner_stop.fcntl, "flock", recording_flock):
+        with mock.patch.object(
+            runner_stop.platform_lock, "acquire", self._recording_acquire(calls)
+        ):
             runner_stop.request_stop(run_dir, 3, "main")
-        for op in [op for op in calls if op & fcntl.LOCK_EX]:
-            self.assertTrue(op & fcntl.LOCK_NB, "request_stop must not block on flock")
+        self._assert_never_waits(calls)
+        print(f"request_stop acquisitions (all non-blocking): {calls}")
 
 
 class DeferredRequestTests(unittest.TestCase):
