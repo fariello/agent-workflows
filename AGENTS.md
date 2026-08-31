@@ -161,3 +161,34 @@ it with `engine.create_backlog_close_gate_hook(repo, install=True)` (idempotent,
 to the same `evaluate_blocking_close` predicate and gates the `done` case only. Honest limits: git hooks
 are local, not cloned by default, and skippable with `--no-verify`; the portable authority is the
 `aw check` rule plus CI, never the local hook alone.
+
+## Research prompts about THIS repository (repo-local rule)
+
+THIS SECTION IS REPO-LOCAL AND MUST NOT BE INSTALLED INTO A MANAGED TARGET REPO. It sits
+deliberately BELOW the `<!-- /aw:block -->` marker, outside every managed block, because it names
+this project's own public URL. A target repo gets its own upstream, not ours; copying this rule into
+one would point that repo's research at the wrong codebase.
+
+When you write a research prompt (or any other prompt intended for an EXTERNAL AI, for example a
+frontier model with web search) that asks about THIS toolkit, its design, its behavior, or a problem
+found in it, the prompt MUST include this repository's public URL:
+
+    https://github.com/fariello/agent-workflows
+
+State it as a citable source the external AI may read, near the top, in the prompt BODY (not only in
+front matter, which an uploaded copy may lose). Say plainly that it is the codebase under discussion
+and that it is public, so the model knows it may fetch it rather than guessing from the prose.
+
+WHY, since the reason decides the edge cases: a prompt describing our internals in prose alone forces
+the reader to reconstruct the design from a summary, and every summary is lossy and dates instantly.
+Handing over the source converts speculation into verifiable reading and lets the answer cite real
+files and line numbers, which is the same standard `/plan-review` applies in-repo.
+
+WHEN IT DOES NOT APPLY: a prompt about a GENERAL question that merely happens to arise here (for
+example "how do OS sandboxes work on macOS") does not need the URL if the answer would be identical
+for any project. Include it whenever the answer depends on how THIS toolkit actually behaves. When in
+doubt, include it; a superfluous link costs nothing, while a missing one costs a research round trip.
+
+DO NOT include anything else about the maintainer's machine, absolute local paths, usernames, private
+repository names, or session ids. The public URL is public by construction; run `aw sanitize --agent`
+before treating any prompt as shareable, and see the leak-sanitizer paragraph in the managed block.

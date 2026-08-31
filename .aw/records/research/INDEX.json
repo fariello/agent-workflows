@@ -1203,6 +1203,24 @@
   },
   {
     "consumed_by": [],
+    "created": "20260831",
+    "date": "20260831",
+    "id6": "q65sz3",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md",
+    "priority": "high",
+    "set_id": "cross-platform-agent-write-confinement",
+    "status": "todo",
+    "summary": "How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container",
+    "topic": [
+      "agent execution isolation"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260807",
     "date": "20260807",
     "id6": "qcxc6c",

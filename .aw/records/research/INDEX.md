@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 68 hot docs (archive excluded).
+Showing the most-recent 40 of 69 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -16,6 +16,7 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 - `3uh9j3` 20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md - gemini31pro report.
 - `v912ed` 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
 - `3nlmug` 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
+- `q65sz3` 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 - `nilw5h` 20260830-privrecs-00-nilw5h-private-records-repo-trackedness.research-prompt.md - Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
 - `ig9bai` 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
@@ -24,6 +25,7 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 
 ## Most recent
 
+- `q65sz3` [todo] 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` [todo] 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 - `nilw5h` [todo] 20260830-privrecs-00-nilw5h-private-records-repo-trackedness.research-prompt.md - Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
 - `ig9bai` [todo] 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
@@ -63,4 +65,3 @@ Showing the most-recent 40 of 68 hot docs (archive excluded).
 - `w0ilhj` [reference] reference/202608/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
 - `qcxc6c` [reference] 20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md - Migrated from 20260807-2053-01-20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md.
 - `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
-- `72n26s` [reference] 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md - Migrated from 20260731-chkplace-02-72n26s-checklist-placement-and-instruction-audit-report.gpt56medium.research-report.md.
