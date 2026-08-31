@@ -3,8 +3,8 @@
 - Date: 2026-08-30
 - Kind: child
 - Concern: The interactive `aw attention` board contains blank line gaps between sections, displays explicit placeholder lines for hidden done/parked groups in the middle of the board, and formats footer notes across multiple separated blocks rather than a tight, continuous summary.
-- Scope: Update `agent_workflows/attention.py` to remove blank lines between sections in the board, suppress hidden done/parked placeholder lines in interactive colored mode, attach the `legend` directly beneath the last section item with no blank line, unify the setup warning and `--all` hint into a single compact footer line (`TODO: Run \`/setup-repo\` to set up this repo. Use \`aw att --all\` to see old stuff.`), and update unit tests.
-- Scope-Paths: agent_workflows/attention.py, tests/test_attention.py
+- Scope: Update `agent_workflows/attention.py` to remove blank lines between sections in the board, suppress hidden done/parked placeholder lines in interactive colored mode, attach the `legend` directly beneath the last section item with no blank line, unify the setup warning and `--all` hint into a single compact footer line (`TODO: Run `/aw setup-repo` to set up this repo. Use `aw att --all` to see old stuff.`), and update unit tests.
+- Scope-Paths: agent_workflows/attention.py, tests/test_attention.py, tests/test_attention_notices.py
 - Item-Dependencies: none
 - Status: approved
 - Approval: human (attested by antigravity: user provided verbatim visual example of desired compact output)
@@ -30,24 +30,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Continuous Section Rendering & Hidden Group Suppression
 
-- [ ] E-01 Update `render_board` in `agent_workflows/attention.py` to omit blank lines between sections and suppress `[hidden; use --all]` section rows in interactive colored mode.
+- [x] E-01 Update `render_board` in `agent_workflows/attention.py` to omit blank lines between sections and suppress `[hidden; use --all]` section rows in interactive colored mode.
   - Depends on: none
   - Expected outcome: Board sections render continuously without intervening empty lines.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Compact Footer Assembly
 
-- [ ] E-02 Update `attention.run` to append the legend directly after the final section without a blank line, followed by the unified setup and `--all` footer hint.
+- [x] E-02 Update `attention.run` to append the legend directly after the final section without a blank line, followed by the unified setup and `--all` footer hint.
   - Depends on: E-01
   - Expected outcome: Footer lines render tightly aligned with the user specification.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Unit Tests
 
-- [ ] E-03 Update unit tests in `tests/test_attention.py` and `tests/test_attention_priority_blocker.py` to verify compact layout, footer assembly, and unbroken section flow.
+- [x] E-03 Update unit tests in `tests/test_attention.py`, `tests/test_attention_notices.py`, and `tests/test_attention_priority_blocker.py` to verify compact layout, footer assembly, and unbroken section flow.
   - Depends on: E-01, E-02
   - Expected outcome: Full test suite passes cleanly.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -76,7 +76,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Required tests / validation
 
-- `python3 -m pytest tests/test_attention.py tests/test_attention_priority_blocker.py` passing.
+- `python3 -m pytest tests/test_attention.py tests/test_attention_priority_blocker.py tests/test_attention_notices.py` passing.
 - Interactive CLI output matches user target.
 
 ## Spec / documentation sync
@@ -91,20 +91,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Output assertion verifying no empty lines between sections in rendered board.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_footer_placement_and_interactive_headers` and `render_board`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Output assertion confirming legend and unified footer hint appear directly after items.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_footer_placement_and_interactive_headers` and `test_attention_notices.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Full repository test suite passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3816 passed, 3 skipped, 4 xfailed in 58.24s` and clean leak check.
+  - Result: pass
 
 ## Approval and execution gate
 
