@@ -6,15 +6,17 @@
 - Scope: Introduce ONE lock helper backed by `filelock`, declare `filelock` as a runtime dependency, and route every raw `fcntl.flock` call site through it. Excludes changing any lock's SEMANTICS (each stays exclusive/non-blocking exactly as it is today), excludes the process-tree kill and signal handling (POSIX-only for different reasons, not addressed here), and excludes writing the A10 platform claim itself (that is `71vjbn` E-07, unblocked by this plan).
 - Scope-Paths: pyproject.toml, agent_workflows/platform_lock.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/agy_sessions.py, agent_workflows/project_registry.py, agent_workflows/run_ledger_store.py, agent_workflows/runner_stop.py, agent_workflows/runner_shutdown.py, tests/test_platform_lock.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: locksafe
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y6mfgo
+- Approval: 2026-08-31, human ("approved"): Approved by the maintainer, verbatim: 'Set approved. I'll run it.' Given directly after the /plan-review of this plan reported APPROVE WITH REVISIONS APPLIED with PR-001..PR-004 all FIXED and no open questions, so this approval is against the REVIEWED digest (post-revision), not the as-authored text. The maintainer will execute it themselves outside opencode.
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-31 approved (aw set, --by-human): Approved by the maintainer, verbatim: 'Set approved. I'll run it.' Given directly after the /plan-review of this plan reported APPROVE WITH REVISIONS APPLIED with PR-001..PR-004 all FIXED and no open questions, so this approval is against the REVIEWED digest (post-revision), not the as-authored text. The maintainer will execute it themselves outside opencode.
 - 2026-08-31 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED, no open questions. Found by exercising the real dependency and the real code: (PR-001, BLOCKER) filelock is RE-ENTRANT where fcntl.flock is not, and runner_stop._sidecar_lock depends on the refusal to divert a signal handler to its process-local slot, so a re-entrant helper would silently break R9 stop-level monotonicity; the plan's cross-process-only test could not have caught it. (PR-002, HIGH) the plan asserts twice that every call site is LOCK_EX|LOCK_NB and builds a non-blocking-only helper on that premise, but project_registry.py:277 acquires a bare LOCK_EX and WAITS, so the migration would have changed semantics the plan's own Scope forbids; added E-07 to decide it explicitly rather than reversing OQ-02 myself. (PR-003, MEDIUM) V-03 promised to prove an operator-facing message unchanged, but no test asserts that string. Verified sound: the 15-site inventory is exact, filelock is only transitively present so declaring it is necessary, D138 permits it, and the msvcrt byte-range argument holds. Three decisions recorded in the review record; none irreversible.
 
 - 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored at the maintainer's direction after `71vjbn` executed `partial` with E-07/E-08 blocked on the A10 platform question. The maintainer chose to FIX the portability rather than document a limitation, and chose `filelock` over a hand-rolled abstraction after I raised the `msvcrt.locking` byte-range hazard. That choice SUPERSEDES the `platform_lock` portion of approved plan `2c122z`, which planned to hand-roll the same thing (18 references there).
