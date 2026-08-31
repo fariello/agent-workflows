@@ -777,7 +777,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             # Note and Legend must be at the very bottom
             self.assertTrue(
                 stripped.endswith(
-                    "NOTE: setup not complete - run the `/setup-repo` workflow in this repo.\n\nlegend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]\n"
+                    "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]\nTODO: Run `/aw setup-repo` to set up this repo.\n"
                 )
             )
 

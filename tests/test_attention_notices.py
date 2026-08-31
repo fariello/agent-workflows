@@ -66,10 +66,10 @@ class AttentionNoticesTests(unittest.TestCase):
 
     def test_setup_notice_present(self):
         self._seed_setup_action()
-        self.assertIn("setup not complete", self._human())
+        self.assertIn("TODO: Run `/aw setup-repo`", self._human())
 
     def test_setup_notice_absent_without_action(self):
-        self.assertNotIn("setup not complete", self._human())
+        self.assertNotIn("TODO: Run `/aw setup-repo`", self._human())
 
     def test_release_blocker_section_present(self):
         self._seed_blocker()
@@ -82,7 +82,7 @@ class AttentionNoticesTests(unittest.TestCase):
         self._seed_setup_action()
         self._seed_blocker()
         j = self._json()
-        self.assertNotIn("setup not complete", j)
+        self.assertNotIn("TODO: Run `/aw setup-repo`", j)
         self.assertNotIn("release-blockers", j)
 
 

@@ -866,11 +866,8 @@ def render_board(
                 header_extra = f" in {next(iter(artifacts))}"
 
         if cls in (A.DONE, A.PARKED) and not show_all:
-            hidden_title = f"{cls} ({len(group)}) [hidden; use --all]"
-            if colored:
-                lines.append(term.color256(hidden_title, 244, bold=True))
-            else:
-                lines.append(f"## {hidden_title}")
+            if not colored:
+                lines.append(f"## {cls} ({len(group)}) [hidden; use --all]")
             continue
 
         # awdoctorfix Order 02: the colored default view shows a compact identity stem per item
@@ -887,12 +884,11 @@ def render_board(
             lines.append(
                 _render_item_row(it, cls, term, colored, long, details=details)
             )
-        lines.append("")
     if colored and legend:
         lines.append(
             "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
         )
-    return "\n".join(lines).rstrip("\n") + "\n"
+    return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
 
 
 # --------------------------------------------------------------------------------------
@@ -1178,8 +1174,6 @@ def run(args) -> int:
                 _rel = None
             _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
             rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
-            if board.strip():
-                board += "\n"
             if colored:
                 board += term.color256(rel_header, 196, bold=True) + "\n"
             else:
@@ -1211,8 +1205,6 @@ def run(args) -> int:
             gate_warnings = []
         if gate_warnings:
             gw_header = f"release-gate-warnings ({len(gate_warnings)})"
-            if board.strip():
-                board += "\n"
             if colored:
                 board += term.color256(gw_header, 214, bold=True) + "\n"
             else:
@@ -1228,17 +1220,27 @@ def run(args) -> int:
                 if fix.strip():
                     board += f"    Fix: {fix.strip()}\n"
 
-        footer_parts: list[str] = []
-        if setup_needed(repo_root):
-            footer_parts.append(
-                "NOTE: setup not complete - run the `/setup-repo` workflow in this repo."
-            )
+        footer_lines: list[str] = []
         if colored:
-            footer_parts.append(
+            footer_lines.append(
                 "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
             )
-        if footer_parts:
-            board = board.rstrip("\n") + "\n\n" + "\n\n".join(footer_parts) + "\n"
+        has_hidden = (
+            any(it.attention_class in (A.DONE, A.PARKED) for it in items)
+            and not show_all
+        )
+        needs_setup = setup_needed(repo_root)
+        if needs_setup and has_hidden:
+            footer_lines.append(
+                "TODO: Run `/aw setup-repo` to set up this repo. Use `aw att --all` to see old stuff."
+            )
+        elif needs_setup:
+            footer_lines.append("TODO: Run `/aw setup-repo` to set up this repo.")
+        elif has_hidden and colored:
+            footer_lines.append("Use `aw att --all` to see old stuff.")
+
+        if footer_lines:
+            board = board.rstrip("\n") + "\n" + "\n".join(footer_lines) + "\n"
         else:
             board = board.rstrip("\n") + "\n"
         sys.stdout.write(board)
