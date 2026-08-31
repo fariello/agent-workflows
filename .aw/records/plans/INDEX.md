@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 191 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 192 Sets; the full manifest is INDEX.json.
+
+## apprvguard
+
+- `d7bnhc` [pending] 01 pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md
 
 ## setgraph
 
@@ -184,11 +188,6 @@ Showing the 40 most-recent of 191 Sets; the full manifest is INDEX.json.
 
 - `ntf6sx` [executed] 01 executed/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
 - `ntf6sx` [pending] 01 pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
-
-## testinvoke
-
-- `uyd3lw` [executed] 01 executed/20260829-testinvoke-01-uyd3lw-tell-agents-to-run-the-suite-bare-never-n0-or-an-extra-q.ipd.md
-- `i79rgh` [executed] 02 executed/20260829-testinvoke-02-i79rgh-fix-tests-that-assert-against-live-repo-state-instead-of-a-f.ipd.md
 
 ## (singletons: no Set)
 

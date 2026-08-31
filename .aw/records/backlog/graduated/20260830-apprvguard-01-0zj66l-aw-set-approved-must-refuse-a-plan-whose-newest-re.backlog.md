@@ -1,5 +1,5 @@
 - Id: 0zj66l
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: apprvguard
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw set approved must refuse a plan whose newest review verdict is negative or that has unanswered blocking open questions, with an explicit override arg for the OQ case only
 
 ## Workflow history
+- 2026-08-31 graduated (aw set): Graduated to plan apprvguard-01 (d7bnhc), which carries From-Backlog: 0zj66l and inherits Blocks-Release: next. All five DESIGN QUESTIONS TO RESOLVE answered from measured evidence (F-1..F-8): the existing prose reader is doubly broken and has never fired (True for 0 of 26 pending plans), the typed artifact cannot carry the verdict today (only 3 review files exist; the 5 REJECTed plans recorded their verdict in plan prose), the existing findings gate excludes 'replan' so would not have caught it either, absent-review stays silent by shipped precedent, and there are TWO approval surfaces so the gate must land in both. Design is code not yet written, so graduated rather than done.
 - 2026-08-30 created (aw backlog): aw set approved must refuse a plan whose newest review verdict is negative or that has unanswered blocking open questions, with an explicit override arg for the OQ case only
 
 OBSERVED 2026-08-30, and it caused real damage rather than being theoretical.

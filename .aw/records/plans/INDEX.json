@@ -4320,6 +4320,16 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-31",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md",
+    "plan_id": "d7bnhc",
+    "set_id": "apprvguard",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
