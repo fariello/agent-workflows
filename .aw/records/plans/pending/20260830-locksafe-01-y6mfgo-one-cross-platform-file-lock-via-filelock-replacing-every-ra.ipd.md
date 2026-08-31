@@ -6,18 +6,19 @@
 - Scope: Introduce ONE lock helper backed by `filelock`, declare `filelock` as a runtime dependency, and route every raw `fcntl.flock` call site through it. Excludes changing any lock's SEMANTICS (each stays exclusive/non-blocking exactly as it is today), excludes the process-tree kill and signal handling (POSIX-only for different reasons, not addressed here), and excludes writing the A10 platform claim itself (that is `71vjbn` E-07, unblocked by this plan).
 - Scope-Paths: pyproject.toml, agent_workflows/platform_lock.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/agy_sessions.py, agent_workflows/project_registry.py, agent_workflows/run_ledger_store.py, agent_workflows/runner_stop.py, agent_workflows/runner_shutdown.py, tests/test_platform_lock.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: locksafe
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y6mfgo
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-31 reviewed (aw set): plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004, all FIXED, no open questions. Found by exercising the real dependency and the real code: (PR-001, BLOCKER) filelock is RE-ENTRANT where fcntl.flock is not, and runner_stop._sidecar_lock depends on the refusal to divert a signal handler to its process-local slot, so a re-entrant helper would silently break R9 stop-level monotonicity; the plan's cross-process-only test could not have caught it. (PR-002, HIGH) the plan asserts twice that every call site is LOCK_EX|LOCK_NB and builds a non-blocking-only helper on that premise, but project_registry.py:277 acquires a bare LOCK_EX and WAITS, so the migration would have changed semantics the plan's own Scope forbids; added E-07 to decide it explicitly rather than reversing OQ-02 myself. (PR-003, MEDIUM) V-03 promised to prove an operator-facing message unchanged, but no test asserts that string. Verified sound: the 15-site inventory is exact, filelock is only transitively present so declaring it is necessary, D138 permits it, and the msvcrt byte-range argument holds. Three decisions recorded in the review record; none irreversible.
 
-- 2026-08-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored at the maintainer's direction after `71vjbn` executed `partial` with E-07/E-08 blocked on the A10 platform question. The maintainer chose to FIX the portability rather than document a limitation, and chose `filelock` over a hand-rolled abstraction after I raised the `msvcrt.locking` byte-range hazard. That choice SUPERSEDES the `platform_lock` portion of approved plan `2c122z`, which planned to hand-roll the same thing (18 references there).
+- 2026-08-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 
 ## Goal
 
@@ -34,26 +35,38 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `pyproject.toml` declares `filelock` with a version floor and a comment citing D138; a clean install into a fresh venv provides it; the comment explains why a runtime dep was justified here.
   - Execution state: pending
 
-- [ ] E-02 Create `agent_workflows/platform_lock.py` with ONE exclusive, non-blocking file-lock helper wrapping `filelock`. It must preserve TODAY'S semantics exactly: every existing call site uses `LOCK_EX | LOCK_NB`, i.e. take it exclusively and fail IMMEDIATELY if another holder has it, never wait. So the helper's default must be non-blocking with a distinguishable already-held outcome, because several callers convert that into an operator-facing message (`oc_runipd.run_lock` raises `DriverError("Run is already controlled by another process")`). Do NOT add a blocking mode "for completeness"; nothing needs it and an accidental block would hang a driver. Name the module `platform_lock` to match what `2c122z` already refers to (18 references), so that plan's prose still resolves.
+- [ ] E-02 Create `agent_workflows/platform_lock.py` with ONE exclusive, non-blocking file-lock helper wrapping `filelock`. It must preserve TODAY'S semantics exactly: fourteen of the fifteen call sites use `LOCK_EX | LOCK_NB`, i.e. take it exclusively and fail IMMEDIATELY if another holder has it, never wait. So the helper's default must be non-blocking with a distinguishable already-held outcome, because several callers convert that into an operator-facing message (`oc_runipd.run_lock` raises `DriverError("Run is already controlled by another process")`). Do NOT add a blocking mode "for completeness" beyond what E-07 requires; an accidental block would hang a driver. Name the module `platform_lock` to match what `2c122z` already refers to (18 references), so that plan's prose still resolves.
+  MUST NOT BE RE-ENTRANT (added at review, PR-001, BLOCKER). `filelock` and `fcntl.flock` differ here and the difference is load-bearing, not cosmetic. MEASURED with `filelock` 3.29.7: a second `acquire()` on the SAME `FileLock` object SUCCEEDS via an internal re-entrancy counter, whereas a second `fcntl.flock(..., LOCK_EX|LOCK_NB)` on a second handle in the same process RAISES `BlockingIOError`. `runner_stop._sidecar_lock` DEPENDS on the refusal: its module docstring records that a signal handler re-entering on the same thread must be detected and diverted to a process-local slot, and that a blocking acquire there deadlocked (measured, 10s timeout). A re-entrant helper would let the handler proceed INTO the monotonic read-modify-write while the main thread is mid-update, silently losing or corrupting a stop level, which is exactly the R9 monotonicity property `runner_stop` exists to guarantee.
+  THE REMEDY IS VERIFIED, so implement it deliberately rather than discovering it: construct a FRESH `FileLock` object per acquisition and never share one across acquires (measured: a fresh object refuses with `Timeout`, matching today's `flock` behavior). `thread_local=False` does NOT fix this; the counter is per-object, not per-thread (also measured). Whatever you choose, the helper's public contract must state "not re-entrant: a second acquire in the same process fails exactly as a second acquire from another process would", and E-04 must test it.
   - Depends on: E-01
-  - Expected outcome: one helper providing exclusive non-blocking acquire, release, and a distinguishable already-held signal; no blocking mode; the module imports cleanly on this platform and has no POSIX-only import of its own.
+  - Expected outcome: one helper providing exclusive non-blocking acquire, release, and a distinguishable already-held signal; NOT re-entrant (a same-process second acquire is refused); no blocking mode beyond E-07's single documented exception; the module imports cleanly on this platform and has no POSIX-only import of its own.
   - Execution state: pending
 
 ### Task group 2: migrate every call site, change no behavior
 
 - [ ] E-03 Route all FIFTEEN raw `fcntl.` call sites through the helper and remove the six top-level `import fcntl` statements. MEASURED inventory so nothing is missed: `oc_runipd.py:1498`, `agy_runipd.py:1302`, `runner_stop.py:430`, `agy_sessions.py:38,39`, `project_registry.py:277,293`, `run_ledger_store.py:339,351`, and `runner_shutdown.py:256,280,283`. Note `runner_shutdown.py` ALREADY guards its import in a `try/except ImportError` with a `fcntl = None` fallback and an `if fcntl is not None:` check, which is the in-repo precedent for how carefully this was treated; that guard becomes unnecessary once the helper owns it, so remove the guard rather than leaving a dead branch. Preserve each site's existing ERROR HANDLING: `BlockingIOError` is what callers catch today, so the helper's already-held signal must reach them in a form each site still handles, or each site must be updated in the same pass.
-  - Depends on: E-02
-  - Expected outcome: zero `fcntl.` references remain in `agent_workflows/`; zero top-level `import fcntl`; every previously-caught already-held case is still caught and still produces the same operator-facing message.
+  ONE SITE IS BLOCKING AND IS NOT COVERED BY THE ABOVE (added at review, PR-002, HIGH). `project_registry.py:277` acquires a BARE `fcntl.LOCK_EX` with NO `LOCK_NB`, so it WAITS for the holder; every other acquisition in the package is non-blocking. Verified by enumerating every `flock(` mode in `agent_workflows/`: 7 acquisitions are `LOCK_EX | LOCK_NB`, exactly 1 is bare `LOCK_EX`, the rest are `LOCK_UN` releases. Migrating that site through a non-blocking-only helper would CHANGE ITS SEMANTICS from "wait for the registry lock" to "fail immediately if contended", which the plan's own Scope forbids ("Excludes changing any lock's SEMANTICS"). Handle it per E-07's ruling; do NOT silently convert it, and do NOT leave it as the one remaining raw `fcntl` call, since that would defeat the import-portability goal for `project_registry.py`.
+  - Depends on: E-02, E-07
+  - Expected outcome: zero `fcntl.` references remain in `agent_workflows/`; zero top-level `import fcntl`; every previously-caught already-held case is still caught and still produces the same operator-facing message; the `project_registry.py` blocking site keeps blocking semantics.
   - Execution state: pending
 
 - [ ] E-04 Prove the lock still EXCLUDES, which is the property that matters and the one a refactor can silently break. Add `tests/test_platform_lock.py` asserting from two separate PROCESSES (not two handles in one process, which can pass on a broken implementation) that the second acquisition of the same lock file fails immediately rather than succeeding or hanging. Also assert the release path frees it. THIS IS THE HAZARD THAT MOTIVATED CHOOSING `filelock` OVER HAND-ROLLING: Windows `msvcrt.locking` locks a BYTE RANGE from the current file position, not the whole file, so a naive port lets two processes lock disjoint ranges of one file and BOTH believe they hold it. A prior review of `2c122z` caught exactly that. The test must therefore be a real mutual-exclusion test, not a smoke test.
+  ALSO TEST NON-RE-ENTRANCY IN ONE PROCESS (added at review, PR-001). The two-process test CANNOT detect the re-entrancy hazard E-02 now guards against, because `filelock`'s counter is per-object within one process. Add a SAME-PROCESS case asserting that a second acquire of the same lock path is REFUSED, and assert it in the shape `runner_stop` depends on. Both cases are required: the cross-process test catches a degraded no-op, the same-process test catches re-entrancy, and neither substitutes for the other.
   - Depends on: E-03
-  - Expected outcome: a two-process test shows the second acquire failing immediately; release frees the lock; the test FAILS against an implementation that locks only a byte range or that silently degrades to no-op.
+  - Expected outcome: a two-process test shows the second acquire failing immediately; a same-process second acquire is ALSO refused (not re-entrant); release frees the lock; the tests FAIL against an implementation that locks only a byte range, that silently degrades to no-op, or that shares a re-entrancy counter.
   - Execution state: pending
 
 - [ ] E-05 Prove the package now IMPORTS without `fcntl`, since that is the whole point. Simulate its absence (block the module in `sys.modules` or via an import hook) and assert every module in the E-03 inventory still imports. Do NOT settle for "it works on Linux": the defect is invisible on Linux by construction, so a test that does not simulate the absence tests nothing about the fix.
   - Depends on: E-03
   - Expected outcome: with `fcntl` unavailable, all six previously-affected modules import successfully and a lock can still be acquired; the same test fails against the pre-fix code.
+  - Execution state: pending
+
+- [ ] E-07 Decide and implement how the ONE BLOCKING call site keeps blocking (added at review, PR-002). `project_registry.py:277` uses a bare `fcntl.LOCK_EX` and WAITS; nothing else in the package does. Choose ONE and record which in this item before writing code, because the choice changes the helper's public contract that E-02 declares:
+  (a) give the helper an EXPLICIT, opt-in blocking acquire used by this one caller and nowhere else, documented as "the single blocking caller is the project registry; every other caller is non-blocking, and adding a second blocking caller needs its own justification"; or
+  (b) leave `project_registry.py` on raw `fcntl` behind a guarded import, accepting that this module alone stays POSIX-only.
+  RECOMMENDATION (a), because (b) forfeits the plan's stated goal for that module and leaves the exact top-level-import pattern this plan exists to remove; but (a) reintroduces a blocking path that OQ-02 deliberately excluded, so the exclusion must be narrowed in writing rather than silently contradicted. Either way `filelock` supports it (`blocking=` on both the constructor and `acquire`, verified in 3.29.7), so this is a contract decision, not a capability gap. DO NOT convert the site to non-blocking: a registry writer that fails instead of waiting is a behavior change the Scope forbids.
+  - Depends on: E-02
+  - Expected outcome: the chosen option is stated in this item with its rationale; the helper's documented contract matches it; `project_registry.py` still WAITS for a contended registry lock, proven by test, and OQ-02's no-blocking-mode exclusion is narrowed in the plan text rather than left contradicted.
   - Execution state: pending
 
 - [ ] E-06 Record the consequence for the two plans this touches, in their records rather than only here. `2c122z`'s `platform_lock` portion is SUPERSEDED by this plan and must not be built twice; note it there so whoever executes that lane does not reimplement it. And `71vjbn` E-07/E-08 are UNBLOCKED, since the A10 platform question now has a factual answer; note it there too. Do NOT change either plan's status: `2c122z` is a stranded lane awaiting `6knsrx`, and `71vjbn` still needs its E-07/E-08 executed before it can finalize.
@@ -64,7 +77,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Project conventions discovered (Step 0)
 
 - MEASURED: 15 `fcntl.` call sites across 6 modules with a top-level `import fcntl`, plus `runner_shutdown.py` which uses it behind a guarded import. Nothing else in the package touches it.
-- Every single call site uses `LOCK_EX | LOCK_NB`. There is no blocking or shared-lock use anywhere, which makes the helper's contract narrow and the migration mechanical.
+- CORRECTED AT REVIEW (PR-002): NOT every call site is non-blocking. The mode census over `agent_workflows/` is 7 `LOCK_EX | LOCK_NB` acquisitions, ONE bare `LOCK_EX` (`project_registry.py:277`, which WAITS), and the remainder `LOCK_UN` releases. There is no shared-lock use anywhere. The migration is therefore mechanical for 14 sites and a deliberate decision for one (E-07).
+- ADDED AT REVIEW (PR-001): `filelock` and `fcntl.flock` differ on RE-ENTRANCY, and `runner_stop` depends on the difference. See F7; the helper must not be re-entrant.
 - `runner_shutdown.py` already models the careful approach with `try: import fcntl / except ImportError: fcntl = None` and an `if fcntl is not None:` guard, whose comment reads "POSIX-only primitive; the module must stay importable without it." Someone already understood this problem in one file; this plan generalizes it.
 - `filelock` 3.29.7 is ALREADY IMPORTABLE in this environment, but only transitively. E-01 declares it precisely because an accidental transitive install is not a dependency.
 - DECISIONS D138 is the governing rule and it permits this: "the operative principle is DEPENDENCY MINIMIZATION, not prohibition... add one only when it adds real value". It also records that earlier stdlib-only choices were pragmatic preferences, not mandates.
@@ -79,6 +93,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F3 | HIGH | `msvcrt.locking` | The hand-rolled path has a subtle correctness trap, which is the decisive argument for `filelock`: `msvcrt.locking` locks a BYTE RANGE from the current file position, so two processes can lock disjoint ranges of the SAME file and both believe they hold an exclusive lock, silently defeating mutual exclusion. A prior `2c122z` review found this independently. | that review's PR-002 finding; `msvcrt` documentation semantics |
 | F4 | MED | `2c122z` | This plan SUPERSEDES that plan's `platform_lock` work (18 references there). Both would create the same module; letting both proceed guarantees a collision on a stranded lane that is already hard to land. | `grep -c platform_lock` in `2c122z` = 18 |
 | F5 | MED | `pyproject.toml` | `filelock` being importable here is NOT evidence it is available to users: it is transitive. The file itself documents this failure mode for `pytest-randomly`, where a maintainer venv and a clean install ran different suites. Declare it. | `dependencies = []`; the `pytest-randomly` comment; `filelock.__version__` = 3.29.7 present but undeclared |
+| F7 | BLOCKER | `runner_stop.py:57-65`, `_sidecar_lock:462` | ADDED AT REVIEW (PR-001). `filelock` is RE-ENTRANT and `fcntl.flock` is not, and `runner_stop` depends on the non-re-entrancy. MEASURED with 3.29.7: a second `acquire()` on the same `FileLock` object SUCCEEDS via an internal counter, while a second `flock(LOCK_EX\|LOCK_NB)` on a second handle in one process raises `BlockingIOError`. `_sidecar_lock`'s docstring records that a signal handler re-entering on the same thread MUST be refused so the level is diverted to a process-local slot, and that a blocking acquire there deadlocked (measured, 10s timeout). A re-entrant helper lets the handler enter the monotonic read-modify-write mid-update, silently losing a stop level and breaking the R9 monotonicity guarantee. Remedy verified: a FRESH `FileLock` per acquire refuses correctly; `thread_local=False` does NOT help (the counter is per-object). | reproduced both semantics directly; `runner_stop.py:57-65` docstring; `_sidecar_lock` at `:462` |
+| F8 | HIGH | `project_registry.py:277` | ADDED AT REVIEW (PR-002). The plan asserts twice that "every existing call site uses `LOCK_EX \| LOCK_NB`" and builds a non-blocking-ONLY helper on that premise. One site contradicts it: `project_registry.py:277` acquires a bare `fcntl.LOCK_EX` and WAITS. Enumerated every mode in the package: 7 non-blocking acquisitions, 1 bare `LOCK_EX`, remainder `LOCK_UN`. Migrating it through a non-blocking helper would change "wait for the registry lock" into "fail if contended", which the plan's own Scope explicitly forbids; leaving it raw forfeits the portability goal for that module. Needs an explicit decision, now E-07. | `grep -n 'flock(' agent_workflows/*.py` mode census; `project_registry.py:277` vs `:293` |
+| F9 | MEDIUM | `tests/` (absence) | ADDED AT REVIEW (PR-003). V-03 requires proving the operator-facing message "Run is already controlled by another process" is unchanged, but NO test asserts that string today: it appears only in `oc_runipd.py` and `agy_runipd.py` themselves. So the plan's own regression net for the message it names does not exist, and "the suite still passes" cannot evidence it. The E-04 test module must add that assertion, or V-03's evidence is a manual one-off that rots. | `grep -rln 'already controlled by another process' tests/` returns nothing; matches only the two driver modules |
 | F6 | LOW | `runner_shutdown.py` | One module already handles this correctly with a guarded import and a `fcntl is not None` check. Its guard becomes dead once the helper owns the concern and should be REMOVED rather than left as a misleading branch. | `runner_shutdown.py:47-49`, `:254` |
 
 ## Proposed changes (ordered, validatable)
@@ -101,12 +118,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - Over-scope: none. Each declared path either holds a call site being migrated, is the new module, or is the dependency declaration.
 - `runner_shutdown.py` is declared even though it already guards its import, because F6's dead guard should be removed in the same pass rather than left behind.
-- Under-scope: NONE OUTSTANDING. The call-site inventory is measured, not estimated, and stated in E-03 so a reviewer can check completeness by grep rather than by trust.
+- Under-scope, FOUND AT REVIEW and now addressed in place: the inventory was complete but its CHARACTERIZATION was wrong on two counts, each of which would have produced a silent behavior change. (1) One site blocks and the helper was specified non-blocking-only (F8, now E-07). (2) `filelock` is re-entrant where `flock` is not, and `runner_stop`'s handler-safety depends on refusal (F7, now specified in E-02 and tested in E-04). A third gap was smaller but real: no test asserts the operator-facing message V-03 promises to preserve (F9), so the E-04 module must add it.
 - CONTENTION WARNING: `oc_runipd.py`, `agy_runipd.py` and `runner_stop.py` are among the most-edited files in this repo and several lanes touch them. Re-read each immediately before editing and verify the staged set before committing.
 
 ## Required tests / validation
 
 - `tests/test_platform_lock.py` must pass, with the mutual-exclusion test using TWO PROCESSES. A same-process double-acquire is not sufficient evidence and will pass against a byte-range implementation (F3).
+- IT MUST ALSO CONTAIN A SAME-PROCESS NON-RE-ENTRANCY TEST (F7). The two-process test cannot detect re-entrancy, because `filelock`'s counter is per-object inside one process. Both tests are required and neither substitutes for the other.
+- IT MUST ALSO ASSERT THE PRESERVED BLOCKING SEMANTICS of `project_registry` (F8/E-07): two processes where the second WAITS and then succeeds, rather than raising.
+- IT MUST ALSO ASSERT the operator-facing string "Run is already controlled by another process" (F9), which no test covers today.
 - FALSIFIABILITY, both directions and both mandatory: the exclusion test must FAIL against an implementation that locks only a byte range or degrades to a no-op; the import test must FAIL against the pre-fix code with `fcntl` blocked.
 - Every existing lock-related test must pass UNCHANGED. Locate them first (`tests/test_runner_shutdown.py` and anything asserting the "already controlled by another process" message) and treat a failure there as evidence the migration changed semantics, not as a test to update.
 - INVOKE THE SUITE BARE: `python3 -m pytest` and `python3 -m pytest -m ""`. Do NOT add `-n0`, a second `-q`, or `-p no:randomly`.
@@ -135,7 +155,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: NO. Every one of the 15 existing call sites uses `LOCK_EX | LOCK_NB`, so nothing needs blocking, and several callers convert the already-held case into an operator-facing refusal rather than a wait. Adding an unused blocking mode would create a way to hang a driver indefinitely for no current benefit. If a genuine need appears later it can be added with its own justification; speculative generality here is a hazard, not a courtesy.
+- Resolution or deferral rationale: NARROWED AT REVIEW (PR-002), and the original premise was FACTUALLY WRONG. The claim "every one of the 15 existing call sites uses `LOCK_EX | LOCK_NB`" is false: `project_registry.py:277` acquires a bare `fcntl.LOCK_EX` and WAITS (mode census: 7 non-blocking acquisitions, 1 blocking, remainder releases). So there IS one existing blocking caller.
+  The ANSWER still stands for every other site, and the reasoning behind it is unchanged: no SPECULATIVE blocking mode, because several callers convert the already-held case into an operator-facing refusal and an accidental block would hang a driver. What changes is that the exclusion is now bounded rather than absolute: E-07 decides whether the one real blocking caller gets an explicit opt-in blocking acquire (recommended) or stays on raw `fcntl` behind a guarded import. Either way, adding a SECOND blocking caller still requires its own justification.
+  Recorded this way rather than by quietly deleting the old wording, because the original text would otherwise read as forbidding exactly what E-07 must do.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -152,7 +174,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste `grep -rn "fcntl" agent_workflows/` returning ZERO hits. Paste, for at least `oc_runipd.run_lock`, the before/after showing the already-held case still produces the same operator-facing message ("Run is already controlled by another process"). Confirm `runner_shutdown.py`'s dead `fcntl is not None` guard was removed rather than left.
+  - Required evidence: paste `grep -rn "fcntl" agent_workflows/` returning ZERO hits, OR, if E-07 chose option (b), exactly the one guarded `project_registry.py` import with that choice restated. Paste, for at least `oc_runipd.run_lock`, the before/after showing the already-held case still produces the same operator-facing message ("Run is already controlled by another process"), AND paste the new TEST that asserts that string (added per F9: no test asserted it before this plan, so a manual before/after paste alone leaves no regression net). Confirm `runner_shutdown.py`'s dead `fcntl is not None` guard was removed rather than left.
   - Observed evidence:
   - Result: pending
 
@@ -168,6 +190,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-06 validates E-06
   - Required evidence: paste the dated notes added to `2c122z` and `71vjbn`, each naming this plan's id6. Paste both plans' `- Status:` lines showing they are UNCHANGED.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: state which option you chose and paste the rationale you recorded in E-07. Paste the helper's documented contract showing it MATCHES that choice (if (a), the opt-in blocking acquire and its single-caller note; if (b), the guarded import and the explicit statement that this module stays POSIX-only). Paste a test proving `project_registry`'s writer STILL WAITS on a contended lock rather than failing: two processes, the second must block until the first releases and then succeed, NOT raise. A test that only shows the happy path does not demonstrate preserved blocking semantics. If you chose (a), also paste the narrowed OQ-02 text, since the original wording excluded any blocking mode.
   - Observed evidence:
   - Result: pending
 
