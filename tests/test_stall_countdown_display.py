@@ -134,7 +134,7 @@ class StatuslineCountdownTests(unittest.TestCase):
     def test_a_broken_watchdog_degrades_silently(self):
         out = self._line(_ExplodingWatchdog())
         self.assertNotIn("kill in", out)
-        self.assertIn("idle:", out)
+        self.assertIn("last:", out)
 
     def test_layout_invariant_holds_with_the_countdown(self):
         # The pinned invariant: all rendered lines stay the same width.
@@ -154,7 +154,7 @@ class StatuslineCountdownTests(unittest.TestCase):
         self.assertEqual(len(l1), len(l2))
         self.assertEqual(len(l2), len(bot))
         self.assertIn("kill in 2m30s", l1)
-        self.assertIn("(last: subagent)", l2)
+        self.assertIn("subagent", l2)
 
     def test_layout_is_unchanged_when_no_countdown(self):
         # Additive: with no stall timeout the original pinned layout is preserved exactly.
@@ -173,7 +173,7 @@ class StatuslineCountdownTests(unittest.TestCase):
         self.assertEqual(len(l1), len(l2))
         self.assertEqual(len(l2), len(bot))
         self.assertEqual(
-            [s.strip() for s in l2.split("│")[1:-1]][1], "1h04m21s idle: 14s"
+            [s.strip() for s in l2.split("│")[1:-1]][1], "1h04m21s last: 14s"
         )
 
 

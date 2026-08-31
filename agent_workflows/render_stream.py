@@ -251,6 +251,50 @@ def format_stall_countdown(
     return label
 
 
+ACTION_DISPLAY_MAP: dict[str, str] = {
+    "review": "Review",
+    "execute": "Execute",
+    "exec": "Execute",
+    "graduate": "Graduat",
+    "graduat": "Graduat",
+    "validate": "Validat",
+    "validat": "Validat",
+}
+
+ARTIFACT_DISPLAY_MAP: dict[str, str] = {
+    "ipd": "IPD",
+    "plan": "IPD",
+    "spec": "Spec",
+    "prompt": "Prompt",
+    "roadmap": "Roadmap",
+    "walkthrough": "Walkthr",
+    "walkthr": "Walkthr",
+    "backlog": "Backlog",
+}
+
+
+def format_action_label(action: str | None) -> str:
+    """Format the workflow action into a compact statusline column label (max 7 chars).
+
+    Supported: Review, Execute, Graduat (Graduate), Validat (Validate).
+    """
+    if not action:
+        return "Review"
+    key = action.strip().lower()
+    return ACTION_DISPLAY_MAP.get(key, action.strip()[:7].capitalize())
+
+
+def format_artifact_kind_label(artifact_kind: str | None) -> str:
+    """Format the workflow artifact kind into a compact statusline column label (max 7 chars).
+
+    Supported: IPD, Spec, Prompt, Roadmap, Walkthr (Walkthrough), Backlog.
+    """
+    if not artifact_kind:
+        return "IPD"
+    key = artifact_kind.strip().lower()
+    return ARTIFACT_DISPLAY_MAP.get(key, artifact_kind.strip()[:7].capitalize())
+
+
 def format_statusline_lines(
     now_ts: float,
     run_start_ts: float,
@@ -264,36 +308,34 @@ def format_statusline_lines(
     pal: Palette | None = None,
     stall_remaining: float | None = None,
     progress_source: str | None = None,
+    action: str | None = None,
+    artifact_kind: str | None = None,
     use_unicode: bool = True,
 ) -> tuple[str, str, str, str]:
     """Format the 4-line boxed runner statusline (top border, header line, value line, bottom border):
 
-    ╭─────────┬────────────────────────────────┬───────────────────────────────┬─────────┬─────┬───────┬──────┬────────┬───────╮
-    │Time     │ From start       kill in 9m51s │ set: wtisoland id6: 6knsrx    │ Spend   │ Tok │ Total │   in │    out │ cache │
-    │20:27:24 │ 27m48s idle: 8s (last: stdout) │ 27m48s ██████████ 100% [1/1]  │ $6.16   │ ens │  4.7m │ 119k │ 110.7k │  4.5m │
-    ╰─────────┴────────────────────────────────┴───────────────────────────────┴─────────┴─────┴───────┴──────┴────────┴───────╯
+    ╭─────────┬───────────────────────────┬───────────────────────────────┬─────────┬───────┬─────┬───────┬──────┬────────┬───────╮
+    │Time     │ From start  kill in 9m51s │ set: wtisoland    id6: 6knsrx │  Review │ Spend │ Tok │ Total │   In │    Out │ Cache │
+    │20:27:24 │ 27m48s last: 8s    stdout │ 27m48s ██████████ 100% [1/1]  │     IPD │ $6.16 │ ens │  4.7m │ 119k │ 110.7k │  4.5m │
+    ╰─────────┴───────────────────────────┴───────────────────────────────┴─────────┴───────┴─────┴───────┴──────┴────────┴───────╯
     """
     t_str = time.strftime("%H:%M:%S", time.localtime(now_ts))
 
-    # 1. Run Elapsed & Idle (Col 2)
+    # 1. Run Elapsed & Last Activity / Source (Col 2)
     run_elapsed = max(0, int(now_ts - run_start_ts))
     run_el_str = format_compact_duration(run_elapsed)
 
     idle = max(0, int(now_ts - last_act_ts))
-    if idle >= 60:
-        idle_str = f"idle: {format_compact_duration(idle)}"
-    else:
-        idle_str = f"idle: {idle}s"
-    val2_left = f" {run_el_str} {idle_str}"
+    idle_str = f"{idle}s" if idle < 60 else format_compact_duration(idle)
+    val2_left = f" {run_el_str} last: {idle_str}"
 
     countdown = format_stall_countdown(stall_remaining, None)
     hdr2_left = " From start"
-    src_str = f"(last: {progress_source})" if progress_source else ""
-    val2_right = f"{src_str} " if src_str else ""
+    val2_right = f"{progress_source} " if progress_source else ""
     hdr2_right = f"{countdown} " if countdown else ""
 
     col2_w = max(
-        32,
+        27,
         len(hdr2_left) + len(hdr2_right) + 1,
         len(val2_left) + len(val2_right) + 1,
     )
@@ -306,55 +348,74 @@ def format_statusline_lines(
     item_el_str = format_compact_duration(item_elapsed)
     bar = format_progress_bar(current_idx, total_items)
     val3 = f" {item_el_str} {bar}"
-    target_hdr = f" set: {setid} id6: {id6}" if (setid or id6) else " -"
-    col3_w = max(31, len(target_hdr) + 1, len(val3) + 1)
-    h3 = f"{target_hdr:<{col3_w}s}"
+
+    if setid and id6:
+        hdr3_left = f" set: {setid}"
+        hdr3_right = f"id6: {id6} "
+        col3_w = max(31, len(hdr3_left) + len(hdr3_right) + 1, len(val3) + 2)
+        h3 = f"{hdr3_left}{hdr3_right:>{col3_w - len(hdr3_left)}s}"
+    elif setid:
+        col3_w = max(31, len(setid) + 8, len(val3) + 2)
+        h3 = f" set: {setid} ".ljust(col3_w)
+    elif id6:
+        col3_w = max(31, len(id6) + 8, len(val3) + 2)
+        h3 = f" id6: {id6} ".ljust(col3_w)
+    else:
+        col3_w = max(31, len(val3) + 2)
+        h3 = " -".ljust(col3_w)
     v3 = f"{val3:<{col3_w}s}"
 
-    # 3. Spend (Col 4)
+    # 3. Action / Artifact Kind (Col 4)
+    act_str = format_action_label(action)
+    art_str = format_artifact_kind_label(artifact_kind)
+    col4_w = max(9, len(act_str) + 2, len(art_str) + 2)
+    h4 = f"{act_str:>{col4_w - 1}s} "
+    v4 = f"{art_str:>{col4_w - 1}s} "
+
+    # 4. Spend (Col 5)
     cost = tracker.cost if tracker is not None else 0.0
     cost_str = f"${cost:.2f}"
-    col4_w = 9
-    h4 = f"{' Spend':<{col4_w}s}"
-    v4 = f"{' ' + cost_str:<{col4_w}s}"
+    col5_w = max(7, len(cost_str) + 2)
+    h5 = " Spend ".rjust(col5_w)
+    v5 = f"{cost_str:>{col5_w - 1}s} "
 
-    # 4. Token Sub-columns (Cols 5-9)
-    # Col 5: Tok / ens
-    col5_w = 5
-    h5 = " Tok "
-    v5 = " ens "
+    # 5. Token Sub-columns (Cols 6-10)
+    # Col 6: Tok / ens
+    col6_w = 5
+    h6 = " Tok "
+    v6 = " ens "
 
-    # Col 6: Total
+    # Col 7: Total
     tot_tok = (
         (tracker.input_tokens + tracker.output_tokens + tracker.cache_tokens)
         if tracker is not None
         else 0
     )
     tot_str = format_compact_tokens(tot_tok)
-    col6_w = max(7, len(tot_str) + 2)
-    h6 = " Total ".rjust(col6_w)
-    v6 = f"{tot_str:>{col6_w - 1}s} "
+    col7_w = max(7, len(tot_str) + 2)
+    h7 = " Total ".rjust(col7_w)
+    v7 = f"{tot_str:>{col7_w - 1}s} "
 
-    # Col 7: In
+    # Col 8: In
     in_tok = tracker.input_tokens if tracker is not None else 0
     in_str = format_compact_tokens(in_tok)
-    col7_w = max(6, len(in_str) + 2)
-    h7 = "   in ".rjust(col7_w)
-    v7 = f"{in_str:>{col7_w - 1}s} "
+    col8_w = max(6, len(in_str) + 2)
+    h8 = "   In ".rjust(col8_w)
+    v8 = f"{in_str:>{col8_w - 1}s} "
 
-    # Col 8: Out
+    # Col 9: Out
     out_tok = tracker.output_tokens if tracker is not None else 0
     out_str = format_compact_tokens(out_tok)
-    col8_w = max(8, len(out_str) + 2)
-    h8 = "    out ".rjust(col8_w)
-    v8 = f"{out_str:>{col8_w - 1}s} "
+    col9_w = max(8, len(out_str) + 2)
+    h9 = "    Out ".rjust(col9_w)
+    v9 = f"{out_str:>{col9_w - 1}s} "
 
-    # Col 9: Cache
+    # Col 10: Cache
     cache_tok = tracker.cache_tokens if tracker is not None else 0
     cache_str = format_compact_tokens(cache_tok)
-    col9_w = max(7, len(cache_str) + 2)
-    h9 = " cache ".rjust(col9_w)
-    v9 = f"{cache_str:>{col9_w - 1}s} "
+    col10_w = max(7, len(cache_str) + 2)
+    h10 = " Cache ".rjust(col10_w)
+    v10 = f"{cache_str:>{col10_w - 1}s} "
 
     # Col 1: Time
     col1_w = 9
@@ -371,6 +432,7 @@ def format_statusline_lines(
         col7_w,
         col8_w,
         col9_w,
+        col10_w,
     ]
 
     if use_unicode:
@@ -385,8 +447,8 @@ def format_statusline_lines(
     top_border = c_tl + c_tm.join(c_h * w for w in col_widths) + c_tr
     bot_border = c_bl + c_bm.join(c_h * w for w in col_widths) + c_br
 
-    hdrs = [h1, h2, h3, h4, h5, h6, h7, h8, h9]
-    vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9]
+    hdrs = [h1, h2, h3, h4, h5, h6, h7, h8, h9, h10]
+    vals = [v1, v2, v3, v4, v5, v6, v7, v8, v9, v10]
 
     l1_plain = c_v + c_v.join(hdrs) + c_v
     l2_plain = c_v + c_v.join(vals) + c_v
@@ -423,24 +485,26 @@ def format_statusline_lines(
     c_h7 = f"{dim_hdr}{h7}"
     c_h8 = f"{dim_hdr}{h8}"
     c_h9 = f"{dim_hdr}{h9}"
+    c_h10 = f"{dim_hdr}{h10}"
 
     c_v1 = f"{b_clock}{v1}"
-    if src_str:
+    if progress_source:
         pad_len = col2_w - len(val2_left) - len(val2_right)
         c_v2 = f"{b_blue}{val2_left}{' ' * pad_len}{dim_src}{val2_right}"
     else:
         c_v2 = f"{b_blue}{v2}"
 
     c_v3 = f"{b_bar}{v3}"
-    c_v4 = f"{b_cost}{v4}"
-    c_v5 = f"{dim_hdr}{v5}"
-    c_v6 = f"{b_blue}{v6}"
+    c_v4 = f"{b_target}{v4}"
+    c_v5 = f"{b_cost}{v5}"
+    c_v6 = f"{dim_hdr}{v6}"
     c_v7 = f"{b_blue}{v7}"
     c_v8 = f"{b_blue}{v8}"
     c_v9 = f"{b_blue}{v9}"
+    c_v10 = f"{b_blue}{v10}"
 
-    c_hdrs = [c_h1, c_h2, c_h3, c_h4, c_h5, c_h6, c_h7, c_h8, c_h9]
-    c_vals = [c_v1, c_v2, c_v3, c_v4, c_v5, c_v6, c_v7, c_v8, c_v9]
+    c_hdrs = [c_h1, c_h2, c_h3, c_h4, c_h5, c_h6, c_h7, c_h8, c_h9, c_h10]
+    c_vals = [c_v1, c_v2, c_v3, c_v4, c_v5, c_v6, c_v7, c_v8, c_v9, c_v10]
 
     div = f"{bdr_color}{c_v}{reset}"
     l1_color = (
@@ -466,6 +530,8 @@ def format_statusline(
     item_start_ts: float | None = None,
     stall_remaining: float | None = None,
     progress_source: str | None = None,
+    action: str | None = None,
+    artifact_kind: str | None = None,
     use_unicode: bool = True,
 ) -> str:
     """Format the 4-line unified runner statusline box as a newline-delimited string."""
@@ -483,13 +549,15 @@ def format_statusline(
         pal=pal,
         stall_remaining=stall_remaining,
         progress_source=progress_source,
+        action=action,
+        artifact_kind=artifact_kind,
         use_unicode=use_unicode,
     )
     return "\n".join(lines)
 
 
 class Statusline:
-    """A live sticky 2-line statusline pinned to the bottom of the terminal during execution."""
+    """A live sticky 4-line boxed statusline pinned to the bottom of the terminal during execution."""
 
     def __init__(
         self,
@@ -503,6 +571,8 @@ class Statusline:
         id6: str = "",
         run_start_mono: float | None = None,
         watchdog: object | None = None,
+        action: str | None = None,
+        artifact_kind: str | None = None,
     ) -> None:
         self.pal = pal
         self.stream = stream
@@ -512,6 +582,8 @@ class Statusline:
         self.total_items = total_items
         self.setid = setid
         self.id6 = id6
+        self.action = action
+        self.artifact_kind = artifact_kind
         # The stall watchdog is the SINGLE authority for the countdown. It is duck-typed
         # (anything exposing `remaining()`) so this display module keeps no dependency on a
         # driver module, and stays None-safe for callers that pass no watchdog.
@@ -558,6 +630,8 @@ class Statusline:
         total_items: int,
         setid: str = "",
         id6: str = "",
+        action: str | None = None,
+        artifact_kind: str | None = None,
     ) -> None:
         with self._lock:
             self.current_idx = current_idx
@@ -567,6 +641,10 @@ class Statusline:
                 self.setid = setid
             if id6:
                 self.id6 = id6
+            if action is not None:
+                self.action = action
+            if artifact_kind is not None:
+                self.artifact_kind = artifact_kind
 
     def _render_lines_unlocked(self) -> tuple[str, str, str, str]:
         now_wall = time.time()
@@ -587,6 +665,8 @@ class Statusline:
             pal=self.pal,
             stall_remaining=self.stall_remaining(),
             progress_source=self.progress_source,
+            action=self.action,
+            artifact_kind=self.artifact_kind,
         )
 
     def render_line(self) -> str:

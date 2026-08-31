@@ -290,6 +290,39 @@ class StatuslineUnitTests(unittest.TestCase):
             "1d 3h07m56s",
         )
 
+    def test_format_action_and_artifact_labels(self):
+        for raw, exp in [
+            ("Review", "Review"),
+            ("review", "Review"),
+            ("Execute", "Execute"),
+            ("exec", "Execute"),
+            ("execute", "Execute"),
+            ("Graduate", "Graduat"),
+            ("graduat", "Graduat"),
+            ("Validate", "Validat"),
+            ("validat", "Validat"),
+            (None, "Review"),
+        ]:
+            self.assertEqual(render_stream.format_action_label(raw), exp)
+
+        for raw, exp in [
+            ("IPD", "IPD"),
+            ("ipd", "IPD"),
+            ("plan", "IPD"),
+            ("Spec", "Spec"),
+            ("spec", "Spec"),
+            ("Prompt", "Prompt"),
+            ("prompt", "Prompt"),
+            ("Roadmap", "Roadmap"),
+            ("roadmap", "Roadmap"),
+            ("Walkthrough", "Walkthr"),
+            ("walkthr", "Walkthr"),
+            ("Backlog", "Backlog"),
+            ("backlog", "Backlog"),
+            (None, "IPD"),
+        ]:
+            self.assertEqual(render_stream.format_artifact_kind_label(raw), exp)
+
     def test_format_statusline_exact_layout(self):
         tracker = render_stream.StreamTracker()
         tracker.update(inp=214100, out=195700, cache=15800000, cost=15.27)
@@ -309,6 +342,8 @@ class StatuslineUnitTests(unittest.TestCase):
             setid="revgate",
             id6="7nkcgp",
             tracker=tracker,
+            action="Review",
+            artifact_kind="IPD",
         )
 
         self.assertEqual(len(top), len(l1))
@@ -321,30 +356,33 @@ class StatuslineUnitTests(unittest.TestCase):
 
         seg1 = [s.strip() for s in l1.split("│")[1:-1]]
         seg2 = [s.strip() for s in l2.split("│")[1:-1]]
-        self.assertEqual(len(seg1), 9)
-        self.assertEqual(len(seg2), 9)
+        self.assertEqual(len(seg1), 10)
+        self.assertEqual(len(seg2), 10)
 
         # Header line segments
         self.assertEqual(seg1[0], "Time")
         self.assertEqual(seg1[1], "From start")
-        self.assertEqual(seg1[2], "set: revgate id6: 7nkcgp")
-        self.assertEqual(seg1[3], "Spend")
-        self.assertEqual(seg1[4], "Tok")
-        self.assertEqual(seg1[5], "Total")
-        self.assertEqual(seg1[6], "in")
-        self.assertEqual(seg1[7], "out")
-        self.assertEqual(seg1[8], "cache")
+        self.assertIn("set: revgate", seg1[2])
+        self.assertIn("id6: 7nkcgp", seg1[2])
+        self.assertEqual(seg1[3], "Review")
+        self.assertEqual(seg1[4], "Spend")
+        self.assertEqual(seg1[5], "Tok")
+        self.assertEqual(seg1[6], "Total")
+        self.assertEqual(seg1[7], "In")
+        self.assertEqual(seg1[8], "Out")
+        self.assertEqual(seg1[9], "Cache")
 
         # Value line segments
         self.assertRegex(seg2[0], r"^\d{2}:\d{2}:\d{2}$")
-        self.assertEqual(seg2[1], "1h04m21s idle: 14s")
+        self.assertEqual(seg2[1], "1h04m21s last: 14s")
         self.assertEqual(seg2[2], "4m08s ██████████ 100% [1/1]")
-        self.assertEqual(seg2[3], "$15.27")
-        self.assertEqual(seg2[4], "ens")
-        self.assertEqual(seg2[5], "16.2m")
-        self.assertEqual(seg2[6], "214.1k")
-        self.assertEqual(seg2[7], "195.7k")
-        self.assertEqual(seg2[8], "15.8m")
+        self.assertEqual(seg2[3], "IPD")
+        self.assertEqual(seg2[4], "$15.27")
+        self.assertEqual(seg2[5], "ens")
+        self.assertEqual(seg2[6], "16.2m")
+        self.assertEqual(seg2[7], "214.1k")
+        self.assertEqual(seg2[8], "195.7k")
+        self.assertEqual(seg2[9], "15.8m")
 
     def test_format_statusline_user_example_box_layout(self):
         class MockTracker:
@@ -365,22 +403,22 @@ class StatuslineUnitTests(unittest.TestCase):
             tracker=MockTracker(),
             stall_remaining=9 * 60 + 51,
             progress_source="stdout",
+            action="Review",
+            artifact_kind="IPD",
         )
 
-        expected_top = "╭─────────┬────────────────────────────────┬───────────────────────────────┬─────────┬─────┬───────┬──────┬────────┬───────╮"
-        expected_l1 = "│Time     │ From start       kill in 9m51s │ set: wtisoland id6: 6knsrx    │ Spend   │ Tok │ Total │   in │    out │ cache │"
-        expected_bot = "╰─────────┴────────────────────────────────┴───────────────────────────────┴─────────┴─────┴───────┴──────┴────────┴───────╯"
+        expected_top = "╭─────────┬───────────────────────────┬───────────────────────────────┬─────────┬───────┬─────┬───────┬──────┬────────┬───────╮"
+        expected_l1_suffix = "│ From start  kill in 9m51s │ set: wtisoland    id6: 6knsrx │  Review │ Spend │ Tok │ Total │   In │    Out │ Cache │"
+        expected_l2_suffix = "│ 27m48s last: 8s    stdout │ 27m48s ██████████ 100% [1/1]  │     IPD │ $6.16 │ ens │  4.7m │ 119k │ 110.7k │  4.5m │"
+        expected_bot = "╰─────────┴───────────────────────────┴───────────────────────────────┴─────────┴───────┴─────┴───────┴──────┴────────┴───────╯"
 
         self.assertEqual(top, expected_top)
-        self.assertEqual(l1, expected_l1)
+        self.assertEqual(l1[10:], expected_l1_suffix)
+        self.assertEqual(l2[10:], expected_l2_suffix)
         self.assertEqual(bot, expected_bot)
-        self.assertIn("27m48s idle: 8s (last: stdout)", l2)
-        self.assertIn("27m48s ██████████ 100% [1/1]", l2)
-        self.assertIn("$6.16", l2)
-        self.assertIn("4.7m", l2)
-        self.assertIn("119k", l2)
-        self.assertIn("110.7k", l2)
-        self.assertIn("4.5m", l2)
+        self.assertEqual(len(top), len(l1))
+        self.assertEqual(len(l1), len(l2))
+        self.assertEqual(len(l2), len(bot))
 
     def test_format_statusline_colorized(self):
         tracker = render_stream.StreamTracker()
@@ -403,6 +441,8 @@ class StatuslineUnitTests(unittest.TestCase):
             id6="7nkcgp",
             tracker=tracker,
             pal=pal,
+            action="Execute",
+            artifact_kind="IPD",
         )
 
         self.assertIn("\033[1;38;5;117m", l2)  # Bold sky light blue
@@ -418,8 +458,10 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertEqual(len(s1), len(s2))
         self.assertEqual(len(s2), len(s_bot))
         self.assertIn("Time", s1)
-        self.assertIn("set: revgate id6: 7nkcgp", s1)
-        self.assertIn("1h04m21s idle: 14s", s2)
+        self.assertIn("set: revgate", s1)
+        self.assertIn("Execute", s1)
+        self.assertIn("IPD", s2)
+        self.assertIn("1h04m21s last: 14s", s2)
         self.assertIn("4m08s ██████████ 100% [1/1]", s2)
         self.assertIn("$15.27", s2)
 

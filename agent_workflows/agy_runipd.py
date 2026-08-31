@@ -2717,6 +2717,12 @@ def run_agy_turn(
             setid=item.get("setid", ""),
             id6=item.get("id6", ""),
             run_start_mono=run_start_mono,
+            action=(
+                "Review"
+                if item.get("status") == "to-review"
+                else ("Execute" if item.get("status") == "approved" else "Review")
+            ),
+            artifact_kind=item.get("kind", item.get("type", "ipd")),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
         # stallfp kaga7s (display parity only): show the countdown from the clock that kills.
