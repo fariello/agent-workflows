@@ -462,9 +462,6 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             self.assertEqual(len(f6), 1)
 
     def test_run_with_selectors(self):
-        import io
-        from unittest.mock import patch
-
         with tempfile.TemporaryDirectory() as td:
             root = _mk_repo(Path(td))
 
@@ -478,12 +475,136 @@ class StaleResearchReclassifyTests(unittest.TestCase):
                 long=False,
             )
             buf = io.StringIO()
-            with patch("sys.stdout", buf):
+            with mock.patch("sys.stdout", buf):
                 rc = att.run(args)
             self.assertEqual(rc, 0)
             data = json.loads(buf.getvalue())
             self.assertEqual(len(data["items"]), 1)
             self.assertEqual(data["items"][0]["id"], "abc123")
+
+    def test_extract_detail_cascade(self):
+        # 1. Summary takes top priority
+        txt1 = "# IPD: My Title\n\n- Summary: Top summary\n- Scope: Sub scope\n"
+        self.assertEqual(att._extract_detail(txt1), ("summary", "Top summary"))
+
+        # 2. Scope if no Summary
+        txt2 = "# IPD: My Title\n\n- Scope: Plan scope line\n- Concern: Plan concern\n"
+        self.assertEqual(att._extract_detail(txt2), ("scope", "Plan scope line"))
+
+        # 3. Concern if no Scope/Summary
+        txt3 = (
+            "# Backlog: Bug\n\n- Concern: Memory leak in worker\n- Title: Bug Title\n"
+        )
+        self.assertEqual(
+            att._extract_detail(txt3), ("concern", "Memory leak in worker")
+        )
+
+        # 4. Question for research
+        txt4 = "# Research: Survey\n\n- Question: What is the optimal batch size?\n"
+        self.assertEqual(
+            att._extract_detail(txt4),
+            ("question", "What is the optimal batch size?"),
+        )
+
+        # 5. Title frontmatter
+        txt5 = "# Doc\n\n- Title: Explicit doc title\n"
+        self.assertEqual(att._extract_detail(txt5), ("title", "Explicit doc title"))
+
+        # 6. H1 header fallback
+        txt6 = "# Spec: Fallback Specification Header\n\n- Status: draft\n"
+        self.assertEqual(
+            att._extract_detail(txt6),
+            ("title", "Fallback Specification Header"),
+        )
+
+    def test_render_board_with_details(self):
+        item1 = att.Item(
+            id="abc123",
+            path=".aw/records/plans/pending/20260808-p.ipd.md",
+            tree="plans",
+            native_status="approved",
+            attention_class="ready",
+            gate=None,
+            last_history_at=None,
+            detail_kind="scope",
+            detail_text="Implement feature X and update CLI.",
+        )
+        item2 = att.Item(
+            id="def456",
+            path=".aw/records/specs/s.spec.md",
+            tree="specs",
+            native_status="approved",
+            attention_class="ready",
+            gate=None,
+            last_history_at=None,
+            detail_kind="summary",
+            detail_text="Specification for feature X.",
+        )
+        items = [item1, item2]
+
+        # Plain uncolored board
+        term_plain = att.T.Term(color=False)
+        board_plain = att.render_board(
+            items, drift=[], show_all=True, term=term_plain, details=True
+        )
+        self.assertIn("      scope: Implement feature X and update CLI.", board_plain)
+        self.assertIn("      summary: Specification for feature X.", board_plain)
+
+        # Colored board
+        term_color = att.T.Term(color=True)
+        board_color = att.render_board(
+            items, drift=[], show_all=True, term=term_color, details=True
+        )
+        self.assertIn("scope:", board_color)
+        self.assertIn("Implement feature X and update CLI.", board_color)
+        self.assertIn("summary:", board_color)
+        self.assertIn("Specification for feature X.", board_color)
+
+    def test_render_json_with_details(self):
+        item = att.Item(
+            id="abc123",
+            path=".aw/records/plans/pending/20260808-p.ipd.md",
+            tree="plans",
+            native_status="approved",
+            attention_class="ready",
+            gate=None,
+            last_history_at=None,
+            detail_kind="scope",
+            detail_text="Implement feature X.",
+        )
+        out = att.render_json([item], drift=[])
+        data = json.loads(out)
+        self.assertEqual(len(data["items"]), 1)
+        self.assertEqual(data["items"][0]["detail_kind"], "scope")
+        self.assertEqual(data["items"][0]["detail_text"], "Implement feature X.")
+
+    def test_run_with_details_flag(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            # Write a plan with an explicit Scope
+            (
+                root / ".agents" / "plans" / "pending" / "20260808-x-01-abc123-p.md"
+            ).write_text(
+                "# IPD: p\n\n- Scope: Build test subsystem.\n- Status: draft\n- Id: abc123\n\n## Workflow history\n- 2026-08-08 draft (t): created.\n",
+                encoding="utf-8",
+            )
+
+            args = argparse.Namespace(
+                dir=str(root),
+                format=None,
+                check=False,
+                selectors=["abc123"],
+                no_color=True,
+                all=False,
+                long=False,
+                details=True,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            output = buf.getvalue()
+            self.assertIn("scope: Build test subsystem.", output)
 
 
 if __name__ == "__main__":

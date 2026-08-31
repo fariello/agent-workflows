@@ -2866,6 +2866,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show the full repo-relative path instead of the compact identity stem.",
     )
     p_attention.add_argument(
+        "--details",
+        "-d",
+        dest="details",
+        action="store_true",
+        help="Show summary, scope, or description details beneath each item.",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],

@@ -44,6 +44,36 @@ class Item(NamedTuple):
     # the existing positional Item(...) constructions keep working; readers set them where they apply.
     priority: Optional[str] = None
     blocks_release: Optional[str] = None
+    detail_kind: Optional[str] = None
+    detail_text: Optional[str] = None
+
+
+_FIELD_PATTERNS = (
+    ("summary", re.compile(r"(?mi)^-\s*Summary:\s*(.+)$")),
+    ("scope", re.compile(r"(?mi)^-\s*Scope:\s*(.+)$")),
+    ("concern", re.compile(r"(?mi)^-\s*Concern:\s*(.+)$")),
+    ("question", re.compile(r"(?mi)^-\s*Question:\s*(.+)$")),
+    ("title", re.compile(r"(?mi)^-\s*Title:\s*(.+)$")),
+)
+_H1_RX = re.compile(r"(?m)^#\s+(?:[A-Za-z0-9_-]+:\s*)?(.+)$")
+
+
+def _extract_detail(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract (detail_kind, detail_text) using the fallback cascade:
+    Summary -> Scope -> Concern -> Question -> Title -> H1 header.
+    """
+    for tag, rx in _FIELD_PATTERNS:
+        m = rx.search(text)
+        if m:
+            val = m.group(1).strip()
+            if val:
+                return tag, val
+    m = _H1_RX.search(text)
+    if m:
+        val = m.group(1).strip()
+        if val:
+            return "title", val
+    return None, None
 
 
 def _rel_posix(repo_root: Path, p: Path) -> str:
@@ -284,8 +314,17 @@ def _release_record(
         return None, drift
     mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
     lha = A.last_history_at(_history_section_lines(text))
+    d_kind, d_text = _extract_detail(text)
     return Item(
-        mid.group(1) if mid else "", rel, "releases", status, cls, None, lha
+        mid.group(1) if mid else "",
+        rel,
+        "releases",
+        status,
+        cls,
+        None,
+        lha,
+        detail_kind=d_kind,
+        detail_text=d_text,
     ), drift
 
 
@@ -308,6 +347,7 @@ def _spec_record(
     # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
     # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
     pr = specs_mod._read_priority(lines)
+    d_kind, d_text = _extract_detail(text)
     return Item(
         "",
         rel,
@@ -318,6 +358,8 @@ def _spec_record(
         lha,
         blocks_release=br,
         priority=pr,
+        detail_kind=d_kind,
+        detail_text=d_text,
     ), drift
 
 
@@ -368,6 +410,7 @@ def _plans_record(
     # NOT alter the shared attention sort key (core), which excludes priority for all trees today.
     pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
     pr = pr_m.group(1) if pr_m else None
+    d_kind, d_text = _extract_detail(text)
     return Item(
         pid or "",
         rel,
@@ -378,6 +421,8 @@ def _plans_record(
         lha,
         blocks_release=br,
         priority=pr,
+        detail_kind=d_kind,
+        detail_text=d_text,
     ), drift
 
 
@@ -416,6 +461,7 @@ def _research_record(
     # Shared sort key unchanged.
     pr_val = data.get("priority")
     pr = str(pr_val) if pr_val not in (None, "") else None
+    d_kind, d_text = _extract_detail(text)
     return Item(
         rid,
         rel,
@@ -425,6 +471,8 @@ def _research_record(
         None,
         lha,
         priority=pr,
+        detail_kind=d_kind,
+        detail_text=d_text,
     ), drift
 
 
@@ -455,6 +503,7 @@ def _backlog_record(
     if status == "blocked" and item.gate_kind and item.gate_ref:
         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
     lha = A.last_history_at(_history_section_lines(text))
+    d_kind, d_text = _extract_detail(text)
     return Item(
         item.id or "",
         rel,
@@ -465,6 +514,8 @@ def _backlog_record(
         lha,
         priority=item.priority,
         blocks_release=item.blocks_release,
+        detail_kind=d_kind,
+        detail_text=d_text,
     ), drift
 
 
@@ -489,6 +540,8 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
                 "last_history_at": it.last_history_at,
                 "priority": it.priority,
                 "blocks_release": it.blocks_release,
+                "detail_kind": it.detail_kind,
+                "detail_text": it.detail_text,
             }
             for it in items
         ],
@@ -664,6 +717,7 @@ def _render_item_row(
     term: T.Term,
     colored: bool,
     long: bool,
+    details: bool = False,
 ) -> str:
     """Render ONE board row for an item, in the compact columnar human form (colored) or the
     stable machine form (uncolored). Extracted so the release-blockers section renders items
@@ -699,12 +753,22 @@ def _render_item_row(
         blocking = ""
         if it.blocks_release:
             blocking = "  " + term.color256("[blocking]", 196, bold=True)
-        return f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
+        line = f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
+        if details and it.detail_text:
+            tag = it.detail_kind or "summary"
+            tag_txt = term.color256(f"{tag}:", 244)
+            detail_txt = term.color256(it.detail_text, 250)
+            line += f"\n      {tag_txt} {detail_txt}"
+        return line
     suffix = ""
     if it.gate:
         g = it.gate
         suffix = f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
-    return f"- [{it.tree}] {it.path} ({status_word}){suffix}"
+    line = f"- [{it.tree}] {it.path} ({status_word}){suffix}"
+    if details and it.detail_text:
+        tag = it.detail_kind or "summary"
+        line += f"\n      {tag}: {it.detail_text}"
+    return line
 
 
 def render_board(
@@ -713,6 +777,7 @@ def render_board(
     show_all: bool = False,
     term: T.Term | None = None,
     long: bool = False,
+    details: bool = False,
 ) -> str:
     """Render the attention board.
 
@@ -771,7 +836,9 @@ def render_board(
         lines.append(f"## {cls} ({len(group)}){header_extra}")
 
         for it in group:
-            lines.append(_render_item_row(it, cls, term, colored, long))
+            lines.append(
+                _render_item_row(it, cls, term, colored, long, details=details)
+            )
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -1025,12 +1092,14 @@ def run(args) -> int:
                 "NOTE: setup not complete - run the `/setup-repo` workflow in this repo.\n\n"
             )
         show_all = getattr(args, "all", False) or bool(selectors_arg)
+        details = getattr(args, "details", False)
         board = render_board(
             items,
             drift,
             show_all=show_all,
             term=term,
             long=getattr(args, "long", False),
+            details=details,
         )
         colored = bool(getattr(term, "color", False))
         long = getattr(args, "long", False)
@@ -1050,7 +1119,10 @@ def run(args) -> int:
             # (not a raw absolute path), so the section reads consistently with the board.
             for it in blockers:
                 board += (
-                    _render_item_row(it, it.attention_class, term, colored, long) + "\n"
+                    _render_item_row(
+                        it, it.attention_class, term, colored, long, details=details
+                    )
+                    + "\n"
                 )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
