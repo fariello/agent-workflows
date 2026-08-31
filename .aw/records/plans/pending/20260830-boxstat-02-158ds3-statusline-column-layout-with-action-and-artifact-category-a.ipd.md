@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The runner statusline lacked a dedicated category column for tracking the active workflow action and artifact type (e.g. Review/Execute/Graduat/Validat on IPD/Spec/Prompt/Roadmap/Walkthr/Backlog), used verbose idle/source formatting in column 2, and lowercased token column headers.
 - Scope: Implement action and artifact type formatting helpers and column rendering in `agent_workflows/render_stream.py`, update `format_statusline_lines`, `format_statusline`, and `Statusline` signatures and logic, update Column 2 last-activity formatting and Column 3 set/id6 positioning, capitalize In/Out/Cache headers, and update tests.
-- Scope-Paths: agent_workflows/render_stream.py, tests/test_render_stream.py, tests/test_stall_countdown_display.py
+- Scope-Paths: agent_workflows/agy_runipd.py, agent_workflows/oc_runipd.py, agent_workflows/render_stream.py, tests/test_render_stream.py, tests/test_stall_countdown_display.py
 - Item-Dependencies: executed:iy5u3m
 - Status: approved
 - Approval: human (attested by antigravity: user requested implementation)
@@ -30,24 +30,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Action & Artifact Formatters and Statusline Columns
 
-- [ ] E-01 Add `format_action_label` and `format_artifact_kind_label` in `agent_workflows/render_stream.py` supporting Review/Execute/Graduat/Validat and IPD/Spec/Prompt/Roadmap/Walkthr/Backlog with extensible placeholders.
+- [x] E-01 Add `format_action_label` and `format_artifact_kind_label` in `agent_workflows/render_stream.py` supporting Review/Execute/Graduat/Validat and IPD/Spec/Prompt/Roadmap/Walkthr/Backlog with extensible placeholders.
   - Depends on: none
   - Expected outcome: Formatting functions map raw actions and artifact names into standard abbreviated header/value labels.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Statusline Renderer & Sticky Terminal Integration
 
-- [ ] E-02 Update `format_statusline_lines`, `format_statusline`, and `Statusline` in `agent_workflows/render_stream.py` to render the 10-column box with action/artifact category, streamlined `last: <idle>` & source in Col 2, spaced `set: <setid>` & `id6: <id6>` in Col 3, and capitalized In/Out/Cache headers.
+- [x] E-02 Update `format_statusline_lines`, `format_statusline`, and `Statusline` in `agent_workflows/render_stream.py` to render the 10-column box with action/artifact category, streamlined `last: <idle>` & source in Col 2, spaced `set: <setid>` & `id6: <id6>` in Col 3, and capitalized In/Out/Cache headers.
   - Depends on: E-01
   - Expected outcome: All 10 columns align character-for-character with user specification.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Test Suite Updates
 
-- [ ] E-03 Update `tests/test_render_stream.py` and `tests/test_stall_countdown_display.py` to assert the 10-column layout and formatting variants.
+- [x] E-03 Update `tests/test_render_stream.py` and `tests/test_stall_countdown_display.py` to assert the 10-column layout and formatting variants.
   - Depends on: E-01, E-02
   - Expected outcome: All tests pass 100% clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -93,20 +93,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Unit tests verifying mapping of Review, Execute, Graduate, Validate, IPD, Spec, Prompt, Roadmap, Walkthrough, Backlog.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_format_action_and_artifact_labels` in `tests/test_render_stream.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Exact 10-column string match test matching user example.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_format_statusline_user_example_box_layout` and `test_format_statusline_exact_layout` in `tests/test_render_stream.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Full test suite passes with pasted output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3709 passed, 3 skipped, 4 xfailed in 52.59s` and clean leak check.
+  - Result: pass
 
 ## Approval and execution gate
 
