@@ -3913,6 +3913,16 @@
     "date": "2026-08-30",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md",
+    "plan_id": "158ds3",
+    "set_id": "boxstat",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md",
     "plan_id": "bds6nd",
@@ -4142,16 +4152,6 @@
   {
     "date": "2026-08-30",
     "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md",
-    "plan_id": "158ds3",
-    "set_id": "boxstat",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",
@@ -4207,7 +4207,7 @@
     "path": "pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
     "plan_id": "mjx7ne",
     "set_id": "hostcap",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

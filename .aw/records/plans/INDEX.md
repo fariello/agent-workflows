@@ -7,7 +7,7 @@ Showing the 40 most-recent of 181 Sets; the full manifest is INDEX.json.
 ## boxstat
 
 - `iy5u3m` [executed] 01 executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md
-- `158ds3` [pending] 02 pending/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md
+- `158ds3` [executed] 02 executed/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md
 
 ## detrun
 
