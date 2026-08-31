@@ -603,6 +603,48 @@ _SINGULAR_TYPE = {
     "actions": "action",
 }
 
+TYPE_ALIASES: dict[str, str] = {
+    "plan": "plans",
+    "plans": "plans",
+    "ipd": "plans",
+    "spec": "specs",
+    "specs": "specs",
+    "backlog": "backlog",
+    "bk": "backlog",
+    "research": "research",
+    "survey": "research",
+    "findings": "research",
+    "release": "releases",
+    "releases": "releases",
+    "roadmap": "roadmaps",
+    "roadmaps": "roadmaps",
+    "walkthrough": "walkthroughs",
+    "walkthroughs": "walkthroughs",
+    "walkthr": "walkthroughs",
+    "prompt": "prompts",
+    "prompts": "prompts",
+    "prompt-library": "prompts",
+    "comms": "comms",
+    "actions": "actions",
+}
+
+
+def parse_type_filters(raw_types: Sequence[str] | None) -> set[str]:
+    """Parse a sequence of type arguments (supporting comma-separated strings and repeated flags)
+    into a set of normalized canonical tree names (e.g. 'plans', 'specs', 'backlog').
+    """
+    if not raw_types:
+        return set()
+    result: set[str] = set()
+    for raw in raw_types:
+        if not raw:
+            continue
+        parts = [p.strip().lower() for p in raw.split(",") if p.strip()]
+        for p in parts:
+            canonical = TYPE_ALIASES.get(p, p)
+            result.add(canonical)
+    return result
+
 
 def _colorize_tree_segment(term: T.Term, path: str, tree: str) -> str:
     """Color the tree-name directory segment WITHIN ``path`` bold blue, in place.
@@ -987,6 +1029,15 @@ def run(args) -> int:
             return get_renderer(ctx).emit(res, ctx)
         sys.stderr.write(f"aw attention: could not run: {exc}\n")
         return 2
+
+    type_filters = parse_type_filters(getattr(args, "types", None))
+    if type_filters:
+        items = [it for it in items if it.tree in type_filters]
+        if drift:
+            selected_paths = {(repo_root / it.path).resolve() for it in items}
+            drift = [
+                d for d in drift if (repo_root / d.location).resolve() in selected_paths
+            ]
 
     selectors_arg = getattr(args, "selectors", None) or []
     if selectors_arg:

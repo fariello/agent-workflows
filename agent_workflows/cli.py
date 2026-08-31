@@ -2873,6 +2873,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show summary, scope, or description details beneath each item.",
     )
     p_attention.add_argument(
+        "--type",
+        "-t",
+        "--tree",
+        dest="types",
+        action="append",
+        default=[],
+        help="Filter by artifact type (plans/specs/backlog/research/releases/roadmaps/walkthroughs). Supports multiple flags or comma-separated lists (e.g. -t plans,specs or -t plans -t specs).",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],

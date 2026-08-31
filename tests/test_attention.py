@@ -606,6 +606,100 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             output = buf.getvalue()
             self.assertIn("scope: Build test subsystem.", output)
 
+    def test_parse_type_filters(self):
+        # Empty/None
+        self.assertEqual(att.parse_type_filters(None), set())
+        self.assertEqual(att.parse_type_filters([]), set())
+
+        # Single type
+        self.assertEqual(att.parse_type_filters(["plans"]), {"plans"})
+        self.assertEqual(att.parse_type_filters(["plan"]), {"plans"})
+        self.assertEqual(att.parse_type_filters(["ipd"]), {"plans"})
+
+        # Comma-separated
+        self.assertEqual(
+            att.parse_type_filters(["plans,specs,backlog"]),
+            {"plans", "specs", "backlog"},
+        )
+        self.assertEqual(
+            att.parse_type_filters(["plan,spec,bk"]),
+            {"plans", "specs", "backlog"},
+        )
+
+        # Repeated arguments
+        self.assertEqual(
+            att.parse_type_filters(["plans", "specs"]),
+            {"plans", "specs"},
+        )
+        self.assertEqual(
+            att.parse_type_filters(["ipd", "survey", "walkthr"]),
+            {"plans", "research", "walkthroughs"},
+        )
+
+    def test_run_with_type_filter(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+
+            # Filter single type
+            args = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=["specs"],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            self.assertEqual(len(data["items"]), 1)
+            self.assertEqual(data["items"][0]["tree"], "specs")
+
+            # Filter multiple types via comma-separated
+            args2 = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=["specs,plans"],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf2 = io.StringIO()
+            with mock.patch("sys.stdout", buf2):
+                rc = att.run(args2)
+            self.assertEqual(rc, 0)
+            data2 = json.loads(buf2.getvalue())
+            self.assertEqual(len(data2["items"]), 2)
+            self.assertEqual({it["tree"] for it in data2["items"]}, {"specs", "plans"})
+
+            # Filter multiple types via repeated flags with aliases
+            args3 = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=["ipd", "spec"],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf3 = io.StringIO()
+            with mock.patch("sys.stdout", buf3):
+                rc = att.run(args3)
+            self.assertEqual(rc, 0)
+            data3 = json.loads(buf3.getvalue())
+            self.assertEqual(len(data3["items"]), 2)
+            self.assertEqual({it["tree"] for it in data3["items"]}, {"specs", "plans"})
+
 
 if __name__ == "__main__":
     unittest.main()
