@@ -48,7 +48,7 @@ Showing the 40 most-recent of 191 Sets; the full manifest is INDEX.json.
 
 ## locksafe
 
-- `y6mfgo` [pending] 01 pending/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md
+- `y6mfgo` [executed] 01 executed/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md
 
 ## runcodes
 

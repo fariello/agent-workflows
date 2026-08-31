@@ -3984,6 +3984,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md",
+    "plan_id": "y6mfgo",
+    "set_id": "locksafe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md",
     "plan_id": "jb6vys",
     "set_id": "sessrot",
@@ -4277,16 +4287,6 @@
     "path": "pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
     "plan_id": "mjx7ne",
     "set_id": "hostcap",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md",
-    "plan_id": "y6mfgo",
-    "set_id": "locksafe",
     "status": "approved"
   },
   {
