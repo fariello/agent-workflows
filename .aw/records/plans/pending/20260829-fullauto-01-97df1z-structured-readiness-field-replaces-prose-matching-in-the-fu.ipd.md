@@ -149,10 +149,34 @@ Validation command: `python3 -m pytest tests/test_oc_runipd.py tests/test_agy_ru
 
 ### OQ-02: Should `--full-auto` keep self-asserting `--by-human`, now that this plan makes that path actually work?
 
-- Blocking: yes
-- Status: open
-- Owner: human (maintainer)
-- Resolution or deferral rationale: OPEN - a policy decision the repository cannot answer, and it must be answered BEFORE execution because this plan is what turns the contradiction from latent into live. Facts established in review: `set_plan_approved` (oc_runipd.py:243) shells out to `aw set approved --by-human`, i.e. the MACHINE asserts the human-approval attestation. The attestation spec's stated purpose is the opposite - an "explicit attested speed bump" that "prevents an honest agent from AUTO-advancing a transition the human must own", with attributed provenance (`20260815-0151-01-honest-human-approval-attestation.spec.md`:22, 28-30). Today the contradiction is inert because the gate never fires (verified: False for every plan tested). After this plan it will fire, so `--full-auto` becomes a working path by which an agent records "a human approved this" when no human did. Note the guard rails that remain either way: `--full-auto` is opt-in and defaults to False (oc_runipd.py:2853), it only acts on plans already at `Status: reviewed`, and the readiness field is written by the reviewing agent. The options are (a) ship as-is, treating `--full-auto` as the human's standing, opt-in delegation of approval, and say so in the help text and the recorded provenance message; (b) keep auto-EXECUTE but drop auto-APPROVE, so `--full-auto` runs only plans a human already approved (this narrows the feature and may defeat its purpose); (c) add a distinct non-human attestation (e.g. `--by-full-auto`) so the audit trail never claims human approval, which is the most honest but touches the attestation contract and its spec. The reviewer will not choose: (b) and (c) change a documented safety contract, and (a) is an explicit acceptance of risk. Whichever is chosen, the recorded provenance message MUST make the mechanism visible rather than reading as a human sign-off.
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER (2026-08-31): option (c), a DISTINCT
+  NON-HUMAN ATTESTATION, so the audit trail never claims a human approved something no human approved.
+  `--full-auto` must NOT shell out to `aw set approved --by-human`.
+  THE PRECEDENT ALREADY EXISTS AND MUST BE REUSED, NOT REINVENTED (verified in-tree): `auto-approved`
+  is a shipped sibling status in `ipd_schema.READY_TO_EXECUTE` (`ipd_schema.py:250`), documented at
+  `:248` as recording "an automated clear, NOT human" approval, and `:337` enforces that
+  `auto-approved` does NOT carry the human `Approval:` field. `.aw/records/plans/README.md` states the
+  same and adds that it is "used for low-complexity mechanical correctives (D65)" and must be "set only
+  by an automated checker, never by an executor fast-tracking its own work". So the honest transition
+  for `--full-auto` is `reviewed -> auto-approved`, which is already legal
+  (`ipd_schema.py:540` lists it in the status vocabulary) and already means exactly this. Do NOT invent
+  a parallel `--by-full-auto` flag if reusing `auto-approved` plus its automated-actor provenance
+  suffices; check that first and record which you did.
+  BROADER REQUIREMENT THE MAINTAINER ADDED, and it is larger than this plan: the eventual goal is a
+  CONFIGURABLE, ARGUMENT-OVERRIDABLE policy for how far automation may advance an artifact along the
+  WHOLE pipeline - `backlog -> backlog-review -> graduate to IPD -> to-review -> reviewed -> approved ->
+  executed` - where the configuration decides, per transition, what conditions still permit moving
+  forward. The worked example given: is it acceptable to advance with an unanswered open question that
+  the "try harder before refusing" rule (D148) could not resolve into a strong recommendation? Other
+  such conditions belong in the same policy rather than being hardcoded per verb.
+  SCOPE RULING FOR THIS PLAN: implement only the honest attestation (no false `--by-human`). Do NOT
+  build the general policy engine here; it spans every lifecycle verb and deserves its own spec. Filed
+  as backlog `rxya25` (lifecycle-automation-policy) so the requirement is not lost, and note in this plan's history that
+  `--full-auto` is the first consumer of a policy that does not exist yet, so its behavior is
+  hardcoded-but-honest until that lands.
 
 ## Validation and cross-check (verify before reporting done)
 
