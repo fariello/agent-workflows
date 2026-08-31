@@ -6,16 +6,18 @@
 - Scope: Integrate the verified `wtiso` lane branches into `main` and finalize their plans, by (a) resolving the `Statusline`-vs-`TurnBounds` collision in both drivers' turn loops, (b) re-issuing begin receipts so `finalize` stops refusing on a schema-v1 digest, and (c) driving each plan to its terminal lifecycle state. Does NOT change the design of any `wtiso` phase.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Blocks-Release: next
 - Set: wtisoland
 - Order: 1
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 6knsrx
+- Approval: 2026-08-31, recorded via aw ipd set: status set to approved
 - From-Backlog: xmqv5l
 
 ## Workflow history
+- 2026-08-31 approved (aw set): status set to approved
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-011
 - 2026-08-30 to-review (aw set): status set to to-review
 - 2026-08-30 to-review (aw set): status set to to-review
