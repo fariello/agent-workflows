@@ -3584,6 +3584,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md",
+    "plan_id": "zhr6mc",
+    "set_id": "bkclose",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md",
     "plan_id": "v58bvy",
     "set_id": "bklgrad",
@@ -4017,16 +4027,6 @@
     "path": "pending/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md",
     "plan_id": "1o4eif",
     "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md",
-    "plan_id": "zhr6mc",
-    "set_id": "bkclose",
     "status": "approved"
   },
   {

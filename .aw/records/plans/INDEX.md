@@ -31,7 +31,7 @@ Showing the 40 most-recent of 179 Sets; the full manifest is INDEX.json.
 
 ## bkclose
 
-- `zhr6mc` [pending] 01 pending/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md
+- `zhr6mc` [executed] 01 executed/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md
 
 ## bklgrad
 
