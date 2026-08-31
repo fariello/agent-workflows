@@ -3889,6 +3889,44 @@ def _budget_breach_recorder(
     return _record
 
 
+def _escalation_recorder(
+    run_dir: Path, item: dict[str, Any]
+) -> Callable[[int, int, str], None]:
+    """Build the callback `EscalationWatch` invokes when it PERFORMS an escalation (71vjbn E-06).
+
+    Spec R11 requires the escalation to be RECORDED, and spec R23 forbids claiming work not done, so
+    this event's `escalation_performed` is True precisely where Phase 3's breach event wrote False.
+    The two events read together show the breach being detected and then acted on, by different
+    phases, with neither taking credit for the other.
+    """
+
+    def _record(from_level: int, to_level: int, reason: str) -> None:
+        event = runner_stop.escalation_event(
+            from_level=from_level,
+            to_level=to_level,
+            at=utc_now(),
+            reason=reason,
+            id6=item.get("id6", ""),
+            requester=f"budget-escalation (from level {from_level})",
+        )
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir / "events.jsonl", event)
+        # Spec R16 again: an escalation the DRIVER chose is still a level change the operator must be
+        # told about, in the same shape a request they made themselves would be reported.
+        print(
+            f"stop ESCALATED from level {from_level} to level {to_level} "
+            f"({runner_stop.LEVEL_NAMES.get(to_level, 'unknown')}): {reason}",
+            file=sys.stderr,
+        )
+        runner_stop.report_request(
+            to_level,
+            requester=f"budget-escalation (from level {from_level})",
+            command=_detect_driver_command(),
+        )
+
+    return _record
+
+
 def _record_checkpoint_stop(
     run_dir: Path,
     state: dict[str, Any],
@@ -4184,6 +4222,22 @@ def run_opencode(
             on_force=_note_force,
             is_alive=lambda: process.poll() is None,
         )
+        # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED.
+        #
+        # It is armed for the WHOLE turn, not only after a stop is observed, and out-of-band for the
+        # same measured reason every other watch here is: `for line in process.stdout` BLOCKS, so a
+        # deadline on a silent child can only be noticed from another thread. Arming it
+        # unconditionally also covers the level-1/2 case, whose wind-down deadline can expire while
+        # this turn is still running and which the in-loop level-3 branch below never reaches.
+        #
+        # It only RAISES THE DURABLE LEVEL. The escalated level is then honored by the machinery that
+        # already exists (the poll, `force_watch`, and the ONE shared `clean_shutdown`), so no second
+        # reaper and no second teardown path is introduced (spec R5).
+        escalation_watch = runner_stop.EscalationWatch(
+            run_dir,
+            on_escalate=_escalation_recorder(run_dir, item),
+            is_alive=lambda: process.poll() is None,
+        )
 
         def _raise_if_forced() -> None:
             """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
@@ -4204,8 +4258,9 @@ def run_opencode(
         try:
             # The poller shares the turn's scope, so its thread cannot outlive the turn or
             # leak across attempts. `force_watch` (runstop m0z0ti) joins the same scope so a
-            # level-4 force stop is armed for exactly the turn's lifetime, no longer.
-            with statusline, watchdog, poller, force_watch:
+            # level-4 force stop is armed for exactly the turn's lifetime, no longer, and
+            # `escalation_watch` (runstop 71vjbn) joins it for the same reason.
+            with statusline, watchdog, poller, force_watch, escalation_watch:
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
@@ -5958,18 +6013,107 @@ AUTOMATIC STATUS ROUTING:
     report.add_argument("run_id", help="Run ID or state directory path")
     report.add_argument("--repo", default=".", help="Target Git repository root")
 
+    # runstop 71vjbn (E-03, spec R14/R15): the OUT-OF-BAND stop verb, declared through the SHARED
+    # helper so both drivers expose the SAME verb rather than two that merely agree today
+    # (orchestrator CID-3). It is declared on THIS parser, where `start` already lives, and NOT on
+    # `cli.py`'s `oc` group, because `aw oc run` forwards `argparse.REMAINDER` verbatim to this
+    # `main` - re-declaring the flags there would drift and would bypass the implicit-start shim that
+    # lives in `main()` rather than here.
+    runner_stop.add_stop_parser(sub, command=_detect_driver_command())
+
     return parser
+
+
+def handle_stop_command(args: argparse.Namespace) -> int:
+    """Execute the `stop` verb: resolve the run, then apply the SHARED decision (spec R14/R17).
+
+    Resolution stays here (each driver has its own `resolve_run_dir`); the DECISION - liveness,
+    monotonic no-op, and the honest nonzero paths - lives once in `runner_stop.stop_command` so the
+    two drivers cannot diverge on the error contract (orchestrator CID-3).
+
+    A run that cannot be resolved must exit NONZERO and mutate NOTHING (spec A5), so `run_dir` is
+    passed as None with the resolver's own message rather than being constructed speculatively.
+    """
+
+    run_dir: Path | None
+    unknown_reason = ""
+    try:
+        run_dir = resolve_run_dir(args.repo, args.run_id)
+    except DriverError as exc:
+        run_dir = None
+        unknown_reason = f"{exc} (nothing was created or modified)"
+    level = runner_stop.LEVEL_FLAGS.get(getattr(args, "level_flag", None) or "")
+    result = runner_stop.stop_command(
+        run_dir,
+        level,
+        run_id=args.run_id,
+        requester=f"stop-command pid={os.getpid()}",
+        command=_detect_driver_command(),
+        unknown_reason=unknown_reason,
+    )
+    print(result.message, file=sys.stdout if result.ok else sys.stderr)
+    return result.exit_code
+
+
+def install_stop_triggers(run_dir: Path) -> dict[str, str]:
+    """Install the SIGINT ladder and the SIGTERM handler for THIS run (runstop 71vjbn, spec R12/R13).
+
+    This REPLACES the SIGINT/SIGTERM defaults, which is a modification rather than an addition, so
+    what happens to the pre-existing behavior is decided here explicitly:
+
+    * FIRST Ctrl-C requests level 1 and RETURNS. The default `KeyboardInterrupt` is suppressed on
+      purpose - that is the whole point of level 1, which lets the in-flight turn finish instead of
+      unwinding through it. The between-item poll then declines the next item (spec R20/A1).
+    * SECOND Ctrl-C requests level 3; the turn stops at its next observed safe checkpoint (A3).
+    * THIRD Ctrl-C requests level 4 AND raises `KeyboardInterrupt`, which is what preserves the two
+      pre-existing handlers that the default would otherwise have driven: `execute_item`'s
+      `except KeyboardInterrupt` (marks the item `interrupted`, appends `ipd-interrupted`, reclaims
+      lanes) and `main`'s (prints the summary table, returns 130). Phases 3-4 depend on that item
+      being recorded interrupted, so it is preserved rather than silently stranded.
+    * SIGTERM requests level 3 and returns, replacing today's behavior where the driver raised
+      `KeyboardInterrupt("Terminated by SIGTERM")`, exited 143, and left its child reparented to init
+      still writing the tree (spec section 0.1's observed defect; spec R13).
+
+    The handler itself only RECORDS, through the handler-safe writer, and never reaps: the existing
+    poll and the ONE shared `clean_shutdown` do that (spec R5/R7).
+
+    A trigger that cannot be installed is reported LOUDLY rather than silently skipped (spec A10).
+    """
+
+    def _terminal(level: int, requester: str) -> None:
+        raise KeyboardInterrupt(
+            f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
+            f"{requester or 'SIGINT'}"
+        )
+
+    status = runner_stop.install_stop_signal_handlers(
+        run_dir,
+        command=_detect_driver_command(),
+        requester=f"signal pid={os.getpid()}",
+        on_terminal=_terminal,
+    )
+    unsupported = runner_stop.render_trigger_support(status)
+    if unsupported:
+        print(unsupported, file=sys.stderr)
+    return status
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    # THE IMPLICIT-START SHIM. Any first token NOT in this set is treated as a selector and gets
+    # `start` prepended. runstop 71vjbn (E-03): `"stop"` MUST be listed here. This shim lives in
+    # `main()` and NOT in `build_parser()`, so adding the `stop` subparser alone does not cover it -
+    # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
+    # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
+    # of the operator's intent, so a test asserts the bare form is not rewritten (in both drivers).
     subcommands = {
         "start",
         "resume",
         "status",
         "report",
+        "stop",
         "-h",
         "--help",
         "-v",
@@ -5986,9 +6130,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     run_dir = None
+    # runstop 71vjbn (E-01/E-02): the SIGINT ladder and the SIGTERM handler are installed per-run,
+    # inside the `start`/`resume` branches below, because a handler needs the run directory to record
+    # into. `stop`, `status`, and `report` are short-lived out-of-band commands with no run to wind
+    # down, so they keep the pre-existing SIGTERM->exit behavior.
     install_exit_signal_handler()
 
     try:
+        if args.command == "stop":
+            # runstop 71vjbn (E-03/E-04): out-of-band, and deliberately BEFORE any run-lock or state
+            # mutation. It never starts a run and never creates the run directory.
+            return handle_stop_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")
@@ -5996,6 +6148,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.prepare_only:
                 print_status(run_dir)
                 return 0
+            # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
+            install_stop_triggers(run_dir)
             with locked_run(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
         run_dir = resolve_run_dir(args.repo, args.run_id)
@@ -6043,6 +6197,8 @@ def main(argv: list[str] | None = None) -> int:
                 for s in state.get("set_sessions", {}):
                     state["set_sessions"][s] = args.session
                 save_state(run_dir, state)
+            # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
+            install_stop_triggers(run_dir)
             with locked_run(run_dir):
                 return run_queue(
                     run_dir,

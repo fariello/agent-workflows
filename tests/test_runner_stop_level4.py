@@ -768,17 +768,37 @@ class BothDriversWireLevel4Tests(unittest.TestCase):
                     f"runner_shutdown owns the escalation",
                 )
 
-    def test_no_signal_handler_is_registered_yet(self):
-        # Phase 5 (`71vjbn`) owns the trigger UX. A handler here would bypass the monotonic writer's
-        # handler-safe entry point and reintroduce Phase 1's measured deadlock.
+    def test_the_signal_trigger_is_installed_through_the_shared_handler_safe_installer(
+        self,
+    ):
+        # CONSCIOUSLY REPLACED by runstop Phase 5 (`71vjbn`), not deleted.
+        #
+        # Phase 4 asserted `signal.signal(` appeared in NEITHER driver, reserving SIGINT/SIGTERM for
+        # Phase 5. Phase 5 has landed them, from the SHARED `runner_stop` module - which means the
+        # original assertion would now pass VACUOUSLY (still no literal in either driver) while
+        # asserting nothing. A green test with no meaning is worse than a deleted one, so it is
+        # replaced by the invariant that was actually load-bearing: a handler must take the
+        # handler-SAFE writer, because Phase 1 measured the blocking one deadlocking a handler.
         for name in ("oc_runipd.py", "agy_runipd.py"):
-            self.assertNotIn("signal.signal(", self._source(name))
+            source = self._source(name)
+            self.assertIn("runner_stop.install_stop_signal_handlers(", source, name)
+            self.assertNotIn("signal.signal(", source, name)
+        import inspect
 
-    def test_no_cli_verb_was_added(self):
-        # Phase 5 owns `aw oc/agy run stop --now-force`; this phase requests level 4 by writing the
-        # Phase-1 record directly.
+        installer = inspect.getsource(runner_stop.install_stop_signal_handlers)
+        self.assertIn("request_stop_nowait(", installer)
+
+    def test_level_4_is_reachable_by_its_own_cli_flag(self):
+        # CONSCIOUSLY REPLACED by runstop Phase 5, not deleted. Phase 4 asserted the `stop` verb did
+        # not exist yet, and requested level 4 by writing the Phase-1 record directly. Phase 5 has now
+        # made it REACHABLE, which is the whole point of that phase, so the positive form is asserted
+        # here: level 4 has an out-of-band flag, and it maps to level 4.
+        self.assertEqual(
+            runner_stop.LEVEL_FLAGS["now_force"], runner_stop.LEVEL_NOW_FORCE
+        )
+        self.assertIn("--now-force", runner_stop.STOP_LEVEL_FLAG_HELP)
         for name in ("oc_runipd.py", "agy_runipd.py"):
-            self.assertNotIn('add_parser("stop"', self._source(name))
+            self.assertIn("runner_stop.add_stop_parser(", self._source(name), name)
 
 
 # =============================================================================================

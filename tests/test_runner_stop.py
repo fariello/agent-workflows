@@ -618,25 +618,38 @@ class PollWiringTests(unittest.TestCase):
         self.assertIs(oc_runipd.runner_stop, runner_stop)
         self.assertIs(agy_runipd.runner_stop, runner_stop)
 
-    def test_this_child_wires_no_level_behavior(self):
-        # Scope fence, CONSCIOUSLY NARROWED by runstop Phase 2 (`1qxuke`) rather than deleted.
+    def test_the_handler_safe_writer_is_the_only_writer_a_signal_handler_uses(self):
+        # Scope fence, NARROWED TWICE now, each time by the phase it was reserving room for.
         #
-        # As authored by Phase 1 (`gq6m2u`) this test asserted that NO level behavior existed yet, by
-        # forbidding any consumption of the poll's return value (`= runner_stop.poll_stop`) and any
-        # signal handler. Phase 2 legitimately implements levels 1-2, which REQUIRES consuming that
-        # return value at the between-item checkpoint, so the first half of the fence is now
-        # superseded by the very phase it was reserving room for. Deleting the test would silently
-        # drop the parts of the fence that are STILL live, so it is narrowed instead:
+        # Phase 1 (`gq6m2u`) authored it as "no level behavior exists yet", forbidding both any
+        # consumption of the poll's return value and any signal handler. Phase 2 (`1qxuke`) removed the
+        # first half, because levels 1-2 must consume that return value at the between-item checkpoint.
+        # Phase 5 (`71vjbn`) now removes the second half, because the trigger UX is precisely the
+        # SIGINT/SIGTERM registration this line was holding open.
         #
-        #   * still forbidden here: `signal.signal(` - the trigger UX is Phase 5 (`71vjbn`), and a
-        #     handler registered before then would bypass the monotonic writer's handler-safe entry
-        #     point (`request_stop_nowait`) and reintroduce the measured deadlock.
-        #   * now expected: the between-turn branch, which Phase 2 owns. It is asserted POSITIVELY in
-        #     `tests/test_runner_stop_levels12.py` (which observes real behavior, not source text),
-        #     so this test does not re-pin it by grep.
+        # It is NOT simply deleted, and equally NOT left as written: Phase 5 registers from the SHARED
+        # `runner_stop` module, so `assertNotIn("signal.signal(", driver_source)` would now pass
+        # VACUOUSLY - green while asserting nothing. The invariant that was always the real point is
+        # kept and asserted directly on the installer: a handler may only use the handler-SAFE writer
+        # (`request_stop_nowait`), because Phase 1 MEASURED that a blocking sidecar-lock acquire reached
+        # from a handler hangs the process outright (entered, hung, killed at a 10s timeout, exit 124).
+        import inspect
+
+        installer = inspect.getsource(runner_stop.install_stop_signal_handlers)
+        self.assertIn("request_stop_nowait(", installer)
+        self.assertNotIn(
+            "request_stop(",
+            installer.replace("request_stop_nowait(", ""),
+            "a signal handler must never take the blocking-retry writer (measured deadlock)",
+        )
+        # The drivers must go through that installer rather than registering handlers of their own,
+        # which is how two phases' handlers would silently race for the same signal.
         for module_name in ("oc_runipd.py", "agy_runipd.py"):
             source = self._source(module_name)
-            self.assertNotIn("signal.signal(", source)
+            self.assertIn(
+                "runner_stop.install_stop_signal_handlers(", source, module_name
+            )
+            self.assertNotIn("signal.signal(", source, module_name)
 
 
 @pytest.mark.slow

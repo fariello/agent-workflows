@@ -17,6 +17,7 @@
 - Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-08-31 PARTIAL EXECUTION (opencode (its_direct/pt3-claude-opus-5-1m-us), driver run-20260830T202016Z-3474491): E-01..E-06 EXECUTED and V-01..V-06 validated with pasted evidence; E-07/E-08 and V-07/V-08 remain BLOCKED on orchestrator `zpbx7o` OQ-02 (a human decision), which is the shape this plan's own execution contract predicted. The plan therefore STAYS `approved` in `pending/` and was NOT finalized: `aw ipd lint --phase pre-transition` correctly refuses with IPD-S404 on exactly those four items. Delivered: the SIGINT ladder (1 -> 3 -> 4) and SIGTERM -> level 3 in BOTH drivers via one shared handler-safe installer; the `stop` verb with all four flags in both runners, INCLUDING the implicit-start shim fix without which `stop <run-id> --now` became `start stop <run-id> --now`; the R17 error path with liveness probed by lock ACQUIRABILITY (a stale lock file is proven to read `finished`); the R16 three-part progress report; and the R11/A7 budget-breach ESCALATION Phase 3 only recorded. FOUR DECISIONS were recorded to the run's decisions register rather than resolved silently: (D1) three back-to-back SIGINTs cannot reach level 4 because standard POSIX signals are NOT QUEUED - measured three ways, including an alternative handler design that fails identically, so the ladder test waits per rung and the burst test asserts R9 monotonicity instead; (D2) one escalation does NOT satisfy R11 on a silent child, because level 3 is honored from the child's event stream while only level 4 is acted on out-of-band, so `EscalationWatch` walks the ladder and the honest bound is the SUM of the rungs' budgets; (D3) four sibling scope fences in Phases 1/3/4 and `laneorphan` began passing VACUOUSLY once the handler moved into the shared module, so each was consciously replaced with the invariant that was load-bearing underneath and annotated in-body; (D4) a Phase-3 test asserting "the level is still 3 after a breach" was the fence this phase redeems, and was narrowed rather than deleted. Whole-suite result: `make test-all` -> 20 failed, 4075 passed; a pristine baseline clone of the same commit fails 25, and the failure sets compare to ZERO regressions (my 20 are a strict subset). Out-of-scope paths touched: the four test files in D3/D4, declared for `--scope-reason` at finalize.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-601..PR-608. Verdict is NOT approve because orchestrator OQ-02 remains open and now explicitly blocks two items here. Three defects were found by exercising the real code. (1) BLOCKER: `main()`'s implicit-start shim rewrites `argv = ["start"] + argv` for any first token outside a HARDCODED set (`oc_runipd.py:2905-2914`; `agy_runipd.py:2921-2930`), and the shim lives in `main()` not `build_parser()`, so adding a `stop` subparser alone leaves `stop <run-id> --now` silently rewritten to `start stop <run-id> --now` - evaluated directly - turning an operator's stop request into a run LAUNCH with the literal selector `stop`. E-03 now owns updating that set, with a test in both drivers. (2) BLOCKER: registering a SIGINT handler is a MODIFICATION, not additive - it suppresses the default `KeyboardInterrupt` that `main`'s exit-130 path (:2972-2974) and `execute_item`'s item-level `interrupted`/`ipd-interrupted` bookkeeping (:2011-2019) both depend on, and Phases 3-4 rely on that item being recorded interrupted; E-01 must now preserve or deliberately replace both. (3) HIGH: R17's "already-finished" case had no defined probe, and the obvious `driver.lock`-exists check is provably not liveness (the `2ouj70` review measured a stale lock outliving its holder with the flock already free), so E-04 now mandates a non-blocking `flock` probe. Also SPLIT the A10 work: the original E-07 was unexecutable (both drivers `import fcntl` unconditionally, so with it masked the module raises `ModuleNotFoundError` and no portable subset exists) AND its test method could not detect that (patching `sys.platform` at test time cannot undo an import-time failure), so the DECISION is now blocked item E-08 and the platform CLAIM is blocked item E-07, which also cleared an `IPD-Z602` density advisory the linter raised on my first attempt. Additionally: E-01 must use `gq6m2u`'s handler-safe entry rather than the plain locked write (that review measured a handler deadlock and a ~50% lost-escalation race), recorded the verified favorable fact that the child is in its own process group (`start_new_session=True`) so terminal Ctrl-C reaches only the driver, reconciled the `fcntl` Deferred entry that contradicted A10, and switched full-suite evidence to `make test-all`.
 - 2026-08-29 reviewed (aw set): status set to reviewed
@@ -34,36 +35,36 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: signal triggers
 
-- [ ] E-01 Register a SIGINT handler in BOTH drivers implementing spec R12's escalation: 1st SIGINT requests level 1, 2nd requests level 3, 3rd requests level 4, each via Phase 1's SIGNAL-HANDLER-SAFE entry point (`gq6m2u` E-06, NOT the plain `request_stop`) so write-time monotonicity prevents a downgrade under rapid presses AND the handler cannot deadlock on the sidecar lock. `gq6m2u`'s review established both: a bare atomic write loses the higher level in ~50% of races, and a blocking lock acquire inside a handler hangs the process outright, so the handler must take the non-blocking-then-defer path. The handler MUST do only the minimal record-and-return (no cleanup inside the handler); the existing poll acts on it (spec R7). Registering a SIGINT handler also SUPPRESSES the default `KeyboardInterrupt`, which two existing handlers depend on: `main`'s `except KeyboardInterrupt` returns 130 with "Interrupted; durable run state was preserved." (`oc_runipd.py:2972-2974`; `agy_runipd.py:2997`), and `execute_item`'s marks the item `interrupted`, appends an `ipd-interrupted` event, and re-raises (`oc_runipd.py:2011-2019`; `agy_runipd.py:2096`). Decide and record explicitly what happens to both: the item-level bookkeeping at :2011 must still occur for a level-3/4 stop (Phases 3-4 rely on the item being recorded interrupted), so either keep raising `KeyboardInterrupt` from the poll at the chosen boundary or replicate that bookkeeping on the new path - do not silently strand it. Also note the child is spawned with `start_new_session=True` (`oc_runipd.py:1759-1760`), verified to put it in a DIFFERENT process group, so a terminal Ctrl-C reaches only the driver and not the agent: the driver alone owns the escalation, and the child is stopped only through `clean_shutdown`.
+- [x] E-01 Register a SIGINT handler in BOTH drivers implementing spec R12's escalation: 1st SIGINT requests level 1, 2nd requests level 3, 3rd requests level 4, each via Phase 1's SIGNAL-HANDLER-SAFE entry point (`gq6m2u` E-06, NOT the plain `request_stop`) so write-time monotonicity prevents a downgrade under rapid presses AND the handler cannot deadlock on the sidecar lock. `gq6m2u`'s review established both: a bare atomic write loses the higher level in ~50% of races, and a blocking lock acquire inside a handler hangs the process outright, so the handler must take the non-blocking-then-defer path. The handler MUST do only the minimal record-and-return (no cleanup inside the handler); the existing poll acts on it (spec R7). Registering a SIGINT handler also SUPPRESSES the default `KeyboardInterrupt`, which two existing handlers depend on: `main`'s `except KeyboardInterrupt` returns 130 with "Interrupted; durable run state was preserved." (`oc_runipd.py:2972-2974`; `agy_runipd.py:2997`), and `execute_item`'s marks the item `interrupted`, appends an `ipd-interrupted` event, and re-raises (`oc_runipd.py:2011-2019`; `agy_runipd.py:2096`). Decide and record explicitly what happens to both: the item-level bookkeeping at :2011 must still occur for a level-3/4 stop (Phases 3-4 rely on the item being recorded interrupted), so either keep raising `KeyboardInterrupt` from the poll at the chosen boundary or replicate that bookkeeping on the new path - do not silently strand it. Also note the child is spawned with `start_new_session=True` (`oc_runipd.py:1759-1760`), verified to put it in a DIFFERENT process group, so a terminal Ctrl-C reaches only the driver and not the agent: the driver alone owns the escalation, and the child is stopped only through `clean_shutdown`.
   - Depends on: none
   - Expected outcome: delivering SIGINT three times to a spawned driver yields recorded levels 1, then 3, then 4 with a 3-entry escalation history; the handler performs no teardown itself and never blocks; and the pre-existing exit-130 path and the `execute_item` interrupted-bookkeeping are either preserved or deliberately replaced, with a test covering whichever was chosen.
-  - Execution state: pending
-- [ ] E-02 Register a SIGTERM handler in BOTH drivers requesting level 3 (spec R13), replacing today's default-kill behavior in which the driver prints `Terminated` and exits while its child is orphaned.
+  - Execution state: performed
+- [x] E-02 Register a SIGTERM handler in BOTH drivers requesting level 3 (spec R13), replacing today's default-kill behavior in which the driver prints `Terminated` and exits while its child is orphaned.
   - Depends on: E-01
   - Expected outcome: SIGTERM to a spawned driver records level 3 (not an immediate exit), the turn stops at a safe checkpoint per Phase 3, and the Phase-0 invariants hold; the Phase-0 characterization test pinning the OLD orphan behavior is consciously updated with a note.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the out-of-band command
 
-- [ ] E-03 Add a `stop` subcommand to BOTH runners' own parsers (where `start` already lives, NOT `cli.py`'s `oc` group, since `aw oc run` forwards REMAINDER verbatim - confirmed at `cli.py:2642-2658`) accepting `<run-id>` and exactly one of `--after-call|--after-set|--now|--now-force`, mapping to levels 1-4 via `request_stop(...)`. Flag help MUST state that these control interruption FORCE only and that cleanup is unconditional (spec R15). MANDATORY and easily missed: also add `"stop"` to the IMPLICIT-START SHIM's `subcommands` set in `main()` (`oc_runipd.py:2905-2914`; `agy_runipd.py:2921-2930`). That shim rewrites `argv = ["start"] + argv` for any first token not in the set, so a `stop` verb absent from it turns `stop <run-id> --now` into `start stop <run-id> --now`, i.e. it tries to START a run with the literal selector `stop` (verified by evaluating the shim logic). That is a silent, destructive misfire - the operator asks to stop and instead launches work. Because the shim lives in `main()` and NOT in `build_parser()`, adding the subparser alone does not cover it.
+- [x] E-03 Add a `stop` subcommand to BOTH runners' own parsers (where `start` already lives, NOT `cli.py`'s `oc` group, since `aw oc run` forwards REMAINDER verbatim - confirmed at `cli.py:2642-2658`) accepting `<run-id>` and exactly one of `--after-call|--after-set|--now|--now-force`, mapping to levels 1-4 via `request_stop(...)`. Flag help MUST state that these control interruption FORCE only and that cleanup is unconditional (spec R15). MANDATORY and easily missed: also add `"stop"` to the IMPLICIT-START SHIM's `subcommands` set in `main()` (`oc_runipd.py:2905-2914`; `agy_runipd.py:2921-2930`). That shim rewrites `argv = ["start"] + argv` for any first token not in the set, so a `stop` verb absent from it turns `stop <run-id> --now` into `start stop <run-id> --now`, i.e. it tries to START a run with the literal selector `stop` (verified by evaluating the shim logic). That is a silent, destructive misfire - the operator asks to stop and instead launches work. Because the shim lives in `main()` and NOT in `build_parser()`, adding the subparser alone does not cover it.
   - Depends on: E-01
   - Expected outcome: `aw oc run stop <run-id> --after-set` records level 2 for that run from a second process; `--help` shows all four flags and the cleanup-is-unconditional wording; the same works for `aw agy run stop`; and a test asserts the bare form `stop <run-id> --now` is NOT rewritten into `start` in EITHER driver.
-  - Execution state: pending
-- [ ] E-04 Implement the honest error path (spec R17): `stop` on an unknown, already-finished, or already-stopping run reports that state and exits NONZERO for a nonexistent live run, mutating nothing. It must never appear to succeed. Each of the three states needs a DEFINED probe, and only two are free: (a) UNKNOWN - `resolve_run_dir` already raises `DriverError` for a missing run (`oc_runipd.py:2664-2683`); (b) ALREADY-STOPPING - `read_stop_request(run_dir)` is non-None (Phase 1); (c) LIVE vs FINISHED - there is NO run-complete marker in the ledger today, and the presence of `driver.lock` is NOT liveness: measured in this review that a stale `driver.lock` survives its holder's death while its `flock` is already free. So the liveness probe MUST be an attempted non-blocking `flock` on the run's lock (free => no live driver, therefore "no such live run" => nonzero), NOT a file-existence check. Do not invent a new liveness file; `2ouj70` E-02 already makes lock state the observable signal.
+  - Execution state: performed
+- [x] E-04 Implement the honest error path (spec R17): `stop` on an unknown, already-finished, or already-stopping run reports that state and exits NONZERO for a nonexistent live run, mutating nothing. It must never appear to succeed. Each of the three states needs a DEFINED probe, and only two are free: (a) UNKNOWN - `resolve_run_dir` already raises `DriverError` for a missing run (`oc_runipd.py:2664-2683`); (b) ALREADY-STOPPING - `read_stop_request(run_dir)` is non-None (Phase 1); (c) LIVE vs FINISHED - there is NO run-complete marker in the ledger today, and the presence of `driver.lock` is NOT liveness: measured in this review that a stale `driver.lock` survives its holder's death while its `flock` is already free. So the liveness probe MUST be an attempted non-blocking `flock` on the run's lock (free => no live driver, therefore "no such live run" => nonzero), NOT a file-existence check. Do not invent a new liveness file; `2ouj70` E-02 already makes lock state the observable signal.
   - Depends on: E-03
   - Expected outcome: `stop <bogus-run-id>` exits nonzero naming the unknown run and creates no file; `stop` on a FINISHED run (lock free) exits nonzero saying there is no live run, and creates no stop-request file; `stop` on an already-stopping run reports the existing level and does not downgrade it; a test asserts the finished-run case is decided by lock acquirability rather than by `driver.lock` existing.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: reporting and escalation enforcement
 
-- [ ] E-05 Report progress on every accepted request (spec R16): print the level accepted, what the driver is waiting for, and how to escalate. Silence during wind-down is a defect.
+- [x] E-05 Report progress on every accepted request (spec R16): print the level accepted, what the driver is waiting for, and how to escalate. Silence during wind-down is a defect.
   - Depends on: E-01, E-03
   - Expected outcome: each accepted request emits a line naming the level, the awaited boundary, and the escalation hint; captured output from a signalled run contains all three for each escalation step.
-  - Execution state: pending
-- [ ] E-06 Enforce the wind-down budget escalation Phase 3 only recorded (spec R11, A7): on a breach marker or an elapsed deadline read from Phase 1's record, escalate to the next level with the escalation RECORDED, so a hung turn can never make a stop hang forever.
+  - Execution state: performed
+- [x] E-06 Enforce the wind-down budget escalation Phase 3 only recorded (spec R11, A7): on a breach marker or an elapsed deadline read from Phase 1's record, escalate to the next level with the escalation RECORDED, so a hung turn can never make a stop hang forever.
   - Depends on: E-05
   - Expected outcome: a level-1 request against a fake child that will not finish escalates before the recorded deadline plus a bounded margin, records the escalation, and still satisfies all four Phase-0 invariants.
-  - Execution state: pending
+  - Execution state: performed
 - [ ] E-07 State the platform support boundary honestly in the user-facing surfaces: say in the `stop` help text and the module docstring which triggers work on which platforms, and assert the unsupported-trigger path fails LOUDLY rather than silently no-opping (spec A10's second half).
   - Depends on: E-03, E-08
   - Expected outcome: the `stop` help and module docstring name the supported platform set and the loud-failure behavior; a test asserts an unsupported trigger raises or warns visibly rather than silently doing nothing. The exact wording follows E-08's resolution and MUST NOT claim a working Windows portable subset unless E-08 selected an option that actually delivers one.
@@ -166,33 +167,216 @@ Favorable fact, also verified: the agent child is spawned with `start_new_sessio
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: pasted pytest output delivering three REAL SIGINTs to a spawned driver process (not a mocked handler) showing recorded levels 1 -> 3 -> 4 and a 3-entry escalation history, plus evidence the handler itself performed no teardown (cleanup observed only after the poll acted).
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m pytest tests/test_runner_stop_triggers.py -o addopts="" -m "" -q -s -k "test_three_real_sigints or test_the_handler_itself_performs_no_teardown or test_signal_coalescing"`:
+
+    ```
+    3 back-to-back SIGINTs delivered 1 handler invocation(s) on this host (standard POSIX signals are not queued)
+    .escalation history recorded from three REAL SIGINTs: [
+      {
+        "at": "2026-08-31T01:57:26.901579+00:00",
+        "level": 1,
+        "requester": "signal pid=2819397"
+      },
+      {
+        "at": "2026-08-31T01:57:26.922309+00:00",
+        "level": 3,
+        "requester": "signal pid=2819397"
+      },
+      {
+        "at": "2026-08-31T01:57:26.942841+00:00",
+        "level": 4,
+        "requester": "signal pid=2819397"
+      }
+    ]
+    .after the level-1 request the child pid 2819434 is still alive: no teardown inside the handler
+    .
+    3 passed, 49 deselected in 2.72s
+    ```
+
+    The three SIGINTs are delivered by `process.send_signal` to a REAL spawned driver (`_spawn_driver`, `start_new_session=True`), and the levels are read back from the DURABLE record, so the record can only show 1 -> 3 -> 4 if `signal.signal` was genuinely registered in that process. NO-TEARDOWN is observed rather than asserted from code: after the FIRST SIGINT the child pid is still alive (`test_the_handler_itself_performs_no_teardown`), which a handler that tore down in place could not produce.
+
+    ONE DEVIATION FROM THE REQUIRED EVIDENCE, recorded rather than papered over (decision `2-71vjbn-D1`). The ladder test WAITS for each rung to be recorded before pressing again. A tight three-press burst does NOT reach level 4, and this is a platform property, not an implementation defect: standard POSIX signals are not queued, so back-to-back deliveries coalesce. Measured three ways with standalone harnesses (no driver): a counter-only handler saw 1 invocation for 3 signals; a ~20ms handler saw 2; and an ALTERNATIVE handler design deriving the rung from the recorded level instead of a press counter also reached only level 1, proving the loss is at kernel delivery, above any handler design. The measurement is preserved as `test_signal_coalescing_is_an_os_property_not_a_handler_defect` (first line above) so the premise fails loudly if a platform ever queues these signals. Spec R9's monotonicity IS asserted under the adversarial burst by `test_rapid_repeated_sigints_are_monotonic_and_never_downgrade`.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: pasted pytest output delivering a real SIGTERM showing level 3 recorded and the turn stopping at a checkpoint, the four Phase-0 invariant observations, and the diff/note showing the Phase-0 characterization test pinning the old orphan behavior was consciously updated rather than silently deleted.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m pytest tests/test_runner_stop_triggers.py -o addopts="" -m "" -q -s -k "Sigterm or test_the_terminal_rung_still_records"`:
+
+    ```
+    in-flight item after 3x SIGINT: status='interrupted'
+    driver exit code after the terminal rung: 130
+    ..SIGTERM -> level 3 (now), certainty known, stopped after event 4 (tool_use:t4); driver exit 1
+    .
+    3 passed, 49 deselected in 1.36s
+    ```
+
+    A REAL SIGTERM records level 3, and the turn stops at an OBSERVED safe checkpoint (event 4, `tool_use:t4`) with certainty `known` - NOT an immediate exit, and NOT `unknown_outcome`. The FOUR PHASE-0 INVARIANTS are asserted by `_InvariantAssertions.assert_phase0_invariants`, called in that same test: R1 by scanning the real `ps -eo pid,ppid,args` table for any surviving process under this run's private temp repo path; R2 by re-acquiring `driver.lock` with a fresh non-blocking `flock`; R3 through `runner_shutdown.observe_ledger` plus a per-item check against `runner_shutdown.KNOWN_ITEM_STATUSES`; R4 by comparing `git status --porcelain` before/after (the dirty set may only have grown) and asserting `git stash list` is empty. All pass, so the test could not have reported PASSED otherwise.
+
+    THE CHARACTERIZATION QUESTION, answered precisely rather than by assertion. The Phase-0 test that pins the old orphan behavior (`test_runner_shutdown.py::CharacterizationTests::test_pins_a_bare_terminate_of_the_wrong_process_leaves_an_orphan`) is NOT modified, and that is correct, not an omission: it pins what happens when a driver dies WITHOUT running the shared routine (it drives `proc.kill()` directly), which this phase does not change. What this phase changes is what SIGTERM MEANS - a level-3 REQUEST rather than a death - so the pinned scenario is untouched and the test still holds as written. Verified: `tests/test_runner_shutdown.py` is absent from `git diff --stat tests/` (which lists only `test_lane_allocation_idempotent.py`, `test_runner_stop.py`, `test_runner_stop_level3.py`, `test_runner_stop_level4.py`), and the whole file passes. The replacement of the SIGTERM->exit-143 MAPPING is instead asserted positively by `test_the_old_kill_and_orphan_behavior_is_consciously_replaced`, which checks that the generic exit handler is still installed for the out-of-band commands and that the per-run stop triggers are installed AFTER it. Four OTHER sibling fences were consciously updated (decision `2-71vjbn-D3`), each with an in-body note, because this phase's landing made them pass VACUOUSLY.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: pasted `aw oc run stop --help` AND `aw agy run stop --help` output showing all four flags and the cleanup-is-unconditional wording (spec R15), plus pasted pytest output showing a level recorded from a SEPARATE process for each of the four flags.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: BOTH drivers' `stop --help` (`python3 -m agent_workflows.oc_runipd stop --help` / `...agy_runipd stop --help`), abridged to the flags and the R15 wording:
+
+    ```
+    ### oc stop --help ###
+    usage: runipd stop [-h] [--repo REPO] (--after-call | --after-set | --now |
+                       --now-force)
+                       run_id
+      --after-call  Level 1: let the in-flight agent turn FINISH, then start
+                    nothing further. Interruption force only; cleanup still runs
+                    unconditionally.
+      --after-set   Level 2: let the rest of the CURRENT set's queue finish, then
+                    stop before any next set. Interruption force only; cleanup
+                    still runs unconditionally. (Only reachable this way: the
+                    Ctrl-C ladder is 1 -> 3 -> 4, which leaves no key position for
+                    level 2.)
+      --now         Level 3: stop the current agent turn at its next OBSERVED safe
+                    checkpoint; its outcome stays KNOWN. Interruption force only;
+                    cleanup still runs unconditionally.
+      --now-force   Level 4: interrupt the current agent turn IMMEDIATELY; its
+                    outcome becomes indeterminate and needs reconciliation before
+                    a resume. Interruption force only; cleanup still runs
+                    unconditionally.
+
+    ### agy stop --help ###
+    usage: runagy stop [-h] [--repo REPO] (--after-call | --after-set | --now |
+                       --now-force)
+                       run_id
+      [identical four flags; epilog examples read `aw agy run stop ...`]
+    ```
+
+    The verb-level description (also in both, above the options) carries the R15 statement in full: "These flags control only HOW FORCEFULLY the in-flight agent turn is interrupted. Cleanup is UNCONDITIONAL at every level: children are always reaped, the lock always released, the ledger always left coherent, and the working tree never silently contaminated. No flag makes cleanup optional."
+
+    A LEVEL RECORDED FROM A SEPARATE PROCESS, FOR EACH OF THE FOUR FLAGS (`test_each_flag_records_its_level_from_a_second_process`, which spawns a real driver, holds it at a running turn, and then invokes `stop` as an independent `subprocess`):
+
+    ```
+    --after-call from a separate process recorded level 1 (after-call); stop said: stop accepted: level 1 (after-call) (requested by stop-command pid=2429755); waiting for the in-flight agent turn to finish; no further item will be started; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now`) to request level 3 (now)
+    --after-set from a separate process recorded level 2 (after-set); stop said: stop accepted: level 2 (after-set) (requested by stop-command pid=2429810); waiting for the rest of the current set's queue to finish; no next set will be started; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now`) to request level 3 (now)
+    --now from a separate process recorded level 3 (now); stop said: stop accepted: level 3 (now) (requested by stop-command pid=2429847); waiting for the current agent turn's next OBSERVED safe checkpoint; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now-force`) to request level 4 (now-force)
+    --now-force from a separate process recorded level 4 (now-force); stop said: stop accepted: level 4 (now-force) (requested by stop-command pid=2429877); waiting for nothing: the current agent turn is being interrupted immediately; this is the highest level (4, now-force); there is nothing harder to escalate to (a SIGKILL bypasses this protocol entirely and is not part of it)
+    .aw agy run stop --now recorded level 3: stop accepted: level 3 (now) (requested by stop-command pid=2429905); waiting for the current agent turn's next OBSERVED safe checkpoint; to stop harder, press Ctrl-C again (or run `aw agy run stop <run-id> --now-force`) to request level 4 (now-force)
+    .
+    3 passed, 48 deselected in 4.08s
+    ```
+
+    Each `pid=` differs from the driver's, which is what makes these genuinely out-of-band.
+
+    THE IMPLICIT-START SHIM (the blocker this V-item's E-item also owns) is asserted in BOTH drivers by `ImplicitStartShimTests`. `test_oc_does_not_rewrite_a_bare_stop_into_start` and its agy twin drive the REAL `main(["stop", "run-nonexistent-abcdef", "--now", ...])` and assert (a) a nonzero exit and (b) that NO run directory was created - the discriminator, because a rewrite to `start` would have minted one. `test_stop_is_listed_in_both_shims_subcommand_sets` additionally greps each `main()`'s hardcoded set, so the omission cannot reappear in one driver while the other keeps passing, and `test_a_plain_selector_is_still_implicitly_started` is the control proving the shim still works for ordinary selectors.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: pasted output for spec A5 showing `stop <bogus-run-id>` exiting nonzero with the run id named, plus a filesystem listing proving nothing was created; plus the already-stopping case showing the existing level reported and NOT downgraded.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05
+  - Observed evidence: `python3 -m pytest tests/test_runner_stop_triggers.py -o addopts="" -m "" -q -s -k "UnknownRun or LivenessProbe or AlreadyStopping"`:
+
+    ```
+    oc: stop <bogus> -> exit 2: Run not found: run-no-such-run-999 (nothing was created or modified)
+    agy: stop <bogus> -> exit 2: Run not found: run-no-such-run-999 (nothing was created or modified)
+    .oc: filesystem after the refused stop:
+    /tmp/tmpu9gmb_yd/repo
+    /tmp/tmpu9gmb_yd/repo/.git
+
+    agy: filesystem after the refused stop:
+    /tmp/tmpy91hnxvb/repo
+    /tmp/tmpy91hnxvb/repo/.git
+
+    .escalating out-of-band request: stop accepted: level 3 (now) (requested by second); waiting for the current agent turn's next OBSERVED safe checkpoint; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now-force`) to request level 4 (now-force)
+    .already-stopping report: already stopping at level 4 (now-force), requested by first at 2026-08-31T01:58:52.564407+00:00; level 1 (after-call) is not higher, so the recorded level is UNCHANGED (escalation is monotonic and never downgrades). stop already at or above the requested level: level 4 (now-force); waiting for nothing: the current agent turn is being interrupted immediately; this is the highest level (4, now-force); there is nothing harder to escalate to (a SIGKILL bypasses this protocol entirely and is not part of it)
+    .finished-run path: exit 1: no live run to stop: run-finished has no driver holding its lock; nothing was recorded
+    ..stale lock file exists (True) yet liveness is 'finished': decided by acquirability, not existence
+    .
+    7 passed, 45 deselected in 1.66s
+    ```
+
+    SPEC A5, in both drivers: exit 2, the unknown run id named verbatim, and the filesystem listing shows only `repo` and `repo/.git` - no `.aw/`, no run root, no stop-request file. `test_it_creates_no_run_directory_and_no_stop_request` additionally snapshots `repo.rglob("*")` before and after and asserts the sets are EQUAL, so nothing was created OR removed.
+
+    THE FINISHED-RUN PROBE, which is the part this V-item's E-item was rewritten for. The decisive line is the last one: a stale `driver.lock` FILE exists (`True`) and yet liveness reads `'finished'`. That is the discriminator between a sound probe and the obvious wrong one - a `Path.exists()` check would have said LIVE and `stop` would have written a request that no process will ever read, which is precisely the "appears to succeed" failure spec R17 forbids. The test constructs the residue for real (spawn a holder, take the `flock`, `kill` it, confirm the file survives) and asserts BOTH halves. `test_the_probe_is_not_implemented_as_a_file_existence_check` locks that in structurally by inspecting `run_liveness`' source for `lock_is_free` and against `.exists()`/`.is_file()`. The finished-run `stop` then exits 1 and writes nothing.
+
+    THE ALREADY-STOPPING CASE, both directions. A LOWER request against a level-4 run exits 0 (the operator asked for something already guaranteed) but reports "the recorded level is UNCHANGED (escalation is monotonic and never downgrades)" and the record is re-read to confirm it is still level 4. A HIGHER request escalates and reports the new level, with the two-entry history asserted.
+  - Result: pass
+- [x] V-05 validates E-05
   - Required evidence: pasted captured driver output from a signalled run containing, for EACH escalation step, the accepted level, the awaited boundary, and the escalation hint (spec R16). Missing any of the three fails this item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: captured stdout+stderr of a REAL signalled driver (`test_captured_output_names_level_boundary_and_escalation_at_every_step`, which delivers three real SIGINTs and then greps its own captured output):
+
+    ```
+    --- captured driver output (stop reports) ---
+    stop accepted: level 1 (after-call) (requested by signal pid=2429923); waiting for the in-flight agent turn to finish; no further item will be started; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now`) to request level 3 (now)
+    stop accepted: level 3 (now) (requested by signal pid=2429923); waiting for the current agent turn's next OBSERVED safe checkpoint; to stop harder, press Ctrl-C again (or run `aw oc run stop <run-id> --now-force`) to request level 4 (now-force)
+    stop accepted: level 4 (now-force) (requested by signal pid=2429923); waiting for nothing: the current agent turn is being interrupted immediately; this is the highest level (4, now-force); there is nothing harder to escalate to (a SIGKILL bypasses this protocol entirely and is not part of it)
+    .
+    3 passed, 48 deselected in 4.08s
+    ```
+
+    ALL THREE REQUIRED PARTS, present at EVERY escalation step, and asserted per-level in a `subTest` rather than by eyeballing the text above:
+
+    | step | (1) accepted level | (2) awaited boundary | (3) escalation hint |
+    |---|---|---|---|
+    | 1st SIGINT | `level 1 (after-call)` | `the in-flight agent turn to finish; no further item will be started` | `to stop harder ... level 3 (now)` |
+    | 2nd SIGINT | `level 3 (now)` | `the current agent turn's next OBSERVED safe checkpoint` | `to stop harder ... level 4 (now-force)` |
+    | 3rd SIGINT | `level 4 (now-force)` | `nothing: the current agent turn is being interrupted immediately` | `nothing harder to escalate to` |
+
+    The level-4 row is deliberately NOT a missing hint: it states honestly that there is nothing higher, since claiming an escalation target that does not exist would be false. `RequestReportContentTests::test_every_level_reports_all_three_required_parts` covers all four levels (including level 2, which no signal reaches) by asserting the level number, the level name, the exact `AWAITING[level]` string, and the presence of a hint. `test_a_monotonic_no_op_is_still_reported` covers the case R16 would otherwise leave silent: a second, non-raising request still gets an answer, so a press never looks dropped.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: pasted pytest output for spec A7 showing a level-1 request against a non-finishing fake child escalating before the recorded deadline plus a bounded margin, the escalation recorded in the run record, and all four Phase-0 invariants still satisfied.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_runner_stop_triggers.py -o addopts="" -m "" -q -s -k "BudgetEscalationEndToEnd"`:
+
+    ```
+    rung 1: breached level-1 deadline escalated to level 3 in 0.021s (child is silent, so this could only be noticed out-of-band)
+    rung 2: breached level-3 deadline escalated to level 4 in 0.062s
+    escalation events recorded (driver exit 1):
+    [
+      {
+        "at": "2026-08-31T01:40:01+00:00",
+        "deliberate": true,
+        "escalation_performed": true,
+        "escalation_required": true,
+        "event": "stop-escalated",
+        "failure": false,
+        "from_level": 1,
+        "from_level_name": "after-call",
+        "id6": "ea0001",
+        "level": 3,
+        "level_name": "now",
+        "reason": "wind-down budget of 0.25s expired at 2026-08-31T01:40:00.731929+00:00 without the level-1 boundary being reached",
+        "requester": "budget-escalation (from level 1)"
+      },
+      {
+        "at": "2026-08-31T01:40:01+00:00",
+        "deliberate": true,
+        "escalation_performed": true,
+        "escalation_required": true,
+        "event": "stop-escalated",
+        "failure": false,
+        "from_level": 3,
+        "from_level_name": "now",
+        "id6": "ea0001",
+        "level": 4,
+        "level_name": "now-force",
+        "reason": "wind-down budget of 0.25s expired at 2026-08-31T01:40:00.752995+00:00 without the level-3 boundary being reached",
+        "requester": "budget-escalation (from level 3)"
+      }
+    ]
+    escalation ladder walked: [1, 3, 4]
+    .escalated level-3 request budget: 600.0s (so the overall bound is the sum of the rungs, which is finite)
+    .
+    2 passed, 50 deselected in 0.83s
+    ```
+
+    SPEC A7 DEMONSTRATED. The child is the `silent` mode: it emits two events, drops its READY marker, and then goes COMPLETELY quiet for 90s. That is the case an in-loop check can never handle, because `for line in process.stdout` blocks on a line that never comes - so the 0.021s and 0.062s latencies are themselves proof the escalation is noticed OUT OF BAND. The turn was genuinely cut: `CHILD_RAN_TO_COMPLETION` does not exist. Both escalations are RECORDED (spec R11) with `escalation_performed: true`, which is the deliberate counterpart of Phase 3's `budget_breach_event` writing `false` - so the two phases' records stay distinguishable and neither claims the other's work (R23). Nothing is marked successful (asserted against `oc.SUCCESS_STATES`), and all four Phase-0 invariants are asserted via `assert_phase0_invariants` in the same test, so R6 holds through an escalation.
+
+    ONE CORRECTION TO THIS ITEM'S OWN FRAMING, recorded rather than hidden (decision `2-71vjbn-D2`). The required evidence says "escalating before the recorded deadline plus a bounded margin", which reads as though one budget bounds the whole stop. It does not, and I measured why: each escalation goes through the SAME monotonic writer every other request uses, so the escalated request carries the budget spec R11 assigns ITS level - the last line above shows the escalated level-3 request carrying level 3's real 600.0s deadline. The bound is therefore the SUM OF THE RUNGS' budgets, which is finite (R11's actual requirement: "a hung turn cannot make a stop hang forever"), not one budget. This also forced a design decision: escalating only ONCE would stall a silent child at level 3 forever, because level 3 is honored by OBSERVING the child's event stream while only level 4 is acted on unconditionally out-of-band. So `EscalationWatch` walks the ladder, and the test asserts the per-rung LATENCY (each < 30s, measured 0.021s / 0.062s) rather than pretending a single 0.25s injection bounds all three rungs.
+  - Result: pass
 - [ ] V-07 validates E-07
   - Required evidence: pasted pytest output showing an unsupported trigger raising or warning VISIBLY (asserted on the captured warning/exception, not on the absence of a crash), plus the pasted `stop` help and module docstring naming the supported platform set. A `sys.platform` monkeypatch is NOT acceptable as evidence that the portable subset IMPORTS or FUNCTIONS on a non-POSIX host, because the failing `import fcntl` happens before any such patch; only evidence consistent with E-08's resolution may be offered, and no pasted text may claim Windows support that E-08 did not deliver.
-  - Observed evidence: NOT YET VALIDATED - blocked behind E-08/OQ-02. Plan-review 2026-08-29 established the blocking fact rather than the acceptance: with `fcntl` masked, `import agent_workflows.oc_runipd` raises `ModuleNotFoundError: No module named 'fcntl'`, so no portable subset exists on a non-POSIX host today and there is no honest platform claim to validate until the human decision lands.
+  - Observed evidence: NOT YET VALIDATED - still blocked behind E-08/OQ-02. Plan-review 2026-08-29 established the blocking fact rather than the acceptance: with `fcntl` masked, `import agent_workflows.oc_runipd` raises `ModuleNotFoundError: No module named 'fcntl'`, so no portable subset exists on a non-POSIX host today and there is no honest platform claim to validate until the human decision lands.
+
+    WHAT WAS DELIVERED ANYWAY, 2026-08-31, and why it is NOT this item passing. A10 has two halves, and only the SECOND is decidable without OQ-02:
+
+    * A10's SECOND half (unsupported triggers fail LOUDLY rather than silently no-opping) IS implemented and tested. `install_stop_signal_handlers` returns a per-trigger status map and `render_trigger_support` renders whatever could not be installed, which both drivers print. `PlatformHonestyTests::test_the_unsupported_trigger_path_reports_loudly_rather_than_no_opping` exercises a REAL uninstallable case - requesting installation from a non-main thread, where `signal.signal` genuinely cannot be used - and asserts a visible report: `stop-trigger support is INCOMPLETE on this host (SIGINT: unsupported: SIGINT can only be installed on the main thread; SIGTERM: unsupported: ...)`. A non-main thread is used deliberately INSTEAD of a `sys.platform` monkeypatch, because this item's own required evidence rules that patch out, and correctly: the failing `import fcntl` happens at import time, before any patch could run, so a platform patch could not detect the real failure.
+    * A10's FIRST half (a non-POSIX host still gets a working portable subset) is NOT delivered and is NOT claimed. That is E-07's blocked wording.
+
+    So this item stays BLOCKED, and the guard that keeps it honest in the meantime is asserted: `test_no_user_facing_text_claims_a_working_windows_subset` scans the module docstring, the CLI description, and both drivers' rendered `stop --help` and fails on any Windows-support claim, while `test_a10s_first_half_is_recorded_as_blocked_not_silently_claimed` re-verifies the blocking premise itself (all three modules still `import fcntl` unconditionally) so this item cannot drift into implying a subset exists. The user-facing text states the honest position instead: "PLATFORM SUPPORT: POSIX only ... there is therefore NO non-POSIX subset in which some triggers still work."
   - Result: blocked
 - [ ] V-08 validates E-08
   - Required evidence: the resolved orchestrator OQ-02 text pasted here, naming the selected option and its consequence for this plan's `Deferred / out of scope` entry on replacing `fcntl`. If the selection is (B) or (C), evidence must also show the `Item-Dependencies`/scope consequences were recorded rather than left implicit.

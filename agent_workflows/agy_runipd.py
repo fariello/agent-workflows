@@ -2606,6 +2606,41 @@ def _budget_breach_recorder(
     return _record
 
 
+def _escalation_recorder(
+    run_dir: Path, item: dict[str, Any]
+) -> Callable[[int, int, str], None]:
+    """Build the callback `EscalationWatch` invokes when it PERFORMS an escalation (71vjbn E-06).
+
+    The exact counterpart of the `oc_runipd` helper (orchestrator CID-3: neither driver may have a
+    level or an enforcement the other lacks). `escalation_performed` is True here precisely where
+    Phase 3's breach event wrote False (spec R11/R23).
+    """
+
+    def _record(from_level: int, to_level: int, reason: str) -> None:
+        event = runner_stop.escalation_event(
+            from_level=from_level,
+            to_level=to_level,
+            at=utc_now(),
+            reason=reason,
+            id6=item.get("id6", ""),
+            requester=f"budget-escalation (from level {from_level})",
+        )
+        with contextlib.suppress(Exception):
+            append_jsonl(run_dir / "events.jsonl", event)
+        print(
+            f"stop ESCALATED from level {from_level} to level {to_level} "
+            f"({runner_stop.LEVEL_NAMES.get(to_level, 'unknown')}): {reason}",
+            file=sys.stderr,
+        )
+        runner_stop.report_request(
+            to_level,
+            requester=f"budget-escalation (from level {from_level})",
+            command=_detect_driver_command(),
+        )
+
+    return _record
+
+
 def _record_checkpoint_stop(
     run_dir: Path,
     state: dict[str, Any],
@@ -2810,6 +2845,17 @@ def run_agy_turn(
             on_force=_note_force,
             is_alive=lambda: process.poll() is None,
         )
+        # runstop 71vjbn (E-06, spec R11/A7): ENFORCE the wind-down budget Phase 3 only RECORDED. The
+        # exact counterpart of the `oc_runipd` site. Armed for the WHOLE turn (not only once a
+        # level-3 stop is seen) so a level-1/2 wind-down deadline expiring during this turn is also
+        # bounded, and out-of-band because `for raw_line in process.stdout` BLOCKS on a silent child.
+        # It only RAISES the durable level; the escalated level is honored by the existing poll,
+        # `force_watch`, and the ONE shared `clean_shutdown` (spec R5).
+        escalation_watch = runner_stop.EscalationWatch(
+            run_dir,
+            on_escalate=_escalation_recorder(run_dir, item),
+            is_alive=lambda: process.poll() is None,
+        )
 
         def _raise_if_forced() -> None:
             """Cut the turn NOW if a level-4 request has been observed (spec R7 level 4)."""
@@ -2825,7 +2871,9 @@ def run_agy_turn(
             )
 
         try:
-            with statusline, watchdog, force_watch:
+            # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
+            # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
+            with statusline, watchdog, force_watch, escalation_watch:
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
@@ -4402,18 +4450,99 @@ AUTOMATIC STATUS ROUTING:
     report.add_argument("run_id", help="Run ID or state directory path")
     report.add_argument("--repo", default=".", help="Target Git repository root")
 
+    # runstop 71vjbn (E-03, spec R14/R15): the OUT-OF-BAND stop verb, through the SHARED declaration
+    # so `aw agy run stop` is the SAME verb as `aw oc run stop` (orchestrator CID-3) rather than a
+    # second copy that could drift. Declared on THIS parser (where `start` lives), not on `cli.py`'s
+    # `agy` group, which forwards `argparse.REMAINDER` verbatim to this `main`.
+    runner_stop.add_stop_parser(sub, command=_detect_driver_command())
+
     return parser
+
+
+def handle_stop_command(args: argparse.Namespace) -> int:
+    """Execute the `stop` verb: resolve the run, then apply the SHARED decision (spec R14/R17).
+
+    The exact counterpart of `oc_runipd.handle_stop_command`. Resolution stays here (each driver has
+    its own `resolve_run_dir`); the DECISION - liveness by lock acquirability, the monotonic no-op, and
+    the honest nonzero paths - lives once in `runner_stop.stop_command`, so the two drivers cannot
+    diverge on the error contract.
+
+    An unresolvable run exits NONZERO and mutates NOTHING (spec A5): `run_dir` is passed as None with
+    the resolver's own message rather than being constructed speculatively.
+    """
+
+    run_dir: Path | None
+    unknown_reason = ""
+    try:
+        run_dir = resolve_run_dir(args.repo, args.run_id)
+    except DriverError as exc:
+        run_dir = None
+        unknown_reason = f"{exc} (nothing was created or modified)"
+    level = runner_stop.LEVEL_FLAGS.get(getattr(args, "level_flag", None) or "")
+    result = runner_stop.stop_command(
+        run_dir,
+        level,
+        run_id=args.run_id,
+        requester=f"stop-command pid={os.getpid()}",
+        command=_detect_driver_command(),
+        unknown_reason=unknown_reason,
+    )
+    print(result.message, file=sys.stdout if result.ok else sys.stderr)
+    return result.exit_code
+
+
+def install_stop_triggers(run_dir: Path) -> dict[str, str]:
+    """Install the SIGINT ladder and the SIGTERM handler for THIS run (runstop 71vjbn, spec R12/R13).
+
+    The exact counterpart of `oc_runipd.install_stop_triggers`, including its decision about the
+    PRE-EXISTING `KeyboardInterrupt` behavior that registering a SIGINT handler suppresses:
+
+    * 1st Ctrl-C requests level 1 and RETURNS (the point of level 1 is to let the in-flight turn
+      finish rather than unwind through it);
+    * 2nd requests level 3 (stop at the next observed safe checkpoint);
+    * 3rd requests level 4 AND raises `KeyboardInterrupt`, which preserves `execute_item`'s
+      `except KeyboardInterrupt` (item marked `interrupted`, `ipd-interrupted` appended, lanes
+      reclaimed) and `main`'s exit-130 path that Phases 3-4 depend on;
+    * SIGTERM requests level 3 and returns, replacing today's kill-and-orphan behavior (spec R13).
+
+    The handler only RECORDS, through the handler-safe writer, and never reaps (spec R5/R7). A trigger
+    that cannot be installed is reported LOUDLY rather than silently skipped (spec A10).
+    """
+
+    def _terminal(level: int, requester: str) -> None:
+        raise KeyboardInterrupt(
+            f"stop level {level} ({runner_stop.LEVEL_NAMES.get(level, 'unknown')}) requested by "
+            f"{requester or 'SIGINT'}"
+        )
+
+    status = runner_stop.install_stop_signal_handlers(
+        run_dir,
+        command=_detect_driver_command(),
+        requester=f"signal pid={os.getpid()}",
+        on_terminal=_terminal,
+    )
+    unsupported = runner_stop.render_trigger_support(status)
+    if unsupported:
+        print(unsupported, file=sys.stderr)
+    return status
 
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    # THE IMPLICIT-START SHIM. Any first token NOT in this set is treated as a selector and gets
+    # `start` prepended. runstop 71vjbn (E-03): `"stop"` MUST be listed here. This shim lives in
+    # `main()` and NOT in `build_parser()`, so adding the `stop` subparser alone does not cover it -
+    # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
+    # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
+    # of the operator's intent, so a test asserts the bare form is not rewritten (in both drivers).
     subcommands = {
         "start",
         "resume",
         "status",
         "report",
+        "stop",
         "-h",
         "--help",
         "-v",
@@ -4430,9 +4559,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     run_dir = None
+    # runstop 71vjbn (E-01/E-02): the SIGINT ladder and the SIGTERM handler are installed per-run,
+    # inside the `start`/`resume` branches below, because a handler needs the run directory to record
+    # into. `stop`, `status`, and `report` are short-lived out-of-band commands with no run to wind
+    # down, so they keep the pre-existing SIGTERM->exit behavior.
     install_exit_signal_handler()
 
     try:
+        if args.command == "stop":
+            # runstop 71vjbn (E-03/E-04): out-of-band, deliberately BEFORE any run-lock or state
+            # mutation. It never starts a run and never creates the run directory.
+            return handle_stop_command(args)
         if args.command == "start":
             run_dir = initialize_run(args)
             print(f"Run ID: {run_dir.name}")
@@ -4440,6 +4577,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.prepare_only:
                 print_status(run_dir)
                 return 0
+            # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
+            install_stop_triggers(run_dir)
             with locked_run(run_dir):
                 return run_queue(run_dir, retry_incomplete=False)
 
@@ -4489,6 +4628,8 @@ def main(argv: list[str] | None = None) -> int:
                 for s in state.get("set_sessions", {}):
                     state["set_sessions"][s] = args.session
                 save_state(run_dir, state)
+            # runstop 71vjbn: a resumed run is just as interruptible as a fresh one.
+            install_stop_triggers(run_dir)
             with locked_run(run_dir):
                 return run_queue(
                     run_dir,

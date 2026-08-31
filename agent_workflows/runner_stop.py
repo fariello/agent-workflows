@@ -13,10 +13,24 @@ that request mechanism and nothing else:
 - R11 each level carries a bounded wind-down BUDGET (recorded here, ENFORCED per level by the
       phases that own each level's behavior).
 
-WHAT THIS MODULE DELIBERATELY DOES NOT DO. It implements no level's BEHAVIOR (what actually
-completes before shutdown), registers no signal handler, and exposes no CLI verb. Those belong to
-the later phases of Set `runstop`. This module only makes a stop request expressible and
-observable.
+WHAT THIS MODULE GREW INTO (recorded so the section boundaries stay legible). As authored by Phase 1
+it deliberately implemented no level BEHAVIOR, registered no signal handler, and exposed no CLI verb.
+Later phases of Set `runstop` added their pieces here so both drivers consult ONE mechanism
+(orchestrator CID-3), each under its own clearly marked section: levels 1-2 (`1qxuke`), level 3
+(`foi1b3`), level 4 (`m0z0ti`), and the TRIGGER UX (`71vjbn`) - the SIGINT ladder, the SIGTERM
+handler, the out-of-band `stop` command's decision logic, the spec-R16 progress report, and the
+budget-breach ESCALATION. What still does NOT live here is any reaping: the ONE shared reaper is
+`runner_shutdown.clean_shutdown` (spec R5).
+
+PLATFORM SUPPORT: POSIX ONLY, stated plainly rather than aspirationally (spec A10; orchestrator
+OQ-02). This module imports `fcntl` unconditionally above, and so do both drivers, so on a host
+without `fcntl` the module does not load AT ALL - there is no partial or "portable subset" mode in
+which level 1 or the out-of-band `stop` would still work. Every trigger described here therefore
+requires a POSIX host. What IS implemented for A10's second half is LOUD failure rather than a silent
+no-op: `install_stop_signal_handlers` returns a per-trigger status and `render_trigger_support`
+renders whatever could not be installed, for the caller to print. A cross-platform lock
+(`platform_lock`) and a Windows process-tree kill are owned by Set `wtiso` Phase 5 (`2c122z`); do not
+build a second one here (GUIDING_PRINCIPLES P8).
 
 WHERE THE FLAG LIVES (spec `c4gd2h` OQ-03, RESOLVED). The stop request is per-machine CONTROL
 state and lives INSIDE the driver's run directory, as `<run_dir>/stop-request.json`, beside the
@@ -59,12 +73,16 @@ import errno
 import fcntl
 import json
 import os
+import signal
+import sys
 import tempfile
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Container, Iterable, Iterator, Sequence, Tuple
+from typing import Any, Callable, Container, Iterable, Iterator, Sequence, TextIO, Tuple
+
+from agent_workflows import runner_shutdown
 
 __all__ = [
     "STOP_REQUEST_FILENAME",
@@ -128,6 +146,36 @@ __all__ = [
     "indeterminate_items",
     "resume_refusal_message",
     "refused_resume_event",
+    # trigger UX (runstop Phase 5, `71vjbn`): the surfaces a HUMAN actually touches. Everything
+    # above only becomes reachable through these.
+    "SIGINT_LADDER",
+    "SIGTERM_LEVEL",
+    "LEVEL_FLAGS",
+    "AWAITING",
+    "ESCALATION_HINT",
+    "CLEANUP_IS_UNCONDITIONAL",
+    "escalation_target",
+    "render_request_accepted",
+    "report_request",
+    "install_stop_signal_handlers",
+    "render_trigger_support",
+    "reset_signal_ladder",
+    "signal_presses",
+    "run_liveness",
+    "LIVENESS_LIVE",
+    "LIVENESS_FINISHED",
+    "LIVENESS_UNDETERMINED",
+    "STOP_VERB_HELP",
+    "STOP_VERB_DESCRIPTION",
+    "STOP_PLATFORM_NOTE",
+    "STOP_LEVEL_FLAG_HELP",
+    "stop_verb_epilog",
+    "add_stop_parser",
+    "StopCommandResult",
+    "stop_command",
+    "ESCALATION_EVENT",
+    "escalation_event",
+    "EscalationWatch",
 ]
 
 # --- the record's on-disk identity ----------------------------------------------------------------
@@ -1513,3 +1561,750 @@ def refused_resume_event(item: dict, *, at: str) -> dict:
         "requires_reconciliation": True,
         "reason": resume_refusal_message(item),
     }
+
+
+# --- TRIGGER UX (spec `c4gd2h` R11-R17, A5/A7/A10) -------------------------------------------------
+#
+# Owned by Set `runstop` Phase 5 (`71vjbn`). Everything above this line makes four stop levels
+# EXPRESSIBLE and gives each one a behavior. Nothing above makes any of them REACHABLE by a human:
+# Phases 2-4 were exercised by writing the Phase-1 record directly, and the drivers install no signal
+# handler of their own. This section is the whole operator-facing surface:
+#
+#   * the SIGINT escalation ladder 1 -> 3 -> 4 (spec R12), each press via the HANDLER-SAFE writer;
+#   * SIGTERM -> level 3 (spec R13);
+#   * the out-of-band `stop <run-id> --<level>` command (spec R14) and its honest error path (R17);
+#   * the progress report every accepted request must print (spec R16);
+#   * the wind-down BUDGET-BREACH ESCALATION that Phase 3 only RECORDED (spec R11, A7).
+#
+# WHY THIS LIVES HERE AND NOT IN THE DRIVERS. Orchestrator CID-3 requires both drivers to expose the
+# same levels and the same `stop` verb, and the two drivers already carry byte-identical duplicates of
+# other logic (`terminate_process`). So the DECISIONS (which level a press maps to, what the report
+# says, how liveness is probed, what the exit code is) live once here and each driver only wires them.
+#
+# PLATFORM SUPPORT, STATED HONESTLY AND NOT ASPIRATIONALLY (spec A10; orchestrator OQ-02). This
+# module imports `fcntl` unconditionally at its top, and so do both drivers, so on a host without
+# `fcntl` NOTHING here loads - not level 1, not the out-of-band `stop`. Therefore this Set's honest
+# platform claim is POSIX-ONLY, and no text in this module may promise a working Windows subset. The
+# cross-platform lock (`platform_lock`) and the Windows process-tree kill are owned by Set `wtiso`
+# Phase 5 (`2c122z`); building a second one here is forbidden (GUIDING_PRINCIPLES P8). What IS
+# implemented for A10's second half is the LOUD failure: `install_stop_signal_handlers` reports each
+# trigger it could not install rather than silently no-opping, and the caller prints that report.
+
+
+# Spec R12: the escalation LADDER. The Nth SIGINT requests `SIGINT_LADDER[N-1]`; further presses hold
+# at the last (terminal) rung. Level 2 is deliberately absent: the spec's ladder is 1 -> 3 -> 4 and
+# there is no free key position for a second between-turn level, so level 2 is reachable ONLY
+# out-of-band via `stop --after-set` (spec R14). That is a decision, not an omission.
+SIGINT_LADDER: Tuple[int, ...] = (LEVEL_AFTER_CALL, LEVEL_NOW, LEVEL_NOW_FORCE)
+
+# Spec R13: a single SIGTERM is the scriptable one-shot, and it means level 3.
+SIGTERM_LEVEL = LEVEL_NOW
+
+# Spec R14/R15: the four out-of-band flags. The names describe INTERRUPTION FORCE only. None of them
+# implies cleanup is optional, because cleanup never is (spec R15 forbids a flag that suggests
+# otherwise, and `runner_shutdown.clean_shutdown` runs unconditionally at every level).
+LEVEL_FLAGS = {
+    "after_call": LEVEL_AFTER_CALL,
+    "after_set": LEVEL_AFTER_SET,
+    "now": LEVEL_NOW,
+    "now_force": LEVEL_NOW_FORCE,
+}
+
+# The single sentence every `stop` surface repeats, so R15's honesty cannot drift between the help
+# text, the module docstring, and the accepted-request report.
+CLEANUP_IS_UNCONDITIONAL = (
+    "These flags control only HOW FORCEFULLY the in-flight agent turn is interrupted. Cleanup is "
+    "UNCONDITIONAL at every level: children are always reaped, the lock always released, the ledger "
+    "always left coherent, and the working tree never silently contaminated. No flag makes cleanup "
+    "optional."
+)
+
+# Spec R16: WHAT the driver is waiting for, per level. Printing "stopping" alone is a defect; the
+# operator has to know which boundary is being awaited or they cannot tell a wind-down from a hang.
+AWAITING = {
+    LEVEL_AFTER_CALL: "the in-flight agent turn to finish; no further item will be started",
+    LEVEL_AFTER_SET: "the rest of the current set's queue to finish; no next set will be started",
+    LEVEL_NOW: "the current agent turn's next OBSERVED safe checkpoint",
+    LEVEL_NOW_FORCE: "nothing: the current agent turn is being interrupted immediately",
+}
+
+
+def escalation_target(level: int) -> int | None:
+    """The next level up the SIGINT ladder from `level`, or None when already terminal.
+
+    Used for BOTH halves of spec R12/R16: the "press again to stop harder" hint, and the budget-breach
+    escalation's target (spec R11/A7). One function so the two cannot disagree about what "harder"
+    means.
+    """
+
+    _validate_level(level)
+    for rung in SIGINT_LADDER:
+        if rung > level:
+            return rung
+    return None
+
+
+def _escalation_hint(level: int, *, command: str = "aw oc run") -> str:
+    """The "how to escalate" half of spec R16's required report."""
+
+    target = escalation_target(level)
+    if target is None:
+        return (
+            f"this is the highest level ({level}, {LEVEL_NAMES[level]}); there is nothing harder to "
+            f"escalate to (a SIGKILL bypasses this protocol entirely and is not part of it)"
+        )
+    return (
+        f"to stop harder, press Ctrl-C again (or run `{command} stop <run-id> "
+        f"--{LEVEL_NAMES[target].replace('-', '-')}`) to request level {target} "
+        f"({LEVEL_NAMES[target]})"
+    )
+
+
+def ESCALATION_HINT(level: int, *, command: str = "aw oc run") -> str:  # noqa: N802
+    """Public alias for the escalation hint (named as a constant-like accessor for the report)."""
+
+    return _escalation_hint(level, command=command)
+
+
+def render_request_accepted(
+    level: int,
+    *,
+    requester: str = "",
+    accepted: bool = True,
+    command: str = "aw oc run",
+) -> str:
+    """The report spec R16 REQUIRES on every accepted request: level, awaited boundary, escalation.
+
+    All three parts are mandatory. Silence during wind-down is explicitly a defect, and so is a
+    message that says only "stopping": an operator who cannot see WHICH boundary is being awaited
+    cannot distinguish a correct wind-down from a hang, which is the exact confusion this spec
+    section exists to remove.
+
+    A request at or below the level already in force is reported too (`accepted=False`), because a
+    monotonic no-op still needs an answer - otherwise a second press looks like it was dropped.
+    """
+
+    _validate_level(level)
+    verb = "accepted" if accepted else "already at or above the requested level"
+    who = f" (requested by {requester})" if requester else ""
+    return (
+        f"stop {verb}: level {level} ({LEVEL_NAMES[level]}){who}; "
+        f"waiting for {AWAITING[level]}; {_escalation_hint(level, command=command)}"
+    )
+
+
+def report_request(
+    level: int,
+    *,
+    requester: str = "",
+    accepted: bool = True,
+    command: str = "aw oc run",
+    stream: TextIO | None = None,
+) -> str:
+    """Print (and return) the spec-R16 report. Writes to stderr by default.
+
+    stderr on purpose: the driver's stdout carries the child's event stream under `--raw`, and a
+    control message must not be interleaved into a machine-read stream.
+    """
+
+    text = render_request_accepted(
+        level, requester=requester, accepted=accepted, command=command
+    )
+    handle = stream if stream is not None else sys.stderr
+    with contextlib.suppress(Exception):
+        print(text, file=handle, flush=True)
+    return text
+
+
+# --- the SIGINT / SIGTERM handlers (spec R12/R13) --------------------------------------------------
+#
+# THE HANDLER CONTRACT, and why each clause is load-bearing rather than defensive boilerplate:
+#
+# 1. IT USES THE HANDLER-SAFE WRITER, never `request_stop`. Phase 1 measured both failure modes: a
+#    blocking sidecar-lock acquire reached from a handler DEADLOCKS the process (the handler entered
+#    and hung until a 10s timeout killed it, exit 124), and a lockless atomic write LOSES the higher
+#    level in ~50% of two-writer races. `request_stop_nowait` is the one path that is neither.
+# 2. IT DOES ONLY RECORD-AND-RETURN. No teardown, no reaping, no ledger write. The existing poll acts
+#    on the recorded level (spec R7), which is also what keeps a handler async-signal-safe in
+#    practice.
+# 3. IT COUNTS PRESSES IN PROCESS-LOCAL STATE, not by reading the record back. The record's level can
+#    also be raised out-of-band by `stop`, so deriving "which press was this" from the record would
+#    make a concurrent out-of-band request silently consume a rung of the operator's ladder.
+# 4. IT PRESERVES THE PRE-EXISTING `KeyboardInterrupt` CONTRACT. See `install_stop_signal_handlers`.
+
+_SIGINT_PRESSES = 0
+_HANDLER_RUN_DIR: Path | None = None
+
+
+def reset_signal_ladder() -> None:
+    """Reset the process-local SIGINT press counter (for tests and for a fresh run in-process)."""
+
+    global _SIGINT_PRESSES, _HANDLER_RUN_DIR
+    _SIGINT_PRESSES = 0
+    _HANDLER_RUN_DIR = None
+
+
+def signal_presses() -> int:
+    """How many SIGINTs this process has observed through the installed handler."""
+
+    return _SIGINT_PRESSES
+
+
+def install_stop_signal_handlers(
+    run_dir: Path | str,
+    *,
+    command: str = "aw oc run",
+    requester: str = "",
+    on_terminal: Callable[[int, str], None] | None = None,
+    stream: TextIO | None = None,
+) -> dict[str, str]:
+    """Install the SIGINT ladder and the SIGTERM handler for `run_dir` (spec R12/R13).
+
+    Returns a per-trigger status map (`{"SIGINT": "installed", "SIGTERM": "unsupported: ..."}`) so an
+    unsupported trigger FAILS LOUDLY through the caller's report rather than silently no-opping
+    (spec A10's second half). It never raises: a driver that cannot install a handler must still run.
+
+    WHAT HAPPENS TO THE PRE-EXISTING `KeyboardInterrupt` BEHAVIOR (decided deliberately, because
+    registering a SIGINT handler SUPPRESSES the default that two existing handlers depend on):
+
+    * `main`'s ``except KeyboardInterrupt`` prints the summary table and returns 130
+      (``oc_runipd`` / ``agy_runipd``), and
+    * ``execute_item``'s ``except KeyboardInterrupt`` marks the in-flight item ``interrupted``,
+      appends an ``ipd-interrupted`` event, re-raises, and (via ``run_queue``) reclaims lanes.
+
+    Phases 3 and 4 depend on that item-level bookkeeping, so it is PRESERVED rather than replaced:
+    the FIRST two rungs (levels 1 and 3) record a request and return, letting the cooperative poll
+    stop at its proper boundary, while the TERMINAL rung (level 4) additionally raises
+    ``KeyboardInterrupt`` from the handler through `on_terminal`. That keeps a third Ctrl-C behaving
+    like the old single Ctrl-C did - immediate unwind, exit 130, item recorded ``interrupted`` - which
+    is the behavior an operator pressing three times is asking for, and is why the exit-130 path and
+    the ``ipd-interrupted`` event are still reachable.
+
+    SIGTERM keeps its EXISTING contract too. `render_stream.install_exit_signal_handler` currently
+    raises ``KeyboardInterrupt("Terminated by SIGTERM")``, which `main` maps to exit 143. Spec R13
+    makes SIGTERM request level 3 instead, so this handler RECORDS level 3 and returns, letting the
+    turn stop at its next observed safe checkpoint (spec A3) rather than killing the driver and
+    orphaning the child, which is the defect spec section 0.1 describes.
+    """
+
+    global _HANDLER_RUN_DIR
+    _HANDLER_RUN_DIR = Path(run_dir)
+    status: dict[str, str] = {}
+
+    def _record(level: int) -> None:
+        result = request_stop_nowait(
+            _HANDLER_RUN_DIR or Path(run_dir), level, requester
+        )
+        # `deferred` is not a failure: the poll performs the durable write at its next checkpoint.
+        # Report the level we ASKED for either way, so the operator's press is never silent.
+        report_request(
+            level,
+            requester=requester,
+            accepted=result.accepted or result.deferred,
+            command=command,
+            stream=stream,
+        )
+
+    def _sigint(signum: int, frame: Any) -> None:  # noqa: ARG001 - signal handler signature
+        global _SIGINT_PRESSES
+        _SIGINT_PRESSES += 1
+        index = min(_SIGINT_PRESSES, len(SIGINT_LADDER)) - 1
+        level = SIGINT_LADDER[index]
+        _record(level)
+        if level == SIGINT_LADDER[-1] and on_terminal is not None:
+            # The TERMINAL rung, and the only place the handler does more than record. See the
+            # docstring: this is what preserves the pre-existing exit-130 path and `execute_item`'s
+            # `interrupted` bookkeeping that Phases 3-4 rely on.
+            on_terminal(level, requester)
+
+    def _sigterm(signum: int, frame: Any) -> None:  # noqa: ARG001 - signal handler signature
+        _record(SIGTERM_LEVEL)
+
+    for name, handler in (("SIGINT", _sigint), ("SIGTERM", _sigterm)):
+        sig = getattr(signal, name, None)
+        if (
+            sig is None
+        ):  # pragma: no cover - exercised only on a host lacking the signal
+            status[name] = f"unsupported: this platform has no {name}"
+            continue
+        if threading.current_thread() is not threading.main_thread():
+            status[name] = (
+                f"unsupported: {name} can only be installed on the main thread"
+            )
+            continue
+        try:
+            signal.signal(sig, handler)
+        except (ValueError, OSError, AttributeError, RuntimeError) as exc:
+            # LOUD, not silent (spec A10): the caller prints this map.
+            status[name] = f"unsupported: {exc}"
+        else:
+            status[name] = "installed"
+    return status
+
+
+def render_trigger_support(status: dict[str, str]) -> str | None:
+    """Render the UNSUPPORTED triggers from `install_stop_signal_handlers`, or None when all installed.
+
+    Spec A10 requires an unsupported trigger to fail LOUDLY rather than silently do nothing, so this
+    returns text the caller prints. It deliberately names the still-available out-of-band path, since
+    that is the actionable half for an operator whose signal trigger is missing.
+    """
+
+    missing = {name: why for name, why in status.items() if why != "installed"}
+    if not missing:
+        return None
+    detail = "; ".join(f"{name}: {why}" for name, why in sorted(missing.items()))
+    return (
+        f"stop-trigger support is INCOMPLETE on this host ({detail}). The out-of-band "
+        f"`stop <run-id> --after-call|--after-set|--now|--now-force` command is unaffected and "
+        f"remains the way to request any level here. NOTE: these drivers require POSIX `fcntl` to "
+        f"import at all, so there is no supported non-POSIX subset to fall back to."
+    )
+
+
+# --- the out-of-band `stop` command (spec R14/R17, A5) ---------------------------------------------
+#
+# THE THREE STATES R17 NAMES, and the PROBE each one actually has. This mattered because two of the
+# three were free and the third was not:
+#
+#   UNKNOWN          - the driver's own `resolve_run_dir` already raises for a missing run.
+#   ALREADY-STOPPING - `read_stop_request(run_dir)` is not None.
+#   LIVE vs FINISHED - there is NO run-complete marker in the ledger, and `driver.lock` EXISTING is
+#                      provably not liveness: the `2ouj70` review measured a stale lock file
+#                      outliving its holder while the `flock` was already free. So liveness is probed
+#                      by ACQUIRABILITY (`runner_shutdown.lock_is_free`, which attempts a
+#                      non-blocking `flock` and never creates the file), exactly as
+#                      `run_viewer.driver_holder_state` already documents. Do not "simplify" this
+#                      into a `Path.exists()` check; that reintroduces the false positive.
+
+LIVENESS_LIVE = "live"
+LIVENESS_FINISHED = "finished"
+LIVENESS_UNDETERMINED = "undetermined"
+
+# The `stop` verb's HELP TEXT, declared ONCE here and installed onto both runners' own parsers by
+# `add_stop_parser` below. Two byte-identical copies is what the drivers already did with
+# `terminate_process`, and orchestrator CID-3 requires the two `stop` verbs to be the same verb - not
+# two verbs that happen to agree today. Each level's help repeats that it controls interruption FORCE
+# only (spec R15): an operator reading a single `--now-force` line must not be able to conclude that
+# cleanup is skipped, because it never is.
+STOP_VERB_HELP = "Request a graceful stop of a LIVE run, out-of-band (from a second terminal or a script)"
+
+STOP_PLATFORM_NOTE = (
+    "PLATFORM SUPPORT: POSIX only. This command and the SIGINT/SIGTERM triggers all require a POSIX "
+    "host, because the driver requires `fcntl` to import at all; there is therefore NO non-POSIX "
+    "subset in which some triggers still work. A trigger that cannot be installed is reported loudly "
+    "rather than silently ignored."
+)
+
+STOP_VERB_DESCRIPTION = (
+    "Request that a live run stop, at one of four levels. The levels differ ONLY in how much "
+    "in-flight work is allowed to COMPLETE first.\n\n"
+    + CLEANUP_IS_UNCONDITIONAL
+    + "\n\nEscalation is MONOTONIC: a request may only RAISE the level in force, never lower it, so "
+    "asking again more forcefully is always honored and a weaker request afterwards cannot undo it.\n\n"
+    + STOP_PLATFORM_NOTE
+)
+
+STOP_LEVEL_FLAG_HELP = {
+    "--after-call": (
+        "Level 1: let the in-flight agent turn FINISH, then start nothing further. Interruption "
+        "force only; cleanup still runs unconditionally."
+    ),
+    "--after-set": (
+        "Level 2: let the rest of the CURRENT set's queue finish, then stop before any next set. "
+        "Interruption force only; cleanup still runs unconditionally. (Only reachable this way: the "
+        "Ctrl-C ladder is 1 -> 3 -> 4, which leaves no key position for level 2.)"
+    ),
+    "--now": (
+        "Level 3: stop the current agent turn at its next OBSERVED safe checkpoint; its outcome "
+        "stays KNOWN. Interruption force only; cleanup still runs unconditionally."
+    ),
+    "--now-force": (
+        "Level 4: interrupt the current agent turn IMMEDIATELY; its outcome becomes indeterminate "
+        "and needs reconciliation before a resume. Interruption force only; cleanup still runs "
+        "unconditionally."
+    ),
+}
+
+_FLAG_TO_DEST = {
+    "--after-call": "after_call",
+    "--after-set": "after_set",
+    "--now": "now",
+    "--now-force": "now_force",
+}
+
+
+def stop_verb_epilog(command: str) -> str:
+    """Worked examples for the `stop` verb's `--help`, in the caller's own command vocabulary."""
+
+    return (
+        "EXAMPLES:\n"
+        f"  # Wind down after the in-flight agent turn finishes (level 1):\n"
+        f"  {command} stop <run-id> --after-call\n\n"
+        f"  # Finish the current SET, then stop (level 2; not reachable by any signal):\n"
+        f"  {command} stop <run-id> --after-set\n\n"
+        f"  # Stop the current turn at its next observed safe checkpoint (level 3):\n"
+        f"  {command} stop <run-id> --now\n\n"
+        f"  # Interrupt the current turn immediately; its outcome becomes indeterminate (level 4):\n"
+        f"  {command} stop <run-id> --now-force\n"
+    )
+
+
+def add_stop_parser(sub: Any, *, command: str = "aw oc run") -> Any:
+    """Declare the `stop` subcommand on `sub` (spec R14/R15). ONE declaration, both drivers.
+
+    It is declared on the RUNNER's own parser (where `start` already lives), never on `aw`'s host
+    group, because `aw oc run` / `aw agy run` forward `argparse.REMAINDER` verbatim to the runner's
+    `main`. Re-declaring the flags at the `aw` layer would drift AND would bypass the implicit-start
+    shim that lives in `main()` rather than `build_parser()`.
+
+    `argparse` is imported locally so this module stays a pure-logic dependency of the drivers rather
+    than acquiring a CLI import at module top.
+    """
+
+    import argparse
+
+    stop = sub.add_parser(
+        "stop",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help=STOP_VERB_HELP,
+        description=STOP_VERB_DESCRIPTION,
+        epilog=stop_verb_epilog(command),
+    )
+    stop.add_argument(
+        "run_id", help="Run ID or state directory path of the LIVE run to stop"
+    )
+    stop.add_argument("--repo", default=".", help="Target Git repository root")
+    # `required=True` so a bare `stop <run-id>` is a usage error rather than a silent no-op: an
+    # operator who forgot the level must be told, not left believing a stop was requested.
+    levels = stop.add_mutually_exclusive_group(required=True)
+    for flag, dest in _FLAG_TO_DEST.items():
+        levels.add_argument(
+            flag,
+            dest="level_flag",
+            action="store_const",
+            const=dest,
+            help=STOP_LEVEL_FLAG_HELP[flag],
+        )
+    stop.set_defaults(level_flag=None)
+    return stop
+
+
+def run_liveness(run_dir: Path | str) -> str:
+    """Is a driver LIVE on `run_dir` right now? Probed by lock ACQUIRABILITY, never by file existence.
+
+    Returns `LIVENESS_LIVE` (a holder has the lock), `LIVENESS_FINISHED` (the lock is free or absent,
+    so no driver is controlling this run), or `LIVENESS_UNDETERMINED` (the platform or an OS error
+    left it unknown - reported honestly rather than guessed).
+    """
+
+    free = runner_shutdown.lock_is_free(Path(run_dir) / "driver.lock")
+    if free is None:
+        return LIVENESS_UNDETERMINED
+    return LIVENESS_FINISHED if free else LIVENESS_LIVE
+
+
+@dataclass(frozen=True)
+class StopCommandResult:
+    """The outcome of an out-of-band `stop`, as data so both drivers report it identically."""
+
+    exit_code: int
+    message: str
+    level: int | None = None
+    liveness: str = LIVENESS_UNDETERMINED
+    recorded: bool = False
+
+    @property
+    def ok(self) -> bool:
+        return self.exit_code == 0
+
+
+def stop_command(
+    run_dir: Path | str | None,
+    level: int | None,
+    *,
+    run_id: str = "",
+    requester: str = "",
+    command: str = "aw oc run",
+    unknown_reason: str = "",
+) -> StopCommandResult:
+    """Request `level` out-of-band for one run, or report honestly why it could not (spec R14/R17).
+
+    `run_dir` is None when the caller's own resolver could not find the run; `unknown_reason` then
+    carries its message. That split keeps run RESOLUTION in the driver (each has its own
+    `resolve_run_dir`) while the DECISION about what to do lives here once, so the two drivers cannot
+    diverge on the error contract (orchestrator CID-3).
+
+    THE HONESTY RULES, each of which is a way this could otherwise appear to succeed:
+
+    * an UNKNOWN run exits NONZERO and mutates NOTHING - in particular it does not create the run
+      directory or the stop-request file as a side effect of asking (spec A5);
+    * a FINISHED run (no live driver, probed by lock acquirability) exits NONZERO saying there is no
+      live run, and writes nothing: recording a request no process will ever read would look like
+      success and be useless;
+    * an ALREADY-STOPPING run REPORTS the level in force. A higher request escalates and exits 0; an
+      equal or lower one is a monotonic no-op that exits 0 and never downgrades (spec R9).
+    """
+
+    if run_dir is None:
+        return StopCommandResult(
+            exit_code=2,
+            message=unknown_reason
+            or f"no such run: {run_id or '<unspecified>'} (nothing was created or modified)",
+            liveness=LIVENESS_UNDETERMINED,
+        )
+    run_dir = Path(run_dir)
+    if level is None:
+        return StopCommandResult(
+            exit_code=2,
+            message=(
+                "stop requires exactly one level flag: "
+                "--after-call | --after-set | --now | --now-force. "
+                + CLEANUP_IS_UNCONDITIONAL
+            ),
+        )
+    _validate_level(level)
+
+    liveness = run_liveness(run_dir)
+    existing = read_stop_request(run_dir)
+    if liveness == LIVENESS_FINISHED:
+        # NOT a file-existence check (see the section comment): the lock is free, so no driver is
+        # controlling this run and nothing would ever read a request written now.
+        note = (
+            f" (a stop at level {existing.level} ({existing.level_name}) is already recorded)"
+            if existing is not None
+            else ""
+        )
+        return StopCommandResult(
+            exit_code=1,
+            message=(
+                f"no live run to stop: {run_id or run_dir.name} has no driver holding its lock"
+                f"{note}; nothing was recorded"
+            ),
+            liveness=liveness,
+        )
+
+    try:
+        result = request_stop(run_dir, level, requester or "stop-command")
+    except (StopRequestError, OSError) as exc:
+        return StopCommandResult(
+            exit_code=2,
+            message=f"could not record the stop request for {run_id or run_dir.name}: {exc}",
+            level=level,
+            liveness=liveness,
+        )
+
+    current = result.request
+    if not result.accepted and current is not None:
+        # Spec R9: a monotonic no-op. Reported as the state in force, not as a failure - the operator
+        # asked for something already guaranteed.
+        return StopCommandResult(
+            exit_code=0,
+            message=(
+                f"already stopping at level {current.level} ({current.level_name}), requested by "
+                f"{current.requester or 'unknown'} at {current.requested_at}; level {level} "
+                f"({LEVEL_NAMES[level]}) is not higher, so the recorded level is UNCHANGED "
+                f"(escalation is monotonic and never downgrades). "
+                + render_request_accepted(
+                    current.level, accepted=False, command=command
+                )
+            ),
+            level=current.level,
+            liveness=liveness,
+            recorded=False,
+        )
+
+    effective = current.level if current is not None else level
+    return StopCommandResult(
+        exit_code=0,
+        message=render_request_accepted(
+            effective,
+            requester=requester or "stop-command",
+            accepted=True,
+            command=command,
+        ),
+        level=effective,
+        liveness=liveness,
+        recorded=True,
+    )
+
+
+# --- the wind-down BUDGET-BREACH ESCALATION (spec R11, A7) -----------------------------------------
+#
+# Phase 3 (`foi1b3`) DETECTED a breach and recorded `escalation_required: True` with
+# `escalation_performed: False`, deliberately leaving the ACTION here (spec A7). This is that action.
+#
+# WHY IT IS AN ESCALATION AND NOT A KILL. Raising the durable level is exactly what an operator's
+# extra Ctrl-C would do, so the breach reuses the ENTIRE existing mechanism: the record's monotonic
+# writer, the poll, `ForceStopWatch`, and the ONE shared `clean_shutdown`. Nothing new reaps anything.
+# That is what keeps R5 (one cleanup routine) and R11 (a bounded wind-down) true at the same time: a
+# hung turn cannot make a stop hang forever, and the way it is un-hung is the same path every other
+# level takes.
+#
+# WHY THE ESCALATION IS RECORDED. Spec R11 says "with that escalation RECORDED", and R23 forbids
+# claiming what was not done. So the ledger event below says which level was in force, which level was
+# escalated TO, and that the escalation was actually PERFORMED - the exact field Phase 3 wrote as
+# False.
+
+ESCALATION_EVENT = "stop-escalated"
+
+
+def escalation_event(
+    *,
+    from_level: int,
+    to_level: int,
+    at: str,
+    reason: str,
+    id6: str = "",
+    requester: str = "",
+) -> dict:
+    """The ledger record of an escalation this process actually PERFORMED (spec R11/R23).
+
+    `escalation_performed: True` is the deliberate counterpart of `budget_breach_event`'s False: the
+    two events together show a breach being detected and then acted on, and neither one claims the
+    other's work.
+    """
+
+    return {
+        "at": at,
+        "event": ESCALATION_EVENT,
+        "deliberate": True,
+        "failure": False,
+        "id6": id6,
+        "from_level": from_level,
+        "from_level_name": LEVEL_NAMES.get(from_level, "unknown"),
+        "level": to_level,
+        "level_name": LEVEL_NAMES.get(to_level, "unknown"),
+        "requester": requester,
+        "reason": reason,
+        "escalation_required": True,
+        "escalation_performed": True,
+    }
+
+
+class EscalationWatch:
+    """Out-of-band watch that ESCALATES a wind-down whose budget expired (spec R11, A7).
+
+    Same daemon-thread shape as `BudgetBreachWatch` and `ForceStopWatch`, and for the same measured
+    reason: the drivers consume the child with a BLOCKING `for line in process.stdout`, so on a turn
+    that has gone quiet a deadline can only be noticed from another thread. This one differs from
+    `BudgetBreachWatch` in what it does when the deadline passes - it RAISES the durable level through
+    the normal monotonic writer, which the existing poll and `ForceStopWatch` then act on.
+
+    It performs no reaping and no teardown itself. The escalated level's own machinery does that,
+    through the ONE shared `runner_shutdown.clean_shutdown` (spec R5).
+
+    IT WALKS THE WHOLE LADDER, and that is deliberate rather than incidental. A single escalation is
+    NOT sufficient to satisfy R11's "a hung turn cannot make a stop hang forever": escalating a
+    breached level-1 wind-down to level 3 hands the turn to a level that is itself observed FROM THE
+    CHILD'S EVENT STREAM, so on a child that has gone completely silent the escalated level-3 stop
+    would never be noticed either and the stop would stall at the middle rung. Only level 4 is acted
+    on unconditionally out-of-band (`ForceStopWatch` polls the record, and its reap is what unblocks
+    the driver's blocking read). So this watch keeps checking and escalates again when the NEW level's
+    own budget expires, until level 4 is reached or the child exits.
+
+    THE BOUND IS THEREFORE THE SUM OF THE RUNGS' BUDGETS, not one budget, and it is stated plainly so
+    nobody reads a level-1 stop as bounded by level 1's budget alone: worst case 1 -> 3 -> 4 waits
+    `WIND_DOWN_BUDGET_SECONDS[1] + WIND_DOWN_BUDGET_SECONDS[3]`, because each rung gets the budget the
+    spec assigns it (R11 gives every level its own) and the escalated request's deadline is written by
+    the same monotonic writer every other request uses. Finite, recorded, and never infinite.
+
+    Each rung's escalation is recorded exactly once, and only while a request is actually in force: an
+    expired deadline for a request that was never made is not a breach.
+    """
+
+    def __init__(
+        self,
+        run_dir: Path | str,
+        *,
+        on_escalate: Callable[[int, int, str], None] | None = None,
+        check_interval: float = 0.05,
+        is_alive: Callable[[], bool] | None = None,
+        now: Callable[[], dt.datetime] | None = None,
+    ) -> None:
+        self.run_dir = Path(run_dir)
+        self._on_escalate = on_escalate
+        self.check_interval = max(0.005, check_interval)
+        self._is_alive = is_alive
+        self._now = now or _utc_now
+        self._stop = threading.Event()
+        self._escalated = threading.Event()
+        self._escalations: list[Tuple[int, int]] = []
+        self._thread: threading.Thread | None = None
+
+    @property
+    def escalated(self) -> bool:
+        return self._escalated.is_set()
+
+    @property
+    def escalations(self) -> Tuple[Tuple[int, int], ...]:
+        """Every `(from, to)` escalation this watch performed, in order."""
+
+        return tuple(self._escalations)
+
+    def check_once(self) -> Tuple[int, int] | None:
+        """Escalate if the level in force has passed its deadline. Returns `(from, to)` or None.
+
+        Separated from the thread body so the decision is unit-testable without timing, and so the
+        drivers may also call it from a checkpoint if they want a synchronous check.
+        """
+
+        request = read_stop_request(self.run_dir)
+        if request is None:
+            return None
+        target = escalation_target(request.level)
+        if target is None:
+            # Already at the terminal level: there is nothing harder to escalate to, and saying so is
+            # more honest than re-recording the same level as an "escalation".
+            return None
+        if deadline_seconds_remaining(request, now=self._now()) > 0.0:
+            return None
+        reason = (
+            f"wind-down budget of {request.budget_seconds}s expired at {request.deadline} without "
+            f"the level-{request.level} boundary being reached"
+        )
+        try:
+            result = request_stop(
+                self.run_dir,
+                target,
+                f"budget-escalation (from level {request.level})",
+                timeout=1.0,
+            )
+        except (StopRequestError, OSError, ValueError):
+            return (
+                None  # left for the next tick; never crash the turn over an escalation
+            )
+        if not result.accepted:
+            return None
+        self._escalated.set()
+        self._escalations.append((request.level, target))
+        if self._on_escalate is not None:
+            with contextlib.suppress(Exception):
+                self._on_escalate(request.level, target, reason)
+        return (request.level, target)
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.check_interval):
+            if self._is_alive is not None and not self._is_alive():
+                return
+            try:
+                escalated = self.check_once()
+            except Exception:  # noqa: BLE001 - an observer must never crash the turn
+                continue
+            if escalated is not None and escalated[1] >= SIGINT_LADDER[-1]:
+                # The terminal rung. `ForceStopWatch` acts on it unconditionally and out-of-band, so
+                # there is nothing further this watch could escalate to; keep going only while a
+                # HIGHER rung still exists (see the class docstring on why one escalation is not
+                # enough).
+                return
+
+    def __enter__(self) -> "EscalationWatch":
+        thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = thread
+        thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
