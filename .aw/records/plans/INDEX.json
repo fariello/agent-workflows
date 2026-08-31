@@ -4330,6 +4330,26 @@
     "status": "to-review"
   },
   {
+    "date": "2026-08-31",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md",
+    "plan_id": "evgi9n",
+    "set_id": "novalnomerge",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-08-31",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md",
+    "plan_id": "txc9l1",
+    "set_id": "resumedupe",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",

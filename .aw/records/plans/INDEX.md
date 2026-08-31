@@ -2,11 +2,19 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 192 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 194 Sets; the full manifest is INDEX.json.
 
 ## apprvguard
 
 - `d7bnhc` [pending] 01 pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md
+
+## novalnomerge
+
+- `evgi9n` [pending] 01 pending/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md
+
+## resumedupe
+
+- `txc9l1` [pending] 01 pending/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md
 
 ## setgraph
 
@@ -179,15 +187,6 @@ Showing the 40 most-recent of 192 Sets; the full manifest is INDEX.json.
 ## scopeattrib
 
 - `lbgzxg` [executed] 01 executed/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md
-
-## stallfp
-
-- `kaga7s` [executed] 01 executed/20260829-stallfp-01-kaga7s-stop-killing-healthy-turns-count-subagent-progress-toward-th.ipd.md
-
-## terseout
-
-- `ntf6sx` [executed] 01 executed/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
-- `ntf6sx` [pending] 01 pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md
 
 ## (singletons: no Set)
 

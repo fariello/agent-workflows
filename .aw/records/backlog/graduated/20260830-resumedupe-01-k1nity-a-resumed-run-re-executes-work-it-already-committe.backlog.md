@@ -1,11 +1,12 @@
 - Id: k1nity
-- Status: open
+- Status: graduated
 - Set: resumedupe
 - Priority: high
 - Work-Kind: bug
 - Summary: A resumed run re-executes work it already committed on its own lane, doubling spend, because telling the agent it is resuming is not enough to make it check
 
 ## Workflow history
+- 2026-08-31 graduated (aw set): Graduated to plan resumedupe-01 (txc9l1), carrying From-Backlog: k1nity. Key finding that redirected the fix: the item's own Q1 (put the lane state in the prompt) is ALREADY BUILT - build_recovery_lane_notice (oc_runipd.py:3485) already renders the lane branch, 'it HOLDS N commit(s) beyond its base', the dirty state and the INTERRUPTED SNAPSHOT explanation - and the duplication was measured AFTER that landed. So this is decisive evidence that informing is necessary and not sufficient, which is the argument for Q2: move the judgment to the DRIVER, which already holds every fact via the non-mutating worktree_lease.inspect_lane. Q3's completeness signal is the shipped 'WIP INTERRUPTED SNAPSHOT (not finished work)' commit (worktree_lease.py:699), which is what makes a blanket skip-if-commits-exist safe to avoid. No Blocks-Release: the item carries none and it is wasted spend, not data loss.
 - 2026-08-30 created (aw backlog): A resumed run re-executes work it already committed on its own lane, doubling spend, because telling the agent it is resuming is not enough to make it check
 
 OBSERVED 2026-08-30 on at least three resumed runs, with the duplication VERIFIED byte-identical.
