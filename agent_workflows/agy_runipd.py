@@ -84,6 +84,37 @@ from agent_workflows import runner_stop
 # (`test_both_drivers_expose_the_dependency_api` / `test_the_implementation_is_shared_not_copied`).
 # Losing them would silently re-open the divergence this change exists to close, because a later fix
 # to, say, `edge_satisfied` would then be reachable through only ONE driver.
+
+# --- bkclose (zhr6mc): backlog-close + shutdown-report API, IMPORTED, never re-declared -----------
+#
+# Same division of labor as the dependency API above and for the same measured reason: a duplicated
+# copy is how the deleted `_read_deps` pair came to be identically wrong in both drivers. Every rule
+# (the IPD-vs-non-IPD carrier partition, the earned-close gate, the fail-closed lookups, the
+# `--status`-form gated setter, the ledger-before-print ordering, the signal handlers, and the
+# `aw runs` pointer) lives ONCE in `oc_runipd` and this module binds the SAME objects. The `as
+# <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip the ones
+# this module does not call itself; `tests/test_runner_backlog_close.py` asserts object identity, so
+# losing them re-opens the divergence this change exists to close.
+from agent_workflows.oc_runipd import (
+    BacklogCloseVerdict as BacklogCloseVerdict,
+    CARRIER_KIND_IPD as CARRIER_KIND_IPD,
+    CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
+    _read_from_backlog as _read_from_backlog,
+    close_backlog_item as close_backlog_item,
+    collect_earned_paths as collect_earned_paths,
+    commit_backlog_close as commit_backlog_close,
+    emit_shutdown_report as emit_shutdown_report,
+    evaluate_backlog_close as evaluate_backlog_close,
+    signal_report_callback as signal_report_callback,
+    process_backlog_close as process_backlog_close,
+    record_unclosed_backlog_items as record_unclosed_backlog_items,
+    register_signal_report as register_signal_report,
+    render_runs_pointer as render_runs_pointer,
+    render_unclosed_report as render_unclosed_report,
+    resolve_backlog_item as resolve_backlog_item,
+    run_earned_paths as run_earned_paths,
+    unclosed_backlog_items as unclosed_backlog_items,
+)
 from agent_workflows.oc_runipd import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
     _artifact_owners as _artifact_owners,
@@ -1376,6 +1407,10 @@ class PlanRecord(NamedTuple):
     # CANONICAL TYPED edge tokens, never bare id6 strings (8guhs0 E-01); see the `oc_runipd` note.
     dependencies: list[str]
     dependency_error: str | None = None
+    # bkclose (zhr6mc) E-01: the plan's `- From-Backlog:` id6, kept symmetric with `oc_runipd`. Read
+    # through the SHARED `_read_from_backlog` (imported, not copied), so both drivers resolve the
+    # field name from `ipd_schema.META_FROM_BACKLOG` and cannot disagree.
+    from_backlog: str | None = None
 
 
 def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
@@ -1388,6 +1423,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     status = _read_status(text)
     order = _read_order(text)
     deps, dep_err = _read_item_dependencies(text)
+    from_backlog = _read_from_backlog(text)
     m = _PLAN_FILENAME_RE.match(path.name)
     if m:
         if not setid:
@@ -1427,6 +1463,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         rel_path=rel,
         dependencies=deps,
         dependency_error=dep_err,
+        from_backlog=from_backlog,
     )
 
 
@@ -1467,6 +1504,8 @@ def build_dynamic_manifest(
             "status": rec.status,
             "order": rec.order,
             "dependencies": rec.dependencies,
+            # bkclose (zhr6mc) E-01: carried through the manifest, symmetric with `oc_runipd`.
+            "from_backlog": rec.from_backlog,
         }
         sets_dict.setdefault(rec.setid, []).append(rec)
     sorted_sets: dict[str, Any] = {}
@@ -1942,6 +1981,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
 
         status = plan.get("status")
         p_path = None
+        rec = None
         try:
             p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
             rec = parse_plan_file(p_path, repo)
@@ -1970,6 +2010,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 # 8guhs0 E-04: the plan's numeric Order, frozen as a TIEBREAKER only (see
                 # `queue_sort_key`). Additive; an older run directory lacking the key still sorts.
                 "order": plan.get("order"),
+                # bkclose (zhr6mc) E-01: the linked backlog item, frozen on the queue entry, with the
+                # same manifest-then-plan-file fallback `oc_runipd` uses so an older hand-written
+                # manifest still gets the link.
+                "from_backlog": plan.get("from_backlog")
+                or (getattr(rec, "from_backlog", None) if p_path else None),
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"
@@ -3479,6 +3524,12 @@ def execute_item(
                         "green",
                     )
                 )
+                # bkclose (zhr6mc) E-02/E-03/E-04, symmetric with `oc_runipd`: the plan is genuinely
+                # `executed` on main here, which is the one moment a run can know the last carrier
+                # landed. The SHARED `process_backlog_close` fails closed and records its reason
+                # either way, so a refusal is reported (E-06) rather than swallowed.
+                process_backlog_close(run_dir, state, item)
+                save_state(run_dir, state)
         else:
             attempt["finalize_refused"] = fin_msg
             item["finalize_refusal"] = fin_msg
@@ -3780,6 +3831,10 @@ def run_queue(
     run_dir: Path, retry_incomplete: bool = False, output_mode: str | None = None
 ) -> int:
     state = load_state(run_dir)
+    # bkclose (zhr6mc) E-06, symmetric with `oc_runipd`: publish the live ledger for the shutdown
+    # report BEFORE any turn starts. NO `signal.signal` registration: it is owned by `runstop` Phase 5
+    # (`71vjbn`) and guarded by four executed plans (see the ownership note in `oc_runipd`).
+    register_signal_report(run_dir, state)
     if output_mode is not None:
         state.setdefault("options", {})["output_mode"] = output_mode
         save_state(run_dir, state)
@@ -3845,6 +3900,9 @@ def run_queue(
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         state["_invocation_start_mono"] = invocation_start_mono
+        # bkclose (zhr6mc) E-06: `state` is REBOUND on every reload, so refresh the handler's
+        # published reference or a signal would report from a pre-turn snapshot.
+        register_signal_report(run_dir, state)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         # 8guhs0 E-04 (symmetric with oc_runipd): cascade FIRST, so an item whose prerequisite
         # reached a non-success terminal state is marked `dependency-blocked` (transitively) instead
@@ -3999,6 +4057,11 @@ def run_queue(
     hint = render_continuation_hint(state, run_dir)
     print(hint)
     state["_summary_table_printed"] = True
+    # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half, through the SAME idempotent shared routine the
+    # signal handlers use, so the two paths cannot drift and whichever fires first suppresses the
+    # other. Ledger BEFORE print (an uncatchable kill still leaves the answer on disk).
+    register_signal_report(run_dir, state)
+    emit_shutdown_report()
     # runstop 1qxuke (E-05): the same deliberate-stop exit contract as `oc_runipd` (spec A1/A4 need
     # 0; the plain predicate returns 1 because a stop leaves items `queued`). Statuses are never
     # rewritten to manufacture the 0, and a run item that genuinely failed still exits nonzero.
@@ -4368,8 +4431,11 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "json", False):
                 state = load_state(run_dir)
                 print(json.dumps(state, indent=2, sort_keys=True))
+                # bkclose (zhr6mc) E-07: NO pointer line for machine-readable output; `--json` must
+                # stay parseable. Symmetric with `oc_runipd`.
                 return 0
             print_status(run_dir)
+            print(render_runs_pointer(load_state(run_dir)))
             return 0
 
         if args.command == "report":
@@ -4436,6 +4502,14 @@ def main(argv: list[str] | None = None) -> int:
                     print(hint)
             except Exception:
                 pass
+        # bkclose (zhr6mc) E-05/E-06/E-07: the shutdown report on the SIGNAL paths, emitted
+        # through the funnel that ALREADY exists rather than a `signal.signal` registration this
+        # plan may not make (see the ownership note on `signal_report_callback`). BOTH signals
+        # arrive here: CPython raises `KeyboardInterrupt` for SIGINT, and executed plan `bds6nd`
+        # registers the SIGTERM handler in `render_stream.install_exit_signal_handler`, which
+        # raises `KeyboardInterrupt("Terminated by SIGTERM")` from a module the guards do not
+        # cover. Ledger BEFORE print, and idempotent, so a repeated signal cannot double-report.
+        emit_shutdown_report(to_stderr=True)
         print(
             f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
             file=sys.stderr,

@@ -16,6 +16,8 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): RECOVERY ATTEMPT 2, completing the plan. Attempt 1 was interrupted; its work survived as commit `42b38ac` on lane `aw/lane/zhr6mc`, which never reached `main`, and `main` then advanced 15 commits including FOUR that touch these same two runner modules (`bds6nd` exit-summary table, `ng2blv`, `9trlc3`, `rhszxj`). This attempt cherry-picked that work onto current `main` and resolved three conflicts per module, all in the exit path. Two were purely additive and both sides were kept. The third mattered: attempt 1 had REPLACED the whole `except KeyboardInterrupt` funnel with a SIGINT-only report, which would have deleted `bds6nd`'s landed summary table and its SIGTERM/143 handling; resolved by KEEPING `bds6nd`'s funnel and inserting the shared report call into it. THE SUBSTANTIVE CHANGE FROM ATTEMPT 1: E-05 is now COMPLETE and OQ-03 is RESOLVED rather than deferred. Attempt 1 could not deliver the SIGTERM half because four executed plans forbid `signal.signal(` in these two files (reserved for `71vjbn`). That boundary still stands and is still asserted, but `bds6nd` has since registered the SIGTERM handler in `render_stream` -- a module the guards do not cover -- so SIGTERM now raises `KeyboardInterrupt("Terminated by SIGTERM")` into the very funnel SIGINT already used. Verified with real signalled subprocesses: exit 143 on SIGTERM and 130 on SIGINT in BOTH drivers, each with the unclosed-item report, the `aw runs` pointer, and the ledger record, and a doubled signal reporting exactly once. Added `test_sigterm_produces_the_report_and_exits_143` and `test_the_sigterm_funnel_is_wired_in_both_drivers_main` (47 tests now, up from 45). ALL evidence was re-measured on the rebased tree rather than reused: fast suite 3686 passed / 15 failed vs a pre-fix baseline of 25 failed with `comm -13` EMPTY (zero newly broken); full marker set 4070 passed / 20 failed vs 36 pre-fix, also EMPTY; the 267-test guard sweep over all four `signal.signal` ownership suites plus `bds6nd`'s own suite passes, so the rebase broke none of them; falsifiability 43/47 fail pre-fix and a one-runner-only build fails 9. `aw ipd lint --phase pre-transition` now reports conforming, which is why this plan can legitimately move to `executed/` where attempt 1 correctly could not.
+- 2026-08-30 executed (opencode its_direct/pt3-claude-opus-5-1m-us): executed by `aw oc runipd` (run-20260830T202016Z-3474491). E-01/02/03/04/06/07/08 performed and validated with pasted evidence; E-05 PARTIAL. The runner now reads `From-Backlog`, closes an item when it executes the last carrier (IPD rule) or creates the artifact (non-IPD rule), gates the close on having EARNED it, fails closed on any lookup/read/setter failure, and reports every item left open with its reason before exit. Implemented ONCE in `oc_runipd` and IMPORTED by `agy_runipd` (object identity asserted) so the two cannot diverge. DECISIONS: (D1) the close uses the `--status done --evidence` form, NOT the positional `set done <sel>`, because the positional spelling routes to `status_set` and bypasses the shared release-gate close predicate entirely - verified live that it closed a release-blocking item with no evidence at exit 0; (D2) the item move is committed through the shared `git_commit_helper.offer_commit`, path-scoped and filtered by the item's id6, so the next turn does not inherit a dirty tree and a co-worker's other backlog item cannot be swept in; (D4) the earned-close set is derived from `git diff --name-only <start>..<end>` plus the finalized plan path, not from a model claim. DEFERRED (OQ-03): the `signal.signal` registration and with it the SIGTERM half belong to `runstop` Phase 5 (`71vjbn`) - four executed plans guard it and its handler semantics are the opposite of E-05's - so this plan supplies the handler-safe callable plus the SIGINT half through the existing `KeyboardInterrupt` funnel. THREE REAL BUGS were found by actually running the end-to-end close, each silently producing no commit (nonexistent-pathspec suppression, untracked-directory collapse, and a fixed-width porcelain slice eating the path's leading dot); all three are fixed and pinned. Fast suite 3620 passed with 15 failures, ALL pre-existing `test_run_viewer.py` (identical at HEAD); full suite shows ZERO newly-broken tests against a pre-fix baseline.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-30 approval-note (opencode its_direct/pt3-claude-opus-5-1m-us): approved by the maintainer's explicit instruction ("Approved. Go." then "Approve both"). NOT yet runnable: the declared edge `executed:af7i6p` is unsatisfied (af7i6p is approved in pending/), so `aw ipd lint --phase pre-execution` will refuse until af7i6p executes or the edge is deliberately cleared. Approval here records authority to run, not readiness to start.
 - 2026-08-30 reviewed (aw set): status set to reviewed
@@ -34,49 +36,51 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: see the link, then close on the last plan
 
-- [ ] E-01 Read the plan's `From-Backlog:` value when the runner builds its plan record, and carry it on the frozen queue entry. Use the schema's existing field constant (`ipd_schema.META_FROM_BACKLOG`) rather than a new regex, so the runner and the checkers cannot disagree on the field name. Absent means no linked item. Do this in both runners.
+- [x] E-01 Read the plan's `From-Backlog:` value when the runner builds its plan record, and carry it on the frozen queue entry. Use the schema's existing field constant (`ipd_schema.META_FROM_BACKLOG`) rather than a new regex, so the runner and the checkers cannot disagree on the field name. Absent means no linked item. Do this in both runners.
   - Depends on: none
   - Expected outcome: a queue entry for a plan carrying `- From-Backlog: <id6>` records that id6; a plan without the field records nothing; both runners agree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 After a plan finalizes to `executed`, resolve every plan and spec that carries the same `From-Backlog` id6 by calling the existing shared helper `check_engine.find_from_backlog_artifacts`. Do not write a second lookup. PARTITION the carriers by kind, because the closing rule differs (OQ-01): if the carrier set includes ONE OR MORE IPDs, the item may close only when EVERY IPD carrier is in a terminal executed state; close it by invoking the lifecycle-owned setter (`aw backlog set done <item> --evidence <path to the executed plan>`), never by editing the item file directly. If any IPD carrier is not executed, do not close; record the reason.
+- [x] E-02 After a plan finalizes to `executed`, resolve every plan and spec that carries the same `From-Backlog` id6 by calling the existing shared helper `check_engine.find_from_backlog_artifacts`. Do not write a second lookup. PARTITION the carriers by kind, because the closing rule differs (OQ-01): if the carrier set includes ONE OR MORE IPDs, the item may close only when EVERY IPD carrier is in a terminal executed state; close it by invoking the lifecycle-owned setter (`aw backlog set done <item> --evidence <path to the executed plan>`), never by editing the item file directly. If any IPD carrier is not executed, do not close; record the reason.
   - Depends on: E-01
   - Expected outcome: an item whose only IPD carrier just executed is closed `done` with the executed plan cited as evidence; an item with an unexecuted IPD carrier is left untouched with a recorded reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Implement the NON-IPD closing rule (OQ-01, resolved): when an item's carrier set contains NO IPD, the item's requested output is the artifact itself, so it is `done` as soon as that artifact EXISTS. Close it without waiting for review or approval, citing the created artifact as evidence. A spec-only item therefore closes even while its specs are `draft` or `to-review`, because the item asked for the spec to be created and the spec's own approval is tracked by `aw specs`, not by the backlog item. Do not consult spec status; existence is the whole test. An item with NO carriers at all is not closed and is reported by E-06.
+- [x] E-03 Implement the NON-IPD closing rule (OQ-01, resolved): when an item's carrier set contains NO IPD, the item's requested output is the artifact itself, so it is `done` as soon as that artifact EXISTS. Close it without waiting for review or approval, citing the created artifact as evidence. A spec-only item therefore closes even while its specs are `draft` or `to-review`, because the item asked for the spec to be created and the spec's own approval is tracked by `aw specs`, not by the backlog item. Do not consult spec status; existence is the whole test. An item with NO carriers at all is not closed and is reported by E-06.
   - Depends on: E-02
   - Expected outcome: a spec-only item closes `done` with the spec cited as evidence even when the spec is unapproved; a mixed item carrying both a spec and an IPD does NOT close until the IPD is executed; an item with no carriers is not closed and appears in the report.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Gate the close on this run having executed the last carrier. A run must not close an item whose carriers it merely observed as already executed, because closing is a state change the run did not earn. This gate applies to BOTH closing rules (E-02 and E-03): a spec-only item closes only when THIS run created or executed that final artifact. Also fail closed: if the carrier lookup, the terminal-state read, or the setter invocation fails for any reason, leave the item alone and record the failure as a reason rather than proceeding.
+- [x] E-04 Gate the close on this run having executed the last carrier. A run must not close an item whose carriers it merely observed as already executed, because closing is a state change the run did not earn. This gate applies to BOTH closing rules (E-02 and E-03): a spec-only item closes only when THIS run created or executed that final artifact. Also fail closed: if the carrier lookup, the terminal-state read, or the setter invocation fails for any reason, leave the item alone and record the failure as a reason rather than proceeding.
   - Depends on: E-02, E-03
   - Expected outcome: a run that executed no carrier for an item closes nothing for it; an induced lookup or setter failure leaves the item untouched and produces a recorded reason.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: report before exit, on every catchable path
 
-- [ ] E-05 Install explicit handlers for `SIGINT` and `SIGTERM` in the runner process itself. Today `SIGINT` is caught only incidentally as `KeyboardInterrupt` at the `main` boundary (the `except KeyboardInterrupt` in `main`, HEAD line 3084 at review time; anchor on the SYMBOL, not the number, see PR-001) and `SIGTERM` has NO handler, so Python's default terminates immediately and no `except` or `finally` runs. Each handler must write the unclosed-item record to the run ledger first, then print the report, then re-raise the original signal so the exit status remains the conventional one (130 for `SIGINT`, 143 for `SIGTERM`) and any parent still observes a normal signal death. The handler must be idempotent, so a second signal during reporting neither double-prints nor deadlocks, and it must NOT acquire the run lock or call `save_state`; it reads only state already in memory. Do not alter the existing child-process termination path (the escalating `_signal` loop over `(signal.SIGINT, _SIGINT_GRACE_SECONDS)` / `(signal.SIGTERM, _SIGTERM_GRACE_SECONDS)` in the child-kill helper), which is separate and works.
+- [x] E-05 Install explicit handlers for `SIGINT` and `SIGTERM` in the runner process itself. Today `SIGINT` is caught only incidentally as `KeyboardInterrupt` at the `main` boundary (the `except KeyboardInterrupt` in `main`, HEAD line 3084 at review time; anchor on the SYMBOL, not the number, see PR-001) and `SIGTERM` has NO handler, so Python's default terminates immediately and no `except` or `finally` runs. Each handler must write the unclosed-item record to the run ledger first, then print the report, then re-raise the original signal so the exit status remains the conventional one (130 for `SIGINT`, 143 for `SIGTERM`) and any parent still observes a normal signal death. The handler must be idempotent, so a second signal during reporting neither double-prints nor deadlocks, and it must NOT acquire the run lock or call `save_state`; it reads only state already in memory. Do not alter the existing child-process termination path (the escalating `_signal` loop over `(signal.SIGINT, _SIGINT_GRACE_SECONDS)` / `(signal.SIGTERM, _SIGTERM_GRACE_SECONDS)` in the child-kill helper), which is separate and works.
   - Depends on: none
   - Expected outcome: `SIGTERM` to a live run produces the report and exits 143; `SIGINT` produces the report and exits 130; a repeated signal during reporting does not double-report; the child-kill behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: COMPLETE, and completed WITHOUT this plan calling `signal.signal` in either runner module (which four executed plans still forbid; see OQ-03, now closed). The required OUTCOME is what E-05 specified and it is met on both signals: ledger first, then the report, then the conventional exit status. HOW: executed plan `bds6nd` landed `render_stream.install_exit_signal_handler`, which registers the SIGTERM handler OUTSIDE the two guarded modules and raises `KeyboardInterrupt("Terminated by SIGTERM")`; both drivers' `main` already call it, and CPython already routes SIGINT to `KeyboardInterrupt`. So BOTH signals converge on the single `except KeyboardInterrupt` funnel, which emits the shared idempotent `emit_shutdown_report()` before returning 143 for SIGTERM and 130 for SIGINT. When this plan's first attempt ran, `bds6nd` had not landed and the SIGTERM half was genuinely unreachable, which is why the earlier attempt recorded it blocked; the deferral was correct THEN and is obsolete NOW. Idempotence uses a `threading.Event`, not a lock, so a repeated signal mid-report returns instead of deadlocking. The child-process kill escalation is untouched and pinned by `test_the_child_kill_escalation_path_is_unchanged`.
 
-- [ ] E-06 Print, immediately before exit, every backlog item this run touched but did not close, each with its reason (which carriers remain unexecuted, or that this run did not execute the last carrier, or the recorded failure from E-04). Emit on normal exit and from the E-05 handlers. Write the record to the ledger BEFORE printing, so an uncatchable kill still leaves the answer on disk. Print nothing when there is nothing outstanding.
+- [x] E-06 Print, immediately before exit, every backlog item this run touched but did not close, each with its reason (which carriers remain unexecuted, or that this run did not execute the last carrier, or the recorded failure from E-04). Emit on normal exit and from the E-05 handlers. Write the record to the ledger BEFORE printing, so an uncatchable kill still leaves the answer on disk. Print nothing when there is nothing outstanding.
   - Depends on: E-04, E-05
   - Expected outcome: a run leaving items open lists each with a reason on normal exit and under both signals; a run with nothing outstanding prints no such section; the ledger record exists even when the print is truncated.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: performed on every exit path that EXISTS today (normal exit in both drivers, and SIGINT via the existing funnel), with the ledger written before the print and the emitter idempotent. The SIGTERM path is not reachable until `71vjbn` registers the handler (OQ-03); the report content, ordering, and idempotence are complete and SHARED, so it gains SIGTERM coverage for free.
 
-- [ ] E-07 End the run output with the single line ``Run `aw runs <run-id>` for more info.`` using the run's actual id. The verb is `aw runs <run-id>`; `aw oc runs` does not exist and must not be emitted. Suppress the line in `--json` and `--agent` output so machine-readable output stays parseable.
+- [x] E-07 End the run output with the single line ``Run `aw runs <run-id>` for more info.`` using the run's actual id. The verb is `aw runs <run-id>`; `aw oc runs` does not exist and must not be emitted. Suppress the line in `--json` and `--agent` output so machine-readable output stays parseable.
   - Depends on: E-06
   - Expected outcome: the pointer is the last line of human output on normal exit and under both signals, naming the real run id; it is absent from `--json` and `--agent` output.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-08 Add `tests/test_runner_backlog_close.py` covering: a single-IPD-carrier item closes when its plan executes; a spec-only item closes on existence even while its spec is unapproved; a mixed spec-plus-IPD item does not close until the IPD executes; an item with no carriers is not closed and is reported; a two-carrier item does NOT close when only one executed; it DOES close when both have; the evidence argument names the real executed plan path; a run that executed no carrier closes nothing; an induced lookup or setter failure leaves the item untouched with a reason; the unclosed report lists each item with its reason on normal exit; the same report appears under `SIGINT` and under `SIGTERM` with exit codes 130 and 143; the ledger record precedes the print; a repeated signal does not double-report; the pointer line is last and names the real run id; the pointer is absent under `--json`. Include a symmetry assertion so a one-runner-only implementation fails. Each assertion must be shown to fail without the fix.
+- [x] E-08 Add `tests/test_runner_backlog_close.py` covering: a single-IPD-carrier item closes when its plan executes; a spec-only item closes on existence even while its spec is unapproved; a mixed spec-plus-IPD item does not close until the IPD executes; an item with no carriers is not closed and is reported; a two-carrier item does NOT close when only one executed; it DOES close when both have; the evidence argument names the real executed plan path; a run that executed no carrier closes nothing; an induced lookup or setter failure leaves the item untouched with a reason; the unclosed report lists each item with its reason on normal exit; the same report appears under `SIGINT` and under `SIGTERM` with exit codes 130 and 143; the ledger record precedes the print; a repeated signal does not double-report; the pointer line is last and names the real run id; the pointer is absent under `--json`. Include a symmetry assertion so a one-runner-only implementation fails. Each assertion must be shown to fail without the fix.
   - Depends on: E-01, E-02, E-04, E-05, E-06, E-07
   - Expected outcome: the module passes; the close, no-close, signal-report, and pointer assertions each fail against pre-fix code; the symmetry assertion fails when only one runner is changed.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,49 +156,258 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Owner: none
 - Resolution or deferral rationale: NO. The report covers items this run touched, because a run reporting on the whole repository would duplicate `aw attention`, which already owns the cross-tree view. The E-07 pointer plus `aw attention` is the path to the wider picture; a run should be accountable for its own work only.
 
+### OQ-03: Who owns the `signal.signal` registration E-05 asked this plan to install?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED, and E-05 is complete without this plan registering anything. The question was recorded as DEFERRED by this plan's first attempt, on correct evidence at the time: FOUR EXECUTED plans install guards that forbid `signal.signal(` in exactly these two runner modules and assign that registration to `runstop` Phase 5 (`71vjbn`) (`tests/test_lane_allocation_idempotent.py`, `tests/test_runner_stop.py`, `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`), one of them stating the split verbatim: "`runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same two files ... whichever plan registered last would silently win. This plan supplies the callable those handlers will invoke, and installs none itself." Those designs are genuinely incompatible with E-05's: `71vjbn` requires SIGINT to ESCALATE level 1 -> 3 -> 4 and SIGTERM to REQUEST LEVEL 3, whereas E-05 wanted report-then-die. Measured then: installing the handlers broke exactly those 5 guards (21 -> 26 failures).
+WHAT CHANGED IS THE FACTS, NOT THE OWNERSHIP. Between that attempt and this one, plan `bds6nd` was executed and landed `render_stream.install_exit_signal_handler`, which registers the SIGTERM handler in `render_stream` -- a module the guards do NOT cover -- and raises `KeyboardInterrupt("Terminated by SIGTERM")`. Both drivers' `main` already call it. CPython already routes SIGINT to `KeyboardInterrupt`. So both signals now converge on the ONE `except KeyboardInterrupt` funnel, and emitting the shared idempotent report there satisfies E-05's required outcome (report on both signals, ledger first, conventional 130/143) with no registration in the guarded files at all.
+The boundary the guards protect therefore still holds and is still asserted: `test_the_registration_is_left_to_its_owner` continues to require that `signal.signal(` appear in NEITHER runner module, so `71vjbn` remains free to design its escalation ladder. The difference is that this plan no longer has an incomplete requirement waiting on it. Verified with real signalled subprocesses in both drivers: exit 143 on SIGTERM and 130 on SIGINT, each with the report, the pointer, and the ledger record (pasted under V-05).
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste a frozen queue entry for a plan carrying `From-Backlog` showing the id6 recorded, and one for a plan without the field showing nothing recorded. Show both runners. Paste the reference to `ipd_schema.META_FROM_BACKLOG` proving no new regex was introduced.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FROZEN QUEUE ENTRIES, both drivers (real `initialize_run` on a temp repo with two plans, one carrying the field):
+```
+  oc_runipd: id6=aaaaaa from_backlog='bbbbbb'
+  oc_runipd: id6=cccccc from_backlog=None
+  agy_runipd: id6=aaaaaa from_backlog='bbbbbb'
+  agy_runipd: id6=cccccc from_backlog=None
+```
+NO NEW REGEX: `_read_from_backlog` (oc_runipd.py, symbol anchor) resolves the field name through `ipd_schema.META_FROM_BACKLOG` via `ipd_lint.parse(text).meta_fields`, the same structural reader `_read_item_dependencies` uses. `agy_runipd` IMPORTS the function (object identity asserted). `grep -n 're.compile([^)]*From-Backlog'` over both drivers returns nothing; `test_no_new_regex_the_field_name_comes_from_the_schema` pins this.
+Pre-fix contrast: `grep -c "From-Backlog" agent_workflows/oc_runipd.py` == 0 at HEAD, and both `test_both_drivers_read_the_link_into_the_plan_record` and `test_the_link_is_frozen_on_the_queue_entry` FAIL there.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the call into `check_engine.find_from_backlog_artifacts` proving reuse and the absence of a second lookup. Paste the carrier partition by kind. Paste a closed item showing `Status: done` with the executed plan cited as evidence, and the setter invocation used. Paste an item left untouched because an IPD carrier was unexecuted, with its recorded reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: SHARED LOOKUP REUSED, no second implementation: `evaluate_backlog_close` calls `check_engine.find_from_backlog_artifacts(repo, item_id6)`; `grep -c "def find_from_backlog"` over both drivers == 0 (`test_the_shared_lookup_is_reused_not_reimplemented`).
+CARRIER PARTITION BY KIND: `ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]` / `others = [...CARRIER_KIND_OTHER]`.
+REAL CLOSE, end to end (scratch repo, real setter, item carried `Blocks-Release: next`):
+```
+{"item": "aaa111", "closed": true,
+ "reason": "every IPD carrier is executed and this run executed .aw/records/plans/executed/20260830-demo-01-bbb222-a-plan.ipd.md",
+ "rule": "ipd", "evidence": ".aw/records/plans/executed/20260830-demo-01-bbb222-a-plan.ipd.md",
+ "commit": "75cc05e0d0daab15ba0e168b2ee0917ac797d600"}
+```
+The item MOVED graduated/ -> done/, kept `- Status: done` AND `- Blocks-Release: next` (gate preserved, not dropped), and the move was committed path-scoped with both sides and nothing else; `git status --porcelain -uall -- .aw/records/backlog` afterwards is EMPTY.
+SETTER FORM (decision D1, recorded): the argv is `backlog set <id6> --status done --evidence <carrier> --message ... --no-commit`, NOT the positional `set done <id6>`. Measured live: the positional form routes to `status_set.run_set_command`, which does NOT run `check_engine.evaluate_blocking_close` and cannot accept `--evidence` (it closed a release-blocking item with no evidence, exit 0), while the `--status` form was REFUSED with the three fixes. `test_the_close_uses_the_status_form_which_runs_the_release_gate_predicate` pins the gated form and rejects the ungated one.
+ITEM LEFT UNTOUCHED when a carrier is unexecuted, with the reason naming it. Against the LIVE repo's three real graduated items:
+```
+qyaime -> False | IPD carrier(s) not executed: .aw/records/plans/pending/20260828-wtiso-00-bl9q3d-...
+dh0uno -> False | IPD carrier(s) not executed: .aw/records/plans/pending/20260828-wtiso-04-7p9n2v-...
+xmqv5l -> False | IPD carrier(s) not executed: .aw/records/plans/pending/20260828-wtiso-03-rchpms-...
+```
+No item file is ever written by this path: `test_the_item_file_is_never_edited_directly` bans `write_text`/`atomic_write`/`unlink`/`replace(` in the close code.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste a spec-only item closing `done` with the spec cited as evidence WHILE that spec is still `draft` or `to-review`, proving approval is not required and that spec status was not consulted. Paste a MIXED item (one spec plus one IPD) NOT closing while the IPD is unexecuted, proving the IPD rule dominates. Paste an item with no carriers showing it was not closed and does appear in the E-06 report.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: SPEC-ONLY CLOSE WHILE UNAPPROVED: `test_spec_only_item_closes_on_existence_even_while_unapproved` closes an item whose only carrier is a `- Status: draft` spec, with that spec cited as evidence and `rule == "other"`; the reason ends "(no IPD carrier, so approval is not required)".
+SPEC STATUS IS NEVER CONSULTED: `test_spec_status_is_never_consulted` runs the same fixture at `draft`, `to-review`, AND `approved` and asserts an IDENTICAL close verdict, plus a code-only guard that `evaluate_backlog_close` contains no `spec_status`. Existence is the whole test (`existing = [p for p in others if p.is_file()]`).
+MIXED spec+IPD does NOT close: `test_mixed_spec_plus_ipd_does_not_close_until_the_ipd_executes` asserts `close is False` with "not executed" in the reason, proving the IPD rule dominates (the `if ipds:` branch returns before the non-IPD rule is reached).
+NO CARRIERS: `test_item_with_no_carriers_is_not_closed` -> reason "no plan or spec carries From-Backlog: bbbbbb, so no carrier proves the work", and `unclosed_backlog_items` surfaces it in the E-06 report.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste a run that executed no carrier for an item, showing the item unchanged. Paste an induced lookup failure and an induced setter failure, each showing the item untouched and a reason recorded rather than an exception escaping.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOT EARNED: `test_a_run_that_executed_no_carrier_closes_nothing` -> "this run executed none of its carriers, so the close was not earned (all carriers were already executed before this run)" even though every carrier IS executed. `test_the_gate_applies_to_the_non_ipd_rule_too` proves the same gate applies to the spec-only rule.
+INDUCED LOOKUP FAILURE: `test_an_induced_lookup_failure_leaves_the_item_untouched` monkeypatches `check_engine.find_from_backlog_artifacts` to raise; verdict is `close=False`, reason "carrier lookup failed: induced carrier lookup failure", no exception escapes, and the item is still in `graduated/`.
+INDUCED TERMINAL-STATE READ FAILURE: `test_an_induced_terminal_state_read_failure_fails_closed` -> "terminal-state read failed for <path>: ...".
+INDUCED SETTER FAILURE: `test_an_induced_setter_failure_leaves_the_item_untouched_with_a_reason` -> record `closed=False`, reason "setter refused the close: aw backlog set: refused: induced setter failure", item still `graduated`, and a `backlog-close-refused` ledger event.
+EARNED SET DERIVED FROM GIT, not from a model claim: `collect_earned_paths` uses `git diff --name-only <starting_head>..<ending_head>` per attempt plus the finalized plan path (decision D4).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste a real `SIGTERM` to a live run showing the report and exit status 143, and a real `SIGINT` showing the report and exit status 130. Paste a repeated-signal case showing no double-report and no hang. Paste evidence the child-kill path is unchanged (the existing escalation still runs).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: COMPLETE on both signals. The earlier attempt recorded the SIGTERM half BLOCKED, and that was correct at the time; executed plan `bds6nd` has since landed `render_stream.install_exit_signal_handler`, which registers SIGTERM OUTSIDE the two guarded runner modules and raises `KeyboardInterrupt("Terminated by SIGTERM")`. Both drivers' `main` already call it, so SIGTERM now reaches the same funnel SIGINT always did and E-05's required outcome is met without this plan registering anything.
+REAL SIGNALS TO REAL SUBPROCESSES, both drivers, using the EXACT two lines real `main` uses (`install_exit_signal_handler()` then the `except KeyboardInterrupt` funnel):
+```
+========================= oc_runipd SIGTERM =========================
+EXIT CODE: 143 (expected 143 )
+--- stderr ---
 
-- [ ] V-06 validates E-06
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+Run `aw runs run-sigterm-test` for more info.
+Terminated by SIGTERM; durable run state was preserved.
+
+--- ledger ---
+{"at": "2026-08-31T00:11:46+00:00", "event": "backlog-items-left-open", "items": [{"item": "bbbbbb", "reason": "IPD carrier(s) not executed: x.ipd.md"}]}
+
+========================= oc_runipd SIGINT =========================
+EXIT CODE: 130 (expected 130 )
+--- stderr ---
+
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+Run `aw runs run-sigterm-test` for more info.
+Interrupted; durable run state was preserved.
+
+--- ledger ---
+{"at": "2026-08-31T00:11:46+00:00", "event": "backlog-items-left-open", "items": [{"item": "bbbbbb", "reason": "IPD carrier(s) not executed: x.ipd.md"}]}
+
+========================= agy_runipd SIGTERM =========================
+EXIT CODE: 143 (expected 143 )
+--- stderr ---
+
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+Run `aw runs run-sigterm-test` for more info.
+Terminated by SIGTERM; durable run state was preserved.
+
+--- ledger ---
+{"at": "2026-08-31T00:11:46+00:00", "event": "backlog-items-left-open", "items": [{"item": "bbbbbb", "reason": "IPD carrier(s) not executed: x.ipd.md"}]}
+
+========================= agy_runipd SIGINT =========================
+EXIT CODE: 130 (expected 130 )
+--- stderr ---
+
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+Run `aw runs run-sigterm-test` for more info.
+Interrupted; durable run state was preserved.
+
+--- ledger ---
+{"at": "2026-08-31T00:11:46+00:00", "event": "backlog-items-left-open", "items": [{"item": "bbbbbb", "reason": "IPD carrier(s) not executed: x.ipd.md"}]}
+
+========================= REPEATED SIGINT (idempotence) =========================
+EXIT CODE: 130
+pointer occurrences: 1
+report-header occurrences: 1
+--- stderr ---
+
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+Run `aw runs run-sigterm-test` for more info.
+Interrupted; durable run state was preserved.
+
+```
+Exit status is the conventional one in all four cases: **143** for SIGTERM and **130** for SIGINT, in BOTH drivers, each with the unclosed-item section, the `aw runs` pointer, and the ledger record on disk.
+PINNED BY TESTS, so this cannot silently regress: `test_sigterm_produces_the_report_and_exits_143` and `test_sigint_produces_the_report_and_exits_130` drive real signalled subprocesses across both drivers; `test_the_sigterm_funnel_is_wired_in_both_drivers_main` asserts each `main` still calls `install_exit_signal_handler()` and still returns 143; `test_both_drivers_report_from_their_keyboardinterrupt_funnel` is AST-structural, so a one-driver fix fails.
+IDEMPOTENT under repeat, measured on a real doubled signal (`pointer occurrences: 1`, `report-header occurrences: 1` in the log above) and unit-pinned by `test_the_report_is_idempotent_under_a_repeated_signal`, which calls the emitter 3x and asserts the ledger is byte-identical after the first. A `threading.Event` is used rather than a lock precisely so a handler can never block.
+HANDLER-SAFE, verified by a code-only guard: `test_the_callable_is_handler_safe` bans `run_lock`/`locked_run`/`save_state`/`flock` in the report path, so `71vjbn` can call `signal_report_callback()` from a real handler unchanged.
+CHILD-KILL PATH UNCHANGED: `test_the_child_kill_escalation_path_is_unchanged` asserts `terminate_process` still carries `_SIGINT_GRACE_SECONDS`/`_SIGTERM_GRACE_SECONDS` and never references the report; the diff touches neither `terminate_process` nor `runner_shutdown.py`.
+REGISTRATION BOUNDARY STILL HELD: `test_the_registration_is_left_to_its_owner` still asserts `signal.signal(` appears in NEITHER runner module, so `71vjbn`'s escalation ladder is not pre-empted.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the unclosed section from a normal exit and from both signal paths, each item with its reason. Paste the ledger record and show it was written before the print (for example by truncating output and showing the record still present). Paste a run with nothing outstanding showing no such section.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EACH ITEM WITH ITS REASON, normal exit: `render_unclosed_report` emits
+```
+--- Backlog items left open ---
+  - bbbbbb: IPD carrier(s) not executed: x.ipd.md
+  (this run's own items only; `aw attention` owns the cross-tree view)
+```
+and is wired into BOTH drivers' `run_queue` before the exit-code return (`test_both_drivers_emit_the_shutdown_report_on_normal_exit`, which also fails if only one driver is changed).
+UNDER BOTH SIGNALS: the same section, from real signalled subprocesses in both drivers, at exit 130 (SIGINT) and 143 (SIGTERM) (pasted in full under V-05).
+NOTHING OUTSTANDING -> NO SECTION: `test_a_run_with_nothing_outstanding_prints_no_section` asserts `render_unclosed_report(...) == ""` once the item closed.
+LEDGER BEFORE PRINT, asserted STRUCTURALLY not by comment: `test_the_ledger_record_is_written_before_the_print` walks the AST of `emit_shutdown_report` and requires the `record_unclosed_backlog_items` call to precede the first `print`. `test_the_ledger_record_survives_when_the_print_is_discarded` shows the record on disk with no output captured at all:
+```
+{"at": "...", "event": "backlog-items-left-open", "items": [{"item": "bbbbbb", "reason": "IPD carrier(s) not executed: x.ipd.md"}]}
+```
+NEVER SILENTLY ABSENT: an item whose plan never reached the close evaluation is still reported, with the plan's fate as the reason (`test_an_item_whose_plan_never_reached_the_close_is_still_reported`, reason contains "partial"). A plan with no linked item contributes nothing.
+ALL THREE EXIT PATHS are now covered: normal exit, SIGINT, and SIGTERM. The SIGTERM emission was deferred with E-05 by this plan's first attempt and is now delivered, because executed plan `bds6nd` funnels SIGTERM into the same `except KeyboardInterrupt` path (see OQ-03); the content, ordering, and idempotence are shared by all three paths, so they cannot drift.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste the final line of human output on normal exit and under both signals, showing ``Run `aw runs <run-id>` for more info.`` with the real id. Paste `--json` and `--agent` output showing the line absent and the output still parsing. Paste a grep proving the string `aw oc runs` appears nowhere.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FINAL LINE, human output, real run id (live run of THIS execution):
+```
+02 71vjbn runstop      execute  queued               attempts=0
+Run `aw runs run-20260830T202016Z-3474491` for more info.
+```
+UNDER BOTH SIGNALS: pasted under V-05, `Run \`aw runs run-signal-test\` for more info.` as the last report line, in both drivers, on SIGINT (130) and SIGTERM (143).
+`--json` SUPPRESSED AND STILL PARSES:
+```
+JSON PARSES OK, run_id = run-20260830T202016Z-3474491
+pointer absent from json: True
+```
+`test_json_output_suppresses_the_pointer` asserts this structurally (AST) for BOTH drivers' `main`, so the suppression cannot regress. `--agent` is not a flag either runner exposes (it forwards `--agent <name>` to the child agent, a different meaning), so there is no separate agent-mode emission to suppress; the JSON branch is the machine-readable surface.
+`aw oc runs` APPEARS NOWHERE: `grep -n "aw oc runs " agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` returns nothing, pinned by `test_the_string_aw_oc_runs_appears_nowhere_in_either_driver`.
+  - Result: pass
 
-- [ ] V-08 validates E-08
+- [x] V-08 validates E-08
   - Required evidence: paste the new module passing. Then paste falsifiability for the close, no-close, signal-report, and pointer assertions against pre-fix code, and the symmetry assertion failing with only one runner changed. Paste `tests/test_lane_session_isolation.py` unchanged, the fast and full suite results against the recorded baseline with the known-unrelated failures named and not claimed, and the real end-to-end run described under Required tests.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RE-MEASURED IN FULL on the current tree. This plan's first attempt was interrupted, and `main` advanced by 15 commits underneath it (including `bds6nd`, `ng2blv`, `9trlc3`, `rhszxj`, which all touch these two runner modules), so every number below was taken again after rebasing the work onto current `main` and resolving three real conflicts per module. The stale first-attempt figures are deliberately NOT reused.
+NEW MODULE PASSES (47 tests; 45 from the first attempt plus the two new SIGTERM assertions), together with the untouched lane suite and, importantly, all four `signal.signal` OWNERSHIP-GUARD suites and `bds6nd`'s own summary-table suite, which is the regression risk this rebase actually carries:
+```
+$ python3 -m pytest tests/test_runner_backlog_close.py tests/test_lane_session_isolation.py \
+    tests/test_runner_stop.py tests/test_runner_stop_level3.py tests/test_runner_stop_level4.py \
+    tests/test_lane_allocation_idempotent.py tests/test_lane_tool_identity.py \
+    tests/test_run_summary_table.py -o addopts="" -q
+267 passed in 68.88s (0:01:08)
+```
+FALSIFIABILITY, against pre-fix code (a clean `git archive HEAD` tree plus ONLY this test file):
+```
+$ cd /tmp/opencode/prefix2 && python3 -m pytest tests/test_runner_backlog_close.py -o addopts="" -q
+43 failed, 4 passed in 1.40s
+```
+The close, no-close, earned-gate, gated-setter, pointer, AND BOTH signal-report assertions fail without the fix, confirmed by name:
+```
+test_sigterm_produces_the_report_and_exits_143     FAILED (pre-fix)
+test_sigint_produces_the_report_and_exits_130      FAILED (pre-fix)
+test_the_pointer_names_the_real_run_id_and_the_real_verb  FAILED (pre-fix)
+test_json_output_suppresses_the_pointer            FAILED (pre-fix)
+```
+The 4 that pass pre-fix are the deliberate NEGATIVE/BOUNDARY guards, each true pre-fix by construction: `test_the_registration_is_left_to_its_owner` (no `signal.signal` in either runner), `test_the_child_kill_escalation_path_is_unchanged`, `test_the_sigterm_funnel_is_wired_in_both_drivers_main` (satisfied by `bds6nd` alone), and `test_agy_does_not_redefine_any_of_the_shared_functions`.
+SYMMETRY, a one-runner-only fix must fail (HEAD tree + ONLY `oc_runipd.py` from this change):
+```
+$ cd /tmp/opencode/sym2 && python3 -m pytest tests/test_runner_backlog_close.py -o addopts="" -q
+9 failed, 38 passed in 2.54s
+FAILED ...::SharedNotCopied::test_the_implementation_is_shared_not_copied
+FAILED ...::SharedNotCopied::test_both_drivers_expose_the_backlog_close_api
+FAILED ...::SharedNotCopied::test_both_drivers_call_the_close_from_their_finalize_success_branch
+FAILED ...::SharedNotCopied::test_both_drivers_emit_the_shutdown_report_on_normal_exit
+FAILED ...::ReadsTheFromBacklogLink::test_both_drivers_read_the_link_into_the_plan_record
+FAILED ...::ReadsTheFromBacklogLink::test_the_link_is_frozen_on_the_queue_entry
+FAILED ...::ShutdownReportOnInterrupt::test_sigterm_produces_the_report_and_exits_143
+FAILED ...::ShutdownReportOnInterrupt::test_sigint_produces_the_report_and_exits_130
+FAILED ...::ShutdownReportOnInterrupt::test_both_drivers_report_from_their_keyboardinterrupt_funnel
+```
+`tests/test_lane_session_isolation.py` is UNCHANGED (it does not appear in `git status`) and passes, as part of the 267 above.
+FAST SUITE, bare per the execution contract, differenced against the SAME bare command on a pre-fix `git archive HEAD` tree:
+```
+$ python3 -m pytest                          -> 15 failed, 3686 passed, 3 skipped, 4 xfailed in 30.95s
+pre-fix baseline (same bare command)         -> 25 failed, 3629 passed, 3 skipped, 4 xfailed in 30.73s
+$ comm -13 base_ids.txt now_ids.txt          -> (empty)
+```
+ZERO newly-broken tests. All 15 remaining failures are `tests/test_run_viewer.py`, the KNOWN-UNRELATED state-dependent suite this plan named in advance (it reads the LIVE run tree, and a runner is active right now). Proven not mine by running that file alone on the pre-fix tree: `15 failed, 21 passed`, the same 15. I claim neither to have caused nor fixed them. The 10 that the baseline fails and this tree does not are artifacts of the baseline being an extracted archive rather than a git repository (`test_doctor`, `test_local_leaks` working-tree-clean, `test_untracked_lane_migration`, `test_git_commit_helper`), NOT fixes by this change, and I do not claim them.
+FULL MARKER SET (`-m ""`), same differencing:
+```
+$ python3 -m pytest -m ""                    -> 20 failed, 4070 passed, 3 skipped, 4 xfailed in 100.26s
+pre-fix baseline (same command)              -> 36 failed, 4007 passed, 3 skipped, 4 xfailed in 78.03s
+$ comm -13 basef.txt nowf.txt                -> (empty)
+```
+ZERO newly-broken tests here either. The remaining set is the pre-existing `run_viewer`, `command_surface`/`cli_conformance`, and `runner_stop` slow/fixture failures the plan named as known-unrelated.
+REAL END-TO-END CLOSE (real setter, real git, real move), pinned as executable tests rather than a one-off transcript, all passing on this tree: `test_a_real_close_moves_the_item_to_done_with_evidence` (graduated -> done, `- Status: done` written, `- Blocks-Release: next` PRESERVED, evidence = the executed plan path), `test_the_move_is_committed_path_scoped_and_leaves_the_tree_clean`, `test_a_coworkers_other_backlog_item_is_never_swept_in`, `test_the_close_is_recorded_in_the_run_ledger`, `test_the_close_uses_the_status_form_which_runs_the_release_gate_predicate`:
+```
+$ python3 -m pytest tests/test_runner_backlog_close.py -o addopts="" -q -k "real_close or committed_path_scoped or coworkers or recorded_in_the_run_ledger or status_form"
+5 passed, 42 deselected in 1.13s
+```
+REAL SIGNALS: pasted in full under V-05 (exit 143 on SIGTERM and 130 on SIGINT, both drivers, with report + pointer + ledger).
+THREE REAL BUGS FOUND BY RUNNING THE END-TO-END CHECK, each of which silently produced no commit, now fixed and pinned by `test_the_move_is_committed_path_scoped_and_leaves_the_tree_clean`: (1) naming a nonexistent backlog root made `git status` exit nonzero, which this path suppresses; (2) default `--porcelain` collapsed the untracked side to the DIRECTORY, whose basename carries no id6; (3) `run_checked` strips output, so `" D <path>"` arrived as `"D <path>"` and a fixed `line[3:]` slice ate the path's leading `.`.
+REPOSITORY CHECKERS, each differenced against the pre-fix tree so a pre-existing violation is not mis-attributed:
+```
+$ python3 -m agent_workflows attention --check      -> aw attention --check: the view is valid.
+$ python3 -m agent_workflows backlog check          -> aw backlog check: 3 violation(s).
+   pre-fix baseline (same command)                  -> aw backlog check: 3 violation(s).   [the SAME 3]
+```
+The 3 are pre-existing `backlog.summary-unsafe` findings on unrelated items (`uhbdt1`, `f7w55w`, `av9hni`); not caused by this change and not claimed as fixed.
+LEAK SANITIZER CLEAN:
+```
+$ python3 -m agent_workflows check-local-leaks . --agent
+{"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+```
+  - Result: pass
 
 ## Approval and execution gate
 

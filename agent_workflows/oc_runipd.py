@@ -797,6 +797,648 @@ def driver_finalize(
     return result.returncode, (result.stderr or result.stdout or "").strip()
 
 
+# --- bkclose (zhr6mc): close a backlog item when the run executes its last carrier ----------------
+#
+# `graduated` means "design handed off, code not yet written" and `done` means "written and
+# validated", but until now NOTHING advanced an item across that boundary: no automation, no
+# workflow instruction, no `aw check` rule, and the one warning that would nag inspects `open/`
+# only. Measured at authoring: ZERO items in `done/` carry a graduation record, so the transition
+# had never once occurred.
+#
+# The runner is the right owner because it is the only actor that knows the MOMENT the last carrier
+# lands. Everything below is defined ONCE here and IMPORTED by `agy_runipd` (which does not
+# re-declare it), for the same reason the dependency API is shared: a duplicated copy is exactly how
+# the deleted `_read_deps` pair came to be identically wrong in both drivers.
+
+# The carrier-kind partition. The closing rule turns on whether the item's requested output INCLUDES
+# AN IPD, not on the carrier's type per se (zhr6mc OQ-01, resolved by the maintainer):
+#   * carriers include >= 1 IPD -> the item promised CODE, so it closes only when every IPD carrier
+#     is in a terminal `executed` state;
+#   * carriers include NO IPD   -> the item asked for the ARTIFACT, so it is done as soon as that
+#     artifact EXISTS. Spec status is deliberately NOT consulted: an unreviewed, unapproved spec
+#     still satisfies "create a spec", and approval is the spec's own lifecycle (`aw specs`).
+CARRIER_KIND_IPD = "ipd"
+CARRIER_KIND_OTHER = "other"
+
+
+def _carrier_kind(path: Path) -> str:
+    """`ipd` for a plan IPD, `other` for any non-IPD carrier (spec, or a later artifact type)."""
+    return CARRIER_KIND_IPD if path.name.endswith(".ipd.md") else CARRIER_KIND_OTHER
+
+
+class BacklogCloseVerdict(NamedTuple):
+    """The decision about ONE backlog item, and why.
+
+    close:    may the run close this item `done` now?
+    reason:   the human-readable justification, reported verbatim either as the close message or as
+              the E-06 unclosed-item reason. Never a bare boolean, because "we did not close it" is
+              useless to the operator without the cause.
+    evidence: the repo-relative carrier path to cite as `--evidence` when closing, else None.
+    rule:     `ipd` (every IPD carrier executed) | `other` (the artifact exists) | None (no close).
+    """
+
+    close: bool
+    reason: str
+    evidence: str | None
+    rule: str | None
+
+
+def _read_from_backlog(text: str) -> str | None:
+    """The plan's `- From-Backlog:` id6, or None when the field is absent/empty.
+
+    THE FIELD NAME IS THE SCHEMA'S, NOT A LOCAL REGEX (zhr6mc E-01). `ipd_schema.META_FROM_BACKLOG`
+    is the single authority the checkers already use, so the runner and `aw check` cannot come to
+    disagree about what the field is called. The metadata block is read by `ipd_lint.parse`, the same
+    structural fence-aware reader the lint and lifecycle surfaces use -- identical in form to how
+    `_read_item_dependencies` reads its own field, and for the identical reason.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+
+    try:
+        fields = _lint.parse(text).meta_fields
+    except Exception:
+        return None
+    raw = (fields.get(_schema.META_FROM_BACKLOG) or "").strip()
+    if not raw or raw in {"-", "none", "unresolved"}:
+        return None
+    token = raw.split()[0].strip("\"'").strip()
+    return token if ID6_RE.fullmatch(token) else None
+
+
+def resolve_backlog_item(repo: Path, item_id6: str) -> Path | None:
+    """The backlog item file whose `- Id:` is ``item_id6``, or None.
+
+    Reuses `backlog._iter_items` + `backlog.parse_item` (the tree walker and metadata reader the
+    backlog verbs themselves use) rather than globbing for the id6, so a renamed file or a
+    filename/`Id:` mismatch cannot make the runner miss an item the setter would find."""
+    from agent_workflows import backlog as _backlog
+
+    for path in _backlog._iter_items(Path(repo)):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _backlog.parse_item(text).id == item_id6:
+            return path
+    return None
+
+
+def evaluate_backlog_close(
+    repo: Path, item_id6: str, earned_paths: Iterable[str]
+) -> BacklogCloseVerdict:
+    """Decide whether THIS run may now close backlog item ``item_id6``, and why not if it may not.
+
+    ``earned_paths`` are the repo-relative paths this run actually produced (see
+    `run_earned_paths`). It is the E-04 gate: a run may not close an item whose carriers it merely
+    OBSERVED as already executed, because closing is a state change it did not earn.
+
+    FAIL CLOSED (E-04). Every lookup below is wrapped: a missing item, an unreadable tree, or a
+    raising helper yields `close=False` plus a recorded reason, never an escaping exception and never
+    an optimistic close.
+    """
+    from agent_workflows import check_engine as _ce
+
+    earned = {p for p in earned_paths if p}
+
+    try:
+        item_path = resolve_backlog_item(repo, item_id6)
+    except Exception as exc:  # fail closed: an unreadable backlog tree closes nothing
+        return BacklogCloseVerdict(
+            False, f"backlog item lookup failed: {exc}", None, None
+        )
+    if item_path is None:
+        return BacklogCloseVerdict(
+            False, f"no backlog item resolves to id6 {item_id6}", None, None
+        )
+    status = item_path.parent.name
+    if status == "done":
+        return BacklogCloseVerdict(False, "item is already done", None, None)
+
+    # THE ONE SHARED LOOKUP (E-02). `find_from_backlog_artifacts` already returns every PLAN and
+    # SPEC carrying the link, plans first. A second implementation here would be the same divergence
+    # defect this repository keeps hitting, so there is deliberately no local scan.
+    try:
+        carriers = [
+            Path(p) for p, _br in _ce.find_from_backlog_artifacts(repo, item_id6)
+        ]
+    except Exception as exc:  # fail closed
+        return BacklogCloseVerdict(False, f"carrier lookup failed: {exc}", None, None)
+    if not carriers:
+        return BacklogCloseVerdict(
+            False,
+            f"no plan or spec carries From-Backlog: {item_id6}, so no carrier proves the work",
+            None,
+            None,
+        )
+
+    def _rel(path: Path) -> str:
+        try:
+            return str(path.resolve().relative_to(Path(repo).resolve()))
+        except ValueError:
+            return str(path)
+
+    ipds = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_IPD]
+    others = [p for p in carriers if _carrier_kind(p) == CARRIER_KIND_OTHER]
+
+    if ipds:
+        # THE IPD RULE (E-02). The item promised code, so every IPD carrier must be terminal
+        # `executed`; one unexecuted sibling is enough to hold the item open. This is why closing on
+        # "my plan executed" is wrong: measured at authoring, `dh0uno` has TWO carriers, so that rule
+        # would have closed it while half its work was unwritten.
+        unexecuted: list[str] = []
+        for plan in ipds:
+            try:
+                bucket = plan_bucket(plan)
+            except Exception as exc:  # fail closed
+                return BacklogCloseVerdict(
+                    False,
+                    f"terminal-state read failed for {_rel(plan)}: {exc}",
+                    None,
+                    None,
+                )
+            if bucket != "executed":
+                unexecuted.append(_rel(plan))
+        if unexecuted:
+            return BacklogCloseVerdict(
+                False,
+                "IPD carrier(s) not executed: " + ", ".join(sorted(unexecuted)),
+                None,
+                None,
+            )
+        # E-04: the run must have EARNED it. The deciding carrier has to be one this run produced,
+        # not one it found already finished.
+        earned_ipds = [p for p in ipds if _rel(p) in earned]
+        if not earned_ipds:
+            return BacklogCloseVerdict(
+                False,
+                "this run executed none of its carriers, so the close was not earned "
+                "(all carriers were already executed before this run)",
+                None,
+                None,
+            )
+        return BacklogCloseVerdict(
+            True,
+            "every IPD carrier is executed and this run executed "
+            + ", ".join(sorted(_rel(p) for p in earned_ipds)),
+            _rel(earned_ipds[0]),
+            CARRIER_KIND_IPD,
+        )
+
+    # THE NON-IPD RULE (E-03). No IPD carrier means the item's requested output IS the artifact, so
+    # existence is the whole test. Spec STATUS is not read here on purpose: a `draft`/`to-review`
+    # spec still satisfies "create the spec", and its approval belongs to `aw specs`.
+    existing = [p for p in others if p.is_file()]
+    if not existing:
+        return BacklogCloseVerdict(
+            False, "no non-IPD carrier artifact exists on disk", None, None
+        )
+    earned_others = [p for p in existing if _rel(p) in earned]
+    if not earned_others:
+        return BacklogCloseVerdict(
+            False,
+            "this run created none of its carriers, so the close was not earned "
+            "(all carrier artifacts existed before this run)",
+            None,
+            None,
+        )
+    return BacklogCloseVerdict(
+        True,
+        "the requested artifact(s) exist and this run created "
+        + ", ".join(sorted(_rel(p) for p in earned_others))
+        + " (no IPD carrier, so approval is not required)",
+        _rel(earned_others[0]),
+        CARRIER_KIND_OTHER,
+    )
+
+
+def run_earned_paths(state: dict[str, Any]) -> list[str]:
+    """Every repo-relative path THIS run actually produced, across all attempts (E-04).
+
+    Two sources, both derived from git or from the lifecycle rather than from a model claim:
+    the per-attempt `changed_paths` (`git diff --name-only <starting_head>..<ending_head>`) and the
+    executed plan's own post-finalize path. An older run directory carrying neither simply earns
+    nothing, which fails closed."""
+    earned: list[str] = []
+    for item in state.get("queue", []) or []:
+        for key in ("earned_paths",):
+            for path in item.get(key) or []:
+                if path and path not in earned:
+                    earned.append(path)
+    return earned
+
+
+def collect_earned_paths(repo: Path, item: dict[str, Any]) -> list[str]:
+    """The repo-relative paths one item's turn produced: its diff plus its finalized plan path.
+
+    Best-effort by design (E-04 fails closed): a git failure yields fewer earned paths, which can
+    only ever WITHHOLD a close, never manufacture one."""
+    earned: list[str] = []
+    attempts = item.get("attempts") or []
+    for attempt in attempts:
+        start = attempt.get("starting_head")
+        end = attempt.get("ending_head")
+        if not start or not end or start == end:
+            continue
+        try:
+            out = run_checked(
+                ["git", "diff", "--name-only", f"{start}..{end}"], cwd=repo
+            )
+        except (DriverError, OSError):
+            continue
+        for line in out.splitlines():
+            path = line.strip()
+            if path and path not in earned:
+                earned.append(path)
+    last_plan = item.get("last_plan_path")
+    if last_plan:
+        try:
+            rel = str(Path(last_plan).resolve().relative_to(Path(repo).resolve()))
+        except ValueError:
+            rel = str(last_plan)
+        if rel not in earned:
+            earned.append(rel)
+    return earned
+
+
+def close_backlog_item(
+    repo: Path, item_path: Path, item_id6: str, evidence: str, message: str
+) -> tuple[int, str]:
+    """Close a backlog item `done` through the LIFECYCLE-OWNED setter, never by editing the file.
+
+    THE `--status` SPELLING IS DELIBERATE AND LOAD-BEARING (zhr6mc D1). `aw backlog set <status>
+    <selector>` (positional) dispatches to `status_set.run_set_command`, which does NOT run the
+    shared release-gate close predicate and cannot even accept `--evidence`; `aw backlog set
+    <selector> --status done` dispatches to `backlog.run_set`, which DOES call
+    `check_engine.evaluate_blocking_close` and REFUSES an illegitimate blocking close. Verified live:
+    a `graduated` item carrying `Blocks-Release: next` closed with NO evidence via the positional
+    form (exit 0) and was REFUSED via this one. The runner must be gated, so it uses this form; do
+    not "simplify" it back to the positional spelling.
+    """
+    cmd = pinned_module_argv(
+        [
+            "backlog",
+            "set",
+            item_id6,
+            "--status",
+            "done",
+            "--evidence",
+            evidence,
+            "--message",
+            message,
+            "--dir",
+            str(repo),
+            "--no-commit",
+        ]
+    )
+    # Launched through the SHARED `run_checked` rather than a fresh `subprocess.run`: it already
+    # carries the af7i6p tooling pin AND the ttywedge (g40w37) `stdin=DEVNULL` terminal denial, so this
+    # close cannot become the one nested-`aw` site that wedges on a prompt nobody can answer. Its
+    # nonzero contract is an exception, which is converted back to the (rc, message) pair the
+    # fail-closed caller needs.
+    try:
+        return 0, run_checked(cmd, cwd=repo)
+    except (DriverError, FileNotFoundError, OSError) as exc:
+        return 1, str(exc).strip()
+
+
+def commit_backlog_close(repo: Path, item_id6: str, message: str) -> str | None:
+    """Path-scoped-commit the item file the setter just MOVED, via the shared tooled commit path.
+
+    Returns the new commit sha, or None when nothing was committed.
+
+    WHY COMMIT AT ALL (zhr6mc D2): `aw backlog set` moves the file (graduated/ -> done/) and does
+    not commit, so leaving it would hand the next turn a dirty main tree -- which the `z2isfg`
+    begin-dirty gate and the `driverfin-03` dirty-overlap gate both consume, and which is precisely
+    the contamination those gates exist to stop.
+
+    WHY THIS HELPER: `git_commit_helper.offer_commit` snapshots the index BEFORE staging, stages only
+    the explicit paths, commits only the intersection of those paths with what it itself staged, and
+    on failure resets ONLY its own paths. That is the shared-checkout-safe path AGENTS.md prescribes;
+    a raw `git add` here could sweep in a co-worker's staged work.
+
+    The path set is filtered to entries whose BASENAME contains this item's id6, so a co-worker's
+    concurrent edit to a DIFFERENT backlog item can never be swept into the runner's commit.
+    """
+    from agent_workflows import git_commit_helper as _gch
+
+    # Only EXISTING backlog roots may be named. A pathspec that matches nothing makes `git status`
+    # exit nonzero ("did not match any files"), which `run_checked` turns into a DriverError, which
+    # this function suppresses -- so naming both layouts unconditionally made the commit silently
+    # never happen in any repo with only one of them (i.e. every real repo). Measured live.
+    roots = [
+        rel
+        for rel in (".aw/records/backlog", ".agents/backlog")
+        if (Path(repo) / rel).exists()
+    ]
+    if not roots:
+        return None
+    try:
+        # `-uall` is LOAD-BEARING. Git's default `--porcelain` collapses an untracked directory to the
+        # DIRECTORY entry (`?? .aw/records/backlog/done/`), whose basename carries no id6, so the
+        # id6 filter below silently matched nothing and the newly written item was never staged -- the
+        # move committed as a bare deletion, or not at all. Measured live before this flag was added.
+        # `-uall` lists the individual untracked FILE instead.
+        porcelain = run_checked(
+            ["git", "status", "--porcelain", "-uall", "--", *roots],
+            cwd=repo,
+        )
+    except (DriverError, OSError):
+        return None
+    paths: list[str] = []
+    for line in porcelain.splitlines():
+        # PARSE THE STATUS FIELD, DO NOT SLICE A FIXED WIDTH. `run_checked` returns a `.strip()`ed
+        # blob, so porcelain's leading space for an unstaged change is already gone: `" D <path>"`
+        # arrives as `"D <path>"`, and a blind `line[3:]` then ate the path's own first character,
+        # producing `aw/records/...` and a `git add` pathspec failure. Measured live. Splitting on the
+        # first run of whitespace after the 1-2 char status code is width-independent.
+        parts = line.strip().split(None, 1)
+        if len(parts) != 2:
+            continue
+        raw = parts[1].strip()
+        if not raw:
+            continue
+        # A rename/copy entry is `old -> new`; both sides belong to the same move.
+        for candidate in raw.split(" -> "):
+            candidate = candidate.strip().strip('"')
+            if (
+                candidate
+                and item_id6 in Path(candidate).name
+                and candidate not in paths
+            ):
+                paths.append(candidate)
+    if not paths:
+        return None
+    # FAIL CLOSED on a partial view: the setter MOVES the file, so a legitimate close always yields
+    # both sides (the deletion and the addition). Seeing only one means the porcelain view is not what
+    # this function assumes, and committing half a move would leave the tree worse than not committing
+    # at all. The item is already `done` on disk either way; the operator commits it.
+    if len(paths) < 2:
+        return None
+    try:
+        outcome = _gch.offer_commit(
+            repo,
+            paths,
+            message=message,
+            assume_yes=True,
+            interactive=False,
+        )
+    except Exception:
+        return None
+    return getattr(outcome, "commit", None)
+
+
+def process_backlog_close(
+    run_dir: Path, state: dict[str, Any], item: dict[str, Any]
+) -> None:
+    """After a plan reaches `executed`, close its backlog item if this run earned it (E-02/E-03/E-04).
+
+    Records the verdict on the queue item either way, so E-06 can report every item left open WITH
+    ITS REASON rather than merely noting that something did not happen.
+    """
+    item_id6 = item.get("from_backlog")
+    if not item_id6:
+        return
+    repo = Path(state["repo"])
+    item["earned_paths"] = collect_earned_paths(repo, item)
+    try:
+        verdict = evaluate_backlog_close(repo, item_id6, run_earned_paths(state))
+    except Exception as exc:  # fail closed: never let a close attempt break the run
+        item["backlog_close"] = {
+            "item": item_id6,
+            "closed": False,
+            "reason": f"close evaluation failed: {exc}",
+        }
+        return
+    record: dict[str, Any] = {
+        "item": item_id6,
+        "closed": False,
+        "reason": verdict.reason,
+        "rule": verdict.rule,
+        "evidence": verdict.evidence,
+    }
+    if not verdict.close:
+        item["backlog_close"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-item-left-open",
+                "id6": item["id6"],
+                "backlog_item": item_id6,
+                "reason": verdict.reason,
+            },
+        )
+        return
+    item_path = resolve_backlog_item(repo, item_id6)
+    if item_path is None:  # fail closed (raced away between evaluation and close)
+        record["reason"] = f"backlog item {item_id6} disappeared before the close"
+        item["backlog_close"] = record
+        return
+    message = (
+        f"closed by aw oc run: IPD {item['id6']} executed "
+        f"({verdict.reason}); evidence {verdict.evidence}"
+    )
+    rc, out = close_backlog_item(
+        repo, item_path, item_id6, verdict.evidence or "", message
+    )
+    if rc != 0:
+        # E-04 fail-closed: a refused setter leaves the item ALONE and the refusal is the reason.
+        record["reason"] = f"setter refused the close: {out or f'exit {rc}'}"
+        item["backlog_close"] = record
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-close-refused",
+                "id6": item["id6"],
+                "backlog_item": item_id6,
+                "detail": record["reason"],
+            },
+        )
+        return
+    record["closed"] = True
+    record["commit"] = commit_backlog_close(repo, item_id6, message)
+    item["backlog_close"] = record
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "backlog-item-closed",
+            "id6": item["id6"],
+            "backlog_item": item_id6,
+            "evidence": verdict.evidence,
+            "rule": verdict.rule,
+            "commit": record["commit"],
+        },
+    )
+    print(
+        Palette(should_color(sys.stdout))(
+            f"  \u2713 backlog item {item_id6} closed done (evidence {verdict.evidence})",
+            "green",
+        )
+    )
+
+
+def unclosed_backlog_items(state: dict[str, Any]) -> list[tuple[str, str]]:
+    """Every backlog item this run TOUCHED but did not close, as (item_id6, reason) pairs (E-06).
+
+    Scope is deliberately this run's own work, not the whole repository (zhr6mc OQ-02): a run
+    reporting on every open item would duplicate `aw attention`, which owns the cross-tree view. An
+    item whose plan never reached the close evaluation is reported with that as its reason, so a
+    linked item is never silently absent from the report.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in state.get("queue", []) or []:
+        item_id6 = item.get("from_backlog")
+        if not item_id6 or item_id6 in seen:
+            continue
+        record = item.get("backlog_close") or {}
+        if record.get("closed"):
+            seen.add(item_id6)
+            continue
+        reason = record.get("reason") or (
+            f"IPD {item.get('id6')} ended {item.get('status', 'unknown')}, so the close was "
+            f"never evaluated"
+        )
+        seen.add(item_id6)
+        out.append((item_id6, reason))
+    return out
+
+
+def render_unclosed_report(state: dict[str, Any]) -> str:
+    """The human-readable E-06 section, or '' when nothing is outstanding (print nothing then)."""
+    outstanding = unclosed_backlog_items(state)
+    if not outstanding:
+        return ""
+    pal = Palette(should_color(sys.stdout))
+    lines = ["", pal("--- Backlog items left open ---", "bold")]
+    for item_id6, reason in outstanding:
+        lines.append(f"  - {pal(item_id6, 'yellow')}: {reason}")
+    lines.append(
+        pal(
+            "  (this run's own items only; `aw attention` owns the cross-tree view)",
+            "dim",
+        )
+    )
+    return "\n".join(lines)
+
+
+def render_runs_pointer(state: dict[str, Any]) -> str:
+    """The E-07 trailing pointer. `aw runs <run-id>` is the real verb; `aw oc runs` does not exist."""
+    return f"Run `aw runs {state.get('run_id', 'run-...')}` for more info."
+
+
+def record_unclosed_backlog_items(run_dir: Path, state: dict[str, Any]) -> None:
+    """LEDGER FIRST (E-06): append the unclosed-item record BEFORE anything is printed.
+
+    Ordering is the whole point. A print can be truncated, redirected, or lost to an uncatchable
+    kill; the ledger append survives all three, so `aw runs <run-id>` can still answer "what did it
+    leave open?" when the terminal output cannot. Best-effort and never raising: this runs on the
+    shutdown path, where an exception would be worse than a missing line."""
+    outstanding = unclosed_backlog_items(state)
+    if not outstanding:
+        return
+    with contextlib.suppress(Exception):
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "backlog-items-left-open",
+                "items": [
+                    {"item": item_id6, "reason": reason}
+                    for item_id6, reason in outstanding
+                ],
+            },
+        )
+
+
+# --- bkclose (zhr6mc) E-05/E-06: the handler-safe shutdown report ---------------------------------
+#
+# WHY THIS IS A CALLABLE AND NOT A REGISTERED HANDLER (zhr6mc DEFERRED Q1).
+#
+# E-05 as authored asked this plan to install `signal.signal` handlers for SIGINT and SIGTERM in both
+# runner modules. It may not, and the reason is recorded rather than worked around: FOUR executed
+# plans installed guards that explicitly FORBID registering a handler (a `signal` `.signal(...)`
+# call) in these two files
+# (`tests/test_lane_allocation_idempotent.py`, `tests/test_runner_stop.py`,
+# `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`), reserving that
+# registration for `runstop` Phase 5 (`71vjbn`). One of those guards states the division of labor
+# verbatim: "`runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same
+# two files ... whichever plan registered last would silently win. This plan supplies the callable
+# those handlers will invoke, and installs none itself."
+#
+# The designs are also incompatible, not merely double-registered: `71vjbn` E-01/E-02 require SIGINT
+# to ESCALATE level 1 -> 3 -> 4 through `runner_stop.request_stop_nowait` and SIGTERM to REQUEST
+# LEVEL 3, whereas E-05 here wanted both to report and let the process die of the signal. Seizing the
+# registration would have deleted measured anti-deadlock protections (a handler deadlock plus a ~50%
+# lost-escalation race) and pre-empted the next plan in the very same run queue.
+#
+# So this plan supplies exactly the callable the guard describes, and reaches SIGINT through the
+# funnel that ALREADY exists (`except KeyboardInterrupt`), which needs no registration at all. When
+# `71vjbn` lands its handlers, each must call `emit_shutdown_report()` before recording its stop
+# request; that is a one-line addition inside handlers it is already writing.
+#
+# This is a SEPARATE mechanism from the escalating child-process kill sequence (the
+# `(signal.SIGINT, _SIGINT_GRACE_SECONDS)` / `(signal.SIGTERM, _SIGTERM_GRACE_SECONDS)` loop in the
+# shared reaper). That path signals CHILDREN and works; nothing about it is changed here.
+#
+# HANDLER DISCIPLINE, honored so `71vjbn` can call this from a real handler unchanged. Handlers run at
+# arbitrary points between bytecodes, so this routine does not acquire the run lock, does not call
+# `save_state`, and performs no blocking I/O beyond one ledger append and one print. It reads only
+# state already in memory, and it is idempotent so a repeated signal neither double-prints nor hangs.
+
+_SIGNAL_REPORT_STATE: dict[str, Any] = {}
+_SIGNAL_REPORT_DONE = threading.Event()
+
+
+def register_signal_report(run_dir: Path, state: dict[str, Any]) -> None:
+    """Publish the run's in-memory state for the signal handlers to report from."""
+    _SIGNAL_REPORT_STATE["run_dir"] = run_dir
+    _SIGNAL_REPORT_STATE["state"] = state
+
+
+def emit_shutdown_report(*, to_stderr: bool = False) -> None:
+    """Write the unclosed-item record, then print it and the `aw runs` pointer. IDEMPOTENT.
+
+    Idempotence is what makes a SECOND signal arriving mid-report safe: it neither double-prints nor
+    deadlocks, it simply returns. `threading.Event` is used rather than a lock precisely because a
+    handler must never block."""
+    if _SIGNAL_REPORT_DONE.is_set():
+        return
+    _SIGNAL_REPORT_DONE.set()
+    state = _SIGNAL_REPORT_STATE.get("state")
+    run_dir = _SIGNAL_REPORT_STATE.get("run_dir")
+    if not isinstance(state, dict) or run_dir is None:
+        return
+    stream = sys.stderr if to_stderr else sys.stdout
+    with contextlib.suppress(Exception):
+        record_unclosed_backlog_items(Path(run_dir), state)
+    with contextlib.suppress(Exception):
+        report = render_unclosed_report(state)
+        if report:
+            print(report, file=stream)
+        print(render_runs_pointer(state), file=stream)
+
+
+def signal_report_callback() -> Callable[[], None]:
+    """THE callable `runstop` Phase 5 (`71vjbn`) must invoke from its SIGINT/SIGTERM handlers.
+
+    Returned rather than registered, for the ownership reason recorded above: this plan may not call
+    `signal.signal` in these modules. The returned function is handler-safe (no lock, no
+    `save_state`, one ledger append plus one print) and idempotent, so `71vjbn` can call it first
+    thing in each handler and then proceed to record its stop request.
+
+    Prints to stderr, because a handler fires mid-run when stdout may be carrying streamed child
+    output."""
+
+    def _report() -> None:
+        emit_shutdown_report(to_stderr=True)
+
+    return _report
+
+
 # --- driverfin-02 (emus4n): per-run worktree isolation + integrate-back ---------------------------
 #
 # Each execute-action child runs in its OWN git worktree on a per-lane branch (via the reused
@@ -1593,6 +2235,11 @@ class PlanRecord(NamedTuple):
     dependencies: list[str]
     kind: str | None = None
     dependency_error: str | None = None
+    # bkclose (zhr6mc) E-01: the plan's `- From-Backlog:` id6, or None when the field is absent.
+    # Without this the runner could not know a backlog item was involved at all, so no automation
+    # could ever advance a `graduated` item to `done`. Read via `ipd_schema.META_FROM_BACKLOG`, never
+    # a local regex, so the runner and the checkers cannot disagree about the field name.
+    from_backlog: str | None = None
 
 
 def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
@@ -1606,6 +2253,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     order = _read_order(text)
     deps, dep_err = _read_item_dependencies(text)
     kind = _read_kind(text)
+    from_backlog = _read_from_backlog(text)
     m = _PLAN_FILENAME_RE.match(path.name)
     if m:
         if not setid:
@@ -1646,6 +2294,7 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
         dependencies=deps,
         kind=kind,
         dependency_error=dep_err,
+        from_backlog=from_backlog,
     )
 
 
@@ -1716,6 +2365,9 @@ def build_dynamic_manifest(
             "order": rec.order,
             "dependencies": rec.dependencies,
             "kind": rec.kind,
+            # bkclose (zhr6mc) E-01: carried through the manifest so the frozen queue entry can hold
+            # it. Additive; a hand-written manifest lacking the key simply links no item.
+            "from_backlog": rec.from_backlog,
         }
         sets_dict.setdefault(rec.setid, []).append(rec)
     sorted_sets: dict[str, Any] = {}
@@ -2245,6 +2897,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
 
         status = plan.get("status")
         p_path = None
+        rec = None
         try:
             p_path = resolve_plan_path(repo, plan.get("file", ""), id6)
             rec = parse_plan_file(p_path, repo)
@@ -2285,6 +2938,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 # `queue_sort_key`). Additive: an older run directory lacking the key still sorts
                 # (the comparator defaults it), so existing runs resume unchanged.
                 "order": plan.get("order"),
+                # bkclose (zhr6mc) E-01: the linked backlog item, frozen on the queue entry. Falls
+                # back to a direct read of the plan file when the manifest predates the key (a
+                # hand-written `tools/ipdrunner/*-driver-manifest.json` does), so an older manifest
+                # still gets the link rather than silently losing it.
+                "from_backlog": plan.get("from_backlog")
+                or (getattr(rec, "from_backlog", None) if p_path else None),
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"
@@ -4279,6 +4938,12 @@ def execute_item(
                         "green",
                     )
                 )
+                # bkclose (zhr6mc) E-02/E-03/E-04: the plan is now genuinely `executed` on main, so
+                # this is the exact moment the last carrier landed and the only moment a run can know
+                # it. Attempt the close here; `process_backlog_close` fails closed and records its
+                # reason either way, so a refusal is reported (E-06) rather than swallowed.
+                process_backlog_close(run_dir, state, item)
+                save_state(run_dir, state)
         else:
             attempt["finalize_refused"] = fin_msg
             item["finalize_refusal"] = fin_msg
@@ -4603,6 +5268,12 @@ def run_queue(
     run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
 ) -> int:
     state = load_state(run_dir)
+    # bkclose (zhr6mc) E-06: publish the live ledger for the shutdown report BEFORE any turn starts,
+    # so an interrupt at any point reports from real state. NO `signal.signal` registration here: it
+    # is owned by `runstop` Phase 5 (`71vjbn`) and guarded by four executed plans (see the ownership
+    # note on `signal_report_callback`). `register_signal_report` is called again after each state
+    # reload so the report never runs off a stale snapshot.
+    register_signal_report(run_dir, state)
     if output_mode is not None:
         state.setdefault("options", {})["output_mode"] = output_mode
         save_state(run_dir, state)
@@ -4674,6 +5345,10 @@ def run_queue(
         level = runner_stop.poll_stop(run_dir)
         state = load_state(run_dir)
         state["_invocation_start_mono"] = invocation_start_mono
+        # bkclose (zhr6mc) E-06: `state` is REBOUND to a fresh dict on every reload, so the handler's
+        # published reference must be refreshed or it would report from a stale snapshot taken before
+        # the turns that actually linked the items.
+        register_signal_report(run_dir, state)
         wind_down = _observe_between_turn_stop(run_dir, level, current_setid, wind_down)
         # 8guhs0 E-04: cascade FIRST. An item whose prerequisite already reached a non-success
         # terminal state can never become runnable, so mark it (and its dependents, transitively)
@@ -4884,6 +5559,12 @@ def run_queue(
     )
     print(render_continuation_hint(state, run_dir))
     state["_summary_table_printed"] = True
+    # bkclose (zhr6mc) E-06/E-07: the NORMAL-exit half of the shutdown report. `emit_shutdown_report`
+    # is the SAME idempotent routine the signal handlers use, so the normal and signal paths cannot
+    # drift apart, and whichever fires first suppresses the other. Ledger BEFORE print, so an
+    # uncatchable kill still leaves the answer on disk.
+    register_signal_report(run_dir, state)
+    emit_shutdown_report()
     # runstop 1qxuke (E-05): a DELIBERATE stop exits 0 without lying about the queue. The plain
     # predicate treats any non-success status, INCLUDING the `queued` items a level-1/2 stop
     # intentionally never started, as failure; spec A1/A4 require 0. The shared helper ignores
@@ -5301,8 +5982,12 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "json", False):
                 state = load_state(run_dir)
                 print(json.dumps(state, indent=2, sort_keys=True))
+                # bkclose (zhr6mc) E-07: NO pointer line here. `--json` output must stay parseable,
+                # so a trailing human sentence is suppressed for machine-readable modes; the same
+                # holds for `--agent`, which this driver does not expose (it forwards to a child).
                 return 0
             print_status(run_dir)
+            print(render_runs_pointer(load_state(run_dir)))
             return 0
         if args.command == "report":
             state = load_state(run_dir)
@@ -5366,6 +6051,14 @@ def main(argv: list[str] | None = None) -> int:
                     print(render_continuation_hint(state, run_dir))
             except Exception:
                 pass
+        # bkclose (zhr6mc) E-05/E-06/E-07: the shutdown report on the SIGNAL paths, emitted
+        # through the funnel that ALREADY exists rather than a `signal.signal` registration this
+        # plan may not make (see the ownership note on `signal_report_callback`). BOTH signals
+        # arrive here: CPython raises `KeyboardInterrupt` for SIGINT, and executed plan `bds6nd`
+        # registers the SIGTERM handler in `render_stream.install_exit_signal_handler`, which
+        # raises `KeyboardInterrupt("Terminated by SIGTERM")` from a module the guards do not
+        # cover. Ledger BEFORE print, and idempotent, so a repeated signal cannot double-report.
+        emit_shutdown_report(to_stderr=True)
         print(
             f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
             file=sys.stderr,
