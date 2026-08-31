@@ -4132,6 +4132,16 @@
   {
     "date": "2026-08-30",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
+    "plan_id": "iy5u3m",
+    "set_id": "boxstat",
+    "status": "approved"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md",

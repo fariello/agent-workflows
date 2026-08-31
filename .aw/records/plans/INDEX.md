@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 180 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 181 Sets; the full manifest is INDEX.json.
+
+## boxstat
+
+- `iy5u3m` [pending] 01 pending/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md
 
 ## detrun
 
@@ -196,12 +200,6 @@ Showing the 40 most-recent of 180 Sets; the full manifest is INDEX.json.
 - `g69y23` [executed] 01 executed/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md
 - `ovbnyq` [executed] 02 executed/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
 - `mp88bl` [executed] 03 executed/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md
-
-## rstodo
-
-- `dh5gnl` [executed] 00 executed/20260827-rstodo-00-dh5gnl-rename-research-status-intake-todo-intuitive-you-still-need.ipd.md
-- `p3o9je` [executed] 01 executed/20260827-rstodo-01-p3o9je-rename-the-intake-status-token-to-todo-across-the-research-c.ipd.md
-- `lpqy64` [executed] 02 executed/20260827-rstodo-02-lpqy64-migrate-existing-on-disk-research-docs-status-intake-todo-an.ipd.md
 
 ## (singletons: no Set)
 
