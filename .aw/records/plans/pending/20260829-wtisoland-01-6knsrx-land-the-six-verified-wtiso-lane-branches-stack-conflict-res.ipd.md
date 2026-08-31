@@ -17,6 +17,7 @@
 - From-Backlog: xmqv5l
 
 ## Workflow history
+- 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): retarget E-07/V-07/E-11 off the deleted `aw/lane/1o4eif` ref onto the durable commit `909eb007`; the lane was released early (0 ahead, tip an ancestor of main, uncommitted file byte-identical to main) so no evidence and no commit was lost. Scope/gating for the five UNMERGED lanes unchanged.
 - 2026-08-31 approved (aw set): status set to approved
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-011
 - 2026-08-30 to-review (aw set): status set to to-review
@@ -114,8 +115,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   landing and confirm its follow-up corrections `909eb007`/`e5b0f939` are present, then record that
   E-07 required no merge.
   - Depends on: E-06
-  - Expected outcome: `git merge-base --is-ancestor aw/lane/1o4eif main` succeeds and
-    `git rev-list --count main..aw/lane/1o4eif` is 0, with no new merge commit created.
+  - Expected outcome: `git merge-base --is-ancestor 909eb007 main` succeeds (the lane tip is an
+    ancestor of main), with no new merge commit created. NOTE: the `aw/lane/1o4eif` BRANCH was deleted
+    on 2026-08-31 once it was verified `0` ahead, so cite the commit `909eb007`, not the branch name.
   - Execution state: pending
 
 ### Task group 2: make the lifecycle record match reality
@@ -151,13 +153,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     for it remains `dependency-blocked`.
   - Execution state: pending
 - [ ] E-11 ONLY after E-09 and E-10 are verified, release the five still-unmerged lane worktrees and
-  branches, plus `1o4eif`'s now-redundant worktree. Until then nothing may prune `.aw/worktrees/`:
+  branches. `1o4eif`'s redundant worktree and branch are ALREADY RELEASED (2026-08-31, ahead of this
+  item): it was verified `0` commits ahead with its tip `909eb007` an ancestor of `main`, so releasing
+  it early destroyed nothing and this item no longer covers it. Its lane-side receipt was confirmed
+  identical to main's copy before removal, so no lane-side state was lost. The five UNMERGED lanes
+  remain strictly gated by this item. Until then nothing may prune `.aw/worktrees/`:
   teardown DESTROYS lane-side state (`dh0uno`) and the stack's **26** unique commits (F-1, not "~79",
   which double-counted a cumulative chain) are reachable only from those branches. Do not touch the
   nine unrelated lane worktrees belonging to other Sets.
   - Depends on: E-10
-  - Expected outcome: `git worktree list` no longer lists the six `wtiso` lanes, every lane commit is
-    an ancestor of `main`, and no non-`wtiso` worktree was removed.
+  - Expected outcome: `git worktree list` no longer lists any of the six `wtiso` lanes (`1o4eif` is
+    already gone as of 2026-08-31; this item removes the remaining five), every lane commit is an
+    ancestor of `main`, and no non-`wtiso` worktree was removed.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -451,10 +458,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-07 validates E-07
-  - Required evidence: paste `git merge-base --is-ancestor aw/lane/1o4eif main && echo LANDED` printing
-    `LANDED`, `git rev-list --count main..aw/lane/1o4eif` printing `0`, and
-    `git log --oneline --grep=1o4eif` showing `b08de37d`, `909eb007`, `e5b0f939` already on main.
-    Confirm in prose that NO new merge commit was created for this lane.
+  - Required evidence: paste `git merge-base --is-ancestor 909eb007 main && echo LANDED` printing
+    `LANDED`, `git rev-list --count 909eb007..main` printing a nonzero count (the lane tip is an
+    ancestor of main), and `git log --oneline --grep=1o4eif` showing `b08de37d`, `909eb007`,
+    `e5b0f939` already on main. Confirm in prose that NO new merge commit was created for this lane.
+    BRANCH DELETED 2026-08-31: `aw/lane/1o4eif` and its worktree were released early, ahead of E-11,
+    because the lane was `0` commits ahead with its tip `909eb007` already an ancestor of `main`, so
+    it held nothing unmergeable and no commit was lost by deleting the ref. Its one uncommitted file
+    was verified byte-identical to main's committed copy first. The evidence commands above therefore
+    cite the durable commit `909eb007` instead of the deleted branch name; a `aw/lane/1o4eif` ref
+    lookup now fails with `unknown revision`, which is expected and is NOT a validation failure.
   - Observed evidence:
   - Result: pending
 - [ ] V-08 validates E-08
