@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 194 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 
 ## apprvguard
 
@@ -19,6 +19,10 @@ Showing the 40 most-recent of 194 Sets; the full manifest is INDEX.json.
 ## setgraph
 
 - `4ot0r6` [executed] 01 executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md
+
+## worksequence
+
+- `i6015i` [pending] 01 pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md
 
 ## attcompact
 
@@ -183,10 +187,6 @@ Showing the 40 most-recent of 194 Sets; the full manifest is INDEX.json.
 ## rununify
 
 - `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
-
-## scopeattrib
-
-- `lbgzxg` [executed] 01 executed/20260829-scopeattrib-01-lbgzxg-finalize-attributes-only-paths-this-execution-owns-not-every.ipd.md
 
 ## (singletons: no Set)
 

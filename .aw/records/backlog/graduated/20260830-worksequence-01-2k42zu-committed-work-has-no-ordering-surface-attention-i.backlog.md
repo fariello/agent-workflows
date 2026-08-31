@@ -1,11 +1,12 @@
 - Id: 2k42zu
-- Status: open
+- Status: graduated
 - Set: worksequence
 - Priority: high
 - Work-Kind: feature
 - Summary: Committed work has no ordering surface: attention is an unordered set, roadmaps are explicitly non-commitments, and Item-Dependencies orders only plans
 
 ## Workflow history
+- 2026-08-31 graduated (aw set): Graduated to plan worksequence-01 (i6015i), carrying From-Backlog: 2k42zu. One of the item's OWN PREMISES is falsified: Item-Dependencies is NOT plan-only, it already accepts backlog and spec TARGETS (ITEM_DEP_TYPES = ipd/spec/backlog, verified live), and only the SOURCE side is plan-restricted. Also found that spec 25kzda 5.4 rule 4 ALREADY specifies a mixed-type order whose type rank queue_sort_key records as deliberately unimplemented because no non-plan item can enter a queue - a pre-authored TODO for exactly this surface. Q1 answered DERIVED (not a new artifact, not a backlog field), Q2 ephemeral-and-computed per the item's own staleness argument, Q3 yes it can be derived, Q4 satisfied by construction since the order consumes the same single scan. Maintainer rulings: rename attention -> aw next with old names as aliases; add --order-by/-o with the CURRENT sort as default (which preserves the xprio 'sort key unchanged' contract by construction rather than by renegotiation); absent sort values sort LAST, never hidden and never defaulted; and dependency depth is in scope because it is the only key that answers 'these six, in this order'. Deferred to its own plan: letting a backlog item DECLARE an edge (the real remaining gap).
 - 2026-08-30 created (aw backlog): Committed work has no ordering surface: attention is an unordered set, roadmaps are explicitly non-commitments, and Item-Dependencies orders only plans
 
 OBSERVED 2026-08-30, when the maintainer asked for "a checklist of items we need to work through" and
