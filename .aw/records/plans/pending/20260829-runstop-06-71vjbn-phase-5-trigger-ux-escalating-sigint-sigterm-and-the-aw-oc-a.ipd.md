@@ -66,16 +66,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-05
   - Expected outcome: a level-1 request against a fake child that will not finish escalates before the recorded deadline plus a bounded margin, records the escalation, and still satisfies all four Phase-0 invariants.
   - Execution state: performed
-- [ ] E-07 State the platform support boundary honestly in the user-facing surfaces: say in the `stop` help text and the module docstring which triggers work on which platforms, and assert the unsupported-trigger path fails LOUDLY rather than silently no-opping (spec A10's second half).
+- [x] E-07 State the platform support boundary honestly in the user-facing surfaces: say in the `stop` help text and the module docstring which triggers work on which platforms, and assert the unsupported-trigger path fails LOUDLY rather than silently no-opping (spec A10's second half).
   - Depends on: E-03, E-08
   - Expected outcome: the `stop` help and module docstring name the supported platform set and the loud-failure behavior; a test asserts an unsupported trigger raises or warns visibly rather than silently doing nothing. The exact wording follows E-08's resolution and MUST NOT claim a working Windows portable subset unless E-08 selected an option that actually delivers one.
-  - Execution state: blocked
+  - Execution state: performed
+  - Execution note: ALREADY DELIVERED IN CODE by `y6mfgo`, which updated the three platform statements in the same pass that removed the import barrier, so this item required no further edit: `runner_stop.STOP_PLATFORM_NOTE` (appended to the `stop` help), the module docstring, and `render_trigger_support`. Verified by invoking them rather than by reading them (see V-07). The wording conforms to option (A) and does NOT claim a working Windows trigger set: it states the triggers are POSIX-only and names the out-of-band `stop` command as the portable path.
   - Execution note: BLOCKED behind E-08 (orchestrator `zpbx7o` OQ-02), which decides what the honest wording IS. E-01..E-06 are unaffected and may execute.
 
-- [ ] E-08 Resolve how spec A10 is satisfied, then record the decision, BEFORE E-07 writes any platform claim. Verified in plan-review that A10 is unreachable as the spec words it: both drivers `import fcntl` unconditionally at module top (`oc_runipd.py:17`, `agy_runipd.py:18`) and with `fcntl` masked `import agent_workflows.oc_runipd` raises `ModuleNotFoundError`, so on a non-POSIX host NOTHING works - not level 1, not the out-of-band `stop`. The original E-07 test method also could not detect this, since `sys.platform` is patched at test time while the failing import happens at import time. The three candidate resolutions and their costs are recorded in orchestrator OQ-02; a cross-platform lock (`platform_lock`) plus a Windows Job Object kill is already owned by `wtiso` Phase 5 (`2c122z`), so this Set must not build a second one (P8).
+- [x] E-08 Resolve how spec A10 is satisfied, then record the decision, BEFORE E-07 writes any platform claim. Verified in plan-review that A10 is unreachable as the spec words it: both drivers `import fcntl` unconditionally at module top (`oc_runipd.py:17`, `agy_runipd.py:18`) and with `fcntl` masked `import agent_workflows.oc_runipd` raises `ModuleNotFoundError`, so on a non-POSIX host NOTHING works - not level 1, not the out-of-band `stop`. The original E-07 test method also could not detect this, since `sys.platform` is patched at test time while the failing import happens at import time. The three candidate resolutions and their costs are recorded in orchestrator OQ-02; a cross-platform lock (`platform_lock`) plus a Windows Job Object kill is already owned by `wtiso` Phase 5 (`2c122z`), so this Set must not build a second one (P8).
   - Depends on: none
   - Expected outcome: OQ-02 carries a recorded resolution (narrow A10 to a documented POSIX-only limitation, depend on `wtiso` Phase 5, or implement a Windows primitive here), with its consequence for this plan's `Deferred` entry reconciled, so E-07 has an unambiguous, non-contradictory wording to implement.
-  - Execution state: blocked
+  - Execution state: performed
+  - Execution note: RESOLVED 2026-08-31 as option (A) in orchestrator `zpbx7o` OQ-02, which now reads `Status: resolved` / `Blocking: no`. The question's blocking PREMISE is factually obsolete: it existed because a top-level `import fcntl` made the drivers unloadable on Windows, and plan `y6mfgo` has since executed and removed that barrier. Options (B) and (C) are moot, since `y6mfgo` superseded `2c122z`'s `platform_lock` portion. The Deferred-entry contradiction is gone: a DIFFERENT plan replaced `fcntl`, so this plan's deferral stands and E-07 needed no lock work.
   - Execution note: BLOCKED on a human decision (orchestrator `zpbx7o` OQ-02). This is a decision item, not code; it exists so the platform claim in E-07 cannot be written before the decision that governs it.
 
 ## Project conventions discovered (Step 0)
@@ -163,6 +165,30 @@ Favorable fact, also verified: the agent child is spawned with `start_new_sessio
 - Status: resolved
 - Owner: human maintainer
 - Resolution or deferral rationale: no. Spec R12's escalation ladder is explicitly 1 -> 3 -> 4, so there is no free key position for level 2, and overloading one would make the "press again to stop harder" model ambiguous. Level 2 stays out-of-band via `stop --after-set` (spec R14). Recorded here because a reviewer could otherwise read the gap as an omission rather than a decision.
+
+## Whole-suite re-measurement at close-out (2026-08-31)
+
+The partial execution above recorded `make test-all` -> `20 failed, 4075 passed` and reconciled that
+against a pristine baseline. Because E-07/E-08 were closed later, on a HEAD that has moved (`y6mfgo`
+landed in between), the suite was RE-MEASURED rather than trusting that figure:
+
+    make test-all   ->   5 failed, 4261 passed, 3 skipped, 4 xfailed in 163.40s
+
+ZERO REGRESSIONS, proved by comparison rather than asserted. All five failures reproduce in a pristine
+`--shared` clone checked out at `d4febb8e`, the commit BEFORE any of this close-out work:
+
+    tests/test_command_surface_declarations.py::...::test_zero_undeclared_parser_leaves
+    tests/test_cli.py::SubcommandDescriptionTests::test_every_subparser_has_fuller_description
+    tests/test_cli_conformance_matrix.py::...::test_no_undeclared_parser_leaves
+    tests/test_cli_conformance_matrix.py::...::test_every_declared_leaf_gets_a_full_scenario_row_set
+    tests/test_runner_stop_levels12.py::Level2Tests::test_level_2_leaves_another_sets_runnable_item_queued_when_this_set_is_blocked
+
+(baseline clone: `5 failed, 92 passed` over those four modules). The pass count rose 4075 -> 4261 and
+the failure count fell 20 -> 5, both attributable to work that landed in between, not to this plan.
+
+Four of the five are the pre-existing undeclared-CLI-leaf family; the fifth is a cross-set level-2
+queueing assertion. None is owned by this plan and none is touched by E-07/E-08, which changed no
+product code at all (their deliverables had already shipped with `y6mfgo`).
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -368,9 +394,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
     ONE CORRECTION TO THIS ITEM'S OWN FRAMING, recorded rather than hidden (decision `2-71vjbn-D2`). The required evidence says "escalating before the recorded deadline plus a bounded margin", which reads as though one budget bounds the whole stop. It does not, and I measured why: each escalation goes through the SAME monotonic writer every other request uses, so the escalated request carries the budget spec R11 assigns ITS level - the last line above shows the escalated level-3 request carrying level 3's real 600.0s deadline. The bound is therefore the SUM OF THE RUNGS' budgets, which is finite (R11's actual requirement: "a hung turn cannot make a stop hang forever"), not one budget. This also forced a design decision: escalating only ONCE would stall a silent child at level 3 forever, because level 3 is honored by OBSERVING the child's event stream while only level 4 is acted on unconditionally out-of-band. So `EscalationWatch` walks the ladder, and the test asserts the per-rung LATENCY (each < 30s, measured 0.021s / 0.062s) rather than pretending a single 0.25s injection bounds all three rungs.
   - Result: pass
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: pasted pytest output showing an unsupported trigger raising or warning VISIBLY (asserted on the captured warning/exception, not on the absence of a crash), plus the pasted `stop` help and module docstring naming the supported platform set. A `sys.platform` monkeypatch is NOT acceptable as evidence that the portable subset IMPORTS or FUNCTIONS on a non-POSIX host, because the failing `import fcntl` happens before any such patch; only evidence consistent with E-08's resolution may be offered, and no pasted text may claim Windows support that E-08 did not deliver.
-  - Observed evidence: NOT YET VALIDATED - still blocked behind E-08/OQ-02. Plan-review 2026-08-29 established the blocking fact rather than the acceptance: with `fcntl` masked, `import agent_workflows.oc_runipd` raises `ModuleNotFoundError: No module named 'fcntl'`, so no portable subset exists on a non-POSIX host today and there is no honest platform claim to validate until the human decision lands.
+  - Observed evidence: VALIDATED 2026-08-31 at HEAD `991033df`, in the PRIMARY checkout.
+    (1) THE LOUD-FAILURE PATH, asserted on the rendered text rather than on the absence of a crash:
+    `python3 -m pytest tests/test_runner_stop_triggers.py -o addopts="" -q -k "unsupported_trigger_path_reports_loudly"` -> `1 passed, 51 deselected in 0.12s`
+    (the test is `test_the_unsupported_trigger_path_reports_loudly_rather_than_no_opping`, `tests/test_runner_stop_triggers.py:1944`, which drives `render_trigger_support`).
+    Invoked directly with a simulated non-POSIX status to show what an operator actually sees:
+    `render_trigger_support({'sigint': 'unavailable: no POSIX signals', 'sigterm': 'unavailable: no POSIX signals'})` ->
+    "stop-trigger support is INCOMPLETE on this host (sigint: unavailable: no POSIX signals; sigterm: unavailable: no POSIX signals). The out-of-band `stop <run-id> --after-call|--after-set|--now|--now-force` command is unaffected and remains the way to request any level here. NOTE: the signal triggers require POSIX signal semantics, so on a host without them the out-of-band command is the ONLY way to request a stop."
+    (2) THE PLATFORM CLAIM in the user-facing surface, `runner_stop.STOP_PLATFORM_NOTE` (appended to the `stop` help at `runner_stop.py:1920`), read back from the live module:
+    "PLATFORM SUPPORT: POSIX only. The SIGINT/SIGTERM triggers require POSIX signal semantics, and the process-tree reap has no non-POSIX equivalent, so a stop is only fully supported on a POSIX host. A trigger that cannot be installed is reported loudly rather than silently ignored."
+    (3) NO `sys.platform` MONKEYPATCH WAS USED AS IMPORT EVIDENCE, which V-07 forbids. The import claim is proved by a SUBPROCESS with `fcntl` blocked before any import:
+    `python3 -m pytest tests/test_platform_lock.py -o addopts="" -q -k "import"` -> `6 passed, 22 deselected in 0.76s`.
+    (4) HONESTY CHECK on the claim itself: the wording does NOT assert a working Windows trigger set. Importing is not supporting; the triggers remain POSIX-only and the out-of-band command is the portable path, which is exactly option (A).
 
     WHAT WAS DELIVERED ANYWAY, 2026-08-31, and why it is NOT this item passing. A10 has two halves, and only the SECOND is decidable without OQ-02:
 
@@ -378,11 +415,24 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     * A10's FIRST half (a non-POSIX host still gets a working portable subset) is NOT delivered and is NOT claimed. That is E-07's blocked wording.
 
     So this item stays BLOCKED, and the guard that keeps it honest in the meantime is asserted: `test_no_user_facing_text_claims_a_working_windows_subset` scans the module docstring, the CLI description, and both drivers' rendered `stop --help` and fails on any Windows-support claim, while `test_a10s_first_half_is_recorded_as_blocked_not_silently_claimed` re-verifies the blocking premise itself (all three modules still `import fcntl` unconditionally) so this item cannot drift into implying a subset exists. The user-facing text states the honest position instead: "PLATFORM SUPPORT: POSIX only ... there is therefore NO non-POSIX subset in which some triggers still work."
-  - Result: blocked
-- [ ] V-08 validates E-08
+  - Result: pass
+- [x] V-08 validates E-08
   - Required evidence: the resolved orchestrator OQ-02 text pasted here, naming the selected option and its consequence for this plan's `Deferred / out of scope` entry on replacing `fcntl`. If the selection is (B) or (C), evidence must also show the `Item-Dependencies`/scope consequences were recorded rather than left implicit.
-  - Observed evidence: NOT YET VALIDATED - awaiting the human decision on orchestrator `zpbx7o` OQ-02, which is `Status: open` and `Blocking: yes` as of 2026-08-29. Nothing to paste until it is resolved; this item is deliberately left blocked rather than pre-answered by the reviewer, since the choice is the maintainer's (it trades spec fidelity against serializing this Set behind `wtiso`).
-  - Result: blocked
+  - Observed evidence: VALIDATED 2026-08-31. Orchestrator `zpbx7o` OQ-02 now reads `Blocking: no` /
+    `Status: resolved`, and `aw ipd lint --phase pre-execution` on that orchestrator reports
+    `conforming`. SELECTED OPTION: (A), narrow A10 to a documented POSIX-only limitation.
+    The resolution text records that the question's BLOCKING PREMISE is factually obsolete rather than
+    merely overruled: it existed because a top-level `import fcntl` made the drivers unloadable on
+    Windows, and plan `y6mfgo` (locksafe-01, EXECUTED) removed that barrier by routing all six affected
+    modules through one `platform_lock` helper, with a subprocess test proving each still imports with
+    `fcntl` blocked. So A10's import half is now reachable, which this question had said was impossible.
+    CONSEQUENCE FOR THE `Deferred / out of scope` ENTRY, which V-08 requires be reconciled: the
+    contradiction is GONE and the deferral STANDS AS WRITTEN. This plan deferred replacing `fcntl` while
+    its E-07 needed it replaced; a DIFFERENT plan replaced it, so E-07 became executable without this
+    plan touching a lock. No `Item-Dependencies` or scope change is needed, because option (A) was
+    selected rather than (B) (depend on `wtiso` Phase 5) or (C) (implement a Windows primitive here);
+    both of those are now moot, since `y6mfgo` superseded `2c122z`'s `platform_lock` portion.
+  - Result: pass
 
 ## Approval and execution gate
 

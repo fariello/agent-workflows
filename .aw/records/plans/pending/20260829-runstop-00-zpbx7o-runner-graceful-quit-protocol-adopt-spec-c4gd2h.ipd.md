@@ -125,10 +125,29 @@ Whole-Set verification (E-01), performed only after all six children are `execut
 
 ### OQ-02: How is spec A10 (the portable subset) honestly satisfied, given that the drivers cannot import at all on Windows?
 
-- Blocking: yes
-- Status: open
-- Owner: human maintainer
-- Context: This decides whether `71vjbn` E-07 is executable as written or must be rescoped. Spec A10 requires that "on a platform without POSIX signal semantics, the documented portable subset still provides level 1 and the out-of-band `stop` command, and the unsupported triggers fail loudly rather than silently doing nothing." That cannot hold as written: `oc_runipd.py:17` and `agy_runipd.py:18` do an unconditional `import fcntl`, and with `fcntl` masked `import agent_workflows.oc_runipd` raises `ModuleNotFoundError`, so on Windows the module does not load at all and NOTHING works, portable subset included. CI does run `windows-latest` (`.github/workflows/tests.yml:24`). `71vjbn` E-07 only monkeypatches `sys.platform`, which does not exercise the real import failure, while `71vjbn`'s own Deferred section rules out replacing `fcntl`; those two statements are mutually inconsistent. A cross-platform lock is ALREADY owned by `wtiso` Phase 5 (`2c122z`: `platform_lock` + a Windows Job Object process-tree kill), so this Set inventing one would duplicate it (P8). The candidate resolutions are: (A) narrow A10 for this Set to a DOCUMENTED POSIX-only limitation, rescoping E-07 to assert the honest failure mode and forbidding any claim of a working Windows subset; (B) make this Set depend on `wtiso` Phase 5 so A10 can be genuinely satisfied, which serializes runstop behind eight more plans; or (C) keep A10 as written and accept that `71vjbn` E-07 must implement a Windows lock primitive, contradicting its current Deferred entry. Until this is decided, `71vjbn` is NOT safely executable and the Set is NO-GO.
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED 2026-08-31 as option (A), NARROW A10 TO A DOCUMENTED POSIX-ONLY LIMITATION, and
+  note that the BLOCKING PREMISE OF THIS QUESTION IS NOW FACTUALLY OBSOLETE. The question was asked
+  because `import fcntl` at driver top level made the module unloadable on Windows, so no portable
+  subset could exist. Plan `y6mfgo` (locksafe-01) has since EXECUTED and removed that barrier: all six
+  modules that carried a top-level `import fcntl` now route locking through the single `platform_lock`
+  helper (backed by `filelock`), and `tests/test_platform_lock.py` proves in a SUBPROCESS with `fcntl`
+  blocked that every one of them still imports. So the import half of A10 is now genuinely reachable,
+  which is what this question said was impossible.
+  Option (B) is therefore unnecessary: the `wtiso` Phase 5 dependency it would have serialized this Set
+  behind is moot, because `y6mfgo` superseded that plan's `platform_lock` portion (recorded in
+  `2c122z`). Option (C) is likewise unnecessary and would now duplicate shipped code.
+  WHAT (A) STILL REQUIRES E-07 TO SAY, because importing is not supporting: the SIGINT/SIGTERM triggers
+  need POSIX signal semantics and the process-tree reap (`os.killpg`/`getpgid`) has no Windows
+  equivalent, so the TRIGGERS remain POSIX-only and the out-of-band `stop` command is the portable
+  path. E-07 MUST NOT claim a working Windows trigger set. The shipped wording already matches this
+  (`runner_stop.STOP_PLATFORM_NOTE` and `render_trigger_support`), both written by `y6mfgo`.
+  CONSEQUENCE FOR `71vjbn`'s DEFERRED ENTRY: the contradiction this question identified is gone. That
+  plan deferred replacing `fcntl` while E-07 needed it replaced; a DIFFERENT plan replaced it, so the
+  deferral stands as written and E-07 is executable without touching a lock.
+- Context (retained; its factual premise is superseded above): This decided whether `71vjbn` E-07 is executable as written or must be rescoped. Spec A10 requires that "on a platform without POSIX signal semantics, the documented portable subset still provides level 1 and the out-of-band `stop` command, and the unsupported triggers fail loudly rather than silently doing nothing." That cannot hold as written: `oc_runipd.py:17` and `agy_runipd.py:18` do an unconditional `import fcntl`, and with `fcntl` masked `import agent_workflows.oc_runipd` raises `ModuleNotFoundError`, so on Windows the module does not load at all and NOTHING works, portable subset included. CI does run `windows-latest` (`.github/workflows/tests.yml:24`). `71vjbn` E-07 only monkeypatches `sys.platform`, which does not exercise the real import failure, while `71vjbn`'s own Deferred section rules out replacing `fcntl`; those two statements are mutually inconsistent. A cross-platform lock is ALREADY owned by `wtiso` Phase 5 (`2c122z`: `platform_lock` + a Windows Job Object process-tree kill), so this Set inventing one would duplicate it (P8). The candidate resolutions are: (A) narrow A10 for this Set to a DOCUMENTED POSIX-only limitation, rescoping E-07 to assert the honest failure mode and forbidding any claim of a working Windows subset; (B) make this Set depend on `wtiso` Phase 5 so A10 can be genuinely satisfied, which serializes runstop behind eight more plans; or (C) keep A10 as written and accept that `71vjbn` E-07 must implement a Windows lock primitive, contradicting its current Deferred entry. Until this is decided, `71vjbn` is NOT safely executable and the Set is NO-GO.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
