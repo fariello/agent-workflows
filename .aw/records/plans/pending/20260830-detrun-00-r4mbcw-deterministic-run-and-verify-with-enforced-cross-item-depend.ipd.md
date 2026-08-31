@@ -6,16 +6,16 @@
 - Scope: Orchestrates the 5 child implementation plans of Set `detrun` implementing approved spec `25kzda` (`20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`). Defines the child plan sequence, dependency graph, integration validation, and Set completion criteria.
 - Scope-Paths: agent_workflows/**, tests/**, .aw/records/specs/**
 - Item-Dependencies: none
-- Status: approved
+- Status: to-review
 - Set: detrun
 - Order: 0
 - Highest E allocated: 05
 - Author: antigravity
 - Id: r4mbcw
-- Approval: 2026-08-30, human ("approved"): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-08-31 to-review (aw set): REVERTING MY OWN ERRONEOUS APPROVAL. I set this approved on 2026-08-30 from the maintainer's blanket instruction 'I APPROVE all the reviewed IPDs', which swept up a plan whose OWN newest /plan-review verdict is REJECT - NEEDS REPLAN. The --by-human attestation was real but the maintainer plainly did not intend to approve a do-not-execute plan; approving on status alone without reading each verdict was my mistake. Flagged by a peer agent (comms fyi 20260831-0126-01) and independently verified: all FIVE detrun plans carry REJECT, not just bmh754. Returning to to-review so 'approved' does not license a rebuild of shipped machinery.
 - 2026-08-30 approved (aw set, --by-human): Approved by the maintainer: 'I APPROVE all the reviewed IPDs' (2026-08-30 session, verbatim standing instruction before stepping away).
 - 2026-08-30 /plan-review (OpenCode its_direct/pt3-claude-opus-5-1m-us): PR-006 fix. Normalized this history block to NEWEST-FIRST, the order `ipd_lifecycle._plan_status_events` assumes (it reverses to derive oldest-first). As authored the block was oldest-first, so the derived event stream read `to-review -> draft` and `aw check plans` reported `check.lifecycle-transition-invalid` ("backwards transition") on all 6 detrun plans. Verified pre-existing at pre-review commit `d4d265b6` (6 findings) and 0 after this fix. Content of every entry is unchanged; only line order.
 - 2026-08-30 reviewed (aw set): plan-review: REJECT - NEEDS REPLAN (most of Set already shipped; collides with 3 approved Sets)
