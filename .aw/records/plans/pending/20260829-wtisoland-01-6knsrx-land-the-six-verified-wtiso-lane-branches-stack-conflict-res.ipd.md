@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Six verified `wtiso` phases are committed ONLY on unmerged lane branches; landing them requires resolving a semantic conflict with `451739c` and re-issuing begin receipts, neither of which the stranded run can do for itself.
 - Scope: Integrate the verified `wtiso` lane branches into `main` and finalize their plans, by (a) resolving the `Statusline`-vs-`TurnBounds` collision in both drivers' turn loops, (b) re-issuing begin receipts so `finalize` stops refusing on a schema-v1 digest, and (c) driving each plan to its terminal lifecycle state. Does NOT change the design of any `wtiso` phase.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/cli.py, agent_workflows/ipd_lifecycle.py, tests/test_wtiso_adversarial.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
 - Item-Dependencies: none
 - Status: approved
 - Blocks-Release: next
@@ -352,33 +352,58 @@ carry their own doc updates (e.g. `docs/wtiso-state-taxonomy.md` on `58ha43`).
 
 ### OQ-04: May this plan edit the four conflicting paths outside its declared `Scope-Paths`?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-004
-- Resolution or deferral rationale: F-13 shows resolving the merge REQUIRES editing `worktree_lease.py`,
-  `cli.py`, `ipd_lifecycle.py`, and `tests/test_wtiso_adversarial.py`, none of which are in
-  `Scope-Paths`, while the plan's own gate forbids touching anything outside it. The plan is therefore
-  self-contradictory as written and cannot complete legally. Options: (a) widen `Scope-Paths` to the
-  measured conflict set, which is honest but broadens the scope fence to core lifecycle and CLI code;
-  or (b) split the out-of-scope resolutions into a separate child IPD. The maintainer must pick, since
-  widening a scope fence to `ipd_lifecycle.py` is a real risk decision, not bookkeeping.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER (2026-08-31): option (a), WIDEN
+  `Scope-Paths` to EXACTLY the four measured paths and no more. The four are now declared:
+  `agent_workflows/worktree_lease.py`, `agent_workflows/cli.py`, `agent_workflows/ipd_lifecycle.py`,
+  `tests/test_wtiso_adversarial.py`. The fence remains a real boundary: it was widened by ENUMERATION
+  against a measurement, not converted into a general licence, and anything beyond these four is still
+  a STOP-and-report.
+  Why (b), splitting into a child IPD, was rejected on evidence rather than taste: a git merge is
+  ATOMIC PER FILE, and the conflicts in these four paths belong to the SAME single merge as the
+  in-scope ones. Two plans would therefore have to coordinate inside one uncommittable intermediate
+  state (you cannot commit a file that still carries conflict markers), so the split is bookkeeping
+  that looks safer while being harder to execute correctly.
+  Risk accepted knowingly, and the reason it is acceptable: measured at the time of the ruling, the two
+  sensitive files carry the SMALLEST conflicts of the six (`cli.py` 1 hunk, `ipd_lifecycle.py` 1 hunk,
+  against 9 each in the two runner modules). The work is conflict RESOLUTION, not new design in the
+  lifecycle machinery. `ipd_lifecycle.py` is the gated completion transaction, so an executor editing
+  it is editing the machinery that polices completion; that is why every resolution must still pass the
+  full suite and carry a per-hunk statement of which side was chosen and why (V-02/V-03/V-04).
+  SEQUENCING NOTE, from OQ-02's answer: under phase-by-phase landing the exposure is staged rather than
+  immediate. Measured first-touch: `tests/test_wtiso_adversarial.py` arrives in phase 1 (`qcqhj7`),
+  `cli.py` and `ipd_lifecycle.py` in phase 2 (`rchpms`), and `worktree_lease.py` not until phase 5
+  (`2c122z`). So phase 1 needs only ONE of the four.
 
 ### OQ-02: Should the stack land as one merge or be replayed phase by phase?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-002
-- Resolution or deferral rationale: PROMOTED TO BLOCKING by review. It was classified non-blocking on
-  the belief that the conflict was 3 hunks; F-7's re-verification shows **26 hunks across 6 paths, 55
-  files, +16902/-837**. At that size the choice stops being stylistic: one merge means a single commit
-  that no reviewer can meaningfully audit, and F-15 is the empirical warning, since even the CLEAN
-  `1o4eif` merge still required `909eb007` to close two fail-OPEN holes afterwards. Replaying per phase
-  costs resolving propagating conflicts up to five times but yields five auditable integration points
-  with a working suite at each. The original recommendation (one merge) is no longer supported by the
-  evidence that produced it, and the maintainer must choose before E-02 begins because the answer
-  changes the shape of E-02 through E-06.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER (2026-08-31): PHASE BY PHASE, in stack
+  order, with the FULL SUITE GREEN before each next merge. E-02 through E-06 take that shape.
+  The evidence that decided it, measured read-only with `git merge-tree` (working tree untouched):
+  phase-by-phase does not merely spread the same work out, it genuinely REDUCES what is faced at each
+  step. Merging only phase 1 (`qcqhj7`) conflicts in 3 files / 9 hunks (3 `oc_runipd.py`,
+  5 `agy_runipd.py`, 1 `tests/test_wtiso_adversarial.py`). Merging the whole stack at once conflicts in
+  6 files / 26 hunks, including 9 in EACH runner module.
+  Stack shape re-verified at the ruling: it is a STRICT LINEAR stack (`qcqhj7` -> `rchpms` -> `7p9n2v`
+  -> `58ha43` -> `2c122z`, each an ancestor of the next, confirmed by `git merge-base --is-ancestor`),
+  and the per-lane counts 3/10/16/22/26 are CUMULATIVE, so the stack is 26 unique commits. The "~79
+  commits" figure that circulated in the handoff double-counts by summing cumulative counts and must
+  not be repeated.
+  Second reason, which reinforces the first: phase-by-phase STAGES the OQ-04 fence exposure instead of
+  taking it all at once. Phase 1 needs only the test file; `cli.py`/`ipd_lifecycle.py` first arrive in
+  phase 2; `worktree_lease.py` not until phase 5.
+  Cost accepted, stated plainly: five rounds of conflict resolution, five full-suite runs, and five
+  opportunities for another session to move `main` underneath the sequence. Therefore RE-MEASURE the
+  conflict set immediately before EACH merge rather than trusting a count from an earlier step, and
+  keep each merge its own commit so a failure is attributable to one phase rather than to a 26-hunk
+  blob. The original one-merge recommendation is superseded and must not be silently restored.
 
 ## Validation and cross-check (verify before reporting done)
 
