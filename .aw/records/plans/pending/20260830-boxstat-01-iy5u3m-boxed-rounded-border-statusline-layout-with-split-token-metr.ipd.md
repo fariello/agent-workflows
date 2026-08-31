@@ -33,21 +33,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [x] E-01 Update `format_statusline_lines` and `format_statusline` in `agent_workflows/render_stream.py` to compute exact column widths, top border, header row, value row, and bottom border with token sub-columns.
   - Depends on: none
   - Expected outcome: `format_statusline_lines` returns `(top, l1, l2, bot)` matching the exact layout specification.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 2: Sticky Terminal Redraw Integration
 
 - [x] E-02 Update `Statusline.redraw`, `Statusline.clear`, and `Statusline.write_event` in `agent_workflows/render_stream.py` to handle the 4-line terminal buffer span (`[3A`).
   - Depends on: E-01
   - Expected outcome: Sticky statusline redraws, clears, and logs events cleanly across all 4 lines without terminal artifacts.
-  - Execution state: complete
+  - Execution state: performed
 
 ### Task group 3: Test Suite Updates
 
 - [x] E-03 Update `tests/test_render_stream.py` and `tests/test_stall_countdown_display.py` to verify the boxed layout, column alignment, color styling, and non-TTY handling.
   - Depends on: E-01, E-02
   - Expected outcome: All unit tests pass 100% clean.
-  - Execution state: complete
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -98,17 +98,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - [x] V-01 validates E-01
   - Required evidence: Test showing `format_statusline_lines` generates all 4 lines with exact character-level alignment matching the user template.
   - Observed evidence: Verified in `test_format_statusline_exact_layout` and `test_format_statusline_user_example_box_layout` in `tests/test_render_stream.py`.
-  - Result: verified
+  - Result: pass
 
 - [x] V-02 validates E-02
   - Required evidence: Unit test verifying non-TTY and sticky redraw handling with 4 lines.
   - Observed evidence: Verified with `test_statusline_write_event_non_tty` and `test_statusline_update_item_and_touch` in `tests/test_render_stream.py`.
-  - Result: verified
+  - Result: pass
 
 - [x] V-03 validates E-03
   - Required evidence: Full test suite passes with pasted output.
   - Observed evidence: `3655 passed, 3 skipped, 4 xfailed in 55.95s` and clean leak check.
-  - Result: verified
+  - Result: pass
 
 ## Approval and execution gate
 
