@@ -62,8 +62,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   context managers; and gate ONLY `watchdog.touch()` + `bounds.note_progress()` behind
   `is_meaningful_event(line)`, preserving the lane's permission-deadline call and its
   `if bounds.check_now(): break`. Rationale is F-9. Do NOT reintroduce the lane's `Heartbeat`: neither
-  side defines it locally any more; both import from `render_stream` (`oc_runipd.py:57`). Resolve the
-  background-poller question per OQ-03 before marking this done.
+  side defines it locally any more; both import from `render_stream` (`oc_runipd.py:57`). The background-poller question is RESOLVED (OQ-03): do NOT gate the poller;
+  leave `stall_progress` and the poller callback untouched. Its own `classify_progress` filter already
+  enforces the same policy on a different data source.
   - Depends on: E-01
   - Expected outcome: the `run_opencode` hunk is resolved with all four mechanisms (statusline,
     watchdog+gating, bounds, poller/force-stop) intact, and `watchdog.touch()` inside the stream loop
@@ -298,33 +299,56 @@ carry their own doc updates (e.g. `docs/wtiso-state-taxonomy.md` on `58ha43`).
 
 ### OQ-01: Is combining Statusline with TurnBounds the resolution the maintainer wants?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: E-01/E-02 propose keeping BOTH sides, justified by F-9 (the
-  liveness bound and the display have opposite reset requirements). This is a design call in the
-  maintainer's own most recent commit (`451739c`), so it needs their ruling before execution. The two
-  rejected alternatives, recorded so they are not silently re-litigated: (a) keep main's `Statusline`
-  and DROP the lane's bounds, which reintroduces the wedged-turn defect `wtiso-02` E-05(b) fixed;
-  (b) revert `451739c` to take the lane wholesale, which discards the maintainer's newest work.
-  SCOPE UPDATE from review: main's side of this hunk has grown from `451739c` alone to also carry the
-  `stallfp kaga7s` poller and the `runstop foi1b3`/`m0z0ti` stop machinery (F-8), so the ruling needed
-  is over FOUR mechanisms, not two.
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER (2026-08-31): KEEP BOTH, exactly as
+  E-01/E-02 propose. The statusline refreshes on EVERY line; the watchdog reset becomes CONDITIONAL.
+  The ruling covers all FOUR mechanisms named in the corrected F-8 (statusline, watchdog+gating,
+  turn bounds, and the poller/force-stop machinery main gained after the lane was authored): all four
+  are preserved, none is dropped.
+  Why this is a small edit rather than a merge of two designs, verified in main at the time of the
+  ruling: the two concerns are ALREADY separate calls to separate objects sitting on adjacent lines
+  (`statusline.touch("stdout")` then `watchdog.touch()` in the stream loop; and `watchdog.touch()`
+  then `statusline.touch("subagent")` in the poller callback). So "combining" means only that the
+  WATCHDOG call is wrapped in the meaningfulness check while the STATUSLINE call stays unconditional.
+  A display timer and a liveness bound are two different consumers of one event stream with opposite
+  reset requirements, not competing designs.
+  Both alternatives remain REJECTED, recorded so they are not silently re-litigated: (a) keep main's
+  `Statusline` and DROP the lane's bounds, which reintroduces the wedged-turn defect `wtiso-02`
+  E-05(b) fixed; (b) revert `451739cd` to take the lane wholesale, which discards the maintainer's
+  newest display work AND would have to re-drop the poller plus both runstop stop-levels that landed
+  after the lane.
 
 ### OQ-03: Must the background subagent poller also be gated by `is_meaningful_event`?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-003
-- Resolution or deferral rationale: F-9 shows main gained a SECOND unconditional `watchdog.touch()`
-  after the lanes were authored: the `stallfp kaga7s` poller touches the watchdog from a background
-  thread (`oc_runipd.py:3452-3454`). Gating only the in-loop call, as E-02 does, therefore does NOT
-  fully close the wedged-turn defect the lane exists to fix, so the plan would land a partial fix while
-  claiming a complete one. But gating the poller risks re-breaking `kaga7s`, whose whole purpose is to
-  keep a legitimately-working subagent turn alive. The two features have genuinely opposed
-  requirements and the call is the maintainer's. This review will not silently choose, because either
-  choice can kill a healthy turn or hang a wedged one.
+- Resolution or deferral rationale: RESOLVED (maintainer ruling 2026-08-31, on measured evidence):
+  NO. Gate ONLY the in-loop `watchdog.touch()`; leave the `stallfp kaga7s` poller UNCHANGED. The
+  review was right to refuse to choose silently, but the premise that the poller resets the watchdog
+  on "best-effort log evidence" understates what it already does, and MEASUREMENT narrowed the
+  question to nothing:
+  (1) the poller ALREADY filters. `stall_progress.classify_progress` counts only
+  `PROGRESS_MESSAGE_KINDS` agent-loop lines and explicitly discards housekeeping, documented in-module
+  as ensuring a "permission-deadlocked (but still chatty) process is NOT mistaken for a progressing
+  one" - which is precisely the wedged-turn property this OQ feared was missing.
+  (2) it also counts only lines it has PROVEN belong to a child session of THIS turn (two-hop
+  attribution: a `created` announcement naming our parent, then per-line session matching), so
+  unrelated log traffic cannot reset our bound.
+  (3) applying `is_meaningful_event` to it would be a CATEGORY ERROR: that predicate parses each line
+  as a JSON event and returns False on anything unparseable, whereas the poller reads opencode's
+  plain-text log. It would reject essentially every poller line and thereby re-break the sub-task
+  keepalive the poller exists to provide - the exact `kaga7s` regression this OQ warned about.
+  So the two mechanisms already implement the same policy against two different data sources, and the
+  correct action is to leave the poller alone rather than to unify them.
+  HONEST RESIDUAL RISK, recorded rather than hidden: if a stuck turn's only output is agent-loop-shaped
+  log lines from a still-live child, the poller can still hold the turn open. By the poller's own
+  definition that child IS progressing, so this is arguably correct behavior; if it ever proves to be a
+  real failure mode in practice, it needs its own plan and a log-line-specific notion of progress, NOT
+  a reuse of `is_meaningful_event`.
 
 ### OQ-04: May this plan edit the four conflicting paths outside its declared `Scope-Paths`?
 
