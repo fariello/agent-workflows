@@ -384,13 +384,30 @@ class TestDriverSymmetry(unittest.TestCase):
             self.assertIn("except KeyboardInterrupt:", source, module.__name__)
             self.assertIn("reclaim_lanes_on_interrupt(", source, module.__name__)
 
-    def test_neither_driver_registers_a_signal_handler(self):
-        # `runstop` Phase 5 (`71vjbn`, approved) OWNS SIGINT/SIGTERM registration in these same two
-        # files per spec `c4gd2h` R12/R13, and whichever plan registered last would silently win.
-        # This plan supplies the callable those handlers will invoke, and installs none itself.
+    def test_lane_reclamation_survives_the_runstop_signal_handlers(self):
+        # CONSCIOUSLY UPDATED by `runstop` Phase 5 (`71vjbn`), not deleted.
+        #
+        # This test was authored as "neither driver registers a signal handler", because Phase 5 OWNED
+        # that registration and whichever plan registered last would silently win. Phase 5 has now
+        # landed it, so the reservation has been redeemed rather than violated.
+        #
+        # It is not simply removed, because this plan's real stake is different and still live: lane
+        # reclamation hangs off the drivers' `except KeyboardInterrupt` path, and installing a SIGINT
+        # handler SUPPRESSES the default `KeyboardInterrupt` that path depends on. Phase 5's recorded
+        # decision is to PRESERVE it - the terminal rung of the ladder re-raises `KeyboardInterrupt`,
+        # so lane reclamation still runs on a third Ctrl-C exactly as it did on the first one before.
+        # That is what is asserted here now.
         for module in (OC, AGY):
             source = Path(module.__file__).read_text(encoding="utf-8")
+            # Registration goes through the shared installer, so no two plans can race for the signal.
+            self.assertIn(
+                "runner_stop.install_stop_signal_handlers(", source, module.__name__
+            )
             self.assertNotIn("signal.signal(", source, module.__name__)
+            # And the path this plan owns is still reachable: something must still RAISE
+            # `KeyboardInterrupt` for `reclaim_lanes_on_interrupt` to be invoked at all.
+            self.assertIn("raise KeyboardInterrupt(", source, module.__name__)
+            self.assertIn("reclaim_lanes_on_interrupt(", source, module.__name__)
 
 
 class TestReclamationPreservesWorkAndReclaimsOnlyEmpty(unittest.TestCase):

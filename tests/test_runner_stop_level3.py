@@ -747,11 +747,45 @@ class BothDriversWireLevel3Tests(unittest.TestCase):
             "the checkpoint parse must run before (and independently of) the clean-mode render",
         )
 
-    def test_no_signal_handler_is_registered_yet(self):
-        # Phase 5 (`71vjbn`) owns the trigger UX; a handler here would bypass the monotonic writer's
-        # handler-safe entry point and reintroduce the measured deadlock.
+    def test_the_signal_handler_uses_only_the_handler_safe_writer(self):
+        # CONSCIOUSLY REPLACED by runstop Phase 5 (`71vjbn`), not deleted.
+        #
+        # As authored by Phase 3 this asserted `signal.signal(` appeared in NEITHER driver, reserving
+        # SIGINT/SIGTERM registration for Phase 5. Phase 5 has now landed it, so the absence check is
+        # superseded by the phase it was holding room for. It must not merely be dropped, and it must
+        # ALSO not be left as-is: Phase 5 installs its handler from the SHARED `runner_stop` module, so
+        # the original assertion would now pass VACUOUSLY (both drivers still contain no literal
+        # `signal.signal(`) while asserting nothing at all - the worst outcome, a green test with no
+        # meaning.
+        #
+        # The live invariant underneath was never really "no handler"; it was "no handler that takes the
+        # BLOCKING writer", because Phase 1 MEASURED a blocking sidecar-lock acquire deadlocking a
+        # handler outright (it entered, hung, and was killed at a 10s timeout). So that is what is
+        # asserted now, on the real installer.
+        import inspect
+
+        source = inspect.getsource(runner_stop.install_stop_signal_handlers)
+        self.assertIn(
+            "request_stop_nowait(",
+            source,
+            "a signal handler must use the handler-SAFE writer (Phase 1's E-06)",
+        )
+        self.assertNotIn(
+            "request_stop(",
+            source.replace("request_stop_nowait(", ""),
+            "a signal handler must never call the blocking-retry writer: Phase 1 measured that "
+            "deadlocking the process outright",
+        )
+        # And the drivers must reach signals only through that shared installer, never by registering
+        # their own handler beside it (which is how two phases' handlers would silently race).
         for name in ("oc_runipd.py", "agy_runipd.py"):
-            self.assertNotIn("signal.signal(", self._source(name))
+            driver_src = self._source(name)
+            self.assertIn("runner_stop.install_stop_signal_handlers(", driver_src, name)
+            self.assertNotIn(
+                "signal.signal(",
+                driver_src,
+                f"{name}: register signals through the shared installer, not directly",
+            )
 
     def test_no_new_ledger_substrate_was_introduced(self):
         for name in ("oc_runipd.py", "agy_runipd.py"):
@@ -1296,18 +1330,48 @@ class BudgetBreachDetectionTests(_InvariantAssertions):
                 60.0,
                 f"the driver did not bound its wait: {run.elapsed:.2f}s elapsed",
             )
-            # No ESCALATION ACTION was taken here: the durable request is still level 3.
+            # CONSCIOUSLY NARROWED by runstop Phase 5 (`71vjbn`), not deleted (orchestrator CID-4's
+            # discipline: update a pinned expectation, never drop it).
+            #
+            # As authored by Phase 3 this asserted that the durable request was STILL LEVEL 3 after the
+            # breach, with the rationale "this phase must not raise the level; Phase 5 owns escalation".
+            # That was the correct fence WHILE Phase 5 was unwritten: it stopped Phase 3 from
+            # implementing the escalation early. Phase 5 has now landed the ESCALATION (spec R11/A7)
+            # and it is armed for the whole turn, so the level in force after a breach is legitimately
+            # HIGHER than 3 - by exactly the mechanism this line was reserving room for.
+            #
+            # What is still live, and is asserted instead, is the property that actually protects this
+            # phase's contract: the BREACH EVENT this phase writes must keep saying it performed no
+            # escalation itself (`escalation_performed: False`, asserted above), so the two phases'
+            # records stay distinguishable and neither claims the other's work (spec R23). The
+            # escalation ACTION now has its own positive evidence in
+            # `tests/test_runner_stop_triggers.py::BudgetEscalationEndToEndTests`, which observes real
+            # behavior rather than re-pinning it here.
             request = runner_stop.read_stop_request(run.run_dir)
             self.assertIsNotNone(request)
             assert request is not None
-            self.assertEqual(
+            self.assertGreaterEqual(
                 request.level,
                 3,
-                "this phase must not raise the level; Phase 5 owns escalation",
+                "the breach must never LOWER the level in force (spec R9)",
             )
+            escalations = run.events_named("stop-escalated")
+            for event in escalations:
+                self.assertTrue(
+                    event["escalation_performed"],
+                    "an escalation event must only be written by the phase that PERFORMED it",
+                )
+                self.assertGreater(event["level"], event["from_level"])
             # And no checkpoint was ever reached, so nothing may claim a checkpoint stop.
             self.assertEqual(run.events_named("deliberate-stop-at-checkpoint"), [])
-            self.assert_no_unknown_outcome(run)
+            # `assert_no_unknown_outcome` is DELIBERATELY not called here any more, for the same
+            # Phase-5 reason as above, and this is the one place the narrowing changes an outcome
+            # rather than just a level. Once the breach escalates to level 4, the turn is cut at an
+            # UNOBSERVED point, so `unknown_outcome` is the honest record - spec R18 requires exactly
+            # that, and claiming KNOWN certainty for a turn nobody observed finishing would be the
+            # fabrication spec R22 forbids. Level 3's own certainty contract is unchanged and is still
+            # asserted on every OTHER level-3 test in this suite (all of which reach a real
+            # checkpoint); it simply does not apply to a request that escalated away from level 3.
             self.assert_phase0_invariants(run, tree_before)
 
     def test_no_breach_is_recorded_when_a_checkpoint_is_reached_in_time(self):
@@ -1373,10 +1437,23 @@ class ScopeFenceTests(unittest.TestCase):
         # And level 3's status must not have been quietly swapped for a level-4 concept.
         self.assertEqual(runner_stop.STOPPED_DISPOSITION, "interrupted")
 
-    def test_no_cli_verb_was_added(self):
+    def test_the_cli_verb_belongs_to_phase_5_and_is_declared_once(self):
+        # CONSCIOUSLY REPLACED by runstop Phase 5 (`71vjbn`), not deleted, and for the same reason as
+        # the handler fence above: Phase 3 asserted `add_parser("stop"` appeared in neither driver, to
+        # reserve the verb for Phase 5. Phase 5 has landed it through the SHARED declaration, so the
+        # original text check would now pass VACUOUSLY - green, and asserting nothing.
+        #
+        # The live invariant is that the verb exists ONCE and both drivers use that one (orchestrator
+        # CID-3: the same verb on both hosts, not two that happen to agree today).
+        self.assertTrue(callable(runner_stop.add_stop_parser))
         for name in ("oc_runipd.py", "agy_runipd.py"):
             source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
-            self.assertNotIn('add_parser("stop"', source)
+            self.assertIn("runner_stop.add_stop_parser(", source, name)
+            self.assertNotIn(
+                'add_parser("stop"',
+                source,
+                f"{name}: the `stop` verb must come from the shared declaration, not a local copy",
+            )
 
     def test_no_agent_prompt_or_handshake_change(self):
         # Spec OQ-01's resolution explicitly rejected agent cooperation: the checkpoint is observed
