@@ -3894,6 +3894,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
+    "plan_id": "iy5u3m",
+    "set_id": "boxstat",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md",
     "plan_id": "bds6nd",
     "set_id": "exittbl",
@@ -4128,16 +4138,6 @@
     "plan_id": "6knsrx",
     "set_id": "wtisoland",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
-    "plan_id": "iy5u3m",
-    "set_id": "boxstat",
-    "status": "approved"
   },
   {
     "date": "2026-08-30",

@@ -6,8 +6,7 @@
 - Scope: Refactor `format_statusline_lines`, `format_statusline`, and `Statusline` in `agent_workflows/render_stream.py` to render the 4-line rounded border table box with dedicated token sub-columns and header countdown positioning, and update test suites.
 - Scope-Paths: agent_workflows/render_stream.py, tests/test_render_stream.py, tests/test_stall_countdown_display.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user requested implementation)
+- Status: executed
 - Set: boxstat
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +14,7 @@
 - Id: iy5u3m
 
 ## Workflow history
+- 2026-08-31 executed (antigravity): Render 4-line boxed statusline with token sub-columns and countdown headers [Scope reconciliation - in-scope-unmodified agent_workflows/render_stream.py: acknowledged; in-scope-unmodified tests/test_render_stream.py: acknowledged; in-scope-unmodified tests/test_stall_countdown_display.py: acknowledged]
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored complete plan.
