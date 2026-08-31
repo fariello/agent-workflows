@@ -44,7 +44,22 @@ from agent_workflows import run_ledger_schema as schema
 
 # ---- configuration --------------------------------------------------------------------------------
 
-DEFAULT_RETRY_LIMIT: int = 3
+# Spec 25kzda 2.1: "The default correction budget is 2; the valid frozen range is 0 through 10."
+# This was 3, which contradicted the approved spec. Aligned to 2 on the maintainer's decision
+# (2026-08-31), taken while the value is still DORMANT: `plan_retry` / `retry_budget_remaining` have
+# ZERO production callers today (only tests), so the change costs two test edits and no behavior
+# change. Doing it now is deliberate - once the runner wires this layer up, the same edit becomes a
+# real behavior change that alters how many paid model turns every failed step buys.
+#
+# WHY 2 IS THE RIGHT NUMBER, not merely the spec's: a retry here is a CORRECTION attempt, not a
+# network-flake retry, and `plan_retry`'s own contract is that "a retry cannot turn failure into
+# success by mere repetition". A corrector still failing after two passes is usually facing a plan
+# defect rather than a transient fault, so a third attempt mostly buys another paid turn and delays
+# escalation. Lower budget = cheaper and escalates sooner.
+#
+# NOT a range check: spec 2.1's 0..10 bound is enforced separately (see the runcodes Set); this
+# constant is only the DEFAULT when no budget is frozen by the CLI or repository policy.
+DEFAULT_RETRY_LIMIT: int = 2
 
 # The unknown-outcome sentinel: a side effect was interrupted mid-flight and its result is unknown.
 # This is NOT a run_state value; it is a recovery-layer classification requiring reconciliation.

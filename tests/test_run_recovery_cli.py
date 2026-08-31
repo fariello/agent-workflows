@@ -142,13 +142,19 @@ class TestBoundedRetry(unittest.TestCase):
         self.assertEqual(run_recovery.count_retries(self.engine, "S-01"), 1)
 
     def test_retry_limit_escalates_not_loops(self) -> None:
-        """Once the budget is exhausted, plan_retry escalates with RetryLimitExceededError."""
-        run_recovery.plan_retry(self.engine, "S-01", "transient", idempotency_key="k1")
-        run_recovery.plan_retry(self.engine, "S-01", "transient", idempotency_key="k2")
-        run_recovery.plan_retry(self.engine, "S-01", "transient", idempotency_key="k3")
+        """Once the budget is exhausted, plan_retry escalates with RetryLimitExceededError.
+
+        Consumes exactly `DEFAULT_RETRY_LIMIT` retries and then expects the refusal, DERIVING the
+        count from the constant rather than hard-coding it: the previous version issued three fixed
+        retries, which silently coupled this test to the value being 3.
+        """
+        for i in range(run_recovery.DEFAULT_RETRY_LIMIT):
+            run_recovery.plan_retry(
+                self.engine, "S-01", "transient", idempotency_key=f"k{i + 1}"
+            )
         with self.assertRaises(run_recovery.RetryLimitExceededError) as ctx:
             run_recovery.plan_retry(
-                self.engine, "S-01", "transient", idempotency_key="k4"
+                self.engine, "S-01", "transient", idempotency_key="k-over-budget"
             )
         self.assertEqual(ctx.exception.limit, run_recovery.DEFAULT_RETRY_LIMIT)
         self.assertGreaterEqual(
@@ -207,10 +213,19 @@ class TestBoundedRetry(unittest.TestCase):
         )
 
     def test_retry_budget_remaining(self) -> None:
-        """retry_budget_remaining decrements as retries are consumed and never goes negative."""
-        self.assertEqual(run_recovery.retry_budget_remaining(self.engine, "S-01"), 3)
+        """retry_budget_remaining decrements as retries are consumed and never goes negative.
+
+        Anchored to `DEFAULT_RETRY_LIMIT` rather than a literal, so aligning the default to the
+        spec's 2 (2026-08-31) cannot silently invalidate the assertion.
+        """
+        limit = run_recovery.DEFAULT_RETRY_LIMIT
+        self.assertEqual(
+            run_recovery.retry_budget_remaining(self.engine, "S-01"), limit
+        )
         run_recovery.plan_retry(self.engine, "S-01", "transient", idempotency_key="k1")
-        self.assertEqual(run_recovery.retry_budget_remaining(self.engine, "S-01"), 2)
+        self.assertEqual(
+            run_recovery.retry_budget_remaining(self.engine, "S-01"), limit - 1
+        )
 
 
 # ==================================================================================================
