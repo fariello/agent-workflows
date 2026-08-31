@@ -35,6 +35,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Mapping, NamedTuple, Optional, Sequence, Tuple
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import ipd_lint as _lint
 from agent_workflows import ipd_schema as _schema
 from agent_workflows import orchestrate_isolation as _iso
@@ -111,6 +112,11 @@ class SetInventory(NamedTuple):
     # tuples above keep their exact shape and meaning for every existing consumer.
     gate_reasons: Mapping[str, str]
     requirement_digest: str  # set-level frozen digest over source IPD contents
+    # setgraph E-05: WHY the declared table was not used, when it was not. None when the table WAS
+    # used. The serial fallback is fail-safe but was previously SILENT: an operator could not tell a
+    # READ order from a GUESSED one. Existing `cross_edges_source` values are unchanged so downstream
+    # consumers keep working; this field is purely additive and defaults to None.
+    cross_edges_fallback_reason: Optional[str] = None
 
 
 # --------------------------------------------------------------------------------------------------
@@ -160,18 +166,179 @@ def _intra_ipd_graph(
     return tuple(e_ids), edges, errors
 
 
-def _parse_orchestrator_child_table(
-    text: str,
-) -> Optional[Dict[str, Tuple[str, ...]]]:
+# setgraph Order 4ot0r6: the child-table parser used to reject 28 of 46 orchestrator tables (60
+# percent) and then SILENTLY fall back to a guessed serial chain. Four measured causes, all of them
+# the parser's fault rather than the author's:
+#   1. an inline pipe inside backticks (`--format json|markdown`) created a phantom column, so the
+#      hard-coded `cells[3]` read the wrong cell - this hit tables using the CANONICAL header;
+#   2. the column INDICES were hard-coded while the corpus carries 17 distinct header shapes at 3, 5
+#      and 6 columns, so adding a useful column (`Id`, `Layer`, `Phase`) silently broke a Set;
+#   3. a trailing prose comment (`none (parallelizable)`, `01 (consumes the strings)`, `09; D113
+#      evidence`) discarded the whole table, i.e. good authoring was punished;
+#   4. the canonical `executed:<id6>` grammar - which `aw check`, `aw ipd lint` and the runner all
+#      accept - was rejected here, the tool disagreeing with its own convention.
+# The fallback itself is CORRECT and deliberately unchanged (serializing never invents parallelism);
+# what was wrong was its silence. `parse_child_table` therefore returns a typed reason so the caller
+# can TELL THE OPERATOR the declared table was not used, and why.
+
+#: Header spellings that identify the dependency column (matched case-insensitively). All three occur
+#: in the tracked corpus. `Order` identifies the order column.
+_DEP_COLUMN_NAMES: Tuple[str, ...] = (
+    "depends on",
+    "set dependencies",
+    "item-dependencies",
+)
+_ORDER_COLUMN_NAME = "order"
+
+
+class ChildTableResult(NamedTuple):
+    """Outcome of parsing the orchestrator child table.
+
+    ``rows`` is {order_int: (dep_order_int, ...)} when the table was usable, else None. ``reason`` is
+    None on success and otherwise a short, stable, operator-facing explanation naming the offending
+    row so the fallback is never silent (setgraph E-05).
+    """
+
+    rows: Optional[Dict[str, Tuple[str, ...]]]
+    reason: Optional[str]
+
+
+def _split_table_row(line: str) -> List[str]:
+    """Split a markdown table row into cells WITHOUT breaking on a pipe inside a backtick span.
+
+    setgraph E-01. ``| a | `x|y` | b |`` yields 3 cells, not 4. A naive ``split("|")`` shifted every
+    column after such a cell, which silently rejected four orchestrators whose header was canonical.
+    An unterminated backtick is treated as literal text (no span), which keeps the split total.
+    """
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    cells: List[str] = []
+    buf: List[str] = []
+    in_code = False
+    for ch in s:
+        if ch == "`":
+            in_code = not in_code
+            buf.append(ch)
+        elif ch == "|" and not in_code:
+            cells.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    cells.append("".join(buf).strip())
+    if in_code:
+        # Unbalanced backtick: the span never closed, so honor the naive split instead of swallowing
+        # real column boundaries (fail toward the old behavior rather than inventing a shape).
+        return [c.strip() for c in s.split("|")]
+    return cells
+
+
+def _strip_trailing_commentary(cell: str) -> str:
+    """Return the dependency-token part of a Depends-on cell, dropping a trailing explanation.
+
+    setgraph E-03. Authors legitimately write `none (parallelizable)`, `01 (consumes the rewritten
+    strings)`, `09; D113 evidence` and `01 executed`. Only TRAILING commentary is removed: a `(`
+    parenthetical, a `;` clause, or trailing non-token words. Anything that could itself be a
+    dependency token is preserved, so an ambiguous cell still fails closed in the caller.
+    """
+    s = cell.strip().strip("`").strip()
+    cut = len(s)
+    for marker in ("(", ";", " - ", " -- "):
+        idx = s.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    s = s[:cut].strip()
+    # Drop a trailing bare word that is not a token (e.g. `01 executed` -> `01`), but never drop a
+    # comma-separated element, which would silently shrink the dependency set, and never strip the
+    # `Order 01` PREFIX spelling, where the number is the last word rather than the first.
+    parts = [p.strip() for p in s.split(",")]
+    if parts:
+        tail = parts[-1].split()
+        if len(tail) > 1 and tail[0].lower() not in ("order", "orders"):
+            parts[-1] = tail[0]
+    return ", ".join(p for p in parts if p)
+
+
+def _dep_tokens(
+    cell: str, order_to_id: Optional[Mapping[str, str]] = None
+) -> Optional[List[str]]:
+    """Parse one Depends-on cell into Order-number strings, or None when genuinely ambiguous.
+
+    Accepts a bare Order number (`01`), `none`/empty, and the canonical typed `executed:<id6>` edge
+    (setgraph E-04), which is resolved to an Order via ``order_to_id`` when the target is a child of
+    this Set and IGNORED for ordering when it names a plan outside the Set - exactly how the runner
+    treats an out-of-queue target (`oc_runipd.dependency_depth`).
+    """
+    cleaned = _strip_trailing_commentary(cell)
+    # `-`, `n/a` and `none` are all in-corpus spellings of "no dependency" (an orchestrator's own
+    # Order 00 row commonly uses `-`).
+    if cleaned.lower() in ("none", "", "-", "--", "n/a", "na"):
+        return []
+    id_to_order: Dict[str, str] = {}
+    if order_to_id:
+        for o, i in order_to_id.items():
+            id_to_order[i] = o
+    deps: List[str] = []
+    for raw in cleaned.split(","):
+        tok = raw.strip().strip("`").strip()
+        if not tok:
+            continue
+        if tok.isdigit():
+            deps.append(str(int(tok)))
+            continue
+        # The `Order 01` / `Orders 01, 02` prefix spelling. (The plural form reaches here as
+        # `Orders 01` for the first element and a bare `02` for the rest, the cell having already
+        # been split on commas.)
+        low = tok.lower()
+        prefix_matched = False
+        for prefix in ("orders ", "order "):
+            if low.startswith(prefix):
+                rest = tok[len(prefix) :].strip().strip("`").strip()
+                if rest.isdigit():
+                    deps.append(str(int(rest)))
+                    prefix_matched = True
+                break
+        if prefix_matched:
+            continue
+        # An inclusive Order RANGE (`01-03`), used when a child depends on every prior phase.
+        if "-" in tok:
+            lo, _, hi = tok.partition("-")
+            lo, hi = lo.strip(), hi.strip()
+            if lo.isdigit() and hi.isdigit() and int(lo) <= int(hi):
+                deps.extend(str(n) for n in range(int(lo), int(hi) + 1))
+                continue
+        # A BARE id6 naming a sibling child (no `executed:` prefix). Accepted only when it resolves
+        # to a child of THIS Set, so an arbitrary word can never be mistaken for a dependency.
+        if _core.is_valid_id6(tok) and tok in id_to_order:
+            deps.append(id_to_order[tok])
+            continue
+        # Typed edge: consume the SHIPPED grammar rather than re-tokenizing it. `parse_item_dependencies`
+        # is the one authority for this syntax (ipd_schema, spec 25kzda 2.7); it returns
+        # (edges, ready, error) and rejects malformed tokens for us.
+        edges, _ready, err = _schema.parse_item_dependencies(tok)
+        target_id = None
+        if err is None and len(edges) == 1:
+            target_id = edges[0].id6
+        if target_id:
+            mapped = id_to_order.get(target_id)
+            if mapped is not None:
+                deps.append(mapped)
+            # Target outside this Set: not a Set-ordering edge; ignore rather than reject.
+            continue
+        return None  # genuinely ambiguous -> caller serializes conservatively
+    return deps
+
+
+def parse_child_table(
+    text: str, order_to_id: Optional[Mapping[str, str]] = None
+) -> ChildTableResult:
     """Parse the orchestrator ``## Child IPDs, sequence, and dependencies`` markdown table.
 
-    Returns {order_int: (dep_order_int, ...)} keyed by the Order column, or None when no usable
-    table is present (caller then falls back to legacy serial inference).
-
-    The table columns are: | Order | File | Purpose | Depends on |. The ``Depends on`` cell is a
-    comma-separated list of Order numbers, or ``none``. An ambiguous/malformed table (unparseable
-    Order, or a Depends-on token that is neither ``none`` nor an integer) returns None so the caller
-    conservatively serializes rather than guessing.
+    Resolves the Order and Depends-on columns BY HEADER NAME (setgraph E-02) rather than by a fixed
+    index, so a table carrying extra columns parses. Returns a ``ChildTableResult`` whose ``reason``
+    explains any refusal, so the caller's serial fallback is never silent (E-05).
     """
     lines = text.splitlines()
     heading = "## " + _schema.H_CHILD_IPDS
@@ -181,9 +348,11 @@ def _parse_orchestrator_child_table(
             start = i + 1
             break
     if start is None:
-        return None
+        return ChildTableResult(None, f"no '{_schema.H_CHILD_IPDS}' section found")
 
     rows: Dict[str, Tuple[str, ...]] = {}
+    order_idx: Optional[int] = None
+    dep_idx: Optional[int] = None
     saw_any_row = False
     for ln in lines[start:]:
         s = ln.strip()
@@ -193,34 +362,63 @@ def _parse_orchestrator_child_table(
             if saw_any_row:
                 break
             continue
-        cells = [c.strip() for c in s.strip("|").split("|")]
-        if len(cells) < 4:
+        cells = _split_table_row(s)
+        lowered = [c.strip().strip("`").strip().lower() for c in cells]
+        # Header row: resolve the two load-bearing columns by NAME.
+        if order_idx is None and _ORDER_COLUMN_NAME in lowered:
+            order_idx = lowered.index(_ORDER_COLUMN_NAME)
+            for i, name in enumerate(lowered):
+                if name in _DEP_COLUMN_NAMES:
+                    dep_idx = i
+                    break
+            if dep_idx is None:
+                return ChildTableResult(
+                    None,
+                    "header names no dependency column (expected one of: "
+                    + ", ".join(_DEP_COLUMN_NAMES)
+                    + ")",
+                )
             continue
-        first = cells[0].lower()
-        # Skip header row and the separator row (---|---).
-        if first in ("order",):
+        if order_idx is None:
+            # Rows before any recognizable header: cannot know which column is which.
             continue
+        # Separator row (---|---).
         if set(cells[0].replace("-", "").replace(":", "")) <= {""} and "-" in cells[0]:
             continue
-        # Data row: parse Order and Depends on.
-        order_tok = cells[0].strip("`").strip()
-        depends_tok = cells[3].strip("`").strip()
+        if dep_idx is None or max(order_idx, dep_idx) >= len(cells):
+            return ChildTableResult(
+                None,
+                f"row has {len(cells)} cell(s), too few for the declared header: {s[:60]}",
+            )
+        order_tok = cells[order_idx].strip("`").strip()
         if not order_tok.isdigit():
-            return None  # ambiguous -> conservative serial
-        deps: List[str] = []
-        if depends_tok.lower() not in ("none", ""):
-            for t in depends_tok.split(","):
-                tt = t.strip().strip("`").strip()
-                if not tt:
-                    continue
-                if not tt.isdigit():
-                    return None  # ambiguous -> conservative serial
-                deps.append(str(int(tt)))
+            return ChildTableResult(
+                None, f"Order cell {order_tok!r} is not a number in row: {s[:60]}"
+            )
+        deps = _dep_tokens(cells[dep_idx], order_to_id)
+        if deps is None:
+            return ChildTableResult(
+                None,
+                f"cannot parse the dependency cell {cells[dep_idx]!r} for Order {order_tok}",
+            )
         rows[str(int(order_tok))] = tuple(deps)
         saw_any_row = True
     if not saw_any_row:
-        return None
-    return rows
+        return ChildTableResult(
+            None, "section present but contains no parseable table row"
+        )
+    return ChildTableResult(rows, None)
+
+
+def _parse_orchestrator_child_table(
+    text: str, order_to_id: Optional[Mapping[str, str]] = None
+) -> Optional[Dict[str, Tuple[str, ...]]]:
+    """Back-compatible wrapper: the parsed rows, or None when the table is unusable.
+
+    Retained because existing callers and tests import this name. New code should prefer
+    ``parse_child_table``, which also reports WHY a table was refused.
+    """
+    return parse_child_table(text, order_to_id).rows
 
 
 def _content_digest(child_id: str, text: str) -> str:
@@ -379,23 +577,36 @@ def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
     cross_edges: Dict[str, Tuple[str, ...]] = {}
     cross_source = "legacy-inference"
     table = (
-        _parse_orchestrator_child_table(orchestrator_text)
+        parse_child_table(orchestrator_text, order_to_id)
         if orchestrator_text
-        else None
+        else ChildTableResult(None, "Set has no Order-00 orchestrator plan")
     )
-    if table is not None:
+    fallback_reason: Optional[str] = table.reason
+    if table.rows is not None:
+        rows_by_order = table.rows
         ok = True
         tmp: Dict[str, Tuple[str, ...]] = {}
         for c in children:
             ord_key = str(c.order) if c.order is not None else None
-            if ord_key is None or ord_key not in table:
+            if ord_key is None or ord_key not in rows_by_order:
                 ok = False
+                # setgraph E-05: this MAPPING failure was silent too - the table parsed but did not
+                # cover every child, so the whole thing was discarded without a word.
+                fallback_reason = (
+                    "child {0} (Order {1}) has no row in the orchestrator table".format(
+                        c.plan_id, ord_key if ord_key is not None else "(none)"
+                    )
+                )
                 break
             dep_ids: List[str] = []
-            for dep_order in table[ord_key]:
+            for dep_order in rows_by_order[ord_key]:
                 dep_id = order_to_id.get(dep_order)
                 if dep_id is None:
                     ok = False
+                    fallback_reason = (
+                        "child {0} declares a dependency on Order {1}, which is not a child "
+                        "of this Set".format(c.plan_id, dep_order)
+                    )
                     break
                 dep_ids.append(dep_id)
             if not ok:
@@ -404,6 +615,7 @@ def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
         if ok:
             cross_edges = tmp
             cross_source = "orchestrator-table"
+            fallback_reason = None
     if cross_source != "orchestrator-table":
         # Legacy inference: conservative serial chain by Order (each child depends on the prior).
         ordered = sorted(
@@ -469,6 +681,7 @@ def resolve_set(plans_dir: Path, set_id: str) -> SetInventory:
         blocked_children=blocked,
         gate_reasons=gate_reasons,
         requirement_digest=req_digest,
+        cross_edges_fallback_reason=fallback_reason,
     )
 
 
@@ -566,6 +779,9 @@ class ExecutionManifest(NamedTuple):
     # revgate Order 03 (7nkcgp) E-07: {child_id: why it is a gate}. Additive and defaulted, so any
     # existing constructor call site keeps working unchanged.
     gate_reasons: Mapping[str, str] = {}
+    # setgraph E-05: why the declared child table was not used (None when it WAS). Additive and
+    # defaulted for the same reason.
+    cross_edges_fallback_reason: Optional[str] = None
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -575,6 +791,7 @@ class ExecutionManifest(NamedTuple):
             "requirement_digest": self.requirement_digest,
             "orchestrator_id": self.orchestrator_id,
             "cross_edges_source": self.cross_edges_source,
+            "cross_edges_fallback_reason": self.cross_edges_fallback_reason,
             "deferred_gates": list(self.deferred_gates),
             "blocked_children": list(self.blocked_children),
             "gate_reasons": dict(self.gate_reasons),
@@ -686,6 +903,7 @@ def compile_manifest(
         blocked_children=inventory.blocked_children,
         cross_edges_source=inventory.cross_edges_source,
         gate_reasons=inventory.gate_reasons,
+        cross_edges_fallback_reason=inventory.cross_edges_fallback_reason,
     )
 
 
@@ -714,6 +932,17 @@ def render_plan_only_human(manifest: ExecutionManifest) -> str:
     lines.append("Base HEAD: {0}".format(manifest.base_head))
     lines.append("Requirement digest: {0}".format(manifest.requirement_digest))
     lines.append("Cross-IPD edges: {0}".format(manifest.cross_edges_source))
+    # setgraph E-05: never report a GUESSED order as though it were the declared one. The fallback is
+    # fail-safe, but silence made a guessed sequence indistinguishable from a read one.
+    if manifest.cross_edges_fallback_reason:
+        lines.append(
+            "  WARNING: the orchestrator's declared child table was NOT used; the order below is"
+        )
+        lines.append(
+            "  INFERRED (conservative serial by Order). Reason: {0}".format(
+                manifest.cross_edges_fallback_reason
+            )
+        )
     lines.append(
         "Eligibility: {0} (parallel={1})".format(
             manifest.eligibility.execution_mode,

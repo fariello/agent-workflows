@@ -412,5 +412,253 @@ class PlanOnlyV03(unittest.TestCase):
         self.assertTrue(blob.endswith("\n"))
 
 
+def _table(header: str, rows) -> str:
+    """An orchestrator body carrying a child table with the given header and rows."""
+    sep = "|" + "|".join(["---"] * len(header.strip("|").split("|"))) + "|"
+    body = "\n".join(rows)
+    return (
+        "# IPD: orchestrator\n\n"
+        f"## {sp._schema.H_CHILD_IPDS}\n\n"
+        f"{header}\n{sep}\n{body}\n\n"
+        "## Completion criteria (the whole Set is done only when)\n\nx\n"
+    )
+
+
+class TestChildTableParsing(unittest.TestCase):
+    """setgraph Order 4ot0r6: the parser rejected 28 of 46 real orchestrator tables and then
+    SILENTLY guessed a serial order. Each case below is a shape measured in the tracked corpus."""
+
+    def test_inline_pipe_in_backticks_does_not_shift_columns(self):
+        """E-01. `--format json|markdown` created a phantom column, so cells[3] read the wrong cell.
+        This hit FOUR orchestrators whose header was the canonical four-column form."""
+        t = _table(
+            "| Order | File | What it does | Depends on |",
+            [
+                "| 01 | `a.md` | first | none |",
+                "| 02 | `b.md` | uses `--format json|markdown` here | 01 |",
+            ],
+        )
+        res = sp.parse_child_table(t)
+        self.assertIsNone(res.reason)
+        self.assertEqual(res.rows, {"1": (), "2": ("1",)})
+
+    def test_unbalanced_backtick_falls_back_to_naive_split(self):
+        """A lone backtick must not swallow real column boundaries."""
+        cells = sp._split_table_row("| 01 | a`b | c | none |")
+        self.assertEqual(len(cells), 4)
+
+    def test_columns_resolved_by_header_name_not_index(self):
+        """E-02. 17 header shapes exist at 3, 5 and 6 columns; hard-coded indices rejected them all.
+        `runprofile` was rejected purely for adding an `Id` column."""
+        five = _table(
+            "| Order | Id | Child | Responsibility | Depends on |",
+            [
+                "| 01 | aaaaaa | first | does a | none |",
+                "| 02 | bbbbbb | second | does b | 01 |",
+            ],
+        )
+        self.assertEqual(sp.parse_child_table(five).rows, {"1": (), "2": ("1",)})
+        three = _table(
+            "| Order | What it does | Depends on |",
+            ["| 01 | first | none |", "| 02 | second | 01 |"],
+        )
+        self.assertEqual(sp.parse_child_table(three).rows, {"1": (), "2": ("1",)})
+
+    def test_header_without_dependency_column_refuses_with_reason(self):
+        t = _table(
+            "| Order | File | What it does |",
+            ["| 01 | `a.md` | first |"],
+        )
+        res = sp.parse_child_table(t)
+        self.assertIsNone(res.rows)
+        assert res.reason is not None
+        self.assertIn("no dependency column", res.reason)
+
+    def test_alternate_dependency_column_spellings(self):
+        for name in ("Depends on", "Set dependencies", "Item-Dependencies"):
+            t = _table(
+                f"| Order | Id | What it does | {name} |",
+                ["| 01 | aaaaaa | first | none |", "| 02 | bbbbbb | second | 01 |"],
+            )
+            self.assertEqual(
+                sp.parse_child_table(t).rows,
+                {"1": (), "2": ("1",)},
+                f"spelling {name!r}",
+            )
+
+    def test_trailing_prose_in_dependency_cell_is_ignored(self):
+        """E-03. Authors state a dependency AND explain it; the parser discarded the whole table."""
+        for cell, want in (
+            ("none (parallelizable)", []),
+            ("01 (consumes the rewritten strings)", ["1"]),
+            ("09; D113 evidence", ["9"]),
+            ("01 executed", ["1"]),
+            ("Order 01", ["1"]),
+            ("Orders 01", ["1"]),
+            ("-", []),
+            ("01-03", ["1", "2", "3"]),
+        ):
+            self.assertEqual(sp._dep_tokens(cell), want, f"cell {cell!r}")
+
+    def test_genuinely_ambiguous_cell_refuses_rather_than_guessing(self):
+        """A wrong edge is worse than a reported failure, so ambiguity must fail closed."""
+        self.assertIsNone(sp._dep_tokens("approved spec"))
+        self.assertIsNone(sp._dep_tokens("E-01 inventory"))
+
+    def test_typed_executed_edge_resolves_in_set_and_ignores_out_of_set(self):
+        """E-04. `executed:<id6>` is the repo's canonical grammar; the planner used to reject it."""
+        order_to_id = {"1": "aaaaaa", "2": "bbbbbb"}
+        self.assertEqual(sp._dep_tokens("executed:aaaaaa", order_to_id), ["1"])
+        # A target outside the Set is not a Set-ordering edge: ignore it, do NOT reject the table.
+        self.assertEqual(sp._dep_tokens("executed:zzzzzz", order_to_id), [])
+
+    def test_bare_id6_resolves_only_when_it_names_a_sibling(self):
+        order_to_id = {"1": "aaaaaa"}
+        self.assertEqual(sp._dep_tokens("`aaaaaa`", order_to_id), ["1"])
+        self.assertIsNone(sp._dep_tokens("`aaaaaa`", None))
+
+    def test_missing_section_reports_a_reason(self):
+        res = sp.parse_child_table("# IPD: x\n\n## Goal\n\nnope\n")
+        self.assertIsNone(res.rows)
+        assert res.reason is not None
+        self.assertIn("no '", res.reason)
+
+    def test_back_compat_wrapper_still_returns_rows_or_none(self):
+        """Existing callers/tests import `_parse_orchestrator_child_table`; keep it working."""
+        t = _table(
+            "| Order | File | What it does | Depends on |",
+            ["| 01 | `a.md` | first | none |"],
+        )
+        self.assertEqual(sp._parse_orchestrator_child_table(t), {"1": ()})
+        self.assertIsNone(sp._parse_orchestrator_child_table("# IPD\n\n## Goal\n\nx\n"))
+
+
+class TestFallbackIsNeverSilent(unittest.TestCase):
+    """setgraph E-05: the fail-safe serial fallback stays, but it must SAY it was used. This is the
+    guarantee that survives a table shape no future parser understands."""
+
+    def _set(self, orch_body: str):
+        d = Path(self.tmp.name)
+        _write_plan(
+            d,
+            "pending",
+            "20260101-s-00-oooooo-orc.ipd.md",
+            plan_id="oooooo",
+            set_id="s",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            body=orch_body,
+        )
+        for i, pid in ((1, "aaaaaa"), (2, "bbbbbb")):
+            _write_plan(
+                d,
+                "pending",
+                f"20260101-s-0{i}-{pid}-c.ipd.md",
+                plan_id=pid,
+                set_id="s",
+                order=i,
+                status="approved",
+                body=_child_ipd(),
+            )
+        return sp.resolve_set(d, "s")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_unparseable_table_sets_a_reason_and_keeps_serial_order(self):
+        inv = self._set(
+            _table(
+                "| Order | File | What it does | Depends on |",
+                [
+                    "| 01 | `a.md` | first | none |",
+                    "| 02 | `b.md` | second | approved spec |",
+                ],
+            )
+        )
+        self.assertEqual(inv.cross_edges_source, "legacy-inference")
+        self.assertIsNotNone(inv.cross_edges_fallback_reason)
+        assert inv.cross_edges_fallback_reason is not None
+        self.assertIn("approved spec", inv.cross_edges_fallback_reason)
+        # Fallback ORDER is unchanged: conservative serial chain by Order.
+        self.assertEqual(inv.cross_edges["bbbbbb"], ("aaaaaa",))
+
+    def test_parsed_table_reports_no_reason(self):
+        inv = self._set(
+            _table(
+                "| Order | File | What it does | Depends on |",
+                ["| 01 | `a.md` | first | none |", "| 02 | `b.md` | second | 01 |"],
+            )
+        )
+        self.assertEqual(inv.cross_edges_source, "orchestrator-table")
+        self.assertIsNone(inv.cross_edges_fallback_reason)
+
+    def test_reason_reaches_human_and_json_output(self):
+        import json
+
+        inv = self._set(
+            _table(
+                "| Order | File | What it does | Depends on |",
+                [
+                    "| 01 | `a.md` | first | none |",
+                    "| 02 | `b.md` | second | approved spec |",
+                ],
+            )
+        )
+        m = sp.compile_manifest(inv, Path(self.tmp.name), base_head="x")
+        human = sp.render_plan_only_human(m)
+        self.assertIn("WARNING", human)
+        self.assertIn("INFERRED", human)
+        data = json.loads(sp.emit_manifest_json(m))
+        self.assertIn("approved spec", data["cross_edges_fallback_reason"])
+        # `cross_edges_source` keeps its existing values so downstream consumers keep working.
+        self.assertEqual(data["cross_edges_source"], "legacy-inference")
+
+
+class TestCorpusNoRegression(unittest.TestCase):
+    """Guard against silently reintroducing mass rejection. Asserts NO-WORSENING against a floor
+    rather than an exact total, so adding plans does not make this brittle."""
+
+    def test_tracked_orchestrators_mostly_parse(self):
+        import glob
+
+        total = parsed = 0
+        for f in glob.glob(".aw/records/plans/*/*.ipd.md"):
+            try:
+                txt = Path(f).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if "## " + sp._schema.H_CHILD_IPDS not in txt:
+                continue
+            total += 1
+            if sp.parse_child_table(txt).rows is not None:
+                parsed += 1
+        if total == 0:
+            self.skipTest("no tracked orchestrators visible from the test cwd")
+        # Measured at the setgraph fix: 37 of 47 parsed (was 18 of 47 before). The floor is a ratio
+        # so new plans cannot break it; a regression to the old index-based parser drops well below.
+        self.assertGreaterEqual(
+            parsed / total,
+            0.70,
+            f"only {parsed}/{total} orchestrator tables parse; the pre-fix rate was 18/47 (38%)",
+        )
+
+    def test_every_refusal_states_a_reason(self):
+        """The load-bearing invariant: a table may be refused, but never silently."""
+        import glob
+
+        for f in glob.glob(".aw/records/plans/*/*.ipd.md"):
+            try:
+                txt = Path(f).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            if "## " + sp._schema.H_CHILD_IPDS not in txt:
+                continue
+            res = sp.parse_child_table(txt)
+            if res.rows is None:
+                self.assertTrue(res.reason, f"{f} refused with no reason")
+
+
 if __name__ == "__main__":
     unittest.main()
