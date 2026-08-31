@@ -6,16 +6,18 @@
 - Scope: Add the mixed-type confirmation gate (the sorted count and action preview, the exact-phrase interactive confirmation, the unattended `--allow-mixed` acknowledgement, and the verbatim `RUN-MIXED-TYPES` refusal) plus the thin runner-facing selector POLICY that decides which types a selector may span, as a standalone module consumed by callers. Excludes forking the shipped resolver `selectors.py`, excludes the DAG scheduler, excludes runtime dependency satisfaction, excludes runner-side backlog closure, and excludes wiring the gate into either runner module (deferred, see OQ-01).
 - Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Set: runmixed
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 6lu3rq
+- Approval: 2026-08-31, human ("approved"): Maintainer approved 2026-08-31 in session, after plan-review round 1 (m73aet APPROVE 0 findings; 6lu3rq and wlxkoz APPROVE WITH REVISIONS APPLIED, all findings FIXED in place, zero unresolved, no open questions).
 - Blocks-Release: next
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-08-31 approved (aw set, --by-human): Maintainer approved 2026-08-31 in session, after plan-review round 1 (m73aet APPROVE 0 findings; 6lu3rq and wlxkoz APPROVE WITH REVISIONS APPLIED, all findings FIXED in place, zero unresolved, no open questions).
 - 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied. See .aw/records/reviews/ for the typed findings and decisions.
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 (1 finding, fixed). Verified at HEAD 381dbd5c: the gate is genuinely unbuilt (RUN-MIXED-TYPES/--allow-mixed/allow_mixed all ZERO hits), the E-04 refusal string is character-identical to spec 25kzda 2.5's exact refusal block (spec:215), the run-mixed exact-phrase and narrowing rules are verbatim in spec:206-209, selectors.py really is authoritative (UNIQUE_KINDS :46), both claimed sibling collisions really are in executed/, and Scope-Paths collide with NO pending or approved plan. PR-001: the plan implemented THREE of spec 2.5's FOUR bullets and was silent on the fourth (record counts/preview/response/queue-digest in the run ledger); grep for 'ledger' returned zero. Fixed by splitting it: E-03 now RETURNS the four facts as structured data (in scope) and the ledger WRITE is deferred to the caller owning a live run, with the partial discharge recorded in Spec sync so a successor knows what remains. Two reversible decisions recorded (D-1, D-2). Review artifact: .aw/records/reviews/20260831-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate.review.md
 - 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): SUPERSEDES `kaygwo` (detrun-03), inheriting ONLY the residue that plan's own second review left standing, and inheriting its `- Blocks-Release: next` gate so retiring `kaygwo` does not silently drop it. `kaygwo` was `REJECT - NEEDS REPLAN` twice: its E-01 selector work is byte-for-byte already shipped as `selectors.py`, its E-05/E-06 DAG and cascade work is shipped as `ipd_set_plan.py` plus the now-`executed` `lanetruth-03` (`8guhs0`), and half its E-04 belongs to the now-`executed` `bkclose-01` (`zhr6mc`). What survived that review is the mixed-type gate, which is genuinely unbuilt and is the most valuable single item in the retired Set.
