@@ -6,7 +6,7 @@
 - Scope: Add an optional `trailers` parameter to the SHIPPED `git_commit_helper.offer_commit`, append the trailers to the commit message per Git trailer convention, and thread the parameter through `aw commit` (`work_cmd.run_commit`). Excludes creating any new commit module, excludes wiring the trailers into either runner module (deferred, see OQ-01), excludes the quarantine and containment transaction, and excludes changing the default behavior of any existing caller.
 - Scope-Paths: agent_workflows/git_commit_helper.py, agent_workflows/work_cmd.py, tests/test_git_commit_helper.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: runtrail
 - Order: 1
 - Highest E allocated: 04
@@ -16,6 +16,8 @@
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied. See .aw/records/reviews/ for the typed findings and decisions.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: APPROVE; ZERO findings. Verified at HEAD 381dbd5c: offer_commit really is at git_commit_helper.py:133 with its single message-consuming git call at :245, work_cmd.run_commit at :360, and AW-Run:/AW-Item: really are ZERO-hit. Two claims verified BY EXECUTION rather than reading: (1) E-02's case-(b) hazard is REAL and reproducible - appending a trailer after a blank line to a body already ending in a trailer block makes git's own parser DROP the earlier trailers (a body ending 'Co-authored-by: x' yields ONLY 'AW-Run: r1' from --parse), so the plan's subtlest requirement is correctly diagnosed; (2) git interpret-trailers --parse is available here, so V-02's evidence is collectable. Endorsed three restraints: the blast radius is correctly handled (23 call sites across 10+ modules, parameter defaults empty), E-03's refusal to add a flag with no consumer is correct (verified work_cmd has no run-id access), and E-04 asserting through git's parser rather than string comparison is exactly why the malformed case is catchable. Findings table deliberately EMPTY rather than padded. Two reversible decisions recorded (D-1, D-2). Review artifact: .aw/records/reviews/20260831-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers.review.md
 - 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): SUPERSEDES `k7o7el` (detrun-04), inheriting ONLY the single residue its own second review left standing, and inheriting its `- Blocks-Release: next` gate so retiring `k7o7el` does not silently drop it. `k7o7el` was `REJECT - NEEDS REPLAN` twice: its worktree allocator, lease table, and scope assertion are shipped as `worktree_lease.py`, and its proposed `commit_gateway.py` would have forked `git_commit_helper.offer_commit`, the path AGENTS.md names as the one immune to index pollution by construction. Its review reduced the residue from three items to ONE, and named the correct shape for it: a `trailers` parameter on the shipped helper, not a new module. That is exactly what this plan does.
 - 2026-08-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 

@@ -4297,7 +4297,7 @@
     "path": "pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md",
     "plan_id": "wlxkoz",
     "set_id": "runcodes",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4307,7 +4307,7 @@
     "path": "pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md",
     "plan_id": "6lu3rq",
     "set_id": "runmixed",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4317,7 +4317,7 @@
     "path": "pending/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md",
     "plan_id": "m73aet",
     "set_id": "runtrail",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-31",

@@ -6,7 +6,7 @@
 - Scope: Add the mixed-type confirmation gate (the sorted count and action preview, the exact-phrase interactive confirmation, the unattended `--allow-mixed` acknowledgement, and the verbatim `RUN-MIXED-TYPES` refusal) plus the thin runner-facing selector POLICY that decides which types a selector may span, as a standalone module consumed by callers. Excludes forking the shipped resolver `selectors.py`, excludes the DAG scheduler, excludes runtime dependency satisfaction, excludes runner-side backlog closure, and excludes wiring the gate into either runner module (deferred, see OQ-01).
 - Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: runmixed
 - Order: 1
 - Highest E allocated: 05
@@ -16,6 +16,8 @@
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied. See .aw/records/reviews/ for the typed findings and decisions.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 (1 finding, fixed). Verified at HEAD 381dbd5c: the gate is genuinely unbuilt (RUN-MIXED-TYPES/--allow-mixed/allow_mixed all ZERO hits), the E-04 refusal string is character-identical to spec 25kzda 2.5's exact refusal block (spec:215), the run-mixed exact-phrase and narrowing rules are verbatim in spec:206-209, selectors.py really is authoritative (UNIQUE_KINDS :46), both claimed sibling collisions really are in executed/, and Scope-Paths collide with NO pending or approved plan. PR-001: the plan implemented THREE of spec 2.5's FOUR bullets and was silent on the fourth (record counts/preview/response/queue-digest in the run ledger); grep for 'ledger' returned zero. Fixed by splitting it: E-03 now RETURNS the four facts as structured data (in scope) and the ledger WRITE is deferred to the caller owning a live run, with the partial discharge recorded in Spec sync so a successor knows what remains. Two reversible decisions recorded (D-1, D-2). Review artifact: .aw/records/reviews/20260831-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate.review.md
 - 2026-08-30 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): SUPERSEDES `kaygwo` (detrun-03), inheriting ONLY the residue that plan's own second review left standing, and inheriting its `- Blocks-Release: next` gate so retiring `kaygwo` does not silently drop it. `kaygwo` was `REJECT - NEEDS REPLAN` twice: its E-01 selector work is byte-for-byte already shipped as `selectors.py`, its E-05/E-06 DAG and cascade work is shipped as `ipd_set_plan.py` plus the now-`executed` `lanetruth-03` (`8guhs0`), and half its E-04 belongs to the now-`executed` `bkclose-01` (`zhr6mc`). What survived that review is the mixed-type gate, which is genuinely unbuilt and is the most valuable single item in the retired Set.
 - 2026-08-30 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -43,7 +45,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 Implement the mixed-type DECISION as a pure predicate: given the classified selection, whether the session is interactive, and whether `--allow-mixed` was passed, return a definite verdict (proceed or refuse) plus the reason. Keep the policy DATA-driven and keep the decision pure, so it is testable without a TTY and without a host. The three cases spec 25kzda 2.5 fixes: a single-type selection proceeds with no gate at all; an interactive multi-type selection requires the operator to type the EXACT phrase `run mixed`, and `y`, an empty response, and any generic confirmation are REJECTED; an unattended multi-type selection is refused unless `--allow-mixed` was present on the original command. Also honor 2.5's narrowing rule: `--allow-mixed` acknowledges type mixing ONLY, and every status, approval, verifiability, scope, and safety gate still applies, so this predicate must never be a place where another gate can be waived.
   - Depends on: E-01
-  - Expected outcome: the predicate refuses an unattended multi-type selection without the flag; accepts it with the flag; requires the literal `run mixed` interactively and rejects `y`, `yes`, an empty string, and any other phrase; never gates a single-type selection; and returns a reason string a caller can print. No TTY is required to test any branch.
+  ADDED AT REVIEW (PR-001, spec 2.5 bullet 4): the predicate MUST also RETURN, as structured data, the four facts spec 2.5 requires to be recorded in the run ledger: the confirmed type counts, the action preview, the user response or the flag that was used, and the queue digest. Returning them is in scope; WRITING them to the ledger is not (see Deferred), because the write needs a live run's context and `run_ledger_store.py` is outside Scope-Paths. Returning them is the seam that makes the wiring follow-up trivial and keeps this plan from touching a runner.
+  - Expected outcome: the predicate refuses an unattended multi-type selection without the flag; accepts it with the flag; requires the literal `run mixed` interactively and rejects `y`, `yes`, an empty string, and any other phrase; never gates a single-type selection; and returns a reason string a caller can print. No TTY is required to test any branch. It ALSO returns a structured record carrying the type counts, the action preview, the response-or-flag actually used, and the queue digest, so a caller can satisfy spec 2.5 bullet 4 without this module writing to the ledger.
   - Execution state: pending
 
 - [ ] E-04 Add the `RUN-MIXED-TYPES` finding code with the spec's VERBATIM refusal text. Spec 25kzda 2.5 fixes the exact string, so do not compose your own:
@@ -78,6 +81,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F4 | MED | `ipd_set_plan.py` | The one seam `kaygwo`'s review left genuinely open (declared-graph scheduling: the shipped Set compiler greps ZERO for `Item-Dependencies`) is REAL but is a surgical change to a shipped compiler owned by the Set-planning surface, not part of a mixed-type gate. Bundling them is what made the retired plan unexecutable. Deferred explicitly rather than silently dropped. | `grep -c 'Item-Dependencies' agent_workflows/ipd_set_plan.py` = 0; `_propagate_blocked:236` docstring |
 | F5 | MED | spec `25kzda` 2.5 | The refusal message and the confirmation phrase are SPECIFIED VERBATIM, including a recovery command and the literal phrase `run mixed` with `y` explicitly rejected. A paraphrase would break the contract and weaken the gate; the retired plan paraphrased both. | spec 2.5 exact refusal block and its three bullet rules |
 | F6 | LOW | spec `25kzda` 2.5 | `--allow-mixed` acknowledges type mixing ONLY. It must not become a general override seam; the spec says every other gate still applies. Worth pinning in a test, since a flag named "allow" invites scope creep. | spec 2.5, third bullet |
+| F7 | MED | spec `25kzda` 2.5 bullet 4 | FOUND AT REVIEW (PR-001). This plan implements THREE of spec 2.5's four bullets and was silent on the fourth, which requires the confirmed type counts, action preview, user response or flag, and queue digest to be RECORDED IN THE RUN LEDGER. That record is the audit trail proving what the operator actually acknowledged, so without it a `--allow-mixed` run leaves no durable evidence of the counts that were waved through. Split at review: E-03 now RETURNS those four facts as structured data (in scope), while the ledger WRITE is deferred to the caller that owns a live run (out of scope, since it needs runner context). | spec 2.5 bullet 4 (`spec:210`); `grep -in 'ledger'` over this plan returned ZERO before the fix |
 
 ## Proposed changes (ordered, validatable)
 
@@ -95,6 +99,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - RUNTIME DEPENDENCY SATISFACTION. Shipped by `lanetruth-03` (`8guhs0`, executed).
 - RUNNER-SIDE BACKLOG CLOSURE. Shipped by `bkclose-01` (`zhr6mc`, executed).
 - A NEW `run_selector.py` OR `run_scheduler.py`. Explicitly rejected; those were the defects in the retired plan.
+- WRITING THE SPEC 2.5 BULLET 4 LEDGER RECORD (added at review, F7). E-03 RETURNS the four facts the spec requires to be recorded (counts, preview, response-or-flag, queue digest), but this plan does not write them: the write needs a live run's context and `run_ledger_store.py` is outside Scope-Paths, so writing here would mean touching the runner surface this plan deliberately avoids. The honest consequence, stated so it is not lost: spec 2.5 bullet 4 is only PARTIALLY discharged by this plan, and the follow-up that wires the gate into a runner must complete it. Returning the facts is what makes that follow-up trivial rather than archaeological.
 
 ## Scope check
 
@@ -114,6 +119,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Spec / documentation sync
 
 - This plan implements spec `25kzda` 2.5 (the mixed-type gate) and the counting half of 2.4. It does not change the spec text; the spec already specifies the behavior exactly.
+- PARTIAL DISCHARGE, recorded at review (F7/PR-001): spec 2.5 has FOUR bullets and this plan fully discharges three. Bullet 4 (record the counts, preview, response-or-flag and queue digest in the run ledger) is only HALF discharged: E-03 returns those facts, and the ledger WRITE is deferred to the runner-wiring follow-up. State this in the terminal history rather than claiming 2.5 is complete, so the successor knows what remains.
 - Record which of the spec's Section 4.2 `RUN-*` codes now exists, since `RUN-MIXED-TYPES` is one of the codes a successor of `7f7782` must map. Leaving that unrecorded is how two plans both come to believe a code is unbuilt.
 - No user-facing documentation changes until the gate is actually wired into a runner. Documenting an unconsulted gate would misdescribe the tool.
 
@@ -148,7 +154,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste all three cases: single-type ungated, unattended multi-type REFUSED without the flag, and the same selection PROCEEDING with `--allow-mixed`. Paste the exact-phrase check rejecting at least `y`, `yes`, and the empty string, and accepting exactly `run mixed`. Paste evidence no branch needed a TTY to test. Paste evidence `--allow-mixed` does not waive any other gate (F6).
+  - Required evidence: paste all three cases: single-type ungated, unattended multi-type REFUSED without the flag, and the same selection PROCEEDING with `--allow-mixed`. Paste the exact-phrase check rejecting at least `y`, `yes`, and the empty string, and accepting exactly `run mixed`. Paste evidence no branch needed a TTY to test. Paste evidence `--allow-mixed` does not waive any other gate (F6). ALSO paste the STRUCTURED RECORD the predicate returns (F7/PR-001), showing all four spec 2.5 bullet 4 facts present: the type counts, the action preview, the response-or-flag actually used, and the queue digest. A returned record missing any of the four does not satisfy this item.
   - Observed evidence:
   - Result: pending
 
