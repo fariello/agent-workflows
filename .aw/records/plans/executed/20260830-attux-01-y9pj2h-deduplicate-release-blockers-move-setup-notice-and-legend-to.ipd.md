@@ -6,8 +6,7 @@
 - Scope: Update `agent_workflows/attention.py` so that items qualifying as release-blockers are rendered exclusively in the `release-blockers` section, move the setup required note and legend to the bottom of the output, eliminate superfluous blank lines, drop the "## " prefix in interactive colored mode in favor of bold colored section headers (while preserving "## " in uncolored machine/markdown mode), and update unit tests.
 - Scope-Paths: agent_workflows/attention.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to deduplicate blockers, move footer note/legend, and bold interactive headers)
+- Status: executed
 - Set: attux
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +14,7 @@
 - Id: y9pj2h
 
 ## Workflow history
+- 2026-08-31 executed (antigravity): Refine attention board layout: deduplicate blockers, footer notice/legend, and bold interactive headers [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: acknowledged; in-scope-unmodified tests/test_attention.py: acknowledged]
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored complete plan.

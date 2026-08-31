@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 186 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 187 Sets; the full manifest is INDEX.json.
 
 ## attdetails
 
@@ -11,6 +11,10 @@ Showing the 40 most-recent of 186 Sets; the full manifest is INDEX.json.
 ## atttype
 
 - `3vx9sj` [executed] 01 executed/20260830-atttype-01-3vx9sj-add-type-flag-to-aw-attention-for-single-and-multi-type-arti.ipd.md
+
+## attux
+
+- `y9pj2h` [executed] 01 executed/20260830-attux-01-y9pj2h-deduplicate-release-blockers-move-setup-notice-and-legend-to.ipd.md
 
 ## boxstat
 
@@ -187,10 +191,6 @@ Showing the 40 most-recent of 186 Sets; the full manifest is INDEX.json.
 ## wtisoland
 
 - `6knsrx` [pending] 01 pending/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md
-
-## assessdocs
-
-- `pky603` [executed] 01 executed/20260828-assessdocs-01-pky603-assess-documentation-fixes-correct-inaccurate-readme-contrib.ipd.md
 
 ## (singletons: no Set)
 

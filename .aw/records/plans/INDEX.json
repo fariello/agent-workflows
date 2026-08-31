@@ -3934,6 +3934,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-attux-01-y9pj2h-deduplicate-release-blockers-move-setup-notice-and-legend-to.ipd.md",
+    "plan_id": "y9pj2h",
+    "set_id": "attux",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
     "plan_id": "iy5u3m",
     "set_id": "boxstat",
