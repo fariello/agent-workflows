@@ -30,24 +30,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Type Alias Normalizer & Item Filtering
 
-- [ ] E-01 Add `TYPE_ALIASES` map and `parse_type_filters` helper in `agent_workflows/attention.py` supporting comma-delimited strings, repeated lists, and aliases (`plan/plans/ipd`, `spec/specs`, `backlog/bk`, `research/survey`, `release/releases`, `roadmap/roadmaps`, `walkthrough/walkthroughs/walkthr`).
+- [x] E-01 Add `TYPE_ALIASES` map and `parse_type_filters` helper in `agent_workflows/attention.py` supporting comma-delimited strings, repeated lists, and aliases (`plan/plans/ipd`, `spec/specs`, `backlog/bk`, `research/survey`, `release/releases`, `roadmap/roadmaps`, `walkthrough/walkthroughs/walkthr`).
   - Depends on: none
   - Expected outcome: Parsing extracts canonical tree names deterministically from any combination of flags and comma lists.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Board Runner & CLI Parser Integration
 
-- [ ] E-02 Update `p_attention` in `agent_workflows/cli.py` to accept `--type` / `-t` (and `--tree`) with `action="append"`, and wire `attention.run` to filter items by the parsed canonical types while preserving `--all` semantics.
+- [x] E-02 Update `p_attention` in `agent_workflows/cli.py` to accept `--type` / `-t` (and `--tree`) with `action="append"`, and wire `attention.run` to filter items by the parsed canonical types while preserving `--all` semantics.
   - Depends on: E-01
   - Expected outcome: `aw attention --type plans`, `aw att -t specs,backlog`, and `aw att -t ipd -t spec` filter output strictly to the requested artifact trees.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Unit Tests
 
-- [ ] E-03 Author comprehensive unit tests in `tests/test_attention.py` testing single type, repeated types, comma-separated types, aliases, invalid types handling, and combination with `--details` and `--format json`.
+- [x] E-03 Author comprehensive unit tests in `tests/test_attention.py` testing single type, repeated types, comma-separated types, aliases, invalid types handling, and combination with `--details` and `--format json`.
   - Depends on: E-01, E-02
   - Expected outcome: Full test suite passes 100% clean.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -97,20 +97,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Unit tests verifying type alias resolution for singular, plural, and shorthand aliases.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_parse_type_filters` in `tests/test_attention.py`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Output tests verifying single, comma-separated, and repeated `-t` invocations on board and JSON.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Verified via `test_run_with_type_filter` in `tests/test_attention.py`.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Full pytest suite run across the repository passes cleanly.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `3814 passed, 3 skipped, 4 xfailed in 53.39s` and clean leak check.
+  - Result: pass
 
 ## Approval and execution gate
 
