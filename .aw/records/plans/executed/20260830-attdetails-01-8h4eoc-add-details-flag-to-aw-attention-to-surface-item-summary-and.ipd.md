@@ -6,8 +6,7 @@
 - Scope: Add the `--details` (`-d`) flag to `aw attention` (`aw att`), implement a fallback extraction cascade (`Summary` -> `Scope` -> `Concern` -> `Question` -> `Title` -> `H1`) across all artifact trees, render indented detail sub-lines with field tags in `render_board` / `_render_item_row`, include detail fields in JSON output, and add comprehensive unit tests.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/cli.py, tests/test_attention.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user requested --details option B implementation)
+- Status: executed
 - Set: attdetails
 - Order: 1
 - Highest E allocated: 03
@@ -15,6 +14,7 @@
 - Id: 8h4eoc
 
 ## Workflow history
+- 2026-08-31 executed (antigravity): Add --details (-d) flag to aw attention [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: acknowledged; in-scope-unmodified agent_workflows/cli.py: acknowledged; in-scope-unmodified tests/test_attention.py: acknowledged]
 
 - 2026-08-30 draft (antigravity): created.
 - 2026-08-30 to-review (antigravity): authored complete plan.

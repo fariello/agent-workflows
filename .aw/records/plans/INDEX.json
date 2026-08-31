@@ -3904,6 +3904,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-attdetails-01-8h4eoc-add-details-flag-to-aw-attention-to-surface-item-summary-and.ipd.md",
+    "plan_id": "8h4eoc",
+    "set_id": "attdetails",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md",
     "plan_id": "iy5u3m",
     "set_id": "boxstat",

@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 181 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 182 Sets; the full manifest is INDEX.json.
+
+## attdetails
+
+- `8h4eoc` [executed] 01 executed/20260830-attdetails-01-8h4eoc-add-details-flag-to-aw-attention-to-surface-item-summary-and.ipd.md
 
 ## boxstat
 
@@ -194,13 +198,6 @@ Showing the 40 most-recent of 181 Sets; the full manifest is INDEX.json.
 - `p7peqf` [executed] 01 executed/20260827-driverfin-01-p7peqf-driver-self-finalizes-run-aw-ipd-begin-before-and-aw-ipd-fin.ipd.md
 - `emus4n` [executed] 02 executed/20260827-driverfin-02-emus4n-per-run-worktree-isolation-execute-each-ipd-in-its-own-git-w.ipd.md
 - `7kbtkw` [executed] 03 executed/20260827-driverfin-03-7kbtkw-fail-closed-dirty-tree-integration-guard-and-merge-back-conf.ipd.md
-
-## ipddeps
-
-- `r7xku3` [executed] 00 executed/20260827-ipddeps-00-r7xku3-cross-ipd-dependency-tracking-mandatory-id6-grounded-item-de.ipd.md
-- `g69y23` [executed] 01 executed/20260827-ipddeps-01-g69y23-item-dependencies-schema-field-grammar-and-aw-ipd-dependenci.ipd.md
-- `ovbnyq` [executed] 02 executed/20260827-ipddeps-02-ovbnyq-shared-dependency-graph-predicate-and-check-ipd-dependency-r.ipd.md
-- `mp88bl` [executed] 03 executed/20260827-ipddeps-03-mp88bl-opt-in-commit-scoped-ipd-dependency-statement-gate-hook-dele.ipd.md
 
 ## (singletons: no Set)
 
