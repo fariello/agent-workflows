@@ -91,6 +91,58 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - THE RESOLVER IS ONLY HALF THE READS (PR-001, measured): `aw find plans e32j35` opens 394 distinct record files and makes 788 open() calls, because after `resolve_selectors` returns, `cli._find_type_records` independently calls `plans_index.scan_plans` (cli.py:6590) whose `p.read_text()` is UNBOUNDED (plans_index.py:100; 74ms and ~6.7MB across the plans tree versus the resolver's bounded 4KB cap). A zero-open assertion scoped to the resolver can therefore be TRUE while the command still opens every file. The plan now says this plainly, keeps the display layer out of scope, and requires the benchmark to report END-TO-END opens so the improvement cannot be overstated.
 - MEASURED BUDGET (corrected 2026-08-29 after awfindperf follow-ups ea8c3c2, re-measured in review): `aw find plans <id6>` is ~0.38s and bare `aw find` (all types) ~0.66s, against a process-startup floor of ~0.20s for `aw --version` on this machine. Resolver-side detail, min of 5 runs: `_iter_files('plans')` ~34ms total = ~1ms enumeration + ~8ms bounded header reads + ~13ms `p.resolve()` per path + ~4ms `record_dirs`; `json.load(INDEX.json)` is ~0.9ms. Across ALL ten types a full scan is ~218ms, of which header reads are ~54ms. So the honest resolver-side prize for the plans type is single-digit milliseconds of READ time (plus the ~13ms of `p.resolve()` the index path also skips), NOT a large wall-clock win: judge this plan primarily on FILE OPENS and on the architectural correctness of the find/search split, and treat wall clock as a secondary, mostly-unmoved signal.
 
+### Maintainer session 2026-08-31: a simpler design, and a semantics correction
+
+MEASURED WITH THE MAINTAINER, and it reframes this plan rather than merely adding to it.
+
+1. `find <records dirs> -iname '*<term>*'` answers the common case in **20ms**, against **357ms** for
+   `aw find plans <id6>` today (both measured on this repo, 449 plan files). So the directory listing,
+   not the index, is the cheap fast path, and it needs NO freshness primitive at all because it reads
+   the filesystem directly. That is a strictly simpler design than E-01/E-02's sidecar.
+
+2. WHAT FILENAME MATCHING CANNOT DO, measured rather than assumed, so the fallback is not optional:
+   - STATUS QUERIES ARE IMPOSSIBLE. `Status:` is content, never a filename. `-iname '*approved*'`
+     returns 3 files and NONE of them is approved (an `open` backlog item ABOUT the word, a `done`
+     item, and a plan literally named `auto-approved` whose status is `executed`), while 16 plans in
+     `pending/` actually are `approved`.
+   - 8 OF 651 RECORDS (1.2%) carry an `Id` and/or `Set` that is ABSENT from their filename: 5 plans
+     (all in `executed/`, pre-id6-grammar legacy names) and 3 specs (grandfathered legacy spec names,
+     which `AGENTS.md` explicitly keeps valid). `find -iname '*lus9ou*'` returns ZERO hits;
+     `aw find plans lus9ou` finds it. Note `25kzda` is one of the three, i.e. a spec this repo cites
+     constantly would become uncitable under filename-only matching.
+   - A NAIVE IMPLEMENTATION MUST NORMALIZE QUOTES: one apparent ninth miss (`effzzi`) was a false
+     positive caused by front matter reading ``set: `awoptimize` `` with backticks. Strip quoting
+     before comparing, or the tool reports phantom drift.
+
+3. THEREFORE THE SHAPE IS TWO-TIER: try the filename listing first (covers 643 of 651 records at
+   ~20ms), and fall back to the existing bounded-header content scan ONLY when the listing yields
+   nothing, plus always for status queries which filenames cannot express. The fallback then costs
+   full price but runs rarely. This preserves correctness for the 8 legacy records while making the
+   common case ~18x faster, and it makes E-01/E-02's freshness sidecar unnecessary for the fast path.
+
+4. SEMANTICS, MAINTAINER RULING, and this is a CONTRACT not an optimization: `find` is intended to
+   find MATCHING ARTIFACTS, not references. `aw find plans 123abc` must return only the artifact that
+   IS `123abc`, never artifacts that MENTION, cite, or concern it. Verified that today's behavior is
+   already correct on this point: `aw find plans y6mfgo` returns exactly 1 record while 6 plans
+   mention `y6mfgo` in their bodies, and `aw find plans wtiso` returns the 6 `wtiso` plans while
+   correctly EXCLUDING the different Set `wtisoland`. Any rewrite MUST preserve that. This is the
+   argument against a naive `find | grep`, which conflates the two: the maintainer's own trial of
+   `-iname '*wtiso*'` returned `wtisoland` plans, a session-handoff prompt, and a research report.
+
+5. NON-CONFORMING NAMES MUST BE RAISED, NOT SILENTLY TOLERATED (new requirement). The long-term goal
+   is to be able to TRUST filenames, which is only reachable if the 8 exceptions are visible and
+   shrinking. Verified the gap: both `20260808-0004-00-plans-adopter-orchestrator.ipd.md` and
+   `20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` return `is_conformant=True` from the
+   shipped normalizer, so `check_engine`'s naming rule skips them at `check_engine.py:462` and nothing
+   surfaces them. So this is not a check that exists and is being ignored; there is no signal at all.
+   REQUIRED: a report (advisory, not an error) naming every record whose `Id`/`Set` is absent from its
+   filename, with the exact `aw rename` command that would make it conform, so the set is visible and
+   can be driven to zero deliberately. Do NOT auto-rename: `executed/` plan bodies are immutable by
+   policy and the grandfathered specs are a documented decision, so the renames are a maintainer call
+   per record. Once the count reaches zero the filename fast path could become authoritative and the
+   content fallback could be retired, which is the real prize.
+
+
 ## Proposed changes (ordered, validatable)
 
 1. `plans_index.py`: write an UNTRACKED sidecar freshness marker (tool version, generated-at, record count, directory fingerprint), leaving `INDEX.json` bytes untouched; gitignore the sidecar.
@@ -162,10 +214,32 @@ Benchmark to report (informational, not a pass/fail gate): record file OPENS bef
 
 ### OQ-03: Given the measured win is small and the display layer still reads every file, does this plan proceed resolver-only, or grow to cover the display layer?
 
-- Blocking: yes
-- Status: open
-- Owner: human (maintainer)
-- Resolution or deferral rationale: OPEN - requires a human scope/priority decision. Review measured that the RESOLVER-side read cost this plan removes for the plans type is ~8ms of a ~34ms scan, while the CLI DISPLAY layer (`cli._find_type_records` -> `plans_index.scan_plans`, cli.py:6590, unbounded `read_text` at plans_index.py:100) independently reads all 394 plans (~74ms, ~6.7MB); `aw find plans <id6>` opens 394 distinct files / 788 opens today. So after this plan lands as written, `aw find` STILL opens every plan file and the wall clock barely moves; what is gained is the architectural find/search split, a zero-open resolver, and the freshness primitive the display-layer fix would reuse. The reviewer deliberately did NOT expand scope (that would touch the output contract and break single-concern cohesion) and did NOT cancel the plan (the freshness/parity groundwork is a genuine prerequisite). Whether the resolver-only slice is worth executing now, should be merged with the display-layer fix, or should wait behind it, is a priority call for the maintainer.
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED 2026-08-31 with the maintainer, and the answer supersedes
+  the question's own framing: NEITHER as-written NOR merely grown. RE-SCOPE to a TWO-TIER filesystem
+  design and DROP the index-first premise for the fast path. See "Maintainer session 2026-08-31" in
+  Findings for the measurements; the load-bearing ones are that a plain directory listing answers the
+  common case in 20ms against this plan's 357ms baseline, and that it needs no freshness sidecar at all
+  because it reads the filesystem directly. E-01/E-02's sidecar is therefore unnecessary for the fast
+  path, which removes the most fragile part of this plan (its fingerprint could not detect a
+  length-preserving edit with a restored mtime; `ctime_ns` closes the realistic case but not a
+  same-instant one).
+  THE FALLBACK IS NOT OPTIONAL, measured: filenames cannot express a STATUS query at all, and 8 of 651
+  records (1.2%) carry an `Id`/`Set` absent from their filename, including spec `25kzda`. So tier 2 is
+  the existing bounded-header scan, entered when tier 1 yields nothing and always for status queries.
+  TWO REQUIREMENTS WERE ADDED BY THE MAINTAINER RATHER THAN IMPLIED: (1) the CONTRACT that `find`
+  returns matching ARTIFACTS and never references, so `123abc` matches only the artifact that IS
+  `123abc` (today's behavior already conforms and must be preserved); and (2) an ADVISORY REPORT
+  surfacing every non-conforming filename with its suggested `aw rename`, because the long-term goal is
+  to trust filenames, which is only reachable if the exception set is visible and shrinking. Verified
+  there is no such signal today: the legacy names return `is_conformant=True`, so the naming rule skips
+  them.
+  CONSEQUENCE: this plan needs re-authoring, not just re-approval. Its E-01/E-02/E-04 rest on the
+  index-first premise the maintainer just displaced. Recorded here rather than silently rewritten,
+  because a re-scope of that size is authoring and belongs to a fresh plan or a deliberate revision
+  pass, not to a question's resolution field.
 
 ## Validation and cross-check (verify before reporting done)
 
