@@ -48,7 +48,7 @@ THE ORIGINAL INSTRUCTION WAS UNFOLLOWABLE, and the review was right to refuse it
 | `check_receipt` | `rchpms` | LEAVE RAISING | NO |
 | `check_protected_refs` | `2c122z` | LEAVE RAISING | NO |
 
-FOUR implemented, FIVE left raising, and exactly ONE of the four (`check_scope`) is body-without-wiring. E-04 must UPDATE each stale label so the module stops naming a superseded owner, and must record which `lanectn` child superseded it. If the module's contents differ from this table at execution time, STOP and report rather than guessing: the table is measured, not assumed, and a difference means someone else moved first.
+FOUR implemented, FIVE left raising, and exactly ONE of the four (`check_scope`) is body-without-wiring. E-04 must UPDATE each stale label so the module stops naming a superseded owner, and must record which `lanectn` child superseded it. If the module's contents differ from this table at execution time, record the difference and proceed on the MEASURED contents rather than guessing: the table is measured, not assumed, and a difference means someone else moved first. Surface it; do not halt.
 
 ### Task group 1: single definitions (R6.1)
 
@@ -132,7 +132,7 @@ Spec `7ckptx` is normative; this plan cites requirement ids. E-04 updates the pr
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: YES, but only within this plan's declared Scope-Paths, which include both drivers precisely so consolidation is possible without a fence breach. Consolidating a duplicated rule is this plan's ASSIGNED work under R6.1, so repointing a caller in a driver is in scope. What is NOT in scope is changing a sibling's BEHAVIOR or its tests: if consolidation appears to require altering what a rule DOES rather than where it lives, that is a sign the two definitions disagreed, which is a finding to STOP and report rather than silently resolve by picking one. Recorded because "consolidate" can otherwise be read as licence to rewrite.
+- Resolution or deferral rationale: YES, but only within this plan's declared Scope-Paths, which include both drivers precisely so consolidation is possible without a fence breach. Consolidating a duplicated rule is this plan's ASSIGNED work under R6.1, so repointing a caller in a driver is in scope. What is NOT in scope is changing a sibling's BEHAVIOR or its tests: if consolidation appears to require altering what a rule DOES rather than where it lives, that is a sign the two definitions disagreed, which is a FINDING to record and surface rather than silently resolve by picking one. Report it in the walkthrough and the finalize reconciliation; do not halt the run, and do not pick a winner without saying you did. Recorded because "consolidate" can otherwise be read as licence to rewrite.
 
 ### OQ-02: Which exact predicates does this Set own, and may consolidation begin before all declared producers are complete?
 
@@ -175,7 +175,7 @@ Execution contract: this plan INHERITS the shared execution contract from orches
 3. ASSERT THE PROPERTY, NOT THE WORDING. Where the requirement states an absence, check the emitted output so a reworded violation still fails.
 4. STRUCTURE, NOT GREP, for "only one of these exists". Use AST or the import graph, repo-wide; a text grep is satisfied by the checking code itself.
 5. PREREQUISITE IS CHECKED, NOT ASSUMED: children `y5od1h` (Order 04) AND `lhmrhx` (Order 03) MUST both be in `executed/` before this plan starts, because it consolidates the rules they introduce and needs their call sites to exist to prove every consumer shares one definition. Verify those symbols exist. If they are absent, STOP and report; do not invent the rules yourself, which is precisely the forking this plan exists to prevent.
-6. THE SCOPE FENCE IS A STOP CONDITION. Touch only the declared `Scope-Paths`. If the work seems to need a sibling's surface, STOP AND REPORT; do not broaden and do not reimplement it, which would fork the rule (CID-2).
+6. THE SCOPE FENCE IS A DECLARATION, NOT A HALT CONDITION. Touch only the declared `Scope-Paths` as a default, and never expand casually; if the work genuinely requires more, MAKE THE EDIT AND JUSTIFY IT in the finalize reconciliation (`--scope-reason` per out-of-scope path, `--scope-ack` per declared-but-unmodified path), which is where an unjustified widening is caught. Do NOT halt the run over a scope question. If the work genuinely requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` will refuse to complete until every out-of-scope path you touched carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`, so an unjustified widening is CAUGHT at the gate rather than prevented by halting a run. Do NOT halt the run over a scope question. What you must NOT do is REIMPLEMENT a sibling's rule, which would fork it (CID-2): that is a correctness problem, not a scope one, so if a needed rule is missing, say so in the reconciliation reason.
 7. STATE THE HONEST LIMIT. Where a mechanism is an accident guard rather than a boundary, say so in the code comment and in this plan. Overstating a guarantee is the failure.
 
 Commits are path-scoped and never pushed. Verify the staged set with `git diff --cached --name-only` before every commit and re-verify after any failed or hook-interrupted commit.

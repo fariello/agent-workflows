@@ -18,6 +18,18 @@ Verify:
   honesty rule (paste the actual runner output), path-scoped commit and never-push, and the
   lifecycle move.
 
+SCOPE-FENCE WORDING (2026-09-01 maintainer ruling; kept in deliberate parity with the single-file
+variant). A fence is a DECLARATION so the runner can tell afterwards whether an out-of-scope file was
+edited or an in-scope file was not. It MUST NOT instruct the executor to STOP over a scope question.
+Do NOT flag a plan for lacking a "STOP and report" clause, and DO flag one that HAS it for the
+out-of-scope-edit case: the earlier mandate propagated that wording into 224 executed plans and it
+contradicts the work done to stop `aw oc run` stranding unfinished turns. The correct requirement is
+that an out-of-scope edit be made and then JUSTIFIED, which `aw ipd finalize` already enforces by
+refusing to complete without a `--scope-reason` per out-of-scope path and a `--scope-ack` per
+declared-but-unmodified path. A stop directive for a genuinely unsafe condition (an unresolvable
+concurrent-edit conflict, or a prerequisite whose symbols are absent) is a DIFFERENT case and remains
+correct.
+
 For an agent-executable plan (an IPD or similar with actionable steps), it must carry BOTH a top execution checklist AND an end
 verification/cross-check checklist that maps 1:1 with concrete per-item evidence; a weak or
 absent verification checklist (one that could let an agent claim completion without doing every

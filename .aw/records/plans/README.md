@@ -87,8 +87,24 @@ Every IPD's `Approval and execution gate` MUST carry an execution contract so th
 safe to hand to any agent from its path alone:
 
 1. All open questions RESOLVED (or explicitly OPEN, in which case the plan is NO-GO).
-2. A SCOPE FENCE naming the exact files/areas to touch, with "do not expand scope; if it
-   seems to need more, STOP and report".
+2. A SCOPE FENCE naming the exact files/areas to touch. Its purpose is DECLARATION, so the
+   runner can tell afterwards whether an out-of-scope file was edited or an in-scope file was
+   not: it is NOT an instruction to halt. The fence text MUST therefore say "do not expand
+   scope casually; if the work genuinely requires a file outside the fence, make the edit and
+   JUSTIFY it in the two-way scope reconciliation at finalize" and MUST NOT tell the executor
+   to STOP.
+   WHY THE OLD WORDING WAS REMOVED (2026-09-01, maintainer ruling): it read "if it seems to
+   need more, STOP and report", which was written to prevent a casual "I'll just edit this
+   file" and got misread as "abort the execution". That directly contradicts the work done to
+   stop `aw oc run` stranding unfinished turns, and it propagated into 224 executed plans
+   because this contract mandated it and `/plan-review` flagged its absence as a finding.
+   The enforcement already exists and is the right layer: `aw ipd finalize` refuses to
+   complete until every out-of-scope edited path carries a `--scope-reason` and every
+   declared-but-unmodified path carries a `--scope-ack`. So an out-of-scope edit is CAUGHT and
+   must be JUSTIFIED; it is not prevented by stopping mid-run. A plan MAY still direct a stop
+   for a genuinely unsafe condition (an unresolvable conflict with a co-worker's concurrent
+   edit, or a missing prerequisite whose symbols do not exist), which is a different thing
+   from a scope question.
 3. The HARD MUST honesty rule: when you report tests/validation passed, paste the ACTUAL
    runner output; never claim success you did not run.
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;

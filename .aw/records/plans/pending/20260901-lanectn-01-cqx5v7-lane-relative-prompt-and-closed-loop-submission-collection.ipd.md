@@ -179,7 +179,7 @@ Execution contract: this plan INHERITS the shared execution contract from orches
 1. PROSE IS NEVER EVIDENCE. Paste real command output and exit codes, never a summary of them.
 2. SABOTAGE the central assertions in V-01 and V-03. A passing test that also passes when the product is broken proves nothing; this session already produced one such test and only sabotage exposed it.
 3. ASSERT THE PROPERTY, NOT THE WORDING (V-02). A reworded exception must still fail the check.
-4. THE SCOPE FENCE IS A STOP CONDITION. Touch only the four declared paths. If the work seems to need the manifest, the classifier, the deadlines, or the retention rules, that is a SIBLING's scope: STOP AND REPORT, do not broaden.
+4. THE SCOPE FENCE IS A DECLARATION, NOT A HALT CONDITION. Touch only the four declared paths as a default, and never expand casually. If the work genuinely requires the manifest, the classifier, the deadlines, or the retention rules, those are SIBLINGS' surfaces: do NOT reimplement them (that forks the rule, CID-2) and do NOT halt the run over it. Report the need, and if you must touch a path outside the fence, MAKE THE EDIT AND JUSTIFY IT in the finalize reconciliation (`--scope-reason` per out-of-scope path, `--scope-ack` per declared-but-unmodified path), which is where an unjustified widening is caught.
 
 Commits are path-scoped and never pushed. Verify the staged set with `git diff --cached --name-only` before every commit and re-verify after any failed or hook-interrupted commit.
 

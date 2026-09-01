@@ -254,9 +254,17 @@ names a specific failure it prevents.
    grep is satisfied by the checking code itself, and a per-file check passes while two copies exist.
 5. CITE THE REQUIREMENT. Every `E-*` names the `7ckptx` requirement id it implements and every `V-*`
    names the acceptance criterion it proves. An item that cites nothing is out of scope by definition.
-6. THE SCOPE FENCE IS A STOP CONDITION. Touch ONLY the paths in your own `Scope-Paths`. Do not expand
-   scope; if the work seems to need more, STOP AND REPORT rather than silently broadening. Do not edit a
-   sibling child, this orchestrator, or product code outside your fence.
+6. THE SCOPE FENCE IS A DECLARATION, NOT A HALT CONDITION. Touch only the paths in your own
+   `Scope-Paths` as a default, and do not expand scope CASUALLY. But if the work GENUINELY requires a
+   path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until
+   every out-of-scope path you touched carries a `--scope-reason` and every declared-but-unmodified
+   path carries a `--scope-ack`, so an unjustified widening is CAUGHT AT THE GATE. Do NOT halt the run
+   over a scope question. The fence exists so the runner can tell afterwards whether an out-of-scope
+   file was edited or an in-scope file was not; it was never meant to abort execution, and wording that
+   told an executor to stop over scope propagated widely before being corrected on 2026-09-01. Still
+   forbidden regardless: editing a sibling child's plan or this orchestrator, and REIMPLEMENTING a rule
+   another child owns (that forks the rule, CID-2, which is a correctness problem rather than a scope
+   one, so report the missing rule instead of recreating it).
 7. PREREQUISITES ARE CHECKED, NOT ASSUMED. Before starting, verify your declared prerequisite child is in
    `executed/` AND that the symbols you depend on exist. If they are absent, STOP and report; do not
    reimplement them, which would fork the rule (CID-2).

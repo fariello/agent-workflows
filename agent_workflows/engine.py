@@ -1247,7 +1247,7 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "`ipd-lifecycle` workflow gates execution and the terminal transition. Completion rule: do NOT "
         f"claim done or move a plan to `{plans_dir}/executed/` until `aw ipd lint --phase "
         "pre-transition` conforms and every validation item is verified with concrete evidence (tests "
-        "run, actual output pasted), else STOP and report."
+        "run, actual output pasted)."
     )
 
 
