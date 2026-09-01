@@ -3672,6 +3672,16 @@
   {
     "date": "2026-08-29",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md",
+    "plan_id": "y0gg8o",
+    "set_id": "lanetruth",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md",
@@ -4187,16 +4197,6 @@
     "path": "pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md",
     "plan_id": "97df1z",
     "set_id": "fullauto",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260829-lanetruth-00-y0gg8o-runner-truth-alignment-the-runner-must-consume-what-the-repo.ipd.md",
-    "plan_id": "y0gg8o",
-    "set_id": "lanetruth",
     "status": "approved"
   },
   {
