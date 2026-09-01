@@ -17,6 +17,7 @@
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-09-01 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-04 implemented in commit `81c67a6f`; V-01..V-04 verified with pasted evidence. Optional keyword-only `trailers=` on the shipped `offer_commit` (never a second commit path), a PURE `compose_message_with_trailers`, shape validation failing CLOSED, and threading through `aw commit` with NO new CLI flag. Tests 17 -> 48 in `tests/test_git_commit_helper.py`, asserted through GIT's own parser rather than string comparison. HONEST STATEMENTS THE PLAN REQUIRED: (1) nothing in the tree PASSES trailers yet, because the runner wiring is deferred, so this identifies no commits until a follow-up wires it - including this very commit, which carries none; (2) a trailer is a CLAIM in a commit message, not an enforced boundary - an agent committing by hand can omit or forge one, and `RUN-COMMIT-GATEWAY` (spec line 539) remains wholly unbuilt, so this is NOT progress on preventing an out-of-gateway commit; (3) `aw check plans` is RED and I do not claim otherwise - measured 5 findings before AND after at my own baselines (not the plan's remembered 901 at a different HEAD), all owned by other Sets; (4) the bare suite keeps 15 PRE-EXISTING `tests/test_run_viewer.py` failures, unchanged, outside this plan's scope. Beyond the plan: E-02's literal "trailing run of `Key: value` lines" test proved INSUFFICIENT, so the block predicate models git's ACTUAL documented rule (all-trailers, or git-generated + >=25%, preceded by a blank line, at end or before a `---` divider), cross-checked against `git interpret-trailers --parse` (decision D-1). Two of seven mutations initially SURVIVED, exposing genuine gaps that drove two extra tests. Decisions D-1/D-2/D-3 recorded in the run register.
 - 2026-08-31 approved (aw set, --by-human): Maintainer approved 2026-08-31 in session, after plan-review round 1 (m73aet APPROVE 0 findings; 6lu3rq and wlxkoz APPROVE WITH REVISIONS APPLIED, all findings FIXED in place, zero unresolved, no open questions).
 - 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied. See .aw/records/reviews/ for the typed findings and decisions.
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: APPROVE; ZERO findings. Verified at HEAD 381dbd5c: offer_commit really is at git_commit_helper.py:133 with its single message-consuming git call at :245, work_cmd.run_commit at :360, and AW-Run:/AW-Item: really are ZERO-hit. Two claims verified BY EXECUTION rather than reading: (1) E-02's case-(b) hazard is REAL and reproducible - appending a trailer after a blank line to a body already ending in a trailer block makes git's own parser DROP the earlier trailers (a body ending 'Co-authored-by: x' yields ONLY 'AW-Run: r1' from --parse), so the plan's subtlest requirement is correctly diagnosed; (2) git interpret-trailers --parse is available here, so V-02's evidence is collectable. Endorsed three restraints: the blast radius is correctly handled (23 call sites across 10+ modules, parameter defaults empty), E-03's refusal to add a flag with no consumer is correct (verified work_cmd has no run-id access), and E-04 asserting through git's parser rather than string comparison is exactly why the malformed case is catchable. Findings table deliberately EMPTY rather than padded. Two reversible decisions recorded (D-1, D-2). Review artifact: .aw/records/reviews/20260831-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers.review.md
@@ -33,25 +34,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: extend the shipped commit path
 
-- [ ] E-01 Add an optional `trailers: Sequence[str] = ()` keyword parameter to the shipped `git_commit_helper.offer_commit`. MEASURED starting point so the executor does not rediscover it: the function is at `agent_workflows/git_commit_helper.py:133` and its current signature is `(repo_root, paths, *, message, assume_yes=False, no_commit=False, interactive=None, on_unrelated_staged="scope")`. The single git invocation that consumes the message is `_git(repo_root, ["commit", "-m", message, "--", *our_staged])` at `:245`. The parameter MUST default to empty so every existing caller is byte-for-byte unaffected; this module is a low-level LEAF reused by `aw archive`, `aw group`, `aw rename`, `aw research set-assign`/`mv`, the shared `set` engine, and `specs` (its own docstring, `:3-6`), so a behavior change here reaches all of them. Do NOT alter the path-scoping, the `--no-verify` prohibition, the no-push rule, or the index snapshot/rollback logic; the trailers are additive to the MESSAGE only.
+- [x] E-01 Add an optional `trailers: Sequence[str] = ()` keyword parameter to the shipped `git_commit_helper.offer_commit`. MEASURED starting point so the executor does not rediscover it: the function is at `agent_workflows/git_commit_helper.py:133` and its current signature is `(repo_root, paths, *, message, assume_yes=False, no_commit=False, interactive=None, on_unrelated_staged="scope")`. The single git invocation that consumes the message is `_git(repo_root, ["commit", "-m", message, "--", *our_staged])` at `:245`. The parameter MUST default to empty so every existing caller is byte-for-byte unaffected; this module is a low-level LEAF reused by `aw archive`, `aw group`, `aw rename`, `aw research set-assign`/`mv`, the shared `set` engine, and `specs` (its own docstring, `:3-6`), so a behavior change here reaches all of them. Do NOT alter the path-scoping, the `--no-verify` prohibition, the no-push rule, or the index snapshot/rollback logic; the trailers are additive to the MESSAGE only.
   - Depends on: none
   - Expected outcome: `offer_commit` accepts `trailers` and defaults it empty; with no trailers passed, the composed message and the resulting commit are identical to today's; the parameter is keyword-only, consistent with the rest of the signature.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement the trailer COMPOSITION per Git trailer convention: trailers form a block at the END of the message, separated from the body by ONE blank line. Handle the three cases that actually break naive string concatenation, all of which the retired plan's review named explicitly: (a) a MULTILINE body, (b) a body that ALREADY ends in a trailer block (the new trailers must join that block rather than starting a second one separated by a blank line, since a blank line inside the trailer block terminates it and makes the earlier trailers cease to parse as trailers), and (c) a body with NO trailing newline. Compose the message as data and keep the function pure so all three cases are testable without invoking git. Do NOT hand-roll a trailer PARSER: this item only needs to append correctly, and detecting case (b) requires recognizing a trailing run of `Key: value` lines, which is a bounded, well-defined check.
+- [x] E-02 Implement the trailer COMPOSITION per Git trailer convention: trailers form a block at the END of the message, separated from the body by ONE blank line. Handle the three cases that actually break naive string concatenation, all of which the retired plan's review named explicitly: (a) a MULTILINE body, (b) a body that ALREADY ends in a trailer block (the new trailers must join that block rather than starting a second one separated by a blank line, since a blank line inside the trailer block terminates it and makes the earlier trailers cease to parse as trailers), and (c) a body with NO trailing newline. Compose the message as data and keep the function pure so all three cases are testable without invoking git. Do NOT hand-roll a trailer PARSER: this item only needs to append correctly, and detecting case (b) requires recognizing a trailing run of `Key: value` lines, which is a bounded, well-defined check.
   - Depends on: E-01
   - Expected outcome: a single-line body, a multiline body, a body already ending in trailers, and a body without a trailing newline all produce a message whose trailer block parses as trailers (verifiable with `git interpret-trailers --parse` or `git log --format=%(trailers)`); no case produces two blank-line-separated trailer blocks; composition is a pure function testable without git.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Thread the parameter through `aw commit` so a caller that knows its run and item can pass them. MEASURED: the verb is `work_cmd.run_commit` (`agent_workflows/work_cmd.py:360`), documented as committing in-scope paths "via the SHARED git_commit_helper (no forked commit path, no add -A, no push)". Pass the trailers through; do NOT invent a new CLI surface for them in this plan and do NOT make them required, because the values come from a live run and this plan deliberately does not touch the runners (see Deferred). If threading them requires a new CLI flag to be useful at all, STOP and report rather than adding a flag whose only caller does not exist yet: a flag with no consumer is a public contract taken on for nothing.
+- [x] E-03 Thread the parameter through `aw commit` so a caller that knows its run and item can pass them. MEASURED: the verb is `work_cmd.run_commit` (`agent_workflows/work_cmd.py:360`), documented as committing in-scope paths "via the SHARED git_commit_helper (no forked commit path, no add -A, no push)". Pass the trailers through; do NOT invent a new CLI surface for them in this plan and do NOT make them required, because the values come from a live run and this plan deliberately does not touch the runners (see Deferred). If threading them requires a new CLI flag to be useful at all, STOP and report rather than adding a flag whose only caller does not exist yet: a flag with no consumer is a public contract taken on for nothing.
   - Depends on: E-02
   - Expected outcome: `run_commit` can pass trailers to `offer_commit`; `aw commit` behavior is unchanged when no trailers are supplied; no new required argument and no new public flag is added without reporting first.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Extend `tests/test_git_commit_helper.py` with the falsifiable cases. MUST cover: each of E-02's three body shapes producing a PARSEABLE trailer block, asserted by asking git to parse the trailers rather than by string comparison (a string assertion would pass on a malformed block that git does not recognize); the `AW-Run:`/`AW-Item:` shape specifically; a no-trailers call producing a commit identical to today's; and evidence that the surrounding contract still holds with trailers present (paths still scoped, nothing extra staged, no push). This file is SHIPPED and shared: add cases, and do NOT weaken, remove, or alter any existing assertion.
+- [x] E-04 Extend `tests/test_git_commit_helper.py` with the falsifiable cases. MUST cover: each of E-02's three body shapes producing a PARSEABLE trailer block, asserted by asking git to parse the trailers rather than by string comparison (a string assertion would pass on a malformed block that git does not recognize); the `AW-Run:`/`AW-Item:` shape specifically; a no-trailers call producing a commit identical to today's; and evidence that the surrounding contract still holds with trailers present (paths still scoped, nothing extra staged, no push). This file is SHIPPED and shared: add cases, and do NOT weaken, remove, or alter any existing assertion.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: every case above passes; the trailer assertions are made through git's own trailer parsing; the existing tests in the file pass unchanged; the new tests FAIL if the composition logic is reverted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -108,9 +109,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Spec / documentation sync
 
-- This plan implements the trailer half of spec `25kzda` 4.6. It does not change the spec text.
-- Record which of the spec's Section 4.2 `RUN-*` codes now becomes reachable, because `RUN-COMMIT-CONTENTS` and `RUN-COMMIT-GATEWAY` both depend on these trailers existing, and a successor of `7f7782` needs to know which of the 13 codes are still genuinely unbuilt. Leaving that unrecorded is how two plans both come to believe a code is missing.
-- If `git_commit_helper.py`'s module docstring enumerates the contract it enforces, extend it to mention the optional trailers so the next reader does not have to infer them from the signature.
+- This plan implements the trailer half of spec `25kzda` 4.6. It does not change the spec text. VERIFIED the spec says what the plan quotes: the spec is `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, and line 608 reads "The checker finds run-owned commits by required immutable trailers such as `AW-Run: <run-id>` and `AW-Item: <id6>`, then proves their tree diffs. It does not assume every commit between baseline and ending HEAD belongs to this run." Line 28 also names "the hash-chained run ledger with `AW-Run:`/`AW-Item:` commit trailers", so the key spellings implemented here match the spec exactly.
+- `RUN-*` CODE STATUS AFTER THIS PLAN (recorded so a successor of `7f7782` does not re-derive it, and so two plans do not both believe a code is missing). Both relevant codes are at spec lines 538-539:
+  - `RUN-COMMIT-CONTENTS` (line 538) - "Run-owned commits identified by immutable run/item trailers, commit parents, trees, and action-owned delta". Its trailer PREREQUISITE is now BUILT: a commit can carry `AW-Run`/`AW-Item`, and `git_commit_helper.TRAILER_KEY_RUN`/`TRAILER_KEY_ITEM` single-source the spelling a checker must match. The CODE ITSELF REMAINS UNBUILT: nothing yet emits it, and its "path union equals the action-owned delta" proof needs the tree-diff comparison, which is not in this scope. So: unblocked, not implemented.
+  - `RUN-COMMIT-GATEWAY` (line 539) - "The engine, not the agent, invoked `git commit ... -- <explicit paths>`". STILL WHOLLY UNBUILT and deliberately NOT advanced here. It requires a captured gateway event and argv, i.e. ENFORCEMENT, which a trailer cannot supply. Do not treat this plan as progress on it (see the Scope check's second under-scope note).
+  - NOT REACHABLE YET, because nothing passes trailers: until a runner supplies `AW-Run`/`AW-Item`, no real commit carries them, so a checker keying on them would find zero run-owned commits. The capability is available and tested; the wiring is the deferred follow-up.
+- `git_commit_helper.py`'s module docstring DOES enumerate the contract it enforces, so it gained a bullet for the optional trailers (with the spec rationale and the honest "a trailer is a claim, not a boundary" limit) plus a pointer to `compose_message_with_trailers`. `work_cmd.py`'s docstring gained the matching note on its `aw commit` bullet. Neither reader now has to infer the feature from a signature.
 
 ## Open questions
 
@@ -132,25 +136,228 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new signature showing `trailers` is keyword-only and defaults empty. Paste a no-trailers commit's full message and compare it against the same commit composed at the pre-change HEAD, proving byte-identical. Paste the list of callers you checked (the docstring names at least six) and evidence none passes a positional argument that this change would shift.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `trailers: Sequence[str] = ()` is keyword-only (after the bare `*`) and defaults empty, asserted mechanically in `test_trailers_is_keyword_only_and_defaults_empty` (which also pins the positional set to `[repo_root, paths]`). No-trailers commits are BYTE-IDENTICAL to raw `git commit -m` across four body shapes, compared via stored bytes (`git cat-file commit`, not `%B`, which appends its own newline). All SEVEN `offer_commit` call sites checked BY AST: every one passes exactly 2 positional args, so no argument can shift. Detail below.
 
-- [ ] V-02 validates E-02
+    SIGNATURE (`agent_workflows/git_commit_helper.py`), `trailers` after the bare `*` so it is keyword-only, defaulting to the empty tuple:
+
+    ```
+    def offer_commit(
+        repo_root: Path,
+        paths: Sequence[str],
+        *,
+        message: str,
+        assume_yes: bool = False,
+        no_commit: bool = False,
+        interactive: Optional[bool] = None,
+        on_unrelated_staged: str = "scope",
+        trailers: Sequence[str] = (),
+    ) -> CommitOutcome:
+    ```
+
+    Asserted mechanically rather than by eye, in `test_trailers_is_keyword_only_and_defaults_empty`, which also pins the positional set to `["repo_root", "paths"]` so no call site can shift.
+
+    BYTE-IDENTICAL NO-TRAILERS BEHAVIOR. The pre-change code path was `git commit -m message` verbatim, so `test_no_trailers_commit_is_byte_identical_to_pre_change_behavior` commits the same content BOTH ways in one repo and compares the STORED message bytes (`git cat-file commit`, not `--format=%B`, which appends a newline of its own and so cannot support a byte claim). Four shapes: subject-only, subject+body, multiline, and a body already ending in `Co-authored-by:`. All identical. `test_compose_with_no_trailers_is_byte_identical` additionally asserts `compose_message_with_trailers(body, []) == body` for five shapes including the empty string.
+
+    Live confirmation through `aw commit` with no trailers supplied (temp repo, HEAD `aab55714`):
+
+    ```
+    --- trailers (expect EMPTY) ---
+    '\n'
+    --- stored message bytes ---
+    'feat: no trailers here\n\nbody\n'
+    ```
+
+    ALL CALL SITES CHECKED, by AST rather than by grep, so a multi-line call cannot hide. Every one passes exactly TWO positional arguments (`repo_root`, `paths`) and everything else by keyword, so adding a keyword-only parameter cannot shift any argument:
+
+    ```
+    agent_workflows/cli.py:3880 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged']
+    agent_workflows/oc_runipd.py:1183 positional=2 keywords=['message', 'assume_yes', 'interactive']
+    agent_workflows/plans_archive.py:296 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged']
+    agent_workflows/research_archive.py:400 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged']
+    agent_workflows/specs.py:650 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged']
+    agent_workflows/status_set.py:1076 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged']
+    agent_workflows/work_cmd.py:470 positional=2 keywords=['message', 'assume_yes', 'no_commit', 'on_unrelated_staged', 'trailers']
+    ```
+
+    That is SEVEN call sites (the docstring said "at least six"); `work_cmd.py` is the only one passing `trailers`. Across `tests/`, max positional args to `offer_commit` = 2.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for EACH of the three body shapes (multiline; already ending in a trailer block; no trailing newline), paste the composed message AND the output of git parsing its trailers, proving the trailers are recognized. For the already-ending-in-trailers case, paste evidence the EARLIER trailers still parse (F5's silent failure), which a string comparison cannot show. Paste evidence the composition function is pure and was tested without invoking git.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All EIGHT body shapes compose to trailers GIT parses (`git interpret-trailers --parse`, git 2.43.0), including the plan's three required shapes. F5's silent failure demonstrated side by side: the naive blank-line append LOSES a pre-existing `Co-authored-by` (git reports only AW-Run/AW-Item) while ours preserves it. Purity proven by monkeypatching both `subprocess.run` and `H._git` to raise, then composing successfully. Three shapes BEYOND the plan's three were found by probing git and are handled (mixed non-git-generated prose, sub-25% ratio, lone first paragraph); see decision D-1. Detail below.
 
-- [ ] V-03 validates E-03
+    ALL EIGHT BODY SHAPES composed, then handed to GIT to parse (`git interpret-trailers --parse`, git 2.43.0). The three the plan required are the 2nd, 3rd, and 4th:
+
+    ```
+    OK  single-line body
+       composed: 'fix: something\n\nAW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet\n'
+       parsed  : 'AW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet'
+    OK  multiline body
+       composed: 'fix: something\n\nwhy this matters\nand more detail\n\nAW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet\n'
+       parsed  : 'AW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet'
+    OK  already ends in trailer block
+       composed: 'fix: something\n\nbody\n\nCo-authored-by: x <x@e.com>\nAW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet\n'
+       parsed  : 'Co-authored-by: x <x@e.com>\nAW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet'
+    OK  no trailing newline
+       composed: 'fix: something\n\nbody no newline\n\nAW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet\n'
+       parsed  : 'AW-Run: run-20260901T042331Z-118022\nAW-Item: m73aet'
+    OK  body WITH trailing newline
+    OK  single paragraph only
+    OK  gitgen mixed block
+    OK  --- divider
+    ```
+
+    Note the third case: the composed message has NO blank line before `AW-Run`, so the new trailers JOIN the existing block, and git consequently reports `Co-authored-by` ALONGSIDE them.
+
+    F5's SILENT FAILURE, DEMONSTRATED RATHER THAN ASSERTED. The naive `message + "\n\n" + trailers` beside ours, same input, both parsed by git:
+
+    ```
+    NAIVE (message + '\n\n' + trailers):
+    'AW-Run: r1\nAW-Item: m73aet'
+    OURS:
+    'Co-authored-by: x <x@e.com>\nAW-Run: r1\nAW-Item: m73aet'
+    ```
+
+    The naive form SILENTLY LOSES the co-author: the commit still succeeds, and only git's parser reveals it. `test_compose_preserves_preexisting_trailers_joining_the_block` asserts BOTH directions (that the naive form loses it and ours keeps it), so the test would fail if the hazard ever stopped being real. `test_trailers_join_existing_block_on_a_real_commit` repeats it end-to-end on an actual commit via `%(trailers)`.
+
+    PURITY. `test_compose_is_pure_and_needs_no_git` monkeypatches BOTH `subprocess.run` and `H._git` to raise, then composes successfully, so the function provably invokes no subprocess. All composition tests call it directly; git is used only to CHECK the output.
+
+    THREE EXTRA SHAPES BEYOND THE PLAN'S THREE, found by probing git rather than assuming. Git's real rule (`git-interpret-trailers(1)`) is that a group counts as trailers when it "is all trailers, or contains at least one Git-generated ... trailer and consists of at least 25% trailers", preceded by a blank line, at the end of input or just before a `---` divider. So a "looks like `Key: value`" heuristic is WRONG in three directions, each verified by asking git:
+
+    - MIXED PROSE + non-git-generated trailer is NOT a block (`prose line` + `Key: value` -> git reports nothing), so joining it would yield a commit with NO parseable trailers;
+    - a git-generated trailer UNDER 25% is not a block either (1 `Signed-off-by:` among 4 prose lines -> nothing; among 3 -> parses);
+    - a LONE FIRST PARAGRAPH is never a block (git requires a preceding blank line), and that is the common case here, not an edge case: 910 of the last 2211 commit messages in this repo are single-paragraph.
+
+    `test_is_trailer_block_matches_git_on_the_25_percent_rule` cross-checks the predicate against git's parser on eight boundary inputs including both sides of the 25% ratio, so the implementation is pinned to git's behavior and not to my reading of it. The `---` divider case is handled by inserting BEFORE the divider, which is what `git interpret-trailers` itself does with the same input (verified directly).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `aw commit` passing trailers through to a real commit and the resulting `git log` trailers. Paste an `aw commit` invocation WITHOUT trailers behaving exactly as before. State explicitly whether you added any new CLI flag; if you did, paste the report you were required to make first (E-03 forbids adding one silently).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `aw commit` carried `AW-Run: run-20260901T042331Z-118022` + `AW-Item: zz9zz9` to real commit `7b8645c4`, confirmed via `git log --format=%(trailers)`. Without trailers (`aab55714`) the trailer output is empty and the stored bytes are exactly the caller's message. NO new CLI flag was added (verified against `aw commit --help`), so no E-03 report was owed; callers supply values via namespace attributes instead. Auto-deriving `AW-Item` from the resolved plan was deliberately REJECTED as an out-of-scope default-behavior change (decision D-3). Detail below.
 
-- [ ] V-04 validates E-04
+    `aw commit` CARRYING TRAILERS to a real commit (throwaway repo `/tmp/opencode/awc` with a `Scope-Paths`-declaring plan, so the scope gate ran too):
+
+    ```
+    aw commit: committed 1 path(s): 7b8645c45058d4494d8639cfbbc62b29c66ef1cb
+    exit: 0
+    --- git-reported trailers ---
+    AW-Run: run-20260901T042331Z-118022
+    AW-Item: zz9zz9
+
+    --- full message ---
+    feat: demo change
+
+    with a body paragraph
+
+    AW-Run: run-20260901T042331Z-118022
+    AW-Item: zz9zz9
+    ```
+
+    Those trailers come from `git log -1 --format=%(trailers)`, i.e. GIT's own parse of the stored commit, not from string inspection.
+
+    `aw commit` WITHOUT trailers, same repo, unchanged behavior (empty trailer output, stored bytes exactly the caller's message):
+
+    ```
+    aw commit: committed 1 path(s): aab557146ecd1923434dc890a103ce8b78ff1a7e
+    exit: 0
+    --- trailers (expect EMPTY) ---
+    '\n'
+    --- stored message bytes ---
+    'feat: no trailers here\n\nbody\n'
+    ```
+
+    NEW CLI FLAG: NONE ADDED. E-03 required stopping and reporting rather than adding a flag with no consumer, and no flag was needed, so no report was owed. Confirmed against the built parser:
+
+    ```
+    $ python3 -m agent_workflows commit --help | grep -i 'trailer|run-id|item'
+    confirmed: no trailer/run-id/item flag on aw commit
+    ```
+
+    HOW A CALLER SUPPLIES THEM INSTEAD. `run_commit` already takes an `argparse.Namespace`, so the eventual runner passes either `trailers` (preformatted) or `run_id`/`item_id6` (raw ids, formatted through `git_commit_helper.run_item_trailers` so the key spelling is single-sourced and cannot drift). `_trailers_from_args` returns `[]` when neither is present. Asserted in `test_aw_commit_threads_trailers_through` for all three cases.
+
+    DELIBERATELY NOT DONE: the plan's own id6 is NOT auto-derived into an `AW-Item` trailer. `aw commit` already knows its plan, so that was tempting and would have been WRONG here: it changes the default behavior of an existing caller, which this plan's scope explicitly excludes ("do not change the default behavior of any existing caller"). Recorded as decision D-3.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tests/test_git_commit_helper.py` with counts, and the BARE `python3 -m pytest` summary line with the `git rev-parse HEAD` it was measured at plus your own before-baseline at that HEAD. Paste a `git diff` of the test file proving no existing assertion was weakened, removed, or altered. Paste proof the new tests are NOT VACUOUS: with the composition logic stubbed, show them FAILING. Paste the no-worsening comparison for `aw check plans` (both counts measured, not remembered).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS, with pre-existing failures honestly unchanged. Target file 17 -> 48 passing. BARE suite: 15 failed / 3872 passed at HEAD `26973ca6` (before) -> 15 failed / 3903 passed at HEAD `81c67a6f` (after), i.e. +31 passed and failures UNCHANGED at 15; all 15 are pre-existing `tests/test_run_viewer.py` failures outside this plan's Scope-Paths, and I do NOT claim the suite is green. Only ONE line was removed from the test file (a blank line); the 17 original tests were re-run by name and pass. Non-vacuity proven by SEVEN mutations, all caught - two initially SURVIVED and exposed real gaps in my own tests, which drove two additional tests. `aw check plans` 5 -> 5 (no worsening, all five owned by other Sets); `aw sanitize --agent` clean. Detail below.
+
+    TARGET FILE, 17 -> 48 passing:
+
+    ```
+    $ python3 -m pytest tests/test_git_commit_helper.py     # BEFORE, at HEAD 26973ca6
+    17 passed in 1.94s
+
+    $ python3 -m pytest tests/test_git_commit_helper.py     # AFTER, at HEAD 81c67a6f
+    48 passed in 1.99s
+    ```
+
+    BARE SUITE, both counts measured by me (not remembered), each with the HEAD it was taken at. Invoked bare per the contract, so `addopts` supplied `-q -n auto --dist=worksteal -m 'not slow'`:
+
+    ```
+    $ git rev-parse HEAD
+    26973ca6a8ce3a26a4fae0dfaa44c3594446274a     # BEFORE
+    $ python3 -m pytest
+    15 failed, 3872 passed, 3 skipped, 4 xfailed in 36.25s
+
+    $ git rev-parse HEAD
+    81c67a6fe41e981db84673f42eae72b329a8ae63     # AFTER
+    $ python3 -m pytest
+    15 failed, 3903 passed, 3 skipped, 4 xfailed in 32.39s
+    ```
+
+    +31 passed, and the failure count is UNCHANGED at 15. Those 15 are PRE-EXISTING and NOT MINE: all are in `tests/test_run_viewer.py`, they fail identically at the pre-change HEAD `26973ca6`, and that file is outside this plan's Scope-Paths. Their mode is unrelated to this work (`AssertionError: 'Data from' not found in 'no matching runs found'`). I did NOT claim the suite is green.
+
+    NO EXISTING ASSERTION WEAKENED, REMOVED, OR ALTERED. The complete set of removed lines in the test file diff is a single blank line (import-sort normalization):
+
+    ```
+    $ git diff HEAD~1 -- tests/test_git_commit_helper.py | grep '^-' | grep -v '^---'
+    -
+    ```
+
+    Additive-only overall: `3 files changed, 683 insertions(+), 4 deletions(-)`, the 4 deletions being that blank line plus 3 reflowed docstring/signature lines. All 17 original tests were additionally re-run BY NAME to prove they still pass on their own: `17 passed, 31 deselected`.
+
+    NON-VACUITY, PROVEN BY SEVEN MUTATIONS, each applied to the shipped module, suite re-run, then reverted (`diff` against a pristine copy confirmed byte-identical restoration afterward):
+
+    | # | Mutation | Result |
+    | --- | --- | --- |
+    | 1 | Remove the join branch (naive blank-line append) | 2 failed |
+    | 2 | Stub composition to return `message` unchanged | 12 failed |
+    | 3 | Drop the `---` divider handling | 1 failed |
+    | 4 | Remove the embedded-newline rejection | 3 failed |
+    | 5 | Replace the git-generated + 25% gate with `return True` | 2 failed |
+    | 6 | Remove the single-paragraph guard | 1 failed |
+    | 7 | Widen the key charset to `[\w.-]` | 14 failed |
+
+    Sample (mutation 1, the F5 case):
+
+    ```
+    E       AssertionError: pre-existing trailer lost: ['AW-Run: run-20260901T042331Z-118022', 'AW-Item: m73aet']
+    FAILED tests/test_git_commit_helper.py::test_compose_preserves_preexisting_trailers_joining_the_block
+    FAILED tests/test_git_commit_helper.py::test_trailers_join_existing_block_on_a_real_commit
+    2 failed, 42 passed
+    ```
+
+    HONEST NOTE, because it changed the outcome. Mutations 5 and 6 initially SURVIVED (44 passed) - a real coverage gap in my own tests, not a formality. That is what prompted `test_compose_starts_a_new_block_when_git_would_not_see_one` and `test_is_trailer_block_matches_git_on_the_25_percent_rule`; both mutations now fail as shown. A further attempted mutation 4 appeared to survive but had silently FAILED TO APPLY (shell escaping); re-applied correctly via a Python heredoc and verified with `grep -n 'if False:'` before trusting the result. Had I trusted the first run, I would have reported false coverage.
+
+    `aw check plans`, NO WORSENING, both counts measured:
+
+    ```
+    BEFORE (HEAD 26973ca6): findings: 5
+    AFTER  (HEAD 81c67a6f): findings: 5
+      check.ipd-dependency-findings-blocked  20260829-runprofile-03-3cm15q-...
+      check.ipd-dependency-findings-blocked  20260829-runprofile-04-ygzq71-...
+      check.ipd-dependency-findings-blocked  20260829-runprofile-05-p7xhhm-...
+      check.lifecycle-transition-invalid     20260829-runnamecollapse-01-0soncw-...
+      check.lifecycle-transition-invalid     20260830-runcodes-01-wlxkoz-...
+    ```
+
+    Identical before and after, and all five belong to OTHER Sets (`runprofile`, `runnamecollapse`, `runcodes`); none names this plan. It is RED, and I am NOT claiming it passes. The plan cited 901 findings at HEAD `7e5ba287`; my own fresh baseline at `26973ca6` is 5, so I used the measurement rather than the remembered number.
+
+    `aw sanitize --agent`: clean (`"outcome":"clean","findings":0`). Formatting: `ruff-format` at the version the hook PINS (0.4.4) reports all three files formatted, and `pre-commit run ruff-format` passes on them. My locally installed ruff is 0.16.3 and disagrees with 0.4.4 on multi-line `assert` layout; the pinned version governs, since that is what the hook actually runs.
+  - Result: pass
 
 ## Approval and execution gate
 
