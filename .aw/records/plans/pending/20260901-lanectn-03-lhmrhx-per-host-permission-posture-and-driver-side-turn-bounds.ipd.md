@@ -8,7 +8,7 @@
 - Item-Dependencies: executed:cqx5v7
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 3
 - Highest E allocated: 06
@@ -16,6 +16,7 @@
 - Id: lhmrhx
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): third child of Set `lanectn`. Requires `cqx5v7` executed, and that ordering is NORMATIVE not stylistic: spec R4.6 forbids the permission denial landing before the prompt stops naming out-of-lane paths, because the host CURRENTLY PERMITS those writes and denying them first would convert a working run into a hard failure.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -27,6 +28,8 @@ Every isolated turn has at least one containment layer that does not depend on t
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+HOST-NEUTRAL FIRST, ADAPTERS SECOND, AND THIS ONE IS A SELECTIVE PORT. Corrected after `/aw plan-review` finding PR-001: the original E-06 combined the role selector with every applicable agy mirror of policy reporting, operator-value handling, event observation, both deadlines, termination, and safe-failure recording. Because the agy host has NO policy document by design (R4.1), that was never a mechanical mirror, which makes an omitted seam likely. So the deadlines, the reporting, and the safe-failure recording MUST be host-neutral functions both drivers call; E-06 wires them and adapts this host's event shapes. It MUST also mark the policy-document step explicitly INAPPLICABLE for agy rather than leaving its absence to be inferred.
 
 READ R4.6 BEFORE E-01. The permission denial in E-01 MUST NOT be delivered before child `cqx5v7` has removed the out-of-lane paths from the prompt. MEASURED: run `run-20260901T042331Z-118022` recorded ZERO permission events and both workers successfully wrote all five out-of-lane paths, so the host permits them today. Denying access to paths the prompt still names would break a currently-working runner. The `Item-Dependencies` edge encodes this; do not reorder it for convenience.
 
@@ -57,7 +60,7 @@ READ R4.1c BEFORE TOUCHING THE AGY DRIVER. Antigravity's `--dangerously-skip-per
   - Depends on: none
   - Expected outcome: a test fails if the skip-permissions default is flipped or the flag is dropped from an unattended turn's argv.
   - Execution state: pending
-- [ ] E-06 IMPLEMENTS R4.5, and mirrors E-01 through E-04 into the agy twin where each applies. Ensure an isolated turn's child environment carries the execution-role selector that makes driver-owned lifecycle verbs refuse inside a lane, and state in the code comment that it is an environment selector and NOT a hardened boundary, since a same-user worker can unset it. Note the sanctioned asymmetry: the agy twin gets the bounds and the selector but NO policy document, because that host has no denial posture to request.
+- [ ] E-06 IMPLEMENTS R4.5, and WIRES the agy twin to the shared bounds. Ensure an isolated turn's child environment carries the execution-role selector that makes driver-owned lifecycle verbs refuse inside a lane, and state in the code comment that it is an environment selector and NOT a hardened boundary, since a same-user worker can unset it. Note the sanctioned asymmetry: the agy twin gets the bounds and the selector but NO policy document, because that host has no denial posture to request.
   - Depends on: E-04
   - Expected outcome: an in-lane invocation of a driver-owned lifecycle verb refuses with the documented code and performs NO state transition while the driver's own invocation still succeeds; the code comment carries the selector-not-boundary limit; and the agy twin has the bounds and selector with the missing policy document explained rather than silently absent.
   - Execution state: pending
@@ -110,7 +113,11 @@ Two new modules, parameterized over BOTH drivers where the requirement applies t
 
 The existing `runstop` suites MUST stay green, because E-04 touches the same termination path: run `tests/test_runner_stop.py`, `tests/test_runner_stop_levels12.py`, `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`, `tests/test_runner_stop_triggers.py`, and `tests/test_runner_shutdown.py` with the `slow` tests INCLUDED and paste the summary.
 
-Baselines at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. State the expected count SEPARATELY per invocation: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting any number recorded here.
 
 ## Spec / documentation sync
 

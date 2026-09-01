@@ -8,14 +8,15 @@
 - Item-Dependencies: none
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: cqx5v7
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): first child of Set `lanectn`, tracing to approved spec `7ckptx`. Deliberately small: 5 E-items, two files of product code, two new test files. R1 and R2 are together in THIS plan because spec R2.1 makes shipping them together normative; splitting them is the invisible-failure mode recorded there.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -29,6 +30,8 @@ Concretely: the emitted prompt contains ZERO absolute paths outside the lane roo
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-001, which was right: the original E-05 compressed the whole second driver into one "mirror" item spanning path projection, exception removal, collection timing, and idempotency, so it could be checked off while one property was still absent. Smaller by COUNT is not smaller by SUBSTANCE. So E-01 through E-04 MUST place their logic in host-neutral functions that BOTH drivers call, and E-05 is reduced to wiring plus event-shape adaptation. The precedent is established: the two drivers already share ten modules including `worktree_lease`, `ipd_lifecycle`, and `runner_stop`. If a behavior genuinely cannot be made host-neutral, say so explicitly in that E-item's outcome and explain why, rather than silently duplicating it.
 
 DO NOT SPLIT THIS PLAN, and do not land E-01 in a commit that does not also contain E-03. Spec R2.1 is normative on this point: a lane-relative instruction whose output nobody collects fails INVISIBLY (the worker writes inside the lane, reconciliation reads the run directory, finds nothing, scores the turn from the empty-outcome fallback, and that disposition is outside the gating set, so a fully successful turn never finalizes). That is worse than the contradiction being removed.
 
@@ -49,13 +52,17 @@ DO NOT SPLIT THIS PLAN, and do not land E-01 in a commit that does not also cont
   - Depends on: E-01
   - Expected outcome: after an isolated turn whose worker wrote a lane-side outcome declaring `executed`, `reconcile_disposition` returns that disposition and the file exists at the driver-side path; the lane retains its own copy; a turn with no submission still reconciles without error.
   - Execution state: pending
+- [ ] E-06 EMIT AN AUTHORITATIVE COLLECTION RECEIPT, added after `/aw plan-review` on child `xdr83v` (finding PR-001). That review established that the sealed input manifest CANNOT answer "was this lane's submission collected?": the manifest records materialized INPUTS (R5.1), while collection is R2 OUTPUT, so they are different data. Without a receipt, `xdr83v`'s retention classification would have to GUESS from path presence, which either preserves every successful lane forever or deletes output whose collection failed. So this item, which owns collection, must record the fact: for each attempt, write an attempt-keyed receipt naming what was collected, its source digest, and the destination result (success or failure with a reason). Absence of a receipt means NOT collected; it must never be inferred from a file existing somewhere.
+  - Depends on: E-03
+  - Expected outcome: after a collection attempt, an attempt-keyed receipt records each submission's source digest and destination result; a FAILED collection is recorded as failed rather than omitted; and a consumer can distinguish collected, uncollected, and failed-collection without inspecting the run directory's contents.
+  - Execution state: pending
 - [ ] E-04 IMPLEMENTS R2.3. Make collection IDEMPOTENT for the run-wide decisions register, which is APPENDED to and shared by every item. Choose ONE mechanism and state which in the code comment: key the appended block to the attempt, or write deterministic per-lane files that are concatenated on read. Retry is a real path, not hypothetical: `requeue_interrupted` re-queues interrupted items for recovery.
   - Depends on: E-03
   - Expected outcome: running the same attempt's collection twice leaves the lane's contribution present exactly once; a sibling lane's contribution is still present after both runs.
   - Execution state: pending
-- [ ] E-05 IMPLEMENTS R1.1, R1.2, R1.4, R2.1 FOR THE AGY TWIN. Mirror E-01 through E-04 in `agy_runipd.py`. The two drivers are deliberate near-parity twins and a containment rule present in one only is a DEFECT, not partial delivery (CID-3). Do NOT assume the call sites are identical: verify each seam in this driver before editing it.
+- [ ] E-05 WIRE THE AGY TWIN TO THE SHARED CODE. E-01 through E-04 put the path projection, the exception removal, the collection, and the idempotency into HOST-NEUTRAL functions (see the preamble); this item only CALLS them from `agy_runipd.py` and adapts that host's event shapes. It is deliberately a thin adapter, NOT a second implementation: re-implementing any of the four would fork the rule (CID-2) and is a STOP-and-report condition. Verify each call site in this driver rather than assuming symmetry with the oc twin.
   - Depends on: E-04
-  - Expected outcome: the agy driver satisfies the same assertions as the oc driver for an isolated turn, proven by the same test module parameterized over both drivers rather than by a copied test.
+  - Expected outcome: `agy_runipd.py` reaches the same host-neutral functions the oc driver uses, containing NO duplicated projection, collection, or idempotency logic (shown by AST or the import graph, not a text grep), and the shared parameterized tests pass for both drivers.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -105,7 +112,11 @@ Two new test modules, parameterized over BOTH drivers rather than duplicated:
 - `tests/test_lane_prompt_purity.py`: the R1 property assertions.
 - `tests/test_lane_submission_collection.py`: the R2 loop and idempotency assertions.
 
-Baselines measured at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. Expected counts differ per invocation and MUST be stated separately: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure. The 4 are pre-existing CLI-surface checks, not this plan's to fix.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting the number recorded here.
 
 ## Spec / documentation sync
 
@@ -143,6 +154,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 - [ ] V-03 validates E-03 (proves R2.1, R2.2, R2.4; spec A3, A5, A18)
   - Required evidence: paste a test run showing that after an isolated turn whose worker wrote a lane-side outcome declaring `executed`, `reconcile_disposition` returns THAT disposition and not the empty-outcome fallback; paste the harvested file's driver-side path; paste evidence the LANE still holds its own copy (proving copy, not move); and paste a case where the worker wrote nothing reconciling without raising. Also paste the source order proving the collection call precedes `reconcile_disposition` in `execute_item`. SABOTAGE REQUIRED: remove the collection call, paste the run showing the disposition degrade to the fallback, restore, paste it passing.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-06 validates E-06 (proves the receipt `xdr83v` consumes)
+  - Required evidence: paste receipts for all four states and show they are distinguishable WITHOUT inspecting run-directory contents: collected, uncollected (no receipt), interrupted mid-collection, and repeated collection of the same attempt. Paste the source digest and destination result recorded for each. State explicitly that absence of a receipt means NOT collected. SABOTAGE REQUIRED: make a collection fail (for example an unwritable destination) and show the receipt records it as FAILED rather than omitting it, because a silently omitted failure is indistinguishable from a lane that wrote nothing.
   - Observed evidence:
   - Result: pending
 - [ ] V-04 validates E-04 (proves R2.3; spec A4)

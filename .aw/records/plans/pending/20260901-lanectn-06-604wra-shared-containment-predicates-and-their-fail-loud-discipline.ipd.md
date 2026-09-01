@@ -5,10 +5,10 @@
 - Concern: The containment rules the earlier children implement risk being defined more than once, which is how two surfaces drift into disagreeing about the same rule. A dedicated module already exists to hold them as fail-loud stubs naming their owning phase, but it is imported by NO product module, so the intended single-definition discipline is declared and not yet real.
 - Scope: Consolidate the containment rules this Set introduced into single definitions that every consumer calls, implement the predicate bodies this Set owns, and leave the ones it does not owns raising with their owner named. Implements spec `7ckptx` R6.1, R6.2, R6.3 and nothing else.
 - Scope-Paths: agent_workflows/wtiso_gate.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_containment_predicates.py
-- Item-Dependencies: executed:y5od1h
+- Item-Dependencies: executed:lhmrhx, executed:y5od1h
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 6
 - Highest E allocated: 04
@@ -16,6 +16,8 @@
 - Id: 604wra
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
+- 2026-09-01 to-review (aw set): plan-review 06/PR-002: the prose required BOTH y5od1h and lhmrhx executed, but the metadata named only y5od1h. Consolidating the permission and deadline rules needs their call sites to exist.
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): sixth and final child of Set `lanectn`. Requires `y5od1h` AND `lhmrhx` executed, because it consolidates the rules those plans introduce and needs their call sites to exist before it can prove every consumer shares one definition. Deliberately small: 4 E-items, and it deliberately does NOT implement predicates other phases own.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -30,13 +32,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 THE SUBTLE TRAP IN THIS PLAN, and the reason it is last: implementing a predicate BODY and WIRING its callers are separable deliverables that may belong to different owners (spec R6.3). One declared predicate assigns its pure body to this phase while explicitly reserving its wiring to a LATER phase. Implementing the body is in scope; wiring a caller to it is NOT, and doing so would take another phase's work and, worse, fork the very rule the split exists to keep single. When in doubt about a predicate, read its docstring for the owner before touching it.
 
+### Predicate ownership table (added after `/aw plan-review` finding PR-001)
+
+THE ORIGINAL INSTRUCTION WAS UNFOLLOWABLE, and the review was right to refuse it. It told the executor to implement "the predicates this Set owns" after reading their docstrings, but those docstrings name the OLD phase ids (`qcqhj7`, `rchpms`, `2c122z`) and NONE of them names `lanectn` or any child of it. An executor could not determine which bodies to implement, which to leave raising, or which stale label had been superseded. Every predicate is therefore enumerated below by symbol, measured at authoring.
+
+| Predicate | Current label in the module | This Set's disposition | Wire a caller? |
+| --- | --- | --- | --- |
+| `format_missing_input` | `qcqhj7` | IMPLEMENT here (superseded by `y5od1h`, which owns R3.1) | YES, from the missing-input path |
+| `parse_missing_input` | `qcqhj7` | IMPLEMENT here (superseded by `y5od1h`, which owns R3.1) | YES, from the missing-input path |
+| `check_permission_deadline` | `qcqhj7` | IMPLEMENT here (superseded by `lhmrhx`, which owns R4.4) | YES, from the turn-bounds path |
+| `check_scope` | `qcqhj7` | IMPLEMENT THE BODY ONLY | NO. Its docstring reserves wiring to a later phase; wiring it here would take that phase's work and fork the rule |
+| `check_lifecycle_role` | `rchpms` | LEAVE RAISING | NO |
+| `check_hook_bypass` | `rchpms` | LEAVE RAISING | NO |
+| `classify_retention` | `rchpms` | LEAVE RAISING. NOTE the near-miss: `xdr83v` implements retention CLASSIFICATION for this Set, but it is not chartered to fill this predicate, and doing so would be scope creep into another phase | NO |
+| `check_receipt` | `rchpms` | LEAVE RAISING | NO |
+| `check_protected_refs` | `2c122z` | LEAVE RAISING | NO |
+
+FOUR implemented, FIVE left raising, and exactly ONE of the four (`check_scope`) is body-without-wiring. E-04 must UPDATE each stale label so the module stops naming a superseded owner, and must record which `lanectn` child superseded it. If the module's contents differ from this table at execution time, STOP and report rather than guessing: the table is measured, not assumed, and a difference means someone else moved first.
+
 ### Task group 1: single definitions (R6.1)
 
 - [ ] E-01 IMPLEMENTS R6.1. Audit the rules the earlier children of this Set introduced and establish that each has exactly ONE definition with every consumer importing it. Where a rule ended up defined twice, consolidate to one and repoint the callers. Do this by AST or the import graph over the package, repo-wide and NOT per file, because a per-file check passes while two copies exist in different files and a text grep is satisfied by the checking code itself.
   - Depends on: none
   - Expected outcome: for each containment rule this Set introduced, exactly one definition exists in the package and every consumer reaches it by import, established structurally rather than by text search.
   - Execution state: pending
-- [ ] E-02 IMPLEMENTS R6.1, R6.3 (the body half). Implement the predicate bodies this Set owns in the dedicated module, so the rules the drivers now enforce live where every surface can call them. Give each a unit test. Read each predicate's docstring FIRST to confirm this phase owns it: implement only the bodies assigned here and leave the others untouched.
+- [ ] E-02 IMPLEMENTS R6.1, R6.3 (the body half). Implement the predicate bodies this Set owns in the dedicated module, so the rules the drivers now enforce live where every surface can call them. Give each a unit test. Use the PREDICATE OWNERSHIP TABLE above, which enumerates every predicate by symbol; do NOT rely on the docstring labels, which name superseded phases and are what made the original instruction unfollowable.
   - Depends on: E-01
   - Expected outcome: each predicate body this Set owns has a real implementation and unit tests, and no predicate assigned to another phase was modified.
   - Execution state: pending
@@ -47,7 +67,7 @@ THE SUBTLE TRAP IN THIS PLAN, and the reason it is last: implementing a predicat
   - Depends on: E-02
   - Expected outcome: every predicate not owned by this Set still raises with its owning phase named, demonstrated by calling each one, and none returns a permissive value.
   - Execution state: pending
-- [ ] E-04 IMPLEMENTS R6.3 (the wiring boundary), and updates the module's own docstring. Confirm that a predicate whose BODY this Set implemented but whose WIRING is reserved to a later phase has NO product caller: the body exists, the callers do not, and that is correct rather than incomplete. Then update the module docstring to state which predicates are real and which still raise, so the skeleton does not misdescribe itself to the next reader.
+- [ ] E-04 IMPLEMENTS R6.3 (the wiring boundary), and updates the module's own docstring. Confirm that a predicate whose BODY this Set implemented but whose WIRING is reserved to a later phase has NO product caller: the body exists, the callers do not, and that is correct rather than incomplete. Then update the module docstring AND each stale per-predicate owner label to state which predicates are real, which still raise, and which `lanectn` child superseded each old label, so the skeleton stops naming a superseded owner.
   - Depends on: E-03
   - Expected outcome: the body-implemented-but-not-wired predicate has zero product callers, shown structurally; and the module docstring accurately lists which predicates are real and which raise, with owners.
   - Execution state: pending
@@ -93,7 +113,11 @@ THE SUBTLE TRAP IN THIS PLAN, and the reason it is last: implementing a predicat
 
 One new module: `tests/test_containment_predicates.py`, covering each implemented predicate body, the still-raising predicates with their owners named, the single-definition check by AST or import graph, and the zero-callers assertion for the body-without-wiring case.
 
-Baselines at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. State the expected count SEPARATELY per invocation: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting any number recorded here.
 
 Because this is the LAST child, also paste the tripwire suite's result and its `xfailed` count with the delta from the Set's start explained per pin, since children of this Set may have satisfied pinned-absent guards that must now be converted rather than left pinned (CID-5).
 

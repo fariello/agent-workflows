@@ -11,7 +11,7 @@
 
 ## Workflow history
 
-- 2026-09-01 approved (aw specs, --by-human): APPROVED BY THE MAINTAINER 2026-09-01 ('Approved with your latest exits'), covering the spec as of abde3be0: 36 requirements, 25 acceptance criteria, full traceability (36/36 requirements cited by at least one criterion). Includes R4.1/R4.1a/R4.1c per-host permission posture with --dangerously-skip-permissions adopted as a DECIDED constraint for agy on the maintainer's operational evidence that the interactive posture deadlocks; R3.3a/R3.3b secret rejection derived from the existing .gitignore vocabulary plus a defined 'policy permits' (tracked files only, untracked refused by default); and R5.1a's three-part definition of 'sealed'. The maintainer explicitly accepted the recorded asymmetry that antigravity is less protected at the host layer than opencode, by design, with R1 (prompt purity) and R4.4 (driver bounds) carrying that host's whole containment guarantee. OQ-03 remains deliberately deferred to the implementing plan (attempt-keyed dedup vs deterministic per-lane files; either satisfies R2.3).
+- 2026-09-01 approved (aw specs, --by-human): AMENDED AND RE-APPROVED 2026-09-01 by maintainer decision after /aw plan-review found a SECURITY defect in the approved text (child y5od1h finding PR-002). THE DEFECT: R3.3a said to derive the secret reject vocabulary from THIS repository's .gitignore headings, but the toolkit is INSTALLED INTO OTHER repositories whose ignore files may rename, restructure, or omit those headings, and the requirement defined no behavior for an absent, empty, or malformed source. An empty derived vocabulary means nothing is treated as a secret, so a credentials file would have been permitted and copied into a lane on request. Deriving a SECURITY rule from an optional project-authored file with no floor was the error. THE FIX, chosen by the maintainer: fail closed with a built-in floor. R3.3a-1a requires a toolkit-carried secret vocabulary applied UNCONDITIONALLY, never disabled or subtracted from by a target repository. R3.3a-1b makes target-repository declarations a strict UNION with the floor, so a target can only ever WIDEN the reject set. R3.3a-2 requires that an absent, unreadable, empty, or malformed target source leaves the driver on the floor with the unavailability RECORDED, never failing open and never aborting the run, while a failure to load the FLOOR itself refuses the request outright. Added criteria A7b-1 (the floor holds against a synthetic target with NO ignore file, which is the test that would have caught the original defect), A7b-2 (union never subtraction), and A7b-3 (each bad-source shape fails closed and says so). Traceability re-verified; R3.3a-1 is a parent id whose halves are cited separately, now documented in Section 4.
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
@@ -165,9 +165,38 @@ request for `.env` would today be materialized into the lane. The repository alr
 secret vocabulary in `.gitignore` under the explicit headings "Environment / secrets" and "Credential /
 key files (should never be committed)": `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
 `*.keystore`, `.netrc`, `.npmrc`, `.pypirc`, `service-account*.json`, `credentials*.json`. The
-implementation MUST derive the secret reject set from that single existing source rather than
-transcribing it, so the two cannot drift, and MUST extend the shared predicate rather than adding a
-parallel check at one call site.
+implementation MUST NOT transcribe that list, because a transcription drifts from the source the moment
+either changes, and MUST extend the shared predicate rather than adding a parallel check at one call site.
+
+R3.3a-1 AMENDED 2026-09-01 (maintainer decision, after `/aw plan-review` on child `y5od1h` finding
+PR-002). THE ORIGINAL WORDING WAS UNSAFE FOR A MANAGED TARGET REPOSITORY, and this amendment is a
+SECURITY CORRECTION rather than a clarification. The defect: R3.3a as approved said to derive the secret
+vocabulary from THIS repository's ignore file headings. But this toolkit is INSTALLED INTO OTHER
+repositories, whose ignore files may rename those headings, restructure them, or omit them entirely, and
+the requirement defined no behavior for an absent, empty, or malformed source. An empty derived
+vocabulary means NOTHING is treated as a secret, so a credentials file would be permitted and copied
+into a lane on request. Deriving a SECURITY rule from an OPTIONAL, project-authored file without a floor
+is the error.
+
+THE AMENDED RULE has two parts and both are mandatory:
+
+(a) [R3.3a-1a] BUILT-IN FLOOR, ALWAYS APPLIED. The toolkit MUST carry its own secret vocabulary covering at minimum
+the families named above (environment files, certificates, private keys, keystores, netrc/npmrc/pypirc,
+service-account and credentials JSON). This floor applies UNCONDITIONALLY and is never disabled by, or
+subtracted from by, anything in a target repository. It is what makes the rule safe in a repository that
+declares nothing.
+
+(b) [R3.3a-1b] TARGET-REPOSITORY ADDITIONS, UNION ONLY. Where a target repository declares its own secret families,
+those are ADDED to the floor so a project-specific name is also caught. The composition is strictly a
+UNION: a target repository can only ever WIDEN the reject set, never narrow it. An implementation that
+lets a target file remove a floor entry is non-conforming.
+
+R3.3a-2 FAIL CLOSED ON A BAD SOURCE. If the optional target-repository source is absent, unreadable,
+empty, or malformed, the driver MUST proceed on the built-in floor alone and MUST record that the
+additions were unavailable, naming the reason. It MUST NOT fail open (treat the absence as "no secrets
+exist") and MUST NOT abort the run, because the floor is sufficient to keep the guarantee and an abort
+would convert a benign missing file into a stopped run. If the FLOOR ITSELF cannot be loaded, that is a
+programming error in the toolkit and the driver MUST refuse the request outright rather than permit it.
 
 R3.3b "IF POLICY PERMITS" IS DEFINED, not left to judgment: a request is PERMITTED when the resolved path
 (i) survives every rejection test in R3.3 and R3.3a, (ii) is a regular file inside the checkout, and
@@ -311,7 +340,8 @@ Each is falsifiable and names the requirement it proves. "A test exists" is not 
 result of running it is.
 
 TRACEABILITY, verified programmatically rather than asserted: every requirement below is cited by at
-least one criterion, with ONE deliberate exception. R4.1b is cited by NO criterion because it is a
+least one criterion, with TWO deliberate exceptions. R3.3a-1 is a PARENT id whose two halves (R3.3a-1a,
+R3.3a-1b) are each cited separately, so citing the parent as well would be redundant. R4.1b is cited by NO criterion because it is a
 POINTER to Non-goal 7 rather than a behavior; it exists so R4.1a's "unenforced-at-the-host" outcome
 cannot be misread as an unaddressed defect. That exception is recorded here so a reviewer does not
 re-flag it as a traceability gap.
@@ -339,6 +369,19 @@ re-flag it as a traceability gap.
   `.gitignore` secret sections rather than transcribed, and that the rule lives in the SHARED predicate
   (so a second call site cannot miss it) rather than at one call site. A test that only proves `.env` is
   rejected does NOT satisfy this criterion. (R3.3a)
+- A7b-1. THE BUILT-IN FLOOR HOLDS WITH NO TARGET SOURCE AT ALL. In a synthetic target repository that has
+  NO ignore file (and separately, one whose ignore file has none of the expected headings), show that a
+  request for a representative path from EACH floor family is still REJECTED. This is the criterion that
+  would have caught the original defect, so it must be tested against an EMPTY environment rather than
+  this repository. (R3.3a-1a)
+- A7b-2. COMPOSITION IS A UNION, NEVER A SUBTRACTION. Show that a target repository declaring an
+  additional secret family causes that family to be rejected too, AND that a target repository which
+  omits or contradicts a floor family does NOT cause that family to be permitted. An implementation where
+  a target file can remove a floor entry fails this criterion. (R3.3a-1b)
+- A7b-3. A BAD SOURCE FAILS CLOSED AND SAYS SO. For each of absent, unreadable, empty, and malformed
+  target sources: show the driver proceeds on the floor, still rejects every floor family, and RECORDS
+  that the additions were unavailable with the reason. Show it does not abort the run. Separately show
+  that if the FLOOR cannot be loaded the request is REFUSED outright rather than permitted. (R3.3a-2)
 - A7c. "POLICY PERMITS" IS TESTED AS DEFINED. Show a TRACKED safe file is permitted and materialized, and
   an UNTRACKED but otherwise safe file is REFUSED by default with a precise record. This pins R3.3b so a
   later implementation cannot silently widen the rule. (R3.3b)

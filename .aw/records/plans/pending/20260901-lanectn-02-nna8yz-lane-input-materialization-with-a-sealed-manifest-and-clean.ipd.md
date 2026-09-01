@@ -8,7 +8,7 @@
 - Item-Dependencies: executed:cqx5v7
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 2
 - Highest E allocated: 05
@@ -16,6 +16,7 @@
 - Id: nna8yz
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): second child of Set `lanectn`. Requires `cqx5v7` executed. Small by construction: 5 E-items across two concerns that share one mechanism (the materializer), which is why R5.3 lives here rather than in `cqx5v7` - putting it there would have created the dependency cycle that got the predecessor `tch3bo` rejected (its E-03 cited a materializer owned by a LATER item).
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -27,6 +28,8 @@ Everything an isolated worker is told to use is provably inside its lane, record
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-001: the original E-05 bundled the clean-base refusal WITH mirroring materialization, inode independence, sealing, revision behavior, and attachment localization into the second driver, which are separate failure modes that one checkbox cannot establish. E-01 through E-04 MUST therefore place the materializer, the seal, and the attachment resolution in HOST-NEUTRAL functions both drivers call, so E-05 adds only the clean-base guard plus thin wiring. Re-implementing any of them per driver would fork the rule (CID-2) and is a STOP-and-report condition.
 
 WHY R5.3 IS HERE AND NOT IN `cqx5v7`: making every attachment lane-local requires a lane-local COPY of the runbook, and the copier is E-01 of THIS plan. Assigning R5.3 to `cqx5v7` would have made that plan depend on a mechanism a later plan owns, which is precisely the circular reference that got `tch3bo` rejected (PR-002). Recorded so a later reader does not "tidy" it back.
 
@@ -51,7 +54,7 @@ WHY R5.3 IS HERE AND NOT IN `cqx5v7`: making every attachment lane-local require
   - Depends on: E-01
   - Expected outcome: for an isolated turn, every attachment value in the constructed argv resolves inside the lane, checked over ALL such values with at least two present.
   - Execution state: pending
-- [ ] E-05 IMPLEMENTS R5.4, and mirrors E-01 through E-04 into the agy twin. Add a pre-launch guard that refuses an unattended isolated turn when the target checkout has dirty TRACKED paths, naming them, before any worker process is spawned. Untracked files are deliberately EXCLUDED (a lane is made from a commit, so untracked content was never silently omitted the way an uncommitted tracked edit is, and refusing on it would make an unattended run unstartable in any working checkout). REUSE the existing porcelain parser rather than writing a second one, and state in the comment how this differs from the integration-time overlap check: that one asks whether an incoming lane's changed set intersects dirty paths, this one asks whether the whole tracked tree is clean before launch.
+- [ ] E-05 IMPLEMENTS R5.4, and WIRES the agy twin to the shared materializer. Add a pre-launch guard that refuses an unattended isolated turn when the target checkout has dirty TRACKED paths, naming them, before any worker process is spawned. Untracked files are deliberately EXCLUDED (a lane is made from a commit, so untracked content was never silently omitted the way an uncommitted tracked edit is, and refusing on it would make an unattended run unstartable in any working checkout). REUSE the existing porcelain parser rather than writing a second one, and state in the comment how this differs from the integration-time overlap check: that one asks whether an incoming lane's changed set intersects dirty paths, this one asks whether the whole tracked tree is clean before launch.
   - Depends on: E-04
   - Expected outcome: a dirty tracked file causes refusal before spawn with the paths named; a clean tree proceeds; an untracked file does NOT trigger refusal; and the agy driver satisfies the same assertions as the oc driver.
   - Execution state: pending
@@ -97,7 +100,11 @@ WHY R5.3 IS HERE AND NOT IN `cqx5v7`: making every attachment lane-local require
 
 Two new modules, parameterized over BOTH drivers rather than duplicated: `tests/test_lane_input_manifest.py` (R5.1, R5.1a, R5.2, R5.3) and `tests/test_lane_clean_base.py` (R5.4).
 
-Baselines at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. State the expected count SEPARATELY per invocation: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure. The 4 are pre-existing CLI-surface checks and are not this plan's to fix.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting any number recorded here.
 
 ## Spec / documentation sync
 

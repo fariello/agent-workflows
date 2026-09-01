@@ -8,7 +8,7 @@
 - Item-Dependencies: executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 5
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - Id: xdr83v
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): fifth child of Set `lanectn`, and deliberately the smallest: 3 E-items. Requires `nna8yz` executed, because classification reads the sealed manifest that plan produces to decide what the driver itself wrote and may therefore discard. Narrower than it looks: the driver ALREADY emits a preservation event, so this plan adds the INVENTORY that decides when to emit it.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -28,19 +29,21 @@ A lane is destroyed only when the driver can account for everything in it, and a
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
+HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-002: the original E-03 combined refusal-event semantics with mirroring the complete inventory and teardown guard into the second driver, and inventory coverage, classification, fail-closed behavior, teardown refusal, and event identity have different failure modes. E-01 and E-02 MUST place the classification and the refusal in HOST-NEUTRAL functions both drivers call, so E-03 adds only the event detail plus thin wiring.
+
 MEASURED DELTA, so do not rewrite what exists: the driver already emits a preservation event today. What is missing is the INVENTORY that decides when preservation is required. Verify the existing event and its emission site before adding anything, and extend rather than replace it.
 
 ### Task group 1: classify, then refuse (R5.5, R5.6)
 
 - [ ] E-01 IMPLEMENTS R5.5 (classification). Inventory a lane's contents before teardown, enumerating so that IGNORED files are seen as well as untracked ones. Content the driver itself wrote under the lane control directory is classified discardable, established from the sealed manifest child `nna8yz` produces rather than from a hardcoded path list. Everything else is UNKNOWN.
   - Depends on: none
-  - Expected outcome: the inventory reports, for a given lane, the dirty tracked files, the unknown untracked files, the unknown IGNORED files, and whether a submission remains uncollected, with driver-written control content excluded by manifest rather than by a path guess.
+  - Expected outcome: the inventory reports, for a given lane, the dirty tracked files, the unknown untracked files, the unknown IGNORED files, and whether a submission remains uncollected. TWO DIFFERENT SOURCES, and conflating them was a real defect caught by `/aw plan-review` (PR-001): driver-written control content is excluded using the sealed INPUT manifest from `nna8yz`, but the uncollected-submission question MUST be answered from the attempt-keyed COLLECTION RECEIPT that `cqx5v7` E-06 emits, because the input manifest cannot know anything about output. Do NOT guess from path presence: that either preserves every successful lane forever or deletes output whose collection failed.
   - Execution state: pending
 - [ ] E-02 IMPLEMENTS R5.5 (refusal). Make teardown REFUSE while the inventory reports any unknown content: a dirty tracked file, an unknown untracked or ignored file, or an uncollected submission. Only a fully classified lane may be torn down. Fail toward PRESERVATION: if the inventory itself cannot run, refuse rather than proceed, because a destroyed lane is unrecoverable while a preserved one costs only disk.
   - Depends on: E-01
   - Expected outcome: a lane with any unknown content still exists after the teardown call; a fully classified clean lane is removed; and an inventory failure results in preservation, not removal.
   - Execution state: pending
-- [ ] E-03 IMPLEMENTS R5.6, and mirrors E-01 and E-02 into the agy twin. Record each refusal as an event naming WHICH condition held, so preservation is auditable rather than inferred from a directory that happens to survive. Extend the existing preservation event rather than adding a second one (CID-2). The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
+- [ ] E-03 IMPLEMENTS R5.6, and WIRES the agy twin to the shared inventory. Record each refusal as an event naming WHICH condition held, so preservation is auditable rather than inferred from a directory that happens to survive. Extend the existing preservation event rather than adding a second one (CID-2). The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
   - Depends on: E-02
   - Expected outcome: every refusal emits an event naming the specific condition that caused it, using the existing event rather than a new one, and the agy driver satisfies the same assertions as the oc driver.
   - Execution state: pending
@@ -85,7 +88,11 @@ MEASURED DELTA, so do not rewrite what exists: the driver already emits a preser
 
 One new module, parameterized over BOTH drivers: `tests/test_lane_retention.py`, covering an unknown untracked file, an unknown IGNORED file, a dirty tracked file, an uncollected submission, a fully classified clean lane, and an inventory failure.
 
-Baselines at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. State the expected count SEPARATELY per invocation: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting any number recorded here.
 
 ## Spec / documentation sync
 
@@ -136,7 +143,7 @@ Execution contract: this plan INHERITS the shared execution contract from orches
 2. SABOTAGE the central assertions. Break the product behavior deliberately, paste the FAILING run, restore, paste the passing run plus `git status` proving the product is unmodified. This session already produced a test that passed while the product was broken; only sabotage exposed it.
 3. ASSERT THE PROPERTY, NOT THE WORDING. Where the requirement states an absence, check the emitted output so a reworded violation still fails.
 4. STRUCTURE, NOT GREP, for "only one of these exists". Use AST or the import graph, repo-wide; a text grep is satisfied by the checking code itself.
-5. PREREQUISITE IS CHECKED, NOT ASSUMED: child `nna8yz` (Order 02) MUST be in `executed/` before this plan starts, because classification reads the sealed manifest it produces to decide what the driver itself wrote. Verify those symbols exist. If they are absent, STOP and report; do not substitute a hardcoded path list, which would fork the rule (CID-2).
+5. PREREQUISITE IS CHECKED, NOT ASSUMED: child `nna8yz` (Order 02) MUST be in `executed/` before this plan starts, because classification reads the sealed INPUT manifest it produces to decide what the driver itself wrote. It ALSO requires the attempt-keyed COLLECTION RECEIPT from `cqx5v7` E-06 to answer the uncollected-submission question; `cqx5v7` is a transitive prerequisite through `nna8yz`, so no extra edge is needed, but VERIFY the receipt symbol exists before starting. Verify those symbols exist. If they are absent, STOP and report; do not substitute a hardcoded path list, which would fork the rule (CID-2).
 6. THE SCOPE FENCE IS A STOP CONDITION. Touch only the declared `Scope-Paths`. If the work seems to need a sibling's surface, STOP AND REPORT; do not broaden and do not reimplement it, which would fork the rule (CID-2).
 7. STATE THE HONEST LIMIT. Where a mechanism is an accident guard rather than a boundary, say so in the code comment and in this plan. Overstating a guarantee is the failure.
 

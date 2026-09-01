@@ -9,7 +9,7 @@
 - From-Spec: 7ckptx
 - From-Backlog: vqv9im
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 0
 - Highest E allocated: 03
@@ -17,6 +17,7 @@
 - Id: h0zljh
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored after spec `7ckptx` was APPROVED by the maintainer (`59e68d5a`). Supersedes the rejected single-plan approach `tch3bo` (PR-001 right-sizing, PR-002 dependency cycle). The partition was validated programmatically BEFORE any child was written: 36 of 36 requirements owned exactly once, zero duplicates, zero unowned, and the dependency graph proven acyclic. The maintainer additionally asked for smaller children and maximum resistance to greenwashing and to a weak executing model, which is why Section "Shared execution contract" below is unusually prescriptive and every child inherits it verbatim.
@@ -59,11 +60,17 @@ Order is by dependency DEPTH, not convenience. `Depth` is the longest path to a 
 | 01 | `cqx5v7` | 0 | R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4 | none | The lane-relative prompt AND the collection of the worker's submissions back to the run directory. |
 | 02 | `nna8yz` | 1 | R5.1, R5.1a, R5.2, R5.3, R5.4 | `cqx5v7` | Copy-only input materialization with a sealed manifest, all attachments lane-local, and the clean-tracked-base refusal. |
 | 03 | `lhmrhx` | 1 | R4.1, R4.1a, R4.1b, R4.1c, R4.2, R4.3, R4.4, R4.5, R4.6 | `cqx5v7` | Per-host permission posture with honest reporting, and the driver-side deadlines that fire regardless of the host. |
-| 04 | `y5od1h` | 2 | R3.1, R3.2, R3.3, R3.3a, R3.3b, R3.4, R3.5, R3.6, R3.7 | `nna8yz` | The full missing-input repair cycle, including secret rejection and the manifest revision. |
+| 04 | `y5od1h` | 2 | R3.1, R3.2, R3.3, R3.3a, R3.3a-1a, R3.3a-1b, R3.3a-2, R3.3b, R3.4, R3.5, R3.6, R3.7 | `nna8yz`, `lhmrhx` | The full missing-input repair cycle, including secret rejection and the manifest revision. |
 | 05 | `xdr83v` | 2 | R5.5, R5.6 | `nna8yz` | Retention: refuse teardown while a lane holds unclassifiable content, and record why. |
 | 06 | `604wra` | 3 | R6.1, R6.2, R6.3 | `y5od1h`, `lhmrhx` | The shared predicates behind the above, and the fail-loud discipline for the ones this Set does not own. |
 
-PARTITION PROOF, computed before authoring rather than asserted: the six children own 36 requirement ids, the spec declares 36, there are ZERO duplicates and ZERO unowned. Every child's prerequisite is at a strictly lower depth, so the graph is acyclic.
+PARTITION PROOF, and an honest account of how it was WRONG the first time. The six children own every requirement id the spec declares, with ZERO duplicates and ZERO unowned, and the graph is acyclic with every prerequisite at a strictly lower depth.
+
+CORRECTED 2026-09-01 after `/aw plan-review` (orchestrator PR-001, children 04/PR-001 and 06/PR-002). The original proof asserted the graph was "complete and acyclic" and was checked for ACYCLICITY ONLY. It never checked that the machine-readable `Item-Dependencies` matched what each child's PROSE required, and two edges were missing: `y5od1h` needed `lhmrhx` (its E-04 routes a denied host-permission event owned by that child) and `604wra` needed `lhmrhx` (its prose said so explicitly). A scheduler reading metadata could therefore have started work before the required seams existed. This is the same CLASS of defect that got the predecessor `tch3bo` rejected, reintroduced in a different form while I claimed to have proven it absent.
+
+THE PROOF NOW VERIFIES BOTH PROPERTIES, and the second one is the one that was missing: (i) the graph is acyclic, and (ii) for every child, the set of ids named in its prose as required-executed is a SUBSET of its `Item-Dependencies`. Verified after correction: zero mismatches across all six children, depths 0/1/1/2/2/3.
+
+RE-VERIFY BOTH before executing, not just the first. An acyclic graph that disagrees with its own prose is exactly as dangerous as a cyclic one, and it passes `aw ipd lint`.
 
 ### The two BLOCKING sequencing rules (spec-normative, not preferences)
 
@@ -149,14 +156,13 @@ Cross-IPD drift checks (CID), verified by E-02. Each is phrased so a text grep c
 ## Required tests / validation
 
 
-E-02 runs the whole-Set verification. Baselines measured at HEAD `59e68d5a`:
+E-02 runs the whole-Set verification.
 
-```text
-python3 -m pytest      -> 3996 passed, 3 skipped, 4 xfailed
-make test-all          -> 4 failed, 4394 passed, 3 skipped, 4 xfailed
-```
+DO NOT COPY A BASELINE FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the counts originally recorded here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests and moved the bare suite from `3996 passed` to `3998 passed`. A hardcoded total cannot distinguish an honest change from a regression, and it invites exactly the off-by-N rationalization that hides a real failure.
 
-The 4 `make test-all` failures are PRE-EXISTING CLI-surface declaration checks, reproduced at `5e5da9a0` and probably owned by `0soncw`. They must not get worse and are not this Set's to fix. Expected counts differ per invocation and MUST be stated separately: bare `failed == 0`; `make test-all` `failed == 4` and no new failure. A single "failed == 0" claim across both is the contradiction that `tch3bo` PR-006 flagged.
+MEASURE, THEN COMPARE BY IDENTITY. Run both invocations immediately before the Set's first child starts and record those counts as the Set's baseline. After each child, run both again and account for every difference by FAILING TEST NODE ID, not by total. A changed total with no new failing id is fine and must be explained; a new failing id is a STOP whatever the totals say.
+
+TWO INVOCATIONS, DIFFERENT EXPECTED OUTCOMES, and the distinction is load-bearing. Bare `python3 -m pytest` is expected to have ZERO failures. `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures, reproduced as far back as `5e5da9a0` and probably owned by `0soncw`; they must not get worse and are not this Set's to fix. Identify that set BY NAME in your own measurement rather than trusting a number. A single "failed == 0" claim spanning both invocations is the contradiction `tch3bo` PR-006 flagged.
 
 ### Project conventions discovered (Step 0)
 

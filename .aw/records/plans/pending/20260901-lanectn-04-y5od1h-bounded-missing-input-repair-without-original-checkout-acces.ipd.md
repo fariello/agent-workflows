@@ -5,10 +5,10 @@
 - Concern: Once an isolated worker is told to use only lane-relative paths, a genuinely missing file becomes a dead end: the worker's only recourse would be to reach out of the lane, which is exactly what containment forbids. Without a bounded repair route, strictness alone converts a recoverable situation into a failure or a permission hang. The shared reject predicate also has NO secret handling today, so a naive implementation would happily copy a credentials file into a lane.
 - Scope: Implement the full missing-input repair cycle: a deterministic report token, preserve-and-pause, coordinator-only resolution with secret rejection, a digest-verified copy recorded as a manifest revision with authorization, resume, and a precise block when policy refuses. Implements spec `7ckptx` R3.1, R3.2, R3.3, R3.3a, R3.3b, R3.4, R3.5, R3.6, R3.7 and nothing else.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_missing_input_repair.py
-- Item-Dependencies: executed:nna8yz
+- Item-Dependencies: executed:lhmrhx, executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: to-review
+- Status: reviewed
 - Set: lanectn
 - Order: 4
 - Highest E allocated: 06
@@ -16,6 +16,8 @@
 - Id: y5od1h
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
+- 2026-09-01 to-review (aw set): plan-review 04/PR-001: E-04 routes a DENIED host-permission event through the classifier, and that seam is owned by lhmrhx. The prose said so; the metadata did not. A scheduler reading metadata could have started this plan before the event schema existed.
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): fourth child of Set `lanectn`. Requires `nna8yz` executed, because R3.4's manifest REVISION uses the sealing and revision mechanism that plan builds. The predecessor `tch3bo` was rejected partly here (PR-004): it implemented classification and copying only, covering three of the research's five steps, and called that a bounded repair cycle. This plan implements all five.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -27,6 +29,8 @@ A worker that genuinely needs a file it does not have gets it through a determin
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-003: the original E-06 combined refusal recording with the ENTIRE agy token, pause, classification, repair, block, resume, manifest-revision, and authorization cycle. Those are independently testable state transitions and cannot be established by one execution item, which is the same partial-completion trap the predecessor fell into. The whole cycle MUST therefore live in HOST-NEUTRAL code, with each driver item restricted to event adaptation; E-06 adds the precise block plus that wiring.
 
 THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` implemented resolve, reject, and copy, and described that as the repair cycle; review finding PR-004 caught that it omitted preserve-and-pause, the manifest revision, the authorization record, and resume. All five steps are E-items here, and V-items demand evidence of each stage separately so a partial implementation cannot be reported as complete.
 
@@ -58,7 +62,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
   - Depends on: E-04
   - Expected outcome: a permitted request yields a digest-verified lane copy, a new manifest revision (with the prior revision still present and unmodified), a written authorization record, and an observable resume.
   - Execution state: pending
-- [ ] E-06 IMPLEMENTS R3.5, and mirrors the cycle into the agy twin. On a refused request, BLOCK with a precise missing-input record naming the path and the reason for refusal, so the outcome is auditable rather than a bare failure. Then verify the whole cycle applies in the agy driver: the token, the pause, the classification, and the block. The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
+- [ ] E-06 IMPLEMENTS R3.5, and WIRES the agy twin to the shared cycle. On a refused request, BLOCK with a precise missing-input record naming the path and the reason for refusal, so the outcome is auditable rather than a bare failure. Then verify the whole cycle applies in the agy driver: the token, the pause, the classification, and the block. The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
   - Depends on: E-05
   - Expected outcome: a refused request produces a precise record naming the path and the reason and creates no copy; and the agy driver satisfies the same assertions as the oc driver, proven by a parameterized test rather than a copied one.
   - Execution state: pending
@@ -109,7 +113,11 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 
 One new module, parameterized over BOTH drivers: `tests/test_missing_input_repair.py`, covering the token, the pause, every reject shape including each secret family, the tracked-versus-untracked rule, the permitted repair with its revision and authorization, the precise block, and the denied-permission-event routing.
 
-Baselines at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. State the expected count SEPARATELY per invocation: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure.
+BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
+
+SO DO THIS INSTEAD. Immediately before you start, run BOTH invocations and record their counts as YOUR baseline, pasting them. Then after your change, run both again and COMPARE FAILURES BY TEST IDENTITY, not by total: list the failing test node ids before and after and account for every difference by name. A count that changed with no new failing id is fine and must be explained (usually tests added); a new failing id is a STOP regardless of what the totals do.
+
+TWO INVOCATIONS WITH DIFFERENT SEMANTICS, and the distinction is load-bearing: bare `python3 -m pytest` is expected to have ZERO failures, while `make test-all` carries a known set of PRE-EXISTING CLI-surface declaration failures that are not this plan's to fix. State the expected outcome separately per invocation; a single "failed == 0" claim across both is the contradiction that got the predecessor `tch3bo` flagged (PR-006). Identify the pre-existing set by NAME in your own measurement rather than trusting any number recorded here.
 
 Also re-run the tests that cover the shared predicate, since E-03 extends it: any existing suite touching worker-path fencing must stay green, and its summary must be pasted.
 
@@ -174,7 +182,7 @@ Execution contract: this plan INHERITS the shared execution contract from orches
 2. SABOTAGE the central assertions. Break the product behavior deliberately, paste the FAILING run, restore, paste the passing run plus `git status` proving the product is unmodified. This session already produced a test that passed while the product was broken; only sabotage exposed it.
 3. ASSERT THE PROPERTY, NOT THE WORDING. Where the requirement states an absence, check the emitted output so a reworded violation still fails.
 4. STRUCTURE, NOT GREP, for "only one of these exists". Use AST or the import graph, repo-wide; a text grep is satisfied by the checking code itself.
-5. PREREQUISITE IS CHECKED, NOT ASSUMED: child `nna8yz` (Order 02) MUST be in `executed/` before this plan starts, because R3.4's manifest REVISION uses the sealing and revision mechanism that plan builds. Verify those symbols exist. If they are absent, STOP and report; do not reimplement them, which would fork the rule (CID-2).
+5. PREREQUISITE IS CHECKED, NOT ASSUMED: children `nna8yz` (Order 02) AND `lhmrhx` (Order 03) MUST both be in `executed/` before this plan starts. `nna8yz` because R3.4's manifest REVISION uses the sealing and revision mechanism that plan builds; `lhmrhx` because E-04 routes a DENIED host-permission event through this classifier and that event seam is owned by `lhmrhx`. THE SECOND EDGE WAS MISSING FROM THE METADATA AT FIRST AUTHORING and was added after `/aw plan-review` finding PR-002 caught it: the prose required it, the machine-readable field did not, and a scheduler reading metadata could have started this plan before the event schema existed. Verify those symbols exist. If they are absent, STOP and report; do not reimplement them, which would fork the rule (CID-2).
 6. THE SCOPE FENCE IS A STOP CONDITION. Touch only the declared `Scope-Paths`. If the work seems to need a sibling's surface, STOP AND REPORT; do not broaden and do not reimplement it, which would fork the rule (CID-2).
 7. STATE THE HONEST LIMIT. Where a mechanism is an accident guard rather than a boundary, say so in the code comment and in this plan. Overstating a guarantee is the failure.
 

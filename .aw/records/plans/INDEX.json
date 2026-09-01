@@ -4377,7 +4377,7 @@
     "path": "pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md",
     "plan_id": "h0zljh",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4387,7 +4387,7 @@
     "path": "pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md",
     "plan_id": "cqx5v7",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4397,7 +4397,7 @@
     "path": "pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
     "plan_id": "nna8yz",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4407,7 +4407,7 @@
     "path": "pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
     "plan_id": "lhmrhx",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4417,7 +4417,7 @@
     "path": "pending/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md",
     "plan_id": "y5od1h",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4427,7 +4427,7 @@
     "path": "pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md",
     "plan_id": "xdr83v",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4437,7 +4437,7 @@
     "path": "pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md",
     "plan_id": "604wra",
     "set_id": "lanectn",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
