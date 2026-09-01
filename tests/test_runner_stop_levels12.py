@@ -103,12 +103,21 @@ if outcome:
 print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "done"}}))
 """
 
+# NOTE (l2depgate mzy2so): the metadata bullets MUST come AFTER the `#` H1 title. The IPD spec
+# defines the metadata block as "a bullet `- Field: value` list after the H1 title", and the shared
+# structural reader (`ipd_lint.parse`, which `oc_runipd._read_item_dependencies` uses) only sees the
+# block in that position. This template previously put the bullets BEFORE the heading, so every field
+# was invisible to the dependency reader: a plan declaring an unmet `- Item-Dependencies:` froze with
+# `dependencies: []` and the item was therefore treated as runnable. That made
+# `test_level_2_leaves_another_sets_runnable_item_queued_when_this_set_is_blocked` fail for a FIXTURE
+# reason while the product's gating was correct all along. Do not reorder these lines.
 _PLAN_TEMPLATE = """\
+# Plan {id6}
+
 - Id: {id6}
 - Set: {setid}
 - Status: approved
 - Order: {order}
-# Plan {id6}
 
 ## Workflow history
 - 2026-08-29 created: levels 1-2 test stub
@@ -581,10 +590,45 @@ class Level2Tests(_InvariantAssertions):
             fake = _write_fake_child(root)
 
             # Give set A's SECOND item an unmet dependency, so it can never become runnable while
-            # set B's item can. NOTE the key: the driver's queue builder reads `- Dependencies:` /
-            # `- Depends-on:` (`oc_runipd._DEPS_RE`), NOT the plan-schema `- Item-Dependencies:`
-            # field; using the latter here silently produced a dependency-free item and the test
-            # observed the item running (which is how this was caught). `zzzz99` resolves to no plan.
+            # set B's item can.
+            #
+            # THE EDGE IS CHOSEN CAREFULLY; three shapes do NOT work here and each failed mode is
+            # recorded so the next reader does not rediscover them (l2depgate mzy2so):
+            #   (a) a NONEXISTENT id6 (`executed:zzzz99`) is `check.ipd-dependency-dangling`, and the
+            #       dependency PREFLIGHT refuses the whole run before any session starts, so nothing
+            #       runs and the level-2 behavior under test is never exercised;
+            #   (b) an edge on the OTHER SET's item (`executed:cb0001`) makes `ca0002` depth-1, so
+            #       `cb0001` becomes a PREREQUISITE rather than the runnable competitor this test needs.
+            #       The test then passes VACUOUSLY - verified by sabotage: breaking the dependency gate
+            #       outright still left it green, because `ca0002` stayed queued due to the STOP rather
+            #       than due to the gate. That defeats the whole point of the case;
+            #   (c) a backlog edge naming an absent id6 is dangling for the same reason as (a).
+            # So the prerequisite is a REAL backlog item that EXISTS but is not `done`: the edge
+            # resolves (preflight passes) yet is unsatisfiable during the run, and because it is not an
+            # in-queue IPD it leaves `cb0001` at depth 0 as the genuinely runnable set-B competitor.
+            backlog_dir = repo / ".aw" / "records" / "backlog" / "open"
+            backlog_dir.mkdir(parents=True)
+            (
+                backlog_dir / "20260829-l2dep-01-bl0001-unmet-prerequisite.backlog.md"
+            ).write_text(
+                "- Id: bl0001\n"
+                "- Status: open\n"
+                "- Set: l2dep\n"
+                "- Priority: low\n"
+                "- Work-Kind: chore\n"
+                "- Summary: an intentionally OPEN prerequisite, so the edge resolves but stays unsatisfied\n"
+                "\n## Workflow history\n- 2026-08-29 created: levels 1-2 test stub\n",
+                encoding="utf-8",
+            )
+            #
+            # CORRECTED (l2depgate mzy2so): this used to write a LEGACY `- Dependencies:` field and its
+            # comment claimed the driver reads that via `oc_runipd._DEPS_RE`. Both halves are now false.
+            # `8guhs0` (lanetruth-03) DELETED `_DEPS_RE` on purpose - see the standing note at
+            # `oc_runipd.py:161-168`, "there is deliberately NO dependency regex here" - making
+            # `- Item-Dependencies:` the one canonical field, parsed by the shared
+            # `ipd_schema.parse_item_dependencies`. Writing the legacy name therefore produced a
+            # dependency-FREE item, the driver correctly considered it runnable, and the test failed
+            # for a fixture reason while the product's gating was right all along.
             plan = next(
                 (repo / ".aw" / "records" / "plans" / "pending").glob("*ca0002*")
             )
@@ -592,7 +636,7 @@ class Level2Tests(_InvariantAssertions):
             plan.write_text(
                 text.replace(
                     "- Status: approved",
-                    "- Status: approved\n- Dependencies: zzzz99",
+                    "- Status: approved\n- Item-Dependencies: state:backlog:done:bl0001",
                 ),
                 encoding="utf-8",
             )
