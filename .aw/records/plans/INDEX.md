@@ -10,7 +10,7 @@ Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 
 ## novalnomerge
 
-- `evgi9n` [pending] 01 pending/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md
+- `evgi9n` [executed] 01 executed/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md
 
 ## resumedupe
 

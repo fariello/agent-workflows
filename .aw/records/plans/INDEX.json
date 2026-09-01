@@ -4024,6 +4024,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md",
+    "plan_id": "evgi9n",
+    "set_id": "novalnomerge",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-31",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md",
     "plan_id": "4ot0r6",
     "set_id": "setgraph",
@@ -4328,16 +4338,6 @@
     "plan_id": "d7bnhc",
     "set_id": "apprvguard",
     "status": "to-review"
-  },
-  {
-    "date": "2026-08-31",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md",
-    "plan_id": "evgi9n",
-    "set_id": "novalnomerge",
-    "status": "approved"
   },
   {
     "date": "2026-08-31",
