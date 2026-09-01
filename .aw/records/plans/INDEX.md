@@ -2,11 +2,25 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 196 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 198 Sets; the full manifest is INDEX.json.
 
 ## lanecontain
 
 - `tch3bo` [superseded] 01 superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md
+
+## lanectn
+
+- `h0zljh` [pending] 00 pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md
+- `cqx5v7` [pending] 01 pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md
+- `nna8yz` [pending] 02 pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md
+- `lhmrhx` [pending] 03 pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md
+- `y5od1h` [pending] 04 pending/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md
+- `xdr83v` [pending] 05 pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md
+- `604wra` [pending] 06 pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md
+
+## ocvariant
+
+- `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
 
 ## apprvguard
 
@@ -173,20 +187,6 @@ Showing the 40 most-recent of 196 Sets; the full manifest is INDEX.json.
 ## runstale
 
 - `ssk6nf` [executed] 01 executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
-
-## runstatus
-
-- `y7xygb` [executed] 01 executed/20260829-runstatus-01-y7xygb-live-sticky-statusline-for-runner-terminal-streaming.ipd.md
-
-## runstop
-
-- `zpbx7o` [executed] 00 executed/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md
-- `2ouj70` [executed] 01 executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md
-- `gq6m2u` [executed] 02 executed/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md
-- `1qxuke` [executed] 03 executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md
-- `foi1b3` [executed] 04 executed/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
-- `m0z0ti` [executed] 05 executed/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
-- `71vjbn` [executed] 06 executed/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
 
 ## (singletons: no Set)
 

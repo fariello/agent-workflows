@@ -4100,6 +4100,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md",
+    "plan_id": "429f30",
+    "set_id": "ocvariant",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4347,6 +4357,76 @@
     "path": "pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md",
     "plan_id": "i6015i",
     "set_id": "worksequence",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md",
+    "plan_id": "h0zljh",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md",
+    "plan_id": "cqx5v7",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
+    "plan_id": "nna8yz",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
+    "plan_id": "lhmrhx",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md",
+    "plan_id": "y5od1h",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md",
+    "plan_id": "xdr83v",
+    "set_id": "lanectn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md",
+    "plan_id": "604wra",
+    "set_id": "lanectn",
     "status": "to-review"
   },
   {
