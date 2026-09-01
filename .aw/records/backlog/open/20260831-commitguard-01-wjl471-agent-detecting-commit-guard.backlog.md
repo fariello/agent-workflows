@@ -106,6 +106,80 @@ WHAT TO SOLVE FOR, not prescribed here.
    accidents at near-zero cost. Note `backlog-blocking-close-gate` is documented as deliberately
    opt-in, so confirm each gate's intent before wiring it; do not assume "unwired" means "forgotten".
 
+MAINTAINER RULING 2026-09-01 ON OQ-1: THE CONTRACT SAYS **MUST**, NOT "PREFER".
+
+OQ-1 above ends by suggesting the answer may be to "make the tooled path the path of least resistance"
+rather than intercepting the untooled one. The maintainer has now ruled on the wording half of that.
+
+WHAT PROMPTED IT. While filing `egqt32` (a mutating pre-commit hook rewrites a staged file, rejects, and
+`offer_commit` gives up instead of re-staging), the agent drafted a softened replacement for
+`engine.py:1190-1194` keeping the existing "PREFER THE TOOLED COMMIT PATH" framing, and argued that MUST
+would be untruthful because `aw commit` REQUIRES a plan selector (`work_cmd.py:135-136` returns "a
+<plan> selector is required"; `run_commit` exits 2 without one), leaving plan-less commits (a backlog
+item, a spec edit, a typo fix) with no tooled path to comply with.
+
+THE MAINTAINER REJECTED THAT REASONING, and the correction is the substance of this ruling: "MUST is not
+a statement that it does not have the ability to do so, it is a command that it MUST follow." A
+directive is not a capability claim. Its validity does not wait on the tooling being total, and a gap in
+coverage is a reason to CLOSE THE GAP, not to weaken the instruction. The truthfulness constraint
+applies only to DESCRIPTIVE sentences (see the ordering constraint below), never to the imperative.
+
+RULED WORDING for `engine.py:1190-1194` (renders as `AGENTS.md:51`), replacing the current paragraph
+whose "immune to this by construction" claim is true for index pollution and false for auto-fix
+rejection:
+
+    USE THE TOOLED COMMIT PATH. You MUST commit through `aw commit`, not raw `git commit`. It snapshots
+    the index BEFORE staging, stages only your explicit paths, commits only the intersection of those
+    paths with what it itself staged, and on any failure resets ONLY its own paths, so a co-worker's
+    restored path can never enter your commit. When a MUTATING hook rewrites one of your own paths and
+    rejects, it re-stages that path and retries ONCE, so whitespace or format churn costs you no round
+    trip and no re-verify. If no form of `aw commit` fits your case, you MUST say so explicitly in your
+    report, naming what you ran and why, and re-verify the staged set as above.
+
+The escape hatch is deliberately a REPORTING OBLIGATION, not permission. That is enforceable in a way an
+absolute MUST with no exit is not: a silent raw `git commit` becomes a visible contract violation,
+while a declared one is auditable and tells the maintainer which gap to close next.
+
+COMPANION NARROWING of `engine.py:1184-1189` (`AGENTS.md:49`), which currently charges the re-verify
+after EVERY failed attempt including tooled ones, and never mentions that a mutating hook also REWROTE
+the file: retitle to "RE-VERIFY AFTER A FAILED RAW COMMIT", scope it to raw `git commit`, and add one
+sentence: "A MUTATING hook (whitespace or eof fixer, formatter) also REWRITES your file and then
+rejects, so your retry must re-stage the rewritten path." The `git reset`/`git stash` prohibition in
+that paragraph stays VERBATIM; it is about a co-worker's work and is unrelated to this change.
+
+HARD ORDERING CONSTRAINT. The retry sentence in the ruled wording is DESCRIPTIVE, so it MUST NOT ship
+before `egqt32` layer 1 (the bounded single retry in `git_commit_helper.offer_commit`) lands, or the
+contract installed into every managed repo would document behavior the code does not have. The MUST
+IMPERATIVE itself carries no such dependency and could ship immediately. Sequence: `egqt32` layer 1,
+then this wording.
+
+CONSEQUENCE THIS ITEM MUST DECIDE: PLAN-LESS `aw commit`. Under MUST, every plan-less commit becomes a
+reported exception. That is coherent (the exception reports are themselves the signal for which gap to
+close first), but it makes non-compliance the COMMON case, which is the failure mode `gjadwm:45-49`
+warns about: a rule that fires on correct behavior trains agents to ignore it. Closing the gap looks
+cheap, and the evidence says the helper never needed a plan:
+
+- `offer_commit` takes no plan argument and 15 other call sites already use it plan-lessly, e.g.
+  `specs.py:650`, `status_set.py:1076`, `plans_archive.py:296`, `research_archive.py:400`,
+  `cli.py:3880`, `oc_runipd.py:1183`.
+- `run_commit` uses the plan for exactly two things: the `Scope-Paths` refusal (`work_cmd.py:409-423`)
+  and the engine validation (`:431-436`).
+- It ALREADY degrades gracefully when a plan declares no `Scope-Paths` (`:424-428` prints "note - plan
+  declares no Scope-Paths allowlist; committing the requested paths without scope enforcement" and
+  proceeds), so a plan-less mode is that same path with a reworded notice, not a new code path.
+
+A shape to consider (not prescribed): `aw commit --no-plan -m <msg> -- <paths>`, or a sibling verb.
+Decide it here, since it is the concrete form of OQ-1's "path of least resistance".
+
+WHY MUST BUYS MORE THAN CONVENIENCE, and why this belongs in THIS item rather than the whitespace one:
+`offer_commit`'s snapshot-then-intersect (`git_commit_helper.py:192`, `:233-234`) is the ONLY mechanism
+in the repo that STRUCTURALLY prevents sweeping a concurrent agent's staged edits into your commit.
+`AGENTS.md:38-47` currently delegates that safety to an agent REMEMBERING to run `git diff --cached
+--name-only`, which is precisely the trained-reflex failure this item's threat model says will not hold.
+Mandating the tooled path converts a remembered discipline into a code guarantee, which is the same
+accident-stopper goal stated at the top of this item, reached by making the safe path mandatory instead
+of by intercepting the unsafe one.
+
 EVIDENCE, committed with this item so a successor does not have to re-capture five hosts:
 `tmp/env-from-opencode.txt`, `tmp/env-from-agy.txt`, `tmp/env-from-codex.txt`,
 `tmp/env-from-hermes.txt`, `tmp/env-from-claude.txt`, `tmp/env-straight-from-command-line.txt`.
