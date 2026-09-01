@@ -176,7 +176,7 @@ Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 
 ## runstop
 
-- `zpbx7o` [pending] 00 pending/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md
+- `zpbx7o` [executed] 00 executed/20260829-runstop-00-zpbx7o-runner-graceful-quit-protocol-adopt-spec-c4gd2h.ipd.md
 - `2ouj70` [executed] 01 executed/20260829-runstop-01-2ouj70-phase-0-the-shared-clean-shutdown-routine-reap-tree-release.ipd.md
 - `gq6m2u` [executed] 02 executed/20260829-runstop-02-gq6m2u-phase-1-durable-monotonic-stop-request-flag-and-the-cooperat.ipd.md
 - `1qxuke` [executed] 03 executed/20260829-runstop-03-1qxuke-phase-2-levels-1-and-2-stop-after-call-stop-after-set-at-bet.ipd.md
