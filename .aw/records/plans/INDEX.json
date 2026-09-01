@@ -4187,7 +4187,7 @@
     "path": "pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
     "plan_id": "3m0urk",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -4197,7 +4197,7 @@
     "path": "pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md",
     "plan_id": "f2mrsw",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -4207,7 +4207,7 @@
     "path": "pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md",
     "plan_id": "p0l1to",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -4217,7 +4217,7 @@
     "path": "pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md",
     "plan_id": "3cm15q",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -4227,7 +4227,7 @@
     "path": "pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md",
     "plan_id": "ygzq71",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",
@@ -4237,7 +4237,7 @@
     "path": "pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md",
     "plan_id": "p7xhhm",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-29",

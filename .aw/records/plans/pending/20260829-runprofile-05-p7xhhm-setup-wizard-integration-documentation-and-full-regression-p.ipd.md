@@ -6,7 +6,7 @@
 - Scope: Add an optional, default-No runner-profile step to interactive aw setup; reuse the Order-02 wizard; document all canonical configuration and run forms, precedence, storage/privacy, failure behavior, and exact examples; add end-to-end tests across setup through durable launch; run generation, complete regression, packaging, and sanitizer gates; and record coordination with pending rununify.
 - Scope-Paths: agent_workflows/cli.py, tests/test_cli.py, tests/test_runner_profiles_e2e.py, docs/runner-profiles.md, docs/cli-human-guide.md, README.md
 - Item-Dependencies: executed:ygzq71
-- Status: to-review
+- Status: reviewed
 - Set: runprofile
 - Order: 5
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 - Id: p7xhhm
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. PR-003 MEDIUM, fixed: this child PUBLISHES the `aw run as` grammar to users (docs/runner-profiles.md, docs/cli-human-guide.md, README.md), so a wrong OQ-01 answer would ship documentation telling readers to run a command that exits nonzero; a stale doc outlives a merge conflict. Doc writes are now conditional on OQ-01 and must be confirmed against the shipped parser and docs_check. Review artifact: .aw/records/reviews/20260831-runprofile-*-p7xhhm-*.review.md
 
 - 2026-08-30 to-review (codex gpt-5.6): authored as the setup, documentation, and whole-feature proof gate.
 - 2026-08-29 draft (codex gpt-5.6): created.
@@ -74,6 +76,9 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | Collision safety | Parser accepts as. | Existing run status/report/show and command-like aliases coexist. |
 | Opt-in setup | Prompt defaults No. | --yes/non-TTY/EOF/empty all write no profile/default. |
 | Packaging | Source tests pass. | Built artifact includes modules and installed CLI help works. |
+| Sequencing against an approved plan | FOUND AT REVIEW (PR-001, BLOCKER): APPROVED `0soncw` is RETIRING the `aw run` noun this plan builds on (its E-05 leaves a nonzero-exit deprecation stub), and no plan in this Set mentions it. They are complementary, not contradictory: `0soncw` frees the name "for a future driver verb", which is this Set. Escalated as blocking OQ-01 on the orchestrator `3m0urk`; recommended order is `0soncw` FIRST, then this Set. Do NOT execute this plan until that order is settled. | Settle orchestrator OQ-01 before executing. |
+| Unverifiable "already" claims | FOUND AT REVIEW (PR-002): this plan carries ZERO `file:line` citations, as does every member of this Set (measured: 0 across all six, versus 9/4/5 in the comparable `6lu3rq`/`m73aet`/`wlxkoz` plans). The claims spot-checked at review were TRUE, so this is evidence discipline rather than incorrectness, but an executor cannot cheaply re-verify a premise. MEASURE and cite `file:line` for every "already" claim before relying on it; HEAD moves hourly here. | Cite `file:line` for each, measured at the current HEAD. |
+| Publishing a grammar that may be retired | FOUND AT REVIEW (PR-003): this plan writes `docs/runner-profiles.md`, `docs/cli-human-guide.md` and `README.md`, i.e. it PUBLISHES the `aw run as` grammar to users. If OQ-01 resolves the wrong way the committed docs would tell a reader to run a command that exits nonzero. A stale doc outlives a merge conflict. `docs_check.check_aw_commands` also validates `aw <sub>` mentions against `known_subcommands()`. | Make the doc writes CONDITIONAL on OQ-01; confirm the final verb spelling against the shipped parser and `docs_check` immediately before writing. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -115,7 +120,13 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-No open questions.
+### OQ-01: Must APPROVED `runnamecollapse-01` (`0soncw`) land BEFORE this plan?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: RAISED AT REVIEW as a BLOCKER, not agent-resolvable. This plan builds on the `aw run` noun that APPROVED `0soncw` is RETIRING behind a nonzero-exit deprecation stub, and no plan in this Set mentions `0soncw`. The two are COMPLEMENTARY (`0soncw` frees the name "for a future driver verb", which is this Set), so the fix is ORDER, not redesign: recommended `0soncw` FIRST, then this Set. Reversed, `aw run as <profile>` would begin exiting nonzero. A human must answer because it is a cross-Set execution-order decision AND `0soncw` carries its own unresolved blocking OQ-03. THE SET-LEVEL QUESTION IS OQ-01 ON THE ORCHESTRATOR `3m0urk`; this copy exists because the review-finding escalation gate requires the plan carrying the open finding to name it, and answering the orchestrator's OQ-01 answers this one too. Do not answer them differently.
 
 ## Validation and cross-check (verify before reporting done)
 

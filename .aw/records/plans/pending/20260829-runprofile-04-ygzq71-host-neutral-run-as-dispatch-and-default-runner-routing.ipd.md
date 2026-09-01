@@ -6,7 +6,7 @@
 - Scope: Add fixed, collision-safe aw run as PROFILE SELECTOR and aw run ipd SELECTOR subcommands. Resolve a named profile or configured default runner/profile through the shared domain, dispatch only to registered host adapters, forward selectors/direct structured overrides exactly once, retain all existing aw run ledger commands, and fail closed with actionable configuration help.
 - Scope-Paths: agent_workflows/run_dispatch.py, agent_workflows/cli.py, tests/test_run_dispatch.py, tests/test_cli.py
 - Item-Dependencies: executed:3cm15q
-- Status: to-review
+- Status: reviewed
 - Set: runprofile
 - Order: 4
 - Highest E allocated: 04
@@ -14,6 +14,8 @@
 - Id: ygzq71
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. Worth recording precisely: this plan is NOT naive about collisions, it defends correctly against a profile name shadowing a ledger subcommand and solves it with a fixed grammar. But its E-01 registers `as`/`ipd` "under the existing run family", and that family is exactly what 0soncw empties, so fixed-versus-dynamic does not address the noun being retired. Review artifact: .aw/records/reviews/20260831-runprofile-*-ygzq71-*.review.md
 
 - 2026-08-30 to-review (codex gpt-5.6): authored to add the fixed as namespace without dynamic-command collisions.
 - 2026-08-29 draft (codex gpt-5.6): created.
@@ -76,6 +78,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | aw run-gem / aw run:gem | Dynamic command token with unusual completion/help behavior. | Prohibited. |
 | aw run as gem | Only as is fixed syntax; gem is data in a bounded position. | Canonical. |
 | aw run ipd | Fixed explicit default-runner operation; selectors remain bounded. | Canonical default form. |
+| Sequencing against an approved plan | FOUND AT REVIEW (PR-001, BLOCKER): APPROVED `0soncw` is RETIRING the `aw run` noun this plan builds on (its E-05 leaves a nonzero-exit deprecation stub), and no plan in this Set mentions it. They are complementary, not contradictory: `0soncw` frees the name "for a future driver verb", which is this Set. Escalated as blocking OQ-01 on the orchestrator `3m0urk`; recommended order is `0soncw` FIRST, then this Set. Do NOT execute this plan until that order is settled. NOTE SPECIFICALLY: this plan's E-01 registers `as`/`ipd` "under the existing run family", and that family is exactly what `0soncw` empties. The plan correctly defends against a DIFFERENT collision (a profile name shadowing a ledger subcommand, solved with a fixed grammar); fixed-versus-dynamic does not address the noun being retired. | Settle orchestrator OQ-01 before executing. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -111,7 +114,13 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-No open questions.
+### OQ-01: Must APPROVED `runnamecollapse-01` (`0soncw`) land BEFORE this plan?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: RAISED AT REVIEW as a BLOCKER, not agent-resolvable. This plan builds on the `aw run` noun that APPROVED `0soncw` is RETIRING behind a nonzero-exit deprecation stub, and no plan in this Set mentions `0soncw`. The two are COMPLEMENTARY (`0soncw` frees the name "for a future driver verb", which is this Set), so the fix is ORDER, not redesign: recommended `0soncw` FIRST, then this Set. Reversed, `aw run as <profile>` would begin exiting nonzero. A human must answer because it is a cross-Set execution-order decision AND `0soncw` carries its own unresolved blocking OQ-03. THE SET-LEVEL QUESTION IS OQ-01 ON THE ORCHESTRATOR `3m0urk`; this copy exists because the review-finding escalation gate requires the plan carrying the open finding to name it, and answering the orchestrator's OQ-01 answers this one too. Do not answer them differently.
 
 ## Validation and cross-check (verify before reporting done)
 

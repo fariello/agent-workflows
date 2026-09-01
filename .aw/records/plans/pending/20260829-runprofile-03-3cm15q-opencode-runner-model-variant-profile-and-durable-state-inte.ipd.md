@@ -6,7 +6,7 @@
 - Scope: Extend the OpenCode IPD driver with direct --model/--variant support and the collision-safe grammar run as PROFILE SELECTOR. Resolve named/default OpenCode profiles before run creation, apply explicit-field overrides, snapshot complete provenance in state.json, use that snapshot for every execution and verification turn and every resume, and expose it in status/report/prepare-only output.
 - Scope-Paths: agent_workflows/oc_runipd.py, tests/test_oc_runipd.py, tests/test_oc_runipd_cli.py
 - Item-Dependencies: executed:p0l1to
-- Status: to-review
+- Status: reviewed
 - Set: runprofile
 - Order: 3
 - Highest E allocated: 05
@@ -14,6 +14,8 @@
 - Id: 3cm15q
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. Verified its premise BY EXECUTION: `aw oc run --help` genuinely has no --variant. PR-003 MEDIUM, fixed: this is the most contended child, editing oc_runipd.py which nine approved plans also claim, five of them the unmerged wtiso stack (26 commits) that 6knsrx lands into this same file; now requires re-measuring immediately before editing and stopping if 6knsrx has begun landing. Review artifact: .aw/records/reviews/20260831-runprofile-*-3cm15q-*.review.md
 
 - 2026-08-30 to-review (codex gpt-5.6): authored to bind structured profiles and OpenCode variants to durable runner execution.
 - 2026-08-29 draft (codex gpt-5.6): created.
@@ -78,6 +80,9 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | Unknown alias after run creation | Failed command leaves misleading durable state. | Assert no run directory/event/state exists. |
 | Alias named status | Dynamic parser shadows status. | Fixed as grammar and command-like-name tests. |
 | Direct override replaces whole profile | --variant override accidentally drops model. | Per-field precedence matrix. |
+| Sequencing against an approved plan | FOUND AT REVIEW (PR-001, BLOCKER): APPROVED `0soncw` is RETIRING the `aw run` noun this plan builds on (its E-05 leaves a nonzero-exit deprecation stub), and no plan in this Set mentions it. They are complementary, not contradictory: `0soncw` frees the name "for a future driver verb", which is this Set. Escalated as blocking OQ-01 on the orchestrator `3m0urk`; recommended order is `0soncw` FIRST, then this Set. Do NOT execute this plan until that order is settled. | Settle orchestrator OQ-01 before executing. |
+| Unverifiable "already" claims | FOUND AT REVIEW (PR-002): this plan carries ZERO `file:line` citations, as does every member of this Set (measured: 0 across all six, versus 9/4/5 in the comparable `6lu3rq`/`m73aet`/`wlxkoz` plans). The claims spot-checked at review were TRUE, so this is evidence discipline rather than incorrectness, but an executor cannot cheaply re-verify a premise. MEASURE and cite `file:line` for every "already" claim before relying on it; HEAD moves hourly here. | Cite `file:line` for each, measured at the current HEAD. |
+| Editing the most contended file in the repo | FOUND AT REVIEW (PR-003): `oc_runipd.py` is in the Scope-Paths of NINE approved plans (`1o4eif`, `2c122z`, `58ha43`, `6knsrx`, `7p9n2v`, `97df1z`, `qcqhj7`, `rchpms`, `y0gg8o`), five being the unmerged `wtiso` lane stack (26 commits) that `6knsrx` exists to land into this same file. | Re-measure this file against the `wtiso` stack immediately before editing; STOP and report if `6knsrx` has begun landing. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -115,7 +120,13 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-No open questions.
+### OQ-01: Must APPROVED `runnamecollapse-01` (`0soncw`) land BEFORE this plan?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: RAISED AT REVIEW as a BLOCKER, not agent-resolvable. This plan builds on the `aw run` noun that APPROVED `0soncw` is RETIRING behind a nonzero-exit deprecation stub, and no plan in this Set mentions `0soncw`. The two are COMPLEMENTARY (`0soncw` frees the name "for a future driver verb", which is this Set), so the fix is ORDER, not redesign: recommended `0soncw` FIRST, then this Set. Reversed, `aw run as <profile>` would begin exiting nonzero. A human must answer because it is a cross-Set execution-order decision AND `0soncw` carries its own unresolved blocking OQ-03. THE SET-LEVEL QUESTION IS OQ-01 ON THE ORCHESTRATOR `3m0urk`; this copy exists because the review-finding escalation gate requires the plan carrying the open finding to name it, and answering the orchestrator's OQ-01 answers this one too. Do not answer them differently.
 
 ## Validation and cross-check (verify before reporting done)
 

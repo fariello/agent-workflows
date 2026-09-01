@@ -6,7 +6,7 @@
 - Scope: Coordinate a five-child Set delivering strict user-local launch profiles, an OpenCode profile/model wizard, direct model/variant and run-as support in the durable OpenCode runner, host-neutral fixed dispatch plus default routing, optional setup integration, documentation, and adversarial/end-to-end validation. The orchestrator changes no product code; it validates dependency order and the whole Set.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Set: runprofile
 - Order: 0
 - Highest E allocated: 02
@@ -14,6 +14,8 @@
 - Id: 3m0urk
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
+- 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. Orchestrator-specific: corrected its execution contract, which claimed "there are no unresolved questions" (now false), and EXTENDED its rununify STOP clause to cover the unmerged wtiso lane stack and 6knsrx, with the measured per-child collision set recorded. Structural preflight conforming for all six. Review artifact: .aw/records/reviews/20260831-runprofile-*-3m0urk-*.review.md
 
 - 2026-08-30 to-review (codex gpt-5.6): authored a five-child execution Set from the agreed run-as UX and current repository architecture.
 - 2026-08-29 draft (codex gpt-5.6): created.
@@ -107,7 +109,13 @@ The sequence is intentionally serial. Orders 02, 04, and 05 edit cli.py; Order 0
 
 ## Open questions
 
-No open questions.
+### OQ-01: Must APPROVED `runnamecollapse-01` (`0soncw`) land BEFORE this Set?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: RAISED AT REVIEW as a BLOCKER and NOT resolvable from repository evidence, so it is escalated rather than decided. THE FACTS, measured at HEAD `6a29f9c0`: this Set builds its entire user-facing grammar on the `aw run` noun (`aw run as` appears 16 times, `aw run ipd` 12 times across the six plans), while APPROVED `0soncw` is titled "Collapse run inspection under aw runs and retire the aw run noun" and its E-05 leaves `aw run` as a deprecation stub that returns a NONZERO exit and a message naming `aw runs`. NO plan in this Set mentions `0soncw` or `runnamecollapse` even once. THE TWO ARE COMPLEMENTARY, NOT CONTRADICTORY, which is why this is an ordering question and not a replan: `0soncw` states it retires the noun "so the name is free for a future driver verb WITHOUT this plan taking on the default-host design that a real `aw run` would additionally require", and this Set IS that future driver verb. RECOMMENDED ORDER: `0soncw` FIRST (vacate the name, leaving the stub), THEN this Set (claim the vacated name for real dispatch); in that order both land cleanly. In the OPPOSITE order the result is a live breakage rather than a merge conflict, because `0soncw` would install its stub over a namespace this Set had just populated and `aw run as gem` would begin exiting nonzero. WHY A HUMAN MUST ANSWER: it is a cross-Set execution-order decision between two artifacts whose approval the maintainer owns, AND `0soncw` itself still carries its own unresolved BLOCKING OQ-03 (how `aw runs` disambiguates a subcommand from a viewer target, which its review proved argparse cannot do), so the prerequisite is not executable yet either. Answering this may therefore require answering `0soncw`'s OQ-03 first.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
@@ -130,10 +138,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 
 Execution contract:
 
-1. Human approval is required; there are no unresolved questions.
+1. Human approval is required, AND blocking OQ-01 must be answered first. CORRECTED AT REVIEW: this line previously read "there are no unresolved questions", which is no longer true. OQ-01 (must APPROVED `0soncw` land before this Set?) is BLOCKING and unresolved, so this Set is NOT executable until the maintainer settles the cross-Set order.
 2. Execute children serially in the table order. A missing predecessor, altered API, or overlapping active edit is a child-scoped STOP; do not fabricate compatibility code.
 3. The orchestrator touches only Scope-Paths and authors no product code. Product changes and commits belong to children.
-4. This Set executes before rununify extracts shared runner code. If extraction has already started, STOP and re-review all runner scopes against the new boundary.
+4. This Set executes before rununify extracts shared runner code. If extraction has already started, STOP and re-review all runner scopes against the new boundary. EXTENDED AT REVIEW (PR-002): the same STOP applies to the unmerged `wtiso` LANE STACK and its lander `6knsrx`. Measured collisions: `3cm15q` shares `oc_runipd.py` with NINE approved plans (`1o4eif`, `2c122z`, `58ha43`, `6knsrx`, `7p9n2v`, `97df1z`, `qcqhj7`, `rchpms`, `y0gg8o`) and `tests/test_oc_runipd.py` with `qcqhj7`; `p0l1to`, `ygzq71` and `p7xhhm` each share `cli.py` with SIX (`0soncw`, `2c122z`, `58ha43`, `6knsrx`, `mjx7ne`, `rchpms`). Five of those are lanes holding 26 commits reachable only from their branches, so a child editing those files before `6knsrx` lands is writing into a file about to receive a large merge. Re-measure immediately before each child, not once at Set start.
 5. Never add dynamic profile commands, arbitrary argv/shell profiles, tracked private profiles, implicit defaults, or unsupported host claims.
 6. Validation requires actual pasted commands, exit codes, state excerpts, exact argv, and negative-test results. Lint or unit-test structure alone is not proof of end-to-end behavior.
 7. Commit only this plan's files, path-scoped; inspect git diff --cached --name-only; never use git add -A, bare git add, git commit -a, --no-verify, or push.
