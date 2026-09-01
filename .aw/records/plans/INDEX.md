@@ -76,7 +76,7 @@ Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 
 ## runtrail
 
-- `m73aet` [pending] 01 pending/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md
+- `m73aet` [executed] 01 executed/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md
 
 ## sessrot
 
