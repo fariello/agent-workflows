@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 196 Sets; the full manifest is INDEX.json.
+
+## lanecontain
+
+- `tch3bo` [superseded] 01 superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md
 
 ## apprvguard
 
@@ -183,10 +187,6 @@ Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 - `foi1b3` [executed] 04 executed/20260829-runstop-04-foi1b3-phase-3-level-3-stop-now-at-the-next-observed-safe-checkpoin.ipd.md
 - `m0z0ti` [executed] 05 executed/20260829-runstop-05-m0z0ti-phase-4-level-4-stop-now-force-with-unknown-outcome-and-resu.ipd.md
 - `71vjbn` [executed] 06 executed/20260829-runstop-06-71vjbn-phase-5-trigger-ux-escalating-sigint-sigterm-and-the-aw-oc-a.ipd.md
-
-## rununify
-
-- `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
 
 ## (singletons: no Set)
 

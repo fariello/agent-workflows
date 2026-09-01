@@ -1,5 +1,22 @@
 # IPD: Port lane containment onto current main: one authoritative signal per instruction, enforced not requested
 
+
+> **RETIRED 2026-09-01: REJECT - NEEDS REPLAN** (`/aw plan-review`, PR-001..PR-010; all ten findings
+> verified and accepted). Superseded by an ordered Set, per the maintainer's ruling: (1) the live
+> watchdog defect as its own small plan, (2) an APPROVED containment spec, (3) split children tracing
+> to it. DO NOT EXECUTE.
+>
+> The fatal finding was PR-002, a REAL dependency cycle: E-03 said "reuse E-05's materializer", but
+> the materializer is E-07, which `Depends on: E-03`; and E-05 needed `check_permission_deadline`,
+> implemented by E-12, which sat downstream of E-05. `aw ipd lint` reported conforming throughout,
+> which is precisely the case a passing structural lint cannot clear.
+>
+> KEPT FOR REUSE, which is why this is retired rather than deleted: the seven-mixed-signal inventory,
+> the measured 5-vs-0 out-of-lane path counts, the corrected UTC timeline showing the isolation notice
+> POSTDATES the leak by 36 minutes (so N=1 evidence, not a demonstration), the main-vs-lane symbol
+> census proving a merge would destroy `runstop`, and the four OQ resolutions. The successors should
+> cite these rather than re-measure them.
+
 - Date: 2026-09-01
 - Kind: child
 - Concern: An isolated (lane) turn receives CONTRADICTORY instructions about where it may work, and the contradiction is emitted by the driver itself. The prompt says "Do NOT read or write the main checkout" and then hands the agent FIVE absolute main-checkout paths, declaring them "the only exceptions ... you write them exactly as given" (verbatim, `build_isolation_notice`, `oc_runipd.py:3765`; measured live in `run-20260901T042331Z-118022`, where the executor prompt mentions the main checkout path 7 times, only 2 of them inside the lane). Containment therefore rests on an agent resolving a self-contradiction correctly on every turn, which is a request, not a boundary; `host_sandbox_profile`'s own docstring concedes a same-user agent "cannot be cryptographically or filesystem-enforced from prompts, hooks, environment variables, or Python role checks alone". The measured harm already happened once (`3f5752bd`, 18 files committed into MAIN while the lane branch stayed at zero commits, inside run `run-20260831T153226Z-3424176`), and the mitigation shipped 36 minutes LATER (`ae1ae9b7`, 17:21:54Z vs the leak at 16:45:48Z), so the current defense has been exercised by exactly ONE subsequent run with committing agents.
@@ -8,7 +25,7 @@
 - Item-Dependencies: none
 - From-Backlog: vqv9im
 - Blocks-Release: next
-- Status: to-review
+- Status: superseded
 - Set: lanecontain
 - Order: 1
 - Highest E allocated: 12
@@ -16,6 +33,7 @@
 - Id: tch3bo
 
 ## Workflow history
+- 2026-09-01 superseded (aw set): REJECT - NEEDS REPLAN (/aw plan-review, 2026-09-01, PR-001..PR-010). All ten findings verified against the artifact and ACCEPTED; nine are unambiguously correct. Most serious is PR-002: the dependency graph contains a REAL cycle (E-03 says 'reuse E-05's materializer' but the materializer is E-07, which Depends on E-03; and E-05 needs check_permission_deadline, implemented by E-12 which sits downstream of E-05). Structural lint passed, which is exactly the case where a passing lint does not clear semantic review. Also confirmed: PR-001 right-sizing (the plan's own text concedes E-06 and E-09 are separable while arguing cohesion), PR-003 (requeue_interrupted proves retry is live, so an append-only harvest duplicates the run-wide register), PR-004 (research x03wgn requires 5 missing-input steps; E-08 covered 2, 3 and half of 4), PR-005 (no approved spec normatively covers lane containment), PR-006 (demands failed==0 while the make test-all baseline is 4 failed), PR-007 (stale three/six count after my own 4/5 correction), PR-008 (mandated stop-and-report scope fence absent), PR-009 (pinned_child_env copies os.environ, so an operator OPENCODE_CONFIG_CONTENT is silently clobbered), PR-010 (V-07 tests islink only; a hard link passes and still breaks copy isolation). Superseded by an ordered Set per the maintainer's ruling: quick fix first (the live watchdog defect), then an approved containment spec, then the split children tracing to it. Retired rather than deleted so the measurements and the seven-mixed-signal inventory survive.
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): authored as the PORT that backlog `vqv9im` decided on, replacing the merge path that approved `6knsrx` assumed (`6knsrx` is now de-armed to `reviewed`, `cea13ac0`). Re-scoped from `qcqhj7` against current main rather than transcribed: E-11 is DROPPED as already-solved-differently, E-03/E-10 are narrowed to the deltas main lacks, and one new E-item (E-12) generalizes the worker-role selector that landed for `i452hf`. Every claim below was measured at HEAD `cea13ac0`, not inherited from the lane's text.
 - 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.

@@ -4528,5 +4528,15 @@
     "plan_id": "7f7782",
     "set_id": "detrun",
     "status": "superseded"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md",
+    "plan_id": "tch3bo",
+    "set_id": "lanecontain",
+    "status": "superseded"
   }
 ]
