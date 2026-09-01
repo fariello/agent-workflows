@@ -11,7 +11,7 @@
 
 ## Workflow history
 
-- 2026-09-01 to-review (aw specs): Closed the three semantic gaps the maintainer's review identified, all confirmed against the code before fixing. (1) R4.1 assumed an OpenCode-style deny policy for both hosts; measured that Antigravity passes --dangerously-skip-permissions with default=True (agy_runipd.py:2767, :4429) and that its only alternative requires INTERACTIVE permissions, so its two postures are auto-approve-everything or deadlock and no deny-and-continue posture exists. R4.1 is now per-host 'strongest supported posture', R4.1a makes honest reporting normative and forbids describing such a host as denied, and closing the gap is Non-goal 7. (2) R3.3 did not reject secrets; measured that the shared predicate carries only five coordinator surfaces and ZERO secret handling, so .env would have been materialized. R3.3a requires the reject set be DERIVED from the .gitignore secret sections rather than transcribed, and extended in the SHARED predicate. R3.3b defines 'if policy permits' as survives-all-rejections + regular-file-in-checkout + TRACKED, with untracked refused by default. (3) 'Sealed' was used twice and never defined; R5.1a defines it as read-only manifest, read-only inputs, and change-by-new-revision, labelled an accident guard rather than immutability. Added A7b, A7c, A8 (now per-host), A8b, A12b. Traceability re-verified: 35 requirements, 34 cited, with R4.1b's non-citation now documented in Section 4 as deliberate since it points at a non-goal.
+- 2026-09-01 to-review (aw specs): MAINTAINER RULING ADOPTED (2026-09-01): --dangerously-skip-permissions MUST remain the default for aw agy run, because running without it was PROVEN in practice to fail or deadlock repeatedly. My previous framing was wrong in a way that mattered: it described the flag as an unclosed GAP awaiting work (Non-goal 7 'adding a denial posture to a host that lacks one'), which invited a future plan to try closing it. It is now recorded as a DECIDED CONSTRAINT the spec adopts. Added R4.1c, which forbids any plan tracing to this spec from flipping that default and requires a future change to carry its own decision plus evidence the deadlock is gone; it is explicitly the INVERSE of R4.6 (R4.6 stops a denial landing too early on a host that has one; R4.1c stops one landing at all where it is known to hang). Added A8c as a regression guard in the opposite direction from every other criterion: it FAILS if this work 'hardens' Antigravity into the interactive posture that deadlocks. Verified A8c is testable today and that NO existing test pins the default, so it closes a real hole. Consequence now stated where it belongs: on Antigravity the host layer contributes NOTHING to containment, permanently and by design, so R1 (prompt purity) and R4.4 (driver bounds) are LOAD-BEARING for that host rather than defence-in-depth - which is the practical argument for doing the prompt work at all. Traceability 36/36, all specs conform.
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
@@ -82,12 +82,13 @@ every requirement below inherits it.
    driver hands the worker and what the driver refuses; a hook cannot see INTENT and needs its own
    design.
 6. Changing the lifecycle transaction, the integration gate, or the `runstop` stop levels.
-7. ADDING A PERMISSION-DENIAL POSTURE TO A HOST THAT LACKS ONE. Antigravity currently passes
-   `--dangerously-skip-permissions` with a `True` default, so its only two postures are
-   auto-approve-everything and interactive-deadlock (measured; see R4.1). Changing that default is a
-   separate decision with its own blast radius and belongs to that host's own work. This spec requires
-   only that the gap be reported honestly (R4.1a) and that the layers which DO apply on such a host
-   (R1 prompt purity, R4.4 driver bounds) carry the guarantee.
+7. CHANGING ANTIGRAVITY'S `--dangerously-skip-permissions` DEFAULT. It passes with a `True` default and
+   MUST KEEP IT (maintainer ruling 2026-09-01, on operational evidence that running without it failed or
+   deadlocked repeatedly). Its only alternative requires interactive permissions an unattended turn
+   cannot answer. So this is not an unclosed gap awaiting work: it is a decided constraint, and R4.1c
+   forbids any plan tracing to this spec from flipping it. What this spec requires instead is that the
+   absence of host-layer denial be reported honestly (R4.1a) and that the layers which DO apply on that
+   host (R1 prompt purity, R4.4 driver bounds) carry the whole guarantee.
 
 ## 3. Requirements
 
@@ -200,12 +201,20 @@ rather than assumed uniform:
 
 - OPENCODE: a policy denying external-directory and interactive-question requests. This is achievable
   today via the runner-supplied runtime config, so for this host R4.1 is a real denial.
-- ANTIGRAVITY: NO EQUIVALENT DENIAL EXISTS. Measured 2026-09-01: the driver passes
-  `--dangerously-skip-permissions` and `dangerously_skip_permissions` DEFAULTS TO `True`
-  (`agy_runipd.py:2767`, default declared at `:4429`), i.e. the shipped default AUTO-APPROVES every tool
-  permission request, and the only alternative (`--no-dangerously-skip-permissions`) requires INTERACTIVE
-  permissions, which an unattended turn cannot answer. So on this host the two options are
-  auto-approve-everything or deadlock, and there is no deny-and-continue posture to request.
+- ANTIGRAVITY: NO DENIAL POSTURE EXISTS, AND AUTO-APPROVE IS THE REQUIRED SETTING, NOT A REGRETTABLE
+  DEFAULT. Measured 2026-09-01: the driver passes `--dangerously-skip-permissions` and
+  `dangerously_skip_permissions` DEFAULTS TO `True` (`agy_runipd.py:2767`, default declared at `:4429`);
+  the only alternative (`--no-dangerously-skip-permissions`) requires INTERACTIVE permissions, which an
+  unattended turn has no answerer for. MAINTAINER RULING (2026-09-01, from operational experience):
+  `--dangerously-skip-permissions` MUST remain the default for `aw agy run`, because running without it
+  was PROVEN in practice to fail or deadlock repeatedly. This is a DECIDED CONSTRAINT that this spec
+  adopts, not a defect it tolerates.
+  CONSEQUENCE, and the reason the ruling belongs in a containment spec rather than only in the driver:
+  on this host the host layer contributes NOTHING to containment, by design and permanently. Every
+  containment guarantee for Antigravity therefore rests on R1 (the prompt names nothing outside the lane)
+  and R4.4 (driver-side bounds that fire regardless of the host). That makes R1 and R4.4 load-bearing for
+  this host rather than defence-in-depth, which raises their priority and is the practical argument for
+  doing the prompt work at all.
 
 R4.1a CONSEQUENCE, stated normatively so no plan can paper over it: on a host with no denial posture,
 R4.1 is satisfied by RECORDING that fact on the attempt (a per-host capability statement), and the
@@ -213,6 +222,14 @@ containment guarantee for that host rests ENTIRELY on R1 (the prompt names nothi
 R4.4 (driver-side bounds that fire regardless of the host). An artifact MUST NOT describe such a host as
 "denied"; it MUST describe it as unenforced-at-the-host and point at the layers that do apply. Claiming
 parity where none exists is the specific failure this sub-requirement exists to prevent.
+
+R4.1c A DRIVER MUST NOT WEAKEN A HOST'S PERMISSION POSTURE IN PURSUIT OF THIS SPEC, and MUST NOT
+STRENGTHEN ONE INTO A DEADLOCK. Specifically, no work tracing to this spec may flip Antigravity's
+`--dangerously-skip-permissions` default to `False`, because an unattended turn cannot answer an
+interactive prompt and the measured outcome is repeated failure or deadlock (R4.1). A future change to
+that default requires its own decision, its own evidence that the deadlock is gone, and an explicit
+supersession of this sub-requirement. This is the inverse of R4.6: R4.6 stops a denial landing too EARLY
+on a host that has one, and R4.1c stops a denial landing AT ALL on a host where it is known to hang.
 
 R4.1b Adding a real denial posture to a host that lacks one is OUT OF SCOPE (see Non-goal 7); this spec
 requires honest reporting of the gap, not its closure. Recorded as a requirement number only so R4.1a's
@@ -335,6 +352,11 @@ re-flag it as a traceability gap.
 - A8b. Assert the honest-reporting rule mechanically: for a host recorded as having no denial posture, the
   attempt record and any rendered summary MUST NOT contain a claim of denial, and MUST name the layers
   that do apply (R1 prompt purity and R4.4 driver bounds). (R4.1a)
+- A8c. THE ANTIGRAVITY DEFAULT IS PINNED. Assert that `dangerously_skip_permissions` still defaults to
+  `True` and that the constructed argv for an unattended `aw agy run` turn still carries
+  `--dangerously-skip-permissions`. This is a REGRESSION GUARD in the opposite direction from every other
+  criterion here: it fails if work tracing to this spec "hardens" the host into the interactive posture
+  that was measured to deadlock. (R4.1c)
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
