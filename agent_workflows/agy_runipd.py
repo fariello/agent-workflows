@@ -2791,6 +2791,21 @@ def run_agy_turn(
     if os.name == "posix":
         popen_kwargs["start_new_session"] = True
 
+    # lanefinal (i452hf) / wtiso-03 (rchpms) E-06, the MIRROR of the oc twin: mark an ISOLATED lane
+    # turn as the managed WORKER role so an in-lane `aw ipd begin/finalize` refuses with
+    # AW-LIFECYCLE-ROLE-001 rather than forking a second receipt the driver cannot see. Same
+    # `work_dir` key, same single env construction via the shared `pinned_child_env` - the two host
+    # drivers must not drift on an authority rule. See the oc twin for the full rationale and for the
+    # honest limit (an environment selector, not a hardened boundary).
+    from agent_workflows import ipd_lifecycle
+
+    child_env = pinned_child_env()
+    if work_dir:
+        child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
+    else:
+        child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+    popen_kwargs["env"] = child_env
+
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])

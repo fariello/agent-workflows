@@ -182,13 +182,45 @@ class BeginHappyPathTests(unittest.TestCase):
         self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
 
     def test_plan_digest_change_invalidates_prior_receipt(self):
+        """A change to the plan's frozen CONTRACT invalidates the receipt (OQ-01 rule (a)).
+
+        SEMANTIC CHANGE (wtiso-03 `rchpms` E-03, backlog `xmqv5l`): the validity key is now the
+        FROZEN REGION (``Scope-Paths`` + E/V requirement text), not the whole file. This test
+        previously appended an HTML comment and asserted the receipt went stale; that edit lies
+        OUTSIDE the frozen region, and under the new rule it correctly does NOT invalidate, because a
+        conforming execution MUST edit its own plan and was being punished for it.
+
+        The test therefore now asserts the guard on BOTH sides so its protective intent is kept
+        rather than loosened: a real requirement/scope change DOES invalidate (the tight guard), and
+        a non-contract edit does NOT (the xmqv5l fix).
+        """
         LC.begin(self.root, self.plan, "opencode/test", timestamp="t")
         stored = LC.read_receipt(self.root, "abc123")
         assert stored is not None
         self.assertTrue(LC.receipt_is_current(stored, self.plan.read_text()))
-        # A change to the plan's own content invalidates the receipt (OQ-01 rule (a)).
-        changed = self.plan.read_text() + "\n<!-- a material edit -->\n"
-        self.assertFalse(LC.receipt_is_current(stored, changed))
+
+        # TIGHT GUARD (the assertion that carries this test's original intent): changing the
+        # reviewed contract - a declared Scope-Paths entry - makes this a DIFFERENT plan than the
+        # one the pre-execution gate approved, so the receipt MUST go stale.
+        rescoped = self.plan.read_text().replace(
+            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+            "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/extra.py",
+        )
+        self.assertNotEqual(rescoped, self.plan.read_text(), "scope edit did not apply")
+        self.assertFalse(LC.receipt_is_current(stored, rescoped))
+
+        # TIGHT GUARD: rewriting an E-item's action text is likewise a contract change.
+        retasked = self.plan.read_text().replace(
+            "- [ ] E-01 ", "- [ ] E-01 REWRITTEN ", 1
+        )
+        self.assertNotEqual(
+            retasked, self.plan.read_text(), "E-text edit did not apply"
+        )
+        self.assertFalse(LC.receipt_is_current(stored, retasked))
+
+        # THE xmqv5l FIX: a non-contract edit (here, trailing prose) no longer invalidates.
+        commented = self.plan.read_text() + "\n<!-- a non-contract edit -->\n"
+        self.assertTrue(LC.receipt_is_current(stored, commented))
 
     def test_receipt_persists_after_unrelated_disjoint_commit(self):
         # OQ-01 lifetime: HEAD moving on DISJOINT paths does NOT invalidate the receipt.
@@ -486,16 +518,65 @@ class FinalizeTests(unittest.TestCase):
         self.assertTrue(self.plan.is_file())
 
     def test_stale_receipt_refuses(self):
+        """finalize refuses when the plan's frozen CONTRACT changed after begin.
+
+        SEMANTIC CHANGE (wtiso-03 `rchpms` E-03, backlog `xmqv5l`): staleness is now keyed on the
+        frozen region, so the edit that must trigger the refusal is a REQUIREMENT/SCOPE change, not
+        any byte change. This test used to append an HTML comment, which no longer invalidates (by
+        design - see `receipt_is_current`), so it now performs a real contract change: it adds a
+        Scope-Paths entry that was not in the approved plan.
+        """
         self._begin()
-        # Edit the plan AFTER begin -> receipt digest no longer matches.
+        # Change the reviewed CONTRACT after begin -> the frozen-region digest no longer matches.
         self.plan.write_text(
-            self.plan.read_text() + "\n<!-- edit -->\n", encoding="utf-8"
+            self.plan.read_text().replace(
+                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py",
+                "- Scope-Paths: agent_workflows/demo.py, tests/test_demo.py, agent_workflows/snuck_in.py",
+            ),
+            encoding="utf-8",
         )
-        _commit_all(self.root, "edit plan after begin")
+        self.assertIn("snuck_in.py", self.plan.read_text(), "scope edit did not apply")
+        _commit_all(self.root, "edit plan scope after begin")
         result = LC.finalize(self.root, self.plan, "opencode/test", "m", apply=True)
         self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
         self.assertTrue(
             any("stale" in f.lower() or "digest" in f.lower() for f in result.findings)
+        )
+
+    def test_self_finalize_after_checklist_edits_no_stale_refusal(self):
+        """END-TO-END xmqv5l REGRESSION: a self-executing agent's own checklist edits must NOT
+        make finalize refuse as STALE.
+
+        This is the exact live failure backlog `xmqv5l` reports (observed on run 7kbtkw): begin,
+        execute, and in the course of executing correctly mark every E item performed, fill each V
+        item's evidence, and append a `## Workflow history` line - then finalize refused with "the
+        begin receipt ... is STALE" and the run was left substantially-complete. The refusal is
+        asserted against here through the REAL `finalize_precheck` path, not just the predicate.
+        """
+        self._begin()
+        edited = self.plan.read_text()
+        # Exactly the edits a conforming execution makes to its own plan.
+        edited = edited.replace("- [ ] E-01 ", "- [x] E-01 ", 1).replace(
+            "  - Execution state: pending", "  - Execution state: performed", 1
+        )
+        edited = (
+            edited.replace("- [ ] V-01 validates E-01", "- [x] V-01 validates E-01", 1)
+            .replace(
+                "  - Observed evidence:\n",
+                "  - Observed evidence: pasted real command output here.\n",
+                1,
+            )
+            .replace("  - Result: pending", "  - Result: pass", 1)
+        )
+        edited += "\n- 2026-08-24 executed (opencode/test): all V items verified.\n"
+        self.plan.write_text(edited, encoding="utf-8")
+        _commit_all(self.root, "execute the plan (checklist + evidence + history)")
+
+        code, message, _evidence, findings = LC.finalize_precheck(self.root, self.plan)
+        self.assertEqual(code, LC.EXIT_OK, f"{message} findings={findings}")
+        self.assertFalse(
+            [f for f in findings if "stale" in f.lower() or "digest" in f.lower()],
+            f"self-execution edits wrongly reported the receipt stale: {findings}",
         )
 
     def test_pre_transition_nonconforming_refuses(self):

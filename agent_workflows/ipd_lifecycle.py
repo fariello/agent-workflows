@@ -37,14 +37,75 @@ from typing import (
     Dict,
     FrozenSet,
     List,
+    Mapping,
     NamedTuple,
     Optional,
     Sequence,
     Tuple,
 )
 
+# --------------------------------------------------------------------------------------
+# Execution ROLE (wtiso-03 `rchpms` E-04). x03wgn Section 2 "Receipt ownership does not mean agent
+# tool compliance" + Section 3 `AW-LIFECYCLE-ROLE-001`.
+#
+# The runner owns begin/finalize for a managed lane. Receipt OWNERSHIP alone does not stop an in-lane
+# agent from running `aw ipd begin`/`aw ipd finalize` itself, which forks a SECOND receipt and a second
+# lifecycle transaction the driver cannot see; the in-lane receipt copy then hides the split. So a
+# process that identifies as a managed WORKER refuses these two verbs outright and says what to do
+# instead.
+#
+# HONEST LIMIT: this is an environment SELECTOR, i.e. the operational-default guidance layer, not a
+# hardened boundary. A same-user worker with shell access can unset the variable. Hard enforcement is
+# an OS sandbox / separate principal (x03wgn, Phase 6 `1o4eif`).
+# --------------------------------------------------------------------------------------
+
+# The env selector the runner exports into a managed worker's child environment.
+EXECUTION_ROLE_ENV = "AW_EXECUTION_ROLE"
+ROLE_WORKER = "worker"
+
+LIFECYCLE_ROLE_ERROR = (
+    "AW-LIFECYCLE-ROLE-001: the runner owns begin/finalize for managed lanes; a worker-role "
+    "process must not run them"
+)
+
+
+def worker_role_active(env: "Mapping[str, str]") -> bool:
+    """True iff ``env`` marks this process as a MANAGED WORKER lane (``AW_EXECUTION_ROLE=worker``).
+
+    Pure: reads the passed mapping only, never ``os.environ`` directly, so the predicate is testable
+    without mutating global process state. Any other value (absent, empty, ``coordinator``) is NOT a
+    worker, so a normal human/agent invocation outside a managed lane is unaffected.
+    """
+    return str(env.get(EXECUTION_ROLE_ENV) or "").strip() == ROLE_WORKER
+
+
+def _refuse_worker_role_verb(verb: str) -> int:
+    """Emit the deterministic ``AW-LIFECYCLE-ROLE-001`` refusal for a driver-only lifecycle verb.
+
+    Writes the corrective error to STDERR (the diagnostic channel, so a caller parsing stdout for
+    structured output is unaffected) and returns :data:`EXIT_CANNOT_RUN`. Called BEFORE any selector
+    resolution, gate, receipt write, or plan mutation, so a refused invocation has NO side effect
+    whatsoever - that is the point: a forked worker receipt is exactly what this prevents.
+    """
+    import sys as _sys
+
+    print(
+        f"{LIFECYCLE_ROLE_ERROR} (refused: aw ipd {verb}). "
+        "The runner performs begin/finalize for this lane; report your result instead "
+        "(write the outcome file the prompt names) and let the driver transition the plan.",
+        file=_sys.stderr,
+    )
+    return EXIT_CANNOT_RUN
+
+
 # Receipt schema version (bump on an incompatible receipt-shape change).
-RECEIPT_SCHEMA_VERSION = 1
+#
+# v2 (wtiso-03 `rchpms` E-02): adds ``frozen_region_digest``, which REPLACES ``plan_content_digest``
+# as the receipt's validity key (see :func:`frozen_region_digest` and backlog `xmqv5l`).
+# ``plan_content_digest`` is still WRITTEN, so the shape is additive and every existing reader keeps
+# working; a v1 receipt that predates the field falls back to the old whole-file rule in
+# :func:`receipt_is_current`, so an old receipt is never spuriously accepted.
+RECEIPT_SCHEMA_VERSION = 2
 
 # Exit-code convention shared with `aw ipd lint` (0 ok / 1 findings / 2 cannot-run).
 EXIT_OK = 0
@@ -263,6 +324,48 @@ def receipt_path_for(repo_root: Path, plan_id: str) -> Path:
 def plan_content_digest(text: str) -> str:
     """A stable sha256 over the plan's exact bytes (identity of the plan content at begin time)."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def frozen_region_digest(text: str) -> str:
+    """A stable sha256 over ONLY the plan invariants that must not change mid-execution.
+
+    wtiso-03 (`rchpms`) E-01, fixing backlog `xmqv5l`. The receipt's ORIGINAL validity key was the
+    whole-file ``plan_content_digest``, which made the receipt go stale on every CORRECT execution: a
+    conforming executor MUST edit the plan it is executing (mark each E item performed, fill each V
+    ``Observed evidence``/``Result``, append a ``## Workflow history`` line), so the byte digest always
+    changed and ``finalize_precheck`` refused with "the begin receipt ... is STALE". The frozen
+    CONTRACT, however, did not change at all.
+
+    So this digest covers the reviewed contract and nothing else:
+
+      * the frozen ``Scope-Paths`` allowlist (via :func:`_frozen_scope_paths`), and
+      * the requirement categories (via :func:`_requirements_from_plan`): scope, each E-item's action
+        text, and each V-item's row text.
+
+    It DELIBERATELY excludes the mutable execution/validation STATE (``Execution state:``,
+    ``Result:``, ``Observed evidence:``), the ``## Workflow history``, and the ``[ ]``/``[x]`` checkbox
+    marks. Those exclusions are structural rather than textual: ``ipd_lint.parse`` puts a leaf's
+    indented ``- Key: value`` sub-fields in ``Leaf.fields`` and its checkbox in ``Leaf.checked``, while
+    ``Leaf.text`` is the action text alone, and ``_requirements_from_plan`` reads only ``.text``. Prose
+    sections (``## Findings``, ``## Proposed changes``) are likewise outside the requirement set, so
+    editing them does not invalidate a receipt (OQ-01: they are not part of the reviewed contract).
+
+    The result is a guard that stays TIGHT on what matters - changing a ``Scope-Paths`` entry or an
+    E/V requirement line DOES invalidate the receipt, because that is a different plan than the one
+    the gate approved - while no longer punishing a legitimate self-execution.
+
+    Serialization is deterministic (``sort_keys=True`` over a mapping of sorted category lists) so the
+    digest is stable across runs and dict-ordering changes.
+    """
+    payload = {
+        "scope_paths": sorted(_frozen_scope_paths(text)),
+        "requirements": {
+            category: sorted(values)
+            for category, values in sorted(_requirements_from_plan(text).items())
+        },
+    }
+    serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _requirements_from_plan(text: str) -> Dict[str, List[str]]:
@@ -587,12 +690,34 @@ def read_receipt(repo_root: Path, plan_id: str) -> Optional[Dict[str, Any]]:
 
 
 def receipt_is_current(receipt: Dict[str, Any], plan_text: str) -> bool:
-    """True when ``receipt`` still matches the plan's CURRENT content digest (digest-invalidation).
+    """True when ``receipt`` still matches the plan's FROZEN REQUIREMENT+SCOPE contract.
 
-    A plan-digest change invalidates a prior receipt (OQ-01 rule (a)). The path-overlap collision
-    rule (b) is enforced by Order 04's finalize, not here.
+    INVARIANT (wtiso-03 `rchpms` E-03, fixing backlog `xmqv5l`): a receipt is current iff the plan's
+    reviewed CONTRACT is unchanged - its frozen ``Scope-Paths`` plus its E/V requirement text - NOT
+    iff the plan's bytes are unchanged.
+
+    Why this changed: the previous whole-file ``plan_content_digest`` key was self-defeating. A
+    CORRECT execution is REQUIRED to edit its own plan (mark each E item performed, fill each V
+    ``Observed evidence``/``Result``, append a ``## Workflow history`` line), which always changed the
+    byte digest, so :func:`finalize_precheck` refused every self-finalizing run with "the begin receipt
+    ... is STALE" and left the work substantially-complete. Keying on the frozen region instead means a
+    legitimate self-execution stays valid while a change to the reviewed contract - a different
+    ``Scope-Paths`` entry, a rewritten E/V requirement - still invalidates the receipt, because that is
+    genuinely a different plan than the one the pre-execution gate approved.
+
+    LEGACY FALLBACK: a v1 receipt written before the field existed carries no
+    ``frozen_region_digest``, so it is judged by the OLD whole-file rule. That is deliberate - a
+    pre-Phase-2 receipt must not be spuriously ACCEPTED by a rule it was never bound under.
+
+    OQ-01 rule (a) (digest invalidation) is what this predicate enforces; the path-overlap collision
+    rule (b) remains Order 04's finalize responsibility, not this function's.
     """
-    return receipt.get("plan_content_digest") == plan_content_digest(plan_text)
+    stored_frozen = receipt.get("frozen_region_digest")
+    if stored_frozen is None:
+        # Legacy (schema v1) receipt: no frozen-region binding to compare, so fall back to the
+        # original whole-file rule rather than accepting it under a key it never recorded.
+        return receipt.get("plan_content_digest") == plan_content_digest(plan_text)
+    return stored_frozen == frozen_region_digest(plan_text)
 
 
 # --------------------------------------------------------------------------------------
@@ -816,7 +941,11 @@ def begin(
         "kind": "ipd_begin_receipt",
         "plan_id": plan_id,
         "plan_path": _repo_relative(repo_root, plan_path),
+        # Retained for readers/tests and for the legacy fallback, but NO LONGER the validity key.
         "plan_content_digest": plan_content_digest(plan_text),
+        # The validity key as of schema v2 (wtiso-03 E-02, fixing xmqv5l): the frozen
+        # requirements+scope contract, which a correct self-execution does not change.
+        "frozen_region_digest": frozen_region_digest(plan_text),
         "requirement_digest": frozen.requirement_digest,
         "scope_paths": _frozen_scope_paths(plan_text),
         "base_head": head,
@@ -1955,6 +2084,12 @@ def run_begin(args) -> int:
         select_output,
     )
 
+    # wtiso-03 E-05: a managed WORKER may not create lifecycle authority. Checked FIRST, before any
+    # selector resolution / gate / receipt write, so the refusal has no side effect at all. The
+    # driver's own in-process `driver_begin` runs in the COORDINATOR role and is unaffected.
+    if worker_role_active(os.environ):
+        return _refuse_worker_role_verb("begin")
+
     ctx = select_output(args)
 
     selector = getattr(args, "plan", None)
@@ -2129,6 +2264,11 @@ def run_finalize(args) -> int:
         Diagnostic as OutDiag,
         select_output,
     )
+
+    # wtiso-03 E-05: see `run_begin`. Checked FIRST so a worker-role finalize performs NO transition,
+    # commit, or plan move. The driver's own `driver_finalize` runs in the coordinator role.
+    if worker_role_active(os.environ):
+        return _refuse_worker_role_verb("finalize")
 
     ctx = select_output(args)
     selector = getattr(args, "plan", None)

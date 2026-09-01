@@ -4379,6 +4379,35 @@ def run_opencode(
     if os.name == "posix":
         popen_kwargs["start_new_session"] = True
 
+    # lanefinal (i452hf) / wtiso-03 (rchpms) E-06: mark an ISOLATED lane turn as the managed WORKER
+    # role, so an in-lane `aw ipd begin`/`aw ipd finalize` hits the deterministic
+    # AW-LIFECYCLE-ROLE-001 refusal instead of forking a SECOND receipt and a second lifecycle
+    # transaction the driver cannot see. That fork is the measured cause of i452hf: the agent
+    # correctly followed the repo contract, finalized in its lane, and the driver's own
+    # self-finalize then refused against state it could not observe, stranding the work.
+    #
+    # Keyed on `work_dir` (the lane worktree), which is exactly "this turn runs in a managed lane".
+    # A non-isolated turn is NOT marked, and the DRIVER's own process is never marked, so
+    # `driver_begin`/`driver_finalize` keep full authority. Any inherited value is REMOVED when the
+    # turn is not isolated, so a coordinator turn can never accidentally inherit a stale `worker`
+    # marking from an outer process and refuse its own lifecycle verbs.
+    #
+    # The child previously INHERITED the environment implicitly (no `env` key at all). This builds it
+    # explicitly via the SHARED `pinned_child_env` helper rather than a second construction, so the
+    # runner's import pin is preserved and PATH/auth/toolchain vars still survive.
+    #
+    # HONEST LIMIT: this is an environment SELECTOR, not a hardened boundary. A same-user worker with
+    # shell access can unset it. It stops an agent that is FOLLOWING the contract (the actual i452hf
+    # case), not a determined one; hard enforcement is an OS sandbox / separate principal.
+    from agent_workflows import ipd_lifecycle
+
+    child_env = pinned_child_env()
+    if work_dir:
+        child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
+    else:
+        child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+    popen_kwargs["env"] = child_env
+
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])
