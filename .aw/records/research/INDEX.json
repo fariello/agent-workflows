@@ -450,6 +450,26 @@
   },
   {
     "consumed_by": [],
+    "created": "20260831",
+    "date": "20260831",
+    "id6": "8sq8ls",
+    "kind": "patch-proposal",
+    "model": "gpt56high",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md",
+    "priority": "high",
+    "set_id": "agent-execution-detection-and-attribution",
+    "status": "todo",
+    "summary": "Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session",
+    "topic": [
+      "agent-detection",
+      "git-hooks",
+      "attribution"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260713",
     "date": "20260713",
     "id6": "8xgwvm",

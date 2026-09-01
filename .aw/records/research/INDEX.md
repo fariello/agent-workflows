@@ -2,12 +2,13 @@
 
 # Research index
 
-Showing the most-recent 40 of 69 hot docs (archive excluded).
+Showing the most-recent 40 of 70 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
 - `ud28vy` 20260827-activework-00-ud28vy-active-work-lifecycle-and-toolset-redirect.findings.md - Design: active-work lifecycle (drafting/reviewing/executing) via tool-owned liveness markers, dual-layer toolset-redirect nudge, staleness/takeover/recovery, and report-default/config-toggle repair (REVISABLE pre-implementation)
 - `8it88r` 20260823-actorenv-00-8it88r-deriving-actor-identity-host-and-model-from-coding-agent-environments.research-prompt.md - How to auto-derive a trustworthy actor (host + model) from the environment across coding hosts so aw attribution does not depend on the agent remembering --actor
+- `8sq8ls` 20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md - Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session
 - `sk94i0` 20260826-aw-cli-surface-inventory-00-sk94i0-aw-cli-surface-inventory.survey.md - Exhaustive named inventory of the full aw CLI surface (all ~44 verbs + subcommands, read/write + operates-on + naming smells) - ground truth for the naming/IA redesign
 - `40g511` 20260826-aw-run-spec-build-order-00-40g511-aw-run-spec-build-order.findings.md - What exists vs net-new for the aw run deterministic run-and-verify spec (25kzda): build-order dependency map
 - `f79ve1` 20260826-awclia-00-f79ve1-aw-cli-naming-ia.research-prompt.md - Originating prompt for the comparison set.
@@ -25,6 +26,7 @@ Showing the most-recent 40 of 69 hot docs (archive excluded).
 
 ## Most recent
 
+- `8sq8ls` [todo] 20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md - Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session
 - `q65sz3` [todo] 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` [todo] 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 - `nilw5h` [todo] 20260830-privrecs-00-nilw5h-private-records-repo-trackedness.research-prompt.md - Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
@@ -64,4 +66,3 @@ Showing the most-recent 40 of 69 hot docs (archive excluded).
 - `tgmqnb` [reference] reference/202608/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
 - `w0ilhj` [reference] reference/202608/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
 - `qcxc6c` [reference] 20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md - Migrated from 20260807-2053-01-20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md.
-- `5zczmo` [reference] 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md - Migrated from 20260731-chkplace-04-5zczmo-checklist-placement-and-instruction-audit.findings.md.
