@@ -3912,6 +3912,16 @@
   {
     "date": "2026-08-29",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
+    "plan_id": "c2tvmm",
+    "set_id": "wkindname",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260829-wkindname-01-9trlc3-rename-backlog-s-kind-field-to-work-kind-and-migrate-the-exi.ipd.md",
@@ -4277,16 +4287,6 @@
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
     "plan_id": "5e4sb6",
     "set_id": "rununify",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
-    "plan_id": "c2tvmm",
-    "set_id": "wkindname",
     "status": "approved"
   },
   {
