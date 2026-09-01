@@ -4262,16 +4262,6 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md",
-    "plan_id": "ntf6sx",
-    "set_id": "terseout",
-    "status": "to-review"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260829-wkindname-00-c2tvmm-one-work-nature-field-name-across-backlog-plans-and-specs.ipd.md",
@@ -4457,6 +4447,16 @@
     "path": "superseded/20260824-runipdsess-01-rxkf1e-runipd-prints-same-session-continuation-hint-on-exit.ipd.md",
     "plan_id": "rxkf1e",
     "set_id": "runipdsess",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260829-terseout-01-zi3t8l-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md",
+    "plan_id": "zi3t8l",
+    "set_id": "terseout",
     "status": "superseded"
   },
   {

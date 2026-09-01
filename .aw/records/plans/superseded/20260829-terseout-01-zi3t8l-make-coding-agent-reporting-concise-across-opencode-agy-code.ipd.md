@@ -1,3 +1,5 @@
+RETIRED 2026-08-31: DUPLICATE ID6, and its work had ALREADY LANDED. This file is a second copy of plan `ntf6sx`, whose executed twin is `.aw/records/plans/executed/20260829-terseout-01-ntf6sx-make-coding-agent-reporting-concise-across-opencode-agy-code.ipd.md`. Same `- Id:`, same title, and the two shared an id6, which made `selectors.resolve_for_mutation` refuse `ntf6sx` outright ("a id6 collision matching multiple files (a data bug to fix, not overridable by --force)") and made `aw attention` report VIEW INVALID with `attention.duplicate-id`, so the whole board was non-authoritative. MEASURED CAUSE, not inferred: the twin was finalized to `executed/` at 2026-08-30 20:04:27 (`3558ce1f`), and THIS copy was authored into `pending/` at 23:27:42 (`edac667d`), 3.5 hours LATER, by a different agent (codex gpt-5.6) re-writing a plan whose work had already shipped. That is the shape backlog `k1nity` describes. RESIDUE: none. All five of its E-items were verified already shipped at HEAD `cd09d469`: E-01 `reporting_contract.prompt_block()` exists, E-02 the `aw:reporting` managed section is in `AGENTS.md`, E-03 both drivers call `reporting_contract.prompt_block()` twice each, E-04 `tests/test_reporting_contract.py` exists, E-05 `docs/reporting-contract.md` exists. Retired, not deleted, and NOT filed under `executed/`, because THIS file never ran; its twin did. Filed alongside backlog `wx95o4` (cross-type id6 minting and D140 enforcement) and `h2ceme` (`aw find` must flag a duplicate id6), which cover why nothing prevented or surfaced this at authoring time.
+
 # IPD: Make coding-agent reporting concise across OpenCode, Agy, Codex CLI, and Claude CLI
 
 - Date: 2026-08-29
@@ -6,14 +8,16 @@
 - Scope: Define one host-neutral concise-reporting contract; render it into installed managed instructions and OpenCode/Claude command shims; inject it into OpenCode and Agy IPD-driver execution and verification turns; document precedence and limits; regenerate owned artifacts; and add reachability, parity, no-clobber, and prompt-construction tests. The contract governs conversational progress and final responses, not the completeness of code, tests, IPDs, reports, JSON outcomes, safety warnings, or workflow-required evidence.
 - Scope-Paths: agent_workflows/reporting_contract.py, agent_workflows/engine.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/, docs/, README.md, AGENTS.md, .opencode/commands/**, .claude/commands/**, .aw/system/managed-sections.json
 - Item-Dependencies: none
-- Status: to-review
+- Status: superseded
 - Set: terseout
 - Order: 1
 - Highest E allocated: 05
 - Author: codex gpt-5.6
-- Id: ntf6sx
+- Id: zi3t8l
+- Supersedes-Note: re-identified 2026-08-31 from the duplicated id6 `ntf6sx`, which its EXECUTED twin owns; per DECISIONS.md D140 an id6 is the unique identity of exactly ONE file, so this retired copy carries its own. References to `ntf6sx` in the banner and history below are deliberate REFERENCES to that twin, not this file's identity.
 
 ## Workflow history
+- 2026-09-01 superseded (aw set): RETIRED: duplicate id6 whose work had already landed. Second copy of ntf6sx; the executed twin finalized at 20:04 (3558ce1f) and this copy was authored at 23:27 (edac667d) by a different agent re-writing already-shipped work. All five E-items verified shipped. The collision made resolve_for_mutation refuse ntf6sx entirely and made aw attention report VIEW INVALID.
 
 - 2026-08-29 to-review (codex gpt-5.6): authored a review-ready cross-host concise-reporting plan from current installer, shim, and runner architecture.
 - 2026-08-29 draft (codex gpt-5.6): created.
