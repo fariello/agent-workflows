@@ -7465,12 +7465,12 @@ def _find_type_records(
                 else (e.plan_id or "??????")
             )
             set_txt = f"{e.set_id or '-':<14}"
-            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {e.path}")
             full_p = (plans_dir / e.path).resolve()
             try:
                 rel_p = str(full_p.relative_to(repo_root.resolve()))
             except Exception:
                 rel_p = str(e.path)
+            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {rel_p}")
             paths.append(rel_p)
         return lines, paths
 
@@ -7525,12 +7525,12 @@ def _find_type_records(
                 else (e.id6 or "??????")
             )
             summary = f"  {e.summary}" if e.summary else ""
-            lines.append(f"{status_txt}  {id6_txt}  {e.path}{summary}")
             full_p = (research_root / e.path).resolve()
             try:
                 rel_p = str(full_p.relative_to(repo_root.resolve()))
             except Exception:
                 rel_p = str(e.path)
+            lines.append(f"{status_txt}  {id6_txt}  {rel_p}{summary}")
             paths.append(rel_p)
         return lines, paths
 
@@ -7632,10 +7632,10 @@ def _run_find(
         else (f"no matching {norm}" if norm != "all" else "no matching artifacts")
     )
 
-    if getattr(args, "paths", False):
+    if getattr(args, "paths", False) or (ctx.is_agent and all_paths):
         for p in all_paths:
             print(p)
-        return 0 if all_paths or not selectors else 1
+        return 0 if (all_paths or not selectors) else 1
 
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(

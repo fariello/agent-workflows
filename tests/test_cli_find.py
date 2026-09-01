@@ -44,6 +44,16 @@ class TestCliFindPaths(unittest.TestCase):
         for line in lines:
             self.assertTrue(line.startswith(".aw/records/plans/"))
 
+    def test_find_with_agent_flag_emits_bare_relative_paths(self):
+        rc, out, err = _run_cli(["find", "plans", "v8xdz4", "--agent"])
+        self.assertEqual(rc, 0)
+        lines = [line.strip() for line in out.strip().splitlines() if line.strip()]
+        self.assertTrue(len(lines) >= 1)
+        for line in lines:
+            self.assertTrue(line.startswith(".aw/records/plans/"))
+            self.assertTrue(line.endswith(".ipd.md"))
+            self.assertNotIn("{", line)  # Zero JSON overhead
+
     def test_find_all_types_with_paths_flag(self):
         rc, out, err = _run_cli(["find", "v8xdz4", "-p"])
         self.assertEqual(rc, 0)
