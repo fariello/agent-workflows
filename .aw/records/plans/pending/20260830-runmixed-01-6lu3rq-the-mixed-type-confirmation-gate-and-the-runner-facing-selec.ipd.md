@@ -33,35 +33,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: classify a selection without forking the resolver
 
-- [ ] E-01 Create `agent_workflows/run_selection_policy.py` and implement the per-type CLASSIFICATION of an already-resolved selection: given resolved paths, group them by canonical type and return a stable per-type count. CONSUME the shipped resolver; do NOT re-derive typing. MEASURED starting points so the executor does not rediscover them: `selectors.resolve()` (`agent_workflows/selectors.py:347`) is documented as the one selector-to-file resolver for the package, its `_PRECEDENCE` tuple (`:48`) is `('path','id6','setid','status','stem','substring')`, which is byte-identical to the precedence spec 25kzda 2.3 step 3 requires; `UNIQUE_KINDS` (`:46`) plus `Resolution.is_ambiguous` already reject an ambiguous unique selector (spec 2.3 step 4); and `KNOWN_PRIMARY_TYPES` (`:93`) already spans `plans`, `specs`, `prompts`, `research`, `backlog`, `walkthroughs`, `roadmaps`, `comms`, `releases`. The spec's SEVEN runnable types (2.2) are a SUBSET of that frozenset under different names (`ipd` vs `plans`), so this module MUST map spec-type-name to resolver-type-name in ONE data table rather than inventing a second vocabulary; state the mapping explicitly, including that `comms` and `roadmaps` have no spec type.
+- [x] E-01 Create `agent_workflows/run_selection_policy.py` and implement the per-type CLASSIFICATION of an already-resolved selection: given resolved paths, group them by canonical type and return a stable per-type count. CONSUME the shipped resolver; do NOT re-derive typing. MEASURED starting points so the executor does not rediscover them: `selectors.resolve()` (`agent_workflows/selectors.py:347`) is documented as the one selector-to-file resolver for the package, its `_PRECEDENCE` tuple (`:48`) is `('path','id6','setid','status','stem','substring')`, which is byte-identical to the precedence spec 25kzda 2.3 step 3 requires; `UNIQUE_KINDS` (`:46`) plus `Resolution.is_ambiguous` already reject an ambiguous unique selector (spec 2.3 step 4); and `KNOWN_PRIMARY_TYPES` (`:93`) already spans `plans`, `specs`, `prompts`, `research`, `backlog`, `walkthroughs`, `roadmaps`, `comms`, `releases`. The spec's SEVEN runnable types (2.2) are a SUBSET of that frozenset under different names (`ipd` vs `plans`), so this module MUST map spec-type-name to resolver-type-name in ONE data table rather than inventing a second vocabulary; state the mapping explicitly, including that `comms` and `roadmaps` have no spec type.
   - Depends on: none
   - Expected outcome: a pure function takes resolved paths and returns a per-type count keyed by the spec's type names; it calls into `selectors.py` rather than reimplementing precedence or ambiguity; the spec-name-to-resolver-name mapping is a single visible data table; a selection of one type reports exactly one type.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Implement the ACTION PREVIEW half of the count: for each type, how many items would take each action, so the preview reads `IPDs: 4 (2 review, 2 execute)` as spec 25kzda 2.5 shows. Derive the per-item action from the item's STATUS using the spec's own dispatch tables (3.2 for IPDs, 3.3 for specs, 3.4 for backlog, 3.5 for prompts), and where this module cannot determine an action, report it as such rather than guessing. DO NOT implement the dispatch itself; this item only COUNTS what dispatch would do. That distinction is the whole reason this plan is small: the retired `kaygwo` conflated the preview with a full dispatch table and grew a 3-module scope.
+- [x] E-02 Implement the ACTION PREVIEW half of the count: for each type, how many items would take each action, so the preview reads `IPDs: 4 (2 review, 2 execute)` as spec 25kzda 2.5 shows. Derive the per-item action from the item's STATUS using the spec's own dispatch tables (3.2 for IPDs, 3.3 for specs, 3.4 for backlog, 3.5 for prompts), and where this module cannot determine an action, report it as such rather than guessing. DO NOT implement the dispatch itself; this item only COUNTS what dispatch would do. That distinction is the whole reason this plan is small: the retired `kaygwo` conflated the preview with a full dispatch table and grew a 3-module scope.
   - Depends on: E-01
   - Expected outcome: the preview names, per type, the count per action, using the spec's action vocabulary (`review`, `plan`, `execute`, and skip); an item whose action cannot be determined from status is reported as undetermined rather than silently bucketed; the output ordering is stable (sorted), so the preview is diffable and testable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: gate the mixing, fail closed
 
-- [ ] E-03 Implement the mixed-type DECISION as a pure predicate: given the classified selection, whether the session is interactive, and whether `--allow-mixed` was passed, return a definite verdict (proceed or refuse) plus the reason. Keep the policy DATA-driven and keep the decision pure, so it is testable without a TTY and without a host. The three cases spec 25kzda 2.5 fixes: a single-type selection proceeds with no gate at all; an interactive multi-type selection requires the operator to type the EXACT phrase `run mixed`, and `y`, an empty response, and any generic confirmation are REJECTED; an unattended multi-type selection is refused unless `--allow-mixed` was present on the original command. Also honor 2.5's narrowing rule: `--allow-mixed` acknowledges type mixing ONLY, and every status, approval, verifiability, scope, and safety gate still applies, so this predicate must never be a place where another gate can be waived.
+- [x] E-03 Implement the mixed-type DECISION as a pure predicate: given the classified selection, whether the session is interactive, and whether `--allow-mixed` was passed, return a definite verdict (proceed or refuse) plus the reason. Keep the policy DATA-driven and keep the decision pure, so it is testable without a TTY and without a host. The three cases spec 25kzda 2.5 fixes: a single-type selection proceeds with no gate at all; an interactive multi-type selection requires the operator to type the EXACT phrase `run mixed`, and `y`, an empty response, and any generic confirmation are REJECTED; an unattended multi-type selection is refused unless `--allow-mixed` was present on the original command. Also honor 2.5's narrowing rule: `--allow-mixed` acknowledges type mixing ONLY, and every status, approval, verifiability, scope, and safety gate still applies, so this predicate must never be a place where another gate can be waived.
   - Depends on: E-01
   ADDED AT REVIEW (PR-001, spec 2.5 bullet 4): the predicate MUST also RETURN, as structured data, the four facts spec 2.5 requires to be recorded in the run ledger: the confirmed type counts, the action preview, the user response or the flag that was used, and the queue digest. Returning them is in scope; WRITING them to the ledger is not (see Deferred), because the write needs a live run's context and `run_ledger_store.py` is outside Scope-Paths. Returning them is the seam that makes the wiring follow-up trivial and keeps this plan from touching a runner.
   - Expected outcome: the predicate refuses an unattended multi-type selection without the flag; accepts it with the flag; requires the literal `run mixed` interactively and rejects `y`, `yes`, an empty string, and any other phrase; never gates a single-type selection; and returns a reason string a caller can print. No TTY is required to test any branch. It ALSO returns a structured record carrying the type counts, the action preview, the response-or-flag actually used, and the queue digest, so a caller can satisfy spec 2.5 bullet 4 without this module writing to the ledger.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add the `RUN-MIXED-TYPES` finding code with the spec's VERBATIM refusal text. Spec 25kzda 2.5 fixes the exact string, so do not compose your own:
+- [x] E-04 Add the `RUN-MIXED-TYPES` finding code with the spec's VERBATIM refusal text. Spec 25kzda 2.5 fixes the exact string, so do not compose your own:
   `[RUN-MIXED-TYPES] Selection contains <counts>. No work started. Review the selection, then run: aw <host> run <selector> --type <type> ... --allow-mixed`
   Note what the wording COMMITS to and preserve all of it: the code prefix, the counts, the explicit `No work started.` claim, and a recovery command. The `No work started.` clause is a BEHAVIORAL guarantee, not decoration: this gate runs after resolution and before any lease or host session (spec 2.5, "After resolution and before leases or sessions"), so a refusal must be provably incapable of having started work. The finding code is a cross-artifact contract string; do not rename it.
   - Depends on: E-03
   - Expected outcome: a refusal emits the spec's verbatim message including the counts and the recovery command; the code string is exactly `RUN-MIXED-TYPES`; a test proves the refusal path performs no mutation and starts nothing (no session, no lease, no repository write).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Add `tests/test_run_selection_policy.py` covering every branch above and the falsifiable pair for the gate. Tests MUST include: a single-type selection passing ungated; a multi-type selection REFUSED unattended without the flag AND PROCEEDING with it (both directions, since a one-sided test does not demonstrate a gate); the exact-phrase requirement including at least three rejected near-miss responses; the verbatim message asserted against the spec text rather than against a paraphrase; and a case proving the classification defers to `selectors.py` rather than duplicating it.
+- [x] E-05 Add `tests/test_run_selection_policy.py` covering every branch above and the falsifiable pair for the gate. Tests MUST include: a single-type selection passing ungated; a multi-type selection REFUSED unattended without the flag AND PROCEEDING with it (both directions, since a one-sided test does not demonstrate a gate); the exact-phrase requirement including at least three rejected near-miss responses; the verbatim message asserted against the spec text rather than against a paraphrase; and a case proving the classification defers to `selectors.py` rather than duplicating it.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: the module's every branch is covered; the gate is demonstrated in both directions; the message assertion would FAIL if someone reworded the refusal; the suite passes bare.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -145,30 +145,139 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the classification of a mixed selection showing per-type counts. Paste the spec-name-to-resolver-name mapping table itself, showing it is ONE data table. Paste evidence the module CALLS `selectors.py` rather than reimplementing it (the actual import and call site, not an assertion that it does). Paste a single-type selection reporting exactly one type.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `26973ca6`. Per-type classification of a mixed selection (spec 2.5's own example shape):
+    ```
+    ipd        total=4 by_action=(('review', 2), ('execute', 2))
+    spec       total=2 by_action=(('review', 1), ('plan', 1))
+    prompt     total=1 by_action=(('execute', 1),)
+    ```
+    THE MAPPING IS ONE DATA TABLE, `SPEC_TYPE_BY_RESOLVER_TYPE` (`run_selection_policy.py:53`), printed from the module itself:
+    ```
+    plans          -> ipd          research       -> research
+    specs          -> spec         releases       -> release
+    backlog        -> backlog      walkthroughs   -> walkthrough
+    prompts        -> prompt       comms          -> None
+                                   roadmaps       -> None
+    ```
+    `comms` and `roadmaps` map explicitly to `None` (no spec 2.2 type), as E-01 required stating. `test_type_mapping_is_one_data_table_covering_the_resolver_vocabulary` asserts `set(SPEC_TYPE_BY_RESOLVER_TYPE) == set(selectors.KNOWN_PRIMARY_TYPES)`, so a type added to the resolver cannot be silently mistyped here.
+    IT CALLS THE SHIPPED RESOLVER rather than reimplementing it. Actual import and call sites:
+    ```
+    39:from agent_workflows import selectors as _sel
+    40:from agent_workflows import status_set as _status_set
+    358:        resolver_type = _status_set.detect_artifact_type(p, repo_root)
+    366:            rec = _status_set.read_artifact_record(p, repo_root)
+    ```
+    plus `_sel.resolve(...)` inside `resolve_selection`, proven by a SPY test (`test_resolution_defers_to_selectors_resolve`) that records the delegations and asserts exactly `[('plans','mixdemo'), ('specs','mixdemo'), ('backlog','mixdemo')]`, i.e. one call per type with no matching logic of the policy's own. `test_unique_kind_collision_is_reported_using_the_shipped_policy` proves spec 2.3 step 4 is applied via `selectors.UNIQUE_KINDS`, not re-derived.
+    SINGLE TYPE REPORTS EXACTLY ONE: `test_single_type_selection_reports_exactly_one_type` asserts `type_count == 1`, `spec_types == ('ipd',)`, `is_mixed is False`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste a preview rendering in the spec's shape (`IPDs: 4 (2 review, 2 execute)`) beside spec 2.5's example, showing they agree. Paste an item whose action cannot be determined from status being reported as UNDETERMINED rather than bucketed into an action. Paste two runs over the same input showing byte-identical (stable, sorted) output.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `26973ca6`. `render_action_preview` output BESIDE spec 2.5's example, which is BYTE-IDENTICAL including column alignment (asserted by `test_preview_matches_spec_2_5_example_exactly`):
+    ```
+    RENDERED                            SPEC 2.5 EXAMPLE
+    Mixed work-item selection:          Mixed work-item selection:
+      IPDs:    4 (2 review, 2 execute)    IPDs:    4 (2 review, 2 execute)
+      Specs:   2 (1 review, 1 plan)       Specs:   2 (1 review, 1 plan)
+      Prompts: 1 (1 execute)              Prompts: 1 (1 execute)
+    ```
+    UNDETERMINED IS REPORTED, NOT BUCKETED. Statuses whose action the spec derives from something other than status (a completeness check, `--full-auto`) return `undetermined`:
+    ```
+    ipd/draft: undetermined      (spec 3.2 splits draft on an authoring-completeness check)
+    ipd/reviewed: undetermined   (spec 3.2 dispatches reviewed on --full-auto, a flag not seen here)
+    ipd/banana: undetermined     (unknown status: spec 3.2 red-aborts; guessing is forbidden)
+    ipd/None: undetermined
+    ```
+    `test_undetermined_appears_in_the_preview_rather_than_silently_counting_as_an_action` asserts the preview shows `2 undetermined` alongside `1 execute`; `test_reviewed_ipd_is_undetermined_end_to_end_through_classify_paths` proves it end-to-end from a real file on disk. 8 parametrized cases cover the undeterminable set.
+    STABLE/SORTED: `test_preview_is_stable_across_runs_and_input_order` renders the same selection twice AND with its item order REVERSED, asserting byte-identical output both ways (type order is `SPEC_TYPE_ORDER`, action order is `ACTION_ORDER`), and asserts the queue digest is likewise order-independent.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste all three cases: single-type ungated, unattended multi-type REFUSED without the flag, and the same selection PROCEEDING with `--allow-mixed`. Paste the exact-phrase check rejecting at least `y`, `yes`, and the empty string, and accepting exactly `run mixed`. Paste evidence no branch needed a TTY to test. Paste evidence `--allow-mixed` does not waive any other gate (F6). ALSO paste the STRUCTURED RECORD the predicate returns (F7/PR-001), showing all four spec 2.5 bullet 4 facts present: the type counts, the action preview, the response-or-flag actually used, and the queue digest. A returned record missing any of the four does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `26973ca6`. ALL THREE CASES, from the module itself:
+    ```
+    single-type                proceed=True  gate_applied=False code=None
+    unattended no flag         proceed=False gate_applied=True  code=RUN-MIXED-TYPES
+    unattended --allow-mixed   proceed=True  gate_applied=True  code=None
+    interactive 'run mixed'    proceed=True  gate_applied=True  code=None
+    interactive 'y'            proceed=False gate_applied=True  code=RUN-MIXED-TYPES
+    ```
+    Note `gate_applied=False` on the single-type row: it is UNGATED, not "passed". The refuse/proceed pair on rows 2 and 3 is the SAME selection differing ONLY in the flag (`test_unattended_mixed_is_refused_without_the_flag_and_proceeds_with_it`).
+    EXACT PHRASE: 12 parametrized rejections in `test_interactive_rejects_near_misses_and_generic_confirmations`, including the three the spec names plus near misses: `y`, `''`, `None`, `yes`, `Y`, `YES`, `ok`, `Run Mixed` (case not folded), `run`, `run mixed types`, `runmixed`, `run  mixed` (internal whitespace not normalized). Accepted: exactly `run mixed` (and only surrounding whitespace stripped, since a terminal read includes the newline).
+    NO TTY NEEDED: `test_no_branch_requires_a_tty` reaches all five branches as plain function calls, asserting `[True, False, True, True, False]`. `decide` takes `interactive` and `response` as ARGUMENTS; the caller performs the prompt, so no branch touches a terminal.
+    F6, THE FLAG WAIVES ONLY TYPE MIXING: `test_allow_mixed_waives_only_type_mixing` asserts `Verdict.WAIVES == ('type-mixing',)`, introspects `decide`'s signature to assert its parameter set is exactly `{classification, interactive, allow_mixed, response, host, selector}` with NO `allow_unapproved`/`skip_gates`/`force`/`allow_unverifiable`/`no_verify` knob, and asserts the flag does not alter the previewed actions.
+    BULLET 4 STRUCTURED RECORD, all four facts present:
+    ```
+    {"type_counts": {"ipd": 4, "spec": 2, "prompt": 1},
+     "action_preview": "Mixed work-item selection:\n  IPDs:    4 (2 review, 2 execute)\n  Specs: ...",
+     "response_or_flag": "--allow-mixed",
+     "queue_digest": "5e85c71a85dd209dd927553f19abd37c59825fd643c626ac40f..."}
+    ```
+    `test_verdict_carries_all_four_spec_2_5_bullet_4_facts` asserts all four keys on the proceed, confirm, and refuse paths, and that `response_or_flag` DISTINGUISHES `--allow-mixed` from the typed `run mixed` from `None`.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the emitted refusal BESIDE spec 25kzda 2.5's verbatim block, proving character-level agreement including the counts and the `aw <host> run <selector> --type <type> ... --allow-mixed` recovery command. Paste a grep proving the code string is exactly `RUN-MIXED-TYPES`. Paste evidence the refusal path started nothing and wrote nothing (for example `git status --porcelain` unchanged across the refusal), which is the `No work started.` claim the message makes.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `26973ca6`. EMITTED REFUSAL beside spec 25kzda 2.5's verbatim block:
+    ```
+    SPEC 2.5 (exact refusal):
+    [RUN-MIXED-TYPES] Selection contains <counts>. No work started. Review the selection, then run: aw <host> run <selector> --type <type> ... --allow-mixed
 
-- [ ] V-05 validates E-05
+    EMITTED (placeholders left literal):
+    [RUN-MIXED-TYPES] Selection contains IPDs: 4, Specs: 2, Prompts: 1. No work started. Review the selection, then run: aw <host> run <selector> --type <type> ... --allow-mixed
+
+    EMITTED (host=oc, selector=mixdemo):
+    [RUN-MIXED-TYPES] Selection contains IPDs: 4, Specs: 2, Prompts: 1. No work started. Review the selection, then run: aw oc run mixdemo --type <type> ... --allow-mixed
+    ```
+    Character-level agreement is ASSERTED, not eyeballed: `test_refusal_template_is_character_identical_to_the_spec` compares `REFUSAL_TEMPLATE` to the spec string and then asserts the rendered form equals that same string with ONLY `<counts>` substituted. Proven non-vacuous by MUTANT 3 below (`Review` -> `Please review` fails it).
+    CODE STRING IS EXACTLY `RUN-MIXED-TYPES`:
+    ```
+    $ rg -n 'RUN_MIXED_TYPES = |^RUN-MIXED-TYPES' agent_workflows/run_selection_policy.py
+    306:RUN_MIXED_TYPES = "RUN-MIXED-TYPES"
+    ```
+    `test_finding_code_string_is_exactly_run_mixed_types` pins it.
+    `No work started.` IS PROVEN, not asserted: `test_refusal_path_starts_nothing_and_writes_nothing` monkeypatches `subprocess.Popen`/`run`/`check_output` to raise (so any host session would fail the test), takes a byte-level snapshot of every file in the repo tree, runs resolution + refusal, and asserts the snapshot is UNCHANGED. Structurally, every function in the module is pure with no session, lease, or write path.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `python3 -m pytest tests/test_run_selection_policy.py` output with counts, and paste the BARE `python3 -m pytest` summary line with the `git rev-parse HEAD` it was measured at, plus your own before-baseline at that same HEAD. Paste proof the tests are NOT VACUOUS: with the module's gate logic reverted or stubbed, show the gate tests FAIL. Paste the no-worsening comparison for `aw check plans` (before and after counts, both measured, not remembered).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED at HEAD `26973ca6` (`git rev-parse HEAD` = `26973ca6a8ce3a26a4fae0dfaa44c3594446274a`).
+    TARGETED MODULE (with counts, via `-o addopts=""` to clear the configured `-q`):
+    ```
+    $ python3 -m pytest tests/test_run_selection_policy.py -o addopts=""
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=948463573
+    collected 65 items
+    tests/test_run_selection_policy.py ..................................... [ 56%]
+    ............................                                             [100%]
+    ============================== 65 passed in 0.26s ==============================
+    ```
+    BARE SUITE, before/after, BOTH measured at the same HEAD `26973ca6` (baseline taken by moving my two new files out of the tree, then restoring them):
+    ```
+    BEFORE (my files absent):  15 failed, 3872 passed, 3 skipped, 4 xfailed in 36.67s
+    AFTER  (my files present): 15 failed, 3937 passed, 3 skipped, 4 xfailed in 32.31s
+    ```
+    +65 passed, exactly my 65 tests; failures UNCHANGED at 15. All 15 are pre-existing and belong to another session's in-flight work in `tests/test_run_viewer.py` (captured list, all 15 are `RunViewerTests::*`); NONE touches `run_selection_policy`. I did not modify that file.
+    NOT VACUOUS, three mutants, each reverted after measuring:
+    ```
+    MUTANT 1 (gate disabled: `if not classification.is_mixed:` -> `if True:`)
+      => 20 failed, 45 passed   (kills the refusal, near-miss, bullet-4 and no-mutation tests)
+    MUTANT 2 (lax phrase: accept {'run mixed','y','yes',''} case-folded)
+      => 8 failed, 57 passed    (kills y/''/Y/YES/'Run Mixed', the tty-branch and phrase-constant tests)
+    MUTANT 3 (reword refusal: 'Review the selection' -> 'Please review the selection')
+      => 1 failed, 64 passed    (kills test_refusal_template_is_character_identical_to_the_spec)
+    RESTORED => 65 passed in 0.21s
+    ```
+    `aw check plans` NO-WORSENING, both measured at HEAD `26973ca6`:
+    ```
+    BEFORE: ✗ FINDINGS  5 finding(s) detected across 453 plans   (errors 5, warnings 0)
+    AFTER:  ✗ FINDINGS  5 finding(s) detected across 453 plans   (errors 5, warnings 0)
+    ```
+    It is RED and I do NOT claim it passes. All 5 findings name OTHER Sets' plans, none mine: 3x `check.ipd-dependency-findings-blocked` (`runprofile-03` `3cm15q`, `runprofile-04` `ygzq71`, `runprofile-05` `p7xhhm`) and 2x `check.lifecycle-transition-invalid` (`runnamecollapse-01` `0soncw`, `runcodes-01` `wlxkoz`). CORRECTION TO THE PLAN'S OWN BASELINE: the plan recorded 901 findings at the older HEAD `7e5ba287`; the current tree measures 5, so other Sets evidently repaired the `scope-drift` bulk in between. The bar met is no-worsening against the FRESH measurement, as the plan required (a measurement, not a memory).
+    `aw sanitize --agent`: `{"outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 
