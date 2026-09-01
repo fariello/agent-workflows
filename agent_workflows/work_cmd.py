@@ -19,6 +19,8 @@ This module supplies the four primitives, each calling the phase-1 shared policy
     when the staged index holds ANY out-of-scope change, run the phase-1 engine, and commit ONLY the
     declared in-scope paths by REUSING ``git_commit_helper.offer_commit`` (path-scoped ``git add --
     <paths>``, never ``add -A``/``-a``, never ``--no-verify``, never push). No second commit path.
+    Optionally carries run-ownership trailers (``AW-Run``/``AW-Item``) so a checker can identify which
+    run and work item produced a commit; absent them the message is composed exactly as before.
   * ``aw finish <ipd>`` - verify the plan's required evidence (from ``aw test``) is present and bound
     to the current tree, then perform ONLY a VALID NON-AUTHORITATIVE status transition through the
     tooled ``aw set`` path. It MUST NOT perform the authoritative terminal ``executed`` transition
@@ -357,9 +359,37 @@ def _in_scope(path: str, scope_paths: List[str], plan_rel: str) -> bool:
     return any(_life._scope_match(path, pat) for pat in scope_paths)
 
 
+def _trailers_from_args(args: argparse.Namespace) -> List[str]:
+    """Resolve optional run-ownership trailers from ``args``, defaulting to NONE.
+
+    Threading only (IPD m73aet E-03): NO new CLI flag is added, because the values come from a live
+    run and the runner wiring is deliberately deferred - a public flag whose only consumer does not
+    exist yet is a contract taken on for nothing. A programmatic caller (the eventual runner)
+    supplies them on the namespace instead:
+
+      * ``trailers`` - preformatted ``"Key: value"`` strings, used as-is; or
+      * ``run_id`` / ``item_id6`` - the raw ids, formatted into the canonical ``AW-Run``/``AW-Item``
+        keys by ``git_commit_helper.run_item_trailers`` so the key spelling is single-sourced.
+
+    Absent both, this returns ``[]`` and ``aw commit`` composes its message exactly as before. In
+    particular the plan's own id6 is NOT auto-derived into an ``AW-Item`` trailer: that would change
+    the default behavior of an existing caller, which this plan's scope excludes.
+    """
+
+    explicit = list(getattr(args, "trailers", None) or [])
+    if explicit:
+        return explicit
+    return _gch.run_item_trailers(
+        getattr(args, "run_id", None), getattr(args, "item_id6", None)
+    )
+
+
 def run_commit(args: argparse.Namespace) -> int:
     """`aw commit <ipd> -- <paths>`: scope-refuse out-of-scope staged, run the engine, commit in-scope
-    paths via the SHARED git_commit_helper (no forked commit path, no add -A, no push)."""
+    paths via the SHARED git_commit_helper (no forked commit path, no add -A, no push).
+
+    Optionally carries run-ownership trailers (``AW-Run``/``AW-Item``); see :func:`_trailers_from_args`.
+    """
     selector = getattr(args, "plan", None)
     raw = list(getattr(args, "path_argv", None) or [])
     dir_val, paths = _split_remainder(raw)
@@ -446,6 +476,7 @@ def run_commit(args: argparse.Namespace) -> int:
         ),  # aw commit is an explicit commit intent
         no_commit=bool(getattr(args, "no_commit", False)),
         on_unrelated_staged="scope",
+        trailers=_trailers_from_args(args),
     )
     if outcome.status == _gch.STATUS_COMMITTED:
         print(f"aw commit: committed {len(outcome.staged)} path(s): {outcome.commit}")
