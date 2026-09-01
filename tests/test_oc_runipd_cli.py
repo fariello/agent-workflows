@@ -75,6 +75,23 @@ class OcRunipdCliTests(unittest.TestCase):
         # Non-zero family-help exit, listing the runipd subcommand.
         self.assertIn("runipd", out + err)
 
+    def test_variant_flag_forwarding(self):
+        with mock.patch.object(oc_runipd, "main", return_value=0) as m:
+            cli.main(
+                [
+                    "oc",
+                    "run",
+                    "someplan",
+                    "--model",
+                    "google/gemini-3.7-flash",
+                    "--variant",
+                    "high",
+                ]
+            )
+        m.assert_called_once_with(
+            ["someplan", "--model", "google/gemini-3.7-flash", "--variant", "high"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

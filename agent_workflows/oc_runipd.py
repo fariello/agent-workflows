@@ -2989,6 +2989,7 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "options": {
             "opencode": getattr(args, "opencode", "opencode"),
             "model": getattr(args, "model", None),
+            "variant": getattr(args, "variant", None),
             "agent": getattr(args, "agent", None),
             "auto": getattr(args, "auto", True),
             "session": initial_session,
@@ -4318,6 +4319,8 @@ def run_opencode(
     argv.extend(["--dir", agent_dir, "--format", "json"])
     if options.get("model"):
         argv.extend(["--model", options["model"]])
+    if options.get("variant"):
+        argv.extend(["--variant", options["variant"]])
     if options.get("agent"):
         argv.extend(["--agent", options["agent"]])
     if options.get("auto", True):
@@ -6235,6 +6238,10 @@ AUTOMATIC STATUS ROUTING:
         "--model",
         help="Exact provider/model identifier for OpenCode (e.g. 'anthropic/claude-3-7-sonnet')",
     )
+    start.add_argument(
+        "--variant",
+        help="Model variant / reasoning effort for OpenCode (e.g. 'high', 'medium', 'low', 'minimal')",
+    )
     start.add_argument("--agent", help="Primary OpenCode agent name")
     start.add_argument(
         "--auto",
@@ -6348,6 +6355,10 @@ AUTOMATIC STATUS ROUTING:
         default=None,
         metavar="N",
         help="Override maximum consecutive non-isolated turns per session before starting a fresh session",
+    )
+    resume.add_argument(
+        "--variant",
+        help="Override model variant / reasoning effort for OpenCode",
     )
     _add_output_mode_flags(resume)
 
@@ -6548,6 +6559,10 @@ def main(argv: list[str] | None = None) -> int:
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["stall_timeout"] = args.stall_timeout
+                save_state(run_dir, state)
+            if getattr(args, "variant", None) is not None:
+                state = load_state(run_dir)
+                state.setdefault("options", {})["variant"] = args.variant
                 save_state(run_dir, state)
             if getattr(args, "session", None):
                 state = load_state(run_dir)

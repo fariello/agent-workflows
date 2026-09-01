@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import io
 import json
 import os
 import subprocess
@@ -3121,6 +3122,58 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
             )
             self.assertEqual(without, explicit_none)
             self.assertNotIn("## Work here", without)
+
+    def test_variant_parsing_and_launch_cmd(self):
+        parser = driver.build_parser()
+        args = parser.parse_args(
+            ["start", "testplan", "--variant", "high", "--prepare-only"]
+        )
+        self.assertEqual(args.variant, "high")
+
+        args_res = parser.parse_args(["resume", "run-123", "--variant", "low"])
+        self.assertEqual(args_res.variant, "low")
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            plan = _init_repo_with_conforming_plan(repo, "wir001")
+            run_dir = repo / ".aw" / "records" / "runs" / "run-test"
+            (run_dir / "sessions").mkdir(parents=True)
+            state = {
+                "run_id": "run-test",
+                "repo": str(repo),
+                "options": {"variant": "high"},
+            }
+            item = {
+                "id6": "wir001",
+                "setid": "testset",
+                "position": 1,
+                "action": "execute",
+            }
+            prompt_file = run_dir / "prompts" / "01-prompt.md"
+            prompt_file.parent.mkdir(parents=True, exist_ok=True)
+            prompt_file.write_text("test prompt", encoding="utf-8")
+
+            captured_argv = []
+
+            class FakeProc:
+                def __init__(self, cmd, *args, **kwargs):
+                    captured_argv.extend(cmd)
+                    self.pid = 12345
+                    self.stdout = io.BytesIO(b"")
+                    self.returncode = 0
+
+                def poll(self):
+                    return 0
+
+                def wait(self, timeout=None):
+                    return 0
+
+            with mock.patch("subprocess.Popen", side_effect=FakeProc):
+                driver.run_opencode(state, run_dir, item, plan, prompt_file, 1)
+
+            self.assertIn("--variant", captured_argv)
+            idx = captured_argv.index("--variant")
+            self.assertEqual(captured_argv[idx + 1], "high")
 
 
 if __name__ == "__main__":
