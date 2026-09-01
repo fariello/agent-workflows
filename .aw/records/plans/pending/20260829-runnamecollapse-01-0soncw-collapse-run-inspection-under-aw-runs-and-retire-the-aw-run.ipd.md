@@ -1,8 +1,8 @@
-# IPD: Collapse run inspection under aw runs and retire the aw run noun
+# IPD: Split the run surface into two nouns: aw run writes, aw runs reads
 
 - Date: 2026-08-29
 - Kind: child
-- Concern: `aw run list` and `aw runs` are byte-identical duplicates, and the verb `aw run` runs nothing; collapse all run inspection under `aw runs` and retire the `aw run` noun.
+- Concern: `aw run list` and `aw runs` are byte-identical duplicates, and the noun `aw run` is misleading because most of what it holds only INSPECTS past runs rather than running anything. RE-SCOPED BY MAINTAINER RULING 2026-08-31 (OQ-03): rather than retiring `aw run`, split the surface BY DIRECTION into two nouns - `aw run` WRITES (`start`, `record`, `cancel`, `finalize`, and later the `runprofile` Set's `aw run as <profile>` dispatch), `aw runs` READS (the nine read-only viewers). The original "retire the noun" framing is preserved in the history below.
 - Scope: The CLI naming surface only: the `run` parser group in `agent_workflows/cli.py`, the dispatch in `agent_workflows/run_cli.py`, the `command_surface` declarations, the tests that invoke the verb, and the one workflow doc that cites it. No change to ledger semantics, storage, or the run viewer's rendering.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/run_cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, .aw/system/workflows/exec-set/exec-set.md, tests/test_run_recovery_cli.py, tests/test_run_evidence_completion.py, tests/test_run_viewer.py, tests/test_completion.py
 - Item-Dependencies: none
@@ -16,6 +16,7 @@
 - From-Backlog: q5pdiy
 
 ## Workflow history
+- 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): MAINTAINER RESOLVED OQ-03 AND OQ-02, and the plan is RE-SCOPED accordingly; this was the last blocking question, so the plan is now executable. RULING: TWO NOUNS SPLIT BY DIRECTION - `aw run` WRITES, `aw runs` READS. Close to the old option (c) but not identical: (c) parked the ledger leaves under a third noun `aw ledger`; the ruling keeps TWO words and leaves the writers under `aw run`. THE ARGPARSE BLOCKER DISSOLVES rather than being worked around: with only viewers under `aw runs`, that parser needs NO subparsers, so nothing competes with its `targets nargs="*"`, bare `aw runs <id>` keeps working, and the proven-unimplementable combination is simply never built. SPLIT decided from measured behavior, not names: MOVED (9 viewers) `show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger` (`next`/`resume` sound like actions but only reconstruct state and report); RETAINED (4 writers) `start`, `record`, `cancel`, `finalize`. EDITS APPLIED: title and Concern re-scoped (the plan no longer 'retires the aw run noun'); Goal corrected; E-03 narrowed from 'every subcommand' to the nine viewers with the argparse rationale kept as the record of why the original design failed; E-05 REVERSED from 'retire the noun to a stub' to 'leave a per-leaf deprecation response for the nine moved leaves while `aw run start ...` keeps working'; V-03, V-04 and the command_surface count corrected (10 under `runs`, not 13). WHY E-05'S REVERSAL MATTERS BEYOND TIDINESS: retiring the whole noun would have installed a failing stub over the exact namespace the approved `runprofile` Set builds on, so `aw run as gem` would have started exiting nonzero. That collision was found in this session's review of that Set, and the maintainer settled the order as `0soncw` FIRST then `runprofile`, which is now encoded as `executed:0soncw` on that Set's chain head.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-006. BLOCKER: E-03's premise is unimplementable - argparse cannot combine targets nargs='*' with subparsers (verified: show/RUN1, RUN1, RUN1 RUN2 all exit 2), so routing needs pre-parse argv inspection plus a collision rule; raised as blocking OQ-03. Also corrected the suite baseline (2883/1 failed/7 skipped, not 2865 passed) and disclosed a pre-existing red test inside the plan's own Scope-Paths.
 
@@ -26,9 +27,12 @@
 
 Make one job have one name. Today `aw run list` and `aw runs` emit byte-identical output, and the
 whole `aw run` noun is a read-only inspector holding a name that reads like "run an agent". This plan
-moves every `aw run` subcommand under `aw runs`, deletes the duplicate `list`, and retires `aw run`
-behind a deprecation stub, so the name is free for a future driver verb WITHOUT this plan taking on
-the default-host design that a real `aw run` would additionally require.
+moves the NINE READ-ONLY `aw run` subcommands under `aw runs`, deletes the duplicate `list`, and leaves
+a per-leaf deprecation response for each moved leaf. RE-SCOPED 2026-08-31 (OQ-03): `aw run` itself is
+NOT retired. It survives as the WRITING noun (`start`, `record`, `cancel`, `finalize`) and is the verb
+the approved `runprofile` Set extends with `aw run as <profile>`, so this plan vacates only the
+inspection leaves rather than the whole name. This plan still does NOT take on the default-host design
+that the profile dispatch requires; that remains `runprofile`'s job, sequenced after this one.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -65,8 +69,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 2: move the surface
 
-- [ ] E-03 Register every `run` subcommand under the `runs` parser group in `cli.py`, keeping each
-      leaf's arguments, help text, and epilog identical. IMPLEMENTATION CONSTRAINT PROVEN IN REVIEW
+- [ ] E-03 Register the NINE READ-ONLY `run` subcommands under the `runs` parser group in `cli.py`,
+      keeping each leaf's arguments, help text, and epilog identical.
+      CORRECTED BY MAINTAINER RULING 2026-08-31 (see OQ-03, now resolved): do NOT move "every"
+      subcommand. The surface splits BY DIRECTION into two nouns - `aw run` WRITES, `aw runs` READS.
+      MOVE to `aw runs` (viewers): `show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`,
+      `evidence`, `verify-ledger`. `next` and `resume` sound like actions but only reconstruct state and
+      report, so they are viewers.
+      LEAVE under `aw run` (writers): `start`, `record`, `cancel`, `finalize`.
+      THIS DISSOLVES THE ARGPARSE BLOCKER below rather than working around it: with only viewers under
+      `aw runs`, that parser needs NO subparsers at all, so nothing competes with its `targets`
+      `nargs="*"`, bare `aw runs <id>` keeps working, and no pre-parse argv routing is needed. The
+      proven-unimplementable combination is simply never constructed. Keep the constraint text below as
+      the RECORD of why the original design could not work, and do not reintroduce it. IMPLEMENTATION CONSTRAINT PROVEN IN REVIEW
       (PR-001): the plan's original instruction ("only treat the first positional as a subcommand when
       it exactly matches a registered leaf name") is NOT expressible declaratively in argparse, and
       the naive combination FAILS OUTRIGHT. `p_runs` has `targets` with `nargs="*"` (cli.py:1667-1672);
@@ -100,10 +115,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     test passes.
   - Execution state: pending
 
-- [ ] E-05 Retire the `aw run` noun as a deprecation stub rather than deleting it outright: keep the
-      parser registered so a stale invocation gets an actionable message naming the `aw runs`
-      replacement and a nonzero exit, instead of argparse's bare "invalid choice". Do NOT silently
-      forward, because silent aliases are how the duplicate in E-04 survived unnoticed.
+- [ ] E-05 Do NOT retire the `aw run` noun. REVERSED BY MAINTAINER RULING 2026-08-31 (see OQ-03).
+      `aw run` SURVIVES as the WRITING verb, keeping `start`, `record`, `cancel` and `finalize`, and it
+      is the noun the `runprofile` Set then extends with `aw run as <profile>`. What this item must do
+      instead is narrower: for each of the NINE leaves MOVED to `aw runs` by E-03, leave an actionable
+      deprecation response under `aw run` naming the `aw runs` replacement and exiting nonzero, rather
+      than argparse's bare "invalid choice". Do NOT silently forward, because silent aliases are how
+      the duplicate in E-04 survived unnoticed. So `aw run show X` must say "use `aw runs show X`" and
+      fail, while `aw run start ...` must keep WORKING unchanged.
+      WHY THIS MATTERS BEYOND TIDINESS: retiring the whole noun would have installed a failing stub over
+      the exact namespace the approved `runprofile` Set builds on, so `aw run as gem` would have begun
+      exiting nonzero. That collision was found in this session's review of that Set and is the reason
+      the ordering (`0soncw` first, then `runprofile`) was settled.
   - Depends on: E-03, E-04
   - Expected outcome: `aw run show X` prints a message naming `aw runs show X` and exits nonzero;
     no ledger work is performed.
@@ -262,12 +285,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Open questions
 
-### OQ-01: Should the retired `aw run` stub be permanent or time-boxed?
+### OQ-01: Should the per-leaf `aw run` deprecation responses be permanent or time-boxed?
 
 - Blocking: no
 - Status: open
 - Owner: maintainer
-- Resolution or deferral rationale: E-05 ships a stub either way, so execution is not blocked. The
+- Resolution or deferral rationale: LARGELY ANSWERED BY OQ-03's RULING (2026-08-31), and reframed: there is no whole-noun stub any more, because `aw run` SURVIVES as the writing verb. What remains is nine per-leaf deprecation responses (one for each moved viewer), and the original recommendation now describes reality rather than a future hope: it said keep the stub "until a real driver `aw run` exists", and a real driver `aw run` is exactly what the `runprofile` Set adds immediately after this plan. So the sensible answer is KEEP the nine per-leaf responses indefinitely (they cost nothing and prevent a stale `aw run show` from silently doing nothing), and revisit only if the help output becomes cluttered. Still non-blocking either way. ORIGINAL RATIONALE: E-05 ships a stub either way, so execution is not blocked. The
   question is only whether a later release deletes it. Recommendation: keep it until a real driver
   `aw run` exists, because the stub is exactly what prevents a stale `aw run show` from being read as
   the future "run something" verb.
@@ -275,18 +298,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-02: Do the twelve leaves belong under `aw runs`, or do the ten transaction verbs belong under a separate `aw ledger` noun?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: not blocking, because moving everything to `aw runs` first is a
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: ANSWERED BY THE SAME MAINTAINER RULING as OQ-03 (2026-08-31): the leaves do NOT all belong under `aw runs`, and they do not go to a separate `aw ledger` either. They split BY DIRECTION: the nine read-only viewers move to `aw runs`, and the four writers (`start`, `record`, `cancel`, `finalize`) stay under `aw run`, which becomes the doing verb. See OQ-03 for the full split and rationale. ORIGINAL RATIONALE: not blocking, because moving everything to `aw runs` first is a
   strict improvement and is reversible. Deliberately deferred rather than decided here (see Deferred);
   a second split can follow once this one is proven.
 
 ### OQ-03: How should `aw runs` disambiguate a subcommand from a viewer target, given argparse cannot?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
-- Resolution or deferral rationale: OPEN and BLOCKING E-03. The plan assumed `aw runs` could carry both
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-08-31: **TWO NOUNS, SPLIT BY WHAT THEY DO** - `aw run` for RUNNING (it writes), `aw runs` for VIEWING (it reads). This is close to option (c) but NOT identical: option (c) proposed parking the ledger leaves under a third noun (`aw ledger`), whereas the ruling keeps TWO words and puts the writing leaves under `aw run` alongside the new dispatch. THE ARGPARSE PROBLEM DISSOLVES rather than being worked around: if `aw runs` only ever views, it needs NO subparsers at all, so nothing competes with its `targets nargs="*"` and bare `aw runs <id>` keeps working with no hand-rolled routing and no latent ambiguity. THE SPLIT, decided from each leaf's measured behavior rather than its name: VIEWING (to `aw runs`) = `show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger`; note `next` and `resume` SOUND like actions but only reconstruct state and report, so they are viewers. WRITING (stays under `aw run`) = `start` (takes the single-writer lease and moves a step to running), `record` (appends to the append-only ledger), `cancel` (records a terminal cancellation), `finalize` (runs the completion predicate and transitions). Rationale for keeping the four under `aw run` rather than a third noun: the rule stays teachable in one line ("`aw run` writes, `aw runs` reads") and there is no third command word to learn; the accepted cost is that `aw run` mixes one high-level verb typed daily with four low-level ones invoked by the machinery. CONSEQUENCE FOR THIS PLAN: E-03 must NO LONGER move every leaf to `runs`, and OQ-02 is answered at the same time (the leaves do NOT all belong under `aw runs`; they split by direction). CONSEQUENCE BEYOND IT: `aw run` is NOT retired to a bare stub after all, it becomes the doing verb, which is precisely what the `runprofile` Set (`3m0urk` and children) needs for `aw run as <profile>`; that Set now declares `executed:0soncw` and so lands after this plan.
+
+  ORIGINAL FINDING AS RAISED: OPEN and BLOCKING E-03. The plan assumed `aw runs` could carry both
   its bare `targets` (`nargs="*"`) and a subcommand group, disambiguated by "first positional exactly
   matches a leaf name". Review PROVED that combination is unworkable in argparse: with `targets
   nargs="*"` plus a `show` subparser, `["show","RUN1"]`, `["RUN1"]` and `["RUN1","RUN2"]` all exit 2
@@ -328,9 +353,13 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: for each of the twelve leaves, paste the exit code of `aw runs <leaf> <target>`
-    alongside the pre-change exit code of `aw run <leaf> <target>` on the same fixture, showing them
-    equal. Also paste bare `aw runs` and `aw runs <run-id>` output diffed against captures taken
+  - Required evidence: CORRECTED 2026-08-31 (OQ-03): for each of the NINE MOVED (read-only) leaves
+    (`show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger`),
+    paste the exit code of `aw runs <leaf> <target>` alongside the pre-change exit code of
+    `aw run <leaf> <target>` on the same fixture, showing them equal. SEPARATELY, for each of the FOUR
+    RETAINED (writing) leaves (`start`, `record`, `cancel`, `finalize`), paste evidence they still work
+    UNCHANGED under `aw run` and were NOT moved, since the ruling keeps them there. Also confirm
+    `aw runs` has NO subparsers, which is what dissolves the argparse blocker. Also paste bare `aw runs` and `aw runs <run-id>` output diffed against captures taken
     before the change, with volatile `runtime:`/elapsed fields masked (expect zero diff after masking).
     PLUS the ROUTING evidence (PR-001/OQ-03): name the mechanism actually implemented and paste a test
     showing all four argv shapes route correctly - `runs <leaf> <target>`, `runs <run-id>`,
@@ -341,8 +370,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the output of `aw run list` after the change (expect the E-05 stub, not a
-    table) and confirm exactly one spelling renders the viewer, by showing `grep -n` of the alias
+  - Required evidence: paste the output of `aw run list` after the change (expect the per-leaf
+    deprecation response from the corrected E-05, not a table; `list` is one of the NINE moved leaves) and confirm exactly one spelling renders the viewer, by showing `grep -n` of the alias
     tuple in `run_cli.py` with `list`/`summary`/`viewer` gone.
   - Observed evidence:
   - Result: pending
@@ -356,7 +385,10 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_cli_conformance_matrix.py -q` green, plus
-    `grep -c 'command="runs' agent_workflows/command_surface.py` showing 13 (twelve leaves plus the
+    `grep -c 'command="runs' agent_workflows/command_surface.py` showing the CORRECTED count of 10 (the
+    NINE moved read-only leaves plus the bare viewer; not 13 - OQ-03's ruling keeps the four writing
+    leaves under `aw run`, so their declarations stay `command="run ..."`). Also paste the count for
+    `command="run` proving the four writers are still declared there. The original wording said 13 (twelve leaves plus the
     previously missing top-level `runs`) and `grep -c 'command="run '` showing 0.
   - Observed evidence:
   - Result: pending
