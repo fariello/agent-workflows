@@ -2551,6 +2551,12 @@ def _build_parser() -> argparse.ArgumentParser:
                 nargs="*",
                 help="Selector / search pattern / args for the verb.",
             )
+            _p.add_argument(
+                "-p",
+                "--paths",
+                action="store_true",
+                help="Output bare matching repo-relative file paths only (one per line, token-efficient).",
+            )
         if _verb == "find":
             # Traversal guard escape hatches. By default `.git/`, `runs/`, `tmp/`, `temp/`,
             # `scratch/`, `.system_generated/` and `__pycache__/` are never descended into.
@@ -7406,8 +7412,8 @@ def _find_type_records(
     selectors_list: List[str],
     args: argparse.Namespace,
     term: Term,
-) -> List[str]:
-    """Find and format matching records for a given artifact type. Returns lines to print."""
+) -> tuple[List[str], List[str]]:
+    """Find and format matching records for a given artifact type. Returns (lines, paths)."""
     from agent_workflows import selectors as sel_mod
 
     if artifact_type == "plans":
@@ -7449,6 +7455,7 @@ def _find_type_records(
             )
 
         lines = []
+        paths = []
         for e in results:
             status = e.disposition or e.status or "-"
             status_txt = term.status_256(status, width=12)
@@ -7459,7 +7466,13 @@ def _find_type_records(
             )
             set_txt = f"{e.set_id or '-':<14}"
             lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {e.path}")
-        return lines
+            full_p = (plans_dir / e.path).resolve()
+            try:
+                rel_p = str(full_p.relative_to(repo_root.resolve()))
+            except Exception:
+                rel_p = str(e.path)
+            paths.append(rel_p)
+        return lines, paths
 
     if artifact_type == "research":
         from agent_workflows import research_index as ri
@@ -7502,6 +7515,7 @@ def _find_type_records(
             )
 
         lines = []
+        paths = []
         for e in results:
             status = e.status or "-"
             status_txt = term.status_256(status, width=12)
@@ -7512,7 +7526,13 @@ def _find_type_records(
             )
             summary = f"  {e.summary}" if e.summary else ""
             lines.append(f"{status_txt}  {id6_txt}  {e.path}{summary}")
-        return lines
+            full_p = (research_root / e.path).resolve()
+            try:
+                rel_p = str(full_p.relative_to(repo_root.resolve()))
+            except Exception:
+                rel_p = str(e.path)
+            paths.append(rel_p)
+        return lines, paths
 
     # All other types: specs, prompts, backlog, walkthroughs, roadmaps, comms, releases
     if selectors_list:
@@ -7523,6 +7543,7 @@ def _find_type_records(
         matched_paths = [p for p, _ in sel_mod._iter_files(repo_root, artifact_type)]
 
     lines = []
+    paths = []
     for p in sorted(matched_paths):
         try:
             text = p.read_text(encoding="utf-8")
@@ -7531,13 +7552,14 @@ def _find_type_records(
         id6 = sel_mod._read_id(text) or "-"
         status = sel_mod._read_status(text) or "-"
         try:
-            rel = str(p.relative_to(repo_root))
-        except ValueError:
+            rel = str(p.resolve().relative_to(repo_root.resolve()))
+        except Exception:
             rel = str(p)
         status_txt = term.status_256(status, width=12)
         id6_txt = term.color256(id6, 39, bold=True) if term.color else id6
         lines.append(f"{status_txt}  {id6_txt}  {rel}")
-    return lines
+        paths.append(rel)
+    return lines, paths
 
 
 def _run_find(
@@ -7571,6 +7593,7 @@ def _run_find(
     types = at.ARTIFACT_TYPES if norm == "all" else (norm,)
 
     all_lines = []
+    all_paths = []
     explicit_flags = argparse.Namespace(
         id=getattr(args, "id", None),
         set=getattr(args, "set", None),
@@ -7580,8 +7603,9 @@ def _run_find(
         dir=getattr(args, "dir", None),
     )
     for t in types:
-        lines = _find_type_records(repo_root, t, selectors, explicit_flags, term)
+        lines, paths = _find_type_records(repo_root, t, selectors, explicit_flags, term)
         all_lines.extend(lines)
+        all_paths.extend(paths)
 
     # Active filter facts and next action recommendation (highpbacklog0822 Order 04 E-03)
     filters_dict = {"type": norm}
@@ -7608,6 +7632,11 @@ def _run_find(
         else (f"no matching {norm}" if norm != "all" else "no matching artifacts")
     )
 
+    if getattr(args, "paths", False):
+        for p in all_paths:
+            print(p)
+        return 0 if all_paths or not selectors else 1
+
     if ctx.is_agent or ctx.is_json:
         res = CommandResult(
             command="find",
@@ -7628,6 +7657,7 @@ def _run_find(
             next_actions=[NextAction(command=next_cmd, description=next_desc)],
             data={
                 "matches": all_lines,
+                "paths": all_paths,
                 "type": norm,
                 "selectors": selectors,
                 "count": len(all_lines),

@@ -225,3 +225,14 @@ When a query, find, search, or list verb matches zero records or produces an emp
 - **Domain Findings / Violations (`exit: 1`)**:
   - Verification failures, policy drift, or schema nonconformance MUST exit `1`.
   - Emits diagnostic findings with actionable `Fix:` hints and appropriate follow-up `next` actions.
+
+---
+
+## 12. Path Discovery and Resolution vs. Verification Receipts
+
+Commands whose primary purpose is path discovery and artifact lookup (e.g. `aw find <selector>`, `aw find <type> <selector> --paths`) are strictly distinguished from verification, check, or mutation commands:
+
+- **Token-Efficient Bare Paths**: When an agent searches for an artifact (e.g. by `id6`, Set, status, or slug fragment), the optimal output is pure, newline-delimited, repo-relative file paths (e.g. `.aw/records/plans/pending/...`). Wrapping file paths in multi-field JSON envelopes imposes unnecessary LLM parsing overhead and token consumption.
+- **`--paths` (`-p`) Flag**: Query and discovery verbs support `--paths` to emit bare repo-relative file paths on `stdout`, one per line, with no column headers, ANSI formatting, or summary boilerplate.
+- **`--agent` Mode for Discovery**: When `--agent` is passed to `aw find` (or when piping paths to another tool), `find` emits bare repo-relative paths, maximizing token efficiency for agent tool consumption. Callers requiring the full metadata dictionary use explicit `--json`.
+- **Exit Classification**: If one or more matching paths are found, the command exits `0`. If a specific selector matches zero paths, the command exits `1` (or exits `0` when listing empty unfiltered sets in human mode).
