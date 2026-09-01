@@ -195,6 +195,14 @@ The 4 `make test-all` failures are PRE-EXISTING CLI-surface declaration checks, 
 - Owner: none
 - Resolution or deferral rationale: THEY MAY, in dependency terms: `02` and `03` both depend only on `01`, and `04` and `05` both depend only on `02`, so no edge orders them relative to each other. But they MUST NOT be run concurrently in this repository, for a reason unrelated to dependencies: `02`, `03`, and `04` all edit `oc_runipd.py` and `agy_runipd.py`, the two most contended files in the tree, and concurrent lanes editing the same file produce a merge conflict the runner cannot resolve. So the recorded answer is SERIAL EXECUTION in Order sequence, with the freedom to swap `02`/`03` or `04`/`05` if a human chooses. This is an EDIT-SERIALIZATION constraint, not a dependency; recorded distinctly so a later reader does not mistake it for one.
 
+### OQ-02: May this Set proceed before its machine-readable dependencies and mirror-item decomposition are corrected?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001, PR-002
+- Resolution or deferral rationale: NO execution is safe in the current state. Round 1 review found that `y5od1h` and `604wra` omit required producer edges and that five children hide multiple independently testable concerns inside one mirror item. Revise the child metadata and decomposition, recompute the dependency proof, and re-review the Set before resolving this question.
+
 ## Validation and cross-check (verify before reporting the Set complete)
 
 

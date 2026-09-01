@@ -110,6 +110,14 @@ Spec `7ckptx` is normative; this plan cites requirement ids. E-04 updates the pr
 - Owner: none
 - Resolution or deferral rationale: YES, but only within this plan's declared Scope-Paths, which include both drivers precisely so consolidation is possible without a fence breach. Consolidating a duplicated rule is this plan's ASSIGNED work under R6.1, so repointing a caller in a driver is in scope. What is NOT in scope is changing a sibling's BEHAVIOR or its tests: if consolidation appears to require altering what a rule DOES rather than where it lives, that is a sign the two definitions disagreed, which is a finding to STOP and report rather than silently resolve by picking one. Recorded because "consolidate" can otherwise be read as licence to rewrite.
 
+### OQ-02: Which exact predicates does this Set own, and may consolidation begin before all declared producers are complete?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001, PR-002
+- Resolution or deferral rationale: Round 1 review found that current docstrings name older owners while this plan names no predicates, and that `Item-Dependencies` omits `lhmrhx` despite the prose requiring it. Add an explicit predicate ownership table and the complete producer edges, then re-review before execution.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.

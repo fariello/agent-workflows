@@ -112,6 +112,14 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 - Owner: none
 - Resolution or deferral rationale: ONLY the manifest and the materialized inputs, as R5.1a states. Sealing the whole control directory would break the worker's own submissions, which it MUST be able to write: the outcome JSON, the report, and the decisions contribution all live under the lane control root and are the very files child `cqx5v7` collects. A blanket seal would therefore convert a working turn into a permission failure, which is the same class of mistake spec R4.6 exists to prevent for the permission policy. Recorded because "seal the control directory" is the tempting over-application of this requirement.
 
+### OQ-02: May E-05 retain the clean-base guard and every Antigravity materialization concern in one item?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: Round 1 review found that E-05 spans the clean-base refusal, copy materialization, inode independence, sealing, revisions, and attachment localization. Split these concerns or extract and separately validate a shared materializer before execution.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.

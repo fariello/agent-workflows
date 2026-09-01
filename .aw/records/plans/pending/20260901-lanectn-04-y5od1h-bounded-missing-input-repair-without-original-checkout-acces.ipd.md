@@ -126,6 +126,14 @@ Spec `7ckptx` is normative; this plan cites requirement ids. Child `604wra` upda
 - Owner: none
 - Resolution or deferral rationale: NO, not by this plan, and the default must not be widened here. R3.3b is explicit that a future policy MAY widen the tracked test but MUST do so explicitly, never by an implementation choosing a looser check. The reasoning is that a lane is created from a commit, so a tracked file is content the lane provably should have contained, whereas an untracked file is local machine state whose absence from the lane is CORRECT rather than a defect. If an executor encounters a real case where an untracked file is genuinely required, the conforming action is to STOP and report it as a spec amendment request, not to relax the test. V-04 pins both halves precisely so a later loosening is visible.
 
+### OQ-02: What fail-closed, project-agnostic secret source should govern repair, and may execution begin before the dependency and sizing defects are fixed?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001, PR-002, PR-003
+- Resolution or deferral rationale: Round 1 review found no repository authority for choosing a fallback when a target repository lacks the two expected ignore-file headings, so the approved spec needs a maintainer decision before implementation. The same review found the missing `lhmrhx` producer edge and an oversized E-06. Amend and approve the secret-rejection contract, add the dependency, decompose the mirror work, and re-review before resolving this question.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.

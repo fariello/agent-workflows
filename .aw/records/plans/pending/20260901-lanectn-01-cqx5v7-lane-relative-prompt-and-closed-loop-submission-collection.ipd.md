@@ -121,6 +121,14 @@ Baselines measured at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed,
 - Owner: none
 - Resolution or deferral rationale: EITHER IS ACCEPTABLE and the choice is the executor's, which is exactly how spec `7ckptx` OQ-03 deferred it: R2.3 fixes the REQUIREMENT (a retry must not duplicate, and must not remove a sibling's contribution) and A4 fixes the test, so the mechanism is an implementation decision rather than a contract question. E-04 requires the executor to CHOOSE ONE and state which in the code comment, so a later reader is not left guessing which invariant the code relies on. What is NOT acceptable is implementing neither and claiming idempotency, which V-04's two-run evidence is designed to catch.
 
+### OQ-02: May E-05 remain one combined Antigravity mirror item?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: Round 1 review found that E-05 combines prompt projection, notice wording, collection timing, copy semantics, and idempotency across distinct test seams. Split it by concern or replace the repeated behavior with shared helpers and thin adapters, then re-review before execution.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.

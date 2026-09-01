@@ -100,6 +100,14 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 - Owner: the implementing plan
 - Resolution or deferral rationale: DEFERRED as a presentation choice, deliberately not decided here. R5.6 requires the reason be RECORDED as an event, which makes preservation auditable, and that is the contract. Surfacing it in a rendered summary would be a usability improvement, but it touches the run-reporting surface which this plan does not declare in its Scope-Paths, and widening the fence to add it is exactly the scope creep rule 6 of the execution contract forbids. If the executor believes it is worth doing, the conforming action is to RECOMMEND it in the walkthrough for a follow-up, not to add it here.
 
+### OQ-02: What authoritative collection state distinguishes a harvested submission from an uncollected one?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001, PR-002
+- Resolution or deferral rationale: Round 1 review found that the sealed input manifest cannot prove collection success because collection copies rather than moves and retries are idempotent. Define a collection receipt or equivalent authoritative state, then split or centralize the Antigravity inventory, refusal, and event concerns before execution.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.

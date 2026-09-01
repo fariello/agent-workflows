@@ -132,6 +132,14 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 - Owner: the implementing plan
 - Resolution or deferral rationale: DEFERRED, and deliberately not decided here, because the spec scopes R4.4 to an unattended isolated turn and widening it would change behavior for a mode this Set is not chartered to touch (spec R1.3 requires the non-isolated path stay unchanged in child `cqx5v7`, and the same conservatism applies). If the executor finds the bound is trivially applicable to both, it may say so in the walkthrough as a RECOMMENDATION for a follow-up, but it MUST NOT widen the scope in this plan. Recorded as deferred rather than silently narrowed so a reviewer can see the choice was considered.
 
+### OQ-03: May E-06 combine the role selector with all applicable Antigravity posture and deadline work?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-001
+- Resolution or deferral rationale: Round 1 review found that E-06 is a selective host port across multiple independent behaviors, not a mechanical mirror. Give the role selector its own item and split the Antigravity reporting and deadline concerns, explicitly preserving the approved absence of an Antigravity policy document, before execution.
+
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
