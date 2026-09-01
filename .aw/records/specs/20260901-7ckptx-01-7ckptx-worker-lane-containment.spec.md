@@ -1,7 +1,7 @@
 # Spec: Worker lane containment: one authoritative signal per instruction
 
 - Date: 2026-09-01
-- Status: to-review
+- Status: approved
 - Id: 7ckptx
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - From-Backlog: vqv9im
@@ -11,7 +11,7 @@
 
 ## Workflow history
 
-- 2026-09-01 to-review (aw specs): MAINTAINER RULING ADOPTED (2026-09-01): --dangerously-skip-permissions MUST remain the default for aw agy run, because running without it was PROVEN in practice to fail or deadlock repeatedly. My previous framing was wrong in a way that mattered: it described the flag as an unclosed GAP awaiting work (Non-goal 7 'adding a denial posture to a host that lacks one'), which invited a future plan to try closing it. It is now recorded as a DECIDED CONSTRAINT the spec adopts. Added R4.1c, which forbids any plan tracing to this spec from flipping that default and requires a future change to carry its own decision plus evidence the deadlock is gone; it is explicitly the INVERSE of R4.6 (R4.6 stops a denial landing too early on a host that has one; R4.1c stops one landing at all where it is known to hang). Added A8c as a regression guard in the opposite direction from every other criterion: it FAILS if this work 'hardens' Antigravity into the interactive posture that deadlocks. Verified A8c is testable today and that NO existing test pins the default, so it closes a real hole. Consequence now stated where it belongs: on Antigravity the host layer contributes NOTHING to containment, permanently and by design, so R1 (prompt purity) and R4.4 (driver bounds) are LOAD-BEARING for that host rather than defence-in-depth - which is the practical argument for doing the prompt work at all. Traceability 36/36, all specs conform.
+- 2026-09-01 approved (aw specs, --by-human): APPROVED BY THE MAINTAINER 2026-09-01 ('Approved with your latest exits'), covering the spec as of abde3be0: 36 requirements, 25 acceptance criteria, full traceability (36/36 requirements cited by at least one criterion). Includes R4.1/R4.1a/R4.1c per-host permission posture with --dangerously-skip-permissions adopted as a DECIDED constraint for agy on the maintainer's operational evidence that the interactive posture deadlocks; R3.3a/R3.3b secret rejection derived from the existing .gitignore vocabulary plus a defined 'policy permits' (tracked files only, untracked refused by default); and R5.1a's three-part definition of 'sealed'. The maintainer explicitly accepted the recorded asymmetry that antigravity is less protected at the host layer than opencode, by design, with R1 (prompt purity) and R4.4 (driver bounds) carrying that host's whole containment guarantee. OQ-03 remains deliberately deferred to the implementing plan (attempt-keyed dedup vs deterministic per-lane files; either satisfies R2.3).
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
