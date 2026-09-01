@@ -6,8 +6,7 @@
 - Scope: Refactor `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py` to import constants and helper logic from `agent_workflows/layout.py`.
 - Scope-Paths: agent_workflows/artifact_types.py, agent_workflows/selectors.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to implement all 5 with orchestrator 00)
+- Status: to-review
 - Set: wslayout
 - Order: 2
 - Highest E allocated: 02
@@ -19,7 +18,6 @@
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
-- 2026-09-01 approved (antigravity): human approval attested per user directive.
 
 ## Goal
 

@@ -6,8 +6,7 @@
 - Scope: Add `aw layout` command (supporting `--json`, `--schema`) to `agent_workflows/cli.py`, add layout consistency checking to `check_engine.py` / `doctor.py`, and author unit tests in `tests/test_cli_layout.py`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_cli_layout.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to implement all 5 with orchestrator 00)
+- Status: to-review
 - Set: wslayout
 - Order: 5
 - Highest E allocated: 03
@@ -19,7 +18,6 @@
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
-- 2026-09-01 approved (antigravity): human approval attested per user directive.
 
 ## Goal
 

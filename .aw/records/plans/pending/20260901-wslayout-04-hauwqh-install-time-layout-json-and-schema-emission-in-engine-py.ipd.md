@@ -6,8 +6,7 @@
 - Scope: Update `agent_workflows/engine.py` to write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during `install()` and `aw setup-repo`. Add integration test coverage.
 - Scope-Paths: agent_workflows/engine.py, tests/test_engine_install.py, tests/test_setup_repo_cli.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to implement all 5 with orchestrator 00)
+- Status: to-review
 - Set: wslayout
 - Order: 4
 - Highest E allocated: 02
@@ -19,7 +18,6 @@
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
-- 2026-09-01 approved (antigravity): human approval attested per user directive.
 
 ## Goal
 

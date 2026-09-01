@@ -6,8 +6,7 @@
 - Scope: Create `agent_workflows/layout.py` with dataclasses (`RecordClassDefinition`, `LayoutModel`), canonical layout constants, `build_default_layout()`, `to_json()`, and `to_schema()`. Add unit tests in `tests/test_layout.py`.
 - Scope-Paths: agent_workflows/layout.py, tests/test_layout.py
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to implement all 5 with orchestrator 00)
+- Status: to-review
 - Set: wslayout
 - Order: 1
 - Highest E allocated: 02
@@ -19,7 +18,6 @@
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
-- 2026-09-01 approved (antigravity): human approval attested per user directive.
 
 ## Goal
 

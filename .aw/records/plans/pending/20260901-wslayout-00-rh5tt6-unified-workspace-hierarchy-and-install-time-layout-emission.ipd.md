@@ -6,8 +6,7 @@
 - Scope: Coordinate execution of the 5-plan child set wslayout implementing Spec kw5y2s across core modeling, internal module consolidation, install-time emission, and CLI surface.
 - Scope-Paths: agent_workflows/layout.py, agent_workflows/artifact_types.py, agent_workflows/selectors.py, agent_workflows/record_producers.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/
 - Item-Dependencies: none
-- Status: approved
-- Approval: human (attested by antigravity: user directive to implement all 5 with orchestrator 00)
+- Status: to-review
 - Set: wslayout
 - Order: 0
 - Highest E allocated: 02
@@ -19,7 +18,6 @@
 
 - 2026-09-01 draft (antigravity): created orchestrator.
 - 2026-09-01 to-review (antigravity): authored complete orchestrator plan.
-- 2026-09-01 approved (antigravity): human approval attested per user directive.
 
 ## Goal
 
