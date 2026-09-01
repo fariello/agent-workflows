@@ -6,17 +6,17 @@
 - Scope: Integrate the verified `wtiso` lane branches into `main` and finalize their plans, by (a) resolving the `Statusline`-vs-`TurnBounds` collision in both drivers' turn loops, (b) re-issuing begin receipts so `finalize` stops refusing on a schema-v1 digest, and (c) driving each plan to its terminal lifecycle state. Does NOT change the design of any `wtiso` phase.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/cli.py, agent_workflows/ipd_lifecycle.py, tests/test_wtiso_adversarial.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
 - Item-Dependencies: none
-- Status: approved
+- Status: reviewed
 - Blocks-Release: next
 - Set: wtisoland
 - Order: 1
 - Highest E allocated: 11
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 6knsrx
-- Approval: 2026-08-31, recorded via aw ipd set: status set to approved
 - From-Backlog: xmqv5l
 
 ## Workflow history
+- 2026-09-01 reviewed (aw set): DE-ARMED, not retired. Backlog vqv9im (decided 2026-09-01) overturned this plan's core premise: Phase 1 must be RE-AUTHORED AS A PORT of the lane's prompt-isolation design onto current main, not merged, because the lane predates main-side work it does not contain (runner_stop 73 refs on main vs 0 on the lane) and a wholesale merge would destroy the runstop Set just finalized in zpbx7o. Independently, this plan's own E-01 stop condition already fired: the conflict surface differs from its map and tests/test_oc_runipd.py conflicts while outside the Scope-Paths its OQ-04 enumerated. Moved off 'approved' so the runner cannot select it while a prose-only fence says stop, which is the exact hazard class d7bnhc exists to prevent. Its conflict measurements and OQ resolutions are preserved as the record of why the merge path was attempted.
 - 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): retarget E-07/V-07/E-11 off the deleted `aw/lane/1o4eif` ref onto the durable commit `909eb007`; the lane was released early (0 ahead, tip an ancestor of main, uncommitted file byte-identical to main) so no evidence and no commit was lost. Scope/gating for the five UNMERGED lanes unchanged.
 - 2026-08-31 approved (aw set): status set to approved
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-011
@@ -29,6 +29,35 @@
   claims inherited from the session handoff (see Findings F-2, F-4, F-5).
 
 ## Goal
+
+> **DO NOT EXECUTE AS IS (fenced 2026-09-01). This plan's core premise was overturned by a maintainer
+> design ruling, so following it would do the wrong thing even though `aw ipd lint` still reports
+> conforming.**
+>
+> WHAT CHANGED: this plan assumes the five `wtiso` lanes should be MERGED phase by phase. Backlog
+> `vqv9im` (decided 2026-09-01, now `graduated`) rules that Phase 1 must instead be RE-AUTHORED AS A
+> PORT of the lane's prompt-isolation design onto current main. The reason is measured, not stylistic:
+> the lane predates a large amount of main-side work and does not contain it (`runner_stop` 73
+> references on main vs 0 on the lane, plus `stall_progress`, `Statusline`, `_apply_execution_profile`,
+> `build_isolation_notice`), so merging `aw/lane/qcqhj7` wholesale would destroy the entire `runstop`
+> graceful-quit Set that was just verified and finalized in `zpbx7o`.
+>
+> ALSO ALREADY TRUE, independently: this plan's own E-01 stop condition FIRED on 2026-09-01 and was
+> honored (nothing was merged). The conflict surface differs from its recorded map AND
+> `tests/test_oc_runipd.py` now conflicts while sitting OUTSIDE the `Scope-Paths` that its own OQ-04
+> widened to exactly four enumerated paths. This is a fifth, so the plan cannot legally resolve the
+> merge as written.
+>
+> PARTIALLY SUPERSEDED BY EVENTS: two of `rchpms`'s six payload commits already landed on main in
+> `cdef9c90` (the frozen-region receipt digest and the worker-role authority rule) to fix backlog
+> `i452hf`. Any successor must not re-land them.
+>
+> WHAT A SUCCESSOR NEEDS: re-scope Phase 1 as a port (see `vqv9im` for the enumerated payload,
+> including `harvest_lane_submissions`, which is the other half of the loop and the reason a naive port
+> fails), then rebase phases 3-5 onto that. Do NOT delete this plan; its conflict measurements,
+> phase-by-phase ruling, and OQ-01..OQ-04 resolutions remain the record of why the merge path was
+> attempted.
+
 
 Land the **26** unique commits of verified `wtiso` work that are currently reachable only from the
 five unmerged `aw/lane/*` branches forming the phase 1-5 stack (phase 6 `1o4eif` already landed as
