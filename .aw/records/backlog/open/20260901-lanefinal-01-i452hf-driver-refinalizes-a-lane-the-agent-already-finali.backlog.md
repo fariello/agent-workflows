@@ -6,6 +6,7 @@
 - Summary: Driver self-finalize refuses with a STALE receipt because the agent already finalized in its lane: finalizing rewrites and moves the plan, invalidating the digest the driver froze from main, so completed work strands
 
 ## Workflow history
+- 2026-09-01 triaged (opencode/its_direct/pt3-claude-opus-5-1m-us): DO NOT BUILD A NEW FIX. Found that approved plan `rchpms` (wtiso Phase 2, driver-owned lifecycle) already owns BOTH halves of this bug and named them in advance: its Concern cites stale-on-self-execution (backlog xmqv5l) AND 'NO WORKER-ROLE REFUSAL: nothing stops an in-lane aw ipd begin/finalize from forking a second receipt/run the driver cannot see', which is exactly the observed failure. Measured: rchpms is `approved`, passes `aw ipd lint --phase pre-execution` conforming, and its lane already holds TEN COMMITS of written work. So the action is LANDING existing reviewed work (via approved plan `6knsrx`, which covers five wtiso lanes and 26 unique commits), not authoring a competing design. If landing rchpms demonstrably fixes this, close this item citing the merge commit. What this item still uniquely adds and must keep: the measured field reproduction (both items of a real 2-item run hit it independently, $22.66 stranded, receipts verified byte-identical to main) and the note that evgi9n's E-07 test used --no-isolate-worktree and so never exercised the lane finalize path.
 - 2026-09-01 created (aw backlog): Driver self-finalize refuses with a STALE receipt because the agent already finalized in its lane: finalizing rewrites and moves the plan, invalidating the digest the driver froze from main, so completed work strands
 
 OBSERVED 2026-09-01 on run `run-20260901T042331Z-118022`, on BOTH items independently, so it is
@@ -64,6 +65,35 @@ to `executed/` and the second then measures a file that is no longer there. So a
 tolerant digest, the driver would still be attempting a SECOND finalize of an already-terminal plan.
 Whoever fixes either should read both, and the ownership question below (who owns the terminal
 transition under isolation) is the part `xmqv5l` does not answer.
+
+DO NOT BUILD A NEW FIX FOR THIS: `rchpms` ALREADY OWNS IT, IS APPROVED, AND IS LARGELY WRITTEN.
+Found 2026-09-01 while triaging this bug, and it changes the required action from "author a fix" to
+"land existing work". `rchpms` is wtiso Phase 2, "driver-owned lifecycle", and its Concern names BOTH
+halves of this bug BEFORE it happened:
+
+  "(1) STALE-ON-SELF-EXECUTION (backlog xmqv5l): begin freezes a whole-file `plan_content_digest` ...
+   and `receipt_is_current` invalidates the receipt whenever that byte digest changes; but a correct
+   self-execution MUST edit the same plan (mark E performed, fill V evidence)"
+
+  "(2) NO WORKER-ROLE REFUSAL: nothing stops an in-lane `aw ipd begin/finalize` from forking a second
+   receipt/run the driver cannot see"
+
+Item (2) is EXACTLY the failure observed on run `run-20260901T042331Z-118022`, described in advance.
+
+STATUS OF THAT PLAN, measured: `- Status: approved`, `aw ipd lint --phase pre-execution` reports
+CONFORMING, and its lane `aw/lane/rchpms` already holds TEN COMMITS of written work. So the fix exists
+and passed review; it is unmerged, not unwritten.
+
+WHAT THIS ITEM SHOULD BECOME, therefore: a pointer plus the fresh field evidence, NOT a competing
+design. The action is to land the wtiso lane stack (approved plan `6knsrx` exists for exactly that,
+covering five lanes and 26 unique commits, of which `rchpms` is one). If landing `rchpms` demonstrably
+fixes this, CLOSE this item citing the merge commit rather than graduating it separately.
+
+WHAT THIS ITEM STILL ADDS that `rchpms` does not have: the measured field reproduction (both items of a
+real 2-item run hit it independently, $22.66 of work stranded, receipts verified byte-identical to
+main), and the note that `evgi9n`'s E-07 end-to-end test used `--no-isolate-worktree` and therefore
+never exercised the lane finalize path. Keep those; they are the regression evidence a fix should be
+validated against.
 
 WHAT TO SOLVE FOR, not prescribed.
 

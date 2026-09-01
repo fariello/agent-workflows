@@ -3,9 +3,10 @@
 - Set: runorder
 - Priority: high
 - Work-Kind: bug
-- Summary: aw oc run A B silently executes B first: the operator's typed order is recorded as position but sorted LAST, so setid decides alphabetically and a documented prerequisite ordering can be inverted without warning
+- Summary: aw oc run A B silently executes B first (typed order recorded as position but sorted LAST, so setid decides alphabetically); honor the typed order AND announce any dependency-caused reordering loudly, naming both orders and the causing edge
 
 ## Workflow history
+- 2026-09-01 decided (opencode/its_direct/pt3-claude-opus-5-1m-us, on the maintainer's call): TWO rulings recorded. (1) HONOR THE TYPED ORDER: move `position` above `setid` in the shared `queue_sort_key`. Safe because `dependency_depth` stays FIRST, so a declared edge still beats a typed sequence and spec 5.4 rule 5 is preserved. Chosen over detecting explicit-vs-expanded selections, because measurement showed the typed order is only meaningful for small explicit lists and is a no-op for large selector expansions (observed runs of 7 and 12 items across 5-6 Sets), so the extra durable state would buy nothing. (2) ANNOUNCE ANY DEPENDENCY-CAUSED REORDERING LOUDLY, possibly interactively, naming BOTH orders and the CAUSING EDGE per moved item, so a declared prerequisite is distinguishable from an arbitrary tiebreak. Measured gaps recorded: the driver announces NOTHING about ordering today (greps return only comments), and `--prepare-only` would NOT have helped because `print_status` renders POSITION order, so a pre-flight preview tonight would have shown 01 m73aet / 02 6lu3rq and still run 6lu3rq first. HARD CONSTRAINT recorded for the interactive part: never prompt where a child can inherit the TTY - `oc_runipd.py:711-715` records a nested `aw` wedging a finalize for 1h49m that way (backlog v1ex5z / ttywedge g40w37), which is why children get stdin=DEVNULL; the confirmation must live in the DRIVER before the first child spawns and must degrade to a printed warning with no TTY, so an unattended run never blocks.
 - 2026-09-01 created (aw backlog): aw oc run A B silently executes B first: the operator's typed order is recorded as position but sorted LAST, so setid decides alphabetically and a documented prerequisite ordering can be inverted without warning
 
 OBSERVED 2026-09-01. The maintainer ran `aw oc run m73aet 6lu3rq`, meaning "run m73aet BEFORE 6lu3rq".
@@ -50,6 +51,98 @@ Note this is precisely the hazard spec 5.4 rule 5 warns about in the OTHER direc
 only a deterministic tiebreaker among nodes already ready; lower Order cannot make an unsatisfied node
 runnable"). The spec was careful that ordering must not FAKE a satisfied dependency; it did not
 consider that ordering must not SILENTLY OVERRIDE an operator's explicit sequence.
+
+DECIDED BY THE MAINTAINER 2026-09-01: HONOR THE TYPED ORDER. Move `position` ABOVE `setid` in
+`queue_sort_key`, so an explicitly-typed list executes in the order the operator typed. The open
+questions below are kept as the record of what was chosen against.
+
+WHY THIS IS SAFE, and it is the fact that made the decision easy: `dependency_depth` is FIRST in the
+key and STAYS first, so a declared `Item-Dependencies` edge always beats a typed sequence. Honoring the
+operator's order therefore cannot make an unsatisfied node runnable, which is the property spec 25kzda
+5.4 rule 5 exists to protect. The change moves `position` past `setid`/`order` only.
+
+MEASURED USAGE that shaped the ruling. Two distinct patterns in the run history:
+  (a) SMALL EXPLICIT LISTS the operator typed, e.g. `aw oc run m73aet 6lu3rq` (2 items, 2 Sets). The
+      typed order is plainly an instruction here, and this is the case the bug broke.
+  (b) LARGE SELECTOR EXPANSIONS, e.g. observed runs of 7 and 12 items spanning 5-6 Sets
+      (`run-20260830T044707Z-4118154`: 12 items across detrun/findidx/gatestale/lanename/scopeattrib/
+      testinvoke). There is NO meaningful typed order in this case, because the operator named a
+      selector and the runner expanded it.
+So honoring `position` is meaningful for (a) and a no-op in practice for (b), where `position` merely
+reflects expansion order and any total order is equally defensible. That is why the simple fix was
+chosen over detecting explicit-vs-expanded (which would require the runner to record HOW the queue was
+built: new durable state, more surface, for no gain in case (b)).
+Also measured: multi-item runs are the NORMAL mode, not an edge case (6 recent runs had 2+ items), and
+11 of 26 pending plans already declare a dependency edge, so the declared-edge path is in real use.
+
+IMPLEMENTATION NOTES for whoever executes this.
+1. ONE function, `oc_runipd.queue_sort_key`. VERIFIED `agy_runipd.queue_sort_key IS` the same object
+   (re-exported, not reimplemented), so one edit covers both drivers. Do NOT introduce a second copy.
+2. The new key is `(dependency_depth, position, setid, order, id6)`. Note `position` is currently
+   documented in that function's own docstring as "LAST and is a stable identity, never a priority" -
+   that docstring becomes FALSE and must be rewritten, not left to mislead the next reader.
+3. THE DOCSTRING'S UNDERLYING POINT STILL HOLDS and must be preserved: `position` is also the key for
+   outcome/prompt/session filenames and this run's decision ids, so it must remain FROZEN at
+   queue-build time. Making it a sort input must not make it mutable.
+4. This makes the sort depend on INVOCATION order, so two runs over the same set of plans expressed
+   differently will order differently. That is the intent, but the function is currently documented as
+   deterministic from artifact content alone; update that claim honestly rather than silently.
+5. SPEC IMPACT: spec `25kzda` 5.4 rule 4 fixes the order as "dependency depth, type rank, Set, numeric
+   Order, stable ID, then canonical path" and does not mention operator order. This ruling CHANGES that
+   rule, so the spec needs a corresponding amendment; do not implement a divergence from an unamended
+   spec and leave the two disagreeing.
+6. TESTS must cover the regression directly: two independent plans whose Sets sort OPPOSITE to the
+   typed order (the real case was `runtrail` typed first but `runmixed` sorting first alphabetically),
+   asserting dispatch follows the typed order. Also assert a declared edge STILL wins over typed order,
+   so fixing this cannot silently break rule 5.
+7. FIX THE SUMMARY TABLE TOO (see the open question below): it displayed `01 m73aet` / `02 6lu3rq`
+   while execution ran 02 then 01, which is what made the inversion look like a display glitch. Once
+   position drives the order these agree by construction, but confirm it rather than assuming.
+
+ADDITIONAL MAINTAINER REQUIREMENT 2026-09-01: ANY reordering caused by DEPENDENCIES must be announced
+LOUDLY, and possibly interactively. Silent reordering is the actual defect; getting the order right but
+still doing it invisibly would only half-fix this.
+
+So the fix has TWO parts, and the second is not optional:
+  (A) honor the typed order (the ruling above), and
+  (B) SAY SO whenever the executed order differs from the order the operator expressed, naming BOTH
+      orders and WHY they differ.
+
+WHAT "WHY" MUST NAME, because a bare "reordered" line is not actionable: the specific edge that forced
+it, e.g. "6lu3rq before m73aet: 6lu3rq declares `executed:m73aet`", or for a depth tie broken by
+another field, which field broke it. The operator must be able to tell a DECLARED prerequisite (correct
+and expected) from a TIEBREAK (arbitrary, and the thing that bit them tonight).
+
+MEASURED GAP: the driver announces NOTHING about ordering today. Greps for a queue/order announcement
+in `oc_runipd.py` return only comments. Tonight the ONLY way to discover the inversion was to read
+`events.jsonl` timestamps after the fact and compare them against `state.json` positions.
+
+AND THE EXISTING PREVIEW WOULD NOT HAVE HELPED, which is a second defect to fix here: `--prepare-only`
+already exists and prints the queue via `print_status` -> `render_run_summary_table`, but that table
+renders in POSITION order, not EXECUTION order. So a pre-flight preview tonight would have shown
+`01 m73aet, 02 6lu3rq` and still executed 6lu3rq first. The preview must show EXECUTION order (or show
+both, explicitly labelled), or it actively misleads.
+
+HARD CONSTRAINT ON THE INTERACTIVE PART, and it is hard-won: DO NOT prompt from anywhere a child
+process can inherit. `oc_runipd.py:711-715` records that a nested `aw` seeing an inherited TTY
+"believes it may prompt, and blocks on input() forever while its prompt goes into the pipe" - VERIFIED
+to have WEDGED A FINALIZE FOR 1h49m (backlog `v1ex5z`, ttywedge Order 01 `g40w37`), which is why the
+driver now passes `stdin=subprocess.DEVNULL` to children. Any confirmation must therefore happen in the
+DRIVER, at queue-build time, BEFORE the first child is spawned, and must fall back to non-interactive
+behavior when there is no TTY. An unattended overnight run must never block on a prompt: that would
+turn tonight's inconvenience into a run that silently does nothing for hours.
+
+RECOMMENDED SHAPE, to be confirmed at execution:
+  * ALWAYS print the execution order at queue build, unconditionally, whether or not it was reordered.
+    Cheap, and it makes the order auditable in the log rather than reconstructible from timestamps.
+  * When the executed order DIFFERS from the expressed order, print a distinct WARNING naming both
+    orders and the causing edge per moved item.
+  * PROMPT only when (a) the order was changed, (b) the driver has a real TTY, and (c) the run was not
+    started with an unattended flag. Otherwise print the warning and proceed, since refusing would
+    break unattended operation for a condition that is usually legitimate.
+  * Record the announcement in the run's durable state/events too, so a later reader sees it without
+    the terminal scrollback. Tonight's `events.jsonl` had `ipd-started` timestamps but no ordering
+    rationale.
 
 WHAT TO SOLVE FOR, not prescribed.
 
