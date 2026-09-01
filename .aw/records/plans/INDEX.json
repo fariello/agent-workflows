@@ -4104,6 +4104,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md",
+    "plan_id": "v8xdz4",
+    "set_id": "findpaths",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md",
     "plan_id": "429f30",
     "set_id": "ocvariant",

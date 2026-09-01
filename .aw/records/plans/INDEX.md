@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 198 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 199 Sets; the full manifest is INDEX.json.
+
+## findpaths
+
+- `v8xdz4` [executed] 01 executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md
 
 ## lanecontain
 
@@ -183,10 +187,6 @@ Showing the 40 most-recent of 198 Sets; the full manifest is INDEX.json.
 - `3cm15q` [pending] 03 pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
 - `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
 - `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
-
-## runstale
-
-- `ssk6nf` [executed] 01 executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md
 
 ## (singletons: no Set)
 
