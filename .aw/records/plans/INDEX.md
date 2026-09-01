@@ -72,7 +72,7 @@ Showing the 40 most-recent of 195 Sets; the full manifest is INDEX.json.
 
 ## runmixed
 
-- `6lu3rq` [pending] 01 pending/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md
+- `6lu3rq` [executed] 01 executed/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md
 
 ## runtrail
 

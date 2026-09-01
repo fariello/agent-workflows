@@ -6,17 +6,17 @@
 - Scope: Add the mixed-type confirmation gate (the sorted count and action preview, the exact-phrase interactive confirmation, the unattended `--allow-mixed` acknowledgement, and the verbatim `RUN-MIXED-TYPES` refusal) plus the thin runner-facing selector POLICY that decides which types a selector may span, as a standalone module consumed by callers. Excludes forking the shipped resolver `selectors.py`, excludes the DAG scheduler, excludes runtime dependency satisfaction, excludes runner-side backlog closure, and excludes wiring the gate into either runner module (deferred, see OQ-01).
 - Scope-Paths: agent_workflows/run_selection_policy.py, tests/test_run_selection_policy.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: runmixed
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 6lu3rq
-- Approval: 2026-08-31, human ("approved"): Maintainer approved 2026-08-31 in session, after plan-review round 1 (m73aet APPROVE 0 findings; 6lu3rq and wlxkoz APPROVE WITH REVISIONS APPLIED, all findings FIXED in place, zero unresolved, no open questions).
 - Blocks-Release: next
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-09-01 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): Executed on lane aw/lane/6lu3rq during run-20260901T042331Z-118022, merged to main in 675fcfbe. All E-01..E-05 performed, V-01..V-05 pass with pasted evidence. Verified after merge in the PRIMARY checkout: 3983 passed (up from 3887); the RUN-MIXED-TYPES refusal matches spec 2.5 character-for-character; all four gate directions behave (unattended refuses without --allow-mixed, permits with it; interactive rejects 'y', accepts 'run mixed'); review finding PR-001 honored, since the predicate returns all four spec-2.5 ledger facts. The driver's own self-finalize refused mid-run on a stale receipt, which is filed as bug i452hf. [Scope reconciliation - in-scope-unmodified agent_workflows/run_selection_policy.py: created and committed on the lane in 9c67ddc6, merged to main in 675fcfbe; the begin receipt was re-frozen AFTER that merge, so it reads as unmodified relative to the new base; in-scope-unmodified tests/test_run_selection_policy.py: same: 502 lines of new tests created on the lane, merged in 675fcfbe, base re-frozen after]
 - 2026-08-31 approved (aw set, --by-human): Maintainer approved 2026-08-31 in session, after plan-review round 1 (m73aet APPROVE 0 findings; 6lu3rq and wlxkoz APPROVE WITH REVISIONS APPLIED, all findings FIXED in place, zero unresolved, no open questions).
 - 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied. See .aw/records/reviews/ for the typed findings and decisions.
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 (1 finding, fixed). Verified at HEAD 381dbd5c: the gate is genuinely unbuilt (RUN-MIXED-TYPES/--allow-mixed/allow_mixed all ZERO hits), the E-04 refusal string is character-identical to spec 25kzda 2.5's exact refusal block (spec:215), the run-mixed exact-phrase and narrowing rules are verbatim in spec:206-209, selectors.py really is authoritative (UNIQUE_KINDS :46), both claimed sibling collisions really are in executed/, and Scope-Paths collide with NO pending or approved plan. PR-001: the plan implemented THREE of spec 2.5's FOUR bullets and was silent on the fourth (record counts/preview/response/queue-digest in the run ledger); grep for 'ledger' returned zero. Fixed by splitting it: E-03 now RETURNS the four facts as structured data (in scope) and the ledger WRITE is deferred to the caller owning a live run, with the partial discharge recorded in Spec sync so a successor knows what remains. Two reversible decisions recorded (D-1, D-2). Review artifact: .aw/records/reviews/20260831-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate.review.md
