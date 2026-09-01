@@ -143,6 +143,27 @@ re-queues interrupted items for recovery.
 R2.4 A turn that produced no submission MUST reconcile to the honest empty-outcome fallback without
 error. Absence is a legitimate observation.
 
+R2.5 COLLECTION MUST BE RECORDED, not inferred. Added 2026-09-01 after `/aw plan-review` found that the
+retention rules (R5.5) needed to know whether a lane's submission had been collected and had no
+authoritative source for it: the sealed INPUT manifest (R5.1) records materialized inputs, while
+collection is OUTPUT, so they are different data and the manifest cannot answer the question. Inferring
+from path presence is not acceptable, because it either preserves every successful lane forever or
+deletes output whose collection FAILED.
+
+The driver MUST therefore write an ATTEMPT-KEYED collection record naming, per submission, its source
+digest and its destination result (success, or failure with a reason). Absence of a record means NOT
+collected and MUST NOT be inferred from a file existing somewhere. A FAILED collection MUST be recorded
+as failed rather than omitted, because a silently omitted failure is indistinguishable from a lane that
+wrote nothing.
+
+R2.6 THE SHARED-CODE HOME MUST BE DECLARED. Added 2026-09-01 after `/aw plan-review` observed that
+requiring host-neutral code while every plan's scope fence named only the two driver modules told an
+executor to do something the fence forbade. Where a containment rule is consumed by both host drivers,
+its single definition MUST live in a module that is DECLARED in the implementing plan's scope, not
+improvised into one driver and imported from the other (which makes one host the de-facto shared library
+and is the opposite of host-neutral). This is the R6.1 single-definition rule stated as an obligation on
+the PLAN rather than on the code.
+
 ### R3. Bounded missing-input repair
 
 R3.1 The contract MUST be a single deterministic token form carrying the repo-relative path and the
@@ -153,64 +174,57 @@ permission prompt.
 
 R3.3 The requested path MUST be resolved in coordinator code only, and MUST be REJECTED if it is
 absolute, escapes the checkout, names a coordinator-owned surface, names a sibling lane or the worktrees
-root, names machine-local state, names the git administration directory, NAMES A SECRET-BEARING PATH
-(R3.3a), is a directory rather than a file, or does not exist. The reject set MUST be the SHARED
+root, names machine-local state, names the git administration directory, is a directory rather than a file, or does not exist. The reject set MUST be the SHARED
 worker-forbidden predicate, not a second copy of the rules, so the two cannot drift.
 
-R3.3a SECRETS MUST BE REJECTED, and the rule MUST NOT be a new hand-written list. Measured 2026-09-01:
-the existing shared predicate (`worktree_lease.path_is_worker_forbidden` /
-`FORBIDDEN_WORKER_PATH_HINTS`) contains ONLY five coordinator-owned surfaces (`events.jsonl` and the
-plans, backlog, walkthroughs, and runs record directories) and NO secret handling whatsoever, so a
-request for `.env` would today be materialized into the lane. The repository already encodes its own
-secret vocabulary in `.gitignore` under the explicit headings "Environment / secrets" and "Credential /
-key files (should never be committed)": `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
-`*.keystore`, `.netrc`, `.npmrc`, `.pypirc`, `service-account*.json`, `credentials*.json`. The
-implementation MUST NOT transcribe that list, because a transcription drifts from the source the moment
-either changes, and MUST extend the shared predicate rather than adding a parallel check at one call site.
+R3.3a AMENDED 2026-09-01 (maintainer decision, verified against research `x03wgn`): THE
+PERMIT-AND-COPY BRANCH AND THE SECRET VOCABULARY ARE BOTH WITHDRAWN. The repair cycle is now
+REPORT-AND-REFUSE only. The built-in and derived secret reject set introduced earlier the same day
+(R3.3a-1, R3.3a-1a, R3.3a-1b, R3.3a-2), R3.3b's tracked-file test, and R3.4's copy are ALL superseded by
+this requirement and MUST NOT be implemented.
 
-R3.3a-1 AMENDED 2026-09-01 (maintainer decision, after `/aw plan-review` on child `y5od1h` finding
-PR-002). THE ORIGINAL WORDING WAS UNSAFE FOR A MANAGED TARGET REPOSITORY, and this amendment is a
-SECURITY CORRECTION rather than a clarification. The defect: R3.3a as approved said to derive the secret
-vocabulary from THIS repository's ignore file headings. But this toolkit is INSTALLED INTO OTHER
-repositories, whose ignore files may rename those headings, restructure them, or omit them entirely, and
-the requirement defined no behavior for an absent, empty, or malformed source. An empty derived
-vocabulary means NOTHING is treated as a secret, so a credentials file would be permitted and copied
-into a lane on request. Deriving a SECURITY rule from an OPTIONAL, project-authored file without a floor
-is the error.
+THREE REASONS, in the order they were discovered, because the third is the decisive one.
 
-THE AMENDED RULE has two parts and both are mandatory:
+(a) THE MAINTAINER'S OBJECTION, which stands on its own: taking on the duty of policing secrets invites
+blame when we miss one. Two mechanisms already cover secrets where it matters - `gitleaks` runs as a
+commit hook, and `aw sanitize` scans tracked files, the built package, and history. A third, weaker
+check at request time creates a guarantee we would be judged against without improving the outcome.
 
-(a) [R3.3a-1a] BUILT-IN FLOOR, ALWAYS APPLIED. The toolkit MUST carry its own secret vocabulary covering at minimum
-the families named above (environment files, certificates, private keys, keystores, netrc/npmrc/pypirc,
-service-account and credentials JSON). This floor applies UNCONDITIONALLY and is never disabled by, or
-subtracted from by, anything in a target repository. It is what makes the rule safe in a repository that
-declares nothing.
+(b) THE RESEARCH NEVER ASKED FOR POLICING. `x03wgn`'s lane-assembly section says: "Secrets: inject only
+task-required secret/config values through a dedicated policy. Do not copy `.env`, credentials, SSH
+state, cloud config, or token-bearing files merely because they are ignored." That is a DO-NOT-COPY
+instruction. Reading it as "build a secret-detection vocabulary and adjudicate requests" was an
+over-extension at authoring time, and it is what produced the unsafe derive-from-the-target-repo rule
+that `/aw plan-review` then correctly flagged.
 
-(b) [R3.3a-1b] TARGET-REPOSITORY ADDITIONS, UNION ONLY. Where a target repository declares its own secret families,
-those are ADDED to the floor so a project-specific name is also caught. The composition is strictly a
-UNION: a target repository can only ever WIDEN the reject set, never narrow it. An implementation that
-lets a target file remove a floor entry is non-conforming.
+(c) THE DECISIVE ONE: THE BRANCH COULD NOT DO ANYTHING USEFUL ANYWAY, for a structural reason. A lane is
+a `git worktree` at a commit, so it ALREADY CONTAINS every tracked file at that commit (measured
+2026-09-01: 0 of 1470 tracked files absent from a real lane). R3.3b permitted ONLY tracked files, so the
+copy branch could only ever copy a file the lane already had. Worse, the inputs the research actually
+worries about are IGNORED or UNTRACKED - it warns "do not assume an ignored main-checkout `.venv`,
+`node_modules`, SDK, or generated schema exists in the lane" - which is exactly the category R3.3b
+REFUSED. The branch was therefore inert against the real need and a liability against a need nobody had.
 
-R3.3a-2 FAIL CLOSED ON A BAD SOURCE. If the optional target-repository source is absent, unreadable,
-empty, or malformed, the driver MUST proceed on the built-in floor alone and MUST record that the
-additions were unavailable, naming the reason. It MUST NOT fail open (treat the absence as "no secrets
-exist") and MUST NOT abort the run, because the floor is sufficient to keep the guarantee and an abort
-would convert a benign missing file into a stopped run. If the FLOOR ITSELF cannot be loaded, that is a
-programming error in the toolkit and the driver MUST refuse the request outright rather than permit it.
+THE AMENDED RULE. On a missing-input report the driver MUST resolve the path in coordinator code, MUST
+REFUSE it, and MUST record a precise missing-input entry naming the path and the reason. It MUST NOT copy
+anything into the lane and MUST NOT grant access to the original checkout. No secret classification is
+performed, because nothing is ever materialized on request and so there is nothing to classify.
 
-R3.3b "IF POLICY PERMITS" IS DEFINED, not left to judgment: a request is PERMITTED when the resolved path
-(i) survives every rejection test in R3.3 and R3.3a, (ii) is a regular file inside the checkout, and
-(iii) is TRACKED by git. Untracked-but-present files are REFUSED by default: a lane is created from a
-commit, so a tracked file is content the lane provably should have had, whereas an untracked file is
-local machine state whose absence from the lane is correct rather than a defect. A future policy may
-widen (iii), but it MUST do so explicitly and MUST NOT be widened implicitly by an implementation
-choosing a looser test.
+WHAT IS PRESERVED, so this is not simply a deletion: the worker still has a BOUNDED, deterministic way to
+say "I need X" (R3.1), and the driver still preserves and pauses the lane rather than prompting (R3.2),
+so the escape hatch that makes R1.1's strictness survivable is intact. What changes is the ANSWER: the
+driver records the need for a human or a follow-up instead of satisfying it inline.
 
-R3.4 If policy permits, the driver MUST materialize a digest-verified copy into the lane, record a new
-manifest revision, record the corresponding authorization, and resume the same session or a new attempt
-with the change stated explicitly. A classification-and-copy that omits the manifest revision and the
-authorization record is NOT a conforming repair cycle: without them the lane's input set silently
-diverges from its sealed manifest.
+HONEST CONSEQUENCE, recorded rather than hidden: a turn genuinely blocked on a missing IGNORED input (a
+`.venv`, a generated schema) now fails with a precise record instead of self-repairing. That is the
+intended trade. If it proves an operational problem, the conforming fix is a LANE-ASSEMBLY change that
+materializes toolchain content UP FRONT under an explicit policy, which is what `x03wgn` actually
+prescribes, not a request-time copy path.
+
+R3.4 WITHDRAWN by R3.3a. There is no permitted-request path, so there is no copy on request, no manifest
+revision on request, and no authorization amendment. The manifest revision MECHANISM may still be built
+by the plan that owns the manifest, but nothing in this spec now requires a caller for it; a plan that
+implements it MUST state that it has no consumer rather than implying one.
 
 R3.5 If policy does not permit it, the driver MUST block with a precise missing-input record naming the
 path and the reason for refusal.
@@ -357,32 +371,42 @@ re-flag it as a traceability gap.
 - A4. Run the same attempt's collection twice; the run-wide decisions register contains the lane's
   contribution exactly once, and a sibling lane's contribution is still present. (R2.3)
 - A5. A turn that wrote nothing reconciles to the empty-outcome fallback without raising. (R2.4)
-- A6. Drive the missing-input cycle with a SAFE repo-relative file: a digest-verified lane copy appears, a
-  new manifest revision is recorded, an authorization record is written, the lane was paused and then
-  resumed, and no live grant was emitted. (R3.2, R3.4, R3.6)
+- A5b. COLLECTION IS RECORDED, in all four states, and they are distinguishable WITHOUT inspecting run
+  directory contents: collected, uncollected (no record), interrupted mid-collection, and repeated
+  collection of the same attempt. Show the source digest and destination result for each, and show a
+  FAILED collection recorded as failed rather than omitted. (R2.5)
+- A5c. THE SHARED-CODE HOME IS DECLARED. For every rule both drivers consume, show its single definition
+  lives in a module named in the implementing plan's declared scope, and that neither driver holds a
+  second copy (established by AST or the import graph, not a text grep). A rule defined in one driver and
+  imported by the other FAILS this criterion. (R2.6)
+- A6. AMENDED by R3.3a. Drive the missing-input cycle with any resolvable path and show the driver
+  REFUSES it with a precise record naming the path and the reason, preserves and pauses the lane, copies
+  NOTHING into the lane, and emits no live grant. The former version of this criterion tested a permitted
+  repair (copy plus manifest revision plus authorization plus resume); there is no permitted path now, so
+  a test asserting a successful copy would assert behavior the spec forbids. (R3.2, R3.3a, R3.6)
 - A7. Drive it with each forbidden shape (absolute, `..` escape, coordinator surface, sibling lane,
   machine state, git dir, directory, nonexistent): each is rejected with a precise record, no copy, no
   grant. Show the reject decision comes from the SHARED predicate. (R3.3, R3.5, R3.6)
-- A7b. SECRETS ARE REJECTED. Drive the cycle with a representative path from each secret family in the
+- A7b. WITHDRAWN by R3.3a (secret vocabulary removed; nothing is materialized on request, so there is nothing to classify). Formerly: Drive the cycle with a representative path from each secret family in the
   single derived source (at minimum `.env`, a `*.pem`, a `*.key`, and a `credentials*.json`) and show each
   is rejected with no copy and no grant. Then show the reject set is DERIVED from the existing
   `.gitignore` secret sections rather than transcribed, and that the rule lives in the SHARED predicate
   (so a second call site cannot miss it) rather than at one call site. A test that only proves `.env` is
   rejected does NOT satisfy this criterion. (R3.3a)
-- A7b-1. THE BUILT-IN FLOOR HOLDS WITH NO TARGET SOURCE AT ALL. In a synthetic target repository that has
+- A7b-1. WITHDRAWN by R3.3a. Formerly: WITH NO TARGET SOURCE AT ALL. In a synthetic target repository that has
   NO ignore file (and separately, one whose ignore file has none of the expected headings), show that a
   request for a representative path from EACH floor family is still REJECTED. This is the criterion that
   would have caught the original defect, so it must be tested against an EMPTY environment rather than
   this repository. (R3.3a-1a)
-- A7b-2. COMPOSITION IS A UNION, NEVER A SUBTRACTION. Show that a target repository declaring an
+- A7b-2. WITHDRAWN by R3.3a. Formerly:, NEVER A SUBTRACTION. Show that a target repository declaring an
   additional secret family causes that family to be rejected too, AND that a target repository which
   omits or contradicts a floor family does NOT cause that family to be permitted. An implementation where
   a target file can remove a floor entry fails this criterion. (R3.3a-1b)
-- A7b-3. A BAD SOURCE FAILS CLOSED AND SAYS SO. For each of absent, unreadable, empty, and malformed
+- A7b-3. WITHDRAWN by R3.3a. Formerly: AND SAYS SO. For each of absent, unreadable, empty, and malformed
   target sources: show the driver proceeds on the floor, still rejects every floor family, and RECORDS
   that the additions were unavailable with the reason. Show it does not abort the run. Separately show
   that if the FLOOR cannot be loaded the request is REFUSED outright rather than permitted. (R3.3a-2)
-- A7c. "POLICY PERMITS" IS TESTED AS DEFINED. Show a TRACKED safe file is permitted and materialized, and
+- A7c. WITHDRAWN by R3.3a (R3.3b's tracked-file test is superseded; there is no permit path). Formerly: Show a TRACKED safe file is permitted and materialized, and
   an UNTRACKED but otherwise safe file is REFUSED by default with a precise record. This pins R3.3b so a
   later implementation cannot silently widen the rule. (R3.3b)
 - A8. PER HOST, not once. For OPENCODE: decode the child environment for an unattended isolated turn and

@@ -3,8 +3,8 @@
 - Date: 2026-09-01
 - Kind: child
 - Concern: Once an isolated worker is told to use only lane-relative paths, a genuinely missing file becomes a dead end: the worker's only recourse would be to reach out of the lane, which is exactly what containment forbids. Without a bounded repair route, strictness alone converts a recoverable situation into a failure or a permission hang. The shared reject predicate also has NO secret handling today, so a naive implementation would happily copy a credentials file into a lane.
-- Scope: Implement the full missing-input repair cycle: a deterministic report token, preserve-and-pause, coordinator-only resolution with secret rejection, a digest-verified copy recorded as a manifest revision with authorization, resume, and a precise block when policy refuses. Implements spec `7ckptx` R3.1, R3.2, R3.3, R3.3a, R3.3b, R3.4, R3.5, R3.6, R3.7 and nothing else.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_missing_input_repair.py
+- Scope: Implement the missing-input REPORT-AND-REFUSE cycle: a deterministic report token, preserve-and-pause, coordinator-only resolution, one shared classification path for a denied permission event, and a precise refusal record. Implements spec `7ckptx` R3.1, R3.2, R3.3, R3.5, R3.6, R3.7 and nothing else. AMENDED 2026-09-01: R3.3a withdrew the permit-and-copy branch, the secret vocabulary (R3.3a-1/1a/1b/2), R3.3b's tracked-file test, and R3.4's copy; this plan no longer implements any of them.
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_missing_input_repair.py
 - Item-Dependencies: executed:lhmrhx, executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
@@ -32,6 +32,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-003: the original E-06 combined refusal recording with the ENTIRE agy token, pause, classification, repair, block, resume, manifest-revision, and authorization cycle. Those are independently testable state transitions and cannot be established by one execution item, which is the same partial-completion trap the predecessor fell into. The whole cycle MUST therefore live in HOST-NEUTRAL code, with each driver item restricted to event adaptation; E-06 adds the precise block plus that wiring.
 
+THE SHARED HOME IS NAMED, and is `agent_workflows/lane_containment.py` (declared first in this plan's `Scope-Paths`). Added 2026-09-01 after a self-review found that requiring host-neutral code while the fence named only the two driver modules told the executor to do something the fence forbade. Put the host-neutral functions THERE. Do NOT improvise a home by putting them in one driver and importing from the other: that makes one host the de-facto shared library, which is the opposite of host-neutral, and spec R2.6 forbids it. If the module does not exist yet, the plan that reaches it first CREATES it; a later plan EXTENDS it.
+
 THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` implemented resolve, reject, and copy, and described that as the repair cycle; review finding PR-004 caught that it omitted preserve-and-pause, the manifest revision, the authorization record, and resume. All five steps are E-items here, and V-items demand evidence of each stage separately so a partial implementation cannot be reported as complete.
 
 ### Task group 1: report and pause (R3.1, R3.2)
@@ -47,20 +49,19 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
   - Depends on: E-01
   - Expected outcome: each forbidden shape is rejected with a precise record and no copy; the decision type has no representation for a live grant; and the reject set is the shared predicate, shown by the call rather than a duplicated list.
   - Execution state: pending
-- [ ] E-03 IMPLEMENTS R3.3a. EXTEND the shared reject predicate to refuse secret-bearing paths, and DERIVE the secret vocabulary from the repository's single existing source rather than transcribing it. Measured at authoring: the shared predicate today contains only five coordinator-owned surfaces and ZERO secret handling, so a request for an environment file would be materialized into the lane. The repository already declares its secret families under two explicit headings in its ignore file; derive from those so the two cannot drift, and extend the SHARED predicate rather than adding a check at one call site, so a second caller cannot miss it.
+- [ ] E-03 WITHDRAWN by spec R3.3a (amended 2026-09-01); NO WORK IS REQUIRED and none may be done. This item previously extended the shared reject predicate with a secret vocabulary derived from the target repository's ignore file. That is withdrawn for three reasons recorded in the spec: policing secrets invites blame for a miss while `gitleaks` and `aw sanitize` already cover them; the research said do-not-COPY rather than adjudicate-requests; and decisively, nothing is materialized on request any more, so there is nothing to classify. An executor MUST NOT add a secret vocabulary, and MUST record in the walkthrough that this item was withdrawn rather than skipped.
   - Depends on: E-02
-  - Expected outcome: a representative path from each declared secret family is rejected with no copy; the vocabulary is derived from the existing source, shown by the derivation rather than a literal list; and the rule lives in the shared predicate.
+  - Expected outcome: no secret vocabulary exists in the shared predicate, and the walkthrough records that this item was withdrawn by spec amendment rather than left undone.
   - Execution state: pending
-- [ ] E-04 IMPLEMENTS R3.3b, R3.7. Implement the DEFINED meaning of "policy permits": the path survives every rejection test, is a regular file inside the checkout, AND is TRACKED by git. Untracked-but-present files are REFUSED by default, because a lane is created from a commit, so a tracked file is content the lane provably should have had while an untracked file is local machine state whose absence is correct. Then route a DENIED host permission event that points into the original checkout through this SAME classification path, so there is one rule rather than two.
+- [ ] E-04 IMPLEMENTS R3.7. Route a DENIED host permission event that points into the original checkout through the SAME classification path as a missing-input report, so there is one rule rather than two. AMENDED 2026-09-01: this item previously also implemented R3.3b's "policy permits" definition (tracked files permitted, untracked refused). Spec R3.3a WITHDREW that test along with the copy branch it gated, because a lane is a git worktree at a commit and therefore already contains every tracked file, making the permit path inert. Only the routing survives.
   - Depends on: E-03
-  - Expected outcome: a tracked safe file is permitted while an untracked otherwise-safe file is refused with a precise record; and a denied permission event for a path produces the same decision as the equivalent token for that path.
+  - Expected outcome: a denied permission event for a path produces the SAME decision record as the equivalent missing-input token for that path, proving one classification path rather than two.
   - Execution state: pending
-
 ### Task group 3: repair or block (R3.4, R3.5)
 
-- [ ] E-05 IMPLEMENTS R3.4. On a permitted request, materialize a digest-verified copy into the lane, record a NEW MANIFEST REVISION rather than editing an entry in place, record the corresponding authorization, and resume the same session or a new attempt with the change stated explicitly. All four parts are required: a classify-and-copy that omits the revision and the authorization is NOT a conforming repair cycle, because the lane's input set would silently diverge from its sealed manifest. Use the revision mechanism child `nna8yz` built; do not edit sealed entries.
+- [ ] E-05 IMPLEMENTS R3.5. RECORD THE REFUSAL PRECISELY. On any missing-input report, write an entry naming the path and the reason it was refused, so the outcome is auditable rather than a bare failure. AMENDED 2026-09-01: this item previously implemented the permit-and-copy branch (copy plus manifest revision plus authorization plus resume). Spec R3.3a WITHDREW that branch, so there is no permitted path and NOTHING is copied into a lane on request. Do NOT implement a copy here; a test asserting a successful copy would assert behavior the spec now forbids.
   - Depends on: E-04
-  - Expected outcome: a permitted request yields a digest-verified lane copy, a new manifest revision (with the prior revision still present and unmodified), a written authorization record, and an observable resume.
+  - Expected outcome: every missing-input report produces a precise record naming the path and the refusal reason, creates no copy in the lane, and emits no grant of access to the original checkout.
   - Execution state: pending
 - [ ] E-06 IMPLEMENTS R3.5, and WIRES the agy twin to the shared cycle. On a refused request, BLOCK with a precise missing-input record naming the path and the reason for refusal, so the outcome is auditable rather than a bare failure. Then verify the whole cycle applies in the agy driver: the token, the pause, the classification, and the block. The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
   - Depends on: E-05
@@ -154,16 +155,16 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste one case per forbidden shape (absolute, `..` escape, coordinator surface, sibling lane, machine state, git dir, directory, nonexistent), each showing a precise reject record and NO copy created. Paste evidence the reject decision comes from the SHARED predicate by showing the call, not a duplicated list. Then prove the no-live-grant property is STRUCTURAL: show the decision type cannot represent a grant (for example that no field exists to set), rather than asserting a value is false.
   - Observed evidence:
   - Result: pending
-- [ ] V-03 validates E-03 (proves R3.3a; spec A7b)
-  - Required evidence: paste a rejection for a representative path from EACH declared secret family, at minimum an environment file, a certificate, a key, and a credentials file. A test proving only one family is rejected does NOT satisfy this item. Then paste evidence the vocabulary is DERIVED from the repository's existing single source rather than transcribed (show the derivation), and that the rule lives in the SHARED predicate so a second call site cannot miss it. SABOTAGE REQUIRED: add a new secret family to the source and show it is rejected WITHOUT editing the predicate, which proves derivation rather than duplication.
+- [ ] V-03 validates E-03 (WITHDRAWN work; proves the withdrawal was honored)
+  - Required evidence: paste evidence that NO secret vocabulary was added to the shared predicate (show the predicate's contents), and quote the walkthrough statement recording that E-03 was WITHDRAWN by spec amendment rather than skipped or forgotten. An executor who implements a secret vocabulary here FAILS this item, because it would ship the liability the maintainer explicitly declined and would assert behavior the amended spec forbids.
   - Observed evidence:
   - Result: pending
-- [ ] V-04 validates E-04 (proves R3.3b, R3.7; spec A7c, A19)
-  - Required evidence: paste both halves of the tracked rule: a TRACKED safe file permitted and materialized, and an UNTRACKED otherwise-safe file REFUSED with a precise record. Then paste evidence that a denied host permission event for a path produces the SAME decision record as the equivalent token for that path, proving one classification path rather than two.
+- [ ] V-04 validates E-04 (proves R3.7; spec A19)
+  - Required evidence: paste evidence that a denied host permission event for a path produces the SAME decision record as the equivalent missing-input token for that path, proving one classification path rather than two. Do NOT test a tracked-versus-untracked permit rule: R3.3b was withdrawn, so there is no permit path to test, and asserting one would contradict the spec.
   - Observed evidence:
   - Result: pending
-- [ ] V-05 validates E-05 (proves R3.4; spec A6)
-  - Required evidence: paste evidence of all FOUR parts separately, since the predecessor was rejected for delivering only some: the digest-verified lane copy; the NEW manifest revision with the prior revision still present and unmodified; the written authorization record; and the observable resume. A run that copies the file but shows no revision or no authorization FAILS this item. Also show no sealed manifest entry was edited in place.
+- [ ] V-05 validates E-05 (proves R3.5; spec A6)
+  - Required evidence: paste a missing-input report producing a precise record that names both the path and the refusal reason, with NO copy created in the lane and no grant emitted. SABOTAGE REQUIRED: make the recorder omit the reason, paste the FAILING assertion, restore, paste it passing plus `git status` proving the product is unmodified. Also paste evidence that no code path copies a requested file into a lane (show the absence structurally, not by reading), since that is the behavior the amendment removed.
   - Observed evidence:
   - Result: pending
 - [ ] V-06 validates E-06 (proves R3.5 and twin parity; spec A7, CID-3)

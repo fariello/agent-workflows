@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Teardown currently removes a lane without first asking what is in it, so content the driver cannot account for is destroyed silently. Ignored files are the specific hazard: treating "ignored" as "disposable" is what previously deleted lane content without a record, and a lane can legitimately hold a dirty tracked file or a submission that was never collected.
 - Scope: Inventory a lane before teardown and REFUSE while it holds content the driver cannot classify, recording the reason as an event so preservation is auditable. Implements spec `7ckptx` R5.5, R5.6 and nothing else.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_retention.py
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_retention.py
 - Item-Dependencies: executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
@@ -30,6 +30,8 @@ A lane is destroyed only when the driver can account for everything in it, and a
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-002: the original E-03 combined refusal-event semantics with mirroring the complete inventory and teardown guard into the second driver, and inventory coverage, classification, fail-closed behavior, teardown refusal, and event identity have different failure modes. E-01 and E-02 MUST place the classification and the refusal in HOST-NEUTRAL functions both drivers call, so E-03 adds only the event detail plus thin wiring.
+
+THE SHARED HOME IS NAMED, and is `agent_workflows/lane_containment.py` (declared first in this plan's `Scope-Paths`). Added 2026-09-01 after a self-review found that requiring host-neutral code while the fence named only the two driver modules told the executor to do something the fence forbade. Put the host-neutral functions THERE. Do NOT improvise a home by putting them in one driver and importing from the other: that makes one host the de-facto shared library, which is the opposite of host-neutral, and spec R2.6 forbids it. If the module does not exist yet, the plan that reaches it first CREATES it; a later plan EXTENDS it.
 
 MEASURED DELTA, so do not rewrite what exists: the driver already emits a preservation event today. What is missing is the INVENTORY that decides when preservation is required. Verify the existing event and its emission site before adding anything, and extend rather than replace it.
 

@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: Containment currently has no layer that works without the worker's cooperation. On OpenCode the host permits out-of-lane access by default and nothing requests otherwise; on Antigravity no denial posture exists at all and auto-approve is a DECIDED constraint, so that host contributes nothing at the permission layer. Meanwhile an unanswerable permission request is bounded only by a coarse no-progress timeout, so a turn can wait far longer than it should.
 - Scope: Request the strongest permission posture each host actually supports, OBSERVE what took effect rather than assuming, preserve any operator-supplied configuration, and add driver-side deadlines that fire regardless of what the host decides. Implements spec `7ckptx` R4.1, R4.1a, R4.1b, R4.1c, R4.2, R4.3, R4.4, R4.5, R4.6 and nothing else.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_permission_posture.py, tests/test_turn_bounds.py
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_permission_posture.py, tests/test_turn_bounds.py
 - Item-Dependencies: executed:cqx5v7
 - From-Spec: 7ckptx
 - Blocks-Release: next
@@ -30,6 +30,8 @@ Every isolated turn has at least one containment layer that does not depend on t
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 HOST-NEUTRAL FIRST, ADAPTERS SECOND, AND THIS ONE IS A SELECTIVE PORT. Corrected after `/aw plan-review` finding PR-001: the original E-06 combined the role selector with every applicable agy mirror of policy reporting, operator-value handling, event observation, both deadlines, termination, and safe-failure recording. Because the agy host has NO policy document by design (R4.1), that was never a mechanical mirror, which makes an omitted seam likely. So the deadlines, the reporting, and the safe-failure recording MUST be host-neutral functions both drivers call; E-06 wires them and adapts this host's event shapes. It MUST also mark the policy-document step explicitly INAPPLICABLE for agy rather than leaving its absence to be inferred.
+
+THE SHARED HOME IS NAMED, and is `agent_workflows/lane_containment.py` (declared first in this plan's `Scope-Paths`). Added 2026-09-01 after a self-review found that requiring host-neutral code while the fence named only the two driver modules told the executor to do something the fence forbade. Put the host-neutral functions THERE. Do NOT improvise a home by putting them in one driver and importing from the other: that makes one host the de-facto shared library, which is the opposite of host-neutral, and spec R2.6 forbids it. If the module does not exist yet, the plan that reaches it first CREATES it; a later plan EXTENDS it.
 
 READ R4.6 BEFORE E-01. The permission denial in E-01 MUST NOT be delivered before child `cqx5v7` has removed the out-of-lane paths from the prompt. MEASURED: run `run-20260901T042331Z-118022` recorded ZERO permission events and both workers successfully wrote all five out-of-lane paths, so the host permits them today. Denying access to paths the prompt still names would break a currently-working runner. The `Item-Dependencies` edge encodes this; do not reorder it for convenience.
 

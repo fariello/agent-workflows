@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: The containment rules the earlier children implement risk being defined more than once, which is how two surfaces drift into disagreeing about the same rule. A dedicated module already exists to hold them as fail-loud stubs naming their owning phase, but it is imported by NO product module, so the intended single-definition discipline is declared and not yet real.
 - Scope: Consolidate the containment rules this Set introduced into single definitions that every consumer calls, implement the predicate bodies this Set owns, and leave the ones it does not owns raising with their owner named. Implements spec `7ckptx` R6.1, R6.2, R6.3 and nothing else.
-- Scope-Paths: agent_workflows/wtiso_gate.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_containment_predicates.py
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/wtiso_gate.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_containment_predicates.py
 - Item-Dependencies: executed:lhmrhx, executed:y5od1h
 - From-Spec: 7ckptx
 - Blocks-Release: next

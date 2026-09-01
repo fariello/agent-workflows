@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: An isolated worker is told to use only lane-relative paths (child `cqx5v7`), but nothing guarantees the files it needs are actually IN the lane, and one attachment is still handed to it by its main-checkout path. Separately, a lane is created from `HEAD`, so an uncommitted tracked edit in the target checkout is silently absent from the lane and the worker cannot know it is working against an incomplete base.
 - Scope: Materialize required inputs into the lane BY COPY with a sealed manifest, make every `--file` style attachment resolve inside the lane, and refuse to launch an unattended isolated turn from a dirty tracked base. Implements spec `7ckptx` R5.1, R5.1a, R5.2, R5.3, R5.4 and nothing else.
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_input_manifest.py, tests/test_lane_clean_base.py
+- Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_input_manifest.py, tests/test_lane_clean_base.py
 - Item-Dependencies: executed:cqx5v7
 - From-Spec: 7ckptx
 - Blocks-Release: next
@@ -30,6 +30,8 @@ Everything an isolated worker is told to use is provably inside its lane, record
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
 HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding PR-001: the original E-05 bundled the clean-base refusal WITH mirroring materialization, inode independence, sealing, revision behavior, and attachment localization into the second driver, which are separate failure modes that one checkbox cannot establish. E-01 through E-04 MUST therefore place the materializer, the seal, and the attachment resolution in HOST-NEUTRAL functions both drivers call, so E-05 adds only the clean-base guard plus thin wiring. Re-implementing any of them per driver would fork the rule (CID-2) and is a STOP-and-report condition.
+
+THE SHARED HOME IS NAMED, and is `agent_workflows/lane_containment.py` (declared first in this plan's `Scope-Paths`). Added 2026-09-01 after a self-review found that requiring host-neutral code while the fence named only the two driver modules told the executor to do something the fence forbade. Put the host-neutral functions THERE. Do NOT improvise a home by putting them in one driver and importing from the other: that makes one host the de-facto shared library, which is the opposite of host-neutral, and spec R2.6 forbids it. If the module does not exist yet, the plan that reaches it first CREATES it; a later plan EXTENDS it.
 
 WHY R5.3 IS HERE AND NOT IN `cqx5v7`: making every attachment lane-local requires a lane-local COPY of the runbook, and the copier is E-01 of THIS plan. Assigning R5.3 to `cqx5v7` would have made that plan depend on a mechanism a later plan owns, which is precisely the circular reference that got `tch3bo` rejected (PR-002). Recorded so a later reader does not "tidy" it back.
 

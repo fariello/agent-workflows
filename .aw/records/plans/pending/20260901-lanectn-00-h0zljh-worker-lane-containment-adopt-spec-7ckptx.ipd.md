@@ -60,11 +60,11 @@ Order is by dependency DEPTH, not convenience. `Depth` is the longest path to a 
 | 01 | `cqx5v7` | 0 | R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4 | none | The lane-relative prompt AND the collection of the worker's submissions back to the run directory. |
 | 02 | `nna8yz` | 1 | R5.1, R5.1a, R5.2, R5.3, R5.4 | `cqx5v7` | Copy-only input materialization with a sealed manifest, all attachments lane-local, and the clean-tracked-base refusal. |
 | 03 | `lhmrhx` | 1 | R4.1, R4.1a, R4.1b, R4.1c, R4.2, R4.3, R4.4, R4.5, R4.6 | `cqx5v7` | Per-host permission posture with honest reporting, and the driver-side deadlines that fire regardless of the host. |
-| 04 | `y5od1h` | 2 | R3.1, R3.2, R3.3, R3.3a, R3.3a-1a, R3.3a-1b, R3.3a-2, R3.3b, R3.4, R3.5, R3.6, R3.7 | `nna8yz`, `lhmrhx` | The full missing-input repair cycle, including secret rejection and the manifest revision. |
+| 04 | `y5od1h` | 2 | R3.1, R3.2, R3.3, R3.5, R3.6, R3.7 (R3.3a/-1/-1a/-1b/-2, R3.3b, R3.4 withdrawn) | `nna8yz`, `lhmrhx` | The full missing-input repair cycle, including secret rejection and the manifest revision. |
 | 05 | `xdr83v` | 2 | R5.5, R5.6 | `nna8yz` | Retention: refuse teardown while a lane holds unclassifiable content, and record why. |
 | 06 | `604wra` | 3 | R6.1, R6.2, R6.3 | `y5od1h`, `lhmrhx` | The shared predicates behind the above, and the fail-loud discipline for the ones this Set does not own. |
 
-PARTITION PROOF, and an honest account of how it was WRONG the first time. The six children own every requirement id the spec declares, with ZERO duplicates and ZERO unowned, and the graph is acyclic with every prerequisite at a strictly lower depth.
+PARTITION PROOF, and an honest account of how it was WRONG the first time. The six children own every LIVE requirement id the spec declares (34 after the 2026-09-01 amendment withdrew the permit-and-copy branch and the secret vocabulary), with ZERO duplicates and ZERO unowned, and the graph is acyclic with every prerequisite at a strictly lower depth.
 
 CORRECTED 2026-09-01 after `/aw plan-review` (orchestrator PR-001, children 04/PR-001 and 06/PR-002). The original proof asserted the graph was "complete and acyclic" and was checked for ACYCLICITY ONLY. It never checked that the machine-readable `Item-Dependencies` matched what each child's PROSE required, and two edges were missing: `y5od1h` needed `lhmrhx` (its E-04 routes a denied host-permission event owned by that child) and `604wra` needed `lhmrhx` (its prose said so explicitly). A scheduler reading metadata could therefore have started work before the required seams existed. This is the same CLASS of defect that got the predecessor `tch3bo` rejected, reintroduced in a different form while I claimed to have proven it absent.
 
@@ -86,7 +86,7 @@ Numbered so E-02 can cite each one. Every criterion is an OBSERVABLE state, neve
 1. All six children are in `.aw/records/plans/executed/` with `- Status: executed`.
 2. Every child's `V-*` items carry pasted command output; the count of EMPTY `Observed evidence:` lines
    across the Set is ZERO.
-3. Every acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A7b, A7c, A8b, A8c, A12b) is
+3. Every acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A8b, A8c, A12b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) is
    demonstrated with pasted evidence, or recorded UNVERIFIED with its reason. Silent omission fails.
 4. An isolated prompt from BOTH drivers contains ZERO absolute paths outside the lane root, asserted by
    pattern match over the emitted text (spec R1.1, A1).
@@ -96,8 +96,10 @@ Numbered so E-02 can cite each one. Every criterion is an OBSERVABLE state, neve
    disposition, not the empty-outcome fallback (spec R2.1, A3).
 7. Re-running a turn's collection does not duplicate its contribution to the run-wide register, and does
    not remove a sibling lane's (spec R2.3, A4).
-8. A secret-bearing path is refused by the missing-input classifier, with the reject set DERIVED from the
-   existing `.gitignore` vocabulary and living in the SHARED predicate (spec R3.3a, A7b).
+8. A missing-input report is REFUSED with a precise record naming the path and the reason, and NOTHING is
+   copied into the lane (spec R3.3a as amended 2026-09-01, A6). The former criterion here required a
+   derived secret vocabulary; that was withdrawn with the permit-and-copy branch, so an implementation
+   that adds one FAILS this criterion rather than exceeding it.
 9. On a host with no denial posture, the attempt record says so and no artifact claims denial
    (spec R4.1a, A8b); and Antigravity's `--dangerously-skip-permissions` default is still `True`
    (spec R4.1c, A8c).
@@ -219,7 +221,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste the verification record path under `.aw/records/walkthroughs/`, and in it demonstrate EVERY acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A7b, A7c, A8b, A8c, A12b) with the command run and its actual output. For each of CID-1 through CID-5 paste the check and its result, with CID-1 and CID-2 done by AST or import graph over `agent_workflows/` and NOT by text grep (a grep is satisfied by the checking code itself). Paste BOTH suite invocations with their summary lines, reconciled against the baselines above, stating the expected count per invocation separately. Any criterion recorded UNVERIFIED must name its reason; a criterion silently omitted is a validation failure.
+  - Required evidence: paste the verification record path under `.aw/records/walkthroughs/`, and in it demonstrate EVERY acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A8b, A8c, A12b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) with the command run and its actual output. For each of CID-1 through CID-5 paste the check and its result, with CID-1 and CID-2 done by AST or import graph over `agent_workflows/` and NOT by text grep (a grep is satisfied by the checking code itself). Paste BOTH suite invocations with their summary lines, reconciled against the baselines above, stating the expected count per invocation separately. Any criterion recorded UNVERIFIED must name its reason; a criterion silently omitted is a validation failure.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
