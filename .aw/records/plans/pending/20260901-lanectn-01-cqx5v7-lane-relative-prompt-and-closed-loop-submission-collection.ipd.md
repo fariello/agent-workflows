@@ -1,0 +1,163 @@
+# IPD: Lane-relative prompt and closed-loop submission collection
+
+- Date: 2026-09-01
+- Kind: child
+- Concern: An isolated turn's prompt emits FIVE absolute paths outside the lane and then declares them authorized exceptions, so the worker must resolve a self-contradiction on every turn (spec `7ckptx` R1.1, R1.2). Removing the paths alone is NOT safe: the driver's reconciliation reads the run directory, so an obedient worker's lane-side outcome would never be found and a successful turn would silently never finalize (R2.1).
+- Scope: Make every worker-facing path in an isolated prompt lane-relative, DELETE the exception clause, and in the SAME plan collect the worker's submissions back to the paths the driver already reads. Implements spec `7ckptx` R1.1, R1.2, R1.3, R1.4, R2.1, R2.2, R2.3, R2.4 and nothing else.
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_prompt_purity.py, tests/test_lane_submission_collection.py
+- Item-Dependencies: none
+- From-Spec: 7ckptx
+- Blocks-Release: next
+- Status: to-review
+- Set: lanectn
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode/its_direct/pt3-claude-opus-5-1m-us
+- Id: cqx5v7
+
+## Workflow history
+
+- 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): first child of Set `lanectn`, tracing to approved spec `7ckptx`. Deliberately small: 5 E-items, two files of product code, two new test files. R1 and R2 are together in THIS plan because spec R2.1 makes shipping them together normative; splitting them is the invisible-failure mode recorded there.
+- 2026-09-01 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
+
+## Goal
+
+An isolated turn is told exactly one thing about where it may work, and everything it writes is still found by the driver.
+
+Concretely: the emitted prompt contains ZERO absolute paths outside the lane root, no sentence authorizes an exception, the worker is told the ONE form for reporting a missing input, and the driver collects the worker's submissions to its own read locations before computing the turn's disposition.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+DO NOT SPLIT THIS PLAN, and do not land E-01 in a commit that does not also contain E-03. Spec R2.1 is normative on this point: a lane-relative instruction whose output nobody collects fails INVISIBLY (the worker writes inside the lane, reconciliation reads the run directory, finds nothing, scores the turn from the empty-outcome fallback, and that disposition is outside the gating set, so a fully successful turn never finalizes). That is worse than the contradiction being removed.
+
+### Task group 1: lane-relative paths (R1)
+
+- [ ] E-01 IMPLEMENTS R1.1, R1.3. In `oc_runipd.build_prompt`, compute the worker-facing paths (plan file, run directory, decisions register, outcome JSON, driver report) RELATIVE to the lane root when the turn is isolated, keyed so a resumed run, a retry, and a co-resident lane cannot collide. Leave the non-isolated branch byte-identical: pass a lane root of `None` and the emitted string must be unchanged.
+  - Depends on: none
+  - Expected outcome: for an isolated item the returned string contains no substring matching an absolute path outside the lane root; for a non-isolated item the returned string is byte-identical to the pre-change output for the same inputs.
+  - Execution state: pending
+- [ ] E-02 IMPLEMENTS R1.2, R1.4. DELETE the exception clause from the isolation notice, verbatim the sentence beginning "When a path below is given as an absolute path outside the lane" and ending "you write them exactly as given" (`oc_runipd.build_isolation_notice`). Keep the rest of that block: it is main's own plain-language statement of the rule and it is not the defect. Then ensure the notice states that the cwd is the complete authorized workspace AND names the exact missing-input token form, so the strictness from E-01 ships with its escape hatch.
+  - Depends on: E-01
+  - Expected outcome: the exception sentence is absent from the module; the emitted isolated prompt contains the workspace statement and the literal missing-input token form.
+  - Execution state: pending
+
+### Task group 2: close the loop (R2)
+
+- [ ] E-03 IMPLEMENTS R2.1, R2.2, R2.4. Add a collection step that COPIES (never moves) the worker's lane-side submissions to the exact paths the driver already reads, and call it in `execute_item` IMMEDIATELY BEFORE `reconcile_disposition`. A turn that wrote nothing must reconcile to the existing empty-outcome fallback without raising.
+  - Depends on: E-01
+  - Expected outcome: after an isolated turn whose worker wrote a lane-side outcome declaring `executed`, `reconcile_disposition` returns that disposition and the file exists at the driver-side path; the lane retains its own copy; a turn with no submission still reconciles without error.
+  - Execution state: pending
+- [ ] E-04 IMPLEMENTS R2.3. Make collection IDEMPOTENT for the run-wide decisions register, which is APPENDED to and shared by every item. Choose ONE mechanism and state which in the code comment: key the appended block to the attempt, or write deterministic per-lane files that are concatenated on read. Retry is a real path, not hypothetical: `requeue_interrupted` re-queues interrupted items for recovery.
+  - Depends on: E-03
+  - Expected outcome: running the same attempt's collection twice leaves the lane's contribution present exactly once; a sibling lane's contribution is still present after both runs.
+  - Execution state: pending
+- [ ] E-05 IMPLEMENTS R1.1, R1.2, R1.4, R2.1 FOR THE AGY TWIN. Mirror E-01 through E-04 in `agy_runipd.py`. The two drivers are deliberate near-parity twins and a containment rule present in one only is a DEFECT, not partial delivery (CID-3). Do NOT assume the call sites are identical: verify each seam in this driver before editing it.
+  - Depends on: E-04
+  - Expected outcome: the agy driver satisfies the same assertions as the oc driver for an isolated turn, proven by the same test module parameterized over both drivers rather than by a copied test.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- Measured at HEAD `59e68d5a`; anchor on symbol names, since this plan moves these lines.
+- Main ALREADY solved the prompt-after-allocation sequencing, differently from the retired lane design: `execute_item` builds a pre-lane draft prompt, then REBUILDS it after allocation with the lane root and the lane's plan path, re-writing the prompt file and re-taking its digest so the digest describes what the agent actually received. Build ON that; do not revert to moving the first call.
+- `build_isolation_notice` is main's own work, added for a measured leak. Only the exception clause is the defect; the rest of the block stays.
+- The two drivers are near-parity twins; `cdef9c90` is the precedent for editing both symmetrically in one pass.
+- The suite must be run BARE and `make test-all` separately: a bare run deselects `slow` tests, and during `zpbx7o` a bare run reported GREEN while `make test-all` was red (`mzy2so`).
+
+## Findings
+
+| id | Finding | Evidence |
+| --- | --- | --- |
+| F-1 | The contradiction is emitted by the driver itself and is measurable, not inferred. An isolated prompt says "Do NOT read or write the main checkout" and nine lines later declares five absolute paths "the only exceptions ... you write them exactly as given". | `oc_runipd.build_isolation_notice`; read verbatim from the prompt a worker actually received in run `run-20260901T042331Z-118022`. |
+| F-2 | FIVE absolute out-of-lane paths are emitted today. Built by invoking `build_prompt` directly with a synthetic isolated item: the plan file, the run directory, the decisions register, the execution report, and the outcome JSON. In the live prompt the main-checkout path appears 7 times, only 2 of them inside the lane. | Direct invocation plus regex over the returned string; `grep -c` over the live prompt file. |
+| F-3 | Collection is REQUIRED, not optional polish. The driver reads `<run_dir>/outcomes/<NN>-<id6>.json`; a lane-relative instruction alone leaves that path empty, and the resulting fallback disposition sits outside the set that gates verification and self-finalize. | `reconcile_disposition`'s read path; spec `7ckptx` R2.1 rationale. |
+| F-4 | Idempotency is required because retry is real. `requeue_interrupted` re-queues interrupted items so resume retries in recovery mode, and the decisions register is run-wide and append-only. | `oc_runipd.requeue_interrupted`; spec R2.3. |
+| F-5 | This child carries the WHOLE containment guarantee for Antigravity, which raises its priority. That host contributes nothing at the permission layer by design (its `--dangerously-skip-permissions` default is a decided constraint, spec R4.1c), so R1 plus the driver-side bounds in child `03` are all there is. | Spec `7ckptx` R4.1 antigravity case. |
+
+## Proposed changes (ordered, validatable)
+
+1. Lane-relative worker-facing paths in the oc driver, non-isolated branch untouched (E-01).
+2. Delete the exception clause; keep the workspace statement and name the missing-input token (E-02).
+3. Collect submissions back, immediately before reconciliation (E-03).
+4. Make the shared register's collection idempotent under retry (E-04).
+5. Mirror all of it in the agy twin, verifying each seam rather than assuming symmetry (E-05).
+
+## Deferred / out of scope (with reason)
+
+- The lane input manifest, all `--file` attachments, and the clean-base guard: child `02` (`nna8yz`) owns R5.1-R5.4. This plan may name the missing-input TOKEN (R1.4) but must not implement the classifier.
+- The missing-input classifier and repair cycle: child `04` (`y5od1h`) owns R3.
+- Permission policy and turn deadlines: child `03` (`lhmrhx`) owns R4. Spec R4.6 forbids that work landing before THIS plan.
+- Retention and teardown: child `05` (`xdr83v`) owns R5.5-R5.6.
+- Shared predicate bodies: child `06` (`604wra`) owns R6.
+- The noise-gated watchdog: spec Section 5.1 DECLINES it on measurement. Out of scope for the whole Set.
+
+## Scope check
+
+- Over-scope: none. Four files, all declared, and the eight requirements this plan is assigned.
+- Under-scope: none for its assigned requirements. It does NOT deliver containment on its own: without child `03`'s bounds and child `04`'s repair path the guarantee is prompt-level only, which is why the orchestrator sequences all six.
+
+## Required tests / validation
+
+Two new test modules, parameterized over BOTH drivers rather than duplicated:
+
+- `tests/test_lane_prompt_purity.py`: the R1 property assertions.
+- `tests/test_lane_submission_collection.py`: the R2 loop and idempotency assertions.
+
+Baselines measured at HEAD `59e68d5a`: bare `python3 -m pytest` -> `3996 passed, 3 skipped, 4 xfailed`; `make test-all` -> `4 failed, 4394 passed, 3 skipped, 4 xfailed`. Expected counts differ per invocation and MUST be stated separately: bare `failed == 0`; `make test-all` `failed == 4` with no NEW failure. The 4 are pre-existing CLI-surface checks, not this plan's to fix.
+
+## Spec / documentation sync
+
+- Spec `7ckptx` is the normative source; this plan cites requirement ids and does not restate them.
+- No user-facing documentation change: no public command surface is altered.
+
+## Open questions
+
+### OQ-01: Attempt-keyed dedup or deterministic per-lane files for R2.3?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: EITHER IS ACCEPTABLE and the choice is the executor's, which is exactly how spec `7ckptx` OQ-03 deferred it: R2.3 fixes the REQUIREMENT (a retry must not duplicate, and must not remove a sibling's contribution) and A4 fixes the test, so the mechanism is an implementation decision rather than a contract question. E-04 requires the executor to CHOOSE ONE and state which in the code comment, so a later reader is not left guessing which invariant the code relies on. What is NOT acceptable is implementing neither and claiming idempotency, which V-04's two-run evidence is designed to catch.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01 (proves R1.1, R1.3; spec A1, A2)
+  - Required evidence: paste the FULL emitted prompt for an isolated turn, then paste the output of a pattern scan over that string proving zero absolute paths outside the lane root, STATING THE PATTERN USED. A visual reading does not satisfy this item. Then paste a digest comparison of the NON-isolated prompt before and after the change for identical inputs, showing they match. SABOTAGE REQUIRED: re-introduce one absolute out-of-lane path, paste the FAILING scan, revert, paste the passing scan and `git status` proving the product is unmodified. A scan that passes both before and after sabotage is not testing anything.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02 (proves R1.2, R1.4; spec A1, A17)
+  - Required evidence: paste a search of the module showing the exception sentence is ABSENT, and paste the emitted isolated prompt showing both the workspace statement and the literal missing-input token form are PRESENT. The absence assertion must be over the EMITTED OUTPUT, not only the source, so that a reworded exception also fails; state how your check would catch a rephrased exception. A test pinned to the exact old sentence does not satisfy this item.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03 (proves R2.1, R2.2, R2.4; spec A3, A5, A18)
+  - Required evidence: paste a test run showing that after an isolated turn whose worker wrote a lane-side outcome declaring `executed`, `reconcile_disposition` returns THAT disposition and not the empty-outcome fallback; paste the harvested file's driver-side path; paste evidence the LANE still holds its own copy (proving copy, not move); and paste a case where the worker wrote nothing reconciling without raising. Also paste the source order proving the collection call precedes `reconcile_disposition` in `execute_item`. SABOTAGE REQUIRED: remove the collection call, paste the run showing the disposition degrade to the fallback, restore, paste it passing.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04 (proves R2.3; spec A4)
+  - Required evidence: paste a test that runs the SAME attempt's collection TWICE and asserts the lane's contribution to the run-wide register appears exactly once, AND that a sibling lane's contribution is still present after both runs. State which mechanism E-04 chose and quote the code comment recording it. A single-run test does not satisfy this item, because the defect only appears on the second run.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05 (proves twin parity; CID-3)
+  - Required evidence: paste the test run showing the SAME parameterized assertions passing for BOTH `oc_runipd` and `agy_runipd`, and paste evidence the tests are parameterized over the two drivers rather than copied (show the parameterization, not two similar functions). Then paste both whole-suite invocations with their summary lines, reconciled against the baselines, with the expected count stated SEPARATELY per invocation. An unexplained new failure means `Result: pending`, never a pass.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: 5 E-leaves in 2 task groups, well under both thresholds. The two groups are one indivisible change by spec mandate (R2.1), not two concerns bundled: the prompt change and the collection change are the two halves of a single loop, and shipping either alone is a regression. Everything separable was deliberately pushed to siblings `02` through `06`.
+
+Execution contract: this plan INHERITS the shared execution contract from orchestrator `h0zljh` verbatim, including its ten numbered rules. The four most likely to be skipped here, restated because skipping them is how this work gets faked:
+
+1. PROSE IS NEVER EVIDENCE. Paste real command output and exit codes, never a summary of them.
+2. SABOTAGE the central assertions in V-01 and V-03. A passing test that also passes when the product is broken proves nothing; this session already produced one such test and only sabotage exposed it.
+3. ASSERT THE PROPERTY, NOT THE WORDING (V-02). A reworded exception must still fail the check.
+4. THE SCOPE FENCE IS A STOP CONDITION. Touch only the four declared paths. If the work seems to need the manifest, the classifier, the deadlines, or the retention rules, that is a SIBLING's scope: STOP AND REPORT, do not broaden.
+
+Commits are path-scoped and never pushed. Verify the staged set with `git diff --cached --name-only` before every commit and re-verify after any failed or hook-interrupted commit.
+
+Post-gate lifecycle: run `aw ipd lint --phase pre-transition`, then `aw ipd finalize`, never a hand edit. If validation did not pass, record `substantially-complete` honestly rather than marking this executed.
