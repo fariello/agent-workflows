@@ -433,7 +433,7 @@ Execution contract:
 2. Scope fence: touch ONLY the paths in `Scope-Paths`. Do NOT change ledger semantics, storage, or the
    viewer's rendering; do NOT fix the pre-existing `test_run_viewer_cli_issues_flag` failure (F-8) or the
    42 undeclared leaves; do NOT edit spec `25kzda`; do NOT touch `.aw/worktrees/*/` lane copies (other
-   agents' checkouts). If the work seems to need more, STOP and report.
+   agents' checkouts). Do not broaden CASUALLY; if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until every out-of-scope path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`, so an unjustified widening is CAUGHT AT THE GATE rather than prevented by halting a run (maintainer ruling 2026-09-01; a scope fence DECLARES, it does not halt). Do NOT edit a sibling plan or this orchestrator, and do NOT reimplement a rule another plan owns.
 3. Honesty rule (HARD MUST): paste the ACTUAL runner output for every named command. A V-item whose
    command was not executed stays `Result: pending`. Report suite counts from `--junitxml` (the repo's
    `-q -n auto` addopts suppress the summary line) and compare against the corrected baseline of
