@@ -18,7 +18,8 @@
 
 - 2026-09-01 draft (antigravity): created orchestrator.
 - 2026-09-01 to-review (antigravity): authored complete orchestrator plan.
-- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001..PR-008. Author-phase lint conforming for all six plans; every finding is semantic. Two BLOCKERs escalated as OQ-1/OQ-2. Review record: .aw/records/reviews/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.review.md
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001..PR-008. Author-phase lint conforming for all six plans; every finding is semantic. Review record: .aw/records/reviews/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.review.md
+- 2026-09-01 /plan-review question loop (maintainer): OQ-1 and OQ-2 asked interactively and ANSWERED, so neither remains blocking. OQ-1 = UNION vocabulary (keep `roadmaps`, add `reviews`/`backlog`/`other`). OQ-2 = emitted layout files GITIGNORED via the framework-owned `.aw/.gitignore`. Verdict unchanged (the remaining findings still require a replan).
 
 ## Goal
 
@@ -107,8 +108,15 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- OQ-1 What is the TRUE unified record-class vocabulary?
-  - Blocking: yes
+- OQ-1 RESOLVED 2026-09-01 by the maintainer: UNION. Keep every type that exists today, including
+  `roadmaps`, and ADD the missing ones (`reviews`, `backlog`, `other`) where a module lacks them. The
+  unified model DOCUMENTS reality rather than redefining it, so the consolidation deletes nothing and
+  breaks nothing. Two consequences the replan must carry: (a) `roadmaps` STAYS, so no child may drop it
+  from `ARTIFACT_TYPES`; (b) `records` (the empty-subpath special case at
+  `agent_workflows/record_producers.py:136`) needs an EXPLICIT carve-out in the model rather than being
+  represented as an ordinary record type with a subpath. `reviews` becoming an accepted CLI noun also
+  means `aw check reviews` must stop erroring.
+  - Blocking: resolved
   - Finding: PR-001
   - Spec `kw5y2s:59-73` presents a `record_classes` table as the single source of truth, but it matches
     NEITHER existing vocabulary. Measured at HEAD `df600461`: `ARTIFACT_TYPES`
@@ -126,8 +134,20 @@ Execution-state rule: mark an E-* item complete only after performing the action
     `reviews` / `backlog` / `other` join the closed CLI noun vocabulary; (c) what becomes of the
     empty-subpath `records` class. This changes a closed public vocabulary, so it is NOT a reviewer call.
 
-- OQ-2 Is the emitted `.aw/system/layout.json` git-TRACKED or GITIGNORED in a target repo?
-  - Blocking: yes
+- OQ-2 RESOLVED 2026-09-01 by the maintainer: GITIGNORED, via a `.gitignore` INSIDE the `.aw/`
+  directory. Consistent with the `ila6vl` ruling on generated manifests and with this spec's own
+  anti-drift rationale: the installer writes `.aw/system/layout.json` and `.aw/system/layout.schema.json`
+  and git never sees them. The ignore rule goes in the FRAMEWORK-OWNED `.aw/.gitignore`, NOT the user's
+  root `.gitignore`, which the installer must never touch. That file already exists and already carries
+  this exact convention for four other generated/box-local paths (`.aw/.gitignore:1-15`, whose header
+  states "This file lives inside the framework-owned `.aw/` tree; it is NOT the user's root
+  `.gitignore`"), so the mechanism is established, not new. The replan must add `system/layout.json` and
+  `system/layout.schema.json` there (paths are relative to `.aw/`).
+  - Consequence the replan must handle: a FRESH CLONE has no layout.json until an install or update
+    runs, so every non-Python reader must tolerate absence, and any CI job reading it needs an install
+    step first. Consider pairing this with the `aw check` presence/version rule (see `30jug9` E-02) so
+    absence or a version mismatch fails loudly rather than silently.
+  - Blocking: resolved
   - Finding: PR-004
   - The spec's rationale for install-time emission is that it "Eliminates Git Drift" (`kw5y2s:40-43`),
     but the plans never state the trackedness of the file they emit, and the two available precedents
