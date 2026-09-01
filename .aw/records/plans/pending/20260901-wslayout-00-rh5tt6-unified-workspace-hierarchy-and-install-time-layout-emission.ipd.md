@@ -18,6 +18,7 @@
 
 - 2026-09-01 draft (antigravity): created orchestrator.
 - 2026-09-01 to-review (antigravity): authored complete orchestrator plan.
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001..PR-008. Author-phase lint conforming for all six plans; every finding is semantic. Two BLOCKERs escalated as OQ-1/OQ-2. Review record: .aw/records/reviews/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.review.md
 
 ## Goal
 
@@ -106,7 +107,48 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- none.
+- OQ-1 What is the TRUE unified record-class vocabulary?
+  - Blocking: yes
+  - Finding: PR-001
+  - Spec `kw5y2s:59-73` presents a `record_classes` table as the single source of truth, but it matches
+    NEITHER existing vocabulary. Measured at HEAD `df600461`: `ARTIFACT_TYPES`
+    (`agent_workflows/artifact_types.py:12-23`) contains `roadmaps`, which the spec omits; `RecordClass`
+    (`agent_workflows/record_producers.py:85-101`) contains `records` (subpath `""`, `:136`), which the
+    spec omits; the spec adds `reviews` (not an accepted CLI noun), and adds `backlog` + `other` to the
+    record-class set (absent from `RecordClass`).
+  - Why blocking: `roadmaps` is live in 12 modules including shipped CLI surfaces
+    (`agent_workflows/artifact_rename.py:827-828,855-856` `run_rename_roadmaps` / `run_group_roadmaps`,
+    `artifact_refs.py:215`, `artifact_naming.py:95`, `artifact_core.py:169`). Deriving `ARTIFACT_TYPES`
+    from the spec's list (Order 02 `zvk796` E-01) would DELETE a shipped noun; deriving
+    `_RECORD_CLASS_SUBPATHS` (Order 03 `rodj06` E-01) would drop the root-level `records` class. No
+    V-item in either child would detect it, because both validate only two narrow test files.
+  - Decision needed from the maintainer: (a) is `roadmaps` retained or deliberately retired; (b) do
+    `reviews` / `backlog` / `other` join the closed CLI noun vocabulary; (c) what becomes of the
+    empty-subpath `records` class. This changes a closed public vocabulary, so it is NOT a reviewer call.
+
+- OQ-2 Is the emitted `.aw/system/layout.json` git-TRACKED or GITIGNORED in a target repo?
+  - Blocking: yes
+  - Finding: PR-004
+  - The spec's rationale for install-time emission is that it "Eliminates Git Drift" (`kw5y2s:40-43`),
+    but the plans never state the trackedness of the file they emit, and the two available precedents
+    point in OPPOSITE directions. `.aw/system/` is TRACKED in this repository (156 files via
+    `git ls-files`), the sibling generated marker `.aw/system/VERSION` is tracked, and
+    `git check-ignore .aw/system/layout.json` reports it NOT ignored, so emission as designed creates a
+    tracked generated file. Yet one day earlier the maintainer resolved the closely analogous case the
+    other way: backlog `ila6vl` decided to "stop tracking the four generated INDEX.json/INDEX.md
+    manifests" precisely to end that churn.
+  - Why blocking: it is the single most consequential unstated decision in the Set, and it is
+    effectively irreversible once target repos have committed the artifact and tooling depends on it.
+  - Also for the same decision: `aw context --json` ALREADY emits `data.logical_roots` (resolved
+    absolute paths) and `data.effective_framework_version`, and `aw path <root>` prints one path for
+    scripting. The genuinely unserved gap is narrower than the Set's framing: the record-class
+    vocabulary (subpath / pattern / lifecycle subdirs / aliases) and the state-class map. Confirm the
+    scope is narrowed accordingly.
+
+- OQ-3 (non-blocking, resolve during replan) `aw setup-repo` and `aw update` are named as install
+  entry points (`kw5y2s:317,333,346`; `hauwqh:6,24,39`; `30jug9` V-02) but NEITHER is a CLI verb.
+  `setup-repo` is a WORKFLOW (`.aw/system/workflows/setup-repo/setup-repo.md`) with no Python call site;
+  the idempotent updating verb is `aw install`. See PR-003.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

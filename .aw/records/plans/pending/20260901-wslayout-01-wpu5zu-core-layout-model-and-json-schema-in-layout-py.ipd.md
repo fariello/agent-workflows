@@ -18,6 +18,8 @@
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
+  - Survives nearly intact (PR-001 vocabulary pinning only); the additive layout.py + tests/test_layout.py shape is correct.
 
 ## Goal
 
