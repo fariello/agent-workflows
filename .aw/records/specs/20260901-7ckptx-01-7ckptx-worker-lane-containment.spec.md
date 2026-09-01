@@ -11,7 +11,7 @@
 
 ## Workflow history
 
-- 2026-09-01 to-review (aw specs): Authored in response to /aw plan-review PR-005, which correctly refused plan tch3bo for having no normative basis: research x03wgn and backlog vqv9im are evidence of what was measured and decided, not a specification requirements can trace to. 30 requirements, 20 acceptance criteria, full bijection (every requirement cited by at least one criterion). Also answers PR-003 (R2.3 idempotent collection, because requeue_interrupted proves retry is a live path), PR-004 (R3.2-R3.5 carry all five research steps, not just classify-and-copy), PR-009 (R4.3 forbids blindly discarding an operator-supplied config value), and PR-010 (R5.2 requires link-independence, since a hard link passes a symlink check and a digest comparison). Section 5 records three research recommendations DECLINED with evidence, including the noise-gated watchdog: measured over 920 real stream lines with zero noise events, so it is inert on this host, while the measured live risk here is spurious kills, which gating makes more likely. That reverses my own earlier assessment and is recorded rather than quietly dropped.
+- 2026-09-01 to-review (aw specs): Closed the three semantic gaps the maintainer's review identified, all confirmed against the code before fixing. (1) R4.1 assumed an OpenCode-style deny policy for both hosts; measured that Antigravity passes --dangerously-skip-permissions with default=True (agy_runipd.py:2767, :4429) and that its only alternative requires INTERACTIVE permissions, so its two postures are auto-approve-everything or deadlock and no deny-and-continue posture exists. R4.1 is now per-host 'strongest supported posture', R4.1a makes honest reporting normative and forbids describing such a host as denied, and closing the gap is Non-goal 7. (2) R3.3 did not reject secrets; measured that the shared predicate carries only five coordinator surfaces and ZERO secret handling, so .env would have been materialized. R3.3a requires the reject set be DERIVED from the .gitignore secret sections rather than transcribed, and extended in the SHARED predicate. R3.3b defines 'if policy permits' as survives-all-rejections + regular-file-in-checkout + TRACKED, with untracked refused by default. (3) 'Sealed' was used twice and never defined; R5.1a defines it as read-only manifest, read-only inputs, and change-by-new-revision, labelled an accident guard rather than immutability. Added A7b, A7c, A8 (now per-host), A8b, A12b. Traceability re-verified: 35 requirements, 34 cited, with R4.1b's non-citation now documented in Section 4 as deliberate since it points at a non-goal.
 ## 0. Concepts (kept distinct)
 
 These four are routinely conflated, and every requirement below depends on keeping them apart.
@@ -82,6 +82,12 @@ every requirement below inherits it.
    driver hands the worker and what the driver refuses; a hook cannot see INTENT and needs its own
    design.
 6. Changing the lifecycle transaction, the integration gate, or the `runstop` stop levels.
+7. ADDING A PERMISSION-DENIAL POSTURE TO A HOST THAT LACKS ONE. Antigravity currently passes
+   `--dangerously-skip-permissions` with a `True` default, so its only two postures are
+   auto-approve-everything and interactive-deadlock (measured; see R4.1). Changing that default is a
+   separate decision with its own blast radius and belongs to that host's own work. This spec requires
+   only that the gap be reported honestly (R4.1a) and that the layers which DO apply on such a host
+   (R1 prompt purity, R4.4 driver bounds) carry the guarantee.
 
 ## 3. Requirements
 
@@ -146,9 +152,29 @@ permission prompt.
 
 R3.3 The requested path MUST be resolved in coordinator code only, and MUST be REJECTED if it is
 absolute, escapes the checkout, names a coordinator-owned surface, names a sibling lane or the worktrees
-root, names machine-local state, names the git administration directory, is a directory rather than a
-file, or does not exist. The reject set MUST be the SHARED worker-forbidden predicate, not a second copy
-of the rules, so the two cannot drift.
+root, names machine-local state, names the git administration directory, NAMES A SECRET-BEARING PATH
+(R3.3a), is a directory rather than a file, or does not exist. The reject set MUST be the SHARED
+worker-forbidden predicate, not a second copy of the rules, so the two cannot drift.
+
+R3.3a SECRETS MUST BE REJECTED, and the rule MUST NOT be a new hand-written list. Measured 2026-09-01:
+the existing shared predicate (`worktree_lease.path_is_worker_forbidden` /
+`FORBIDDEN_WORKER_PATH_HINTS`) contains ONLY five coordinator-owned surfaces (`events.jsonl` and the
+plans, backlog, walkthroughs, and runs record directories) and NO secret handling whatsoever, so a
+request for `.env` would today be materialized into the lane. The repository already encodes its own
+secret vocabulary in `.gitignore` under the explicit headings "Environment / secrets" and "Credential /
+key files (should never be committed)": `.env`, `.env.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
+`*.keystore`, `.netrc`, `.npmrc`, `.pypirc`, `service-account*.json`, `credentials*.json`. The
+implementation MUST derive the secret reject set from that single existing source rather than
+transcribing it, so the two cannot drift, and MUST extend the shared predicate rather than adding a
+parallel check at one call site.
+
+R3.3b "IF POLICY PERMITS" IS DEFINED, not left to judgment: a request is PERMITTED when the resolved path
+(i) survives every rejection test in R3.3 and R3.3a, (ii) is a regular file inside the checkout, and
+(iii) is TRACKED by git. Untracked-but-present files are REFUSED by default: a lane is created from a
+commit, so a tracked file is content the lane provably should have had, whereas an untracked file is
+local machine state whose absence from the lane is correct rather than a defect. A future policy may
+widen (iii), but it MUST do so explicitly and MUST NOT be widened implicitly by an implementation
+choosing a looser test.
 
 R3.4 If policy permits, the driver MUST materialize a digest-verified copy into the lane, record a new
 manifest revision, record the corresponding authorization, and resume the same session or a new attempt
@@ -167,9 +193,30 @@ classification path, so there is one rule rather than two.
 
 ### R4. Layered enforcement, each with its honest limit
 
-R4.1 An unattended isolated turn MUST run under a host permission policy that denies external-directory
-and interactive-question requests, supplied by the runner in the child environment and never by editing
-repository configuration.
+R4.1 An unattended isolated turn MUST run under the STRONGEST permission posture its host supports, and
+the runner MUST supply that posture itself (in the child environment or on the child's argv), never by
+editing repository configuration. "Strongest supported" is host-specific and MUST be stated per host
+rather than assumed uniform:
+
+- OPENCODE: a policy denying external-directory and interactive-question requests. This is achievable
+  today via the runner-supplied runtime config, so for this host R4.1 is a real denial.
+- ANTIGRAVITY: NO EQUIVALENT DENIAL EXISTS. Measured 2026-09-01: the driver passes
+  `--dangerously-skip-permissions` and `dangerously_skip_permissions` DEFAULTS TO `True`
+  (`agy_runipd.py:2767`, default declared at `:4429`), i.e. the shipped default AUTO-APPROVES every tool
+  permission request, and the only alternative (`--no-dangerously-skip-permissions`) requires INTERACTIVE
+  permissions, which an unattended turn cannot answer. So on this host the two options are
+  auto-approve-everything or deadlock, and there is no deny-and-continue posture to request.
+
+R4.1a CONSEQUENCE, stated normatively so no plan can paper over it: on a host with no denial posture,
+R4.1 is satisfied by RECORDING that fact on the attempt (a per-host capability statement), and the
+containment guarantee for that host rests ENTIRELY on R1 (the prompt names nothing outside the lane) and
+R4.4 (driver-side bounds that fire regardless of the host). An artifact MUST NOT describe such a host as
+"denied"; it MUST describe it as unenforced-at-the-host and point at the layers that do apply. Claiming
+parity where none exists is the specific failure this sub-requirement exists to prevent.
+
+R4.1b Adding a real denial posture to a host that lacks one is OUT OF SCOPE (see Non-goal 7); this spec
+requires honest reporting of the gap, not its closure. Recorded as a requirement number only so R4.1a's
+"unenforced-at-the-host" outcome cannot be read as a defect this spec left unaddressed.
 
 R4.2 The driver MUST OBSERVE the effective policy rather than assume its request won, and MUST record
 either the observed values or an explicit unverified marker with its reason. Host configuration
@@ -197,8 +244,17 @@ this ordering is load-bearing rather than theoretical.
 
 ### R5. Lane inputs and retention
 
-R5.1 Required inputs MUST be materialized into the lane BY COPY, with a sealed manifest recording per
+R5.1 Required inputs MUST be materialized into the lane BY COPY, with a SEALED manifest recording per
 entry the repo-relative path, its class, a source digest, and the materialization mode.
+
+R5.1a "SEALED" IS DEFINED, because the word was previously used without a testable meaning. A sealed
+manifest MUST satisfy all three: (i) the manifest FILE is written with read-only permissions for the
+worker (no write bit for the owning user), so an accidental in-lane edit fails rather than silently
+rewriting the record of what was authorized; (ii) each materialized INPUT file it lists is likewise
+read-only, since these are inputs the worker consumes and never revises; and (iii) any legitimate change
+to the input set is a NEW MANIFEST REVISION recorded by the driver (R3.4), never an in-place edit of an
+existing entry. Read-only is an accident guard under the threat model in 0.2, not a boundary: the owning
+user can restore the write bit, and an artifact MUST NOT describe it as immutability.
 
 R5.2 No manifest-listed lane path may be a symlink OR a hard link to a file outside the lane. Both are
 violations: a hard link satisfies a symlink check and a digest comparison while still sharing an inode
@@ -237,6 +293,12 @@ different plans. A plan that implements a body it is not chartered to wire MUST 
 Each is falsifiable and names the requirement it proves. "A test exists" is not evidence; the pasted
 result of running it is.
 
+TRACEABILITY, verified programmatically rather than asserted: every requirement below is cited by at
+least one criterion, with ONE deliberate exception. R4.1b is cited by NO criterion because it is a
+POINTER to Non-goal 7 rather than a behavior; it exists so R4.1a's "unenforced-at-the-host" outcome
+cannot be misread as an unaddressed defect. That exception is recorded here so a reviewer does not
+re-flag it as a traceability gap.
+
 - A1. Build an isolated prompt from BOTH drivers and pattern-match the emitted text: zero absolute paths
   outside the lane root, and no exception clause. Reword the exception and the check must still fail.
   (R1.1, R1.2)
@@ -254,10 +316,25 @@ result of running it is.
 - A7. Drive it with each forbidden shape (absolute, `..` escape, coordinator surface, sibling lane,
   machine state, git dir, directory, nonexistent): each is rejected with a precise record, no copy, no
   grant. Show the reject decision comes from the SHARED predicate. (R3.3, R3.5, R3.6)
-- A8. Decode the child environment for an unattended isolated turn: the policy denies external-directory
-  and question, inherited PATH and the import pin survive, and the attempt record carries either the
-  OBSERVED effective policy or an explicit unverified marker with its reason and the host version.
-  (R4.1, R4.2)
+- A7b. SECRETS ARE REJECTED. Drive the cycle with a representative path from each secret family in the
+  single derived source (at minimum `.env`, a `*.pem`, a `*.key`, and a `credentials*.json`) and show each
+  is rejected with no copy and no grant. Then show the reject set is DERIVED from the existing
+  `.gitignore` secret sections rather than transcribed, and that the rule lives in the SHARED predicate
+  (so a second call site cannot miss it) rather than at one call site. A test that only proves `.env` is
+  rejected does NOT satisfy this criterion. (R3.3a)
+- A7c. "POLICY PERMITS" IS TESTED AS DEFINED. Show a TRACKED safe file is permitted and materialized, and
+  an UNTRACKED but otherwise safe file is REFUSED by default with a precise record. This pins R3.3b so a
+  later implementation cannot silently widen the rule. (R3.3b)
+- A8. PER HOST, not once. For OPENCODE: decode the child environment for an unattended isolated turn and
+  show the policy denies external-directory and question, inherited PATH and the import pin survive, and
+  the attempt record carries either the OBSERVED effective policy or an explicit unverified marker with
+  its reason and the host version. For ANTIGRAVITY: show the attempt record states that NO denial posture
+  exists on this host, and show that no artifact describes it as denied. A single uniform assertion
+  across both hosts FAILS this criterion, because it would assert a parity that does not exist.
+  (R4.1, R4.1a, R4.2)
+- A8b. Assert the honest-reporting rule mechanically: for a host recorded as having no denial posture, the
+  attempt record and any rendered summary MUST NOT contain a claim of denial, and MUST name the layers
+  that do apply (R1 prompt purity and R4.4 driver bounds). (R4.1a)
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
@@ -271,6 +348,11 @@ result of running it is.
 - A12. Materialize a lane: every manifest entry records a copy with a source digest; no listed path is a
   symlink; and each listed file's inode link count and identity establish it is NOT a hard link to a file
   outside the lane. (R5.1, R5.2)
+- A12b. SEALED IS TESTED, all three parts: paste the manifest file's mode showing no owner write bit;
+  paste each materialized input file's mode showing the same; and show that an attempted in-place edit of
+  an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION. Also
+  state in the artifact that read-only is an accident guard and not immutability, since the owning user
+  can restore the write bit. (R5.1a)
 - A13. Every attachment handed to an isolated worker resolves inside the lane, asserted over ALL
   attachments with at least two checked. (R5.3)
 - A14. With a dirty TRACKED file, an unattended isolated run is refused before any worker process is
