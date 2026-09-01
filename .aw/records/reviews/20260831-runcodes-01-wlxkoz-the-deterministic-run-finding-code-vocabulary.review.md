@@ -3,7 +3,7 @@
 - Plan-Id: wlxkoz
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
-- Verdict: APPROVE WITH REVISIONS APPLIED
+- Verdict: REVIEWED - OPEN QUESTIONS
 
 ## Round 1
 
@@ -68,3 +68,24 @@ plan is genuinely runnable before `m73aet` lands.
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | The checklist requires `m73aet` before `wlxkoz`. Should this plan carry a hard `- Item-Dependencies: executed:m73aet` edge? | NO. Record the ordering as an explicit REQUIREMENT in Deferred, and state that a future plan which BINDS the two trailer-dependent codes MUST carry the hard edge. | (a) Add the hard edge now. Rejected: `RUN-COMMIT-CONTENTS` and `RUN-COMMIT-GATEWAY` are recorded UNBOUND-BY-DEPENDENCY here BY DESIGN, so this plan is genuinely runnable before `m73aet` lands, and a hard edge would falsely block it at pre-execution. (b) Leave it in prose only, as found. Rejected: the ordering was real but unrecorded anywhere machine-readable or even in this plan's own Deferred section. | Plan Deferred section states those two codes "wait on the trailers (`runtrail-01`, `m73aet`)"; spec 4.2 defines all 13 codes; `ipd_lint.py:683` shows the pre-execution gate that a premature hard edge would trip | yes |
 | D-2 | Two of this plan's test files are also claimed by APPROVED `0soncw`. Narrow this plan's scope, or coordinate? | COORDINATE: keep both files in scope, and require a re-measurement against `0soncw`'s state immediately before editing, with STOP-and-report if it has landed changes there. | (a) Drop the files and create a new test module. Rejected: the predecessor `7f7782`'s `tests/test_deterministic_checker.py` was rejected at review precisely because these modules already cover these surfaces, and a third module would duplicate fixtures. (b) Say nothing, relying on the existing additive-only fence. Rejected: additive-only is a mitigation, not immunity, since `0soncw` is rewriting the invoked command strings that existing assertions contain. | Computed Scope-Paths intersection across all pending plans; `0soncw`'s Scope-Paths entries 6 and 7; this plan's F7 and its existing additive-only fence | yes |
+
+
+## Round 2
+
+Opened 2026-08-31 at the maintainer's prompting ("maybe we should have split wlxkoz"), after round 1 had
+already been recorded and the plan approved. Round 1 was WRONG to pass this plan's decomposition without
+comment, and this round records why rather than quietly amending round 1 (the gate reads only the CURRENT
+round, so a new round is the honest mechanism).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-004 | MEDIUM | IN-SCOPE | C. Right-sizing / G. Plan executability | This plan's 5 E-items mapped against its Scope-Paths: E-01/E-02 -> `run_evidence.py` (the 13-code vocabulary), E-03 -> flag/exit semantics, E-04 -> `run_recovery.py` (a one-line 0..10 bounds check). E-01 AND E-04 both declare `Depends on: none`. Sibling `6lu3rq` has the same E-item COUNT (5) and passed the same lint. | The plan bundles THREE INDEPENDENT CONCERNS and should be SPLIT before execution. Round 1 checked `aw ipd lint` (conforming, "standard" size) and treated that as clearing right-sizing, which the plan-review workflow explicitly forbids: "A passing count-based size lint does NOT clear right-sizing; conceptual density must be evaluated in semantic review." Count is not density. The practical cost is that integration is ALL-OR-NOTHING per plan, so fumbling the 13 verbatim transcriptions strands the trivially safe bounds check along with them. | C:Low; U:Low; S:Low; F:Medium; Overall:Low (the split itself is bounded; the cost is a re-review and re-approval cycle, not design risk) | OPEN | NOT split tonight, deliberately and at the maintainer's direction: it was 01:15 and splitting costs a re-review plus re-approval, AND E-05's tests span all three concerns while touching the same two shipped test modules, so the split must first decide whether each child carries its own edits to those files (reintroducing the `0soncw` coordination question per child) or whether one child owns them. Recorded as F10 in the plan and as a DO-NOT-EXECUTE-AS-IS note in its scope fence, so a rested session splits it rather than rediscovering this. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Amend round 1, or open a round 2? | Open ROUND 2. | Editing round 1 in place. Rejected: the findings gate reads only the CURRENT round, and silently rewriting a completed round would hide that the miss happened. The reviews README states rounds are appended rather than edited for exactly this reason. | `.aw/records/reviews/README.md` on appending `## Round <n>`; `review_findings.current_findings()` semantics | yes |
+| D-2 | Split now or record and defer? | RECORD AND DEFER, at the maintainer's explicit direction, with the plan marked do-not-execute-as-is. | Splitting at 01:15. Rejected on the maintainer's call: the E-05 test-coordination question needs a real answer, not a fast one, and the two genuinely safe plans (`m73aet`, `6lu3rq`) can run tonight without it. | Maintainer instruction 2026-08-31; E-05's stated scope over two shipped test modules also claimed by approved `0soncw` | yes |
