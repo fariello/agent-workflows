@@ -1,5 +1,5 @@
 - Id: tfx39h
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: lanetool
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Nested aw invoked inside a lane worktree executes the LANE BRANCH's copy of agent_workflows, so lifecycle fixes are void in lanes and unreviewed lane tool code runs the driver's own transitions
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan af7i6p is executed (From-Backlog: tfx39h). Verified on main: oc_runipd carries 19 pinned_module_argv/pinned_child_env references, so a nested aw in a lane runs the RUNNER's tooling, not the lane copy.
 - 2026-08-30 graduated (aw set): design handed off to plan af7i6p (lanetruth-01, approved, carries From-Backlog: tfx39h and Blocks-Release: next); gate preserved via handoff, code not yet written so NOT done
 - 2026-08-29 open (aw set): status set to open
 - 2026-08-29 created (aw backlog): Filed from run-20260829T153858Z-3207626: the 18:06:42Z finalize scope prompt was NOT a g40w37 regression (6332a04 landed 17:55:25Z); the lane ran a pre-fix copy of the tool. Measured in .aw/worktrees/8zgybk: -m resolves to the lane package, version g5e78e33, AW_NONINTERACTIVE guard absent

@@ -1,5 +1,5 @@
 - Id: i97baj
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: promptmint
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Add an aw verb to mint a conforming prompts/ staging-lane file (YYYYMMDD-HHMM-NN-<slug>.prompt.md + aw-prompt metadata) so the /aw research producer workflow does not hand-name/hand-write staged prompt files
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan jxqdcw is executed (From-Backlog: i97baj). Verified on main: 'aw prompts' is a registered command surface.
 - 2026-08-30 graduated (aw set): design handed off to plan jxqdcw (promptmint-01, to-review, carries From-Backlog: i97baj and Blocks-Release: next); gate preserved via handoff. The item's OPEN DESIGN QUESTION (aw prompt noun vs extending aw research) is RESOLVED from repo evidence, no maintainer decision needed: the APPROVED prompt-purity spec already establishes the 'aw prompts <verb>' namespace by name, and prompts is already a registered artifact type with a prompt facet and rename/group backends missing only 'new'. Also measured two facts the item did not record: the metadata drift is already real (only 7 of 13 executed prompts carry the aw-prompt comment), and the documented filename grammar is self-contradictory three ways.
 - 2026-08-28 open (aw set): Mark as a 2.0.0 (next) release blocker: every /aw research run currently produces an untooled, non-conformant staged prompt (hand-named + hand-written metadata); the mint verb should exist before ship.
 - 2026-08-28 open (aw set): Reclassify blocked->open: this is actionable now (no external blocker). The verb-naming/home question is design work WITHIN the item, not a typed external gate; the earlier decision Gate-Ref was invalid (decision refs must match ^D\d+$). Corrects an AGENTS.md-nonconformant blocked state.

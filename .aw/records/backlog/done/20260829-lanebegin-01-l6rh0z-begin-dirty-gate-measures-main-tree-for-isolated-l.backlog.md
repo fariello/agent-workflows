@@ -1,5 +1,5 @@
 - Id: l6rh0z
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: lanebegin
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: begin's in-scope-dirty gate measures the MAIN tree for an isolated lane, so another agent's uncommitted edit to a commonly-scoped file (cli.py) withholds execution authority from an unrelated lane that would run clean at its frozen base
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan z2isfg is executed (From-Backlog: l6rh0z), scoping begin's in-scope-dirty gate to the tree the turn actually writes.
 - 2026-08-30 graduated (aw set): design handed off to plan z2isfg (lanetruth-02, approved, carries From-Backlog: l6rh0z and Blocks-Release: next); gate preserved via handoff, code not yet written so NOT done
 - 2026-08-29 created (aw backlog): Filed from live evidence in run-20260829T184625Z-3940528: rchpms begin refused on agent_workflows/cli.py, dirty from a CONCURRENT session; the lane worktree would have been clean. Begin-end twin of 077yqc's ownership blindness
 

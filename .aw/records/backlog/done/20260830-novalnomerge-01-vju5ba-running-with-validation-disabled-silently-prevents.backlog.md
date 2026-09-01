@@ -1,5 +1,5 @@
 - Id: vju5ba
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: novalnomerge
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Running with validation disabled silently prevents self-finalize, so every plan lands on an unmerged lane and integration becomes manual
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan evgi9n is executed (From-Backlog: vju5ba). Verified on main: the shared integration_is_earned predicate exists (5 hits), so a validation-off run reaches the integration gate instead of stranding every plan on a lane.
 - 2026-08-31 graduated (aw set): Graduated to plan novalnomerge-01 (evgi9n), carrying From-Backlog: vju5ba and inheriting Blocks-Release: next. Root cause confirmed a BUG not a trade-off: --validate defaults False (oc_runipd.py:6000) while --no-self-finalize defaults True (:6007), so the shipped default has self-finalize on and unreachable, because verify_disp is only ever assigned inside the validate-guarded block (:4886-4963). Q1 answered by maintainer ruling: the verifier added only nits at ~33% cost on this model, so integration must not require it; the trust signal becomes a DRIVER-RUN suite (exit 0, zero failures) rather than the agent's decorative self-reported tests field, which is declared at :3676 and read by no code. Q2 (warn loudly) rejected as the primary fix: warning that the default is broken documents the bug. Q3 adopted as E-05. Q4 and the per-model default deferred to runprofile-01 (f2mrsw), which owns the profile schema.
 - 2026-08-30 created (aw backlog): Running with validation disabled silently prevents self-finalize, so every plan lands on an unmerged lane and integration becomes manual
 

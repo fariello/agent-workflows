@@ -1,5 +1,5 @@
 - Id: kjzlgw
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: runnerstop
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Graceful-quit protocol for aw oc/agy run: 4 stop levels (after-call / after-set / now / now-clean) via escalating signals + aw oc run stop <run-id>, each ending in a coherent ledger+lock+worktree cleanup (no orphaned children, no stale lock, no contaminated tree)
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: all SIX runstop children are executed (2ouj70, gq6m2u, 1qxuke, foi1b3, m0z0ti, 71vjbn), plus v58bvy; every one carries From-Backlog: kjzlgw. CAVEAT recorded rather than hidden: orchestrator zpbx7o is still approved in pending/, but its single E-item is an explicit whole-Set VERIFICATION pass ('After ALL children are in executed/...'), not product work, and it retains its own Blocks-Release: next, so the release gate is still held by zpbx7o and is NOT dropped by closing this item. Spec c4gd2h remains 'implementing' and only a human may set it 'implemented'.
 - 2026-08-29 graduated (aw set): Design handed off: spec c4gd2h (approved) + Set runstop (7 review-ready IPDs), all carrying From-Backlog: kjzlgw and Blocks-Release: next. Code not yet written.
 - 2026-08-28 open (aw set): status set to open
 - 2026-08-27 created (aw backlog): Graceful-quit protocol for aw oc/agy run: 4 stop levels (after-call / after-set / now / now-clean) via escalating signals + aw oc run stop <run-id>, each ending in a coherent ledger+lock+worktree cleanup (no orphaned children, no stale lock, no contaminated tree)

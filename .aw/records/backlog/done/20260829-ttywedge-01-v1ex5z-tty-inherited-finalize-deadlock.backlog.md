@@ -1,5 +1,5 @@
 - Id: v1ex5z
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: ttywedge
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: driver-spawned aw subprocesses inherit the operator TTY, so ipd finalize sees isatty() and blocks on input() forever
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan g40w37 is executed (From-Backlog: v1ex5z). Verified on main: oc_runipd denies the child a terminal (4 stdin=subprocess.DEVNULL sites), closing the tty-inherited finalize deadlock.
 - 2026-08-29 graduated (aw set): Graduated to plan g40w37.
 - 2026-08-29 created (aw backlog): driver-spawned aw subprocesses inherit the operator TTY, so ipd finalize sees isatty() and blocks on input() forever (observed: finalize 8zgybk wedged 1h49m)
 

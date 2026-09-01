@@ -1,5 +1,5 @@
 - Id: y9lcem
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: rundeps
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: The runner cannot read Item-Dependencies: oc_runipd matches only the legacy Dependencies/Depends-on field, so 11 pending plans declare edges the queue silently ignores and ordering falls back to Set/Order
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan 8guhs0 is executed (From-Backlog: y9lcem), making runner preflight consume the shared Item-Dependencies predicate.
 - 2026-08-30 graduated (aw set): design handed off to plan 8guhs0 (lanetruth-03, approved, carries From-Backlog: y9lcem and Blocks-Release: next); gate preserved via handoff, code not yet written so NOT done
 - 2026-08-29 created (aw backlog): Found while reviewing spec 25kzda (SR-001). Measured: 22 pending plans declare Item-Dependencies, 0 use the legacy field, 11 declare real edges, and every wtiso queue item shows dependencies=[] at runtime. ipddeps-00 deferred runner preflight because 'aw <host> run does not yet exist', but it does and runs daily
 

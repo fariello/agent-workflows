@@ -1,5 +1,5 @@
 - Id: 17gydk
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: laneorphan
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: CTRL-C orphans lane worktrees/branches and lane allocation is not idempotent, so every later aw oc run of that Set dies on 'a branch named aw/lane/<id6> already exists' until someone clears them by hand
 
 ## Workflow history
+- 2026-09-01 done (aw set): Design shipped: plan zwnjp3 is executed (From-Backlog: 17gydk). Verified on main: worktree_lease carries write_lane_owner/OWNERS_SUBDIR (5 hits), the idempotent-allocation + lane-owner record this item asked for.
 - 2026-08-30 graduated (aw set): design handed off to plan zwnjp3 (laneorphan-01, to-review, carries From-Backlog: 17gydk and Blocks-Release: next); gate preserved via handoff. Both reported defects reproduced verbatim in throwaway repos. Plan adds a defect the item did not know about: teardown_worktree(force=True) deletes the lane BRANCH, leaving commits unreferenced with an empty reflog and GC-able, so preserve-only-empty-lanes is a data-safety requirement, not a nicety. Fix sketch item 3 (aw doctor --lanes / aw recover) deliberately NOT adopted: owned by plan 2c122z.
 - 2026-08-29 created (aw backlog): CTRL-C orphans lane worktrees/branches and lane allocation is not idempotent, so every later aw oc run of that Set dies on 'a branch named aw/lane/<id6> already exists' until someone clears them by hand
 
