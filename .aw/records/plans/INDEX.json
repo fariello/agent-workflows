@@ -3570,6 +3570,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 7,
+    "path": "executed/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md",
+    "plan_id": "1o4eif",
+    "set_id": "wtiso",
+    "status": "executed"
+  },
+  {
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
@@ -4146,16 +4156,6 @@
     "order": 6,
     "path": "pending/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md",
     "plan_id": "2c122z",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 7,
-    "path": "pending/20260828-wtiso-07-1o4eif-phase-6-optional-os-sandbox-hard-enforcement-profile-host-ca.ipd.md",
-    "plan_id": "1o4eif",
     "set_id": "wtiso",
     "status": "approved"
   },
