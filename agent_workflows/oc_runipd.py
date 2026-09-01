@@ -3337,6 +3337,212 @@ def dependency_status_detailed(
     return not unsatisfied, unsatisfied, reasons
 
 
+#: novalnomerge-01 (evgi9n) E-01: the gating suite must never inherit `run_evidence.capture_command`'s
+#: 60s default. MEASURED at review: the bare suite runs ~37s on the reference host, so the default
+#: leaves ~23s of headroom, and because E-02 treats a timeout as a FAILURE an under-set timeout would
+#: silently degrade to "never integrate" -- recreating the very bug this module's gate change fixes.
+SUITE_CHECK_TIMEOUT_SECONDS: float = 900.0
+
+#: The repository's own test command, run BARE. `pyproject.toml` `addopts` already supplies
+#: `-q -n auto --dist=worksteal -m 'not slow'`, so adding `-n0` (4-6x slower), a second `-q`
+#: (suppresses the summary line this check parses) or `-p no:randomly` is forbidden by the repo
+#: contract and would also change what the gate measures.
+SUITE_CHECK_ARGV: tuple[str, ...] = (sys.executable or "python3", "-m", "pytest")
+
+_SUITE_SUMMARY_RE = re.compile(
+    r"^(?:=+\s*)?(\d+ (?:passed|failed).*?)(?:\s*=+)?$", re.MULTILINE
+)
+
+
+class SuiteCheckResult(NamedTuple):
+    """What the DRIVER observed when it ran the suite itself.
+
+    novalnomerge-01 (evgi9n) E-01/E-02. This is an OBSERVED FACT, not a claim: the executor's outcome
+    JSON has a ``"tests"`` field, but nothing reads it, so it is the agent's own prose about work it
+    says it did. `passing` is True only on an observed exit 0.
+    """
+
+    passing: bool
+    exit_code: int
+    summary: str
+    reason: str
+    cwd: str
+    timeout_seconds: float
+    elapsed_seconds: float
+
+
+def run_suite_check(
+    repo_dir: Path,
+    run_id: str,
+    *,
+    timeout: float = SUITE_CHECK_TIMEOUT_SECONDS,
+) -> SuiteCheckResult:
+    """Run the repository's suite in the PRIMARY checkout and report what actually happened.
+
+    novalnomerge-01 (evgi9n) E-01/E-02.
+
+    WHY THE PRIMARY CHECKOUT AND NOT THE LANE (PR-001, found at review as a BLOCKER): a linked
+    worktree resolves `.aw/state` relative to cwd (backlog `dh0uno`), so a lane sees a DIFFERENT state
+    tree. MEASURED: `tests/test_run_viewer.py` gives `36 passed` in the primary checkout and
+    `15 failed, 20 passed` in a lane, every failure being the `run_viewer`/state-resolution family. A
+    lane-run suite is therefore permanently red for reasons unrelated to the executing plan, which
+    would leave the integration gate closed forever -- the same symptom this change removes, with a new
+    cause. Callers MUST pass the primary repo, never `work_dir`.
+
+    HONEST LIMIT: this proves THE TREE is green, not that the lane's uncommitted state is. That is the
+    right trade (a green primary tree is what integration endangers) but it is not lane validation.
+
+    FAIL CLOSED (E-02): a suite that cannot be run is a FAILURE, never a pass.
+    `run_evidence.capture_command` already converts a timeout into exit 124 and any other exception
+    into exit 127 instead of raising, so this is an honest reading of a nonzero exit rather than new
+    machinery. Neither code is special-cased into a pass.
+    """
+    from agent_workflows import run_evidence
+
+    started = time.monotonic()
+    try:
+        tool_event, _envelope = run_evidence.capture_command(
+            run_id,
+            list(SUITE_CHECK_ARGV),
+            cwd=repo_dir,
+            evidence_kind="tests",
+            actor="driver",
+            timeout=timeout,
+            max_output_bytes=512_000,
+        )
+        exit_code = int(tool_event.get("exit_code", 127))
+        stdout = str(tool_event.get("stdout_excerpt") or "")
+        stderr = str(tool_event.get("stderr_excerpt") or "")
+    except Exception as exc:  # noqa: BLE001  # pragma: no cover
+        # DELIBERATE blind catch, and not redundant: `capture_command` guards its own subprocess call
+        # (timeout -> 124, other -> 127) but the lines BEFORE it are unguarded -- `Path(cwd).resolve()`
+        # and the `get_git_head`/`get_git_dirty_digest`/`get_worktree_path` probes all run first and can
+        # raise on a vanished cwd or a broken git dir. A gate that crashes is a gate that is OFF, so an
+        # unexpected exception here must still be a REFUSAL, never an escape from the gate.
+        elapsed = time.monotonic() - started
+        return SuiteCheckResult(
+            passing=False,
+            exit_code=127,
+            summary="",
+            reason=f"suite check could not run (fail-closed): {exc}",
+            cwd=str(repo_dir),
+            timeout_seconds=timeout,
+            elapsed_seconds=elapsed,
+        )
+
+    elapsed = time.monotonic() - started
+    m = _SUITE_SUMMARY_RE.search(stdout) or _SUITE_SUMMARY_RE.search(stderr)
+    summary = m.group(1).strip() if m else ""
+    if exit_code == 0:
+        reason = f"suite passed in {repo_dir} ({summary or 'no summary line parsed'})"
+    elif exit_code == 124:
+        reason = (
+            f"suite TIMED OUT after {timeout:.0f}s (ran {elapsed:.0f}s) in {repo_dir}; "
+            "treated as a failure (fail-closed)"
+        )
+    elif exit_code == 127:
+        reason = (
+            f"suite could not be executed in {repo_dir} (exit 127); "
+            "treated as a failure (fail-closed)"
+        )
+    else:
+        reason = (
+            f"suite FAILED with exit {exit_code} in {repo_dir} "
+            f"({summary or 'no summary line parsed'})"
+        )
+    return SuiteCheckResult(
+        passing=exit_code == 0,
+        exit_code=exit_code,
+        summary=summary,
+        reason=reason,
+        cwd=str(repo_dir),
+        timeout_seconds=timeout,
+        elapsed_seconds=elapsed,
+    )
+
+
+#: Why an item did NOT reach the integration gate, or how it did. novalnomerge-01 (evgi9n) E-05:
+#: `verify_disp` alone conflates "no verifier ran" (None, because validation is off) with "the
+#: verifier declined" ("unverified"), and both previously landed the item in `substantially-complete`
+#: with no way to tell them apart. These name the actual signal.
+INTEGRATION_EARNED_BY_VERIFIER = "verifier"
+INTEGRATION_EARNED_BY_SUITE = "driver-run-suite"
+INTEGRATION_REFUSED_VERIFIER_DECLINED = "verifier-declined"
+INTEGRATION_REFUSED_SUITE_FAILED = "suite-failed"
+INTEGRATION_REFUSED_NO_SIGNAL = "no-trust-signal"
+
+
+class IntegrationVerdict(NamedTuple):
+    """Whether an item earned automatic integration, and WHICH signal earned or refused it."""
+
+    earned: bool
+    signal: str
+    detail: str
+
+
+def integration_is_earned(
+    *,
+    validate: bool,
+    verify_disp: str | None,
+    suite_result: SuiteCheckResult | None,
+) -> IntegrationVerdict:
+    """Decide whether a completed execute turn has earned automatic integration.
+
+    novalnomerge-01 (evgi9n) E-03/E-04. ONE predicate, consumed by BOTH drivers, so a one-runner fix
+    cannot leave the other silently broken.
+
+    THE BUG THIS FIXES: the gate used to require `verify_disp == "verified"`, but `verify_disp` is only
+    ever assigned inside the validate-guarded block. `--validate` defaults FALSE while
+    `--no-self-finalize` defaults TRUE, so in the SHIPPED DEFAULT configuration self-finalize was
+    switched on and could never fire: every item ended `substantially-complete` with its lane
+    preserved and nothing integrated. Measured cost before the fix: ~$528 across five overnight runs,
+    21 plans stranded in lanes, then a full session hand-merging 24 lanes.
+
+    THE TWO MODES ARE ALTERNATIVES, NOT AN OR ACROSS BOTH SIGNALS:
+
+    * validation ON  -> the verifier's verdict decides, exactly as before. A verifier that DECLINED is
+      a stronger and more specific signal than a green suite, so a passing suite must NOT override it;
+      otherwise `--validate` would be weaker than the default, which is absurd.
+    * validation OFF -> the DRIVER-RUN SUITE decides. This is an observed fact, unlike the executor's
+      unread ``"tests"`` self-report. `aw ipd finalize` still applies its own independent fail-closed
+      gate afterwards (`ipd_lifecycle.finalize_precheck`: a current begin receipt, the
+      before-marking-executed lint requiring every `E-*` performed and every `V-*` passing with
+      non-empty `Observed evidence`, and a scope comparison), so this lowers the bar less than it
+      appears. Honest limit: that gate proves completeness and scope, NOT correctness, which is why a
+      real suite run supplies the correctness signal it lacks.
+    """
+    if validate:
+        if verify_disp == "verified":
+            return IntegrationVerdict(
+                True, INTEGRATION_EARNED_BY_VERIFIER, "verifier reported verified"
+            )
+        return IntegrationVerdict(
+            False,
+            INTEGRATION_REFUSED_VERIFIER_DECLINED,
+            f"validation is ON and the verifier did not verify (verification={verify_disp!r}); "
+            "a green suite deliberately does NOT override an explicit verifier verdict",
+        )
+    if suite_result is None:
+        return IntegrationVerdict(
+            False,
+            INTEGRATION_REFUSED_NO_SIGNAL,
+            "validation is OFF and no driver-run suite result is available; refusing to integrate "
+            "without any trust signal (fail-closed)",
+        )
+    if suite_result.passing:
+        return IntegrationVerdict(
+            True,
+            INTEGRATION_EARNED_BY_SUITE,
+            f"no verifier ran (validation off); driver-run suite PASSED: {suite_result.reason}",
+        )
+    return IntegrationVerdict(
+        False,
+        INTEGRATION_REFUSED_SUITE_FAILED,
+        f"no verifier ran (validation off) and the driver-run suite did not pass: "
+        f"{suite_result.reason}",
+    )
+
+
 def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
     """Longest declared in-queue prerequisite chain ending at ``id6`` (0 = no in-queue prerequisite).
 
@@ -4967,22 +5173,58 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     item["verification_status"] = verify_disp
-    save_state(run_dir, state)
 
-    # driverfin-01 (p7peqf): self-finalize step 2 - after a VERIFIED execute turn, run the gated
-    # `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
-    # finalize the verified child is still in pending/, so reconcile_disposition reports
-    # `substantially-complete` (an agent self-claimed `executed` is downgraded there); we therefore
-    # trigger on disposition in {executed, substantially-complete} AND verification == verified (NOT
-    # on `disposition == "executed"` alone, which would never fire). On finalize success the plan is
-    # now in executed/, so re-resolve and set the child `executed`; on refusal, keep it
-    # substantially-complete and NEVER force the transition (mirrors finalize_orchestrator).
-    if (
+    # novalnomerge-01 (evgi9n) E-01/E-03: when validation is OFF, the DRIVER runs the suite itself and
+    # that observed result is the trust signal, because `verify_disp` stays None and the old gate could
+    # never fire. Run it in the PRIMARY checkout (`repo`), NEVER `work_dir`: a lane resolves a different
+    # `.aw/state` (dh0uno), where 15 `test_run_viewer.py` tests fail for reasons unrelated to the work,
+    # which would leave this gate closed forever.
+    suite_result: SuiteCheckResult | None = None
+    integration_gate_relevant = (
         self_finalize
         and not is_review
         and disposition in ("executed", "substantially-complete")
-        and verify_disp == "verified"
-    ):
+    )
+    if integration_gate_relevant and not validate:
+        suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+        attempt["suite_check"] = {
+            "passing": suite_result.passing,
+            "exit_code": suite_result.exit_code,
+            "summary": suite_result.summary,
+            "cwd": suite_result.cwd,
+            "timeout_seconds": suite_result.timeout_seconds,
+            "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
+        }
+
+    # novalnomerge-01 (evgi9n) E-05: record WHICH signal decided, so "no verifier ran" is
+    # distinguishable from "the verifier declined". Both previously landed in `substantially-complete`
+    # with no way to tell them apart, which is the intent-versus-breakage conflation the spec forbids.
+    # No new disposition value is invented: `substantially-complete` is in EXECUTION_SUCCESS_STATES and
+    # is read by other surfaces, so widening that vocabulary would fork state.
+    integration = integration_is_earned(
+        validate=validate, verify_disp=verify_disp, suite_result=suite_result
+    )
+    if integration_gate_relevant:
+        attempt["integration_signal"] = integration.signal
+        attempt["integration_detail"] = integration.detail
+        item["integration_signal"] = integration.signal
+        item["verifier_ran"] = bool(validate)
+    save_state(run_dir, state)
+
+    # driverfin-01 (p7peqf): self-finalize step 2 - after an execute turn that EARNED integration, run
+    # the gated `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
+    # finalize the child is still in pending/, so reconcile_disposition reports
+    # `substantially-complete` (an agent self-claimed `executed` is downgraded there); we therefore
+    # trigger on disposition in {executed, substantially-complete} AND an earned integration verdict
+    # (NOT on `disposition == "executed"` alone, which would never fire). On finalize success the plan
+    # is now in executed/, so re-resolve and set the child `executed`; on refusal, keep it
+    # substantially-complete and NEVER force the transition (mirrors finalize_orchestrator).
+    #
+    # novalnomerge-01 (evgi9n) E-03: the fourth condition was `verify_disp == "verified"`, which only
+    # the verifier turn ever set, so with validation off (the DEFAULT) this branch was unreachable and
+    # every item stranded on its lane. It is now the shared `integration_is_earned` predicate: the
+    # verifier decides when validation is ON (unchanged), the driver-run suite decides when it is OFF.
+    if integration_gate_relevant and integration.earned:
         # driverfin-02 (emus4n): when isolated, finalize runs INSIDE the worktree so the plan-move
         # (pending/ -> executed/) commits on the `aw/lane/<id6>` branch. The begin receipt lives under
         # the MAIN repo's `.aw/state/` (anchored by run-id); copy it into the worktree so the

@@ -100,6 +100,11 @@ from agent_workflows import runner_stop
 # this module does not call itself; `tests/test_runner_backlog_close.py` asserts object identity, so
 # losing them re-opens the divergence this change exists to close.
 from agent_workflows.oc_runipd import (
+    # novalnomerge-01 (evgi9n) E-04: ONE shared integration predicate and ONE shared suite check, so a
+    # fix to the self-finalize gate cannot land in one driver and silently miss the other.
+    SuiteCheckResult as SuiteCheckResult,
+    integration_is_earned as integration_is_earned,
+    run_suite_check as run_suite_check,
     BacklogCloseVerdict as BacklogCloseVerdict,
     CARRIER_KIND_IPD as CARRIER_KIND_IPD,
     CARRIER_KIND_OTHER as CARRIER_KIND_OTHER,
@@ -3505,20 +3510,58 @@ def execute_item(
     item["status"] = disposition
     item["last_outcome"] = outcome
     item["verification_status"] = verify_disp
-    save_state(run_dir, state)
 
-    # driverfin-01 (p7peqf): self-finalize step 2 - after a VERIFIED execute turn, run the gated
-    # `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
-    # finalize the verified child is still in pending/, so reconcile_disposition reports
-    # `substantially-complete`; trigger on disposition in {executed, substantially-complete} AND
-    # verification == verified (NOT on `disposition == "executed"` alone). On success the plan moves
-    # to executed/ (re-resolve, mark executed); on refusal keep substantially-complete, never force.
-    if (
+    # novalnomerge-01 (evgi9n) E-01/E-04: when no verifier ran, the DRIVER runs the suite itself and
+    # that observed result is the trust signal. NOTE THE SEMANTIC DIFFERENCE from `oc_runipd`: this
+    # driver gates the verifier on `not no_verify` (verification defaults ON here), whereas `oc` gates
+    # on `validate` (which defaults OFF). The shared predicate takes `validate=`, so pass the
+    # locally-correct boolean rather than copying `oc`'s expression. Run the suite in the PRIMARY
+    # checkout (`repo`), NEVER `work_dir`: a lane resolves a different `.aw/state` (dh0uno) where 15
+    # `test_run_viewer.py` tests fail for unrelated reasons, which would close this gate forever.
+    verifier_expected = not no_verify
+    suite_result: SuiteCheckResult | None = None
+    integration_gate_relevant = (
         self_finalize
         and not is_review
         and disposition in ("executed", "substantially-complete")
-        and verify_disp == "verified"
-    ):
+    )
+    if integration_gate_relevant and not verifier_expected:
+        suite_result = run_suite_check(repo, str(state.get("run_id") or ""))
+        attempt["suite_check"] = {
+            "passing": suite_result.passing,
+            "exit_code": suite_result.exit_code,
+            "summary": suite_result.summary,
+            "cwd": suite_result.cwd,
+            "timeout_seconds": suite_result.timeout_seconds,
+            "elapsed_seconds": round(suite_result.elapsed_seconds, 3),
+        }
+
+    # novalnomerge-01 (evgi9n) E-05: record WHICH signal decided, so "no verifier ran" is
+    # distinguishable from "the verifier declined". No new disposition value is invented.
+    integration = integration_is_earned(
+        validate=verifier_expected,
+        verify_disp=verify_disp,
+        suite_result=suite_result,
+    )
+    if integration_gate_relevant:
+        attempt["integration_signal"] = integration.signal
+        attempt["integration_detail"] = integration.detail
+        item["integration_signal"] = integration.signal
+        item["verifier_ran"] = bool(verifier_expected)
+    save_state(run_dir, state)
+
+    # driverfin-01 (p7peqf): self-finalize step 2 - after an execute turn that EARNED integration, run
+    # the gated `aw ipd finalize` with programmatic two-way scope reconciliation. GATE PRECISION: before
+    # finalize the child is still in pending/, so reconcile_disposition reports
+    # `substantially-complete`; trigger on disposition in {executed, substantially-complete} AND an
+    # earned integration verdict (NOT on `disposition == "executed"` alone). On success the plan moves
+    # to executed/ (re-resolve, mark executed); on refusal keep substantially-complete, never force.
+    #
+    # novalnomerge-01 (evgi9n) E-03/E-04: the fourth condition was `verify_disp == "verified"`, which
+    # only the verifier turn ever set, so whenever verification was disabled this branch was unreachable
+    # and every item stranded on its lane. Both drivers now consume ONE shared predicate, so a
+    # one-runner fix cannot leave the other silently broken.
+    if integration_gate_relevant and integration.earned:
         # driverfin-02 (emus4n): when isolated, finalize runs INSIDE the worktree so the plan-move
         # commits on the `aw/lane/<id6>` branch. Copy the begin receipt (anchored under the MAIN
         # repo's `.aw/state/`) into the worktree so the in-worktree finalize finds it.
