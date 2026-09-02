@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 199 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 200 Sets; the full manifest is INDEX.json.
 
 ## findpaths
 
@@ -25,6 +25,15 @@ Showing the 40 most-recent of 199 Sets; the full manifest is INDEX.json.
 ## ocvariant
 
 - `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
+
+## wslayout
+
+- `rh5tt6` [pending] 00 pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md
+- `wpu5zu` [pending] 01 pending/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md
+- `zvk796` [pending] 02 pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md
+- `rodj06` [pending] 03 pending/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md
+- `hauwqh` [pending] 04 pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md
+- `30jug9` [pending] 05 pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md
 
 ## apprvguard
 
@@ -178,15 +187,6 @@ Showing the 40 most-recent of 199 Sets; the full manifest is INDEX.json.
 ## runnamecollapse
 
 - `0soncw` [pending] 01 pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md
-
-## runprofile
-
-- `3m0urk` [pending] 00 pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md
-- `f2mrsw` [pending] 01 pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
-- `p0l1to` [pending] 02 pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
-- `3cm15q` [pending] 03 pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
-- `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
-- `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
 
 ## (singletons: no Set)
 

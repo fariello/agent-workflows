@@ -20,6 +20,7 @@
 - 2026-09-01 to-review (antigravity): authored complete orchestrator plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN; PR-001..PR-008. Author-phase lint conforming for all six plans; every finding is semantic. Review record: .aw/records/reviews/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.review.md
 - 2026-09-01 /plan-review question loop (maintainer): OQ-1 and OQ-2 asked interactively and ANSWERED, so neither remains blocking. OQ-1 = UNION vocabulary (keep `roadmaps`, add `reviews`/`backlog`/`other`). OQ-2 = emitted layout files GITIGNORED via the framework-owned `.aw/.gitignore`. Verdict unchanged (the remaining findings still require a replan).
+- 2026-09-01 /plan-review revisions applied (opencode/its_direct/pt3-claude-opus-5-1m-us): verdict revised REJECT -> APPROVE WITH REVISIONS APPLIED after the maintainer challenged the REPLAN call; all eight findings FIXED in place (no rewrite needed). review-finalize lint conforming; bare suite 4004 passed. Execution still gated on maintainer approval of spec kw5y2s (ipd-lifecycle.md:16).
 
 ## Goal
 
@@ -165,10 +166,16 @@ Execution-state rule: mark an E-* item complete only after performing the action
     vocabulary (subpath / pattern / lifecycle subdirs / aliases) and the state-class map. Confirm the
     scope is narrowed accordingly.
 
-- OQ-3 (non-blocking, resolve during replan) `aw setup-repo` and `aw update` are named as install
-  entry points (`kw5y2s:317,333,346`; `hauwqh:6,24,39`; `30jug9` V-02) but NEITHER is a CLI verb.
-  `setup-repo` is a WORKFLOW (`.aw/system/workflows/setup-repo/setup-repo.md`) with no Python call site;
-  the idempotent updating verb is `aw install`. See PR-003.
+- OQ-3 (non-blocking, resolve during replan) `setup-repo` and `aw update` are named as install entry
+  points (`kw5y2s:317,333,346`; `hauwqh:6,24,39`; `30jug9` V-02) but neither can receive the emission
+  wiring. Corrected spelling (maintainer, 2026-09-01): it is `/aw setup-repo` (alias `/setup-repo`), an
+  AGENT SLASH-COMMAND, not `aw setup-repo`; see `.aw/system/workflows/index.md:108,121` and
+  `agent_workflows/engine.py:3597`. It is a WORKFLOW BODY an agent reads and executes
+  (`.aw/system/workflows/setup-repo/setup-repo.md`), so it has NO Python call site, and it does not
+  install the bundle: `aw install` runs FIRST and then RECOMMENDS `/setup-repo` as a follow-up
+  conformance pass (`engine.py:3581-3597`). Emission therefore belongs ONLY in `engine.install()`, which
+  `/aw setup-repo` inherits transitively at no cost. `aw update` is not a verb either; `aw install` is
+  the idempotent updating entry point. See PR-003.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 
