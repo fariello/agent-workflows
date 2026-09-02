@@ -1356,6 +1356,92 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
         with self.assertRaises(driver.DriverError):
             driver.expand_selectors(manifest, ["all"])
 
+    def test_is_plan_review_approved_is_the_shared_predicate_not_a_local_copy(self):
+        """fullauto 97df1z E-03: the driver must EXPOSE the predicate but not DEFINE it.
+
+        A local re-definition is what let the two drivers drift (and left `aw agy run --full-auto`
+        broken while oc was fixed), so identity with the shared module is asserted, not just
+        behavior.
+        """
+        from agent_workflows import agy_runipd as agy_driver
+        from agent_workflows import plan_readiness
+
+        self.assertIs(
+            driver.is_plan_review_approved, plan_readiness.is_plan_review_approved
+        )
+        self.assertIs(
+            agy_driver.is_plan_review_approved, plan_readiness.is_plan_review_approved
+        )
+        self.assertIs(
+            driver.extract_newest_history_entry,
+            plan_readiness.extract_newest_history_entry,
+        )
+        self.assertFalse(hasattr(driver, "extract_last_history_entry"))
+        self.assertFalse(hasattr(agy_driver, "extract_last_history_entry"))
+
+    def test_set_plan_approved_uses_auto_approved_and_never_by_human(self):
+        """fullauto 97df1z OQ-02: `--full-auto` must not machine-assert human approval.
+
+        The attestation exists to stop an agent auto-advancing a transition the human owns, so the
+        driver clears to the shipped `auto-approved` automated tier and names its automated actor.
+        """
+        captured: list = []
+
+        def fake_run_checked(argv, cwd=None, env=None):
+            captured.append(list(argv))
+            return ""
+
+        with mock.patch.object(driver, "run_checked", fake_run_checked):
+            driver.set_plan_approved(Path("/tmp/repo"), "oc0012")
+
+        self.assertEqual(len(captured), 1)
+        argv = captured[0]
+        self.assertIn("auto-approved", argv)
+        self.assertNotIn("approved", argv)  # never the human tier
+        self.assertNotIn("--by-human", argv)
+        self.assertIn("--actor", argv)
+        self.assertIn(driver.FULL_AUTO_ACTOR, argv)
+
+    def test_structured_readiness_field_decides_auto_approval(self):
+        """fullauto 97df1z: `- Readiness:` is the machine signal; prose is not."""
+        with tempfile.TemporaryDirectory() as t:
+            p_field = Path(t) / "plan_field.md"
+            p_field.write_text(
+                textwrap.dedent(
+                    """\
+                    # Test Plan
+
+                    - Id: test03
+                    - Status: reviewed
+                    - Readiness: go-pending-approval
+
+                    ## Workflow history
+                    - 2026-08-24 reviewed (aw set): status set to reviewed
+                    """
+                ),
+                encoding="utf-8",
+            )
+            self.assertTrue(driver.is_plan_review_approved(p_field))
+
+            # The adversarial case: the OLD prose phrase present, the structured field says no.
+            p_conflict = Path(t) / "plan_conflict.md"
+            p_conflict.write_text(
+                textwrap.dedent(
+                    """\
+                    # Test Plan
+
+                    - Id: test04
+                    - Status: reviewed
+                    - Readiness: no-go
+
+                    ## Workflow history
+                    - 2026-08-24 /plan-review (opencode): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.
+                    """
+                ),
+                encoding="utf-8",
+            )
+            self.assertFalse(driver.is_plan_review_approved(p_conflict))
+
     def test_is_plan_review_approved_verdict_detection(self):
         with tempfile.TemporaryDirectory() as t:
             p_go = Path(t) / "plan_go.md"
@@ -1425,9 +1511,10 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             )
 
             fake = root / "fake_opencode"
-            history_line = repr(
-                "\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects. Readiness: GO - PENDING HUMAN APPROVAL.\n"
-            )
+            # fullauto 97df1z E-04: a reviewer following the updated workflow writes the STRUCTURED
+            # `- Readiness:` field and PREPENDS its history record under the heading (which is how
+            # `aw set` actually writes history - newest-first). The old fixture appended the record
+            # and relied on prose alone, neither of which matches the real writer.
             fake_lines = [
                 "#!/usr/bin/env python3",
                 "import json, pathlib, re, sys",
@@ -1441,8 +1528,11 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
                 "        p = pathlib.Path.cwd() / p",
                 "    if p.is_file():",
                 "        content = p.read_text()",
-                '        content = content.replace("- Status: to-review", "- Status: reviewed")',
-                f"        content += {history_line}",
+                '        content = content.replace("- Status: to-review", "- Status: reviewed\\n- Readiness: go-pending-approval")',
+                "        content = content.replace(",
+                '            "## Workflow history\\n",',
+                '            "## Workflow history\\n- 2026-08-24 /plan-review (opencode): APPROVE; no defects.\\n",',
+                "        )",
                 "        p.write_text(content)",
                 '    print(json.dumps({"type": "text", "sessionID": session, "part": {"text": "review done"}}))',
                 'elif "Required JSON outcome:" in prompt:',
@@ -1492,6 +1582,27 @@ class AllSelectorAndFullAutoTests(unittest.TestCase):
             self.assertEqual(len(item["attempts"]), 2)
             self.assertEqual(item["attempts"][0]["action"], "review")
             self.assertEqual(item["attempts"][1]["action"], "execute")
+
+            # fullauto 97df1z: the auto-approval must be RECORDED as an event, and the transition
+            # must be the HONEST `auto-approved` one - never human `approved` with a machine-asserted
+            # `--by-human` attestation (OQ-02).
+            events = [
+                json.loads(line)
+                for line in (
+                    repo / ".aw" / "records" / "runs" / run_id / "events.jsonl"
+                )
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            self.assertIn("ipd-auto-approved", [e.get("event") for e in events])
+            self.assertTrue(item.get("auto_approved"))
+            executed_plan = next(
+                (repo / ".aw" / "records" / "plans" / "executed").glob("*.ipd.md")
+            )
+            plan_text = executed_plan.read_text(encoding="utf-8")
+            self.assertIn("auto-approved", plan_text)
+            self.assertNotIn("--by-human", plan_text)
 
     def test_without_full_auto_stops_at_reviewed(self):
         with tempfile.TemporaryDirectory() as temp:

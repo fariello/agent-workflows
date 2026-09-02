@@ -35,15 +35,29 @@ records its READINESS within the lifecycle:
   later" stub.
 - `reviewed` - `/plan-review` done and revisions applied; awaiting human sign-off.
 - `approved` - a human signed off; ready to execute.
-- `auto-approved` - ready to execute, cleared by an automated checker (e.g. `/verify-execution`)
-  rather than a human; used for low-complexity mechanical correctives (D65). NOT human approval;
-  set only by an automated checker, never by an executor fast-tracking its own work.
+- `auto-approved` - ready to execute, cleared by an automated checker (e.g. `/verify-execution`,
+  or a runner's opt-in `--full-auto`) rather than a human; used for low-complexity mechanical
+  correctives (D65). NOT human approval, and it never carries the human `Approval:` field; set only
+  by an automated checker, never by an executor fast-tracking its own work.
 - Terminal (`executed` / `superseded` / `not-executed`) mirrors the directory; `reusable` is
   standing.
 
-Each plan also keeps a `## Workflow history` section: an appended, dated line per workflow
-that touched it (assess, plan-review, ...), so you can see the path a plan took. The
-plan-mutating workflows commit (never push) as they go, so `git log` shows the progression.
+A plan may also carry the optional, recognized `- Readiness: <go | go-pending-approval | no-go>`
+front-matter field: the STRUCTURED readiness `/plan-review` records, mapped from its own readiness
+vocabulary (GO / GO - PENDING HUMAN APPROVAL / NO-GO). It is the machine signal automation reads
+instead of matching prose in the history line. It is OPTIONAL, and ABSENT MEANS UNKNOWN, NOT CLEAR:
+a consumer that finds no field (or an out-of-vocab value) FAILS CLOSED. `Readiness` states what the
+REVIEW concluded; `Status` states where the plan is in the lifecycle. They are independent, and
+`Readiness: go-pending-approval` is never by itself permission to execute.
+
+Each plan also keeps a `## Workflow history` section: one dated line per workflow that touched it
+(assess, plan-review, ...), so you can see the path a plan took. The section is NEWEST-FIRST: each
+new record is inserted directly under the `## Workflow history` heading, so the FIRST record is the
+most recent and the last is the oldest. Code reading "the latest history entry" must therefore take
+the FIRST record, and must bound the section at the next `## ` heading (see
+`agent_workflows/plan_readiness.extract_newest_history_entry`; a reader that sliced to end of file
+and took the last bullet is the bug that fix replaced). The plan-mutating workflows commit (never
+push) as they go, so `git log` shows the progression.
 
 To transition a plan's status and move it between disposition directories, use `aw ipd set` or `aw set`:
 - `aw ipd set <status> <id6|setid|fname>...` (e.g. `aw ipd set approved pl0001`, `aw ipd set to-review my-set`)
@@ -110,7 +124,7 @@ safe to hand to any agent from its path alone:
 4. Commit ONLY the plan's own changed files, path-scoped; never `git add -A`/bare/`-a`;
    never push.
 5. The lifecycle move on completion (`git mv` to the terminal directory, set `Status:`,
-   append a `## Workflow history` line). The supported way to perform this terminal transition
+   record a `## Workflow history` line, newest-first). The supported way to perform this transition
    is `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, which runs the
    pre/post-transition gates, verifies the changed paths stayed within the reviewed `Scope-Paths`
    against the `aw ipd begin` receipt's frozen base, writes the attributed history, moves the plan,

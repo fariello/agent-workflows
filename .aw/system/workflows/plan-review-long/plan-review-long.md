@@ -87,6 +87,10 @@ The run is complete only when:
 - every deferral passes the Fix Bar;
 - every resolvable question is resolved and written into the plan;
 - plan status and workflow history are updated;
+- the structured `- Readiness: <go | go-pending-approval | no-go>` front-matter field is written
+  into every reviewed plan (the mapping and the rule that history-line prose is NOT the machine
+  signal are stated in `03-resolve-and-finalize.md`; this is kept identical to the single-file
+  `../plan-review/plan-review.md` per the parity note above);
 - commits are made or explained;
 - the final report uses `report-template.md` exactly; and
 - no output follows its final reviewed/not-reviewed enumeration.

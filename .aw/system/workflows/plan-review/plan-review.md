@@ -374,6 +374,29 @@ another review-complete value.
 `reviewed` means the review occurred. It does not mean approved, GO, ready to
 execute, or executed. Only the human or project approval process may approve.
 
+### Write the structured `Readiness` field (REQUIRED output of the review)
+
+Write your readiness into the plan's front matter as a machine-readable field, beside
+`Status`:
+
+```markdown
+- Readiness: <go | go-pending-approval | no-go>
+```
+
+Map it from the readiness vocabulary you already use below:
+
+| Readiness you report | Field value |
+|---|---|
+| GO | `go` |
+| GO - PENDING HUMAN APPROVAL | `go-pending-approval` |
+| NO-GO | `no-go` |
+
+THE HISTORY-LINE PROSE IS NOT THE MACHINE SIGNAL. Automation reads this field and only this
+field; whatever readiness wording appears in the history line is for humans. Omitting the
+field is not neutral: a consumer that finds no field FAILS CLOSED and treats the plan as not
+cleared, so a clean plan that should have read `go-pending-approval` simply will not be
+picked up. Write exactly one of the three values, lowercase, with no extra words.
+
 Append or update:
 
 ```markdown
@@ -382,6 +405,9 @@ Append or update:
 ```
 
 Use the real agent/model name, or `unknown`.
+
+Note the history section is NEWEST-FIRST: a new record goes directly under the
+`## Workflow history` heading, so the first record is the most recent.
 
 ### Hardened-result commit
 After revisions and interactive decisions:
