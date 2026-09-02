@@ -1,5 +1,5 @@
 - Id: qyaime
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: wtextperm
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Worktree-isolated aw oc run hangs forever on opencode's external_directory permission prompt (agent cwd is the lane worktree but the driver forces main-repo run-dir access; --auto non-interactive has no answerer)
 
 ## Workflow history
+- 2026-09-02 done (aw set): The UNBOUNDED WAIT this item names is closed on main: StallWatchdog (oc_runipd.py:413, wired at :4449) kills a turn with no stream events inside --stall-timeout (default 600s), and an isolated turn is now ALWAYS a fresh session (oc_runipd.py:4297), removing the session-reuse path that made every main-repo path 'external' and triggered the unanswerable gate. HONEST LIMIT, stated deliberately: the ask is BOUNDED AND RECORDED, not architecturally prevented, and detection is stdout pattern matching that no real run has yet exercised. The containment DESIGN (lane-relative prompts, per-host permission posture) is ported to the lanectn Set against approved spec 7ckptx, per the port-not-merge ruling in vqv9im; wtiso Phase 1 (qcqhj7) is retired to superseded/.
 - 2026-08-29 graduated (aw set): status set to graduated
 - 2026-08-28 basis (manual): Basis: research x03wgn (20260828-wtiso-00). Facet of the driver-owned-control-plane architecture; to be implemented via the orchestrated wtiso Set, not standalone. Near-term fix: Layer-1 (internal-only lane prompt paths) + Layer-6 (permission-event timeout/watchdog). (Hand-added: aw backlog set --message is a no-op when status is unchanged; see tooling gap.)
 - 2026-08-28 created (aw backlog): Worktree-isolated aw oc run deadlocks on the external_directory permission prompt: the driver launches opencode with --dir <worktree> but its prompt forces the agent to read/write the run-dir (outcome JSON, decisions, report, runbook) under the MAIN repo (outside the lane), which trips opencode's external_directory gate; under --auto non-interactive nobody can answer, so the turn hangs forever
