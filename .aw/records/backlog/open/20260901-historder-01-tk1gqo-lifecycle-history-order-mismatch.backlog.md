@@ -74,3 +74,36 @@ execution of any plan. Also confirm `aw doctor` and any lifecycle-gate consumer 
 WHY IT MATTERS DESPITE BEING NON-BLOCKING: 9 warnings that no plan author can correctly resolve train
 readers to ignore a real consistency rule. The repo already has a recorded instance of that exact failure
 mode in backlog `gjadwm`: "a gate that false-positives on correct behavior TRAINS agents to bypass it."
+
+DECISIVE NEW EVIDENCE (observed 2026-09-01, while approving spec `kw5y2s` with `aw spec set`): THE TOOLS
+AND THE AUTHORS DISAGREE INSIDE THE SAME FILE. Running the three legal transitions
+`draft -> to-review -> reviewed -> approved` via `aw spec set` PREPENDED each new line to the TOP of
+`## Workflow history`, producing this order in `kw5y2s`:
+
+    - 2026-09-02 approved (aw set, --by-human): ...     <- newest, written by the TOOL
+    - 2026-09-02 reviewed (aw set): ...                 <- written by the TOOL
+    - 2026-09-02 to-review (aw set): ...                <- written by the TOOL
+                                                        <- blank line
+    - 2026-09-01 draft (antigravity): ...               <- oldest, written by the AUTHOR
+    - 2026-09-01 corrected (opencode/...): ...          <- written by the AUTHOR, oldest-first
+
+So the STATUS-SETTING TOOLS write NEWEST-FIRST (consistent with `ipd_lifecycle.py:637-638`), while HUMAN
+and AGENT AUTHORS write OLDEST-FIRST (consistent with the executed-plan corpus). A file touched by both
+ends up with two opposite orderings separated by a blank line, and no reader or parser can be right about
+both halves. This is the same defect surface as `aw ipd dependencies set` prepending its line to the four
+`wslayout` children, which is what first exposed the issue.
+
+That makes the contract question sharper, and answerable from the tools' own behavior rather than from
+taste: the WRITERS already implement newest-first. Either (a) newest-first is normative, in which case the
+authoring convention and the whole oldest-first corpus need a documented migration, or (b) oldest-first is
+normative, in which case both the writers (`status_set`/`aw spec set`, `aw ipd dependencies set`) AND the
+`events.reverse()` reader must change. Do NOT resolve it by fixing only the reader: that would leave the
+writers producing history in an order the corpus contradicts.
+
+SECOND, SEPARATE DEFECT OBSERVED IN THE SAME RUN (worth its own item if confirmed): `aw spec set` stamped
+`2026-09-02` while the local date was `2026-09-01`. Measured at the moment of the run:
+`date -> 2026-09-01`, `date -u -> 2026-09-02T01:11:42Z`, `date +%z -> -0400`. The tool is stamping history
+dates in UTC rather than local time, so any action taken during the local evening is dated one day in the
+future relative to every hand-authored line in the same file. That corrupts date-ordered reasoning about
+history (including any fix to the ordering question above) and makes an artifact appear to record events
+before they were authorized.

@@ -1,12 +1,15 @@
 # Spec: Unified Workspace Hierarchy Specification and Machine-Readable Install-Time Layout Emission
 
 - Date: 2026-09-01
-- Status: draft
+- Status: approved
 - Id: kw5y2s
 - Author: antigravity
 - Scope: Consolidate workspace directory definitions into a unified Python layout model and emit machine-readable layout.json during repository installation for non-Python tools.
 
 ## Workflow history
+- 2026-09-02 approved (aw set, --by-human): APPROVED by the maintainer 2026-09-01, stated explicitly in session ('Approve. Thanks.') after reviewing the corrected spec and personally ruling on both blocking questions: OQ-1 vocabulary = UNION (keep roadmaps, add reviews/backlog/other) and OQ-2 emitted layout artifacts = GITIGNORED via the framework-owned .aw/.gitignore. This unblocks the wslayout Set per ipd-lifecycle.md:16.
+- 2026-09-02 reviewed (aw set): reviewed as part of /aw plan-review on Set wslayout (review record 20260901-wslayout-00-rh5tt6-...review.md, findings PR-001..PR-009); all factual defects corrected in place and verified against code
+- 2026-09-02 to-review (aw set): plan-review of Set wslayout corrected the factual defects in place (vocabulary tables, traversal exclusions, non-existent verbs) and encoded the two maintainer rulings; ready for review
 
 - 2026-09-01 draft (antigravity): authored complete, detailed specification.
 - 2026-09-01 corrected (opencode/its_direct/pt3-claude-opus-5-1m-us): applied plan-review findings on Set `wslayout` plus two maintainer rulings. Section 3.2 vocabulary is now the measured UNION of eleven classes (`roadmaps` restored, `reviews`/`backlog`/`other` added, with the `RecordClass` vs `ARTIFACT_TYPES` provenance stated per row); new Section 3.2.1 makes the `records` empty-subpath carve-out explicit; Section 3.4 exclusions corrected to the seven that actually exist (`node_modules`/`venv`/`.venv` removed as an undeclared behavior change); new Section 2.3 records the GITIGNORED ruling and its fresh-clone consequence; new Section 2.4 states the scope boundary against the existing `aw context --json`; Sections 5.1, 6.1, 7, and 8 corrected so `engine.install()` is the sole emission site and the non-existent `aw setup-repo` / `aw update` verbs are gone. Status left `draft`: awaiting maintainer approval, which `ipd-lifecycle.md:16` requires before any child plan may execute.
