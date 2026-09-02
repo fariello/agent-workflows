@@ -1855,20 +1855,24 @@ def print_lane_interrupt_report(lanes: list[dict[str, Any]]) -> None:
 
 
 def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
-    """Copy the begin receipt from the MAIN repo's gitignored `.aw/state/` into the worktree's, so an
-    in-worktree `aw ipd finalize` can find the execution-authority receipt.
+    """DEPRECATED NO-OP. Retired as the correctness mechanism by the ``dh0uno`` control-root fix.
 
-    The receipt content is valid in both trees because the worktree's base commit == the main HEAD ==
-    the receipt's frozen base HEAD. No-op if the main receipt is absent (finalize will refuse
-    authoritatively)."""
-    from agent_workflows import ipd_lifecycle
+    This used to COPY the main checkout's begin receipt into the lane worktree so that an in-worktree
+    ``aw ipd finalize`` could find it. Research x03wgn Section 7 lists that copy as its own hazard -
+    "Receipt copied into lane -> two authorities diverge or are consumed independently" - and the
+    prescribed guard is "One central driver-created receipt bound to attempt; delete receipt-copy
+    path."
 
-    src = ipd_lifecycle.receipt_path_for(repo, id6)
-    if not src.is_file():
-        return
-    dst = ipd_lifecycle.receipt_path_for(worktree, id6)
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    The copy is no longer load-bearing because ``ipd_lifecycle.receipt_path_for`` now resolves to the
+    CHECKOUT's control root (every linked worktree shares one git common dir) instead of to whatever
+    tree it was handed. An in-lane finalize therefore reads the ONE receipt the driver wrote, from the
+    lane, with no copy in existence. Copying now would actively RE-CREATE the fork this fix closed,
+    and in fact src and dst are the SAME path, so the old body raised ``shutil.SameFileError``.
+
+    Kept as an explicit no-op rather than deleted so that no caller breaks: both drivers call it at
+    their lane-launch site, and the call is now correctly redundant rather than wrong.
+    """
+    return None
 
 
 def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:

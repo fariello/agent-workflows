@@ -153,8 +153,60 @@ class _InjectedFault(RuntimeError):
     """Test-only fault injected at a named finalize checkpoint to exercise rollback/recovery."""
 
 
+def checkout_control_root(start: Path) -> Path:
+    """The checkout's ONE ``.aw`` control root for any path inside it (backlog ``dh0uno``).
+
+    Control state (begin receipts, the finalize writer lock, finalize transaction journals) belongs
+    to the CHECKOUT, not to whichever worktree happens to be the caller's cwd. This function is the
+    single place that decides where that root lives, so a linked ``git worktree`` (a driver "lane")
+    and the main tree resolve to the SAME location.
+
+    WHY THIS EXISTS: these paths used to be composed as ``repo_root/".aw"/...`` by each caller, and
+    ``repo_root`` for an in-lane invocation is the LANE. So an inner ``aw`` running inside a lane
+    wrote its receipt/lock/journal to ``<lane>/.aw/state/...`` - a second control store the driver
+    (running from the main tree) could not see and lane teardown then deleted. Measured before this
+    fix: ``receipt_dir(<main>)`` and ``receipt_dir(<lane>)`` returned two different directories.
+
+    Behavior, and the honest limits of it:
+
+    * INSIDE a Git checkout -> the MAIN worktree's ``.aw``, derived from ``git rev-parse
+      --git-common-dir`` (every linked worktree of a checkout shares one common dir). That collapse
+      IS the fix.
+    * NOT in a Git checkout, or a bare/exotic ``GIT_DIR`` where no main worktree can be established
+      -> ``start/.aw`` unchanged. There is no checkout identity to collapse to, hence no fork to
+      fix, and this keeps temp-directory callers (much of the test suite) byte-compatible.
+
+    Nothing is invented and no worktree path is hashed: the fallback is "use exactly what you were
+    given", which cannot fork because only one tree is involved.
+    """
+    base = Path(start)
+    if not base.is_dir():
+        return base / ".aw"
+    rc, out, _err = _git(
+        base, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+    )
+    if rc != 0:
+        return base / ".aw"
+    raw = (out or "").strip()
+    if not raw:
+        return base / ".aw"
+    common_dir = Path(raw)
+    # For a normal (non-bare) checkout the common dir is `<main>/.git`, so the main worktree is its
+    # parent. Anything else (bare repo, GIT_DIR override) has no product worktree to anchor on, so
+    # fall back rather than guess a location.
+    if common_dir.name == ".git" and common_dir.parent.is_dir():
+        return common_dir.parent / ".aw"
+    return base / ".aw"
+
+
 def _runtime_dir(repo_root: Path) -> Path:
-    return repo_root.joinpath(".aw", "state", "runtime")
+    """``<checkout control root>/state/runtime`` - the finalize lock and transaction journals.
+
+    Routed through :func:`checkout_control_root` (``dh0uno``): the old ``repo_root/.aw/state/runtime``
+    gave each linked worktree its OWN lock and journal directory, so two lanes could each hold "the"
+    exclusive finalize lock at once and neither could observe the other's in-flight transaction.
+    """
+    return checkout_control_root(repo_root) / "state" / "runtime"
 
 
 def finalize_lock_path(repo_root: Path) -> Path:
@@ -305,15 +357,31 @@ class BeginResult(NamedTuple):
 
 
 def _repo_root(start: Path) -> Path:
-    """Resolve the git worktree top-level for ``start`` (falls back to ``start`` when not a repo)."""
+    """Resolve the PRODUCT tree for ``start``: the git worktree top-level, or ``start`` if not a repo.
+
+    This deliberately returns the WORKTREE, and for a managed lane that is CORRECT: callers use it for
+    product operations that must target the tree the agent actually edited (resolving the plan file,
+    freezing ``HEAD``, the path-scoped finalize commit, the plan's own ``git mv``). Collapsing this to
+    the main checkout would make finalize commit into the wrong tree.
+
+    What it must NOT decide is the CONTROL root. That is :func:`checkout_control_root`; see ``dh0uno``.
+    Before that split, the value returned here was also concatenated into ``.aw/state/...``, so a
+    lane's product tree silently became its control root.
+    """
     from agent_workflows.run_evidence import get_worktree_path
 
     return Path(get_worktree_path(str(start)))
 
 
 def receipt_dir(repo_root: Path) -> Path:
-    """The gitignored directory that holds begin receipts: ``<repo>/.aw/state/ipd-lifecycle/``."""
-    return repo_root.joinpath(".aw", *_RECEIPT_SUBDIR)
+    """The gitignored directory holding begin receipts: ``<checkout>/.aw/state/ipd-lifecycle/``.
+
+    Anchored on the CHECKOUT via :func:`checkout_control_root`, not on the passed tree. Called with a
+    linked lane worktree this used to return ``<lane>/.aw/state/ipd-lifecycle/``, i.e. a second
+    receipt store the driver could not see and teardown destroyed (backlog ``dh0uno``). Outside a Git
+    checkout it still returns ``repo_root/.aw/state/ipd-lifecycle/``, unchanged.
+    """
+    return checkout_control_root(repo_root).joinpath(*_RECEIPT_SUBDIR)
 
 
 def receipt_path_for(repo_root: Path, plan_id: str) -> Path:

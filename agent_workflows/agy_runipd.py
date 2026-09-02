@@ -1089,16 +1089,14 @@ def print_lane_interrupt_report(lanes: list[dict[str, Any]]) -> None:
 
 
 def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
-    """Copy the begin receipt from the MAIN repo's gitignored `.aw/state/` into the worktree's, so an
-    in-worktree `aw ipd finalize` can find the execution-authority receipt. No-op if absent."""
-    from agent_workflows import ipd_lifecycle
+    """DEPRECATED NO-OP. Retired as the correctness mechanism by the ``dh0uno`` control-root fix.
 
-    src = ipd_lifecycle.receipt_path_for(repo, id6)
-    if not src.is_file():
-        return
-    dst = ipd_lifecycle.receipt_path_for(worktree, id6)
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    See the twin in ``oc_runipd.sync_receipt_into_worktree`` for the full rationale.
+    ``ipd_lifecycle.receipt_path_for`` now anchors on the CHECKOUT, so src and dst are the SAME path:
+    the copy is no longer needed to make an in-lane finalize find the driver's receipt, and performing
+    it would re-create the very fork this closes (the old body raised ``shutil.SameFileError``).
+    """
+    return None
 
 
 def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:

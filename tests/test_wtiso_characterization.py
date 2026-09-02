@@ -19,6 +19,7 @@ real worktree, or a subprocess, which keeps the net fast enough to stay in the d
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -89,28 +90,52 @@ class ReceiptCopyCharacterizationTests(unittest.TestCase):
     consumed independently"; the prescribed guard is "One central driver-created receipt bound to
     attempt; delete receipt-copy path.\" """
 
-    def test_receipt_is_copied_into_lane(self):
-        """PINNED DEFECT: the begin receipt is duplicated into the lane worktree.
+    def test_no_second_receipt_authority_is_created_for_a_lane(self):
+        """INVERTED (was ``test_receipt_is_copied_into_lane``), as this test's own note instructed.
 
-        `oc_runipd.sync_receipt_into_worktree` (agent_workflows/oc_runipd.py:470-484) copies the
-        main checkout's receipt to the WORKTREE-RELATIVE path returned by
-        `ipd_lifecycle.receipt_path_for` (agent_workflows/ipd_lifecycle.py:249-251). After the
-        copy, two files claim to be the execution authority for the same plan and can be consumed
-        or invalidated independently.
+        THE PIN, and why it is gone. This used to assert the PINNED DEFECT: the begin receipt was
+        duplicated into the lane worktree, so two files claimed to be the execution authority for one
+        plan and could be consumed or invalidated independently. The note said "FLIPPED BY 58ha43
+        (Phase 4) ... when that lands, this test is deleted or inverted to assert NO in-lane receipt
+        exists". Phase 4 never landed; the defect was instead closed at its ROOT by the `dh0uno`
+        control-root fix, which is the same x03wgn Section 7 guard ("One central driver-created
+        receipt bound to attempt; delete receipt-copy path") reached by the cheaper route:
+        `ipd_lifecycle.receipt_dir` now anchors on the CHECKOUT, and
+        `oc_runipd.sync_receipt_into_worktree` is a deprecated no-op. So the inversion is honored here
+        rather than deferred to a retired plan.
 
-        FLIPPED BY: `58ha43` (Phase 4), which relocates the canonical receipt out of the repo and
-        deletes the copy path. When that lands, this test is deleted or inverted to assert NO
-        in-lane receipt exists.
+        A REAL ``git worktree`` is now required. The old body used two PLAIN directories, noting the
+        copy "never consults git". That is exactly why it could not observe the fix: with no checkout
+        identity there is nothing to collapse, so the non-git fallback keeps the per-directory layout
+        and the stale assertions would have kept passing. The fork was only ever a lane phenomenon,
+        so it must be tested on a lane.
         """
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            # Two PLAIN directories are enough: the copy is a filesystem operation and never
-            # consults git, so no real worktree is required to demonstrate the fork.
             repo = root / "repo"
-            worktree = root / "worktree"
             repo.mkdir()
-            worktree.mkdir()
+            for args in (
+                ["init", "-q"],
+                ["config", "user.email", "test@example.invalid"],
+                ["config", "user.name", "Test"],
+            ):
+                subprocess.run(
+                    ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+                )
+            (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+            for args in (["add", "seed.txt"], ["commit", "-q", "-m", "seed"]):
+                subprocess.run(
+                    ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+                )
+            worktree = repo / ".aw" / "worktrees" / "8zgybk"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", str(worktree), "-b", "aw/lane/8zgybk"],
+                cwd=repo,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
             id6 = "8zgybk"
 
             src = ipd_lifecycle.receipt_path_for(repo, id6)
@@ -119,26 +144,21 @@ class ReceiptCopyCharacterizationTests(unittest.TestCase):
                 '{"plan_id": "8zgybk", "base_head": "deadbeef"}\n', encoding="utf-8"
             )
 
+            # The retired copy helper must be inert.
             oc_runipd.sync_receipt_into_worktree(repo, worktree, id6)
 
+            # ONE authority: the lane resolves the SAME file, not a lane-local duplicate.
             dst = ipd_lifecycle.receipt_path_for(worktree, id6)
-            self.assertTrue(
-                dst.is_file(),
-                "the receipt should be copied into the lane today (the pinned defect)",
-            )
-            # The duplicate resolves UNDER the worktree, i.e. it is lane-local, not a single
-            # central control-plane location. `relative_to` raises if it is not, so this is the
-            # falsifiable form of "not a central root".
-            self.assertEqual(
-                dst.relative_to(worktree),
-                Path(".aw/state/ipd-lifecycle/8zgybk.receipt.json"),
-            )
-            # Two independent authorities now exist with identical content.
+            self.assertEqual(dst, src)
             self.assertTrue(src.is_file())
+
+            # NO second receipt exists anywhere under the lane. `rglob` is the falsifiable form of
+            # "the copy path is gone", stronger than checking the one path we happen to predict.
             self.assertEqual(
-                src.read_text(encoding="utf-8"), dst.read_text(encoding="utf-8")
+                sorted((worktree / ".aw").rglob("*.receipt.json")),
+                [],
+                "a lane-local receipt store reappeared (dh0uno regression)",
             )
-            self.assertNotEqual(src.resolve(), dst.resolve())
 
 
 class IntegrationValidationCharacterizationTests(unittest.TestCase):

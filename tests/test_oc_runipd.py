@@ -2653,10 +2653,29 @@ class WorktreeIsolationTests(unittest.TestCase):
             )
             self.assertEqual(observed["work_dir"], observed["wt_expected"])
             self.assertEqual(observed["wt_branch"], "aw/lane/wir001")
+            # The receipt path MUST anchor on the main checkout, never on the lane worktree. That is
+            # the surviving half of the original V-01 assertion, and it is the part that was actually
+            # about isolation.
             receipt = ipd_lifecycle.receipt_path_for(repo, "wir001")
-            self.assertTrue(
+            self.assertEqual(
+                receipt,
+                repo / ".aw" / "state" / "ipd-lifecycle" / "wir001.receipt.json",
+            )
+            # NOTE: the lane-vs-main resolution equality is deliberately NOT asserted here. By this
+            # point the verified lane has been integrated and TORN DOWN, so its path no longer exists
+            # and carries no git identity to collapse onto the checkout. That invariant is proved
+            # against a LIVE worktree in tests/test_statefork_dh0uno.py instead.
+            #
+            # AMENDED with the dh0uno fix. This used to assert the receipt FILE still existed here
+            # after the turn, which passed for the WRONG reason: `finalize_repo` is the LANE, so the
+            # pre-fix code consumed the LANE's forked receipt on success and left the main-tree copy
+            # behind as an ORPHAN. The assertion was therefore observing the fork, not isolation.
+            # Now that both trees resolve ONE receipt, a clean finalize correctly CONSUMES it
+            # (`ipd_lifecycle` unlinks it once the transaction completes), so absence here is the
+            # correct post-condition and its continued presence would mean a leaked transaction.
+            self.assertFalse(
                 receipt.is_file(),
-                f"begin receipt must be under MAIN repo's .aw/state at {receipt}",
+                "a completed finalize must consume the one begin receipt, leaving no orphan",
             )
 
     def test_verified_child_integrates_to_main_and_worktree_removed(self):

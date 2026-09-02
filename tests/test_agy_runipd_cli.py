@@ -397,7 +397,22 @@ class AgyWorktreeIsolationTests(unittest.TestCase):
             self.assertEqual(observed["main_status"].strip(), "")
             self.assertEqual(observed["work_dir"], observed["wt_expected"])
             self.assertEqual(observed["wt_branch"], "aw/lane/agy001")
-            self.assertTrue(ipd_lifecycle.receipt_path_for(repo, "agy001").is_file())
+            # The receipt ANCHORS on the main checkout (dh0uno). See the oc twin for the full
+            # rationale: the previous `assertTrue(...is_file())` passed for the wrong reason, because
+            # finalize runs with the LANE as its repo and so consumed the lane's FORKED receipt,
+            # orphaning this one. With one receipt, a clean finalize consumes it, so absence is the
+            # correct post-condition. The lane-vs-main equality is proved against a LIVE worktree in
+            # tests/test_statefork_dh0uno.py, not here: by this point the lane is integrated and torn
+            # down, so its path has no git identity left to collapse onto the checkout.
+            receipt = ipd_lifecycle.receipt_path_for(repo, "agy001")
+            self.assertEqual(
+                receipt,
+                repo / ".aw" / "state" / "ipd-lifecycle" / "agy001.receipt.json",
+            )
+            self.assertFalse(
+                receipt.is_file(),
+                "a completed finalize must consume the one begin receipt, leaving no orphan",
+            )
 
     def test_verified_child_integrates_to_main_and_worktree_removed(self):
         # V-02 (agy, passed): routes through the reused gate, integrates to main, tears down worktree.
