@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 200 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 
 ## findpaths
 
@@ -25,6 +25,10 @@ Showing the 40 most-recent of 200 Sets; the full manifest is INDEX.json.
 ## ocvariant
 
 - `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
+
+## statefork
+
+- `eulhzt` [pending] 01 pending/20260901-statefork-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
 
 ## wslayout
 
@@ -183,10 +187,6 @@ Showing the 40 most-recent of 200 Sets; the full manifest is INDEX.json.
 - `plqjt7` [executed] 02 executed/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md
 - `7nkcgp` [executed] 03 executed/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md
 - `c621h9` [executed] 04 executed/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md
-
-## runnamecollapse
-
-- `0soncw` [pending] 01 pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md
 
 ## (singletons: no Set)
 
