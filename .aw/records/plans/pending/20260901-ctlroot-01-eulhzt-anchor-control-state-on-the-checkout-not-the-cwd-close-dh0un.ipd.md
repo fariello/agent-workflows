@@ -125,22 +125,22 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [x] V-02 validates E-02
   - Required evidence: the four control-path accessors agree across worktrees while `_repo_root` still differs; shown by `ReceiptStoreIsCheckoutScopedTests`, `RuntimeStateIsCheckoutScopedTests`, and `ProductTreeStaysPerWorktreeTests` passing.
-  - Observed evidence: `python3 -m pytest tests/test_statefork_dh0uno.py` -> `9 passed in 1.97s`. The pre-fix reproduction, for contrast: `main receipt_dir: <clone>/.aw/state/ipd-lifecycle` vs `lane receipt_dir: <lane>/.aw/state/ipd-lifecycle` -> `FORKED (dh0uno reproduced): True`.
+  - Observed evidence: `python3 -m pytest tests/test_statefork_dh0uno.py` -> `9 passed` (rolled into the `119 passed in 5.61s` primary-checkout run in V-03). The pre-fix reproduction, for contrast, measured with two real worktrees: `main receipt_dir: <checkout>/.aw/state/ipd-lifecycle` vs `lane receipt_dir: <lane>/.aw/state/ipd-lifecycle` -> `FORKED (dh0uno reproduced): True`.
   - Result: pass
 
 - [x] V-03 validates E-03
   - Required evidence: the copy is inert, and no `*.receipt.json` exists anywhere under the lane's `.aw` after calling it (the `rglob` assertion in the inverted characterization test).
-  - Observed evidence: `python3 -m pytest tests/test_wtiso_characterization.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py tests/test_statefork_dh0uno.py` -> `119 passed in 6.52s`. Before E-03, the same suite failed 10 tests with `shutil.SameFileError: PosixPath('.../agy001.receipt.json') and PosixPath('.../agy001.receipt.json') are the same file`.
+  - Observed evidence: in the PRIMARY checkout, `python3 -m pytest tests/test_statefork_dh0uno.py tests/test_wtiso_characterization.py tests/test_oc_runipd.py tests/test_agy_runipd_cli.py` -> `119 passed in 5.61s`. Before E-03, the same suite failed 10 tests with `shutil.SameFileError: PosixPath('.../agy001.receipt.json') and PosixPath('.../agy001.receipt.json') are the same file`.
   - Result: pass
 
 - [x] V-04 validates E-04
   - Required evidence: THE FALSIFIABILITY CHECK. With the `ipd_lifecycle` change reverted (`git stash`) and the new tests kept, the new file must FAIL; restored, it must PASS.
-  - Observed evidence: fix reverted -> `8 failed, 1 passed in 2.07s`, naming `test_receipt_dir_does_not_fork_per_worktree`, `test_a_receipt_written_from_main_is_visible_from_the_lane`, `test_finalize_lock_is_exclusive_across_worktrees`, and the journal/fallback items. Fix restored -> `9 passed in 2.11s`. (The 1 pre-fix pass is `ProductTreeStaysPerWorktreeTests`, correctly: the product tree was never broken.)
+  - Observed evidence: in the PRIMARY checkout, `git stash push -- agent_workflows/ipd_lifecycle.py` then `python3 -m pytest tests/test_statefork_dh0uno.py` -> `8 failed, 1 passed in 2.02s`, naming `test_receipt_dir_does_not_fork_per_worktree`, `test_receipt_dir_anchors_on_the_main_worktree`, `test_receipt_path_for_agrees_across_worktrees`, `test_a_receipt_written_from_main_is_visible_from_the_lane`, `test_finalize_lock_is_exclusive_across_worktrees`, `test_finalize_journal_is_observable_across_worktrees`, and both `NonGitFallbackTests`. Fix restored -> `119 passed` (see V-03). The 1 pre-fix pass is `ProductTreeStaysPerWorktreeTests`, correctly: the product tree was never broken.
   - Result: pass
 
 - [x] V-05 validates E-05
   - Required evidence: whole-suite state, with `make test-all` failures shown pre-existing by a reverted-fix baseline.
-  - Observed evidence: bare `python3 -m pytest` -> `4013 passed, 3 skipped, 4 xfailed in 38.27s`. `make test-all` -> `5 failed, 4410 passed, 3 skipped, 4 xfailed`, the five being `test_zero_undeclared_parser_leaves`, `test_every_subparser_has_fuller_description`, `test_no_undeclared_parser_leaves`, `test_find_plans_agent_mode`, `test_every_declared_leaf_gets_a_full_scenario_row_set`. Baseline with the fix reverted -> `13 failed`, i.e. the same 5 CLI failures plus the 8 expected new-test failures, proving the 5 are not mine.
+  - Observed evidence: in the PRIMARY checkout, bare `python3 -m pytest` -> `4013 passed, 3 skipped, 4 xfailed in 64.70s` pre-commit and `4013 passed, 3 skipped, 4 xfailed in 50.88s` re-run after the commit. `make test-all` (measured in the validation clone) -> `5 failed, 4410 passed, 3 skipped, 4 xfailed`, the five being `test_zero_undeclared_parser_leaves`, `test_every_subparser_has_fuller_description`, `test_no_undeclared_parser_leaves`, `test_find_plans_agent_mode`, `test_every_declared_leaf_gets_a_full_scenario_row_set`. Baseline there with the fix reverted -> `13 failed`, i.e. the same 5 CLI failures plus the 8 expected new-test failures, proving the 5 are PRE-EXISTING and not mine. HONEST SCOPE NOTE: the `make test-all` numbers come from the clone, not this checkout; the bare-suite numbers above are from here.
   - Result: pass
 
 ## Approval and execution gate
@@ -148,7 +148,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This plan was AUTHORED FROM COMPLETED WORK: the change was developed and validated in a throwaway clone at `/tmp/` first, because the two files it touches (`oc_runipd.py`, `agy_runipd.py`) were occupied by two live `aw oc run` drivers in the shared checkout, and editing them under a running driver risks corrupting work in flight. Landing in the primary checkout waits for those runs to finish. Every V-item above carries ACTUAL pasted output from that validated tree, including the reverted-fix baselines; no evidence is remembered or expected.
+This plan was AUTHORED FROM COMPLETED WORK: the change was developed and validated in a throwaway clone first, because the two files it touches (`oc_runipd.py`, `agy_runipd.py`) were occupied by two live `aw oc run` drivers in the shared checkout, and editing them under a running driver risks corrupting work in flight. Those runs have since ended (one died and was cleaned up by another agent), and the change was then RE-APPLIED and RE-VALIDATED in the PRIMARY checkout: the V-items above cite the primary-tree runs, including the reverted-fix falsifiability baseline, and say so explicitly where a number came from the clone instead. No evidence is remembered or expected.
+
+The code landed in `6771e590` (path-scoped, 7 files, no push). A `ruff-format` hook rejected the first attempt and rewrapped two assertions; per the execution contract the staged set was RE-VERIFIED after that failure (it still contained only my 7 paths), the narrowed suite was re-run on the formatted code (`119 passed in 5.61s`), and the bare suite was re-run after committing (`4013 passed, 3 skipped, 4 xfailed in 50.88s`).
 
 Execution contract: touch ONLY the declared Scope-Paths; path-scoped commits (`git commit -m msg -- <paths>`), never `git add -A`/bare/`-a`, never `--no-verify`, never push, never a tag or release. Before every commit run `git diff --cached --name-only` and `git restore --staged <path>` anything not mine - mandatory here, because a concurrent `antigravity` session is committing to this same checkout and a failed pre-commit hook can leave a co-worker's path staged. Re-verify after any failed commit attempt.
 
