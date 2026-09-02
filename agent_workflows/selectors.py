@@ -6,7 +6,29 @@ Order 02): every verb (`rename`, `group`, `set`/`ipd set`/`spec set`/`backlog se
 `archive`, and the per-area set-assign/mv paths) routes selector resolution through `resolve()` here,
 so the SAME selector resolves to the SAME file for every verb (or yields one uniform no-match /
 ambiguous-match result). Per the orchestrator's module-placement principle, this resolver MAY import
-the Order 01 naming authority (for bare-stem parsing); the naming authority never imports this."""
+the Order 01 naming authority (for bare-stem parsing); the naming authority never imports this.
+
+FRONT-MATTER DIALECT: WHY THE RESEARCH INDEX IS DELIBERATELY NOT WIRED IN HERE (IPD e32j35 E-06).
+Two of the ten artifact types ship a generated manifest (`plans/INDEX.json`, `research/INDEX.json`)
+whose columns look like exactly what the id6/setid/status rules need. For RESEARCH that appearance
+is false, and reading it would CHANGE what `aw find research` matches:
+
+  * this resolver only understands the BULLET dialect (`- Id:`, `- Status:`, `- Set:`), which is what
+    plans, specs, backlog and the rest use;
+  * research docs use YAML front matter instead (`id:`, `status:`, `set:` between `---` fences,
+    parsed by `research_contract.parse_frontmatter` via `research_index._scan_docs`);
+  * measured 2026-09-01: 0 of 103 research files carry a `- Id:` bullet while 101 carry a YAML `id:`.
+    So `aw find research <id6>` does NOT resolve via MATCH_ID6 today - it succeeds only because the
+    id6 also appears in the FILENAME, i.e. via MATCH_SUBSTRING;
+  * consequently a status query is filename-shaped too: `aw find research reference` matches 5 files
+    by filename, whereas `research/INDEX.json` holds 52 entries with `status: reference`. Feeding the
+    index into these rules would turn that 5 into 52.
+
+That order-of-magnitude shift is a SEMANTIC change (which dialects a selector understands), not a
+performance one, so it does not belong to a resolver-cost change. Research therefore stays on the
+filesystem scan, and the underlying dialect gap is tracked as its own backlog item rather than being
+silently "fixed" here. The same caution applies to the plans index: see the parity note on
+`_STATUS_RE` below, where the two readers provably disagree on 24 records."""
 
 from __future__ import annotations
 
@@ -86,6 +108,15 @@ class Resolution(NamedTuple):
 
 
 _ID_RE = re.compile(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$")
+# PARITY CONSTRAINT (IPD e32j35 E-03), and editing this line CHANGES WHAT `aw find` MATCHES.
+# This `(\S+)` requires the WHOLE status value to be a single token, so a multi-word value yields
+# NO status match at all. Its twin `plans_index._META_RE["Status"]` (plans_index.py:37) uses
+# `(.+?)` and captures the whole line, so the two readers DIVERGE by design of history, not intent.
+# Measured 2026-09-01 on this repo: 24 of 469 plans carry a multi-word `- Status:` (e.g.
+# `EXECUTED (approved by maintainer ...)`) and the two regexes disagree on exactly those 24.
+# Consequence: widening this regex would make `aw find plans EXECUTED` start matching records it
+# deliberately does not match today. That is a MATCHING-BEHAVIOR decision, not a cleanup; do not
+# "harmonize" the two patterns without owning that contract change.
 _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 
@@ -275,10 +306,28 @@ def _iter_md(base: Path, max_depth: Optional[int] = None):
                 yield Path(dirpath) / fn
 
 
-def _iter_files(repo_root: Path, record_type: str):
-    """Yield (path, text) for every non-index *.md record file of the type, de-duplicated by path.
+def _iter_paths(repo_root: Path, record_type: str):
+    """Yield every non-index *.md record PATH for the type, de-duplicated, WITHOUT reading a body.
 
-    `text` is a BOUNDED header read (see _read_header), sufficient for every selector rule.
+    This is the TEXT-FREE half of the enumeration (IPD e32j35 E-05). Three of the six selector
+    rules - ``path``, ``stem`` and ``substring`` - match on the PATH or FILENAME alone and never
+    look at file contents, yet they used to be served from ``_iter_files``, which had already paid
+    for a bounded header read of every candidate. ``_iter_files`` now layers the header read back
+    on top of THIS walk, for the three rules (``id6``/``setid``/``status``) that genuinely need
+    front matter.
+
+    HONEST SCOPE OF THE WIN, because E-05 predicted more than is achievable. This does NOT make a
+    stem or substring QUERY read-free, and it cannot: precedence is a frozen contract in which
+    ``stem`` and ``substring`` come LAST, so before returning a filename match the resolver must
+    first establish that ``setid`` and ``status`` did not match - and those live in front matter. A
+    token really can be both (a Set id is also a filename fragment of its own members), so skipping
+    that check would CHANGE which record wins. What this split does buy: the filename rules cost
+    nothing of their OWN, a filename match no longer depends on the body being readable, and the
+    read-free primitive the deferred two-tier design needs now exists. Only ``path``, which
+    short-circuits ahead of every scan, actually resolves at zero opens.
+
+    Traversal, pruning, the `_SKIP_NAMES` filter and the resolved-path de-duplication are IDENTICAL
+    to ``_iter_files``, which now delegates here, so the two enumerations cannot drift apart.
     """
     seen: set = set()
     if record_type == "other":
@@ -309,10 +358,7 @@ def _iter_files(repo_root: Path, record_type: str):
                 if rp in seen:
                     continue
                 seen.add(rp)
-                text = _read_header(p)
-                if text is None:
-                    continue
-                yield p, text
+                yield p
         return
 
     for d in record_dirs(repo_root, record_type):
@@ -323,10 +369,25 @@ def _iter_files(repo_root: Path, record_type: str):
             if rp in seen:
                 continue
             seen.add(rp)
-            text = _read_header(p)
-            if text is None:
-                continue
-            yield p, text
+            yield p
+
+
+def _iter_files(repo_root: Path, record_type: str):
+    """Yield (path, text) for every non-index *.md record file of the type, de-duplicated by path.
+
+    `text` is a BOUNDED header read (see _read_header), sufficient for every selector rule that
+    consults front matter. Delegates enumeration to ``_iter_paths`` so the text-free and
+    text-bearing walks stay by construction identical.
+
+    A file whose header cannot be READ is skipped here (it has no front matter to match on), which
+    is why the ``path``/``stem``/``substring`` rules deliberately use ``_iter_paths`` instead: a
+    FILENAME match must not depend on whether the body happens to be readable.
+    """
+    for p in _iter_paths(repo_root, record_type):
+        text = _read_header(p)
+        if text is None:
+            continue
+        yield p, text
 
 
 def _stem_of(name: str) -> Optional[str]:
@@ -386,12 +447,35 @@ def resolve(
 
     # Candidate hits per kind (computed lazily in precedence order). We first find the WINNING kind
     # ignoring allow/deny (so a denied-kind match becomes an explicit rejection, not a silent skip).
-    files = None  # lazy-loaded (path/id6 rules may short-circuit without a full scan? keep simple)
+    # ONE traversal, shared by both views (IPD e32j35 E-05). `_paths()` is the text-free candidate
+    # list; `_files()` layers a bounded header read over THAT SAME list rather than walking again.
+    # Walking twice would make a filename query SLOWER than before the split (measured: 83ms vs
+    # 50ms on this repo's 469 plans), so the sharing is load-bearing, not tidiness.
+    paths = None  # lazy: the single enumeration
+    files = None  # lazy: (path, header-text) pairs derived from `paths`
+
+    def _paths():
+        """Candidate paths with NO file read at all - for the path/stem/substring rules."""
+        nonlocal paths
+        if paths is None:
+            paths = list(_iter_paths(repo_root, record_type))
+        return paths
 
     def _files():
+        """Candidates paired with a BOUNDED header read - only for the front-matter rules.
+
+        Reuses `_paths()`, so a query that consults BOTH views pays for ONE traversal. A file whose
+        header cannot be read is dropped here (it has no front matter to match on) but remains
+        visible to the filename rules via `_paths()`.
+        """
         nonlocal files
         if files is None:
-            files = list(_iter_files(repo_root, record_type))
+            out = []
+            for p in _paths():
+                text = _read_header(p)
+                if text is not None:
+                    out.append((p, text))
+            files = out
         return files
 
     def _hits_for(kind: str) -> List[Path]:
@@ -416,10 +500,13 @@ def resolve(
             return [p for p, text in _files() if _read_setid(text) == tok]
         if kind == MATCH_STATUS:
             return [p for p, text in _files() if _read_status(text) == tok]
+        # The filename-only rules read NO file content (E-05): they consult `_paths()`, never
+        # `_files()`. Keep it that way - routing either one back through `_files()` silently
+        # reintroduces a bounded header read per candidate for a match that cannot use it.
         if kind == MATCH_STEM:
-            return [p for p, _t in _files() if _stem_of(p.name) == tok]
+            return [p for p in _paths() if _stem_of(p.name) == tok]
         if kind == MATCH_SUBSTRING:
-            return [p for p, _t in _files() if tok in p.name]
+            return [p for p in _paths() if tok in p.name]
         return []
 
     for kind in _PRECEDENCE:

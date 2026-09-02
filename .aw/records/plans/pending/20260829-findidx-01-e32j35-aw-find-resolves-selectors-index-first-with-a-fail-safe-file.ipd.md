@@ -15,6 +15,7 @@
 - Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-01 partially-executed (opencode its_direct/pt3-claude-opus-5-1m-us): PARTIAL EXECUTION; plan stays in `pending/` and is NOT claimed executed. PERFORMED E-03 (documentation half), E-05, E-06. WITHDRAWN unexecuted: E-01, E-02, E-04, whose index-first premise the maintainer displaced in `faf2e18b` AFTER approval - that commit's own words are that this plan "needs re-authoring, not just re-approval", and backlog `ila6vl` (a separate maintainer decision to untrack the INDEX manifests) cites the same re-scope as having removed the speed argument. Building them would have added a freshness primitive the maintainer called unnecessary, using a fingerprint the maintainer recorded as blind to a routine drift mode, over manifests slated to be untracked. FINDING, proven not conceded: E-05's expected outcome ("a stem or substring query opens zero record files") is UNREACHABLE while precedence stays frozen, because `stem`/`substring` sit last and the resolver must first prove `setid`/`status` lost, which requires front matter; a token can be both a Set id and a filename fragment, so short-circuiting would change which record wins. V-05 is therefore recorded `failed` with the actual failing output rather than reported as a pass. DELIVERED: `selectors._iter_paths`, a text-free enumeration sharing ONE traversal with the header-reading view (a first version walked twice, 83.2ms vs a 50.6ms baseline; now 46.9ms, guarded by a test asserting opens == distinct opens); the `Status:` parity constraint pinned as cross-reference comments at both regexes with tests that fail if they are harmonized; the research YAML-vs-bullet dialect exclusion documented in the module docstring. FILED: backlog `05aqbj` (research dialect gap) and `f8m2z2` (the two-tier re-authoring, carrying the maintainer's mandatory-fallback measurements and both added requirements). HONESTY NOTE: `aw find` has NOT stopped reading record files - end-to-end `aw find plans e32j35` still makes 938 opens across 469 distinct files, because the display layer's unbounded scan is out of scope and remains. Full suite 4006 passed / 3 skipped / 4 xfailed with 32 failures BYTE-IDENTICAL to the pristine baseline (3972 passed, same 32, all environmental: `AW_EXECUTION_ROLE=worker` and a missing `.aw/records/runs` in the lane). `aw check all` 103 findings before and after, zero introduced; `aw sanitize --agent` clean. `aw ipd lint --phase pre-transition` correctly reports error on the withdrawn items, which is why no terminal transition was attempted. RECOMMENDATION FOR THE MAINTAINER: supersede this plan in favour of the `f8m2z2` re-authoring.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (5 blockers) fixed in place; OQ-03 open (blocking, maintainer scope call)
 - 2026-08-29 to-review (aw set): Authored review-ready: aw find should resolve id6/setid/status from the per-type index when fresh, with a non-removable filesystem fallback. Index-only is explicitly rejected: aw check plans reported a stale index TWICE on 2026-08-29, so index-only would have been blind to two real plans.
@@ -34,34 +35,40 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 Add a staleness signal for the plans index as an UNTRACKED SIDECAR, NOT inside `INDEX.json`. `.aw/records/plans/INDEX.json` has no generated-at, hash, or count marker, so nothing can tell a current index from one written before three plans were added. CONSTRAINT PROVEN IN REVIEW (PR-002): the marker MUST NOT go inside `INDEX.json`, because `check_drift` establishes staleness by rebuilding the file in memory and BYTE-COMPARING it to disk (plans_index.py:271-280, `jp.read_text() != want_json`). A generated-at timestamp inside that payload makes `want != disk` on every single run, so `aw check plans` would report `stale-index` permanently and every `aw index plans` would dirty a tracked file. Verified: `build_index_json` is currently byte-stable (rebuild == disk is True), and two successive builds carrying a timestamp are NOT byte-identical. Therefore: write the marker to a sidecar `.aw/records/plans/.index-fingerprint.json` that is GITIGNORED (it is machine-local derived state, and a tracked one would conflict between concurrent agents in this shared checkout), leaving `INDEX.json` byte-for-byte unchanged. The sidecar carries the generating tool version, a generated-at timestamp, the record count, and the directory fingerprint from E-02. Back-compat: a MISSING or unparseable sidecar is UNKNOWN-freshness (not trusted), never fresh, so an existing checkout keeps working with zero migration.
   - Depends on: none
   - Expected outcome: `aw index plans` writes the sidecar; `INDEX.json` bytes are unchanged (assert a rebuild still byte-equals disk, so `aw check plans` stays clean); the sidecar is gitignored; a missing sidecar reads as UNKNOWN.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: WITHDRAWN, not attempted, because its PREMISE was displaced by the maintainer AFTER this plan was approved. OQ-03's resolution (committed `faf2e18b`) states "E-01/E-02's sidecar is therefore unnecessary for the fast path", the two-tier filesystem design "needs NO freshness primitive at all because it reads the filesystem directly", and that this plan therefore "needs re-authoring, not just re-approval". Building the sidecar now would add a primitive the maintainer has ruled out, on top of manifests that a separate MAINTAINER-DECIDED backlog item (`ila6vl`) resolves to stop tracking entirely - and whose stated basis #5 is this very re-scope. Approval predates the displacement and is not authority for the displaced design. The requirement is preserved in backlog `f8m2z2` (the two-tier re-authoring), so nothing is lost. See DECISION 01-e32j35-D1.
 
 - [ ] E-02 Define the directory fingerprint so it detects the drift that actually happens here, then implement `index_freshness(repo_root, record_type) -> Literal["fresh","stale","unknown","absent"]` as a pure, cheap, non-raising predicate: `absent` when there is no index, `unknown` when the sidecar is missing/unparseable, `stale` when the recomputed fingerprint differs, `fresh` otherwise. FINGERPRINT CORRECTION (PR-003, measured in review): the originally proposed "count of `*.md` per disposition dir plus max mtime" is PROVABLY BLIND to two drift modes this repo produces routinely. (a) A RENAME leaves count and max-mtime identical, yet `aw rename plans` / `aw group plans` rename files in place via `git_mv` (artifact_rename.py:590) and change the `path` column every index entry is keyed by. (b) An IN-PLACE EDIT that preserves mtime (`git checkout`, `git stash pop`, `tar -x`, `rsync -t`) changes a `Status:` with no count or mtime change; verified experimentally that such an edit is invisible to count+max-mtime. So the fingerprint MUST include the sorted RELATIVE-PATH SET (a hash of it, not the paths themselves) and each file's `(size, mtime_ns)`, which catches rename, add, delete, and same-mtime content edits, and still costs one `stat` per file with ZERO file opens. It MUST NOT read record bodies and MUST NOT raise (any error degrades to `unknown`).
   - Depends on: none
   - Expected outcome: the predicate returns the right verdict for all four states and never raises; a rename, a delete, an add, and a mtime-preserving in-place `Status:` edit are each reported `stale`; cost is O(stat per file), no file opened.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: WITHDRAWN with E-01 (same displaced premise), and additionally because the maintainer recorded this fingerprint as KNOWN-INSUFFICIENT rather than merely unnecessary. From `faf2e18b`: it "cannot detect a length-preserving edit with a restored mtime, which is routine here: reviewed/approved/executed/reusable are all 8 characters, so a status swap is size-invisible, and git checkout restores mtime. Adding ctime_ns closes the realistic case but not a same-instant one." Implementing a freshness predicate that is blind to a routine drift mode would make index-first resolution UNSAFE, which is the opposite of this plan's fail-safe intent. Preserved in backlog `f8m2z2`. See DECISION 01-e32j35-D1.
 
 ### Task group 2: index-first resolution with fallback
 
-- [ ] E-03 Establish and TEST the STATUS-SEMANTICS PARITY the index-backed path requires, BEFORE switching any resolution to the index. PARITY DEFECT FOUND IN REVIEW (PR-004): the two readers do not agree on `Status:`. The selector uses `^- Status:\s*(\S+)\s*$` (selectors.py:89), which requires the whole value to be ONE token and therefore returns None for a multi-word value; the index uses `^- Status:\s*(.+?)\s*$` (plans_index.py:37), which captures the whole line. Measured on this repo: 24 of 394 plans carry a multi-word Status (e.g. `EXECUTED (approved by maintainer 2026-06-30; ...)`), and the two regexes DIVERGE on exactly those 24 files. So naively reading the index's `status` column would make `aw find plans EXECUTED` start matching records the filesystem path deliberately does not match - a silent behavior change to a frozen contract. Fix: the index-backed resolver MUST reproduce the SELECTOR's semantics, by applying the selector's own single-token rule to the index's stored value (a stored value with whitespace yields no status match, exactly as the file scan does). Do NOT "fix" the selector regex here; that is a separate behavior decision, and this plan's invariant is byte-identical results. (`set_id` was verified parity-clean: `set_terse_id` and `_read_setid` agree on all 394 plans, 0 divergences.)
+- [x] E-03 Establish and TEST the STATUS-SEMANTICS PARITY the index-backed path requires, BEFORE switching any resolution to the index. PARITY DEFECT FOUND IN REVIEW (PR-004): the two readers do not agree on `Status:`. The selector uses `^- Status:\s*(\S+)\s*$` (selectors.py:89), which requires the whole value to be ONE token and therefore returns None for a multi-word value; the index uses `^- Status:\s*(.+?)\s*$` (plans_index.py:37), which captures the whole line. Measured on this repo: 24 of 394 plans carry a multi-word Status (e.g. `EXECUTED (approved by maintainer 2026-06-30; ...)`), and the two regexes DIVERGE on exactly those 24 files. So naively reading the index's `status` column would make `aw find plans EXECUTED` start matching records the filesystem path deliberately does not match - a silent behavior change to a frozen contract. Fix: the index-backed resolver MUST reproduce the SELECTOR's semantics, by applying the selector's own single-token rule to the index's stored value (a stored value with whitespace yields no status match, exactly as the file scan does). Do NOT "fix" the selector regex here; that is a separate behavior decision, and this plan's invariant is byte-identical results. (`set_id` was verified parity-clean: `set_terse_id` and `_read_setid` agree on all 394 plans, 0 divergences.)
   - Depends on: none
   - Expected outcome: a documented parity table for id6/setid/status, and a test proving the index-backed status rule returns the IDENTICAL path set as the file scan for all 394 plans including the 24 multi-word-Status ones.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Performed the DURABLE half and skipped the moot half. The parity DEFECT is real and was re-measured this turn on the live tree: 24 of 469 plans carry a multi-word `- Status:` and the selector's `(\S+)` (selectors.py:89) and the index's `(.+?)` (plans_index.py:37) diverge on exactly those 24, with every divergence explained by a multi-word value (asserted in `test_real_repo_status_divergence_is_still_the_documented_shape`). What was DONE: pinned the constraint as a cross-reference comment at BOTH regexes naming the other by `path:line`, plus tests that fail if the two patterns are ever "harmonized" (`StatusParityConstraintTests`, `RegexShapeTests`), including proof that `aw find plans EXECUTED` does NOT pick up a multi-word `EXECUTED (approved ...)` record. What was NOT done, deliberately: the "index-backed status rule returns the identical path set" test, because E-04 was withdrawn, so there is no index-backed rule to compare against. This is why the plan's doc-sync line for this constraint is satisfied while the parity-proof-for-index-resolution is not applicable.
 
 - [ ] E-04 In `selectors.py`, add an index-backed resolver for the three content-derived rules (MATCH_ID6, MATCH_SETID, MATCH_STATUS) that reads `plan_id`/`set_id`/`status`/`path` from the index entries, applying E-03's parity rules. Use it ONLY when `index_freshness` is `fresh`; on `stale`/`unknown`/`absent` fall through to the existing bounded-header filesystem scan. The fallback is the correctness guarantee and MUST NOT be removable by configuration. Also handle the MULTI-DIRECTORY case honestly: `record_dirs` can return several roots (the project-context read paths plus the literal `.aw/records/<type>` and legacy `.agents/<type>`), while the index covers only its OWN root; if `record_dirs` yields any root the index does not cover, the type is NOT index-resolvable for that invocation and MUST take the fallback. (Verified in this repo `record_dirs('plans')` returns exactly one dir and the index path set equals the scan path set - 0 files on either side only - but the code must not assume the single-root case.)
   - Depends on: E-02, E-03
   - Expected outcome: with a fresh index, resolving an id6 opens ZERO record files (assert via an open() counter); with a stale/absent index the same query still returns the identical result via the fallback; a second unindexed record root forces the fallback.
-  - Execution state: pending
+  - Execution state: blocked
+  - Execution note: WITHDRAWN. This is the E-item the maintainer's re-scope names directly ("E-01/E-02/E-04 rest on the index-first premise the maintainer just displaced") and it is unbuildable as specified anyway, since it `Depends on: E-02`, the withdrawn freshness predicate. Independently, the direction is now contradicted by measurement: the maintainer measured a plain filename listing answering the common case in 20ms against this plan's 357ms baseline, so the cheap fast path is the DIRECTORY LISTING, not the manifest - and a listing needs no freshness primitive. Re-verified this turn that the fallback the plan mandates is genuinely non-optional: 8 of 751 records carry an `Id` absent from their filename (5 legacy-named plans, 3 grandfathered specs including `25kzda`), and status queries cannot be expressed as filenames at all. Preserved in backlog `f8m2z2`. See DECISION 01-e32j35-D1.
 
-- [ ] E-05 Stop feeding file text to the rules that never needed it: MATCH_PATH, MATCH_STEM, and MATCH_SUBSTRING match on the path/filename only, yet `_hits_for` draws them from `_files()` (selectors.py:420-422), which has already paired every path with header text. Give those rules a text-free path enumeration so a stem/substring query reads no file content in ANY freshness state. This is independent of all index work and is worth doing on its own: measured, the header reads are ~8ms of the ~34ms `_iter_files('plans')` call, and this removes them entirely for these rules.
+- [x] E-05 Stop feeding file text to the rules that never needed it: MATCH_PATH, MATCH_STEM, and MATCH_SUBSTRING match on the path/filename only, yet `_hits_for` draws them from `_files()` (selectors.py:420-422), which has already paired every path with header text. Give those rules a text-free path enumeration so a stem/substring query reads no file content in ANY freshness state. This is independent of all index work and is worth doing on its own: measured, the header reads are ~8ms of the ~34ms `_iter_files('plans')` call, and this removes them entirely for these rules.
   - Depends on: none
   - Expected outcome: a stem or substring query opens zero record files regardless of index state (assert via the open() counter).
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: IMPLEMENTED, and the EXPECTED OUTCOME ABOVE IS UNREACHABLE - proven, not conceded. Added `selectors._iter_paths`, a text-free enumeration, and routed MATCH_PATH/MATCH_STEM/MATCH_SUBSTRING through it so they consult no file text; `_iter_files` now LAYERS the bounded header read over that same walk, for the three rules that need front matter. WHY THE STATED OUTCOME CANNOT HOLD: precedence is frozen by this plan's own invariant and puts `stem`/`substring` LAST, so before returning a filename match the resolver must first prove `setid` and `status` did not match - and those live in front matter. The ambiguity is real: with a plan whose `Set:` is `demo` and another whose FILENAME contains `demo`, the token resolves as MATCH_SETID, so skipping that check to reach zero opens would CHANGE which record wins, violating Execution-contract item 6. Measured: a substring query still opens 469 files. Encoded the impossibility as `PrecedenceForcesFrontMatterReadsTests` so a later reader does not "fix" the resolver toward a target that would silently change matching. WHAT WAS ACTUALLY GAINED: the filename rules cost nothing of their own, a filename match no longer depends on the body being readable (a correctness fix: `_iter_files` drops an unreadable candidate, `_iter_paths` does not), `path` genuinely resolves at zero opens, and the read-free primitive the deferred two-tier design needs now exists. ALSO FIXED A SELF-INFLICTED REGRESSION: the first version walked the tree twice (83ms vs a 50ms baseline); sharing one traversal brought it to 46.9ms, with `test_real_repo_one_traversal_is_shared` guarding it. See DECISION 01-e32j35-D2 and D3.
 
-- [ ] E-06 Do NOT wire research to the index; instead record the reason in the module docs and keep research on the filesystem scan. RESEARCH DISQUALIFIED IN REVIEW (PR-005): research docs do not use the `- Id:`/`- Status:`/`- Set:` BULLET front matter at all, they use YAML front matter (`id:`, `status:`, `set:` between `---` fences, parsed by `R.parse_frontmatter`, research_index.py:95). Verified: of 98 research files scanned by the selector, ZERO contain a `- Id:` bullet, so `aw find research j2000q` today resolves via MATCH_SUBSTRING (the filename happens to contain the id6), NOT via MATCH_ID6, and `aw find research reference` matches 5 files by filename substring while the index has 52 with `status: reference`. Feeding the research index into the id6/setid/status rules would therefore CHANGE research find results by an order of magnitude (5 -> 52 for one status query), which violates this plan's frozen-semantics invariant. That mismatch is a real defect, but it is a SEMANTIC one about which front-matter dialect selectors should understand; fixing it is a separate decision, not a performance change smuggled in here. So E-06 is documentation-only: state in `selectors.py` that research is deliberately not index-resolvable and why, and file the underlying dialect gap as a backlog item.
+- [x] E-06 Do NOT wire research to the index; instead record the reason in the module docs and keep research on the filesystem scan. RESEARCH DISQUALIFIED IN REVIEW (PR-005): research docs do not use the `- Id:`/`- Status:`/`- Set:` BULLET front matter at all, they use YAML front matter (`id:`, `status:`, `set:` between `---` fences, parsed by `R.parse_frontmatter`, research_index.py:95). Verified: of 98 research files scanned by the selector, ZERO contain a `- Id:` bullet, so `aw find research j2000q` today resolves via MATCH_SUBSTRING (the filename happens to contain the id6), NOT via MATCH_ID6, and `aw find research reference` matches 5 files by filename substring while the index has 52 with `status: reference`. Feeding the research index into the id6/setid/status rules would therefore CHANGE research find results by an order of magnitude (5 -> 52 for one status query), which violates this plan's frozen-semantics invariant. That mismatch is a real defect, but it is a SEMANTIC one about which front-matter dialect selectors should understand; fixing it is a separate decision, not a performance change smuggled in here. So E-06 is documentation-only: state in `selectors.py` that research is deliberately not index-resolvable and why, and file the underlying dialect gap as a backlog item.
   - Depends on: E-04
   - Expected outcome: a comment/docstring naming the YAML-vs-bullet dialect mismatch, a test asserting research still resolves via the filesystem path (unchanged results, no silent 5 -> 52 change), and a new backlog item filed for the dialect gap.
-  - Execution state: pending
+  - Execution state: performed
+  - Execution note: Performed in full, and independently of the withdrawn E-04 it nominally depends on (this E-item is documentation plus a backlog filing, so the dependency was informational, not mechanical). All three deliverables landed: (1) a module docstring section in `selectors.py` naming the YAML-vs-bullet dialect mismatch with the measured consequence; (2) `ResearchStaysFilesystemResolvedTests` asserting research resolves via MATCH_SUBSTRING and that a `reference` status query does NOT match YAML `status: reference`, so the 5 -> 52 shift cannot happen silently; (3) backlog item `05aqbj` filed with the full measurement set and the three fix options. RE-MEASURED on the live tree this turn, and the plan's figures reproduce with the corpus having grown: 0 of 103 research files carry a `- Id:` bullet while 101 carry a YAML `id:`; `aw find research reference` returns 5 files while `research/INDEX.json` holds 52 entries with `status: reference`.
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -247,33 +254,172 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-01 validates E-01
   - Required evidence: Pasted output of a named test showing `aw index plans` writes the SIDECAR freshness marker with all four parts (tool version, generated-at, record count, fingerprint), plus a pasted `python3 -c` snippet reading the sidecar and printing it. THE BYTE-STABILITY ASSERTION (this is the one that proves the marker is in the right place): paste evidence that after `aw index plans`, `build_index_json(scan_plans(dir))` byte-equals `INDEX.json` on disk AND that `aw check plans --check` reports clean - run it twice to show the second run does not report `stale-index`. Show the sidecar is gitignored (`git check-ignore -v <sidecar>` output). Include the BACK-COMPAT assertion: with the sidecar absent, freshness is `unknown` (not fresh). Assert the writer opens no record body to compute the fingerprint.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOT APPLICABLE - E-01 was withdrawn unexecuted, so there is no sidecar to validate and no evidence is claimed. Recording `blocked` rather than `pass` is the honest state: `blocked` requires nonempty Observed evidence, and this note IS that evidence (the reason validation cannot run), not a substitute for a test result. The one assertion in this V-item that was independently WORTH checking - that `INDEX.json` bytes stay untouched - holds trivially and was confirmed by the unchanged `aw check all` finding count (103 before, 103 after; see V-05), because this turn never wrote to `INDEX.json` at all. See DECISION 01-e32j35-D1.
+  - Result: blocked
 
 - [ ] V-02 validates E-02
   - Required evidence: Pasted test output covering ALL FOUR verdicts of `index_freshness`: `absent` (no index file), `unknown` (sidecar missing / malformed JSON / truncated), `stale`, `fresh` (immediately after `aw index`). THE FINGERPRINT SENSITIVITY MATRIX, pasted, with four separate stale cases: (a) a file ADDED, (b) a file DELETED, (c) a file RENAMED with count and max-mtime unchanged, (d) an in-place `Status:` edit with mtime RESTORED via `os.utime` so max-mtime is unchanged. Each MUST report `stale`; a test that only covers (a) does not validate this E-item, because (c) and (d) are exactly what the original count+max-mtime design missed. Plus a non-raising assertion: point it at an unreadable path / a directory / garbage bytes and assert it returns `unknown` rather than raising. Name the test file and functions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOT APPLICABLE - E-02 was withdrawn unexecuted; `index_freshness` does not exist, so all four verdicts and the sensitivity matrix are unvalidatable. Worth recording for the successor plan: this V-item's own case (d) is the drift mode the maintainer independently judged the fingerprint CANNOT reliably catch (a length-preserving edit with a restored mtime, and `reviewed`/`approved`/`executed`/`reusable` are all 8 characters), so had E-02 been built to spec, this validation would have been expected to FAIL on its hardest case. That is corroborating reason not to build it, and it is carried into backlog `f8m2z2`. See DECISION 01-e32j35-D1.
+  - Result: blocked
 
 - [ ] V-03 validates E-03
   - Required evidence: THE STATUS PARITY PROOF, pasted: for every plan in this repo (394 at review time), assert the index-backed status resolution returns the IDENTICAL sorted path set as the filesystem scan, and include a targeted case over the 24 multi-word-`Status:` plans showing `aw find plans EXECUTED` does NOT gain those files. Paste the count of divergences (must be 0). Include the setid parity check too (expected 0 divergences). Cite the two regexes by `path:line` in the test docstring so the constraint is discoverable later.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PARTIALLY VALIDATED, and the unvalidatable half is unvalidatable BY CONSTRUCTION (no index-backed resolution exists to compare against, E-04 having been withdrawn), so this is recorded `blocked` rather than `pass`.
+
+    WHAT WAS VERIFIED. The parity CONSTRAINT is pinned and the divergence re-measured on the live tree (469 plans, up from 394 at review):
+
+    ```
+    $ python3 -m pytest "tests/test_selector_zero_open.py::StatusParityConstraintTests" \
+        "tests/test_selector_zero_open.py::RegexShapeTests" \
+        "tests/test_selector_zero_open.py::_SanityOnRealRepoTests" -o addopts="" -v
+    tests/test_selector_zero_open.py::_SanityOnRealRepoTests::test_real_repo_status_divergence_is_still_the_documented_shape PASSED [  9%]
+    tests/test_selector_zero_open.py::_SanityOnRealRepoTests::test_real_repo_enumeration_is_read_free PASSED [ 18%]
+    tests/test_selector_zero_open.py::_SanityOnRealRepoTests::test_real_repo_one_traversal_is_shared PASSED [ 27%]
+    tests/test_selector_zero_open.py::RegexShapeTests::test_patterns_are_not_accidentally_identical PASSED [ 36%]
+    tests/test_selector_zero_open.py::RegexShapeTests::test_index_status_pattern_is_whole_line PASSED [ 45%]
+    tests/test_selector_zero_open.py::RegexShapeTests::test_selector_status_pattern_is_single_token PASSED [ 54%]
+    tests/test_selector_zero_open.py::StatusParityConstraintTests::test_selector_yields_no_status_for_a_multi_word_value PASSED [ 63%]
+    tests/test_selector_zero_open.py::StatusParityConstraintTests::test_a_multi_word_status_is_not_matched_by_its_first_word PASSED [ 72%]
+    tests/test_selector_zero_open.py::StatusParityConstraintTests::test_index_captures_the_whole_multi_word_value PASSED [ 81%]
+    tests/test_selector_zero_open.py::StatusParityConstraintTests::test_the_two_readers_provably_diverge PASSED [ 90%]
+    tests/test_selector_zero_open.py::StatusParityConstraintTests::test_single_token_status_agrees PASSED [100%]
+
+    ============================== 11 passed in 0.26s ==============================
+    ```
+
+    THE DIVERGENCE COUNT, measured directly on the live tree:
+
+    ```
+    plans scanned: 469
+    status divergences (selector vs index regex): 24
+    multi-word Status values: 24
+    ```
+
+    `test_real_repo_status_divergence_is_still_the_documented_shape` asserts these two numbers are EQUAL, i.e. every divergence is explained by a multi-word value and there is no second, unexplained cause. `test_a_multi_word_status_is_not_matched_by_its_first_word` is the targeted case the V-item asks for: a record with `Status: EXECUTED (approved by maintainer ...)` is NOT returned by a query for `EXECUTED`, so the widening this plan feared cannot occur. SETID PARITY re-checked and clean, matching the review's finding of 0 divergences. Both regexes now carry a cross-reference comment naming the other by `path:line` (selectors.py:89 / plans_index.py:37), and `RegexShapeTests` fails if either is edited toward the other.
+
+    WHAT WAS NOT VERIFIED: "index-backed status resolution returns the IDENTICAL sorted path set" - there is no such resolution path. See DECISION 01-e32j35-D1.
+  - Result: blocked
 
 - [ ] V-04 validates E-04
   - Required evidence: THE RESOLVER-SCOPED ZERO-OPEN ASSERTION, pasted: with a FRESH index, resolve an id6 (and separately a setid and a status) while counting record-file opens via a patched `Path.open`/`builtins.open` counter, and assert the count for `.md` record files is EXACTLY 0. State in the test name/docstring that this is RESOLVER-scoped. THEN, separately and honestly, paste the END-TO-END count for `aw find plans <id6>` before and after (baseline measured in review: 394 distinct files / 788 opens) and state plainly whether it changed; do NOT present the resolver-scoped zero as an end-to-end zero. Then THE FALLBACK EQUIVALENCE, also pasted: for the same three queries, compare results with (a) fresh index, (b) index deleted, (c) index made stale - assert all three return the IDENTICAL sorted path set. Then the DRIFT case: a record present on disk but ABSENT from a stale index is still found. Then the MULTI-ROOT case: with a second record root the index does not cover, assert the fallback is taken. Then OQ-02: `--include-ignored` and `--max-depth` each FORCE the fallback.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOT APPLICABLE - E-04 was withdrawn unexecuted. No index-backed resolver exists, so the resolver-scoped zero-open assertion, the fresh/stale/absent fallback-equivalence triple, the drift case, the multi-root case, and the OQ-02 force-the-fallback assertions all have no subject. NOTHING WAS SILENTLY LOST: the DRIFT invariant this V-item exists to protect (a record on disk but missing from a stale index is still found) holds ABSOLUTELY TODAY, because resolution never consults an index at all - the fallback is the only path. The end-to-end open count the V-item demands as an honesty check was measured anyway and is reported in V-05, where it is actionable. See DECISION 01-e32j35-D1.
+  - Result: blocked
 
 - [ ] V-05 validates E-05
   - Required evidence: Pasted test output asserting a MATCH_STEM query and a MATCH_SUBSTRING query each open ZERO record files, in BOTH the fresh-index and no-index states (four assertions), using the same open() counter. This must hold independently of any index, since these rules match on the filename only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: **FAILED AS SPECIFIED, AND THE SPECIFICATION IS WHAT IS WRONG.** Recorded `failed` rather than `pass` because the required evidence above cannot be produced honestly: a MATCH_STEM or MATCH_SUBSTRING *query* does NOT open zero record files, and cannot while precedence is frozen.
 
-- [ ] V-06 validates E-06
+    THE ACTUAL FAILING OUTPUT when the assertion was written exactly as this V-item demands:
+
+    ```
+    FAILED tests/test_selector_zero_open.py::FilenameOnlyRulesOpenNothingTests::test_stem_rule_opens_zero_record_files
+    FAILED tests/test_selector_zero_open.py::FilenameOnlyRulesOpenNothingTests::test_substring_rule_opens_zero_record_files
+    FAILED tests/test_selector_zero_open.py::FilenameOnlyRulesOpenNothingTests::test_no_match_substring_still_opens_zero
+    FAILED tests/test_selector_zero_open.py::FilenameOnlyRulesOpenNothingTests::test_public_api_stem_query_opens_zero
+    FAILED tests/test_selector_zero_open.py::_SanityOnRealRepoTests::test_real_repo_substring_query_opens_zero_record_files
+    5 failed, 26 passed in 0.42s
+
+    AssertionError: 12 != 0
+    AssertionError: 469 != 0 : a substring query still opened 469 record file(s) in the real tree
+    ```
+
+    WHY, and this is a semantics result rather than an implementation defect: `_PRECEDENCE` (selectors.py:48-55) is `path -> id6 -> setid -> status -> stem -> substring`, and this plan freezes it. `stem` and `substring` are LAST, so before the resolver may return a filename match it must establish that `setid` and `status` did not match, and both live in front matter. The ambiguity is not hypothetical - a token can be BOTH a Set id and a filename fragment, in which case `setid` legitimately wins:
+
+    ```
+    token 'demo' resolves as: setid ['20260101-demo-01-aaa111-alpha.ipd.md']
+    ```
+
+    Reaching zero opens would mean returning the substring match instead, i.e. changing which record a selector resolves to. Execution-contract item 6 forbids exactly that ("silently changing what a selector matches is a failure, not a trade-off"), and the plan's stated invariant is byte-identical results. So the frozen contract and the zero-open target are mutually exclusive, and the target is the one that must yield.
+
+    WHAT IS TRUE AND WAS VERIFIED INSTEAD (34 tests, all passing):
+
+    ```
+    $ python3 -m pytest tests/test_selector_zero_open.py -o addopts="" -q
+    ..................................                                       [100%]
+    34 passed in 0.36s
+    ```
+
+    ```
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_precedence_places_filename_rules_last PASSED [ 10%]
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_a_token_can_be_both_a_setid_and_a_filename_fragment PASSED [ 20%]
+    tests/test_selector_zero_open.py::PrecedenceForcesFrontMatterReadsTests::test_a_filename_query_still_reads_because_earlier_rules_must_lose_first PASSED [ 30%]
+    tests/test_selector_zero_open.py::FilenameRuleEvaluationIsReadFreeTests::test_path_rule_opens_zero_record_files PASSED [ 40%]
+    tests/test_selector_zero_open.py::FilenameRuleEvaluationIsReadFreeTests::test_filename_match_survives_an_unreadable_body PASSED [ 50%]
+    tests/test_selector_zero_open.py::FilenameRuleEvaluationIsReadFreeTests::test_stem_and_substring_still_return_the_right_answer PASSED [ 60%]
+    tests/test_selector_zero_open.py::FilenameRuleEvaluationIsReadFreeTests::test_substring_rule_matches_without_consulting_any_body_text PASSED [ 70%]
+    tests/test_selector_zero_open.py::FilenameRuleEvaluationIsReadFreeTests::test_stem_rule_matches_without_consulting_any_body_text PASSED [ 80%]
+    tests/test_selector_zero_open.py::EnumerationsAgreeTests::test_iter_paths_opens_nothing PASSED [ 90%]
+    tests/test_selector_zero_open.py::EnumerationsAgreeTests::test_text_free_and_text_bearing_walks_match PASSED [100%]
+    ============================== 10 passed in 0.16s ==============================
+    ```
+
+    RESOLVER-SCOPED OPEN COUNTS, measured on the live tree (469 plans):
+
+    ```
+    id6              kind=id6        opens= 469 distinct= 469
+    setid            kind=setid      opens= 469 distinct= 469
+    substring miss   kind=None       opens= 469 distinct= 469
+    direct path      kind=path       opens=   0 distinct=   0
+    _iter_paths      (text-free)     opens=   0
+    ```
+
+    So the zero-open property is real for `_iter_paths` and for the `path` rule (which short-circuits ahead of every scan), and NOT for a stem/substring query.
+
+    END-TO-END, reported as Execution-contract item 4 requires so the win is not overstated:
+
+    ```
+    $ aw find plans e32j35   (with an open() probe)
+    PROBE opens=938 distinct=469
+    ```
+
+    938 opens across 469 distinct files - the display layer (`cli._find_type_records` -> `plans_index.scan_plans`, an UNBOUNDED `read_text`) still reads every plan independently of the resolver, exactly as the plan's Deferred section predicted. **`aw find` has NOT stopped reading record files.**
+
+    WALL CLOCK, with the startup floor stated as required: resolver-side `resolve(substring)` is 46.9ms against a 50.6ms baseline (min of 7 runs). This also records a self-inflicted regression found and fixed mid-implementation: the first version walked the tree twice and cost 83.2ms; sharing one traversal fixed it, and `test_real_repo_one_traversal_is_shared` now asserts opens == distinct opens so it cannot recur. The honest summary is that E-05 bought a correctness improvement and a needed primitive, NOT a measurable end-to-end speedup. See DECISION 01-e32j35-D2 and D3.
+  - Result: failed
+
+- [x] V-06 validates E-06
   - Required evidence: Pasted test output asserting research selector resolution is UNCHANGED by this plan: `aw find research <id6>` and a research status query return the same path sets as before (specifically, the status query must NOT jump from the filename-substring result to the index's 52 `status: reference` docs). Paste the evidence for WHY research is excluded: a snippet counting research files containing a `- Id:` bullet (expected 0 of 98) alongside the YAML `id:` field, plus the `parse_frontmatter` call site (research_index.py:95). Show the new backlog item exists (`aw find backlog <id6>` or the file path) recording the YAML-vs-bullet dialect gap.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in full. All three required parts below.
+
+    (1) RESEARCH RESOLUTION UNCHANGED, and pinned so a future change is deliberate:
+
+    ```
+    $ python3 -m pytest "tests/test_selector_zero_open.py::ResearchStaysFilesystemResolvedTests" \
+        "tests/test_selector_zero_open.py::DialectDocumentationTests" -o addopts="" -v
+    tests/test_selector_zero_open.py::ResearchStaysFilesystemResolvedTests::test_research_status_query_does_not_see_yaml_status PASSED [ 14%]
+    tests/test_selector_zero_open.py::ResearchStaysFilesystemResolvedTests::test_research_id6_resolves_by_filename_substring_not_id6 PASSED [ 28%]
+    tests/test_selector_zero_open.py::ResearchStaysFilesystemResolvedTests::test_research_status_query_opens_zero_files_when_it_is_a_filename_miss PASSED [ 42%]
+    tests/test_selector_zero_open.py::ResearchStaysFilesystemResolvedTests::test_research_has_no_bullet_id PASSED [ 57%]
+    tests/test_selector_zero_open.py::DialectDocumentationTests::test_module_docstring_names_the_dialect_gap PASSED [ 71%]
+    tests/test_selector_zero_open.py::DialectDocumentationTests::test_index_status_regex_carries_the_parity_note PASSED [ 85%]
+    tests/test_selector_zero_open.py::DialectDocumentationTests::test_status_regex_carries_the_parity_note PASSED [100%]
+
+    ============================== 7 passed in 0.13s ===============================
+    ```
+
+    `test_research_id6_resolves_by_filename_substring_not_id6` asserts the winning kind is MATCH_SUBSTRING and would FAIL if the YAML dialect were ever wired in; `test_research_status_query_does_not_see_yaml_status` asserts a `reference` query does not match docs whose YAML says `status: reference`. Together they make the 5 -> 52 shift impossible to introduce silently.
+
+    (2) WHY RESEARCH IS EXCLUDED, re-measured on the live tree (the corpus has grown from 98 to 103 since review, and every figure still reproduces):
+
+    ```
+    research files scanned: 103
+    carrying a '- Id:' BULLET: 0
+    carrying a YAML 'id:': 101
+    aw find research 'reference' -> 5 files
+    INDEX.json status=='reference': 52 of 101
+    ```
+
+    Zero of 103 research docs carry the bullet dialect this resolver understands, so `aw find research <id6>` resolves by FILENAME (MATCH_SUBSTRING), not by MATCH_ID6. Wiring in the index would turn one status query's answer from 5 files into 52. The YAML dialect is parsed by `research_contract.parse_frontmatter` via `research_index._scan_docs` (`research_index.py:95`), which is a different reader from this module's regexes. The reason is now recorded in the `selectors.py` module docstring, not only in this plan.
+
+    (3) THE BACKLOG ITEM EXISTS:
+
+    ```
+    $ aw find backlog 05aqbj
+    open          05aqbj  .aw/records/backlog/open/20260901-selfmdialect-01-05aqbj-selectors-blind-to-research-yaml-frontmatter.backlog.md
+    ```
+
+    It records the measurements, why the silence is the harmful part (a plausible-looking short answer with no signal that metadata was never consulted), three fix options with the 5 -> 52 consequence stated for each, and the implementation notes already established (reuse `parse_frontmatter`; normalize backtick quoting; the 4KB bounded header suffices; preserve precedence and the artifact-not-reference rule).
+  - Result: pass
 
 ## Approval and execution gate
 
