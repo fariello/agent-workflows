@@ -1,0 +1,76 @@
+- Id: tk1gqo
+- Status: open
+- Set: historder
+- Priority: medium
+- Work-Kind: bug
+- Summary: aw check reports check.lifecycle-transition-invalid on conformant plans: _plan_status_events reverses inline history on a newest-first assumption while the repo's actual convention is oldest-first (9 diagnostics repo-wide, incl. approved plans)
+
+## Workflow history
+- 2026-09-01 created (aw backlog): aw check reports check.lifecycle-transition-invalid on conformant plans: _plan_status_events reverses inline history on a newest-first assumption while the repo's actual convention is oldest-first (9 diagnostics repo-wide, incl. approved plans)
+
+FOUND during `/aw plan-review` of Set `wslayout` (review record
+`.aw/records/reviews/20260901-wslayout-00-rh5tt6-...review.md`, finding PR-009). Filed rather than worked
+around, because the available workaround would make things worse.
+
+THE SYMPTOM. `aw check plans` reports, for each affected plan:
+
+    check.lifecycle-transition-invalid: recorded lifecycle transition 'to-review' -> 'draft' is invalid:
+    missing predecessor: backwards transition 'to-review' -> 'draft'
+
+THE CAUSE, measured not assumed. `ipd_lifecycle._plan_status_events` REVERSES the parsed inline history,
+on an explicit assumption recorded in its own comment (`agent_workflows/ipd_lifecycle.py:637-638`):
+
+    # Inline history is stored newest-first; reverse to oldest-first for derivation.
+    events.reverse()
+
+When a plan stores history OLDEST-FIRST, that reversal inverts the stream, so the derived first
+transition runs backwards. Measured on the wslayout orchestrator:
+
+    python3 -c 'from pathlib import Path; from agent_workflows import ipd_lifecycle as IL; \
+    p=next(Path(".aw/records/plans/pending").glob("*wslayout-00-rh5tt6*.ipd.md")); \
+    print([e[1] for e in IL._plan_status_events(p.read_text())])'
+    -> ['to-review', 'draft']      # inverted: the file records draft FIRST, then to-review
+
+THE PLANS ARE NOT AT FAULT; THE ASSUMPTION IS THE SUSPECT PART. The repositorys ACTUAL practice is
+OLDEST-FIRST. Sampled from `executed/` (i.e. a plan that completed the whole lifecycle),
+`20260101-instsafe-07-qrokie-clean-delta-and-tracking-modes-design-spec.ipd.md` records
+2026-07-23 draft -> 2026-07-25 reframed -> 2026-07-26 executed, oldest first. The `wslayout` plans follow
+that same order. So they conform to practice and fail only against the parsers undocumented
+expectation.
+
+IT IS PRE-EXISTING AND SYSTEMIC, both verified:
+- PRE-EXISTING: reconstructing the plans tree at the wslayout AUTHORING commit `7d222547` (before any
+  review edit) and re-running `aw check plans` reproduces all 6 diagnostics. No review edit introduced
+  them.
+- SYSTEMIC: 9 `check.lifecycle-transition-invalid` diagnostics repo-wide. 6 on wslayout, 3 on unrelated
+  plans, and notably two of those are APPROVED plans reporting `approved -> reviewed`:
+  `20260830-...-01-6knsrx-land-the-six-verified-wtiso-lane-branches...ipd.md` and
+  `20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary...ipd.md`, plus
+  `20260829-...-01-0soncw-collapse-run-inspection-under-aw-runs...ipd.md` reporting `to-review -> draft`.
+
+THE DECISION THIS NEEDS (a repository-contract question, not a per-plan fix): is inline
+`## Workflow history` normatively OLDEST-FIRST or NEWEST-FIRST?
+
+- If OLDEST-FIRST (which practice and the executed corpus suggest): the bug is the `events.reverse()` at
+  `ipd_lifecycle.py:638` and the comment above it. Fix the parser; no artifact changes.
+- If NEWEST-FIRST: then a large corpus of existing plans is non-conformant and needs a migration plus a
+  documented, enforced ordering rule. That is much more expensive and should not be adopted by default
+  merely because one function assumes it.
+
+Either way the ordering contract must be WRITTEN DOWN (the IPD spec is the natural home) and enforced,
+because today an author has no way to learn it except by tripping this rule.
+
+DO NOT "FIX" THIS BY REORDERING PLAN HISTORIES. Reversing the six wslayout histories would satisfy the
+parser while contradicting the convention every other plan follows, and would leave the 3 unrelated plans
+still failing. That trades a visible tooling warning for an invisible corpus inconsistency. This was
+considered and rejected during the review.
+
+BLAST RADIUS TO CHECK WHEN FIXING: `_plan_status_events` feeds `derive_status_from_events` and the
+`check.lifecycle-transition-invalid` rule (`agent_workflows/check_engine.py:1039-1052`), which the rule
+docstring notes runs ALONGSIDE and does NOT override the authoritative `- Status:` read (`:1052`). That is
+why this is a warning-class consistency defect rather than a gate failure, and why it does not block
+execution of any plan. Also confirm `aw doctor` and any lifecycle-gate consumer agree after the change.
+
+WHY IT MATTERS DESPITE BEING NON-BLOCKING: 9 warnings that no plan author can correctly resolve train
+readers to ignore a real consistency rule. The repo already has a recorded instance of that exact failure
+mode in backlog `gjadwm`: "a gate that false-positives on correct behavior TRAINS agents to bypass it."

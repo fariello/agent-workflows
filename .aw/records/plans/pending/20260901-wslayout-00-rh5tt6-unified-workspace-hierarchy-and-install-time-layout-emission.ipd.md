@@ -109,73 +109,79 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- OQ-1 RESOLVED 2026-09-01 by the maintainer: UNION. Keep every type that exists today, including
-  `roadmaps`, and ADD the missing ones (`reviews`, `backlog`, `other`) where a module lacks them. The
-  unified model DOCUMENTS reality rather than redefining it, so the consolidation deletes nothing and
-  breaks nothing. Two consequences the replan must carry: (a) `roadmaps` STAYS, so no child may drop it
-  from `ARTIFACT_TYPES`; (b) `records` (the empty-subpath special case at
-  `agent_workflows/record_producers.py:136`) needs an EXPLICIT carve-out in the model rather than being
-  represented as an ordinary record type with a subpath. `reviews` becoming an accepted CLI noun also
-  means `aw check reviews` must stop erroring.
-  - Blocking: resolved
-  - Finding: PR-001
-  - Spec `kw5y2s:59-73` presents a `record_classes` table as the single source of truth, but it matches
-    NEITHER existing vocabulary. Measured at HEAD `df600461`: `ARTIFACT_TYPES`
-    (`agent_workflows/artifact_types.py:12-23`) contains `roadmaps`, which the spec omits; `RecordClass`
-    (`agent_workflows/record_producers.py:85-101`) contains `records` (subpath `""`, `:136`), which the
-    spec omits; the spec adds `reviews` (not an accepted CLI noun), and adds `backlog` + `other` to the
-    record-class set (absent from `RecordClass`).
-  - Why blocking: `roadmaps` is live in 12 modules including shipped CLI surfaces
-    (`agent_workflows/artifact_rename.py:827-828,855-856` `run_rename_roadmaps` / `run_group_roadmaps`,
-    `artifact_refs.py:215`, `artifact_naming.py:95`, `artifact_core.py:169`). Deriving `ARTIFACT_TYPES`
-    from the spec's list (Order 02 `zvk796` E-01) would DELETE a shipped noun; deriving
-    `_RECORD_CLASS_SUBPATHS` (Order 03 `rodj06` E-01) would drop the root-level `records` class. No
-    V-item in either child would detect it, because both validate only two narrow test files.
-  - Decision needed from the maintainer: (a) is `roadmaps` retained or deliberately retired; (b) do
-    `reviews` / `backlog` / `other` join the closed CLI noun vocabulary; (c) what becomes of the
-    empty-subpath `records` class. This changes a closed public vocabulary, so it is NOT a reviewer call.
+### OQ-01: What is the true unified record-class vocabulary?
 
-- OQ-2 RESOLVED 2026-09-01 by the maintainer: GITIGNORED, via a `.gitignore` INSIDE the `.aw/`
-  directory. Consistent with the `ila6vl` ruling on generated manifests and with this spec's own
-  anti-drift rationale: the installer writes `.aw/system/layout.json` and `.aw/system/layout.schema.json`
-  and git never sees them. The ignore rule goes in the FRAMEWORK-OWNED `.aw/.gitignore`, NOT the user's
-  root `.gitignore`, which the installer must never touch. That file already exists and already carries
-  this exact convention for four other generated/box-local paths (`.aw/.gitignore:1-15`, whose header
-  states "This file lives inside the framework-owned `.aw/` tree; it is NOT the user's root
-  `.gitignore`"), so the mechanism is established, not new. The replan must add `system/layout.json` and
-  `system/layout.schema.json` there (paths are relative to `.aw/`).
-  - Consequence the replan must handle: a FRESH CLONE has no layout.json until an install or update
-    runs, so every non-Python reader must tolerate absence, and any CI job reading it needs an install
-    step first. Consider pairing this with the `aw check` presence/version rule (see `30jug9` E-02) so
-    absence or a version mismatch fails loudly rather than silently.
-  - Blocking: resolved
-  - Finding: PR-004
-  - The spec's rationale for install-time emission is that it "Eliminates Git Drift" (`kw5y2s:40-43`),
-    but the plans never state the trackedness of the file they emit, and the two available precedents
-    point in OPPOSITE directions. `.aw/system/` is TRACKED in this repository (156 files via
-    `git ls-files`), the sibling generated marker `.aw/system/VERSION` is tracked, and
-    `git check-ignore .aw/system/layout.json` reports it NOT ignored, so emission as designed creates a
-    tracked generated file. Yet one day earlier the maintainer resolved the closely analogous case the
-    other way: backlog `ila6vl` decided to "stop tracking the four generated INDEX.json/INDEX.md
-    manifests" precisely to end that churn.
-  - Why blocking: it is the single most consequential unstated decision in the Set, and it is
-    effectively irreversible once target repos have committed the artifact and tooling depends on it.
-  - Also for the same decision: `aw context --json` ALREADY emits `data.logical_roots` (resolved
-    absolute paths) and `data.effective_framework_version`, and `aw path <root>` prints one path for
-    scripting. The genuinely unserved gap is narrower than the Set's framing: the record-class
-    vocabulary (subpath / pattern / lifecycle subdirs / aliases) and the state-class map. Confirm the
-    scope is narrowed accordingly.
+- Blocking: no
+- Status: resolved
+- Finding: PR-001
+- Resolution or deferral rationale: RESOLVED 2026-09-01 by the maintainer, asked interactively: the
+  vocabulary is the UNION. Keep every type that exists today, INCLUDING `roadmaps`, and ADD the missing
+  ones (`reviews`, `backlog`, `other`) where a module lacks them. The model DOCUMENTS reality rather
+  than redefining it, so the consolidation deletes nothing and breaks nothing.
+  WHY THE QUESTION EXISTED: draft spec `kw5y2s:59-73` presented a `record_classes` table as the single
+  source of truth, but it matched NEITHER existing vocabulary. Measured at HEAD: `ARTIFACT_TYPES`
+  (`agent_workflows/artifact_types.py:12-23`) contains `roadmaps`, which the spec omitted; `RecordClass`
+  (`agent_workflows/record_producers.py:85-101`) contains `records` (empty subpath, `:136`), which the
+  spec omitted; the spec added `reviews` (not an accepted CLI noun: `aw check reviews` errored) and
+  `backlog`/`other` (absent from `RecordClass`). `roadmaps` is live in 12 modules with working verbs
+  `run_rename_roadmaps`/`run_group_roadmaps` (`agent_workflows/artifact_rename.py:827-828,855-856`) and
+  5 artifacts on disk, so deriving from the spec's list would have deleted a shipped CLI surface.
+  WHERE IT IS NOW ENCODED: spec Section 3.2 (eleven classes with per-row provenance) and Section 3.2.1
+  (the `records` empty-subpath carve-out); `wpu5zu` E-01/E-02 and V-01; `zvk796` E-01 and V-01;
+  `rodj06` E-01 and V-01; `30jug9` E-03 and V-03.
+  CONSEQUENCES CARRIED: `roadmaps` must survive every derivation; `records` needs an explicit carve-out
+  rather than an ordinary subpath entry; and `reviews` becoming a CLI noun is net-new behavior that
+  `aw check reviews` must now accept, tested rather than assumed.
 
-- OQ-3 (non-blocking, resolve during replan) `setup-repo` and `aw update` are named as install entry
-  points (`kw5y2s:317,333,346`; `hauwqh:6,24,39`; `30jug9` V-02) but neither can receive the emission
-  wiring. Corrected spelling (maintainer, 2026-09-01): it is `/aw setup-repo` (alias `/setup-repo`), an
-  AGENT SLASH-COMMAND, not `aw setup-repo`; see `.aw/system/workflows/index.md:108,121` and
-  `agent_workflows/engine.py:3597`. It is a WORKFLOW BODY an agent reads and executes
-  (`.aw/system/workflows/setup-repo/setup-repo.md`), so it has NO Python call site, and it does not
-  install the bundle: `aw install` runs FIRST and then RECOMMENDS `/setup-repo` as a follow-up
-  conformance pass (`engine.py:3581-3597`). Emission therefore belongs ONLY in `engine.install()`, which
-  `/aw setup-repo` inherits transitively at no cost. `aw update` is not a verb either; `aw install` is
-  the idempotent updating entry point. See PR-003.
+### OQ-02: Is the emitted `.aw/system/layout.json` git-tracked or gitignored?
+
+- Blocking: no
+- Status: resolved
+- Finding: PR-004
+- Resolution or deferral rationale: RESOLVED 2026-09-01 by the maintainer, asked interactively:
+  GITIGNORED, via a `.gitignore` INSIDE the `.aw/` directory (the framework-owned file), never the
+  user's root `.gitignore`.
+  WHY THE QUESTION EXISTED: the spec's own rationale for install-time emission is to eliminate git drift
+  (`kw5y2s:40-43`), yet the plans never stated trackedness, and the two in-repo precedents point in
+  OPPOSITE directions. `.aw/system/` is tracked here (156 files) and the sibling generated marker
+  `.aw/system/VERSION` is tracked, while one day earlier the maintainer decided the analogous case the
+  other way in backlog `ila6vl` (stop tracking the generated INDEX manifests, 328 commits in 14 days).
+  Guessing would have either recreated that churn or contradicted the spec's stated purpose.
+  WHY THE CHOSEN MECHANISM IS NOT NEW: `.aw/.gitignore` already exists and already carries this exact
+  convention for four other generated or box-local paths, and its header states it "lives inside the
+  framework-owned `.aw/` tree; it is NOT the user's root `.gitignore`" (`.aw/.gitignore:1-15`).
+  WHERE IT IS NOW ENCODED: spec Section 2.3 (the ruling, its reasoning, and the consequence) and the
+  updated Sections 6.1/7/8; `hauwqh` E-02 (add `system/layout.json` and `system/layout.schema.json`,
+  idempotently) with V-02 requiring `git check-ignore -v` evidence and proof the root `.gitignore` is
+  untouched; `30jug9` E-01 (the command must work with no emitted file) and E-02 (the presence/drift
+  rule is the loud-failure backstop).
+  CONSEQUENCE CARRIED: a fresh clone has NO layout.json until an install runs, so every non-Python
+  reader must tolerate absence, CI reading it needs an install step first, and git will never show a
+  diff for a stale emitted file, which is precisely why the `aw check` rule became required rather than
+  optional.
+
+### OQ-03: Which install entry point receives the emission wiring?
+
+- Blocking: no
+- Status: resolved
+- Finding: PR-003
+- Resolution or deferral rationale: RESOLVED 2026-09-01 (measured from the repository, then the spelling
+  corrected by the maintainer): `engine.install()`, reached by `aw install`, is the SOLE emission site.
+  The draft spec and two plans named `aw setup-repo` and `aw update` as install entry points; neither is
+  a CLI verb. The correct spelling is `/aw setup-repo` (alias `/setup-repo`), an AGENT SLASH-COMMAND
+  backed by a workflow BODY (`.aw/system/workflows/setup-repo/setup-repo.md`, shim
+  `.opencode/commands/setup-repo.md`; see `.aw/system/workflows/index.md:108,121`), so it has no Python
+  call site into which file emission could be wired.
+  THE RELATIONSHIP IS THE REVERSE OF THE PLANS' ASSUMPTION: `aw install` runs FIRST and then RECOMMENDS
+  `/setup-repo` as a follow-up conformance pass (`agent_workflows/engine.py:3581-3597`, "NEXT STEP ...
+  run /setup-repo"). `/aw setup-repo` therefore inherits emission transitively at zero cost, and no
+  emission code belongs in the workflow body. There is likewise no `aw update` verb; `aw install` is
+  idempotent and is itself the update path.
+  WHERE IT IS NOW ENCODED: spec Section 6.1 (rewritten, with the four install-time steps and an explicit
+  paragraph on why the slash-command needs no code) plus Sections 7.1 and 8.2; `hauwqh` E-01 (sole
+  emission site) with V-01 requiring evidence that the workflow body is untouched, `Scope` and
+  `Scope-Paths` corrected, and `tests/test_setup_repo_cli.py` dropped from scope because there is no
+  such CLI surface to test.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

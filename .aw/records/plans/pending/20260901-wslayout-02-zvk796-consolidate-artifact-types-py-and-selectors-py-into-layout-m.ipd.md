@@ -15,13 +15,13 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
-- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
   - PR-001 (would delete shipped `roadmaps` noun), PR-005 (silently widens EXCLUDED_RECORD_DIRS), PR-006 (no bare-suite V-item), PR-007 (Item-Dependencies: none contradicts orchestrator).
 - 2026-09-01 /plan-review revisions applied (opencode/its_direct/pt3-claude-opus-5-1m-us): verdict revised REJECT -> APPROVE WITH REVISIONS APPLIED after the maintainer challenged the REPLAN call; all findings FIXED in place (no rewrite needed). review-finalize lint conforming; bare suite 4004 passed. Execution still gated on maintainer approval of spec kw5y2s (ipd-lifecycle.md:16).
+- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 ## Goal
 
@@ -96,7 +96,27 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- none.
+### OQ-01: Keep the seven current traversal exclusions, or widen to ten?
+
+- Blocking: no
+- Status: open
+- Owner: executor of this Order, recorded in E-02 before implementing
+- Finding: PR-005
+- Resolution or deferral rationale: DELIBERATELY LEFT OPEN with a SAFE DEFAULT, so the decision is made
+  once and visibly rather than as a side effect. Non-blocking because the default (keep seven) is
+  behavior-preserving and needs no permission; only the widening is a change.
+  THE FACTS: `selectors.EXCLUDED_RECORD_DIRS` currently holds SEVEN entries (`.git`,
+  `.system_generated`, `__pycache__`, `runs`, `scratch`, `temp`, `tmp`). An earlier draft of spec
+  `kw5y2s` additionally listed `node_modules`, `venv`, and `.venv`; those are NOT in the code, and the
+  spec's Section 3.4 has been corrected to the real seven. `wpu5zu` pins the model to those seven so
+  this consolidation is provably behavior-preserving.
+  THE CHOICE: EITHER keep the seven exactly (DEFAULT; V-02 asserts equality and nothing else is needed),
+  OR widen to ten as an EXPLICIT change, which additionally requires updating the `wpu5zu` parity test
+  in the SAME commit and stating the reason here. Widening is plausibly desirable (a vendored
+  `node_modules` under a records tree would be skipped), but it changes what record resolution walks, so
+  it must not happen merely because the model became the source.
+  REQUIRED: V-02 pastes the resulting set, and a set that changed WITHOUT a stated decision is a FAILED
+  validation, not a pass.
 
 ## Validation and cross-check (verify before reporting done)
 

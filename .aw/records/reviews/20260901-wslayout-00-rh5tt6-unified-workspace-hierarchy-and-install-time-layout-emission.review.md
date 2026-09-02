@@ -50,7 +50,7 @@ eight findings is a BOUNDED IN-PLACE EDIT, so the workflow's REPLAN bar ("the ap
 unsound and cannot be repaired with bounded edits") is not met. The sequence the Set proposes (model
 first, consolidate second, emit third, surface fourth) is sound, and the maintainer's UNION ruling makes
 the consolidation purely additive rather than a vocabulary redefinition. Every child had room: none held
-more than three E-items. All eight findings are now FIXED in place; see `### Edits applied` and D-6.
+more than three E-items. All eight in-scope findings are now FIXED in place; see `### Edits applied` and D-6. A ninth finding, PR-009, was discovered while validating and is a defect in the SHARED LIFECYCLE PARSER rather than in these plans, so it stays OPEN with a recommended follow-up.
 
 THE ONE REMAINING GATE IS EXTERNAL TO THE PLANS: `ipd-lifecycle.md:16` requires the controlling SPEC to be
 formally approved by the human maintainer before execution may start, and `kw5y2s` is `Status: draft`.
@@ -70,20 +70,47 @@ themselves.
 | PR-006 | MEDIUM | UNDER-SCOPE | G. Plan executability / D. Anti-regression | `zvk796:34` ("re-exports the layout model definitions seamlessly"), `:41`; `rodj06:34,41`; spec `kw5y2s:335` ("100% backward compatibility") | "100% backward compatibility" is the central safety claim of Orders 02 and 03 and no V-item verifies it as such. Both plans validate only two narrow test files each; neither requires the BARE FULL SUITE, which is the only evidence that a re-export broke no other caller. The repo contract requires a bare `python3 -m pytest` run and pasted output; only the orchestrator (`rh5tt6` V-02) and `30jug9:78` ask for the full suite, so a child could be finalized green while having broken an unnamed consumer. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | NOT FIXED (folded into the replan). Each consolidating child needs a V-item requiring bare `python3 -m pytest` with pasted output, plus an explicit assertion that the public names each module exported before still exist with identical values. |
 | PR-007 | MEDIUM | IN-SCOPE | G. Plan executability / B. Sequencing | `Item-Dependencies: none` on all five children (`wpu5zu:8`, `zvk796:8`, `rodj06:8`, `hauwqh:8`, `30jug9:8`) vs the orchestrator's own table `rh5tt6:46-52` (02, 03, 04 depend on 01; 05 depends on 04) and each child's prose (`zvk796:60`, `rodj06:60`, `hauwqh:59`) | The machine-readable dependency field contradicts the human-readable sequence in the orchestrator and in the children's own "deferred" prose. Every child declares no dependency, so a scheduler reading metadata may start Order 02 (which imports `layout.py`) before Order 01 creates it, producing an ImportError-level failure. This is the same defect class the repo already flagged and fixed elsewhere (compare `604wra` PR-002, where prose and metadata disagreed on a dependency). | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | NOT FIXED. Mechanically fixable with `aw ipd dependencies set`, but deliberately left for the replan so the dependency graph is written once against the corrected child decomposition rather than twice. Named explicitly so it cannot be lost. |
 | PR-008 | LOW | IN-SCOPE | F. KISS / UX | `30jug9:6,32`; existing verbs `aw migrate-layout` (measured present), `aw context`, `aw path`; `aw layout` measured absent | The proposed verb `aw layout` sits one word away from the existing, unrelated `aw migrate-layout` (a transactional physical-layout MIGRATION), inviting a destructive-sounding confusion in tab completion, and overlaps `aw context`, which already prints the resolved roots. Not a blocker, but the replan should justify a new top-level noun against extending `aw context --layout` or making it a subcommand, per the project's own preference for existing canonical mechanisms. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | NOT FIXED (folded into the replan). Recorded so the naming choice is made deliberately rather than by default. |
+| PR-009 | MEDIUM | IN-SCOPE | A. Correctness (TOOLING, not this Set) | `agent_workflows/ipd_lifecycle.py:637-638` ("Inline history is stored newest-first; reverse to oldest-first"); measured event streams below; `check_engine.py:1039-1052`; original authoring commit `7d222547` | `aw check plans` reports `check.lifecycle-transition-invalid` on ALL SIX wslayout plans: "recorded lifecycle transition 'to-review' -> 'draft' is invalid: backwards transition". Investigated rather than assumed, and the plans are NOT at fault. `ipd_lifecycle._plan_status_events` REVERSES the parsed history because it assumes newest-first storage (`:637-638`), so an oldest-first history is inverted and its first transition becomes backwards. Measured: `_plan_status_events` returns `['to-review','draft']` for `rh5tt6`. But oldest-first is the repo's ACTUAL convention: a sampled executed plan (`20260101-instsafe-07-qrokie`) runs 2026-07-23 draft -> 07-25 -> 07-26 executed, i.e. oldest-first, and the wslayout plans match it. Verified PRE-EXISTING by reconstructing the tree at the original authoring commit `7d222547`: all 6 already fired there, before any review edit. Repo-wide there are 9 such diagnostics, 3 on unrelated plans including APPROVED ones (`6knsrx` and `wlxkoz` show `approved -> reviewed`), so this is a systemic parser/convention mismatch, not a wslayout defect. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | OPEN | NOT FIXED, and deliberately NOT worked around. Reordering these six histories to newest-first would satisfy the parser while CONTRADICTING the convention every other plan follows, and would leave the 3 unrelated plans still failing. This is a defect in `ipd_lifecycle._plan_status_events` (or in the undocumented storage-order contract it asserts) and belongs in its own corrective item, not in a plan-review edit to six unrelated plans. FILED as backlog `tk1gqo`. Non-blocking for this Set: it is a warning-class consistency report on RECORDED EVENTS that runs alongside, and explicitly does not override, the authoritative `- Status:` read (`check_engine.py:1052`). |
+
+#### PR-009 stays OPEN: why it is not fixed here
+
+`aw check plans` reports `check.lifecycle-transition-invalid` on all six plans. It is a TOOLING defect,
+not a defect in this Set, and the distinction was established by measurement rather than assumed:
+
+- `ipd_lifecycle._plan_status_events` REVERSES parsed inline history, documenting the assumption
+  "Inline history is stored newest-first; reverse to oldest-first for derivation"
+  (`ipd_lifecycle.py:637-638`). Measured output for `rh5tt6`: `['to-review', 'draft']`, i.e. inverted.
+- The repo's ACTUAL convention is oldest-first. A sampled executed plan
+  (`20260101-instsafe-07-qrokie`) runs 2026-07-23 draft -> 07-25 -> 07-26 executed. The wslayout plans
+  follow that same order, so they are conformant with practice and non-conformant only with the parser.
+- PRE-EXISTING, verified by reconstructing the plans tree at the original authoring commit `7d222547`
+  and re-running the check: all 6 already fired there, before any review edit touched them.
+- SYSTEMIC: 9 such diagnostics repo-wide, 3 on unrelated plans, including APPROVED ones (`6knsrx` and
+  `wlxkoz` report `approved -> reviewed`).
+
+WHY NOT WORK AROUND IT: reordering these six histories to newest-first would silence the warning while
+contradicting the convention every other plan follows, and would still leave the 3 unrelated plans
+failing. That trades a visible tooling bug for an invisible corpus inconsistency.
+
+WHAT IT NEEDS: a repository-contract decision on which storage order is normative, then either fix the
+parser (if oldest-first is normative) or migrate the corpus (if newest-first is). FILED as backlog item `tk1gqo`
+(`.aw/records/backlog/open/20260901-historder-01-tk1gqo-lifecycle-history-order-mismatch.backlog.md`), which
+carries the measurement, the repro command, the contract question, and the blast radius. Non-blocking for this Set, because the rule validates recorded events ALONGSIDE, and
+explicitly does not override, the authoritative `- Status:` read (`check_engine.py:1052`).
 
 ### Decisions
 
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
-| D-1 | Should the reviewer pick the correct unified record-class vocabulary (e.g. keep `roadmaps`, add `reviews`) and repair the six plans in place? | No. ASKED the maintainer interactively (Step 3.2). ANSWERED 2026-09-01: UNION, keep everything including `roadmaps`, add the missing `reviews`/`backlog`/`other`. | (a) Adopt the spec's list and treat `roadmaps` as deliberately retired; (b) union now but file separate work to retire `roadmaps`; (c) do not unify at all, keeping CLI nouns and storage classes as deliberately different lists. All three were PRESENTED to the maintainer with measured consequences; the maintainer chose the union. Not decided on reviewer authority precisely because it changes a closed public vocabulary. | Live vocabulary `agent_workflows/artifact_types.py:12-23`; `agent_workflows/record_producers.py:85-101,132-139`; `roadmaps` CLI surfaces `agent_workflows/artifact_rename.py:827-828,855-856`; 5 roadmap artifacts on disk incl. `.aw/records/roadmaps/`; `aw check reviews` errors today; spec table `kw5y2s:59-73`; maintainer answered interactively 2026-09-01 | no (escalated and answered, not self-resolved) |
-| D-2 | Should the reviewer decide whether the emitted `.aw/system/layout.json` is git-tracked or gitignored in target repos? | No. ASKED the maintainer interactively (Step 3.2). ANSWERED 2026-09-01: GITIGNORED, via a `.gitignore` INSIDE the `.aw/` directory (not the user's root `.gitignore`). | (a) Tracked, matching the `.aw/system/VERSION` precedent; (b) gitignored plus an `aw check` presence/freshness rule; (c) emit no file at all and expose layout only through the CLI. All presented with measured trade-offs; the maintainer chose gitignored and SPECIFIED the mechanism. Not decided on reviewer authority because the two in-repo precedents point opposite ways and the choice is effectively one-way once target repos depend on it. | Tracked system tree measured (156 files under `.aw/system/`, `git ls-files`); `.aw/system/VERSION` tracked; `git check-ignore .aw/system/layout.json` -> not ignored; maintainer decision `.aw/records/backlog/open/20260831-idxtracked-01-ila6vl-...backlog.md:6`; existing framework-owned `.aw/.gitignore:1-15`; spec rationale `kw5y2s:40-43`; maintainer answered interactively 2026-09-01 | no (escalated and answered, not self-resolved) |
+| D-1 | Should the reviewer pick the correct unified record-class vocabulary (e.g. keep `roadmaps`, add `reviews`) and repair the six plans in place? | No. ASKED the maintainer interactively (Step 3.2). ANSWERED 2026-09-01: UNION, keep everything including `roadmaps`, add the missing `reviews`/`backlog`/`other`. | (a) Adopt the spec's list and treat `roadmaps` as deliberately retired; (b) union now but file separate work to retire `roadmaps`; (c) do not unify at all, keeping CLI nouns and storage classes as deliberately different lists. All three were PRESENTED to the maintainer with measured consequences; the maintainer chose the union. Not decided on reviewer authority precisely because it changes a closed public vocabulary. | Live vocabulary `agent_workflows/artifact_types.py:12-23`; `agent_workflows/record_producers.py:85-101,132-139`; `roadmaps` CLI surfaces `agent_workflows/artifact_rename.py:827-828,855-856`; 5 roadmap artifacts on disk incl. `.aw/records/roadmaps/`; `aw check reviews` errors today; spec table `kw5y2s:59-73`; raised with the maintainer and answered 2026-09-01 (maintainer asked interactively, maintainer told the decision) | no |
+| D-2 | Should the reviewer decide whether the emitted `.aw/system/layout.json` is git-tracked or gitignored in target repos? | No. ASKED the maintainer interactively (Step 3.2). ANSWERED 2026-09-01: GITIGNORED, via a `.gitignore` INSIDE the `.aw/` directory (not the user's root `.gitignore`). | (a) Tracked, matching the `.aw/system/VERSION` precedent; (b) gitignored plus an `aw check` presence/freshness rule; (c) emit no file at all and expose layout only through the CLI. All presented with measured trade-offs; the maintainer chose gitignored and SPECIFIED the mechanism. Not decided on reviewer authority because the two in-repo precedents point opposite ways and the choice is effectively one-way once target repos depend on it. | Tracked system tree measured (156 files under `.aw/system/`, `git ls-files`); `.aw/system/VERSION` tracked; `git check-ignore .aw/system/layout.json` -> not ignored; maintainer decision `.aw/records/backlog/open/20260831-idxtracked-01-ila6vl-...backlog.md:6`; existing framework-owned `.aw/.gitignore:1-15`; spec rationale `kw5y2s:40-43`; raised with the maintainer and answered 2026-09-01 (maintainer asked interactively, maintainer told the decision) | no |
 | D-6 | Is REPLAN the right verdict, or can all eight findings be fixed in place? | FIX IN PLACE. Verdict revised from `REJECT - NEEDS REPLAN` to `APPROVE WITH REVISIONS APPLIED`; all eight applied. | Standing by REPLAN and rewriting the Set. Rejected after the maintainer challenged the verdict and re-measurement falsified my premise: I had reasoned "the spec is wrong, therefore the plans are unsound", but the REPLAN bar is repairability, not spec correctness. Measured: every finding is a bounded edit (reword three V-items, add four E/V items, one metadata command, pin constants), and every child had room at 2-3 E-items with `aw ipd sync` available for pairing. The proposed sequence is sound and the UNION ruling makes consolidation additive. | plan-review Step 2.4 REPLAN criterion ("cannot be repaired with bounded edits"); measured E-item counts (2,2,2,2,3); `aw ipd dependencies set` and `aw ipd sync` availability; maintainer challenge 2026-09-01 | yes |
 | D-7 | Should the reviewer edit spec `kw5y2s`, given a spec is a design document the maintainer owns? | Yes, correct its FACTUAL defects in place; do NOT approve it. | Leaving the spec untouched for the maintainer. Rejected on the maintainer's explicit instruction ("Fix all eight in place, then correct spec kw5y2s"), and because leaving it would strand the plans citing a spec whose tables contradict them. The edits are confined to measured facts (vocabulary, exclusions, non-existent verbs) and to transcribing the maintainer's own two rulings; no design choice was invented. `Status` deliberately left `draft`: an agent may not approve a spec, and `ipd-lifecycle.md:16` makes that approval the execution gate. | Maintainer instruction 2026-09-01; `ipd-lifecycle.md:16`; AGENTS.md rule that an agent may not self-approve; `aw specs check` -> all conform after edits | yes |
 | D-5 | Was leaving OQ-1/OQ-2 merely escalated, without asking, correct for this run? | No. That was a PROCESS ERROR, corrected in Round 1 by asking both interactively before finalizing. | Leaving them `OPEN` under Step 3.3's non-interactive exception. Rejected because that exception applies only when the environment has "no human interaction channel", which was false here: the maintainer was answering questions throughout the session. Step 3.1's "do not ask what the repository already answers" licenses resolving ANSWERABLE questions from evidence; it does not license deferring a question the reviewer has itself determined requires a maintainer decision. Recorded so the mistake is auditable rather than invisible. | plan-review Step 3.2 (ask 1-3 per prompt, wait before the final report); Step 3.3 (non-interactive definition: "A delayed reply is not non-interactive"); this review's own D-1/D-2 both stating the decision was not a reviewer call | yes |
-| D-3 | Is `REPLAN` correct here, rather than fixing the eight findings in place as the workflow's fix-by-default bar prefers? | Yes, REPLAN. | Fix in place: repair vocabulary, correct the test-file names, retarget `setup-repo` to `engine.install`, and add the missing full-suite V-items. Rejected because the falsified premises live in spec `kw5y2s`, which is still `Status: draft` and therefore unapproved: repairing only the plans would leave six plans implementing an unapproved spec whose vocabulary tables and central rationale are themselves wrong, and PR-001/PR-004 need maintainer decisions no reviewer edit can supply. | Fix Bar: PR-001 Overall High, PR-004 Overall Medium-High, both above the Medium-High deferral threshold; spec status `kw5y2s:4`; plan-review Step 2.4 REPLAN criterion | yes |
-| D-4 | Should the six plans' `Status` be set to `reviewed`? | No. Left at `to-review`. | Set `reviewed` because the review did occur. Rejected: the workflow directs a `REJECT - NEEDS REPLAN` outcome toward replanning rather than advancing readiness, and the corrected decomposition will supersede these files, so marking them `reviewed` would imply a pipeline position they should not hold. Recorded here so the choice is visible rather than an omission. | plan-review Step 4 (`Status: reviewed` unless the contract requires another value); verdict definition REJECT - NEEDS REPLAN | yes |
+| D-3 | Is `REPLAN` correct here, rather than fixing the eight findings in place as the workflow's fix-by-default bar prefers? | SUPERSEDED BY D-6. Originally decided "Yes, REPLAN"; that was WRONG and is retained only as the record of the reasoning. See D-6 for the corrected decision (fix in place). | Fix in place, which is what D-6 chose after the maintainer challenged the verdict. The original rejection rested on the premise that a wrong spec makes the plans unsound; the REPLAN bar is actually repairability, and every finding proved to be a bounded edit. | Fix Bar: PR-001 Overall High, PR-004 Overall Medium-High; spec status `kw5y2s:4`; plan-review Step 2.4 REPLAN criterion; SUPERSEDED: see D-6 and the maintainer challenge of 2026-09-01 | yes |
+| D-4 | Should the six plans' `Status` be set to `reviewed`? | No. Left at `to-review`, and that answer SURVIVES the D-6 verdict change, for a different reason than originally given. | Set `reviewed` now that the verdict is APPROVE WITH REVISIONS APPLIED. Rejected because the plans are not executable regardless: `ipd-lifecycle.md:16` gates execution on approval of controlling spec `kw5y2s`, which remains `draft`, and advancing to `reviewed` would signal a pipeline position the Set cannot occupy until the maintainer approves that spec. The original rationale (a replan would supersede these files) is obsolete and is superseded by this one. | plan-review Step 4; `ipd-lifecycle.md:16`; spec status `kw5y2s:4` (still `draft`); supersedes the REPLAN-based rationale per D-6 | yes |
 
-### Edits applied (all eight findings FIXED in place)
+### Edits applied (the eight in-scope findings FIXED in place; PR-009 is a tooling defect left OPEN)
 
 - `wpu5zu` E-01: pinned to the UNION vocabulary of eleven record classes with the measured live sets
   cited, an explicit instruction NOT to copy the draft spec's table, the `records` empty-subpath
@@ -122,12 +149,56 @@ themselves.
   `roadmaps`, fixed exclusions); Sections 5.1, 6.1, 7, and 8 corrected so `engine.install()` is the sole
   emission site and the non-existent verbs are gone. Status left `draft` pending maintainer approval.
 
+### Open-question state (corrected after a maintainer challenge, "No open questions?")
+
+A second maintainer challenge caught three defects in how this review recorded its questions. All are
+fixed; the correction is recorded because the original evidence was misleading.
+
+1. `Blocking: resolved` WAS NOT A LEGAL VALUE. `ipd_schema.py:1251` admits only `yes`/`no`
+   (`OQ_BLOCKING_VALUES`). The schema carries a SEPARATE `Status:` field (`open`/`resolved`/`deferred`,
+   `:1252`) plus a required rationale, which is what should have expressed resolution. The three
+   questions are now `Blocking: no` + `Status: resolved` + a full rationale.
+2. THE EARLIER "LINT CONFORMING" DID NOT COVER THIS SECTION. `ipd_lint.py:307-311` only ingests an open
+   question under an `### OQ-NN:` HEADING; the questions had been written as prose bullets, so
+   `check_open_questions` (`:595-615`) received ZERO items and validated nothing. Measured before the
+   fix: `len(doc.open_questions) == 0`; after: `== 3`, each with its fields parsed. The clean lint was
+   therefore a FALSE NEGATIVE on this section, not evidence of conformance. This is exactly the limit
+   the workflow warns about: the linter proves structure only, and a section it cannot see is a section
+   it cannot check.
+3. OQ-03 WAS STALE AND SELF-CONTRADICTORY. It read "non-blocking, resolve during replan" and described
+   PR-003 as outstanding, but there is no replan and PR-003 is fixed. It is now `Status: resolved` with
+   the measured entry-point facts and a pointer to where the fix landed.
+
+CURRENT STATE, verified by parsing each plan rather than by reading prose:
+
+| Plan | OQs parsed | State |
+|---|---|---|
+| `rh5tt6` | 3 | OQ-01/02/03 all `Blocking: no`, `Status: resolved` (the two maintainer rulings plus the entry-point correction) |
+| `wpu5zu` | 0 | none; its constraints are E-item requirements, not decisions |
+| `zvk796` | 1 | OQ-01 `open`, non-blocking: keep seven traversal exclusions (safe default) or widen to ten as an explicit change (PR-005) |
+| `rodj06` | 0 | none |
+| `hauwqh` | 0 | none |
+| `30jug9` | 1 | OQ-01 `open`, non-blocking: justify a new `aw layout` verb or move it under an existing noun (PR-008) |
+
+The two remaining questions are deliberately `open` and assigned to the EXECUTOR, not to the human: each
+has a stated safe default, each is non-blocking because either choice satisfies the spec, and each has a
+V-item that FAILS if the choice is made without being recorded. That is the honest state; claiming zero
+open questions would have hidden two real decisions inside E-item prose.
+
 ### Validation of this review's own edits
 
 - `aw ipd lint --phase review-finalize --agent` -> `clean`, `findings=0` for ALL SIX plans (re-run after
-  every edit; two transient failures were caught and fixed mid-edit: an `IPD-I305` `Depends on:` grammar
-  break from a parenthetical, and `IPD-I303`/`IPD-I304` from adding E-03 before pairing V-03 and
-  advancing the watermark).
+  every edit; three defect classes were caught and fixed mid-edit: an `IPD-I305` `Depends on:` grammar
+  break from a parenthetical, `IPD-I303`/`IPD-I304` from adding E-03 before pairing V-03 and advancing
+  the watermark, and the open-question format defect described above, which the linter could NOT catch
+  because it never parsed the section).
+- Open-question parsing verified DIRECTLY, not inferred from a clean lint:
+  `python3 -c "...ipd_lint.parse(...).open_questions"` reports 3 / 0 / 1 / 0 / 0 / 1 across
+  `rh5tt6`/`wpu5zu`/`zvk796`/`rodj06`/`hauwqh`/`30jug9`, with every field (`Blocking`, `Status`,
+  `Finding`, rationale) populated. Before the fix the orchestrator parsed ZERO.
+- `aw ipd lint --phase pre-execution` on `rh5tt6` -> `error`, `IPD-S404: status 'to-review' is
+  incompatible with checkpoint 'pre-execution'`. This is the CORRECT and desired result: the Set cannot
+  execute until the maintainer approves, which is the gate `ipd-lifecycle.md:16` describes.
 - `aw specs check` -> `all specs conform`.
 - Bare full suite `python3 -m pytest` -> `4004 passed, 3 skipped, 4 xfailed in 40.53s`. No product code
   was touched by this review; this is the untouched-baseline confirmation.

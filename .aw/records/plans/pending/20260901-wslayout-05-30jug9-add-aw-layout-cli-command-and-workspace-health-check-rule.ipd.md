@@ -15,13 +15,13 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
-- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
   - PR-004 (existing `aw context --json` already emits logical_roots), PR-008 (`aw layout` collides with `aw migrate-layout`), PR-007.
 - 2026-09-01 /plan-review revisions applied (opencode/its_direct/pt3-claude-opus-5-1m-us): verdict revised REJECT -> APPROVE WITH REVISIONS APPLIED after the maintainer challenged the REPLAN call; all findings FIXED in place (no rewrite needed). review-finalize lint conforming; bare suite 4004 passed. Execution still gated on maintainer approval of spec kw5y2s (ipd-lifecycle.md:16).
+- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 ## Goal
 
@@ -123,7 +123,27 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- none.
+### OQ-01: Should the layout surface be a new top-level `aw layout` verb, or live under an existing noun?
+
+- Blocking: no
+- Status: open
+- Owner: executor of this Order, recorded in E-01 before implementing
+- Finding: PR-008
+- Resolution or deferral rationale: DELIBERATELY LEFT OPEN for the executor to decide and RECORD, not
+  for the human to unblock. It is non-blocking because either choice satisfies the spec's requirement
+  that the vocabulary be inspectable; only the surface differs, and the cost of being wrong is a
+  rename, not a redesign.
+  THE TENSION: `aw layout` sits one word from the EXISTING `aw migrate-layout`, a transactional
+  physical-layout MIGRATION, so a read-only inspector and a file-moving migration become tab-completion
+  neighbours. It also overlaps `aw context`, which ALREADY prints the four resolved logical roots, and
+  `aw path <root>`, which already prints one resolved path for scripting (`aw context --json` emits
+  `data.logical_roots` and `data.effective_framework_version`). The project prefers existing canonical
+  mechanisms, so a NEW top-level noun needs a stated reason.
+  THE LIKELY ANSWER, not imposed: this command emits the record-CLASS vocabulary and the JSON Schema,
+  neither of which `aw context` models, which is a genuine reason for a separate verb. If that holds,
+  say so in E-01; if it does not, implement `aw context --layout` instead.
+  REQUIRED: E-01 must record the choice and its reason, and V-01 FAILS if the justification is absent.
+  An unrecorded default is the failure mode this question exists to prevent.
 
 ## Validation and cross-check (verify before reporting done)
 

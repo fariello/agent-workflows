@@ -15,13 +15,13 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
-- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
   - PR-001 (drops root-level `records` class), PR-002 (tests/test_record_producers.py does not exist), PR-006, PR-007.
 - 2026-09-01 /plan-review revisions applied (opencode/its_direct/pt3-claude-opus-5-1m-us): verdict revised REJECT -> APPROVE WITH REVISIONS APPLIED after the maintainer challenged the REPLAN call; all findings FIXED in place (no rewrite needed). review-finalize lint conforming; bare suite 4004 passed. Execution still gated on maintainer approval of spec kw5y2s (ipd-lifecycle.md:16).
+- 2026-09-01 to-review (aw set): plan-review PR-007: metadata now matches the orchestrator sequence table
 
 ## Goal
 
