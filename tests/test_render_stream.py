@@ -263,16 +263,28 @@ class StatuslineUnitTests(unittest.TestCase):
 
     def test_format_progress_bar(self):
         self.assertEqual(
-            render_stream.format_progress_bar(0, 0), "░░░░░░░░░░  0% [0/0]"
+            render_stream.format_progress_bar(0, 0), "0/0  [          ]   0.00%"
         )
         self.assertEqual(
-            render_stream.format_progress_bar(0, 5), "░░░░░░░░░░  0% [0/5]"
+            render_stream.format_progress_bar(0, 5), "0/5  [          ]   0.00%"
         )
         self.assertEqual(
-            render_stream.format_progress_bar(4, 5), "████████░░ 80% [4/5]"
+            render_stream.format_progress_bar(4, 5), "4/5  [████████  ]  80.00%"
         )
         self.assertEqual(
-            render_stream.format_progress_bar(5, 5), "██████████ 100% [5/5]"
+            render_stream.format_progress_bar(5, 5), "5/5  [██████████] 100.00%"
+        )
+        self.assertEqual(
+            render_stream.format_progress_bar(0, 80), " 0/80  [          ]   0.00%"
+        )
+        self.assertEqual(
+            render_stream.format_progress_bar(1, 80), " 1/80  [▏         ]   1.25%"
+        )
+        self.assertEqual(
+            render_stream.format_progress_bar(40, 80), "40/80  [█████     ]  50.00%"
+        )
+        self.assertEqual(
+            render_stream.format_progress_bar(80, 80), "80/80  [██████████] 100.00%"
         )
 
     def test_format_compact_duration(self):
@@ -375,7 +387,7 @@ class StatuslineUnitTests(unittest.TestCase):
         # Value line segments
         self.assertRegex(seg2[0], r"^\d{2}:\d{2}:\d{2}$")
         self.assertEqual(seg2[1], "1h04m21s last: 14s")
-        self.assertEqual(seg2[2], "4m08s ██████████ 100% [1/1]")
+        self.assertEqual(seg2[2], "4m08s 1/1  [██████████] 100.00%")
         self.assertEqual(seg2[3], "IPD")
         self.assertEqual(seg2[4], "$15.27")
         self.assertEqual(seg2[5], "ens")
@@ -407,10 +419,10 @@ class StatuslineUnitTests(unittest.TestCase):
             artifact_kind="IPD",
         )
 
-        expected_top = "╭─────────┬───────────────────────────┬───────────────────────────────┬─────────┬───────┬─────┬───────┬──────┬────────┬───────╮"
-        expected_l1_suffix = "│ From start  kill in 9m51s │ set: wtisoland    id6: 6knsrx │  Review │ Spend │ Tok │ Total │   In │    Out │ Cache │"
-        expected_l2_suffix = "│ 27m48s last: 8s    stdout │ 27m48s ██████████ 100% [1/1]  │     IPD │ $6.16 │ ens │  4.7m │ 119k │ 110.7k │  4.5m │"
-        expected_bot = "╰─────────┴───────────────────────────┴───────────────────────────────┴─────────┴───────┴─────┴───────┴──────┴────────┴───────╯"
+        expected_top = "╭─────────┬───────────────────────────┬───────────────────────────────────┬─────────┬───────┬─────┬───────┬──────┬────────┬───────╮"
+        expected_l1_suffix = "│ From start  kill in 9m51s │ set: wtisoland        id6: 6knsrx │  Review │ Spend │ Tok │ Total │   In │    Out │ Cache │"
+        expected_l2_suffix = "│ 27m48s last: 8s    stdout │ 27m48s 1/1  [██████████] 100.00%  │     IPD │ $6.16 │ ens │  4.7m │ 119k │ 110.7k │  4.5m │"
+        expected_bot = "╰─────────┴───────────────────────────┴───────────────────────────────────┴─────────┴───────┴─────┴───────┴──────┴────────┴───────╯"
 
         self.assertEqual(top, expected_top)
         self.assertEqual(l1[10:], expected_l1_suffix)
@@ -462,7 +474,7 @@ class StatuslineUnitTests(unittest.TestCase):
         self.assertIn("Execute", s1)
         self.assertIn("IPD", s2)
         self.assertIn("1h04m21s last: 14s", s2)
-        self.assertIn("4m08s ██████████ 100% [1/1]", s2)
+        self.assertIn("4m08s 1/1  [██████████] 100.00%", s2)
         self.assertIn("$15.27", s2)
 
     def test_statusline_write_event_non_tty(self):
@@ -482,7 +494,7 @@ class StatuslineUnitTests(unittest.TestCase):
         line = st.render_line()
         self.assertIn("myset", line)
         self.assertIn("id6abc", line)
-        self.assertIn("[2/10]", line)
+        self.assertIn("2/10", line)
 
 
 class SingleDefinitionTests(unittest.TestCase):

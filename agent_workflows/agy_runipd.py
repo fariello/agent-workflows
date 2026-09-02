@@ -2810,7 +2810,8 @@ def run_agy_turn(
 
     queue = state.get("queue", [])
     total_items = len(queue) or 1
-    current_idx = item.get("position", 1)
+    # When working on item at 1-based position P, number of completed items is P - 1 (e.g. 0 of 2 done).
+    current_idx = max(0, item.get("position", 1) - 1)
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 

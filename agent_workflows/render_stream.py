@@ -218,15 +218,30 @@ def format_compact_tokens(n: int | float) -> str:
     return str(int(val))
 
 
+_FRACTIONAL_BLOCKS = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉", "█"]
+
+
 def format_progress_bar(current: int, total: int, width: int = 10) -> str:
-    """Format a block progress bar with percentage and item count (e.g. '████████░░ 80% [4/5]')."""
+    """Format a block progress bar with blank spaces and fraction eighths (e.g. ' 0/80  [          ]   0.00%')."""
     if total <= 0:
-        return "░" * width + "  0% [0/0]"
-    frac = max(0.0, min(1.0, float(current) / float(total)))
-    filled = int(round(frac * width))
-    bar = "█" * filled + "░" * (width - filled)
-    pct = int(round(frac * 100))
-    return f"{bar} {pct:>2}% [{current}/{total}]"
+        frac = 0.0
+        tot_str = "0"
+        cur_str = "0"
+    else:
+        frac = max(0.0, min(1.0, float(current) / float(total)))
+        tot_str = str(total)
+        cur_str = f"{current:>{len(tot_str)}}"
+
+    eighths = int(round(frac * width * 8))
+    full = eighths // 8
+    rem = eighths % 8
+    if rem > 0 and full < width:
+        bar = "█" * full + _FRACTIONAL_BLOCKS[rem] + " " * (width - full - 1)
+    else:
+        bar = "█" * full + " " * (width - full)
+
+    pct = frac * 100.0
+    return f"{cur_str}/{tot_str}  [{bar}] {pct:>6.2f}%"
 
 
 def format_stall_countdown(
