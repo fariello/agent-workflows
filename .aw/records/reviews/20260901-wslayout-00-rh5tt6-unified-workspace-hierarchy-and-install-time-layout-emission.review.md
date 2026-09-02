@@ -333,3 +333,73 @@ cross-IPD checks, and prose-bullet findings.
   plus 3 on unrelated plans (9 total), confirming PR-009 is still systemic and still not this Set's defect.
 - `aw sanitize --agent` -> `outcome: clean, findings: 0`.
 - No product code was touched by this round; no suite run is claimed.
+
+## Round 3
+
+Scope of THIS round: the CHILD `wpu5zu` (Order 01) alone, which is what was requested. This is the first
+of the five children to be re-reviewed after round 2 flagged (F-9) that they were still `to-review` on an
+expired rationale. The other four remain `to-review`; that advisory stands for them.
+
+Reviewed at HEAD `90434d47`; the plan was committed and unchanged, so the pre-review snapshot was
+correctly skipped. `aw ipd lint --phase author --agent` returned `conforming` before edits and
+`--phase review-finalize` `conforming` after.
+
+WHAT ROUND 1 GOT RIGHT, re-verified live rather than trusted: the union-vocabulary pinning in E-01 is
+accurate (`ARTIFACT_TYPES` 10 members, `RecordClass` 9, union 12 = the eleven modeled classes plus
+`records`), `_RECORD_CLASS_SUBPATHS['records'] == ''` confirms the carve-out, `EXCLUDED_RECORD_DIRS` is
+exactly the seven pinned, and `_ALIASES` carries `roadmap -> roadmaps` and `misc`/`others -> other`. The
+additive-first shape remains the right first step. The external spec gate is now cleared.
+
+WHAT ROUND 1 DID NOT EXAMINE, and where every finding below comes from: whether this plan actually
+delivers the INTERFACE its three dependent children import. Round 1 was occupied with the vocabulary
+question and validated E-01 against the vocabulary alone. Order 01 is the foundation of the Set, so the
+dangerous failure here is not a bug in `layout.py` but an interface that looks complete, validates green,
+and then fails in Order 02 or 03 at import time, or worse, silently changes directory traversal.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-015 | HIGH | UNDER-SCOPE | C. Architecture / G. Plan executability | `selectors.KNOWN_PRIMARY_TYPES` measured (9 members); `record_producers.DurableStateClass` (5) and `RuntimeStateClass` (6) measured; `record_producers._LEGACY_RECORD_CLASS_SUBPATHS` measured; consumer requirements at `zvk796:53` and `rodj06:36`; spec Section 5 `LayoutModel` fields | **E-01's promised surface is INCOMPLETE for its own consumers, and the gap fails in a LATER child rather than here.** E-01 named `RecordClassDefinition`, `LayoutModel`, `build_default_layout`, `to_dict`, `to_json`, `to_schema`, `get_record_subpath`, `is_known_type`, `normalize_type` and the record-class vocabulary. But `zvk796` E-02 sources `KNOWN_PRIMARY_TYPES` from `layout.py`, and that is a DISTINCT, NARROWER set than the union: measured 9 members, exactly `ARTIFACT_TYPES` minus `other`, so a model carrying only the eleven-name union cannot reproduce it without an explicit rule. `rodj06` E-01 sources `DurableStateClass`/`RuntimeStateClass`, whose live values (`install, history, actions, migrations, routing_receipts` and `transactions, locks, staging, backups, cache, tmp`) E-01 never mentions even though the spec's own `LayoutModel` declares `durable_state_classes`/`runtime_state_classes`. `rodj06` must also preserve `_LEGACY_RECORD_CLASS_SUBPATHS` (three `docs/`-prefixed entries), which means one class can have two subpaths, a shape E-01 did not provide for. Each omission validates green in this plan and surfaces downstream. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | FIXED 2026-09-01. E-01 gained an explicit CONSUMER-INTERFACE block enumerating each item with its measured live value and naming the child that imports it: the primary-type set (or a documented derivation such as an `is_primary` flag), both state-class vocabularies member-for-member, the legacy multi-subpath requirement, and the `RootClass` six-vs-four warning from spec Section 5.1 item 4. E-02 must ASSERT the whole surface and V-01 must PASTE it, including which representation was chosen, since Order 02 consumes exactly that. F-4 records it. |
+| PR-016 | HIGH | IN-SCOPE | A. Correctness | `selectors.record_dirs` `if record_type == "other"` branch; measured `record_dirs(repo, "other")` -> `['.aw/records/reviews', '.aw/records/prompt-library']`; `ls -d .aw/records/*/` shows no `other/`; `pyproject.toml:12`; spec `:358-372`; house pattern `attention_contract.py:38,41` | **Two distinct correctness traps, both of which would have been coded wrong from the plan as written.** (a) `other` NEEDS A SECOND CARVE-OUT and the plan named only the `records` one. `record_dirs` does not look up a subpath for `other`; it computes the COMPLEMENT of `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS` over the records root, plus a literal `other/` if one exists. Measured, it returns `reviews` and `prompt-library`, and no `.aw/records/other/` directory exists at all. Modeling `other` as `subpath: "other"` would look correct, pass a naive test, and silently change what Order 02's traversal finds. (b) THE SPEC SNIPPET IS NOT 3.9-VALID while `requires-python = ">=3.9"`: its dataclass fields are annotated `tuple[str, ...]`/`dict[str, str]`, which are evaluated at class-creation time and fail on 3.9 without `from __future__ import annotations`. The plan told the executor to implement that snippet. | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | FIXED 2026-09-01. E-01 now models `other` explicitly as a computed/complement class with the measured output cited and a "never `subpath: other`" instruction, and pins the 3.9 floor with the three-module house pattern (`from __future__ import annotations` + `typing` generics), stating the spec snippet is a SHAPE not copyable source. E-02 must assert `other` is representable without a literal subpath and must run under 3.9 semantics; V-01 requires the import block as pasted evidence. F-5 and F-6 record both. |
+| PR-017 | MEDIUM | IN-SCOPE | C. Architecture / supply chain | `pyproject.toml:50` (`dependencies = ["filelock>=3"]`) and `:68` (`test = ["pytest>=8", "pytest-xdist>=3", "pytest-randomly>=3"]`); zero `import jsonschema` matches under `agent_workflows/` or `tests/`; `jsonschema` 4.26.0 importable on this machine; `pyproject.toml` `filelock` comment ("An accidental transitive install is not a dependency"); D138 | **E-02 proposed an UNDECLARED dependency.** It named "JSON schema validation using `jsonschema` (or stdlib schema checker)". `jsonschema` imports fine here at 4.26.0 but is declared in neither the runtime deps nor the `[test]` extra, and nothing in the package or the suite imports it today. Taking it would make a clean `pip install '.[test]'` and CI run different code than the maintainer, which is precisely the reproducibility hole `pyproject.toml`'s own `filelock` comment was written to close. D138 permits a JUSTIFIED dependency, so this is not a prohibition; the defect is the "or" leaving an undeclared import as an acceptable outcome. | C:Low; U:Low; S:Medium; F:Low; Overall:Low | FIXED | FIXED 2026-09-01. E-02 now states the DECLARE-OR-DO-NOT-IMPORT rule with the measured evidence, defaults to stdlib structural validation (asserting the emitted document's required keys, types and enums against the emitted schema, which is in-scope), and permits the dependency route ONLY if `jsonschema` is added to the `[test]` extra in the same change. Scope check records that route as requiring `pyproject.toml` in `Scope-Paths`; V-02 requires either a grep proving no `import jsonschema` or the declaring diff, and calls an undeclared import a FAILED validation. F-7 records it. |
+| PR-018 | LOW | UNDER-SCOPE | G. Plan executability | Gate section as written (2 lines); Findings as written (1 prose bullet); `Project conventions`, `Scope check`, `Required tests`, `Open questions` as written | **The plan carried no execution contract and four placeholder sections.** The gate held only `Size assessment` and `Cohesion rationale`; `Required tests` was the single line `pytest tests/test_layout.py` (not the bare-suite form the repo contract requires); `Scope check` was "none/none"; `Open questions` was "- none." with nothing recorded; `Findings` was one uncited sentence. Same class as PR-010 on the orchestrator. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED 2026-09-01. Added a nine-clause execution contract naming the foundation risk explicitly (an interface that looks finished), the additive-only rule, the two correctness traps, the declare-or-do-not-import rule, the honesty rule, shared-checkout path-scoped commits, primary-checkout validation, a scope fence with the conditional `pyproject.toml` path, the expected `tk1gqo` diagnostic, and the post-gate lifecycle step. Findings converted to a seven-row evidence table; conventions, scope check, required tests (bare suite + re-measured baseline) and spec sync filled in; `Open questions` now records that round 2 resolved three decisions from evidence rather than leaving a bare "none". |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-11 | `KNOWN_PRIMARY_TYPES` is a 9-member set that differs from the 11-name union by more than one rule. Should the model expose it as its own constant, or derive it? | Require the model to expose it OR expose a documented derivation rule (e.g. a per-class `is_primary` flag), and require V-01 to state WHICH was chosen. Do not let the consumer re-hardcode it. | (a) Mandate a specific representation now, rejected because either is defensible and the executor holds the implementation context; what matters is that the choice is explicit and asserted. (b) Leave it to Order 02 to hardcode, rejected because that recreates the duplication the whole Set exists to remove, in the very module being consolidated. | Measured `selectors.KNOWN_PRIMARY_TYPES` (9) vs `ARTIFACT_TYPES` (10), differing exactly by `other`; `zvk796:53` sources it from `layout.py`; spec Section 5.1 item 3 | yes |
+| D-12 | How should `other` be modeled, given it has no directory and is computed? | As a computed/complement class, explicitly NOT `subpath: "other"`, with the complement rule stated in E-01 and asserted in E-02. | (a) Model it as an ordinary class with `subpath: "other"`, rejected because measured behavior is a complement over the records root (`reviews` + `prompt-library` today) and no `other/` directory exists, so this would silently narrow traversal in Order 02 while passing a naive test. (b) Exclude `other` from the model, rejected because it is a live `ARTIFACT_TYPES` member with `misc`/`others` aliases and the maintainer's UNION ruling keeps everything. | `selectors.record_dirs` complement branch; measured `record_dirs(repo,'other')`; `ls -d .aw/records/*/`; maintainer UNION ruling (round 1 D-1) | yes |
+| D-13 | Should E-02's schema validation be allowed to use `jsonschema`? | Default to stdlib structural validation; permit `jsonschema` only if DECLARED in the `[test]` extra in the same change, with `pyproject.toml` added to `Scope-Paths`. | (a) Forbid the dependency outright, rejected because D138 explicitly clarifies that dependency minimization is a principle and not a prohibition, so a blanket ban would misstate the repo's own decision. (b) Allow the undeclared import since it works here, rejected because `pyproject.toml`'s `filelock` comment names exactly this failure ("An accidental transitive install is not a dependency") and it would desync CI from the maintainer. | `pyproject.toml:50,68`; zero in-repo `import jsonschema`; D138; the `filelock` declaration rationale | yes |
+
+### Edits applied (round 3, `wpu5zu` only)
+
+- E-01: added the CONSUMER-INTERFACE block (primary types, both state-class vocabularies, legacy
+  multi-subpath, `RootClass` six-vs-four), the `other` complement carve-out, and the Python 3.9 pinning
+  with the house annotation pattern (PR-015, PR-016).
+- E-02: declare-or-do-not-import rule for `jsonschema` with the stdlib default; consumer-surface
+  assertions; concrete byte-equality determinism assertion; 3.9 constraint (PR-015, PR-016, PR-017).
+- V-01: added the consumer-interface proof and the 3.9 import-block proof, with an honesty clause for the
+  case where no 3.9 interpreter is available (PR-015, PR-016).
+- V-02: bare-suite form with re-measured baseline, the dependency evidence (grep or declaring diff), and
+  the determinism paste (PR-017).
+- Gate: nine-clause execution contract naming the foundation risk (PR-018).
+- Findings: prose bullet -> seven-row evidence table; `Project conventions`, `Scope check`,
+  `Required tests`, `Spec / documentation sync`, `Open questions` filled in (PR-018).
+- `Status`: `to-review` -> `reviewed` via `aw ipd set`.
+
+### Validation of this review's own edits (round 3)
+
+- `aw ipd lint --phase author --agent` -> `clean` before edits; `--phase review-finalize --agent` ->
+  `clean`, `findings=0` after.
+- Round 1's vocabulary claims re-measured live: `ARTIFACT_TYPES` 10, `RecordClass` 9, union 12,
+  `_RECORD_CLASS_SUBPATHS['records'] == ''`, `EXCLUDED_RECORD_DIRS` == the seven pinned, `_ALIASES`
+  containing `roadmap`/`misc`/`others`.
+- New findings measured, not inferred: `KNOWN_PRIMARY_TYPES` 9 members differing from `ARTIFACT_TYPES` by
+  `other`; `DurableStateClass` 5 and `RuntimeStateClass` 6 members enumerated; `_LEGACY_RECORD_CLASS_SUBPATHS`
+  three `docs/`-prefixed entries; `record_dirs(repo,'other')` -> `['.aw/records/reviews',
+  '.aw/records/prompt-library']` with no `other/` directory; `jsonschema` importable at 4.26.0 with zero
+  in-repo imports and no declaration; `requires-python = ">=3.9"` against the spec's `tuple[...]` snippet.
+- `aw sanitize --agent` -> `outcome: clean, findings: 0`.
+- No product code was touched by this round; no suite run is claimed.
