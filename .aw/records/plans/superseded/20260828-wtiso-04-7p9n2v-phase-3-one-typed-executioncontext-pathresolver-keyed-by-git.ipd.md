@@ -1,3 +1,21 @@
+RETIRED 2026-09-02: superseded by plan `eulhzt`, which achieves this phase's LOAD-BEARING invariant -
+every worktree of a checkout resolves ONE control root, keyed by `git --git-common-dir` - without the
+typed machinery. The `dh0uno` fork this phase existed to close is fixed there and pinned by
+`tests/test_statefork_dh0uno.py` (real `git worktree`; 8 of its 9 tests fail against pre-fix code).
+
+WHY NOT PORTED WHOLESALE (measured, not preference). Cherry-picking this lane's four commits onto
+`main` gives 1 clean + 1 CONFLICTING (5 hunks across `oc_runipd.py` and `agy_runipd.py`) + 2 clean.
+The conflicting commit (`b1f1dd19`) is entangled with `wtiso` PHASE-1 code that is not on `main`
+(lane-relative prompt assembly, `AW_MISSING_INPUT`, the clean-base gate), so it is not separable from
+an unlanded phase. Against that, the part that actually closes `dh0uno` is the `ipd_lifecycle`
+re-anchoring, which `eulhzt` reproduces in ~50 lines with no conflict.
+
+NOT LANDED, and retiring unlanded: `execution_context.py` + `path_resolver.py` (859 lines: typed
+`ExecutionContext`, role-aware `PathResolver`, project_context/project_registry consolidation) and the
+AST guard forbidding raw `.aw/state` construction. Lane `aw/lane/7p9n2v` holds 16 unique commits. The
+AST guard is the most defensible loss, since `eulhzt` relies on convention rather than a mechanical
+check to keep control paths going through one function; re-propose it on merit if drift appears.
+
 # IPD: Phase 3: one typed ExecutionContext + PathResolver keyed by git-common-dir checkout-id (consolidate project_context/project_registry, role-aware paths, AST guard against raw .aw/state paths)
 
 - Date: 2026-08-28
@@ -8,15 +26,15 @@
 - Item-Dependencies: executed:rchpms
 - From-Backlog: dh0uno
 - Blocks-Release: next
-- Status: approved
+- Status: superseded
 - Set: wtiso
 - Order: 4
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 7p9n2v
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): superseded by eulhzt, which secures this phase's load-bearing invariant (one control root per checkout, keyed by git-common-dir) in ~50 lines instead of 859 plus a 5-hunk conflict entangled with unlanded Phase-1 code. The typed ExecutionContext/PathResolver and AST guard retire unlanded.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Two findings would each have let Phase 3 "succeed" without fixing dh0uno. (1) WRONG FIX TARGET (PR-002): E-05 converted the four control-path CONSTRUCTORS, but `receipt_dir`/`receipt_path_for`/`state_root` all take `repo_root` as a PARAMETER, so the caller decides the tree. The fork actually enters at `ipd_lifecycle._repo_root` (`:237-241`), which delegates to `run_evidence.get_worktree_path` and returns the WORKTREE top-level, called as `_repo_root(Path(args.dir or "."))` from `run_begin` (`:1737`) and `run_finalize` (`:1898`). PROVEN LIVE with two real linked worktrees: `--dir <main>` yields `<main>/.aw/state/ipd-lifecycle/abc123.receipt.json` while `--dir <lane>` yields `<lane>/.aw/state/...` - two distinct control roots, which IS dh0uno. Converting only the four constructors would leave that untouched. E-05 now mandates routing `_repo_root`/`run_begin`/`run_finalize` through the resolver (keeping the product tree lane-local while the CONTROL root collapses to the checkout), and V-06 now requires END-TO-END evidence: run the real `aw ipd begin --dir <lane>` and show the receipt materializing under the MAIN control root with no `<lane>/.aw/state/` created, with the measured pre-fix baseline for comparison. (2) UNPASSABLE GUARD (PR-003): E-07's AST guard as written would fail immediately - a review-time scan found 45 modules under `agent_workflows/` constructing some `.aw` path, 19 touching a CONTROL path, ~14 in executable code, while E-05 converts only 4, and the allow-list was left unspecified. E-07 now carries the measured counts and four scoping requirements (match ONLY `.aw/state`/`.aw/records/runs`; skip docstrings/comments/help text, since many hits are prose; name the allow-list explicitly with a per-entry reason, with the expected ~14-module set enumerated from the measurement; and state that the guard's purpose is anti-regression on NEW forks). V-07 now requires pasting the allow-list verbatim with reasons and the entry count. Also: added the missing `Blocks-Release: next` (PR-001) that made this plan fire the exit-blocking `check.from-backlog-gate-mismatch` against its own `From-Backlog: dh0uno` (repo-wide drift 2 -> 1); removed the self-referential Scope-Paths entry (PR-004), matching every executed plan and the Set's other children, since `aw ipd finalize` owns the plan file and the declared `pending/` path ceases to exist on finalize; corrected the drifted driver citations and the stale layout-spec path, which was copied faithfully from a `project_context.py` docstring that itself predates the layout migration (PR-005, with a citation-basis note; NOTE the `project_registry.py`/`project_context.py`/`ipd_lifecycle.py` citations were ACCURATE, including the exact-common-dir priority branch at `:358-364`); and recorded E-06's transitive env dependency on `qcqhj7` E-04 (creates the child env dict) and `rchpms` E-06 (adds `AW_EXECUTION_ROLE`), so this item extends one dict rather than forking a second (PR-006). VERIFIED SOUND (no finding): the dh0uno diagnosis and the chosen fix key are correct - `get_git_common_dir` already returns a byte-identical value from the main checkout and from a linked worktree (measured), so binding `checkout_id` to it is the right invariant; and the AST-guard precedent at `tests/test_naming_authority_single_source.py:20-46` exists as cited.
 - 2026-08-29 reviewed (aw set): status set to reviewed

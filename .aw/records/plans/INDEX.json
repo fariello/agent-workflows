@@ -4150,66 +4150,6 @@
     "status": "not-executed"
   },
   {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md",
-    "plan_id": "bl9q3d",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md",
-    "plan_id": "qcqhj7",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md",
-    "plan_id": "rchpms",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md",
-    "plan_id": "7p9n2v",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md",
-    "plan_id": "58ha43",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-28",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md",
-    "plan_id": "2c122z",
-    "set_id": "wtiso",
-    "status": "approved"
-  },
-  {
     "date": "2026-08-29",
     "disposition": "pending",
     "kind": "child",
@@ -4308,16 +4248,6 @@
     "plan_id": "5e4sb6",
     "set_id": "rununify",
     "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md",
-    "plan_id": "6knsrx",
-    "set_id": "wtisoland",
-    "status": "reviewed"
   },
   {
     "date": "2026-08-30",
@@ -4610,6 +4540,66 @@
     "status": "superseded"
   },
   {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "superseded/20260828-wtiso-00-bl9q3d-worktree-isolation-driver-owned-control-plane-adopt-research.ipd.md",
+    "plan_id": "bl9q3d",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 2,
+    "path": "superseded/20260828-wtiso-02-qcqhj7-phase-1-stop-the-deadlock-and-silent-loss-in-lane-only-worke.ipd.md",
+    "plan_id": "qcqhj7",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 3,
+    "path": "superseded/20260828-wtiso-03-rchpms-phase-2-move-lifecycle-authority-into-the-driver-driver-crea.ipd.md",
+    "plan_id": "rchpms",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 4,
+    "path": "superseded/20260828-wtiso-04-7p9n2v-phase-3-one-typed-executioncontext-pathresolver-keyed-by-git.ipd.md",
+    "plan_id": "7p9n2v",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 5,
+    "path": "superseded/20260828-wtiso-05-58ha43-phase-4-relocate-runtime-machine-state-out-of-the-repo-to-an.ipd.md",
+    "plan_id": "58ha43",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-28",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 6,
+    "path": "superseded/20260828-wtiso-06-2c122z-phase-5-real-candidate-merge-integration-full-crash-recovery.ipd.md",
+    "plan_id": "2c122z",
+    "set_id": "wtiso",
+    "status": "superseded"
+  },
+  {
     "date": "2026-08-29",
     "disposition": "superseded",
     "kind": "child",
@@ -4627,6 +4617,16 @@
     "path": "superseded/20260829-workkind-01-a6cej0-add-a-uniform-recognized-but-optional-work-kind-field-to-ipd.ipd.md",
     "plan_id": "a6cej0",
     "set_id": "workkind",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260829-wtisoland-01-6knsrx-land-the-six-verified-wtiso-lane-branches-stack-conflict-res.ipd.md",
+    "plan_id": "6knsrx",
+    "set_id": "wtisoland",
     "status": "superseded"
   },
   {

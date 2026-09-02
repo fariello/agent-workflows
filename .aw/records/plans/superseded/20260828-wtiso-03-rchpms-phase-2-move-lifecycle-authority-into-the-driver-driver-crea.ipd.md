@@ -1,3 +1,23 @@
+RETIRED 2026-09-02: PARTLY LANDED, and the part that mattered most is already on `main`. This phase
+owned the fix for `xmqv5l`, the defect that actually STRANDED completed work, and 2 of its 6 payload
+commits were cherry-picked to `main` in `cdef9c90`:
+
+- E-01..E-03, key the begin receipt on the FROZEN REGION rather than the whole file
+  (`ipd_lifecycle.frozen_region_digest`, `ipd_lifecycle.py:329`) - LANDED. This is the real fix: a
+  conforming executor MUST edit the plan it executes, so a whole-file digest invalidated itself on
+  every correct run.
+- E-04..E-06, worker-role `begin`/`finalize` refuse with `AW-LIFECYCLE-ROLE-001`
+  (`ipd_lifecycle.py:67`, exported by both drivers at `oc_runipd.py:4409` / `agy_runipd.py:2804`) -
+  LANDED. This also CONTAINS `dh0uno` in practice, since it stops an in-lane agent forking a second
+  receipt.
+
+NOT LANDED, and retiring unlanded: E-07..E-08 (derive the lane outcome from observed git+process
+facts), E-09..E-10 (five-way retention classification + verified harvest gate), E-11..E-12 (read-only
+`aw lane status` / advisory `aw lane note`). Lane `aw/lane/rchpms` holds 10 unique commits. The
+retention/classification design is re-proposed by `lanectn` (`xdr83v` retention, `604wra` shared
+predicates); the `aw lane status` surface has no successor and should be re-proposed on merit if
+wanted.
+
 # IPD: Phase 2: move lifecycle authority into the driver (driver-created begin/finalize receipts, worker-role lifecycle verbs refuse, OBSERVED from git+process facts, five-way output classifier + verified harvest, optional aw lane status/note)
 
 - Date: 2026-08-28
@@ -6,17 +26,17 @@
 - Scope: Rebind the begin receipt to a requirement+scope+base-HEAD digest (NOT whole-file bytes) so a normal self-execution stays valid while a scope/requirements edit still invalidates it (fixes xmqv5l); make worker-role `aw ipd begin`/`aw ipd finalize` return the deterministic `AW-LIFECYCLE-ROLE-001` corrective error and NOT run (driver keeps owning them); implement a driver-OBSERVED outcome derived from git+process facts that is authoritative over any agent `outcome.json`; implement the five-way output classifier (tracked-publish/local-retain/secret-local/discardable/unknown) with a verified harvest before teardown where `unknown` BLOCKS teardown; add optional read-only `aw lane status` + `aw lane note`. Apply the driver-side changes symmetrically to BOTH oc_runipd.py and agy_runipd.py. Does NOT relocate machine state out of repo (Phase 4), does NOT introduce the typed ExecutionContext/PathResolver or AST guard (Phase 3), does NOT implement real candidate-merge integration or crash recovery (Phase 5), does NOT add the OS sandbox (Phase 6).
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_status.py, agent_workflows/cli.py, tests/test_ipd_lifecycle_cli.py, tests/test_receipt_requirement_digest.py, tests/test_worker_role_refusal.py, tests/test_driver_observed_outcome.py, tests/test_output_classifier.py, tests/test_lane_status_note.py
 - Item-Dependencies: executed:qcqhj7
-- Status: approved
+- Status: superseded
 - Set: wtiso
 - Order: 3
 - Highest E allocated: 12
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: rchpms
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 - From-Backlog: xmqv5l
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): PARTLY LANDED: the xmqv5l fix (frozen-region digest) and the worker-role AW-LIFECYCLE-ROLE-001 refusal are on main via cdef9c90. Retiring the unlanded remainder (observed-outcome derivation, five-way retention classifier, aw lane status/note); retention design re-proposed by lanectn.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Found a KNOWN-FAILING existing test the plan did not account for (PR-002): `tests/test_ipd_lifecycle_cli.py:190-191` appends `<!-- a material edit -->` (OUTSIDE the frozen region) and asserts `receipt_is_current` is False; under E-03's new rule that correctly becomes True, so the existing `assertFalse` WILL FAIL - verified by computing both digests over this very plan file. E-03 now mandates updating that assertion IN THE SAME PASS plus adding a tight-guard companion so the test keeps its protective intent rather than being merely loosened. Corrected an OVERSTATED defect claim (PR-003): the Concern and F5 said a fabricated `outcome.json` reaching `disposition:"executed"` is trusted, but `reconcile_disposition` already checks git `plan_bucket` FIRST and downgrades a claimed `executed` to `substantially-complete` (verified live), so a lying outcome CANNOT currently reach `executed`. Left unfixed, V-08's "not executed" assertion would have been a FALSE GREEN passing against unmodified code. Rescoped E-08 to the three REAL residual gaps (no `outcome_conflict` marker; the agent JSON still authoring non-`executed` terminal states via the `TERMINAL_STATES` passthrough; `executed` resting on `plan_bucket` alone with no tree observation) and added a MUST-FAIL-FIRST requirement to V-08 demanding pasted evidence of the test failing before E-08 and passing after. Added the missing `Blocks-Release: next` (PR-001) that made this plan fire the exit-blocking `check.from-backlog-gate-mismatch` against its own `From-Backlog: xmqv5l` (repo-wide drift 3 -> 2). Recorded E-06's cross-plan prerequisite (PR-004): `popen_kwargs` has no `env` key today, so the child env dict is CREATED by dependency `qcqhj7` E-04 and this item must EXTEND it, not fork a second construction. Made `lane_status.py`'s role as the Set's ONE shared pure-predicate library explicit and moved `observe_lane_outcome` there from `ipd_lifecycle.py` (PR-005), matching orchestrator bl9q3d's single-import-surface check and contract rule 4. Pinned E-02's schema bump to the verified current value (`RECEIPT_SCHEMA_VERSION = 1` at `ipd_lifecycle.py:38` -> 2) with a consumer check, and E-07's `plan_bucket` input to the real `oc_runipd.plan_bucket` (PR-006). Corrected ~20 stale driver/CLI citations and added a citation-basis note; NOTE that the `ipd_lifecycle.py` citations were all ACCURATE. VERIFIED SOUND (no finding): the xmqv5l diagnosis is exactly right - legitimate self-execution edits do break the whole-file digest while `_requirements_from_plan`/`_frozen_scope_paths` are already invariant across those same edits, so switching the validity key (not inventing new frozen data) is the correct minimal fix; `lf.text` already excludes mutable state; and `lane` is free as a top-level CLI command.
 - 2026-08-29 reviewed (aw set): status set to reviewed

@@ -1,3 +1,23 @@
+RETIRED 2026-09-02: this plan's entire premise is gone. It existed to LAND the six `wtiso` lane
+branches as a stack; the maintainer subsequently ruled PORT, NOT MERGE (backlog `vqv9im`), the plan was
+de-armed to `reviewed`, and as of today every `wtiso` plan it would have landed is itself retired to
+`superseded/`. There is no stack left to land.
+
+WHERE THE INTENT WENT. Each of the three failures `wtiso` named is closed on `main` by a cheaper route:
+`xmqv5l` in `cdef9c90` (frozen-region digest + worker-role guard, cherry-picked from `rchpms`);
+`qyaime` bounded by the shipped `StallWatchdog` plus always-fresh lane sessions, with the containment
+DESIGN re-proposed by the `lanectn` Set against spec `7ckptx`; `dh0uno` by plan `eulhzt`, which
+re-anchors control paths on the checkout's git-common-dir.
+
+WHY MERGING WAS ABANDONED (measured): the stack is 11 files / 38 hunks, and `qcqhj7` carries a design
+COLLISION rather than a textual one - while it sat unmerged, `main` solved the same problem the opposite
+way (`main` keeps absolute driver-owned control paths as declared exceptions; the lane forbids absolute
+paths outright). A merge would have had to pick a winner silently. Retiring is the honest disposition.
+
+The five lane worktrees and branches survive this retirement and hold 77 unique commits between them
+(`qcqhj7` 3, `rchpms` 10, `7p9n2v` 16, `58ha43` 22, `2c122z` 26). Pruning them is a SEPARATE decision
+and is deliberately not done here.
+
 # IPD: Land the six verified wtiso lane branches: stack conflict resolution and receipt re-issue
 
 - Date: 2026-08-29
@@ -6,7 +26,7 @@
 - Scope: Integrate the verified `wtiso` lane branches into `main` and finalize their plans, by (a) resolving the `Statusline`-vs-`TurnBounds` collision in both drivers' turn loops, (b) re-issuing begin receipts so `finalize` stops refusing on a schema-v1 digest, and (c) driving each plan to its terminal lifecycle state. Does NOT change the design of any `wtiso` phase.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, agent_workflows/cli.py, agent_workflows/ipd_lifecycle.py, tests/test_wtiso_adversarial.py, .aw/records/plans/pending, .aw/records/plans/executed, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: superseded
 - Blocks-Release: next
 - Set: wtisoland
 - Order: 1
@@ -16,6 +36,7 @@
 - From-Backlog: xmqv5l
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): premise gone: this plan existed to LAND the wtiso lane stack, the maintainer ruled port-not-merge (vqv9im), and every plan it would have landed is now retired. All three wtiso failures are closed on main by other routes.
 - 2026-09-01 reviewed (aw set): DE-ARMED, not retired. Backlog vqv9im (decided 2026-09-01) overturned this plan's core premise: Phase 1 must be RE-AUTHORED AS A PORT of the lane's prompt-isolation design onto current main, not merged, because the lane predates main-side work it does not contain (runner_stop 73 refs on main vs 0 on the lane) and a wholesale merge would destroy the runstop Set just finalized in zpbx7o. Independently, this plan's own E-01 stop condition already fired: the conflict surface differs from its map and tests/test_oc_runipd.py conflicts while outside the Scope-Paths its OQ-04 enumerated. Moved off 'approved' so the runner cannot select it while a prose-only fence says stop, which is the exact hazard class d7bnhc exists to prevent. Its conflict measurements and OQ resolutions are preserved as the record of why the merge path was attempted.
 - 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): retarget E-07/V-07/E-11 off the deleted `aw/lane/1o4eif` ref onto the durable commit `909eb007`; the lane was released early (0 ahead, tip an ancestor of main, uncommitted file byte-identical to main) so no evidence and no commit was lost. Scope/gating for the five UNMERGED lanes unchanged.
 - 2026-08-31 approved (aw set): status set to approved

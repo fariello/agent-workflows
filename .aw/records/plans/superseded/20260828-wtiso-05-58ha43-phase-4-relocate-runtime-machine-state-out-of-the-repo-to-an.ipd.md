@@ -1,3 +1,23 @@
+RETIRED 2026-09-02: retiring UNLANDED, with no successor for its main deliverable. This phase would
+have relocated machine state out of the repository into an XDG state dir; nothing on `main` does that,
+so the capability is genuinely NOT delivered.
+
+WHY IT IS BEING RETIRED ANYWAY. It addresses no failure named in orchestrator `bl9q3d`'s Concern. Its
+`From-Backlog` link was `dh0uno`, but `dh0uno` is caused by cwd-relative RESOLUTION, not by in-repo
+LOCATION: collapsing every worktree onto one control root closes the fork completely while leaving the
+state in the repo. Plan `eulhzt` does that and proves it (`tests/test_statefork_dh0uno.py`), and
+because the location is now decided in ONE function (`ipd_lifecycle.checkout_control_root`), a future
+relocation is a small, local change rather than a phase.
+
+The one deliverable of this phase that DID need doing is done: "remove receipt copies". `eulhzt` makes
+`sync_receipt_into_worktree` a no-op in both drivers, which was forced rather than optional, since with
+one resolved path `shutil.copy2(src, dst)` had `src == dst` and raised `SameFileError`.
+
+NOT LANDED: the XDG relocation, `aw migrate-runtime-state`, the journaled migration, and the
+fail-closed dual-root compatibility window. Lane `aw/lane/58ha43` holds 22 unique commits, built
+against a `main` that has since moved 300+ commits. Re-propose on merit as "keep machine state out of
+the product tree", which is a legitimate concern on its own, NOT as a `dh0uno` fix.
+
 # IPD: Phase 4: relocate runtime machine-state out of the repo to an XDG state dir keyed by checkout-id (aw migrate-runtime-state, fail-closed dual-root, remove receipt copies)
 
 - Date: 2026-08-28
@@ -8,15 +28,15 @@
 - Item-Dependencies: executed:7p9n2v
 - From-Backlog: dh0uno
 - Blocks-Release: next
-- Status: approved
+- Status: superseded
 - Set: wtiso
 - Order: 5
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 58ha43
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): retiring UNLANDED: the XDG relocation addresses no failure in bl9q3d's Concern, and dh0uno is caused by cwd-relative RESOLUTION not in-repo LOCATION (closed by eulhzt). Its one needed deliverable, removing receipt copies, is done there. Re-propose relocation on merit.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Found a SELF-DESTROYING MIGRATION (PR-002, blocker): E-05 mandated reusing `layout_migration.MigrationManager`, but verified that manager anchors BOTH its `lock_file` and its `transaction_file` under `<repo>/.aw/state/runtime/` (`layout_migration.py:275-283`) - which is ONE OF THE THREE ROOTS THIS MIGRATION MOVES. Reusing it unmodified would journal the transaction into the directory being relocated, so a crash mid-move could take the journal with it and defeat the rollback V-05 demands. E-05 now REQUIRES the migration's own lock+journal to live under `checkout_state_root(<checkout-id>)/migrations/` (destination side, outside the repo), and V-05 gained three assertions: the journal still exists and parses after an injected mid-move fault, the journal AND lock paths are not under any moved root, and `.aw/config/config.json` is byte-unchanged. That last one closes a second verified problem (PR-003): `execute_migration` WRITES `records_backend` into the tracked `.aw/config/config.json` (`:1042`) and `plan_migration` walks ONLY the records root selected by `ctx.records_backend` (`:293-294`), so it cannot take an arbitrary set of control dirs and would mutate project policy that is not even in this plan's Scope-Paths. The reuse posture is now "reuse the proven PRIMITIVES (the `_acquire_lock` tmp-file+`os.replace` shape at `:647/:674-677`, `_sha256_file` at `:109`, the phased move-verify-switch and resume/rollback semantics)" rather than calling `execute_migration()` as-is, with an explicit escape hatch if the executor can adapt it while provably addressing all three problems. Resolved OQ-01 from repository convention (PR-006): honor an absolute `XDG_STATE_HOME` on EVERY platform with platform-native as the FALLBACK, because both existing XDG helpers (`config.config_dir`, `completion.resolve_completion_dir`) honor their env var with NO `sys.platform` branch, `grep` finds no directory-selection platform branch anywhere in the package, and R6 treats the env var as authoritative when set; E-01 now states the exact three-step precedence and V-01 pins it by monkeypatching `sys.platform` so it cannot silently revert to a Linux-only override. Also flagged that E-01 must NOT copy the existing helpers verbatim (PR-004): both do `Path(xdg) if xdg else fallback`, which correctly treats EMPTY as unset but JOINS A RELATIVE value (verified: `XDG_CONFIG_HOME="relative/rel"` yields `relative/rel/agent-workflows`), whereas R6/E-01 require a relative value to fall back - so `os.path.isabs()` is required, and fixing the two existing helpers is explicitly out of scope. Hardened V-09's grep proof (PR-005): it must be scoped to `agent_workflows/` and prefer an AST check, since the guard test itself contains the literal `sync_receipt_into_worktree` and a repo-wide text scan could never pass; recorded that the symbol currently has exactly four occurrences (oc :470/:2171, agy :592/:2250). Added the missing `Blocks-Release: next` (PR-001) - this was the LAST outstanding `check.from-backlog-gate-mismatch` in the repo, so repo-wide release-gate drift is now ZERO. Corrected ~20 stale driver/CLI/MigrationManager citations and added a citation-basis note; NOTE that `.gitignore:60/:73`, `engine.py:5124-5125`, `check_engine.py:1004-1007`, `worktree_lease.py:199-211`, and the `ipd_lifecycle.py` citations were all ACCURATE.
 - 2026-08-29 reviewed (aw set): status set to reviewed

@@ -1,3 +1,21 @@
+RETIRED 2026-09-02: retiring UNLANDED. Like Phase 4 it addresses NO failure named in orchestrator
+`bl9q3d`'s Concern (it carried no `From-Backlog` link at all), and it sat at the end of a strict linear
+dependency chain whose earlier phases are themselves retired, so it was never reachable.
+
+NOT LANDED: real candidate-merge integration on the exact merged candidate, the integration lock and
+expected-target-tip recheck, driver publication projection, `aw recover` / `aw doctor --lanes`,
+cross-platform locks, and process-tree kill. Lane `aw/lane/2c122z` holds 26 unique commits (the largest
+single loss in this retirement).
+
+PARTIAL SUCCESSORS EXIST, so this is not a total loss of intent: cross-platform locking landed
+separately (see walkthrough `20260831-locksafe-01-5gdzyz-one-cross-platform-file-lock`), and `main`
+already has an integration gate plus dirty-overlap refusal
+(`oc_runipd.integrate_lane_branch`, `dirty_tree_overlap`) exercised by the
+`FailClosedIntegrationGuardTests` in both driver test files. What has NO successor is the recovery
+surface (`aw recover`, `aw doctor --lanes`) and crash-injection coverage; that is the honest gap, and it
+is worth re-proposing on merit, especially given the 5 retained lane worktrees this retirement leaves
+behind.
+
 # IPD: Phase 5: real candidate-merge integration + full crash recovery (integration lock, expected-target-tip recheck, driver publication projection, aw recover/doctor, cross-platform locks, process-tree kill)
 
 - Date: 2026-08-28
@@ -6,16 +24,16 @@
 - Scope: Replace the diff/callback integration with a real candidate-integration worktree in the shared integration module: (1) `orchestrate_isolation` gains a candidate-merge integrator that acquires the checkout-level integration lock, journals `expected_target_tip`, creates a candidate worktree/branch AT that tip (REUSING `worktree_lease.allocate_worktree`), merges the lane tip there (`git merge --ff-only` where topology permits, x03wgn R5), runs the FULL validation on the EXACT candidate tree (not a diff string, not a `return True` callback), re-reads the REAL target tip and REBUILDS the candidate if it moved, then updates the target through a journaled operation that PAUSES (never auto-stashes/overwrites) on a dirty user main; (2) both drivers (`oc_runipd.integrate_lane_branch`, `agy_runipd.integrate_lane_branch`) call the new candidate integrator and DELETE the `make_integration_validation_runner` `return True` stub as the integration authority. Add a driver-owned durable PUBLICATION projection (sanitized ledger -> tracked `.aw/records`) merged into the SAME candidate and validated with the product tree. Persist lane allocation/scope/cleanup EVENTS to the run ledger and add a lease-reconstruction path so `worktree_lease.LeaseTable` rebuilds from durable events + `git worktree list --porcelain -z` after a crash. Add a cross-platform lock abstraction (`platform_lock`) and route the run/integration/ledger/migration locks through it (replacing raw `fcntl`), and a Windows Job Object process-tree kill behind the same `terminate_process` seam. Add `aw recover <run-id>` (reconciles ledger, refs, `git worktree list`, locks, journals, candidates, submissions, harvested artifacts WITHOUT a model) and `aw doctor --lanes`. Does NOT re-author the Phase-3 resolver or the Phase-4 out-of-repo relocation (DEPENDS on executed:58ha43); does NOT add the OS-sandbox hard mode (Phase 6, 1o4eif).
 - Scope-Paths: agent_workflows/platform_lock.py, agent_workflows/candidate_integration.py, agent_workflows/publication_projection.py, agent_workflows/lane_recovery.py, agent_workflows/orchestrate_isolation.py, agent_workflows/worktree_lease.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/doctor.py, agent_workflows/cli.py, tests/test_platform_lock.py, tests/test_candidate_integration.py, tests/test_publication_projection.py, tests/test_lane_recovery.py, tests/test_crash_injection_integration.py, tests/test_process_tree_kill.py
 - Item-Dependencies: executed:58ha43
-- Status: approved
+- Status: superseded
 - Blocks-Release: next
 - Set: wtiso
 - Order: 6
 - Highest E allocated: 16
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 2c122z
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): retiring UNLANDED: addresses no failure named in bl9q3d's Concern, carried no From-Backlog link, and sat behind a dependency chain whose earlier phases are retired. Partial successors exist (cross-platform lock via 5gdzyz; integration gate + dirty-overlap refusal on main); the recovery surface has no successor.
 - 2026-08-31 SUPERSEDED IN PART by plan `y6mfgo` (locksafe-01), which is now EXECUTED: do NOT build the `platform_lock` portion of this plan again. `y6mfgo` created `agent_workflows/platform_lock.py` and routed every raw `fcntl` call site in the package through it, backed by `filelock` (declared as the one runtime dependency). That covers this plan's "cross-platform lock abstraction (`platform_lock`)" scope item and the `fcntl` half of E-01/E-02/E-03 here, including the `msvcrt.locking` BYTE-RANGE hazard this plan's own /plan-review caught as PR-002: `y6mfgo` resolved it by taking a mature dependency instead of hand-rolling a fixed-lock-byte layout, so the "fixed lock byte at a seek(0) offset" and "non-overlapping diagnostics layout" requirements PR-002 added are moot. `y6mfgo` also proved two things this plan's design would have had to discover: `filelock` is RE-ENTRANT per lock object where `fcntl.flock` is not (which `runner_stop`'s signal-handler safety depends on refusing), and `filelock` opens with `O_CREAT | O_TRUNC` so it must NOT back the read-only liveness PROBES (it would blank a live driver's `pid=` record). STILL OWNED HERE and NOT done by `y6mfgo`: the Windows Job Object process-tree kill, which `y6mfgo` deliberately scoped out (`os.killpg`/`getpgid` have no Windows equivalent to substitute, only a redesign). This plan's `Status` is UNCHANGED (`approved`, stranded pending `6knsrx`); only the note is added.
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 approved (aw set): Blocks-Release set to next (release gate made symmetric with backlog h1ksy6, whose Gate-Ref is this plan); status unchanged

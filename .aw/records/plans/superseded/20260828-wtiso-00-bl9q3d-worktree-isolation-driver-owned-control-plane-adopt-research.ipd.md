@@ -1,3 +1,32 @@
+RETIRED 2026-09-02: this orchestrator's Concern names THREE live failures, and all three are now
+closed on `main` by cheaper routes than the 7-child migration this plan sequenced; superseded by
+`cdef9c90` (xmqv5l), the shipped `StallWatchdog` + worker-role guard (qyaime), and plan `eulhzt`
+(dh0uno). Disposition per intent:
+
+- `xmqv5l` (begin froze a whole-file digest, so a conforming self-execution went stale and finalize
+  refused, STRANDING completed work): LANDED in `cdef9c90` via the frozen-region digest cherry-picked
+  from lane `rchpms`, plus the worker-role selector. Verified before/after in throwaway clones.
+- `qyaime` (an `external_directory` permission ask deadlocked a non-interactive `--auto` turn
+  FOREVER): the unbounded wait is GONE. `StallWatchdog` (`oc_runipd.py:413`, wired at `:4449`) kills a
+  turn with no stream events inside `--stall-timeout` (default 600s), and lane sessions are now always
+  fresh (`oc_runipd.py:4297` documents the session-reuse path that produced the deadlock). Bounded and
+  recorded rather than architecturally eliminated; `lanectn` owns the containment design.
+- `dh0uno` (an inner `aw` in a lane resolved a SECOND control store the driver could not see and
+  teardown destroyed): closed by plan `eulhzt`, which re-anchors `receipt_dir`/`_runtime_dir` on the
+  checkout's git-common-dir in ~50 lines, rather than porting the 859-line typed
+  `ExecutionContext`/`PathResolver` from lane `7p9n2v`.
+
+HONEST COST, accepted explicitly by the maintainer ("losing the work is on the table"): Phases 4-5
+(`58ha43` state relocation, `2c122z` candidate-merge integration + crash recovery) retire with ~22
+commits unlanded across their lanes. Neither addresses a failure this Concern names, and both were
+built against a `main` that has since moved 300+ commits. Re-propose on merit, not as debt.
+
+CORRECTION TO THE RECORD: this Set's stated acceptance route for `dh0uno` was invalid. The claim that
+~15 `tests/test_run_viewer.py` failures in a fresh clone ARE `dh0uno` is false; they are a
+gitignored-fixture artifact (`.aw/records/runs/` has zero tracked files, so it is absent in any fresh
+clone). Measured at `53943a62` with NO fix applied: 15 failed, then `36 passed` once run records were
+copied in. See `eulhzt` Findings.
+
 # IPD: Worktree isolation + driver-owned control plane: adopt research x03wgn
 
 - Date: 2026-08-28
@@ -8,15 +37,15 @@
 - Item-Dependencies: none
 - From-Backlog: qyaime
 - Blocks-Release: next
-- Status: approved
+- Status: superseded
 - Set: wtiso
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: bl9q3d
-- Approval: 2026-08-29, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-02 superseded (aw set): wtiso Set retired: all three failures in this orchestrator's Concern are closed on main by cheaper routes (xmqv5l in cdef9c90; qyaime bounded by StallWatchdog with containment ported to lanectn; dh0uno by eulhzt). Phases 4-5 retire unlanded and address no named failure. The stated test_run_viewer acceptance criterion was invalid (gitignored-fixture artifact).
 - 2026-08-29 approved (aw set): status set to approved
 - 2026-08-29 /plan-review (OpenCode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-006. Fixed a dangling `V-02` referenced three times (including in the gate's own "verify V-01+V-02") when only V-01 exists - the contract check is V-01 part (2), so an executor could have blocked on a nonexistent item or skipped the check. Restored the 5 x03wgn acceptance criteria the completion list had silently dropped (tracked-but-uncommitted refusal, verified local artifact manifest, SECRETS-never-in-Git, protected-ref/git-common-dir mutation blocking, default/hardened external-write denial), numbered all 15, and attributed each to its owning child. Reconciled the E-01-vs-OQ-01 contradiction over whether wtiso-07 must be executed, and made criteria 9/10 explicitly PARTIALLY VERIFIED when Phase 6 is parked instead of silently unverified. Fixed real exit-blocking release-gate drift: this plan carried `From-Backlog: qyaime` with NO `Blocks-Release`, firing `check.from-backlog-gate-mismatch` (verified live: 5 findings before, 4 after) - added `Blocks-Release: next` and cross-referenced the 4 sibling children that still mismatch and must fix it in their own files. Added `.aw/records/walkthroughs/` to Scope-Paths, since E-01 required writing a verification record with no legal path inside its own scope fence. Named the ONE shared predicate library concretely (`agent_workflows/lane_status.py` from rchpms) with a real grep command, as the no-drift check was unverifiable as written. Hardened the gate (named full-suite command, scope fence, no `--no-verify`/tag/release) and added V-01 part (4) requiring a zero-finding release-gate check.
 - 2026-08-29 reviewed (aw set): status set to reviewed
