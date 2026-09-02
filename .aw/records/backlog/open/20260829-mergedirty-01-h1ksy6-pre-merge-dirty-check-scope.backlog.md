@@ -1,14 +1,13 @@
 - Id: h1ksy6
-- Status: blocked
+- Status: open
 - Blocks-Release: next
 - Set: mergedirty
 - Priority: high
 - Work-Kind: bug
 - Summary: driver pre-merge dirty check scopes to the lane's changed files, so a non-ff merge touching other paths reports a confusing merge-conflict instead of integration-blocked
-- Gate-Kind: artifact
-- Gate-Ref: 2c122z
 
 ## Workflow history
+- 2026-09-02 open (aw set): Gate retargeted: owner 2c122z was retired to superseded/ in 70b5338a (wtiso Set retirement), so the artifact gate pointed at a plan that will never land. The defect is still real and now UNOWNED: dirty_tree_overlap remains in main in two copies (oc_runipd.py:1923, agy_runipd.py:1156) and lanectn did not inherit this fix. Reopening so it is actionable rather than blocked forever.
 - 2026-08-29 created (aw backlog): driver pre-merge dirty check scopes to the lane's changed files, so a non-ff merge touching other paths reports a confusing merge-conflict instead of integration-blocked
 
 THE BUG. `oc_runipd.dirty_tree_overlap(repo, changed_files)` (oc_runipd.py:516-545) is called at
@@ -45,11 +44,29 @@ as one.
 FIX: compute the dirty check against the full set of paths the merge would touch (e.g. the diff between
 the merge base and both tips), not just `lane.changed_files`.
 
-WHY BLOCKED, NOT OPEN: the owning implementation is `wtiso` Phase 5 (`2c122z`, "real candidate-merge
-integration + integration lock + expected-tip recheck"), which already owns this code path. Gate is
-`Gate-Kind: artifact` / `Gate-Ref: 2c122z`, so the dependency is machine-readable and one-way (this
-item -> that plan). Fix it THERE rather than patching `dirty_tree_overlap` separately, to avoid two
-merge-safety mechanisms (GUIDING_PRINCIPLES P8).
+WHY THIS WAS BLOCKED, AND WHY IT IS NOW OPEN (updated 2026-09-02). It was gated
+`Gate-Kind: artifact` / `Gate-Ref: 2c122z` because `wtiso` Phase 5 owned this code path, so the fix
+belonged there rather than in a second merge-safety mechanism (GUIDING_PRINCIPLES P8).
+
+THAT OWNER NO LONGER EXISTS. `70b5338a` retired the entire `wtiso` Set to `superseded/`, `2c122z`
+included, after all three failures it targeted were closed on `main` by cheaper routes. The gate
+therefore pointed at a plan that will never land, which would have left this item blocked forever.
+Reopened, and the gate fields cleared, so it is actionable again.
+
+THE DEFECT IS STILL REAL AND NOW UNOWNED, verified 2026-09-02:
+  - `dirty_tree_overlap` is still in `main`, in TWO copies: `agent_workflows/oc_runipd.py:1923` and
+    `agent_workflows/agy_runipd.py:1156`. The duplication matters: fixing one leaves the other driver
+    with the worse diagnostic, the same drift `plan_readiness.py` was created to end for the
+    readiness predicate.
+  - `lanectn` (the Set that PORTED wtiso's containment design) did NOT inherit this fix; grepped its
+    seven plans for `dirty_tree_overlap` / `integration-blocked` and found no mention.
+So P8 still applies, but it now means "one shared implementation across both drivers", not "wait for
+2c122z".
+
+ALSO RESOLVED BY THE RETIREMENT: the KNOWN ASYMMETRY recorded below is moot. It asked for
+`- Blocks-Release: next` to be added to `2c122z` once a live run finished, so the gate would be
+symmetric. `2c122z` is now superseded and unexecutable, so there is nothing to make symmetric; this
+item keeps its own `Blocks-Release: next` and is the sole carrier.
 
 KNOWN ASYMMETRY (recorded deliberately, 2026-08-29): this item carries `Blocks-Release: next` but
 `2c122z` does NOT, so nothing currently stops 2.0.0 shipping before the owning plan lands. The
