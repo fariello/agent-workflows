@@ -242,3 +242,94 @@ remains, because only the maintainer can approve a spec.
    (`aw ipd dependencies set`), so no child declares `none` while its prose declares a predecessor.
 6. JUSTIFY THE CLI SURFACE against `aw context` / `aw path` before adding a top-level `aw layout`
    adjacent to the existing `aw migrate-layout`.
+
+## Round 2
+
+Scope of THIS round: the ORCHESTRATOR `rh5tt6` only, which is what was requested. The five children were
+READ (to verify round 1's fixes actually landed) but were not re-reviewed, so they are not candidates in
+this round's ledger and their `Status` is deliberately left untouched. That inconsistency is itself
+recorded as an advisory finding in the plan (F-9) with a recommended next step.
+
+Reviewed at HEAD `12159af5`; the plan was committed and unchanged, so the pre-review snapshot was
+correctly skipped. Author-phase `aw ipd lint --phase author --agent` returned `conforming` for the
+orchestrator and for all five children; `review-finalize` likewise conforming after this round's edits.
+
+THE HEADLINE IS THAT ROUND 1'S ONE REMAINING GATE HAS CLEARED. Round 1 concluded readiness NO-GO for a
+single reason external to the plans: `ipd-lifecycle.md:16` forbids executing against an unapproved
+controlling spec, and `kw5y2s` was `draft`. Measured this round, that spec is now `- Status: approved`,
+approved `--by-human` with the maintainer's verbatim in-session attestation recorded in its workflow
+history (commit `6db54f8b`), carrying both maintainer rulings. Readiness therefore moves to
+`GO - PENDING HUMAN APPROVAL` on the orchestrator.
+
+ROUND 1'S FIXES WERE VERIFIED RATHER THAN TRUSTED, by re-reading the children and re-measuring the code:
+
+- `Item-Dependencies` now match the sequence table on all five children (PR-007 genuinely fixed).
+- `wpu5zu` E-01 carries the union vocabulary, the `records` empty-subpath carve-out, exact alias
+  reproduction, and exclusions pinned to seven (PR-001 genuinely fixed).
+- `rodj06` E-02 and `hauwqh` E-03 now CREATE the two test files that do not exist, and
+  `tests/test_setup_repo_cli.py` is gone from scope (PR-002/PR-003 genuinely fixed). All three files
+  confirmed still absent on disk this round, so the CREATE framing is still correct.
+- The union claim CHECKS OUT against live code: `ARTIFACT_TYPES` 10 members, `RecordClass` 9, union 12
+  names = the eleven modeled classes plus `records` held separately; `_RECORD_CLASS_SUBPATHS[RECORDS]`
+  is `""`; `EXCLUDED_RECORD_DIRS` is exactly the seven pinned; aliases include `roadmap -> roadmaps`.
+- The Set's premises are still live, so the work is not already done: `aw layout` is an invalid choice
+  and `aw check reviews` still errors (`outcome: error, exit 2`).
+- PR-009's tooling defect still fires on all six plans (9 repo-wide) and backlog `tk1gqo` is still
+  `open`, so it is now written into the execution contract as an EXPECTED diagnostic with an explicit
+  instruction not to "fix" it by reordering histories.
+
+What round 1 did not examine, because it was occupied with the children's factual defects, is the
+orchestrator's OWN quality. That is where every finding below comes from: it had no execution contract,
+two unfalsifiable V-items, a completion criterion contradicting round 1's own correction, vague
+cross-IPD checks, and prose-bullet findings.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-010 | HIGH | UNDER-SCOPE | G. Plan executability | `rh5tt6` gate section as written (four lines: size, cohesion, nothing else); comparable orchestrator `3m0urk` gate (eight numbered clauses); measured scope collisions below | **The orchestrator had NO execution contract at all.** Its "Approval and execution gate" contained only `Size assessment` and `Cohesion rationale`. The repo contract and the plan-review rubric both require the gate to carry resolved-questions state, a scope fence, the paste-the-actual-output honesty rule, path-scoped commit + never-push, and the lifecycle move; a comparable orchestrator in this repo carries all of it. Separately MEASURED and previously unrecorded: two LIVE concurrent scope collisions. APPROVED plan `e32j35` (Set `findidx`) declares `agent_workflows/selectors.py`, which `zvk796` rewrites; REVIEWED plan `6knsrx` declares `agent_workflows/engine.py`, which `hauwqh` edits and which is itself the lander for a stack of unmerged lane branches. Across pending plans `cli.py` is declared by 13, `engine.py` by 3, and `selectors.py`/`artifact_types.py`/`record_producers.py` by 3 each. | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | FIXED 2026-09-01. Added a ten-clause execution contract: spec gate cleared, serial execution gated on predecessors reaching `executed`, orchestrator authors no product code, PER-CHILD re-measurement of the measured collisions (not a one-time Set-start check, because the colliding work may land mid-Set), pasted-evidence rule with the false-negative-lint anecdote as its justification, path-scoped commit + shared-checkout staging verification + never-push, primary-checkout validation, a scope fence declaring the delegation and the `--scope-reason`/`--scope-ack` reconciliation without a stop-on-scope directive, the expected `tk1gqo` diagnostic with a do-not-work-around instruction, and the lifecycle transition as a POST-gate step. |
+| PR-011 | HIGH | UNDER-SCOPE | E. Testing and verification | `rh5tt6` V-01 and V-02 as written (one line each); child V-items which a child can satisfy alone | **Both orchestrator V-items were unfalsifiable one-liners that could be satisfied without checking anything the children had not already claimed.** V-01 asked only that the five plans "are finalized in executed/ with pre-transition lint passing", which is a directory listing; it never required that each child's own `V-*` items carry NON-EMPTY evidence, so a child moved to `executed/` with blank evidence would pass the orchestrator's gate. V-02 asked for a suite pass and leak check, which every child already does, and never required the ONE behavioral proof the Set exists for and that no child owns: that an install actually emits both files, that they are actually gitignored through the framework-owned file, that the layout surface actually reads them, and that everything degrades when the file is ABSENT (the fresh-clone case the GITIGNORED ruling creates). | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | FIXED 2026-09-01. V-01 now demands, per child, the resolved `executed/` path, the `- Status: executed` line, the `pre-transition` lint result, a confirmation that every child `V-*` carries non-empty evidence with `Result: pass`, and a re-check that `Item-Dependencies` still agree with the sequence table at completion time. V-02 now demands the complete bare suite summary with the baseline RE-MEASURED at execution time (round 1's `4004 passed` explicitly marked historical), `aw check` showing no NEW diagnostic class with the six `tk1gqo` reports named as expected, `aw sanitize` clean, and the full end-to-end temporary-repo proof (install -> emitted -> `git check-ignore -v` via `.aw/.gitignore` with root untouched -> surface reads it -> graceful absence). E-02 gained the matching action. |
+| PR-012 | MEDIUM | IN-SCOPE | A. Correctness | `rh5tt6` completion criteria as written ("`engine.install()` and `aw setup-repo` bake ...") vs round 1 PR-003's own correction | **A completion criterion still asserted the falsified premise round 1 had already corrected elsewhere in the same Set.** Round 1 established that `aw setup-repo` is NOT a CLI verb but an agent slash-command backed by a workflow body with no Python call site, and fixed `hauwqh` accordingly, but the orchestrator's completion criteria still named it as a baking site. An executor reading the orchestrator's definition of done would look for emission in a surface that cannot receive it. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED 2026-09-01. The criterion now names `engine.install()` as the SOLE emission site and restates the correction explicitly (slash-command, workflow body, inherits transitively, no code of its own), so the contradiction cannot be re-derived from this file. The gitignored-via-framework-file criterion and the absent-file behavior criterion were added alongside, since both are consequences of the maintainer's ruling that nothing in the completion criteria captured. |
+| PR-013 | MEDIUM | UNDER-SCOPE | D. Anti-regression | `rh5tt6` cross-IPD validation as written (four bullets, no assertions, no baselines) | **The cross-IPD section named topics rather than checks**, e.g. "Maintain single layout vocabulary imported by all downstream modules" with nothing to compare against and no threshold. Since this section is precisely where a cross-child regression (Orders 02 and 03 combining to narrow the vocabulary) would be caught, topic-shaped bullets leave the Set's central anti-regression claim unverifiable. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED 2026-09-01. Rewritten as five falsifiable cross-cutting assertions, each with the measured round-2 baseline to beat: vocabulary-did-not-narrow (with the 10/9/12 counts and the `roadmaps` verb requirement), emitted-matches-model in a temporary repo, combined backward compatibility across the whole suite rather than per child, the net-new `aw check reviews` behavior with `aw check roadmaps` as the no-regression control, and the fresh-clone absence case. |
+| PR-014 | LOW | IN-SCOPE | G. Plan executability | `rh5tt6` Findings section as written (a single prose bullet); template shape used by every other reviewed plan in this repo | **The Findings section was one prose bullet with no evidence citations**, so nothing in the orchestrator recorded what had been measured or where to re-check it, and round 1's substantial verification work was recoverable only from the review record. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | FIXED 2026-09-01. Converted to the standard `Id / Finding / Evidence` table with nine rows: the sound decomposition (F-1), the cleared spec gate (F-2), verified round-1 fixes (F-3), the re-measured union vocabulary (F-4), the still-live premises (F-5), the expected `tk1gqo` diagnostic (F-6), the missing execution contract (F-7), the measured scope collisions (F-8), and the children's stale `to-review` status as an advisory (F-9). Project conventions and Scope check were also filled in with the measured facts an executor needs. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-8 | Round 1 held all six plans at `to-review` because the controlling spec was `draft`. That spec is now approved. Should this round advance the plans' `Status`? | Advance the ORCHESTRATOR to `reviewed` (it was reviewed this round); leave the five CHILDREN at `to-review` and record the inconsistency as advisory finding F-9 with a recommended next step. | (a) Advance all six on round 1's recorded authority, rejected because this round's ledger was the orchestrator alone and setting `reviewed` on five plans I did not re-review would overstate the review performed, which is exactly the kind of unearned pipeline signal `reviewed` is supposed to mean something against. (b) Leave all six at `to-review`, rejected because the orchestrator WAS reviewed this round and holding it back would misreport that. (c) Silently leave the children and say nothing, rejected because the Set's plans then disagree about their own pipeline position with no record of why. | Round 1 record D-4 (the hold and its stated reason); spec now `approved` at `...kw5y2s...spec.md:4`; plan-review Step 4 (`reviewed` means the review occurred); this round's stated scope | yes |
+| D-9 | Round 1 left PR-009 (`check.lifecycle-transition-invalid`) OPEN as a tooling defect. Should round 2 revisit it, now that execution is imminent? | Keep it OPEN and unfixed, but WRITE IT INTO the execution contract as an expected diagnostic with an explicit do-not-work-around instruction. | (a) Reorder the six histories to newest-first to silence it, rejected for round 1's reason, re-verified this round: it still fires on 3 unrelated plans including approved ones (9 repo-wide), so the workaround would trade a visible tooling bug for an invisible corpus inconsistency and would not even clear the check. (b) Escalate it to blocking, rejected because the rule reports on recorded events alongside, and explicitly does not override, the authoritative `- Status:` read. (c) Leave it purely in the review record, rejected because the executor reads the plan, not the review, and would reasonably treat a red check as their own regression. | `aw check plans --agent` re-measured this round (9 diagnostics, 3 non-wslayout); backlog `tk1gqo` still `open`; `check_engine.py:1052` | yes |
+| D-10 | Should the orchestrator's V-02 require the end-to-end install-and-read proof, given that `hauwqh` already tests emission and `30jug9` already tests the surface? | Yes. Require it at the orchestrator. | Rely on the children's own tests, rejected because each child proves its own unit in isolation while the Set's actual deliverable is the COMPOSITION (install emits -> file is ignored -> surface reads it -> absence degrades gracefully), and no child observes that chain. This is the same reasoning that makes the combined-suite check belong here rather than in Orders 02 and 03. | Child scopes (`hauwqh` E-01/E-03, `30jug9` E-01/E-02); the GITIGNORED ruling's fresh-clone consequence recorded in spec Section 2.3; plan-review rubric on cross-IPD validation | yes |
+
+### Edits applied (round 2)
+
+- `rh5tt6` gate: added the cleared-spec-gate statement and a ten-clause execution contract (PR-010).
+- `rh5tt6` V-01 / V-02: rewritten as falsifiable, evidence-demanding items including the end-to-end
+  behavioral proof and the non-empty-child-evidence check (PR-011); E-01 and E-02 gained the matching
+  actions and the per-child collision re-measurement.
+- `rh5tt6` completion criteria: `engine.install()` named the sole emission site with the `aw setup-repo`
+  correction restated; gitignored-via-framework-file and absent-file behavior added (PR-012).
+- `rh5tt6` cross-IPD validation: four vague bullets -> five falsifiable assertions with measured
+  baselines (PR-013).
+- `rh5tt6` Findings: prose bullet -> nine-row evidence table (PR-014), including advisory F-9 on the
+  children's stale status.
+- `rh5tt6` Project conventions, Scope check, Required tests, Spec/documentation sync: filled in with the
+  measured facts, the CREATE-not-edit test files, the collision record, the re-measure-the-baseline
+  instruction, and a do-not-edit-the-approved-spec rule.
+- `Status`: `to-review` -> `reviewed` via `aw ipd set` (orchestrator only; see D-8).
+
+### Validation of this review's own edits (round 2)
+
+- `aw ipd lint --phase author --agent` -> `clean` for the orchestrator and all five children, before edits.
+- `aw ipd lint --phase review-finalize --agent` -> `clean`, `findings=0` for the orchestrator after every
+  edit, including after the F-9 insertion.
+- Round 1's fixes verified by direct measurement, not by reading the round 1 record: `Item-Dependencies`
+  across the Set, the union vocabulary imported live (10 / 9 / 12 with the `records` carve-out at
+  `_RECORD_CLASS_SUBPATHS[RECORDS] == ""`), `EXCLUDED_RECORD_DIRS` == the seven pinned, aliases including
+  `roadmap`/`misc`/`others`, and the three named test files confirmed still absent.
+- Set premises re-verified live: `aw layout` -> invalid choice; `aw check reviews` -> `outcome: error, exit 2`.
+- Scope collisions measured by `grep -l` over pending plans with each plan's `- Status:` read.
+- `aw check plans --agent` -> the six wslayout `check.lifecycle-transition-invalid` diagnostics reproduce,
+  plus 3 on unrelated plans (9 total), confirming PR-009 is still systemic and still not this Set's defect.
+- `aw sanitize --agent` -> `outcome: clean, findings: 0`.
+- No product code was touched by this round; no suite run is claimed.
