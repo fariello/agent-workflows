@@ -3,7 +3,7 @@
 - Plan-Id: lhmrhx
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -27,3 +27,13 @@ policy.
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Should Antigravity's auto-approved default be changed to resemble OpenCode's deny posture? | No. Preserve the approved host asymmetry and rely on prompt purity plus driver-side bounds for Antigravity. | Flip or remove `--dangerously-skip-permissions`. Rejected because the approved spec records that posture as a deadlock risk and requires its default to remain true. | `lhmrhx:45-63`; spec `7ckptx` R4.1c and A8c | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. The finding below is fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared deadline and reporting behavior had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; Antigravity retains a thin selective adapter with its policy-document step explicitly inapplicable. |

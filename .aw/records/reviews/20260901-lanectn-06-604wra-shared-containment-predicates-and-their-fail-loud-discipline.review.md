@@ -3,7 +3,7 @@
 - Plan-Id: 604wra
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -28,3 +28,13 @@ machine-readable prerequisite omits one producer that its own prose requires.
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Should the executor infer this Set's predicate ownership from existing docstrings? | No. Require an explicit ownership table in the plan before execution. | Infer that every currently stubbed predicate belongs to this Set, or infer ownership from whichever child first needs a rule. Rejected because current docstrings deliberately assign other phases and E-03 requires unowned predicates to remain fail-loud. | `604wra:35-52`; `agent_workflows/wtiso_gate.py:93-168` | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. The finding below is fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared predicate work had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; the predicate ownership table remains the authority for implemented and fail-loud bodies. |

@@ -3,7 +3,7 @@
 - Plan-Id: nna8yz
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -27,3 +27,13 @@ clearly, but the Antigravity implementation of all of them is combined with the 
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Does the manifest need to provide operating-system immutability? | No. Retain the approved accident-guard definition and do not widen this plan to OS confinement. | Add ownership, ACL, or sandbox hardening here. Rejected because spec R5.1a defines the seal as read-only files plus new revisions and explicitly requires honest labeling of the same-user limit. | `nna8yz:39-45`; spec `7ckptx` R5.1a | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. The finding below is fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared materialization behavior had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; E-05 now contains only the clean-base guard and thin wiring. |

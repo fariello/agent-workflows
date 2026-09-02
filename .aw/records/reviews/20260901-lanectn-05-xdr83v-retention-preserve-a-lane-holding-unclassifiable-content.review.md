@@ -3,7 +3,7 @@
 - Plan-Id: xdr83v
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -28,3 +28,14 @@ driver work is too compressed for the state distinctions involved.
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Can collection success be inferred from the sealed input manifest? | No. Require explicit collection evidence owned by the collection path. | Infer success from the existence or absence of lane and destination files. Rejected because collection copies rather than moves, retries are idempotent, and the lane intentionally retains its source, so file presence does not encode completion. | `nna8yz:35-45`; `cqx5v7:48-54`; spec `7ckptx` R2.2 and R5.5 | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. It rechecked this plan after Round 1 remediation; both findings below are fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared inventory and refusal behavior had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; E-03 is limited to event detail and thin wiring. |
+| SR-003 | MEDIUM | UNDER-SCOPE | G. Traceability | Collection receipt requirement consumed by this plan versus the then-current spec | Retention required authoritative collection state, but the newly added receipt had no normative requirement. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | Added spec R2.5/A5b; retention reads the collection receipt for output state and the sealed input manifest only for driver-written inputs. |

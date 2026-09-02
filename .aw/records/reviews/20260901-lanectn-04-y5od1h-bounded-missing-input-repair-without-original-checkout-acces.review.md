@@ -3,7 +3,7 @@
 - Plan-Id: y5od1h
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -29,3 +29,14 @@ rejection, and an oversized twin-driver item.
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Should the reviewer select a secret-pattern fallback without changing the approved spec? | No. Escalate the contract gap and require an approved fail-closed rule before implementation. | Infer a built-in pattern list, treat every ignored path as secret, or accept an empty vocabulary. Rejected because each changes either functionality or security policy beyond the approved text, and accepting empty rules fails open. | Spec `7ckptx:154-178`; `y5od1h:46-49`; project-agnostic principle | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. This current round supersedes Round 1's intermediate built-in-floor resolution: the maintainer subsequently withdrew request-time copying and the secret vocabulary. Both findings below are fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-001 | HIGH | UNDER-SCOPE | G. Traceability / B. Security | Spec and child ownership inventory after the first security amendment | Three newly added security requirements had no implementing plan. | C:Low; U:Low; S:Medium; F:Medium; Overall:Medium | FIXED | Superseded by the approved withdrawal of R3.3a's permit-and-copy branch, secret floor and target vocabulary, R3.3b, and R3.4. The live plan now implements report-and-refuse only. |
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared classification and refusal behavior had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; E-06 is thin driver wiring and event adaptation. |

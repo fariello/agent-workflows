@@ -3,7 +3,7 @@
 - Plan-Id: cqx5v7
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -28,3 +28,14 @@ contains the same four independent concerns.
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Should prompt purification and collection be split into separate plans to make this child smaller? | No. Keep them in one child and split only the host-specific execution items. | Separate plans for prompt and collection. Rejected because spec R2.1 and the orchestrator's Rule 1 require them to ship together to avoid invisible loss of successful output. | `cqx5v7:5-6,48-59`; orchestrator sequencing Rule 1 | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. It rechecked this plan after Round 1 remediation; both findings below are fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Plan `Scope-Paths` versus host-neutral instructions | Shared behavior had no declared host-neutral module, making the remediation incompatible with the scope fence. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6/A5c and declared `agent_workflows/lane_containment.py`; driver work is limited to wiring and event adaptation. |
+| SR-003 | MEDIUM | UNDER-SCOPE | G. Traceability | E-06 versus the then-current spec | The collection receipt added for retention had no normative requirement. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | Added spec R2.5 and A5b defining an attempt-keyed receipt, source digest, destination result, explicit failure, and absence-as-uncollected semantics. |

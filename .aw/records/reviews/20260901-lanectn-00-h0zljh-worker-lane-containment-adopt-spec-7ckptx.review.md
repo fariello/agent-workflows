@@ -3,7 +3,7 @@
 - Plan-Id: h0zljh
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
-- Verdict: REVIEWED - OPEN QUESTIONS
+- Verdict: REVIEWED
 
 ## Round 1
 
@@ -31,3 +31,16 @@ nevertheless unsafe until the dependency graph and child decomposition are corre
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Is the dependency defect a reason to replace the six-plan architecture? | No. Keep the architecture and repair the explicit edges and child decomposition before approval. | Replan the entire Set. Rejected because the requirement partition, normative sequencing rules, and whole-Set verification are coherent; the defects are bounded to execution metadata and item sizing. | Orchestrator `:39-66,79-108`; approved spec `7ckptx` Section 4 | yes |
+
+## Round 2
+
+Disclosed self-review by the original author at HEAD `868106a4`. This round rechecked the Set after Round 1 remediation; four of its findings arose from incomplete Round 1 fixes. All findings below are fixed in the current plan and spec.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| SR-001 | HIGH | UNDER-SCOPE | G. Traceability / B. Security | Spec and child ownership inventory at `868106a4`: 36 of 38 then-live requirements owned | The first security amendment added three requirements but assigned no implementing plan. | C:Low; U:Low; S:Medium; F:Medium; Overall:Medium | FIXED | Superseded by the maintainer-approved withdrawal of the permit-and-copy branch and secret vocabulary. Coverage was recomputed against the amended live requirement set with zero unowned or duplicate requirements. |
+| SR-002 | HIGH | IN-SCOPE | C. Architecture / G. Plan executability | Six child `Scope-Paths` fields versus their host-neutral implementation instructions | Round 1 remediation required shared code but declared no legal shared module in the scope fences. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | Added spec R2.6 and criterion A5c, declared `agent_workflows/lane_containment.py` in every child, and prohibited using one driver as the other driver's library. |
+| SR-004 | MEDIUM | IN-SCOPE | E. Testing / G. Accuracy | Orchestrator E-02 and completion criteria versus amended spec Section 4 | Whole-Set validation enumerated stale criteria and could omit new criteria while demonstrating withdrawn ones. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | E-02 now enumerates live and withdrawn criteria explicitly, treats A6 as refusal, and requires rereading Section 4 at execution. |
+| SR-005 | LOW | IN-SCOPE | G. Accuracy | Orchestrator partition proof versus amended spec count | The proof retained a stale requirement count after the spec changed. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The proof now defines and rechecks total ownership, uniqueness, acyclicity, and metadata-versus-prose agreement instead of relying on a historical count. |
