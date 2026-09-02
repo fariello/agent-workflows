@@ -16,6 +16,7 @@
 - Id: xdr83v
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 2 further findings, SR-002, SR-003 (both FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): fifth child of Set `lanectn`, and deliberately the smallest: 3 E-items. Requires `nna8yz` executed, because classification reads the sealed manifest that plan produces to decide what the driver itself wrote and may therefore discard. Narrower than it looks: the driver ALREADY emits a preservation event, so this plan adds the INVENTORY that decides when to emit it.
@@ -111,11 +112,11 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 
 ### OQ-02: What authoritative collection state distinguishes a harvested submission from an uncollected one?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-001, PR-002
-- Resolution or deferral rationale: Round 1 review found that the sealed input manifest cannot prove collection success because collection copies rather than moves and retries are idempotent. Define a collection receipt or equivalent authoritative state, then split or centralize the Antigravity inventory, refusal, and event concerns before execution.
+- Resolution or deferral rationale: RESOLVED 2026-09-01, and it required a new requirement rather than a choice. The sealed manifest records materialized INPUTS while collection is OUTPUT, so it cannot answer the question, and inferring from path presence either preserves every successful lane forever or deletes output whose collection FAILED. Spec R2.5 now requires an ATTEMPT-KEYED collection record carrying each submission's source digest and destination result, with absence meaning NOT collected and a failed collection recorded as failed rather than omitted. It is emitted by `cqx5v7` E-06, which owns collection, and consumed here; this plan uses the input manifest ONLY for driver-written content.
 
 ## Validation and cross-check (verify before reporting done)
 

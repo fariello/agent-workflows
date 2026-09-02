@@ -2,7 +2,7 @@
 
 - Date: 2026-09-01
 - Kind: child
-- Concern: Once an isolated worker is told to use only lane-relative paths, a genuinely missing file becomes a dead end: the worker's only recourse would be to reach out of the lane, which is exactly what containment forbids. Without a bounded repair route, strictness alone converts a recoverable situation into a failure or a permission hang. The shared reject predicate also has NO secret handling today, so a naive implementation would happily copy a credentials file into a lane.
+- Concern: Once an isolated worker is told to use only lane-relative paths, a genuinely missing file becomes a dead end: the worker's only recourse would be to reach out of the lane, which is exactly what containment forbids. Without a bounded way to REPORT the need, strictness alone converts a recoverable situation into a silent failure or a permission hang. AMENDED 2026-09-01: this plan formerly also repaired the need by copying the file in, which required classifying secrets; spec `R3.3a` withdrew both, so the cycle now reports and refuses.
 - Scope: Implement the missing-input REPORT-AND-REFUSE cycle: a deterministic report token, preserve-and-pause, coordinator-only resolution, one shared classification path for a denied permission event, and a precise refusal record. Implements spec `7ckptx` R3.1, R3.2, R3.3, R3.5, R3.6, R3.7 and nothing else. AMENDED 2026-09-01: R3.3a withdrew the permit-and-copy branch, the secret vocabulary (R3.3a-1/1a/1b/2), R3.3b's tracked-file test, and R3.4's copy; this plan no longer implements any of them.
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_missing_input_repair.py
 - Item-Dependencies: executed:lhmrhx, executed:nna8yz
@@ -16,6 +16,7 @@
 - Id: y5od1h
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 2 further findings, SR-001, SR-002 (both FIXED; also amended by the R3.3a withdrawal), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 - 2026-09-01 to-review (aw set): plan-review 04/PR-001: E-04 routes a DENIED host-permission event through the classifier, and that seam is owned by lhmrhx. The prose said so; the metadata did not. A scheduler reading metadata could have started this plan before the event schema existed.
 
@@ -24,7 +25,7 @@
 
 ## Goal
 
-A worker that genuinely needs a file it does not have gets it through a deterministic, auditable cycle that never grants access to the original checkout, never hands over a secret, and never leaves the lane's input set diverging from its manifest.
+A worker that genuinely needs a file it does not have has a deterministic, auditable way to SAY SO, and the driver answers with a precise refusal record rather than a copy, so no path ever grants access to the original checkout and the lane's input set never diverges from its sealed manifest. AMENDED 2026-09-01 by spec `R3.3a`: the answer is a RECORD, not a repair.
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -34,7 +35,7 @@ HOST-NEUTRAL FIRST, ADAPTERS SECOND. Corrected after `/aw plan-review` finding P
 
 THE SHARED HOME IS NAMED, and is `agent_workflows/lane_containment.py` (declared first in this plan's `Scope-Paths`). Added 2026-09-01 after a self-review found that requiring host-neutral code while the fence named only the two driver modules told the executor to do something the fence forbade. Put the host-neutral functions THERE. Do NOT improvise a home by putting them in one driver and importing from the other: that makes one host the de-facto shared library, which is the opposite of host-neutral, and spec R2.6 forbids it. If the module does not exist yet, the plan that reaches it first CREATES it; a later plan EXTENDS it.
 
-THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` implemented resolve, reject, and copy, and described that as the repair cycle; review finding PR-004 caught that it omitted preserve-and-pause, the manifest revision, the authorization record, and resume. All five steps are E-items here, and V-items demand evidence of each stage separately so a partial implementation cannot be reported as complete.
+HISTORY WORTH KEEPING, because it explains why the evidence here is demanded per stage. The predecessor `tch3bo` implemented three of the research's five steps (resolve, reject, copy) and described that as the whole repair cycle; review finding PR-004 caught the omission of preserve-and-pause, the manifest revision, the authorization record, and resume. This plan then specified all five. On 2026-09-01 the maintainer WITHDREW the repair half entirely (spec `R3.3a`), so the cycle is now report-and-refuse and only the report, the pause, the classification, and the refusal remain. The per-stage evidence discipline is kept regardless, because the failure mode it guards against (doing part of a cycle and calling it whole) is independent of how many stages there are.
 
 ### Task group 1: report and pause (R3.1, R3.2)
 
@@ -43,7 +44,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
   - Expected outcome: the token form is parsed from a worker's output, the lane is preserved and marked paused rather than torn down or prompted, and the worker is not blocked waiting for an answer.
   - Execution state: pending
 
-### Task group 2: classify, coordinator-side only (R3.3, R3.3a, R3.3b, R3.6, R3.7)
+### Task group 2: classify, coordinator-side only (R3.3, R3.3a as amended, R3.6, R3.7)
 
 - [ ] E-02 IMPLEMENTS R3.3, R3.6. Resolve the requested path in COORDINATOR code only, and reject an absolute path, a path escaping the checkout, a coordinator-owned surface, a sibling lane or the worktrees root, machine-local state, the git administration directory, a directory rather than a file, and a nonexistent path. REUSE the shared worker-forbidden predicate rather than writing a second copy of the rules (CID-2). Make the no-live-grant property STRUCTURAL: the decision type must be incapable of representing a grant of access to the original checkout, so it cannot be set by accident.
   - Depends on: E-01
@@ -57,7 +58,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
   - Depends on: E-03
   - Expected outcome: a denied permission event for a path produces the SAME decision record as the equivalent missing-input token for that path, proving one classification path rather than two.
   - Execution state: pending
-### Task group 3: repair or block (R3.4, R3.5)
+### Task group 3: refuse and record (R3.5)
 
 - [ ] E-05 IMPLEMENTS R3.5. RECORD THE REFUSAL PRECISELY. On any missing-input report, write an entry naming the path and the reason it was refused, so the outcome is auditable rather than a bare failure. AMENDED 2026-09-01: this item previously implemented the permit-and-copy branch (copy plus manifest revision plus authorization plus resume). Spec R3.3a WITHDREW that branch, so there is no permitted path and NOTHING is copied into a lane on request. Do NOT implement a copy here; a test asserting a successful copy would assert behavior the spec now forbids.
   - Depends on: E-04
@@ -71,8 +72,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 ## Project conventions discovered (Step 0)
 
 - Measured at HEAD `59e68d5a`; anchor on symbol names.
-- The shared worker-forbidden predicate exists and currently holds FIVE coordinator-owned surfaces with NO secret handling. Extend it; do not fork it (CID-2).
-- The repository's secret vocabulary already exists in one place, declared under explicit headings. Derive from it rather than transcribing, so the two cannot drift.
+- The shared worker-forbidden predicate exists and holds FIVE coordinator-owned surfaces. REUSE it for the reject set; do not fork it (CID-2). Do NOT extend it with a secret vocabulary: spec `R3.3a` withdrew that, and adding one now would ship the liability the maintainer explicitly declined.
 - The sealing and revision mechanism comes from child `nna8yz` (R5.1a). Use it; do not edit sealed manifest entries in place.
 - The two drivers are near-parity twins; a rule in one only is a DEFECT.
 - The suite must be run BARE and `make test-all` separately; a bare run deselects `slow` tests.
@@ -81,9 +81,9 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 
 | id | Finding | Evidence |
 | --- | --- | --- |
-| F-1 | The predecessor implemented THREE of the five required steps and described it as the full cycle. Review finding PR-004 caught the omission of preserve-and-pause, the manifest revision, the authorization record, and resume. This plan makes each a separate E-item with separate evidence so a partial implementation cannot be reported as complete. | `/aw plan-review` PR-004 on the retired `tch3bo`; spec `7ckptx` R3.2-R3.4. |
+| F-1 | The predecessor implemented THREE of the five research steps and called it the full cycle; review finding PR-004 caught the omission. That is why evidence here is demanded PER STAGE rather than per item, a discipline retained even though the 2026-09-01 withdrawal reduced the cycle to report, pause, classify, and refuse. | `/aw plan-review` PR-004 on the retired `tch3bo`; spec `7ckptx` R3.2 and R3.3a as amended. |
 | F-2 | Secret rejection is genuinely absent today, not merely unspecified. The shared predicate contains five coordinator-owned surfaces and nothing about credentials, so a request for an environment file would be copied into the lane. The maintainer identified this as a gap in the spec itself before approval. | The shared predicate's contents; spec `7ckptx` R3.3a. |
-| F-3 | "If policy permits" was undefined in the research and would have been left to executor judgment. The spec now fixes it as survives-all-rejections plus regular-file-in-checkout plus TRACKED, with untracked refused by default. A looser test would silently widen the rule. | Spec `7ckptx` R3.3b. |
+| F-3 | WITHDRAWN 2026-09-01 with the permit-and-copy branch. It formerly recorded that "if policy permits" was undefined in the research and that the spec had fixed it as survives-all-rejections plus regular-file-in-checkout plus TRACKED. Spec `R3.3a` withdrew `R3.3b` entirely, and the reason is worth keeping: a lane is a `git worktree` at a commit, so it ALREADY contains every tracked file (measured: 0 of 1470 absent), which made a tracked-only permit test inert, while the inputs the research actually worried about are IGNORED or UNTRACKED. | Spec `7ckptx` R3.3a as amended; the measurement is recorded there. |
 | F-4 | Routing a denied permission event through the same classifier is what keeps ONE rule instead of two. Child `lhmrhx` produces the denial; this plan classifies what it catches, so the two must agree by construction rather than by review. | Spec `7ckptx` R3.7; child `lhmrhx` owns R4.1. |
 | F-5 | The no-live-grant property must be STRUCTURAL rather than a convention, because a convention can be broken by a later edit that looks harmless. Making the decision type incapable of representing a grant means the guarantee survives careless maintenance. | Spec `7ckptx` R3.6. |
 
@@ -91,9 +91,9 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 
 1. Parse the token and preserve-and-pause the lane instead of prompting (E-01).
 2. Classify coordinator-side, reusing the shared reject predicate, with no-live-grant made structural (E-02).
-3. Extend the shared predicate to refuse secrets, deriving the vocabulary from the existing single source (E-03).
+3. E-03 is WITHDRAWN by spec `R3.3a`: no secret vocabulary is added, and none may be.
 4. Implement the defined meaning of policy-permits, and route denied permission events through the same path (E-04).
-5. Repair with a digest-verified copy plus a new manifest revision, an authorization record, and resume (E-05).
+5. RECORD THE REFUSAL precisely, naming the path and the reason (E-05). AMENDED 2026-09-01: this step formerly repaired with a digest-verified copy plus a manifest revision, an authorization record, and resume; spec `R3.3a` WITHDREW that branch, so nothing is copied into a lane on request.
 6. Block precisely when refused, and mirror the whole cycle into the agy twin (E-06).
 
 ## Deferred / out of scope (with reason)
@@ -102,7 +102,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 - The manifest, sealing, and the revision mechanism: child `nna8yz` owns R5.1-R5.4 and is this plan's prerequisite.
 - The permission DENIAL that E-04 routes: child `lhmrhx` owns R4.1. This plan classifies; that plan denies.
 - Retention and teardown: child `xdr83v` owns R5.5-R5.6.
-- Shared predicate bodies beyond the secret extension this plan needs: child `604wra` owns R6.
+- Shared predicate bodies: child `604wra` owns R6. This plan REUSES the existing worker-forbidden predicate and adds nothing to it.
 - OS-level confinement: spec Non-goal 2.
 
 ## Scope check
@@ -112,7 +112,7 @@ THE PREDECESSOR FAILED THIS EXACT ITEM BY DOING THREE OF FIVE STEPS. `tch3bo` im
 
 ## Required tests / validation
 
-One new module, parameterized over BOTH drivers: `tests/test_missing_input_repair.py`, covering the token, the pause, every reject shape including each secret family, the tracked-versus-untracked rule, the permitted repair with its revision and authorization, the precise block, and the denied-permission-event routing.
+One new module, parameterized over BOTH drivers: `tests/test_missing_input_repair.py`, covering the token, the pause, every reject shape, the precise refusal record, and the denied-permission-event routing. It must NOT cover a secret family, a tracked-versus-untracked permit rule, or a successful copy: all three were withdrawn by spec `R3.3a`, and asserting them would assert behavior the spec forbids.
 
 BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
 
@@ -128,20 +128,19 @@ Spec `7ckptx` is normative; this plan cites requirement ids. Child `604wra` upda
 
 ## Open questions
 
-### OQ-01: Should an untracked-but-safe file ever be materialized, given R3.3b refuses it by default?
+### OQ-01: Should an untracked-but-safe file ever be materialized?
 
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: NO, not by this plan, and the default must not be widened here. R3.3b is explicit that a future policy MAY widen the tracked test but MUST do so explicitly, never by an implementation choosing a looser check. The reasoning is that a lane is created from a commit, so a tracked file is content the lane provably should have contained, whereas an untracked file is local machine state whose absence from the lane is CORRECT rather than a defect. If an executor encounters a real case where an untracked file is genuinely required, the conforming action is to record it as a spec amendment REQUEST and surface it, not to relax the test. Continue with the rest of the plan; a spec question does not justify halting a run. V-04 pins both halves precisely so a later loosening is visible.
-
-### OQ-02: What fail-closed, project-agnostic secret source should govern repair, and may execution begin before the dependency and sizing defects are fixed?
-
-- Blocking: yes
-- Status: open
-- Owner: maintainer
-- Finding: PR-001, PR-002, PR-003
-- Resolution or deferral rationale: Round 1 review found no repository authority for choosing a fallback when a target repository lacks the two expected ignore-file headings, so the approved spec needs a maintainer decision before implementation. The same review found the missing `lhmrhx` producer edge and an oversized E-06. Amend and approve the secret-rejection contract, add the dependency, decompose the mirror work, and re-review before resolving this question.
+- Resolution or deferral rationale: MOOT AS OF 2026-09-01, and recorded rather than deleted so the
+  reasoning survives. This question presupposed a permit-and-copy branch gated by `R3.3b`'s tracked-file
+  test. Spec `R3.3a` withdrew both, so NOTHING is materialized on request, tracked or untracked, and the
+  question has no subject. The withdrawal's own rationale subsumes the answer: the tracked-only test was
+  inert because a lane already contains every tracked file, and the untracked inputs the research worried
+  about (`.venv`, `node_modules`, generated schemas) were exactly what the test refused. If a turn is
+  genuinely blocked on a missing ignored input, the conforming fix is up-front lane assembly under an
+  explicit policy, not a request-time copy.
 
 ## Validation and cross-check (verify before reporting done)
 

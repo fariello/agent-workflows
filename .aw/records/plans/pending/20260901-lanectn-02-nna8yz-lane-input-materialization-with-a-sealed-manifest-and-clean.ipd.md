@@ -16,6 +16,7 @@
 - Id: nna8yz
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): second child of Set `lanectn`. Requires `cqx5v7` executed. Small by construction: 5 E-items across two concerns that share one mechanism (the materializer), which is why R5.3 lives here rather than in `cqx5v7` - putting it there would have created the dependency cycle that got the predecessor `tch3bo` rejected (its E-03 cited a materializer owned by a LATER item).
@@ -123,11 +124,11 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 
 ### OQ-02: May E-05 retain the clean-base guard and every Antigravity materialization concern in one item?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-001
-- Resolution or deferral rationale: Round 1 review found that E-05 spans the clean-base refusal, copy materialization, inode independence, sealing, revisions, and attachment localization. Split these concerns or extract and separately validate a shared materializer before execution.
+- Resolution or deferral rationale: RESOLVED 2026-09-01: NO. The materializer, the seal, and attachment resolution must be HOST-NEUTRAL in the declared module `agent_workflows/lane_containment.py`, so E-05 now adds only the clean-base guard plus thin wiring rather than mirroring materialization, inode independence, sealing, revision behavior, and attachment localization in a single item. The inode, owner-write-bit, revision, attachment, and dirty-base assertions are unchanged.
 
 ## Validation and cross-check (verify before reporting done)
 

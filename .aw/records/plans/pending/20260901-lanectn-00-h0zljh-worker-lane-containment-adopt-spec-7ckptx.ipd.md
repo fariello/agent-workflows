@@ -17,6 +17,7 @@
 - Id: h0zljh
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 4 further findings, SR-001, SR-002, SR-004, SR-005 (all FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 
@@ -41,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: children `cqx5v7`, `nna8yz`, `lhmrhx`, `y5od1h`, `xdr83v`, `604wra` are each in `.aw/records/plans/executed/` with `- Status: executed`.
   - Execution state: pending
-- [ ] E-02 Run the whole-Set verification against spec `7ckptx` Section 4: demonstrate each of A1 through A20 (including A7b, A7c, A8b, A8c, A12b) with pasted command evidence, and write the verification record to `.aw/records/walkthroughs/` (declared in `Scope-Paths`, so E-02 has a legal place to write its own output). Any criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its reason, never silently dropped. Author no product code here.
+- [ ] E-02 Run the whole-Set verification against spec `7ckptx` Section 4: demonstrate each LIVE criterion with pasted command evidence. THE LIVE SET, stated explicitly because an enumeration copied from an earlier draft is how a withdrawn criterion gets demonstrated or a live one gets skipped: A1 through A20 plus A5b, A5c, A8b, A8c, A12b, with A6 AMENDED to test refusal rather than a permitted repair. DO NOT demonstrate A7b, A7b-1, A7b-2, A7b-3, or A7c: all five were WITHDRAWN with `R3.3a` on 2026-09-01, and asserting them would assert behavior the spec now forbids. Re-read Section 4 of the spec at execution time rather than trusting this list, and write the verification record to `.aw/records/walkthroughs/` (declared in `Scope-Paths`, so E-02 has a legal place to write its own output). Any criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its reason, never silently dropped. Author no product code here.
   - Depends on: E-01
   - Expected outcome: a single verification record demonstrating every acceptance criterion or explicitly recording it unverified with a reason; any FAILING criterion blocks the Set and this orchestrator stays non-terminal.
   - Execution state: pending
@@ -205,11 +206,11 @@ TWO INVOCATIONS, DIFFERENT EXPECTED OUTCOMES, and the distinction is load-bearin
 
 ### OQ-02: May this Set proceed before its machine-readable dependencies and mirror-item decomposition are corrected?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-001, PR-002
-- Resolution or deferral rationale: NO execution is safe in the current state. Round 1 review found that `y5od1h` and `604wra` omit required producer edges and that five children hide multiple independently testable concerns inside one mirror item. Revise the child metadata and decomposition, recompute the dependency proof, and re-review the Set before resolving this question.
+- Resolution or deferral rationale: RESOLVED 2026-09-01, both halves. (PR-001, the dependency graph) Both missing edges were added with `aw ipd dependencies set`: `y5od1h` gained `executed:lhmrhx` because its E-04 routes a denied host-permission event that child owns, and `604wra` gained `executed:lhmrhx` because its prose already required it. Verified after correction: the graph is acyclic AND every child's prose-required ids are a SUBSET of its `Item-Dependencies`, zero mismatches, depths 0/1/1/2/2/3. The partition proof now records that it originally checked acyclicity ONLY, which is exactly how the gap survived, and now checks both properties. (PR-002, the mirror items) Fixed the reviewer's preferred way rather than by splitting: the logic moves into HOST-NEUTRAL functions in the declared module `agent_workflows/lane_containment.py` and each driver item is reduced to wiring plus event-shape adaptation. A subsequent self-review caught that the shared home had not been DECLARED anywhere, so spec R2.6 was added and the module is now first in all six children's `Scope-Paths`.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

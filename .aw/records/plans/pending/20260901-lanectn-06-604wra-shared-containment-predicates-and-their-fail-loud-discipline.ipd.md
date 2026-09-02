@@ -16,6 +16,7 @@
 - Id: 604wra
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 - 2026-09-01 to-review (aw set): plan-review 06/PR-002: the prose required BOTH y5od1h and lhmrhx executed, but the metadata named only y5od1h. Consolidating the permission and deadline rules needs their call sites to exist.
 
@@ -136,11 +137,11 @@ Spec `7ckptx` is normative; this plan cites requirement ids. E-04 updates the pr
 
 ### OQ-02: Which exact predicates does this Set own, and may consolidation begin before all declared producers are complete?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-001, PR-002
-- Resolution or deferral rationale: Round 1 review found that current docstrings name older owners while this plan names no predicates, and that `Item-Dependencies` omits `lhmrhx` despite the prose requiring it. Add an explicit predicate ownership table and the complete producer edges, then re-review before execution.
+- Resolution or deferral rationale: RESOLVED 2026-09-01, both halves. On ownership: a measured PREDICATE OWNERSHIP TABLE now enumerates all nine predicates by symbol with their current label, disposition (four implement, five leave raising), and whether to wire a caller. This was necessary because the docstring labels name superseded phases (`qcqhj7`, `rchpms`, `2c122z`) and NONE names `lanectn`, which made the original read-the-docstrings instruction unfollowable. On consolidation: it MAY repoint a caller inside this plan's declared `Scope-Paths`, since that is its assigned R6.1 work, but if consolidation appears to require changing what a rule DOES rather than where it lives, the two definitions disagreed and that is a FINDING to surface rather than resolve by picking a winner.
 
 ## Validation and cross-check (verify before reporting done)
 

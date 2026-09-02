@@ -16,6 +16,7 @@
 - Id: lhmrhx
 
 ## Workflow history
+- 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Full round-2 record: `.aw/records/reviews/20260901-lanectn-round2-selfreview.review.md`.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
 
 - 2026-09-01 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): third child of Set `lanectn`. Requires `cqx5v7` executed, and that ordering is NORMATIVE not stylistic: spec R4.6 forbids the permission denial landing before the prompt stops naming out-of-lane paths, because the host CURRENTLY PERMITS those writes and denying them first would convert a working run into a hard failure.
@@ -113,7 +114,16 @@ READ R4.1c BEFORE TOUCHING THE AGY DRIVER. Antigravity's `--dangerously-skip-per
 
 Two new modules, parameterized over BOTH drivers where the requirement applies to both: `tests/test_lane_permission_posture.py` (R4.1, R4.1a, R4.1c, R4.2, R4.3) and `tests/test_turn_bounds.py` (R4.4, R4.5).
 
-The existing `runstop` suites MUST stay green, because E-04 touches the same termination path: run `tests/test_runner_stop.py`, `tests/test_runner_stop_levels12.py`, `tests/test_runner_stop_level3.py`, `tests/test_runner_stop_level4.py`, `tests/test_runner_stop_triggers.py`, and `tests/test_runner_shutdown.py` with the `slow` tests INCLUDED and paste the summary.
+The existing `runstop` suites MUST stay green, because E-04 touches the same termination path. RUN EXACTLY THIS, and paste its summary line (added 2026-09-01 after `/aw plan-review` PR-002 correctly objected that requiring `slow` coverage without giving the invocation left an executor to invent it):
+
+```sh
+python3 -m pytest -o addopts="" -q \
+  tests/test_runner_stop.py tests/test_runner_stop_levels12.py \
+  tests/test_runner_stop_level3.py tests/test_runner_stop_level4.py \
+  tests/test_runner_stop_triggers.py tests/test_runner_shutdown.py
+```
+
+`-o addopts=""` CLEARS the configured defaults wholesale, which is the documented way to do it: the repository's test contract forbids fighting the configured flags one at a time, and the default `-m 'not slow'` would otherwise deselect the very tests this Set depends on. MEASURED at authoring, so you have a figure to compare against: `243 passed in 100.61s`. That is a NARROWED run and does NOT substitute for the two whole-suite invocations below.
 
 BASELINES MUST BE MEASURED AT EXECUTION TIME, NOT COPIED FROM THIS PLAN. Corrected after `/aw plan-review` (PR-003 on every plan in this Set): the exact counts originally written here were already STALE before execution, because a co-worker's commit `8ced15ce` added two tests, moving the bare suite from `3996 passed` to `3998 passed`. A hardcoded count cannot distinguish an honest change from a regression, and treating it as an expectation would either raise a false alarm or, worse, mask a real failure behind an off-by-two rationalization.
 
@@ -143,11 +153,11 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 
 ### OQ-03: May E-06 combine the role selector with all applicable Antigravity posture and deadline work?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-001
-- Resolution or deferral rationale: Round 1 review found that E-06 is a selective host port across multiple independent behaviors, not a mechanical mirror. Give the role selector its own item and split the Antigravity reporting and deadline concerns, explicitly preserving the approved absence of an Antigravity policy document, before execution.
+- Resolution or deferral rationale: RESOLVED 2026-09-01: NO, and the review was right that this was never a mechanical mirror. E-06 is now wiring only; the deadlines, the reporting, and the safe-failure recording must be HOST-NEUTRAL in the declared module `agent_workflows/lane_containment.py`; and the plan states explicitly that the agy policy-document step is INAPPLICABLE by design (that host has no denial posture, spec R4.1) rather than leaving its absence to be inferred.
 
 ## Validation and cross-check (verify before reporting done)
 
