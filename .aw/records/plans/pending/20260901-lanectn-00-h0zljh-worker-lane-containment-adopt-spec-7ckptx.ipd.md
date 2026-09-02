@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: children `cqx5v7`, `nna8yz`, `lhmrhx`, `y5od1h`, `xdr83v`, `604wra` are each in `.aw/records/plans/executed/` with `- Status: executed`.
   - Execution state: pending
-- [ ] E-02 Run the whole-Set verification against spec `7ckptx` Section 4: demonstrate each LIVE criterion with pasted command evidence. THE LIVE SET, stated explicitly because an enumeration copied from an earlier draft is how a withdrawn criterion gets demonstrated or a live one gets skipped: A1 through A20 plus A5b, A5c, A8b, A8c, A12b, with A6 AMENDED to test refusal rather than a permitted repair. DO NOT demonstrate A7b, A7b-1, A7b-2, A7b-3, or A7c: all five were WITHDRAWN with `R3.3a` on 2026-09-01, and asserting them would assert behavior the spec now forbids. Re-read Section 4 of the spec at execution time rather than trusting this list, and write the verification record to `.aw/records/walkthroughs/` (declared in `Scope-Paths`, so E-02 has a legal place to write its own output). Any criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its reason, never silently dropped. Author no product code here.
+- [ ] E-02 Run the whole-Set verification against spec `7ckptx` Section 4: demonstrate each LIVE criterion with pasted command evidence. THE LIVE SET, stated explicitly because an enumeration copied from an earlier draft is how a withdrawn criterion gets demonstrated or a live one gets skipped: A1 through A20 plus A5b, A5c, A8b, A8c, A10b, A10c, A10d, A10e, A12b, A15b, with A6 AMENDED to test refusal rather than a permitted repair. DO NOT demonstrate A7b, A7b-1, A7b-2, A7b-3, or A7c: all five were WITHDRAWN with `R3.3a` on 2026-09-01, and asserting them would assert behavior the spec now forbids. Re-read Section 4 of the spec at execution time rather than trusting this list, and write the verification record to `.aw/records/walkthroughs/` (declared in `Scope-Paths`, so E-02 has a legal place to write its own output). Any criterion that cannot be demonstrated MUST be recorded UNVERIFIED with its reason, never silently dropped. Author no product code here.
   - Depends on: E-01
   - Expected outcome: a single verification record demonstrating every acceptance criterion or explicitly recording it unverified with a reason; any FAILING criterion blocks the Set and this orchestrator stays non-terminal.
   - Execution state: pending
@@ -87,7 +87,7 @@ Numbered so E-02 can cite each one. Every criterion is an OBSERVABLE state, neve
 1. All six children are in `.aw/records/plans/executed/` with `- Status: executed`.
 2. Every child's `V-*` items carry pasted command output; the count of EMPTY `Observed evidence:` lines
    across the Set is ZERO.
-3. Every acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A8b, A8c, A12b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) is
+3. Every acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A5b, A5c, A8b, A8c, A10b, A10c, A10d, A10e, A12b, A15b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) is
    demonstrated with pasted evidence, or recorded UNVERIFIED with its reason. Silent omission fails.
 4. An isolated prompt from BOTH drivers contains ZERO absolute paths outside the lane root, asserted by
    pattern match over the emitted text (spec R1.1, A1).
@@ -222,7 +222,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: paste the verification record path under `.aw/records/walkthroughs/`, and in it demonstrate EVERY acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A8b, A8c, A12b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) with the command run and its actual output. For each of CID-1 through CID-5 paste the check and its result, with CID-1 and CID-2 done by AST or import graph over `agent_workflows/` and NOT by text grep (a grep is satisfied by the checking code itself). Paste BOTH suite invocations with their summary lines, reconciled against the baselines above, stating the expected count per invocation separately. Any criterion recorded UNVERIFIED must name its reason; a criterion silently omitted is a validation failure.
+  - Required evidence: paste the verification record path under `.aw/records/walkthroughs/`, and in it demonstrate EVERY acceptance criterion of spec `7ckptx` Section 4 (A1-A20 plus A5b, A5c, A8b, A8c, A10b, A10c, A10d, A10e, A12b, A15b; A6 AMENDED to test refusal, and A7b, A7b-1, A7b-2, A7b-3, A7c WITHDRAWN with R3.3a on 2026-09-01) with the command run and its actual output. For each of CID-1 through CID-5 paste the check and its result, with CID-1 and CID-2 done by AST or import graph over `agent_workflows/` and NOT by text grep (a grep is satisfied by the checking code itself). Paste BOTH suite invocations with their summary lines, reconciled against the baselines above, stating the expected count per invocation separately. Any criterion recorded UNVERIFIED must name its reason; a criterion silently omitted is a validation failure.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03

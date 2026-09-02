@@ -82,6 +82,14 @@ every requirement below inherits it.
    driver hands the worker and what the driver refuses; a hook cannot see INTENT and needs its own
    design.
 6. Changing the lifecycle transaction, the integration gate, or the `runstop` stop levels.
+8. A RUN-WIDE TIME OR SPEND CEILING. R4.4's `MAX_TURN_TIMEOUT` bounds ONE turn, so a 22-item queue has 22
+   independent budgets and no total limit; a long queue could legitimately span days. Recorded as a NAMED
+   GAP rather than silently omitted, because "max turn" reads broader than it is and the maintainer asked
+   directly whether a 22-IPD run would be killed (it would not). Real cost, for whoever picks this up: a
+   measured 2-item run cost $22.66 in 59 minutes, so an unbounded queue is unbounded spend as well as
+   unbounded time. Out of scope here because this spec is about lane CONTAINMENT, not run budgeting, and
+   because a run-wide ceiling needs its own decision about what happens to unstarted items when it fires.
+
 7. CHANGING ANTIGRAVITY'S `--dangerously-skip-permissions` DEFAULT. It passes with a `True` default and
    MUST KEEP IT (maintainer ruling 2026-09-01, on operational evidence that running without it failed or
    deadlocked repeatedly). Its only alternative requires interactive permissions an unattended turn
@@ -288,25 +296,80 @@ same variable. The policy MUST either be merged with validation or override expl
 blind overwrite is non-conforming.
 
 R4.4 The driver MUST bound EVERY unattended turn independently of the host's permission decision, whether
-or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). Two bounds, and their
-defaults are NORMATIVE so an implementation cannot pick weaker ones silently:
+or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). Two bounds, whose defaults
+are NORMATIVE so an implementation cannot pick weaker ones silently.
 
-(a) PERMISSION DEADLINE, default 30 SECONDS. Armed when the driver OBSERVES a permission request,
-including a nested child-session request, which is the shape the qyaime deadlock actually took. Seconds
-rather than minutes is the whole point: an unattended turn has NO answerer, so a permission ask is not a
-slow operation, it is a dead one, and waiting longer cannot change the outcome. It is disarmed if the
-request is answered or the turn progresses.
+NAMING IS NORMALIZED TO `TIMEOUT` (maintainer ruling 2026-09-01). Both are named `..._TIMEOUT`, not
+`..._DEADLINE`. Reasons, measured rather than stylistic: (i) every bound in this codebase is a DURATION IN
+SECONDS, never a wall-clock instant, and `timeout` is the accurate word for a duration; (ii) four of the
+six bounds already shipped say `TIMEOUT`, including both public CLI flags, so normalizing the other way
+would rename shipped surface; and (iii) the `DEADLINE`/`TIMEOUT` split did NOT track any real property in
+the existing code, so nothing is lost by collapsing it. Concretely, three shipped `..._TIMEOUT` constants
+are UNRESETTABLE ceilings (`agy` `DEFAULT_TIMEOUT`, `SUITE_CHECK_TIMEOUT_SECONDS`,
+`run_evidence.capture_command`'s default) while the one named `..._DEADLINE` was RESETTABLE, so the naming
+was backwards more often than it was right.
 
-(b) ABSOLUTE TURN DEADLINE, default 4 HOURS. A ceiling that output CANNOT extend, which is what
-distinguishes it from the coarse no-progress watchdog: a chatty-but-wedged turn keeps resetting a
-no-progress bound forever, and this one it cannot. MEASURED against real history when the default was
-chosen: across 263 recorded turns the longest was 2.46 hours, so 4 hours is roughly 1.6x the observed
-worst case. Generous enough that a legitimate long turn is not killed, finite enough that a wedged one
-cannot run overnight.
+THE DISTINCTION THAT IS REAL MUST LIVE IN THE DOCSTRING, NOT THE IDENTIFIER. Every bound MUST document
+two facts, because they are what an implementer and a post-mortem reader actually need and they were
+exactly what was missing (establishing them required reading `_started` versus `_last_activity`): WHAT
+INSTANT it is measured from, and WHETHER ANYTHING RESETS IT.
 
-Both MUST be overridable per run, and expiry MUST terminate through the ONE shared reaper (spec `c4gd2h`
-R5 forbids a second) and record a safe-failure disposition naming WHICH bound fired, so a post-mortem can
-tell a permission deadlock from an over-long turn from a silent stall.
+(a) `PERMISSION_TIMEOUT`, default 30 SECONDS. Measured from the instant a permission request is OBSERVED,
+including a nested child-session request, which is the shape the qyaime deadlock actually took. RESETTABLE:
+observed progress clears the pending ask and disarms it. Seconds rather than minutes is the whole point,
+because an unattended turn has NO answerer, so a permission ask is not a slow operation but a dead one and
+waiting longer cannot change the outcome.
+
+(b) `MAX_TURN_TIMEOUT`, default 4 HOURS. Measured from CHILD PROCESS START, once. NOT RESETTABLE BY
+ANYTHING, and that is its entire reason for existing alongside the no-progress bound: a chatty-but-wedged
+turn keeps resetting a no-progress window forever, and it cannot reset this. Named `MAX_` rather than
+`ABSOLUTE_` because "absolute" invites reading it as a wall-clock instant, which it is not. MEASURED when
+the default was chosen: across 263 recorded turns the longest was 2.46 hours, so 4 hours is roughly 1.6x
+the observed worst case.
+
+SCOPE IS ONE TURN, NOT ONE RUN, and this MUST be stated wherever the bound is described because "max turn"
+is easy to over-read. Each item in a queue gets its own fresh budget, so a 22-item run has no run-wide
+ceiling and could legitimately span days. Expiry terminates the CHILD process, not the driver: the driver
+records the safe-failure disposition and proceeds to the next item. A RUN-WIDE ceiling does not exist in
+this design and is explicitly NOT required here (see Non-goal 8).
+
+EXPIRY BEHAVIOR for both: terminate through the ONE shared reaper (spec `c4gd2h` R5 forbids a second) and
+record a safe-failure disposition naming WHICH bound fired, so a post-mortem can distinguish a permission
+deadlock from an over-long turn from a silent stall.
+
+R4.4b THE `PERMISSION_TIMEOUT` SHIPS DISABLED (`0`) UNTIL DETECTION IS PROVEN, per the maintainer's rule
+that it "better have a deterministic way to know it's waiting for permission, otherwise it better not
+fire". Detection is PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is
+currently UNVERIFIED against a real ask. MEASURED: the last real run's stdout stream contained ZERO
+permission-typed events and ZERO `message=asking` lines, and the qyaime evidence that motivated the
+plain-text pattern came from opencode's own LOG FILE rather than stdout, which is why a separate
+log-tailing module exists at all. So the detector may be matching a shape that never reaches the stream it
+inspects. The implementing plan MUST either (i) provoke a real permission ask, capture the stream, and
+paste the matched line, after which the default may be set to 30 seconds; or (ii) record that detection is
+not possible on stdout, leave the default at `0`, and state that `MAX_TURN_TIMEOUT` is therefore the only
+bound covering a permission deadlock. Shipping it armed on an unproven detector is non-conforming, because
+a false positive kills a healthy turn.
+
+R4.4d THE ANTIGRAVITY OVERLAP MUST BE STATED, NOT DISCOVERED. That host ALREADY has a per-turn ceiling:
+`agy_runipd.DEFAULT_TIMEOUT` is `"240m"` and is passed to the child as `--print-timeout`, so it is
+HOST-ENFORCED. That is 4 hours, numerically identical to `MAX_TURN_TIMEOUT`'s default, which means on
+antigravity the two bounds would fire at the same nominal time with different owners. The implementing plan
+MUST NOT silently ship both as if they were independent. It MUST either (i) document that the host bound is
+authoritative on that host and the driver bound is a backstop for the case where the host's own timer fails
+to fire, stating which is expected to win; or (ii) offset them deliberately so the driver bound fires
+FIRST and the failure is attributable to the driver rather than to an opaque host timeout. Recorded because
+two timers with the same value and different owners is the kind of duplication that looks harmless until a
+post-mortem cannot say which one killed a turn. Note the asymmetry: OpenCode has NO host-enforced
+equivalent, so `MAX_TURN_TIMEOUT` is genuinely new there.
+
+R4.4c NO NEW CONFIGURATION SURFACE IS REQUIRED (maintainer ruling 2026-09-01: KISS, "add them if they're
+needed when the need arises"). Neither bound needs a config-file entry or a CLI flag in this Set. The
+evidence behind the ruling: across 87 recorded runs `--stall-timeout` appears in 73 with exactly ONE
+distinct value (its default) and `--timeout` in none, so no timeout has ever been overridden in practice,
+and adding eight knobs to a parser that already fails
+`test_command_surface_declarations::test_zero_undeclared_parser_leaves` with 65 undeclared leaves would
+make a live problem worse. Both bounds MUST still accept `0` to disable, in-code, matching the shape
+`--stall-timeout` already documents, so an operator who needs to turn one off has a supported way to.
 
 R4.4a UNIFORM SCOPE, and the reason it does not violate R1.3. R4.4 applies to isolated and non-isolated
 turns alike. This is a deliberate exception to the conservatism R1.3 asks for elsewhere, and the exception
@@ -463,10 +526,30 @@ re-flag it as a traceability gap.
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
-- A10b. THE DEFAULTS ARE THE SPECIFIED ONES AND APPLY UNIFORMLY. Assert the permission deadline defaults to
-  30 seconds and the absolute turn deadline to 4 hours, that both are overridable per run, and that BOTH are
-  armed for a NON-isolated turn as well as an isolated one. Also show the non-isolated turn's PROMPT is still
-  byte-identical, which is what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
+- A10b. THE BOUNDS ARE NAMED, DEFAULTED, AND SCOPED AS SPECIFIED. Assert the two constants are named
+  `PERMISSION_TIMEOUT` and `MAX_TURN_TIMEOUT` (not `..._DEADLINE`); that `MAX_TURN_TIMEOUT` defaults to 4
+  hours and `PERMISSION_TIMEOUT` defaults to `0`, i.e. DISABLED, unless R4.4b's detection evidence was
+  produced; that both accept `0` to disable; and that both are armed for a NON-isolated turn as well as an
+  isolated one. Paste each constant's docstring showing it states WHAT INSTANT it measures from and
+  WHETHER ANYTHING RESETS IT. Also show the non-isolated turn's PROMPT is still byte-identical, which is
+  what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
+- A10c. THE PERMISSION DETECTOR IS PROVEN OR THE BOUND STAYS OFF. Either paste a captured stream from a
+  REAL provoked permission ask together with the line the detector matched, and then show the default set
+  to 30 seconds; OR paste the recorded finding that detection is not possible on stdout, show the default
+  remains `0`, and show the artifact stating that `MAX_TURN_TIMEOUT` is consequently the only bound
+  covering a permission deadlock. A test that merely feeds a SYNTHETIC line the detector was written
+  against does NOT satisfy this criterion, because that proves the regex matches itself rather than that
+  the shape ever reaches stdout. (R4.4b)
+- A10e. NO NEW CONFIGURATION SURFACE WAS ADDED. Show that neither bound gained a config-file entry or a
+  CLI flag, and that `test_command_surface_declarations` is no worse than its measured baseline. This is a
+  criterion in the NEGATIVE direction, which is deliberate: the natural instinct is to make a new constant
+  configurable, and the maintainer's KISS ruling was that the knob waits until a real need appears. Also
+  show both bounds still accept `0` to disable in-code, so declining a flag did not remove the operator's
+  ability to turn one off. (R4.4c)
+- A10d. THE ANTIGRAVITY OVERLAP IS DOCUMENTED. Show that the relationship between the host's 240m
+  `--print-timeout` and the driver's `MAX_TURN_TIMEOUT` is stated in the code, naming which is expected to
+  fire first, and that a post-mortem can attribute a termination to one of them rather than guessing.
+  (R4.4d)
 - A10. Feed a synthetic unanswered permission request, including the nested child-session shape: the
   process is terminated within the permission deadline, demonstrably not at the coarse no-progress bound,
   the disposition is the safe-failure value, the reason names which bound fired, and the termination is
