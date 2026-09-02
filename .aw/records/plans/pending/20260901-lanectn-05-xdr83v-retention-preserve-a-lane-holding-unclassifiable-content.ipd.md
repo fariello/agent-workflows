@@ -3,7 +3,7 @@
 - Date: 2026-09-01
 - Kind: child
 - Concern: Teardown currently removes a lane without first asking what is in it, so content the driver cannot account for is destroyed silently. Ignored files are the specific hazard: treating "ignored" as "disposable" is what previously deleted lane content without a record, and a lane can legitimately hold a dirty tracked file or a submission that was never collected.
-- Scope: Inventory a lane before teardown and REFUSE while it holds content the driver cannot classify, recording the reason as an event so preservation is auditable. Implements spec `7ckptx` R5.5, R5.6 and nothing else.
+- Scope: Inventory a lane before teardown and REFUSE while it holds content the driver cannot classify, recording the reason as an event so preservation is auditable. Implements spec `7ckptx` R5.5, R5.6 and nothing else. Also implements R5.6a (added 2026-09-01 by maintainer ruling).
 - Scope-Paths: agent_workflows/lane_containment.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_lane_retention.py
 - Item-Dependencies: executed:nna8yz
 - From-Spec: 7ckptx
@@ -46,9 +46,9 @@ MEASURED DELTA, so do not rewrite what exists: the driver already emits a preser
   - Depends on: E-01
   - Expected outcome: a lane with any unknown content still exists after the teardown call; a fully classified clean lane is removed; and an inventory failure results in preservation, not removal.
   - Execution state: pending
-- [ ] E-03 IMPLEMENTS R5.6, and WIRES the agy twin to the shared inventory. Record each refusal as an event naming WHICH condition held, so preservation is auditable rather than inferred from a directory that happens to survive. Extend the existing preservation event rather than adding a second one (CID-2). The two drivers are near-parity twins and a rule present in one only is a DEFECT (CID-3).
+- [ ] E-03 IMPLEMENTS R5.6, R5.6a, and WIRES the agy twin to the shared inventory. Record each refusal as an event naming WHICH condition held, extending the existing preservation event rather than adding a second one (CID-2). THEN SURFACE IT IN THE RUN'S SUMMARY OUTPUT, not only in the event log (spec R5.6a, maintainer ruling 2026-09-01): the summary must name each preserved lane and the reason. MEASURED justification, which is why this is a requirement and not a nicety: run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human reads, no reader surfaced the event at all, and five preserved lanes were on disk at the time; the maintainer learned work had been stranded by ASKING, not from the run's output. An event nobody reads is close to no record at all, and reporting success in the summary while the log records preservation reproduces the silent-stranding failure this whole effort exists to remove. SCOPE NOTE, checked rather than assumed: the summary is written inside `oc_runipd.py` (`(run_dir / "execution-report.md").write_text(...)`), which this plan ALREADY declares, so no fence widening is required.
   - Depends on: E-02
-  - Expected outcome: every refusal emits an event naming the specific condition that caused it, using the existing event rather than a new one, and the agy driver satisfies the same assertions as the oc driver.
+  - Expected outcome: every refusal emits an event naming the specific condition, using the existing event rather than a new one; the run's summary output names each preserved lane and its reason; and the agy driver satisfies the same assertions as the oc driver.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -106,9 +106,9 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 ### OQ-01: Should a preserved lane be reported anywhere beyond the event, for example in the run summary?
 
 - Blocking: no
-- Status: deferred
-- Owner: the implementing plan
-- Resolution or deferral rationale: DEFERRED as a presentation choice, deliberately not decided here. R5.6 requires the reason be RECORDED as an event, which makes preservation auditable, and that is the contract. Surfacing it in a rendered summary would be a usability improvement, but it touches the run-reporting surface which this plan does not declare in its Scope-Paths, and widening the fence to add it is exactly the scope creep rule 6 of the execution contract forbids. If the executor believes it is worth doing, the conforming action is to RECOMMEND it in the walkthrough for a follow-up, not to add it here.
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-01, asked interactively rather than deferred: YES, SURFACE IT IN THE RUN SUMMARY. Recorded as spec R5.6a with criterion A15b. I had deferred this as a presentation nicety and the measurement reversed my own position: run `run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human reads, nothing that reads run output surfaced the event at all, five preserved lanes were on disk, and the maintainer learned work had been stranded by ASKING rather than from the run's output. An event nobody reads is close to no record at all, and reporting success in the summary while the log records preservation reproduces the silent-stranding failure this effort exists to remove. SCOPE: no fence widening was needed after all, because the summary is written inside `oc_runipd.py`, which this plan already declares.
 
 ### OQ-02: What authoritative collection state distinguishes a harvested submission from an uncollected one?
 
@@ -130,8 +130,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste four cases: an unknown untracked file, an unknown IGNORED file, a dirty tracked file, and an uncollected submission, each showing the lane directory STILL EXISTS after the teardown call. Then paste a fully classified clean lane being removed, so the check is not simply refusing always. Then paste an inventory FAILURE resulting in preservation. SABOTAGE REQUIRED: make the refusal unconditional-pass (always tear down), paste the FAILING assertions, restore, paste them passing plus `git status` proving the product is unmodified.
   - Observed evidence:
   - Result: pending
-- [ ] V-03 validates E-03 (proves R5.6 and twin parity; spec A15, CID-2, CID-3)
-  - Required evidence: paste the recorded event for each refusal condition, showing it names WHICH condition held rather than a generic message. Paste evidence the EXISTING preservation event was extended rather than a second one added (show there is still one emission path). Then paste the parameterized run proving both drivers satisfy the same assertions, showing the parameterization rather than two similar functions, and both whole-suite invocations with expected counts stated separately per invocation.
+- [ ] V-03 validates E-03 (proves R5.6, R5.6a and twin parity; spec A15, A15b, CID-2, CID-3)
+  - Required evidence: paste the RUN SUMMARY OUTPUT for a run that preserved a lane, showing it names the lane and the reason. A test asserting only that the EVENT was written does NOT satisfy this item: that is exactly the state measured on `run-20260901T042331Z-118022` (two lanes preserved, zero summary mentions), so an event-only assertion would pass while reproducing the defect. Then paste the recorded event for each refusal condition, showing it names WHICH condition held rather than a generic message. Paste evidence the EXISTING preservation event was extended rather than a second one added (show there is still one emission path). Then paste the parameterized run proving both drivers satisfy the same assertions, showing the parameterization rather than two similar functions, and both whole-suite invocations with expected counts stated separately per invocation.
   - Observed evidence:
   - Result: pending
 

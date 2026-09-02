@@ -287,10 +287,37 @@ R4.3 Constructing the child environment MUST NOT silently discard an operator-su
 same variable. The policy MUST either be merged with validation or override explicitly and loudly; a
 blind overwrite is non-conforming.
 
-R4.4 The driver MUST bound an unattended turn independently of the host's permission decision: a
-seconds-scale deadline armed by an observed permission request (including a nested child-session
-request), and an absolute per-turn deadline that output cannot extend. Expiry MUST terminate through the
-ONE shared reaper and record a safe-failure disposition naming which bound fired.
+R4.4 The driver MUST bound EVERY unattended turn independently of the host's permission decision, whether
+or not that turn is isolated (maintainer ruling 2026-09-01: "make it uniform"). Two bounds, and their
+defaults are NORMATIVE so an implementation cannot pick weaker ones silently:
+
+(a) PERMISSION DEADLINE, default 30 SECONDS. Armed when the driver OBSERVES a permission request,
+including a nested child-session request, which is the shape the qyaime deadlock actually took. Seconds
+rather than minutes is the whole point: an unattended turn has NO answerer, so a permission ask is not a
+slow operation, it is a dead one, and waiting longer cannot change the outcome. It is disarmed if the
+request is answered or the turn progresses.
+
+(b) ABSOLUTE TURN DEADLINE, default 4 HOURS. A ceiling that output CANNOT extend, which is what
+distinguishes it from the coarse no-progress watchdog: a chatty-but-wedged turn keeps resetting a
+no-progress bound forever, and this one it cannot. MEASURED against real history when the default was
+chosen: across 263 recorded turns the longest was 2.46 hours, so 4 hours is roughly 1.6x the observed
+worst case. Generous enough that a legitimate long turn is not killed, finite enough that a wedged one
+cannot run overnight.
+
+Both MUST be overridable per run, and expiry MUST terminate through the ONE shared reaper (spec `c4gd2h`
+R5 forbids a second) and record a safe-failure disposition naming WHICH bound fired, so a post-mortem can
+tell a permission deadlock from an over-long turn from a silent stall.
+
+R4.4a UNIFORM SCOPE, and the reason it does not violate R1.3. R4.4 applies to isolated and non-isolated
+turns alike. This is a deliberate exception to the conservatism R1.3 asks for elsewhere, and the exception
+is safe because the two are different KINDS of change: R1.3 protects the non-isolated turn's PROMPT TEXT
+(which must stay byte-identical, since that is what an agent reads and reasons about), whereas these
+bounds are driver-side SUPERVISION that changes no instruction the agent ever sees. MEASURED context for
+the ruling: the coarse no-progress watchdog is ALREADY created unconditionally for every turn, so the
+non-isolated path is not unprotected today and uniformity here is an incremental tightening rather than a
+new regime; and exactly ONE recorded run has ever used the non-isolated mode, so the blast radius is
+small in either direction. Uniform was chosen because a supervision rule that applies only to the common
+case leaves the rare case as the one nobody notices is unguarded.
 
 R4.5 An isolated turn's child environment MUST carry the execution-role selector that causes
 driver-owned lifecycle verbs to refuse inside a lane. Any artifact describing it MUST state that it is
@@ -336,6 +363,15 @@ content silently.
 
 R5.6 A refusal under R5.5 MUST be recorded as an event naming the reason, so preservation is auditable
 rather than inferred from a surviving directory.
+
+R5.6a THE PRESERVATION MUST ALSO BE VISIBLE IN THE RUN'S OWN SUMMARY OUTPUT, not only in its event log
+(maintainer ruling 2026-09-01). MEASURED, and this is why it is a requirement rather than a nicety: run
+`run-20260901T042331Z-118022` preserved TWO lanes and mentioned it ZERO times in the summary a human
+reads; no reader surfaces the event at all; and five preserved lanes were sitting on disk at the time.
+The maintainer learned that work had been stranded by ASKING, not from the run's output. AN EVENT NOBODY
+READS IS CLOSE TO NO RECORD AT ALL, and silent stranding is precisely the failure this whole effort
+exists to remove, so recording it in a log while the summary reports success reproduces that failure in a
+quieter form. The summary MUST name each preserved lane and the reason it was preserved.
 
 ### R6. Shared predicates, single definition
 
@@ -427,6 +463,10 @@ re-flag it as a traceability gap.
 - A9. With an operator-supplied value already set for the policy variable, the resulting child environment
   either merges it verifiably or overrides it with an explicit loud record. A silent overwrite fails this
   criterion. (R4.3)
+- A10b. THE DEFAULTS ARE THE SPECIFIED ONES AND APPLY UNIFORMLY. Assert the permission deadline defaults to
+  30 seconds and the absolute turn deadline to 4 hours, that both are overridable per run, and that BOTH are
+  armed for a NON-isolated turn as well as an isolated one. Also show the non-isolated turn's PROMPT is still
+  byte-identical, which is what R1.3 protects and what makes the uniform supervision scope safe. (R4.4, R4.4a)
 - A10. Feed a synthetic unanswered permission request, including the nested child-session shape: the
   process is terminated within the permission deadline, demonstrably not at the coarse no-progress bound,
   the disposition is the safe-failure value, the reason names which bound fired, and the termination is
@@ -449,6 +489,10 @@ re-flag it as a traceability gap.
   refusal. (R5.4)
 - A15. A lane holding an unknown untracked file is not torn down and an event records the reason; the same
   for an unknown IGNORED file; a fully classified clean lane is torn down. (R5.5, R5.6)
+- A15b. THE PRESERVATION IS VISIBLE WITHOUT READING THE EVENT LOG. Paste the run's summary output for a run
+  that preserved a lane, showing it names the lane and the reason. A test that only asserts the EVENT was
+  written does NOT satisfy this criterion, because that is exactly the state measured on
+  `run-20260901T042331Z-118022`: two lanes preserved, zero mentions in the summary. (R5.6a)
 - A16. Each implemented shared predicate has unit tests; each unimplemented one still raises naming its
   owner; and a predicate implemented but not chartered for wiring has no product caller. (R6.1, R6.2,
   R6.3)
