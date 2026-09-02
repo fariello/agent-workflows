@@ -4,6 +4,10 @@
 
 Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 
+## ctlroot
+
+- `eulhzt` [pending] 01 pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
+
 ## findpaths
 
 - `v8xdz4` [executed] 01 executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md
@@ -25,10 +29,6 @@ Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 ## ocvariant
 
 - `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
-
-## statefork
-
-- `eulhzt` [pending] 01 pending/20260901-statefork-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
 
 ## wslayout
 

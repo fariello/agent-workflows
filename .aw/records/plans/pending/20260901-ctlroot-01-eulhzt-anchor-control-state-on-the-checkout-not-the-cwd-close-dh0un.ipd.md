@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_statefork_dh0uno.py, tests/test_wtiso_characterization.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
 - Status: to-review
-- Set: statefork
+- Set: ctlroot
 - Order: 1
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us

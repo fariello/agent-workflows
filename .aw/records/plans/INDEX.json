@@ -4302,6 +4302,16 @@
   {
     "date": "2026-09-01",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md",
+    "plan_id": "eulhzt",
+    "set_id": "ctlroot",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md",
@@ -4368,16 +4378,6 @@
     "plan_id": "604wra",
     "set_id": "lanectn",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260901-statefork-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md",
-    "plan_id": "eulhzt",
-    "set_id": "statefork",
-    "status": "to-review"
   },
   {
     "date": "2026-09-01",
