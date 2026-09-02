@@ -517,7 +517,8 @@ def apply_status_change(
     repo_root: Path,
     args: argparse.Namespace,
 ) -> tuple[Path, str]:
-    """Apply the status change to the artifact on disk, appending workflow history and moving file if needed."""
+    """Apply the status change on disk, recording workflow history (NEWEST-FIRST: the record is
+    PREPENDED under the `## Workflow history` heading, not appended) and moving the file if needed."""
     norm_status = normalize_target_status(target_status, rec.record_type)
     today = datetime.datetime.now(datetime.timezone.utc).date().strftime("%Y-%m-%d")
     message = getattr(args, "message", None) or f"status set to {norm_status}"
@@ -782,7 +783,14 @@ def apply_status_change(
     if not content_changed and not path_changed:
         return rec.path, norm_status
 
-    # Append Workflow history
+    # Write the Workflow history record. NEWEST-FIRST, NOT appended: the `insert(i + 1, ...)` below
+    # PREPENDS the new record directly under the `## Workflow history` heading, so the FIRST record
+    # in the section is the most recent one. This is the CONTRACT (fullauto 97df1z E-07 corrected the
+    # comment, which used to say "Append", and the matching sentence in
+    # `.aw/records/plans/README.md`); the writer's behavior is deliberately unchanged, because
+    # reordering every existing plan's history would be a destructive rewrite. Any reader wanting
+    # "the latest entry" must take the FIRST record of the BOUNDED section - use the shared
+    # `plan_readiness.extract_newest_history_entry`, and do not hand-roll another parser.
     hist_entry = f"- {today} {norm_status} ({actor}): {message}"
     has_hist_section = False
     for i, line in enumerate(new_lines):

@@ -220,6 +220,22 @@ META_PRIORITY = "Priority"
 # Scope-Paths/Blocks-Release/From-Backlog. Absent = unclassified (no forced default; existing plans
 # are not mass-failed).
 META_WORK_KIND = "Work-Kind"
+# fullauto Order 97df1z: the STRUCTURED readiness signal a review records, replacing the prose match
+# the `--full-auto` auto-approve gate used to regex out of a model-authored history line. The values
+# are the house bare-lowercase-kebab enum (cf. `Status:`, `Kind:`, `Priority:`, `Gate-Kind:`) mapped
+# from `/plan-review`'s existing readiness vocabulary: GO -> `go`, GO - PENDING HUMAN APPROVAL ->
+# `go-pending-approval`, NO-GO -> `no-go`. Recognized but OPTIONAL (NOT in META_REQUIRED, mirroring
+# META_SCOPE_PATHS / META_PRIORITY / META_WORK_KIND): recognition here only stops the IPD-M103
+# "unknown field" lint error, so no existing plan is mass-failed (the grandfather guarantee).
+# ABSENT MEANS UNKNOWN, NOT CLEAR: the consumer (`plan_readiness.is_plan_review_approved`) FAILS
+# CLOSED on an absent or out-of-vocab value; it never treats absence as an approval.
+META_READINESS = "Readiness"
+# The closed value enum. `read_readiness` returns None for anything outside it (fail closed).
+READINESS_VALUES: FrozenSet[str] = frozenset(("go", "go-pending-approval", "no-go"))
+# The readiness values that clear a plan for automated approval. `go` is included per OQ-01: in the
+# workflow's vocabulary `go` means the clean bar is met AND the human already approved, a strictly
+# stronger condition than `go-pending-approval`, so refusing it would be surprising.
+READINESS_APPROVABLE: FrozenSet[str] = frozenset(("go", "go-pending-approval"))
 # The full set of recognized field names (unknown fields are errors for new IPDs).
 META_RECOGNIZED: FrozenSet[str] = frozenset(
     META_REQUIRED
@@ -235,6 +251,7 @@ META_RECOGNIZED: FrozenSet[str] = frozenset(
         META_FROM_SPEC,
         META_PRIORITY,
         META_WORK_KIND,
+        META_READINESS,
     )
 )
 
@@ -288,6 +305,30 @@ def parse_metadata_block(
     return fields, errors
 
 
+_READINESS_LINE_RE = re.compile(r"(?m)^-[ \t]*Readiness:[ \t]*(?P<value>.*)$")
+
+
+def read_readiness(text: str) -> Optional[str]:
+    """The plan's ``- Readiness:`` value NORMALIZED to the closed enum, or None (fullauto 97df1z).
+
+    Returns one of ``READINESS_VALUES`` for a recognized value, and None when the field is ABSENT or
+    carries anything outside the enum. Absent and unrecognized are DELIBERATELY the same answer to
+    the caller: both mean "the review recorded no machine-readable readiness", and the consumer
+    (`plan_readiness.is_plan_review_approved`) FAILS CLOSED on None rather than guessing. Value
+    matching is case-insensitive so a reviewer who writes the workflow's shouty ``NO-GO`` still gets
+    the safe answer instead of an unparseable one; the FIELD NAME is matched exactly, as elsewhere.
+
+    Pure; takes the whole plan text (the first matching front-matter bullet wins, mirroring
+    `check_engine`'s `_ITEM_PRIORITY_RE` scan shape). ENUM validation for lint/`aw check` reporting
+    is a separate concern: this reader is the READ path and never raises.
+    """
+    m = _READINESS_LINE_RE.search(text)
+    if not m:
+        return None
+    value = m.group("value").strip().lower()
+    return value if value in READINESS_VALUES else None
+
+
 def validate_metadata(
     fields: Dict[str, str], *, directory: Optional[str] = None
 ) -> List[MetaError]:
@@ -311,6 +352,26 @@ def validate_metadata(
     status = fields.get("Status")
     if status is not None and status not in RECOGNIZED_STATUS:
         errors.append(MetaError("Status", "unrecognized readiness status"))
+
+    # Readiness (fullauto 97df1z): OPTIONAL, so absence is silent; but a PRESENT value outside the
+    # closed enum is an error, reported by `ipd_lint.check_metadata` as IPD-M104. This enum check
+    # lives HERE rather than in the `aw check` surface that Priority/Work-Kind use, and the
+    # distinction is the vocabulary's OWNER: `backlog.PRIORITIES`/`backlog.KINDS` are owned by
+    # another module (so their check sits where the shared vocab is imported, avoiding a fork),
+    # whereas `READINESS_VALUES` is defined in THIS module, exactly like the `Kind` and `Status`
+    # enums validated a few lines above. No existing plan carries `Readiness:`, so this cannot
+    # mass-fail the corpus. NOTE the auto-approve gate does NOT depend on this diagnostic: an
+    # unrecognized value already fails closed at `read_readiness` (returns None -> refuse).
+    readiness = fields.get(META_READINESS)
+    if readiness is not None and readiness.strip().lower() not in READINESS_VALUES:
+        errors.append(
+            MetaError(
+                META_READINESS,
+                "unrecognized readiness value (expected one of "
+                + ", ".join(sorted(READINESS_VALUES))
+                + ")",
+            )
+        )
 
     # Id: the stable plan citation handle (6-char base36 lowercase, from the shared core).
     plan_id = fields.get("Id")

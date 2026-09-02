@@ -53,6 +53,15 @@ from agent_workflows.render_stream import (
 # `AGENTS.md#aw:reporting` section use), so the two drivers cannot drift apart.
 from agent_workflows import reporting_contract
 
+# fullauto Order 01 (97df1z): the `--full-auto` auto-approve gate lives in ONE shared module. This
+# driver used to carry its own NEAR-copy of `is_plan_review_approved`/`extract_last_history_entry`
+# (docstrings already stripped relative to the oc copies - live evidence of the drift), which meant a
+# fix to one driver left `aw agy run --full-auto` broken. Do NOT reintroduce a local copy.
+from agent_workflows.plan_readiness import (
+    extract_newest_history_entry as extract_newest_history_entry,
+)
+from agent_workflows.plan_readiness import is_plan_review_approved
+
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
@@ -473,42 +482,33 @@ def run_checked(
     return result.stdout.strip()
 
 
-def extract_last_history_entry(text: str) -> str:
-    history_idx = text.rfind("## Workflow history")
-    if history_idx == -1:
-        return text
-    history_text = text[history_idx:]
-    bullets = [
-        line.strip()
-        for line in history_text.splitlines()
-        if line.strip().startswith("- ")
-    ]
-    return bullets[-1] if bullets else history_text
-
-
-def is_plan_review_approved(plan_path: Path) -> bool:
-    try:
-        text = plan_path.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    last_entry = extract_last_history_entry(text)
-    if not re.search(r"GO\s*-\s*PENDING\s*HUMAN\s*APPROVAL", last_entry, re.IGNORECASE):
-        return False
-    if re.search(r"Readiness:\s*(NO-GO|CONDITIONAL-GO)", last_entry, re.IGNORECASE):
-        return False
-    return True
+# fullauto Order 01 (97df1z), OQ-02: the automated-actor provenance for a `--full-auto` clear (the
+# agy twin of the oc constants; see `oc_runipd.set_plan_approved` for the full rationale).
+FULL_AUTO_ACTOR = "aw agy run --full-auto"
+FULL_AUTO_APPROVAL_MESSAGE = (
+    "auto-approved by --full-auto: review readiness cleared (not human approval)"
+)
 
 
 def set_plan_approved(
-    repo: Path, id6: str, message: str = "Full-auto approval via runagy"
+    repo: Path, id6: str, message: str = FULL_AUTO_APPROVAL_MESSAGE
 ) -> None:
+    """Transition a reviewed plan to `auto-approved` via `aw set` - NOT to human `approved`.
+
+    fullauto Order 01 (97df1z), OQ-02, resolved by the maintainer: the machine must not assert the
+    `--by-human` attestation. `auto-approved` is the shipped automated-clear tier
+    (`ipd_schema.READY_TO_EXECUTE`), so no new vocabulary or flag was invented; the actor string
+    carries the automated provenance. Kept byte-for-byte equivalent to the oc twin (which holds the
+    full note) so the two drivers cannot diverge on the honesty of the audit trail.
+    """
     # lanetruth Order 01 (af7i6p): pinned to the runner's OWN tooling, not the cwd's copy.
     cmd = pinned_module_argv(
         [
             "set",
-            "approved",
+            "auto-approved",
             id6,
-            "--by-human",
+            "--actor",
+            FULL_AUTO_ACTOR,
             "--yes",
             "--no-commit",
             "--dir",
@@ -533,9 +533,10 @@ def set_plan_approved(
             [
                 "aw",
                 "set",
-                "approved",
+                "auto-approved",
                 id6,
-                "--by-human",
+                "--actor",
+                FULL_AUTO_ACTOR,
                 "--yes",
                 "--no-commit",
                 "--dir",
@@ -547,7 +548,7 @@ def set_plan_approved(
         )
     else:
         raise DriverError(
-            f"Unable to run 'aw set approved {id6}': aw command not available"
+            f"Unable to run 'aw set auto-approved {id6}': aw command not available"
         )
 
 
@@ -2004,11 +2005,13 @@ def initialize_run(args: argparse.Namespace) -> Path:
             if not status:
                 status = "approved"
 
+        # `Status: reviewed` remains a hard PRECONDITION and the cleared status is `auto-approved`,
+        # never human `approved` (fullauto 97df1z; the oc twin carries the full note).
         if status == "reviewed" and full_auto and p_path:
             try:
                 if is_plan_review_approved(p_path):
                     set_plan_approved(repo, id6)
-                    status = "approved"
+                    status = "auto-approved"
             except Exception:
                 pass
 
@@ -3760,6 +3763,8 @@ def execute_item(
         plan_curr = resolve_plan_path(
             repo, item.get("configured_file", ""), item["id6"]
         )
+        # The SHARED predicate (fullauto 97df1z): structured `- Readiness:` first, bounded
+        # newest-history fallback second, fail closed otherwise. Records `auto-approved` (OQ-02).
         if is_plan_review_approved(plan_curr):
             try:
                 set_plan_approved(repo, item["id6"])
@@ -3803,7 +3808,8 @@ def execute_item(
     if auto_approved:
         print(
             pal(
-                f"  \u2713 IPD {item['id6']} auto-approved (GO - PENDING HUMAN APPROVAL); progressing to execution",
+                f"  \u2713 IPD {item['id6']} auto-approved (review readiness cleared, "
+                "NOT human approval); progressing to execution",
                 "cyan",
             )
         )
@@ -4473,7 +4479,13 @@ AUTOMATIC STATUS ROUTING:
         "--full-auto",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Auto-approve reviewed plans with GO verdict and immediately execute",
+        help=(
+            "Clear a plan that is already 'Status: reviewed' to 'auto-approved' and execute it "
+            "immediately. The decision reads the plan's structured '- Readiness:' field "
+            "(go|go-pending-approval clears; no-go, an unrecognized value, or an absent field with "
+            "no approving review verdict does not). This records an AUTOMATED clear, NOT human "
+            "approval: no --by-human attestation is asserted"
+        ),
     )
     start.add_argument(
         "--max-items-per-session",
@@ -4519,7 +4531,10 @@ AUTOMATIC STATUS ROUTING:
         "--full-auto",
         action=argparse.BooleanOptionalAction,
         default=None,
-        help="Override full-auto mode",
+        help=(
+            "Override full-auto mode (clear reviewed plans whose structured '- Readiness:' is "
+            "go/go-pending-approval to 'auto-approved' and execute them; not human approval)"
+        ),
     )
     resume.add_argument(
         "--max-items-per-session",

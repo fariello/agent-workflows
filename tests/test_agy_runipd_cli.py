@@ -719,5 +719,63 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
             self.assertEqual(expanded, ["p1"])
 
 
+class AgyFullAutoApprovalTests(unittest.TestCase):
+    """fullauto 97df1z E-03: the agy driver's `--full-auto` gate, which was broken in the SAME way.
+
+    Parity with `test_oc_runipd`'s auto-approve tests. The bug existed in BOTH drivers (the agy copy
+    of the predicate had even lost its docstrings), so a fix proven only on oc would have left
+    `aw agy run --full-auto` dead. These assert the shared predicate is the one in use and that the
+    driver clears to the HONEST `auto-approved` status rather than machine-asserting `--by-human`.
+    """
+
+    def test_predicate_is_the_shared_one_and_local_copies_are_gone(self):
+        from agent_workflows import plan_readiness
+
+        self.assertIs(
+            agy_runipd.is_plan_review_approved, plan_readiness.is_plan_review_approved
+        )
+        self.assertFalse(hasattr(agy_runipd, "extract_last_history_entry"))
+
+    def test_structured_readiness_decides_and_prose_does_not(self):
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t)
+            clear = root / "clear.ipd.md"
+            clear.write_text(
+                "# P\n\n- Id: agy010\n- Status: reviewed\n"
+                "- Readiness: go-pending-approval\n\n"
+                "## Workflow history\n- 2026-08-29 reviewed (aw set): reviewed\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(agy_runipd.is_plan_review_approved(clear))
+
+            refuse = root / "refuse.ipd.md"
+            refuse.write_text(
+                "# P\n\n- Id: agy011\n- Status: reviewed\n- Readiness: no-go\n\n"
+                "## Workflow history\n"
+                "- 2026-08-29 /plan-review (agy): APPROVE. Readiness: GO - PENDING HUMAN APPROVAL.\n",
+                encoding="utf-8",
+            )
+            self.assertFalse(agy_runipd.is_plan_review_approved(refuse))
+
+    def test_set_plan_approved_uses_auto_approved_and_never_by_human(self):
+        """OQ-02: the machine must not assert the human-approval attestation."""
+        captured: list = []
+
+        def fake_run_checked(argv, cwd=None, env=None):
+            captured.append(list(argv))
+            return ""
+
+        with mock.patch.object(agy_runipd, "run_checked", fake_run_checked):
+            agy_runipd.set_plan_approved(Path("/tmp/repo"), "agy012")
+
+        self.assertEqual(len(captured), 1)
+        argv = captured[0]
+        self.assertIn("auto-approved", argv)
+        self.assertNotIn("approved", argv)  # the human tier is never requested
+        self.assertNotIn("--by-human", argv)
+        self.assertIn("--actor", argv)
+        self.assertIn(agy_runipd.FULL_AUTO_ACTOR, argv)
+
+
 if __name__ == "__main__":
     unittest.main()
