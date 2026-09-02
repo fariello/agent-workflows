@@ -2218,6 +2218,56 @@ def format_multi_run_summary(summaries: list[RunSummary], term: Term) -> str:
     return "\n".join(lines)
 
 
+#: Help text for the `aw runs repair` verb. It lives here rather than in an argparse subparser
+#: because `repair` is routed from the first positional token, deliberately, so that every READ
+#: path on `aw runs` stays side-effect free (ssk6nf E-04). The cost of that choice is that argparse
+#: cannot render help for it, so `aw runs repair --help` fell through to the generic `runs` help and
+#: described a read-only inspector. This string is what the verb prints instead.
+REPAIR_HELP = """usage: aw runs repair <run-id|run-dir> [<run-id|run-dir> ...]
+
+Durably reconcile a run that was abandoned WITHOUT a terminal status, so it stops being reported as
+still running. This is the one MUTATING verb on `aw runs`; every other form is read-only.
+
+WHEN YOU NEED IT
+  A driver killed mid-turn (crash, reboot, SIGKILL, closed laptop) never writes a terminal status,
+  so its step stays `running` in the run's state.json while no process holds the run. `aw runs` then
+  shows that step as `abandoned?` - the question mark meaning "no live driver, but nothing recorded
+  what happened". This verb decides the question and writes the answer down.
+
+WHAT IT DOES, per step still marked `running`
+  - Resolves the step's plan and looks at which lifecycle directory it now sits in.
+  - Plan is in executed/  -> records `executed` (the work did land before the driver died).
+  - Otherwise             -> records `interrupted` (honest: it stopped partway).
+  - Recovers the agent session id from the attempt log when it can, so the turn stays traceable.
+  It delegates to the single reconciler (`oc_runipd.reconcile_interrupted`) rather than
+  reimplementing the decision, so the read view and this repair can never disagree.
+
+WHAT IT REFUSES TO DO
+  - Refuses while a LIVE driver still holds the run (that would race the driver's own writer).
+    Stop the run first, then repair.
+  - Refuses when it cannot PROVE no driver holds the run (flock unavailable on this platform).
+  - Refuses to record `executed` for a turn that was force-interrupted at stop level 4, even if the
+    plan sits in executed/, because the driver never established that the work was complete. It
+    records a reconciliation conflict for a human instead of fabricating success.
+  - Does NOT delete the stale `driver.lock`, does NOT touch any plan file or its `- Status:`, does
+    NOT merge or discard lane work, and does NOT re-run anything.
+
+EXIT CODES
+  0  reconciled, or nothing to reconcile (no running steps: a no-op, safe to re-run)
+  1  refused (a live driver holds the run, or liveness could not be proven)
+  2  not a run directory
+
+EXAMPLES
+  aw runs repair run-20260902T013603Z-1758564     # one run by id
+  aw runs repair .aw/records/runs/run-2026...     # or by directory path
+  aw runs --active                               # find runs that still look alive first
+
+LIMITATION WORTH KNOWING
+  The decision reads the plan's DIRECTORY, not the step's own `outcomes/<NN>-<id6>.json`. A step that
+  recorded `substantially-complete` with committed lane work is therefore reconciled to
+  `interrupted`, which understates it. Tracked as backlog `ydbhfd`."""
+
+
 def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
     """ssk6nf E-04: durably reconcile a run abandoned without a terminal status.
 
@@ -2271,8 +2321,18 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         raw_targets = [raw_targets]
     if raw_targets and raw_targets[0] == "repair":
         targets = list(raw_targets[1:])
+        # `repair` is routed from a positional token rather than a subparser (so every READ path
+        # stays side-effect free), which means argparse never learns it is a verb and cannot render
+        # its help. `aw runs repair --help` therefore reached the generic `runs` help, describing a
+        # read-only inspector while the user was asking about a MUTATING verb. Handle the help
+        # request here, where the verb is actually known.
+        if any(t in ("-h", "--help") for t in targets):
+            print(REPAIR_HELP)
+            return 0
         if not targets:
             print("error: aw runs repair needs a run id (or a run directory path)")
+            print()
+            print(REPAIR_HELP)
             return 2
         rc = 0
         for run_dir in resolve_target_runs(targets, repo_root):

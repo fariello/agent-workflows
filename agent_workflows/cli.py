@@ -1683,7 +1683,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="View driver execution runs and ending states of their steps.",
         description=(
             "Inspect driver execution runs under .aw/records/runs/ and display a unified "
-            "summary of the ending status of each IPD step in each run. Read-only."
+            "summary of the ending status of each IPD step in each run. Read-only, with ONE "
+            "exception: the `repair` verb (`aw runs repair <run-id>`) durably reconciles a run "
+            "abandoned without a terminal status, so a step a crashed driver left as `running` "
+            "stops being reported `abandoned?`. Run `aw runs repair --help` for that verb."
         ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
@@ -1701,6 +1704,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  aw runs --short                  # short table without cost/token columns\n"
             "  aw runs --summary-only           # summary breakdown only\n"
             "  aw runs --latest-only            # latest status per item in unified table\n"
+            "  aw runs repair <run-id>          # MUTATES: reconcile a crashed run's `running` step\n"
+            "  aw runs repair --help            # what repair decides, and what it refuses to do\n"
         ),
     )
     p_runs.add_argument(
@@ -8964,6 +8969,22 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    # `aw runs repair --help` must describe the REPAIR verb, not the read-only inspector. `repair` is
+    # routed from `aw runs`' first POSITIONAL token (run_viewer, ssk6nf E-04) so that every read path
+    # stays side-effect free, which means argparse never learns it is a verb: it consumed `--help` and
+    # printed the generic `runs` help, documenting a read-only command while the user was asking about
+    # the one MUTATING verb. Intercept it here, before the parser sees the tail, exactly as the runner
+    # forwarding above does for `aw oc runipd --help`.
+    if (
+        len(argv_list) >= 3
+        and argv_list[0] == "runs"
+        and argv_list[1] == "repair"
+        and any(tok in ("-h", "--help") for tok in argv_list[2:])
+    ):
+        from agent_workflows import run_viewer
+
+        print(run_viewer.REPAIR_HELP)
+        return 0
     # runnernorm Order 02 (puot79): forward `aw agy sessions|view ...` and `aw pwatch ...` VERBATIM
     # to the packaged core's own parser (incl. its `--help`), matching the runipd forwarding above.
     if (

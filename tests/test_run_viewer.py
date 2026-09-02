@@ -1310,3 +1310,124 @@ class RunViewerTests(TestCase):
         self.assertEqual(code, 2)
         out = buf.getvalue()
         self.assertIn("error: --issues/-i cannot be used with --summary-only/-S", out)
+
+
+class RunsRepairHelpTests(TestCase):
+    """`aw runs repair` must be documented and discoverable.
+
+    `repair` is routed from `aw runs`' first POSITIONAL token (ssk6nf E-04) so that every READ
+    path stays side-effect free. The cost of that design is that argparse never learns `repair`
+    is a verb, so it consumed `--help` and printed the generic `runs` help: a user asking about
+    the one MUTATING verb was shown a page describing a read-only inspector, and the verb was
+    findable only by reading an executed plan. These tests pin the fix at both layers.
+
+    Fixture-based on purpose: per this module's header hazard, a new test must NOT read the live
+    repository via dir=".".
+    """
+
+    def test_repair_help_describes_the_repair_verb_not_the_inspector(self):
+        """`aw runs repair --help` prints REPAIR's help, exits 0, and never claims read-only."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = cli.main(["runs", "repair", "--help"])
+        out = buf.getvalue()
+        self.assertEqual(code, 0)
+        self.assertIn("usage: aw runs repair", out)
+        # The decision it makes, both branches, since that is what an operator needs to trust it.
+        self.assertIn("executed", out)
+        self.assertIn("interrupted", out)
+        # Its refusals: a live holder must not be repaired under, and success is never fabricated.
+        self.assertIn("live driver", out)
+        # It must NOT be the generic read-only inspector page.
+        self.assertNotIn("Zero or more run IDs", out)
+
+    def test_repair_help_accepts_short_flag(self):
+        """`-h` is honoured identically; a user should not have to guess the long form."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = cli.main(["runs", "repair", "-h"])
+        self.assertEqual(code, 0)
+        self.assertIn("usage: aw runs repair", buf.getvalue())
+
+    def test_runs_help_advertises_repair(self):
+        """The `runs` page must name `repair` and stop calling itself unqualified read-only.
+
+        Without this, the verb is invisible to anyone who has not read plan ssk6nf.
+        """
+        buf = io.StringIO()
+        with self.assertRaises(SystemExit) as ctx:
+            with redirect_stdout(buf):
+                cli.main(["runs", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        out = buf.getvalue()
+        self.assertIn("repair", out)
+        self.assertIn("aw runs repair --help", out)
+
+    def test_repair_without_a_target_errors_and_shows_usage(self):
+        """A bare `aw runs repair` must say what is missing AND how to use it (exit 2)."""
+        ns = argparse.Namespace(
+            dir=".",
+            target=["repair"],
+            set=None,
+            ipd=None,
+            status=None,
+            failed=False,
+            active=False,
+            latest=False,
+            last=1,
+            since=None,
+            detail=False,
+            short=False,
+            summary_only=False,
+            latest_only=False,
+            issues=False,
+            json=False,
+            agent=False,
+            no_color=True,
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = run_viewer.run_viewer_cli(ns)
+        out = buf.getvalue()
+        self.assertEqual(code, 2)
+        self.assertIn("needs a run id", out)
+        self.assertIn("usage: aw runs repair", out)
+
+    def test_repair_on_a_non_run_directory_exits_2(self):
+        """A path that is not a run dir is a usage error, not a crash or a silent no-op."""
+        with tempfile.TemporaryDirectory() as td:
+            code, message = run_viewer.repair_run(Path(td), Path(td))
+        self.assertEqual(code, 2)
+        self.assertIn("not a run directory", message)
+
+    def test_repair_is_a_no_op_when_nothing_is_running(self):
+        """Repair must be safe to re-run: no `running` steps means no change and exit 0."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-222222"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260829T000000Z-222222",
+                "repo": str(root),
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "item01",
+                        "setid": "test",
+                        "action": "execute",
+                        "status": "complete",
+                        "configured_file": "x.ipd.md",
+                    }
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+            before = (run_dir / "state.json").read_text(encoding="utf-8")
+
+            code, message = run_viewer.repair_run(run_dir, root)
+
+            self.assertEqual(code, 0)
+            self.assertIn("nothing to repair", message)
+            # Truly a no-op: state.json is byte-identical afterwards.
+            self.assertEqual(
+                before, (run_dir / "state.json").read_text(encoding="utf-8")
+            )
