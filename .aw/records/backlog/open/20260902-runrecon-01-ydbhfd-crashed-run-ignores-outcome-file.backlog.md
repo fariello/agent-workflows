@@ -86,3 +86,38 @@ WHY HIGH: the maintainer relies on `aw runs` to decide what to do next. A step t
 substantially all its work, committed it to a lane, and recorded conforming lint is displayed as
 abandoned, which invites either discarding good work or re-running an expensive turn ($19.39 and 26.65M
 tokens for this one). Both are worse than the crash itself.
+
+CROSS-LINKS (added 2026-09-02, after the maintainer recalled filing a related item; verified rather
+than assumed).
+
+PRIOR ART, and it is NOT a duplicate of this item: `l670yn` (runstale, high, graduated 2026-08-29)
+reported the same FAMILY of symptom - a dead run's item shown as `running` forever. It split the problem
+into two:
+  - its BUG A (read side) graduated to plan `ssk6nf`, which is now EXECUTED. That is precisely why the
+    board today shows `abandoned?` rather than a false `running`: `ssk6nf` added the read-time liveness
+    projection. So the `abandoned?` label THIS item complains about is `ssk6nf` working as designed.
+  - its BUG B (write side: no SIGINT/SIGTERM handler, `run_lock` never unlinks, so a dead PID stays
+    readable) remains OPEN and is owned by spec `c4gd2h` and plans `2ouj70`/`71vjbn`. Do not re-specify
+    it here.
+
+WHAT THIS ITEM ADDS THAT NEITHER COVERS: `ssk6nf` makes the read path HONEST about not knowing, and
+stops there deliberately. It never consults `outcomes/<NN>-<id6>.json`. So a step that finished its work,
+recorded `substantially-complete`, and committed to a lane is still displayed as an unknown-outcome
+guess, even though the authoritative answer is a file sitting in the same run directory. That gap is this
+item's whole subject and is not in `l670yn`, `ssk6nf`, `c4gd2h`, `2ouj70`, or `71vjbn`.
+
+REPAIR VERB ALREADY EXISTS, and it resolved the reported instance: `ssk6nf` E-04 shipped
+`aw runs repair <run-id>`. Run on this run it produced
+`run-20260902T013603Z-1758564: reconciled 1 step(s): 97df1z running -> interrupted`, and a sweep across
+all 40 runs holding a dead-PID lock fixed two more genuinely stale states, one of which was actually
+`executed` and had been misreported for days. So the immediate symptom is CLEARED; what remains is the
+design gap above (`interrupted` is still less than the `substantially-complete` the outcome file records).
+
+DISCOVERABILITY DEFECT NOTED WHILE DOING THIS (small, separate, unfiled): `aw runs repair` is handled as
+a magic first POSITIONAL argument (`run_viewer.py:2272`, `if raw_targets and raw_targets[0] == "repair"`)
+rather than a real subparser, so `aw runs --help` does not list it and `aw runs repair --help` prints the
+plain `runs` help. It is findable only by reading the executed plan. Worth its own item if anyone trips
+on it again.
+
+SIBLING: `sv8z1e` (same Set) covers the missing ACTION - `aw run resume` cannot read a driver run at all.
+This item covers the wrong FACTS. Independent; either can land first.

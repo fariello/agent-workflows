@@ -76,3 +76,34 @@ RELATION TO THE SIBLING ITEM: the sibling covers the DISPLAY defect (`aw runs` r
 while the outcome file records the true disposition). Fixing that gives an operator the right FACTS;
 fixing this item gives them a supported ACTION. They are independent and can land in either order,
 though doing the sibling first is the cheaper win.
+
+CROSS-LINKS (added 2026-09-02, verified against the tree rather than assumed).
+
+PRIOR ART, and this item is NOT a duplicate: `l670yn` (runstale, high, graduated) covers a dead run's
+item being REPORTED as `running` forever. Its read-side half graduated to plan `ssk6nf`, now EXECUTED,
+which added the read-time liveness projection and the opt-in `aw runs repair <run-id>` verb. Its
+write-side half (no signal handler, `run_lock` never unlinks the lock) stays open under spec `c4gd2h`
+and plans `2ouj70`/`71vjbn`.
+
+WHY THIS ITEM SURVIVES ALL OF THAT: every one of those addresses the DRIVER run model's state. None
+addresses the fact that the verb literally named `resume` belongs to a DIFFERENT run model and cannot be
+pointed at a driver run at all. Confirmed after the repair sweep: `aw runs repair` fixes the recorded
+STATE, and the affected run directory still has no `ledger.jsonl`, so `aw run resume <driver-run-id>`
+remains unusable. The two models are still disjoint.
+
+RELATIONSHIP TO THE SHIPPED REPAIR VERB, which narrows this item usefully: `aw runs repair` is now the
+de facto reconcile action for a driver run, so the gap is no longer "there is no action" but "the action
+is undiscoverable and is not the verb whose name promises it". That makes option 4 in this item (make the
+error actionable) materially more attractive than building a second resume engine: `aw run resume
+<driver-run-id>` should say "this is a driver run; use `aw runs repair <id>`" instead of failing on a
+missing ledger.
+
+DISCOVERABILITY DEFECT, measured while confirming the above: `aw runs repair` is not a subparser. It is
+matched as a magic first positional (`run_viewer.py:2272`), so `aw runs --help` never mentions it and
+`aw runs repair --help` prints the generic `runs` help. An operator or agent cannot find the one action
+that fixes this without reading executed plan `ssk6nf`. That is arguably the cheapest real fix in this
+whole Set.
+
+SIBLING: `ydbhfd` (same Set) covers the wrong FACTS - the viewer ignoring `outcomes/*.json` and so
+reporting a guess when the true disposition is on disk. This item covers the missing ACTION. Independent;
+`ydbhfd` is the cheaper win.
