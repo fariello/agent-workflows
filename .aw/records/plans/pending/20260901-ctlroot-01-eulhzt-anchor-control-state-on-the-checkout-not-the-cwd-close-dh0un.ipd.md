@@ -4,12 +4,13 @@
 - Kind: child
 - Concern: Backlog `dh0uno` is still LIVE on `main`: `aw` composes its control paths as `repo_root/".aw"/state/...`, where `repo_root` is the caller's git worktree top-level. Under driver worktree isolation the agent runs with cwd inside a lane (`.aw/worktrees/<id6>`), so an inner `aw` resolves `<lane>/.aw/state/...` - a SECOND receipt/lock/journal store the driver (running from the main tree) cannot see, `git status` cannot show (gitignored), no branch diff carries (never committed), and lane teardown deletes. Measured before this fix: `receipt_dir(<main>)` and `receipt_dir(<lane>)` return two different directories. This plan closes `dh0uno` at its root with a minimal, self-contained change, and by doing so lets the stalled 7-plan `wtiso` Set be retired: `wtiso`'s Concern names exactly three live failures, and the other two are already closed on `main` (`xmqv5l` fixed in `cdef9c90`; `qyaime`'s unbounded hang bounded by the shipped `StallWatchdog`).
 - Scope: The ONE control-root authority plus the three legacy control-path constructors that must route through it, the two now-redundant receipt-copy helpers, and the tests that pin the behavior. Does NOT port the 859-line `execution_context.py` + `path_resolver.py` machinery from lane `7p9n2v`, and does NOT relocate state out of the repository (that was `wtiso` Phase 4, which is being retired unlanded; see "Deferred").
-- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_statefork_dh0uno.py, tests/test_wtiso_characterization.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
+- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_statefork_dh0uno.py, tests/test_wtiso_characterization.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, .aw/records/backlog/open/
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: go-pending-approval
 - Set: ctlroot
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: eulhzt
 - From-Backlog: dh0uno
@@ -59,6 +60,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `test_receipt_is_copied_into_lane` becomes `test_no_second_receipt_authority_is_created_for_a_lane` using a real worktree; the two `test_main_tree_clean_during_turn_and_receipt_under_main` tests assert the receipt ANCHORS on the checkout and is CONSUMED by a clean finalize.
   - Execution state: performed
 
+### Task group 4: make the new git dependency safe (added at review; see PR-001/PR-002)
+
+- [ ] E-06 Make `checkout_control_root` TOTAL: no formerly-pure path accessor may raise because a git subprocess could not be SPAWNED. Wrap the `_git` call so `OSError` (which covers `FileNotFoundError` for a missing git and `BlockingIOError` for a fork/resource failure) falls back to `start/.aw`, exactly as the existing nonzero-returncode branch already does. Add the two regression tests to `tests/test_statefork_dh0uno.py`.
+  - Depends on: E-01
+  - Expected outcome: with `subprocess.run` raising `FileNotFoundError` and with it raising `OSError(EAGAIN)`, `receipt_dir`, `finalize_lock_path` and `release_finalize_lock` all RETURN a path instead of raising, and the returned path is `start/.aw/...`. MEASURED at review, pre-fix: all three raise. The `release_finalize_lock` case is the one that matters most: it is called from a `finally:` during finalize, so the raise both LEAKS the writer lock and REPLACES the real in-flight exception with a confusing git error (measured: `RuntimeError("THE REAL FINALIZE ERROR")` was masked by `FileNotFoundError`, and the lock file remained on disk). Do NOT catch bare `Exception`; catch `OSError` only, so a genuine programming error still surfaces.
+  - Execution state: pending
+
+- [ ] E-07 Memoize the checkout->control-root resolution so a path lookup is not a git fork. Cache keyed on the resolved `start` path, consulted by `checkout_control_root`; expose a documented cache-clearing hook and call it from the new tests' `setUp` so a test that builds a fresh worktree per case cannot read a stale entry.
+  - Depends on: E-06
+  - Expected outcome: MEASURED at review, pre-fix: 15 path lookups spawned 15 git subprocesses (~1.77 ms each). After E-07 a repeated lookup spawns ZERO additional processes. This matters because `receipt_dir`/`finalize_lock_path`/`finalize_journal_path` were PURE string composition before this plan and are called from loops and from error-message formatting (`ipd_lifecycle.py:1279,1707,1863,1992`), so the cost is now paid on paths that never expected to touch the filesystem. Correctness first: an entry must never be shared between two different `start` paths that resolve differently.
+  - Execution state: pending
+
+- [ ] E-08 File ONE backlog item recording the debt named in "Deferred / out of scope": that the out-of-repo control-state relocation has NO successor plan now that `58ha43` is retired unlanded, and that six modules plus spec `c4gd2h` OQ-03 still name retired plans as live owners. List the exact sites. Create it with `aw backlog new` (never hand-name it); do NOT set `Blocks-Release`, since nothing on `main` is broken by the absence.
+  - Depends on: none
+  - Expected outcome: one committed `.aw/records/backlog/open/*.backlog.md` item whose id6 is cited back into the Deferred entry, so `aw attention` can see the debt instead of it living only in this plan's prose. `aw backlog check` reports no NEW violation for it.
+  - Execution state: pending
+
 ## Project conventions discovered (Step 0)
 
 - `ipd_lifecycle._git` (`agent_workflows/ipd_lifecycle.py:1072`) delegates to `git_commit_helper._git`, described as "the single canonical git-subprocess runner ... so there is exactly one git wrapper across the codebase". E-01 therefore uses it rather than calling `subprocess.run` directly.
@@ -74,6 +92,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - THE PRE-EXISTING TESTS ENCODED THE DEFECT. `test_main_tree_clean_during_turn_and_receipt_under_main` (both drivers) asserted the main-tree receipt file still existed after a successful isolated run. That passed only BECAUSE of the fork: finalize ran with the lane as its repo and consumed the LANE's receipt, orphaning main's copy. With one store, a clean finalize correctly consumes it, so the old assertion inverts.
 - THE PINNED CHARACTERIZATION TEST COULD NOT SEE THE FIX. `test_receipt_is_copied_into_lane` deliberately used two PLAIN directories, noting the copy "never consults git". That is exactly why it kept passing after the fix: with no checkout identity there is nothing to collapse, so the non-git fallback preserves the per-directory layout. Its own docstring said it should be inverted once the fork was closed; E-05 honors that with a real worktree.
 - `wtiso`'s ACCEPTANCE CRITERION WAS INVALID and is deliberately not reused. The `wtiso` handoff and `lanectn` orchestrator (`h0zljh`:178) both claim ~15 `tests/test_run_viewer.py` failures in a fresh clone "are `dh0uno`". They are not: they are a gitignored-fixture artifact. Measured in a fresh clone at `53943a62` with NO fix applied: 15 failed; then, after copying in `.aw/records/runs/` and still with no fix, `36 passed`. That file's own module docstring already says the failures are fixture-driven and must not be read as a regression. A criterion that passes without the fix cannot demonstrate the fix.
+- THE FINALIZE LOCK IS NOW GENUINELY SHARED, which is the intended fix and also a real behavior change worth naming rather than discovering later. `acquire_finalize_lock` refuses when a LIVE pid holds the lock (`ipd_lifecycle.py:238-276`) and the caller converts that into `EXIT_CANNOT_RUN` with no retry (`:1782-1786`). Before this fix two lanes each had their OWN lock file, so two concurrent in-lane finalizes could both "hold the lock" - the bug. After it, the second one correctly REFUSES. That is correct (the lock guards the shared plan manifest and the shared `pending/`->`executed/` move, which are checkout-global), but the refusal is not silent-safe by luck: it is safe because the driver records a finalize refusal and PRESERVES the lane rather than discarding work (`oc_runipd.py:5412-5431,5434-5447`). Verified reachable-but-bounded: no code path forks concurrent finalizes today (`ipd_set_executor.py` is a pure scheduler with no `Popen`/thread pool, and both drivers run their queue serially), so the contention is operator-driven (two `aw oc run` sessions in one checkout, which the maintainer notes is normal here). NOT changed by this plan: adding bounded retry/wait would be a new policy on a shipped surface. Recorded so the first operator to see `ipd finalize writer lock held by active PID` knows it is this plan's intended consequence.
 - THE UPSTREAM PORT WAS REJECTED ON MEASUREMENT, not preference. Cherry-picking lane `7p9n2v`'s four commits onto `main` gives 1 clean + 1 conflicting (5 hunks across both drivers) + 2. The conflicting commit drags in `wtiso` Phase-1 code absent from `main` (lane-relative prompt assembly, `AW_MISSING_INPUT`, clean-base gate), i.e. it is not separable from an unlanded phase. The part that actually closes `dh0uno` is the `ipd_lifecycle` re-anchoring, reproduced here in ~50 lines instead of 859 plus a conflict.
 
 ## Proposed changes (ordered, validatable)
@@ -91,6 +110,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `wtiso` Phases 4-5 generally (~22 unlanded commits across lanes `58ha43`/`2c122z`): architecture built against a `main` that has since moved 300+ commits, addressing no named `wtiso` failure.
 - The 5 pre-existing `make test-all` failures (CLI-surface declaration + one find-plans test). Proven pre-existing by a baseline run with this fix reverted; not this plan's to fix.
 - Deleting the `wtiso` lane worktrees/branches. They hold 77 unique commits; pruning is a separate, human-gated decision.
+- STALE IN-CODE POINTERS TO THE RETIRED PHASES, and the missing successor tracker for Phase 4 (added at review, PR-004/PR-005). Six modules still name `58ha43`/`2c122z`/`7p9n2v` or "wtiso Phase 4/5" as the live OWNER of unbuilt work (`agent_workflows/runner_stop.py:35,43-47`, `runner_shutdown.py:202,317`, `wtiso_gate.py:152-156,186`, `oc_runipd.py:1572`, `agy_runipd.py:789`), and spec `c4gd2h` OQ-03 (`- Status: implementing`) resolves the stop-request location by CITING `58ha43` E-01/E-02 and states the out-of-repo path "REQUIRES `wtiso` Phase 3+4 ... to be executed first". Those plans are now `superseded` and unlanded, so each pointer names a plan that will never run. Deliberately NOT fixed here: the retirement itself landed in `70b5338a`, a SEPARATE commit outside this plan's fence, and rewriting six modules' prose plus a spec's resolved OQ is a distinct concern that would blow this plan's scope and re-open a signed-off spec question. E-06 in the Spec / documentation sync section files the backlog item instead, so the debt is tracked where `aw attention` can see it rather than left in prose.
 
 ## Scope check
 
@@ -103,7 +123,11 @@ Bare `python3 -m pytest` (the configured fast subset) plus `make test-all`, with
 
 ## Spec / documentation sync
 
-Backlog `dh0uno` moves to `done` citing this plan. The `wtiso` plans are retired to `superseded/` with banners citing where each of the three intents went. Spec sync: N/A - no spec claims the forked-control-root behavior; `7ckptx` (lane containment) is a different concern and is untouched.
+Backlog `dh0uno` moves to `done` citing this plan. The `wtiso` plans are retired to `superseded/` with banners citing where each of the three intents went. Both are ALREADY DONE and verified at review: `dh0uno` is at `.aw/records/backlog/done/20260828-statefork-01-dh0uno-...backlog.md` (`- Status: done`, closed in `72646cf5`), and the seven `wtiso` plans carry `RETIRED 2026-09-02` banners in `superseded/` (`70b5338a`).
+
+Spec sync, CORRECTED at review. The original "N/A" was too strong. No spec claims the forked-control-root behavior, so nothing must be RETRACTED, and `7ckptx` (lane containment) is indeed a different concern. But spec `c4gd2h` (`- Status: implementing`) OQ-03 grounds its RESOLVED stop-request location on `wtiso` Phase 4 (`58ha43`) and declares that path blocked on Phase 3+4 executing first - and this plan's retirement of those phases makes that dependency unsatisfiable. The correct sync is therefore not an edit to `c4gd2h` (its resolved answer still describes where the flag WILL live, and `runner_stop.py` already resolves through the shared accessor so nothing is broken TODAY) but a tracked successor item, per the Deferred entry above.
+
+E-08 below performs that sync.
 
 ## Open questions
 
@@ -143,6 +167,21 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence: in the PRIMARY checkout, bare `python3 -m pytest` -> `4013 passed, 3 skipped, 4 xfailed in 64.70s` pre-commit and `4013 passed, 3 skipped, 4 xfailed in 50.88s` re-run after the commit. `make test-all` (measured in the validation clone) -> `5 failed, 4410 passed, 3 skipped, 4 xfailed`, the five being `test_zero_undeclared_parser_leaves`, `test_every_subparser_has_fuller_description`, `test_no_undeclared_parser_leaves`, `test_find_plans_agent_mode`, `test_every_declared_leaf_gets_a_full_scenario_row_set`. Baseline there with the fix reverted -> `13 failed`, i.e. the same 5 CLI failures plus the 8 expected new-test failures, proving the 5 are PRE-EXISTING and not mine. HONEST SCOPE NOTE: the `make test-all` numbers come from the clone, not this checkout; the bare-suite numbers above are from here.
   - Result: pass
 
+- [ ] V-06 validates E-06
+  - Required evidence: paste the two new tests passing, AND paste an interpreter transcript showing that with `subprocess.run` patched to raise `FileNotFoundError` (git absent) and separately `OSError(EAGAIN)` (fork failure), `receipt_dir`, `finalize_lock_path` and `release_finalize_lock` each RETURN rather than raise. Additionally show the `finally:`-masking case is gone: raise a sentinel exception with `release_finalize_lock` in the `finally:` under the patch, and show the SENTINEL propagates (not a git error) and the lock file is REMOVED. A test that only patches the return value proves nothing here; the failure mode is a RAISE from spawn.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste a counted measurement, in the same shape as the review's (count `subprocess.run` invocations whose argv starts with `git` across N repeated path lookups) showing 1 fork for the first lookup and 0 for the rest, versus the pre-fix 15-for-15. ALSO paste the full `tests/test_statefork_dh0uno.py` run, because the cache is the change most likely to make a per-worktree test read a stale entry: a green real-worktree suite is the correctness half of this V-item and the count is only the performance half.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: the created item's path and id6, its `- Status: open` line, the absence of a `Blocks-Release` field, and `aw backlog check` output showing no new violation attributable to it (the repo already has 3 pre-existing `backlog.summary-unsafe` violations on unrelated items, measured at review; the count must not grow).
+  - Observed evidence:
+  - Result: pending
+
 ## Approval and execution gate
 
 - Size assessment: standard
@@ -154,4 +193,13 @@ The code landed in `6771e590` (path-scoped, 7 files, no push). A `ruff-format` h
 
 Execution contract: touch ONLY the declared Scope-Paths; path-scoped commits (`git commit -m msg -- <paths>`), never `git add -A`/bare/`-a`, never `--no-verify`, never push, never a tag or release. Before every commit run `git diff --cached --name-only` and `git restore --staged <path>` anything not mine - mandatory here, because a concurrent `antigravity` session is committing to this same checkout and a failed pre-commit hook can leave a co-worker's path staged. Re-verify after any failed commit attempt.
 
-Post-gate lifecycle move: re-run bare `python3 -m pytest` in the PRIMARY checkout and paste it, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`. Do not mark executed on the strength of the `/tmp` validation alone; the primary-tree run is the one that counts.
+Post-gate lifecycle move, CORRECTED at review (PR-003). The original instruction jumped straight to `aw ipd finalize` and would have FAILED, because authoring-from-completed-work skipped `aw ipd begin`, so no receipt exists. MEASURED at review: `aw ipd finalize eulhzt ...` returns `refused: no begin receipt for eulhzt: run 'aw ipd begin' first (fail-closed: no receipt = no execution authority)`, naming `.aw/state/ipd-lifecycle/eulhzt.receipt.json`, and that file is absent while 24 sibling receipts are present. The sequence is therefore:
+
+1. Get human approval (`aw ipd set approved ...`); `begin` gates on an approved plan.
+2. `aw ipd begin <plan> --actor <agent/model>` FIRST, to create the receipt this plan never had.
+3. Execute E-06, E-07 and E-08, which are the only items with work left; E-01..E-05 landed in `6771e590`.
+4. Re-run bare `python3 -m pytest` in the PRIMARY checkout and paste it. Baseline measured at review on current HEAD: `4092 passed, 3 skipped, 4 xfailed`. `make test-all` additionally shows 5 PRE-EXISTING CLI-surface/find-plans failures, re-verified by name at review and NOT this plan's; do not report them as regressions and do not "fix" them here.
+5. `aw ipd lint --phase pre-transition` (clean and verified at review).
+6. `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, and EXPECT to supply `--scope-ack` for every Scope-Paths entry E-06/E-07/E-08 did not touch. MEASURED at review by running the real `_reconcile_scope` against this plan's fence with an empty changed-set: finalize demands 7 acks and fails closed without them, printing the exact re-invocation. That is the designed missing-work check working correctly on a plan whose code landed before its receipt existed, not a bug; answer it honestly (`=landed-in-6771e590` for the paths already committed) rather than widening the fence to hide it.
+
+Do not mark executed on the strength of the `/tmp` validation alone; the primary-tree run is the one that counts.
