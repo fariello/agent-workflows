@@ -105,7 +105,7 @@ Move order is deliberate: each seam is independently verifiable, and the two sea
 
 - Every class (c) DIVERGED symbol (52 of them): gated behind `lanectn` landing AND the orchestrator's E-02 characterization baseline. This plan touches them only by INJECTION at a call boundary, never by moving or editing them.
 - The class (d) re-forks: child 01 owns them, and this plan depends on it (`Item-Dependencies: executed:2r306y`) so the guard exists before this plan extends it.
-- Re-homing the 40 names agy imports from oc (F-4). A real layering defect, but a design question of its own; naming it here is the deliverable, fixing it is not.
+- Re-homing the 40 names agy imports from oc (F-4). A real layering defect, but a design question of its own. **FILED AS BACKLOG `cnwy8g` (`runnerlayer-01`) so it cannot leave the live tree when this plan reaches `executed/`.** That item carries the full 40-name list, the three observable consequences, the constraints any fix inherits (classify before moving; keep the `oc -> agy` direction at zero imports; preserve the `as <same-name>` re-export form), and its sequencing: AFTER this plan, because this plan creates the module the work moves into.
 - Absorbing `plan_readiness.py`. The orchestrator's OQ-02 resolved this from evidence: DESIGNATE, do not absorb, because `status_set.py` and `ipd_schema.py` import it and they are not runners.
 - Removing the `DriverError` translation wrapper IF removal changes what agy's `main` catches (E-03). Behavior preservation outranks tidiness.
 - The 47 opencode-only and 3 antigravity-only host-specific symbols: correctly host-specific, nothing to share.
