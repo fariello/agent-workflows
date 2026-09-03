@@ -394,8 +394,48 @@ def _type_dirs(repo_root: Path, record_type: str) -> List[Path]:
     return out
 
 
+_RETIRED_PATH_SEGMENTS = frozenset(
+    {"archive", "executed", "superseded", "not-executed", "parked", "done", "shipped"}
+)
+_RETIRED_STATUSES = frozenset(
+    {
+        "executed",
+        "superseded",
+        "not-executed",
+        "parked",
+        "done",
+        "implemented",
+        "shipped",
+    }
+)
+
+
+def is_retired(path: Path, record_type: str = "") -> bool:
+    """Return True if the artifact path or frontmatter status represents a retired/archived/terminal item."""
+    try:
+        parts_lower = [part.lower() for part in path.parts]
+    except Exception:
+        parts_lower = []
+    if any(seg in parts_lower for seg in _RETIRED_PATH_SEGMENTS):
+        return True
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    m = _STATUS_META_RE.search(text)
+    if m and m.group(1).strip().lower() in _RETIRED_STATUSES:
+        return True
+
+    return False
+
+
 def _iter_type_files(
-    repo_root: Path, record_type: str, include_untracked: bool = False
+    repo_root: Path,
+    record_type: str,
+    include_untracked: bool = False,
+    include_retired: bool = False,
 ):
     """Yield each non-index *.md path for the type, de-duplicated by resolved path and skipping ignored dirs."""
     ignored_dirs = _core.get_ignored_dirs(repo_root)
@@ -409,6 +449,8 @@ def _iter_type_files(
             if p.name in _SKIP_NAMES or _core.is_ignored_path(
                 p, repo_root, ignored_dirs, include_untracked=include_untracked
             ):
+                continue
+            if not include_retired and is_retired(p, record_type):
                 continue
             try:
                 key = str(p.resolve())
@@ -443,6 +485,7 @@ def check_names(
     record_type: str,
     legacy: bool = False,
     include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Filename-grammar conformity for a type's files. Research is skipped (own grammar). If the
     normalizer cannot be located, returns [] (names simply not checked)."""
@@ -454,7 +497,10 @@ def check_names(
         return []
     drift: List[_core.Drift] = []
     for p in _iter_type_files(
-        repo_root, record_type, include_untracked=include_untracked
+        repo_root,
+        record_type,
+        include_untracked=include_untracked,
+        include_retired=include_retired,
     ):
         # Spec id6 cutover (IPD ha55fi E-03): a spec dated at/after SPEC_ID6_CUTOVER_DATE must be
         # id6-clustered; a pre-cutover spec is grandfathered (legacy HHMM-NN name still conforms).
@@ -503,6 +549,7 @@ def check_content(
     record_type: str,
     legacy: bool = False,
     include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Front-matter/status/contract validation, delegated to the existing per-type validators."""
     repo_root = Path(repo_root)
@@ -512,7 +559,10 @@ def check_content(
 
         # Discover files via _type_dirs (robust for a bare repo), validate each with validate_spec.
         for p in _iter_type_files(
-            repo_root, "specs", include_untracked=include_untracked
+            repo_root,
+            "specs",
+            include_untracked=include_untracked,
+            include_retired=include_retired,
         ):
             try:
                 drift.extend(_specs.validate_spec(p, p.read_text(encoding="utf-8")))
@@ -522,7 +572,10 @@ def check_content(
         from agent_workflows import backlog as _backlog
 
         for p in _iter_type_files(
-            repo_root, "backlog", include_untracked=include_untracked
+            repo_root,
+            "backlog",
+            include_untracked=include_untracked,
+            include_retired=include_retired,
         ):
             try:
                 drift.extend(_backlog.validate_item(p, p.read_text(encoding="utf-8")))
@@ -532,14 +585,16 @@ def check_content(
         from agent_workflows import plans_index as _pidx
 
         dirs = _type_dirs(repo_root, "plans")
-        if dirs:
+        if dirs and include_retired:
             drift.extend(_pidx.check_drift(repo_root, dirs[0]))
         # ipddeps ovbnyq (spec 25kzda 2.10): the cross-IPD dependency check is a PLANS-scoped concern
         # (every dependency source is an IPD), so it runs in the plans-type content path - reached by
         # BOTH `aw check plans` and the `aw check all` fan-out, exactly once, never double-reported
         # (deliberately NOT also added to the collisions-only cross-tree sweep).
         try:
-            drift.extend(check_ipd_dependencies(repo_root))
+            drift.extend(
+                check_ipd_dependencies(repo_root, include_retired=include_retired)
+            )
         except Exception:
             pass
         # xprio 1b45el E-02: validate the recognized-but-optional `- Priority:` enum on each plan
@@ -547,7 +602,11 @@ def check_content(
         # plans-type content path so BOTH `aw check plans` and `aw check all` surface it exactly once.
         try:
             drift.extend(
-                check_plan_priority(repo_root, include_untracked=include_untracked)
+                check_plan_priority(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
             )
         except Exception:
             pass
@@ -556,7 +615,11 @@ def check_content(
         # and shape as the Priority sibling above, so both surface exactly once per check run.
         try:
             drift.extend(
-                check_plan_work_kind(repo_root, include_untracked=include_untracked)
+                check_plan_work_kind(
+                    repo_root,
+                    include_untracked=include_untracked,
+                    include_retired=include_retired,
+                )
             )
         except Exception:
             pass
@@ -620,12 +683,17 @@ def check_content(
         from agent_workflows import research_index as _ridx
 
         dirs = _type_dirs(repo_root, "research")
-        if dirs:
+        if dirs and include_retired:
             drift.extend(_ridx.check_drift(repo_root, dirs[0]))
     elif record_type == "releases":
         from agent_workflows import releases as _releases
 
-        for p in _iter_type_files(repo_root, "releases"):
+        for p in _iter_type_files(
+            repo_root,
+            "releases",
+            include_untracked=include_untracked,
+            include_retired=include_retired,
+        ):
             try:
                 drift.extend(
                     _releases.validate_release(p, p.read_text(encoding="utf-8"))
@@ -693,7 +761,9 @@ def _parse_setid(text: str):
 
 
 def check_collisions(
-    repo_root: Path, include_untracked: bool = False
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Cross-tree id6 AND setid uniqueness, PLUS the filename identity-slot invariant (D140).
 
@@ -725,7 +795,10 @@ def check_collisions(
     records: List[tuple] = []
     for record_type in SUPPORTED:
         for p in _iter_type_files(
-            repo_root, record_type, include_untracked=include_untracked
+            repo_root,
+            record_type,
+            include_untracked=include_untracked,
+            include_retired=include_retired,
         ):  # already deduped by resolved path
             try:
                 text = p.read_text(encoding="utf-8")
@@ -1347,6 +1420,7 @@ def check_type(
     legacy: bool = False,
     _from_all: bool = False,
     include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Compose the supported sub-checks for one type into a single Drift list."""
     kinds = SUPPORTED.get(record_type)
@@ -1367,6 +1441,7 @@ def check_type(
                     record_type,
                     legacy=legacy,
                     include_untracked=include_untracked,
+                    include_retired=include_retired,
                 )
             )
         return drift
@@ -1377,6 +1452,7 @@ def check_type(
                 record_type,
                 legacy=legacy,
                 include_untracked=include_untracked,
+                include_retired=include_retired,
             )
         )
     if "content" in kinds:
@@ -1386,6 +1462,7 @@ def check_type(
                 record_type,
                 legacy=legacy,
                 include_untracked=include_untracked,
+                include_retired=include_retired,
             )
         )
     if "refs" in kinds:
@@ -1400,6 +1477,7 @@ def check_types(
     legacy: bool = False,
     collisions: bool = False,
     include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Fan out check_type over the given types (or every SUPPORTED type for the ['all'] sentinel),
     concatenating Drift; unsupported types are skipped. The ['all'] sentinel implies
@@ -1419,10 +1497,17 @@ def check_types(
                 legacy=legacy,
                 _from_all=True,
                 include_untracked=include_untracked,
+                include_retired=include_retired,
             )
         )
     if collisions:
-        drift.extend(check_collisions(repo_root, include_untracked=include_untracked))
+        drift.extend(
+            check_collisions(
+                repo_root,
+                include_untracked=include_untracked,
+                include_retired=include_retired,
+            )
+        )
         # awrelease Order 02: dangling Blocks-Release references are a cross-tree ref check, run once
         # alongside collisions in the full sweep.
         try:
@@ -2028,6 +2113,7 @@ def evaluate_ipd_dependencies(
     phase: str = "check",
     plans: Optional[List[Tuple[Path, str]]] = None,
     overlay: Optional[Dict[str, str]] = None,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """The shared cross-IPD dependency evaluator. Returns Drift findings (deterministic order).
 
@@ -2100,8 +2186,16 @@ def evaluate_ipd_dependencies(
     drift: List[_core.Drift] = []
     blocking = phase in _DEP_BLOCKING_PHASES
 
-    # Per-statement findings for the target set (default: all plans).
-    target_plans = plans if plans is not None else all_plans
+    # Per-statement findings for the target set (default: all active plans or all plans if include_retired).
+    target_plans = (
+        plans
+        if plans is not None
+        else (
+            all_plans
+            if include_retired
+            else [pt for pt in all_plans if not is_retired(pt[0])]
+        )
+    )
     for p, text in sorted(target_plans, key=lambda pt: str(pt[0])):
         ps = str(p)
         raw = dep_value.get(ps, None)
@@ -2222,18 +2316,25 @@ def _is_grandfathered_plan(text: str, cutover_date: Optional[str]) -> bool:
     return pdate < cutover_date
 
 
-def check_ipd_dependencies(repo_root: Path) -> List[_core.Drift]:
+def check_ipd_dependencies(
+    repo_root: Path,
+    include_retired: bool = False,
+) -> List[_core.Drift]:
     """Repo-wide cross-IPD dependency check for `aw check` (phase="check"). Mirrors the
     `check_from_backlog` scan shape; wired into the plans-type content path so BOTH `aw check plans`
     and `aw check all` surface it exactly once (never double-reported)."""
-    return evaluate_ipd_dependencies(repo_root, phase="check")
+    return evaluate_ipd_dependencies(
+        repo_root, phase="check", include_retired=include_retired
+    )
 
 
 _PRIORITY_INVALID_RULE = "check.priority-invalid"
 
 
 def check_plan_priority(
-    repo_root: Path, include_untracked: bool = False
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Validate the recognized-but-optional `- Priority:` enum on each plan (xprio 1b45el E-02).
 
@@ -2248,7 +2349,12 @@ def check_plan_priority(
     from agent_workflows import backlog as _backlog
 
     drift: List[_core.Drift] = []
-    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+    for p in _iter_type_files(
+        repo_root,
+        "plans",
+        include_untracked=include_untracked,
+        include_retired=include_retired,
+    ):
         try:
             text = p.read_text(encoding="utf-8")
         except OSError:
@@ -2280,7 +2386,9 @@ _WORK_KIND_INVALID_RULE = "check.work-kind-invalid"
 
 
 def check_plan_work_kind(
-    repo_root: Path, include_untracked: bool = False
+    repo_root: Path,
+    include_untracked: bool = False,
+    include_retired: bool = False,
 ) -> List[_core.Drift]:
     """Validate the recognized-but-optional `- Work-Kind:` enum on each plan (wkindname ng2blv E-05).
 
@@ -2295,7 +2403,12 @@ def check_plan_work_kind(
     from agent_workflows import backlog as _backlog
 
     drift: List[_core.Drift] = []
-    for p in _iter_type_files(repo_root, "plans", include_untracked=include_untracked):
+    for p in _iter_type_files(
+        repo_root,
+        "plans",
+        include_untracked=include_untracked,
+        include_retired=include_retired,
+    ):
         try:
             text = p.read_text(encoding="utf-8")
         except OSError:

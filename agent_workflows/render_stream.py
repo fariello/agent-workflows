@@ -240,8 +240,8 @@ def format_progress_bar(current: int, total: int, width: int = 10) -> str:
     else:
         bar = "█" * full + " " * (width - full)
 
-    pct = frac * 100.0
-    return f"{cur_str}/{tot_str}  [{bar}] {pct:>6.2f}%"
+    pct = int(round(frac * 100))
+    return f"{cur_str}/{tot_str}  [{bar}] {pct:>3}%"
 
 
 def format_stall_countdown(

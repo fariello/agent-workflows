@@ -465,7 +465,10 @@ def probe_artifacts(
         for t in at.ARTIFACT_TYPES:
             all_files = list(
                 check_engine._iter_type_files(
-                    repo_root, t, include_untracked=include_untracked
+                    repo_root,
+                    t,
+                    include_untracked=include_untracked,
+                    include_retired=True,
                 )
             )
             if not include_untracked:
@@ -477,7 +480,10 @@ def probe_artifacts(
             res.type_counts[t] = len(filtered_files)
             if t in check_engine.SUPPORTED:
                 tdrift = check_engine.check_type(
-                    repo_root, t, include_untracked=include_untracked
+                    repo_root,
+                    t,
+                    include_untracked=include_untracked,
+                    include_retired=True,
                 )
                 if tdrift:
                     for d in tdrift:
@@ -506,7 +512,9 @@ def probe_artifacts(
         # commit-wide rules keyed off git state rather than a single record file.
         collisions = list(
             check_engine.check_collisions(
-                repo_root, include_untracked=include_untracked
+                repo_root,
+                include_untracked=include_untracked,
+                include_retired=True,
             )
         )
         try:

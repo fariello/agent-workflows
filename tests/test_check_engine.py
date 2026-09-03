@@ -277,5 +277,91 @@ class LegacyNamesTests(unittest.TestCase):
         self.assertFalse(any("tmp" in d.location for d in drift_all))
 
 
+class RetiredArtifactsTests(unittest.TestCase):
+    """Verify that retired, archived, and executed artifacts are ignored by default and included with include_retired=True."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+
+        # Active pending plan
+        self.pending_plans = self.root / ".aw" / "records" / "plans" / "pending"
+        self.pending_plans.mkdir(parents=True)
+        (self.pending_plans / "20260101-demo-01-aaa111-active.ipd.md").write_text(
+            "# IPD: active\n\n- Id: aaa111\n- Status: approved\n- Set: demo\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+
+        # Retired executed plan (malformed name and status)
+        self.executed_plans = self.root / ".aw" / "records" / "plans" / "executed"
+        self.executed_plans.mkdir(parents=True)
+        (self.executed_plans / "bad-name-executed.md").write_text(
+            "# IPD: executed\n\n- Id: eee111\n- Status: executed\n- Set: demo\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+
+        # Active spec
+        self.specs = self.root / ".aw" / "records" / "specs"
+        self.specs.mkdir(parents=True)
+        (self.specs / "20260101-1200-01-active.spec.md").write_text(
+            "# Spec: active\n- Status: approved\n\n## Workflow history\n\n- 2026-01-01 note (human): initial approval\n",
+            encoding="utf-8",
+        )
+
+        # Retired implemented spec (malformed)
+        (self.specs / "20260101-1200-02-done.spec.md").write_text(
+            "# Spec: done\n- Status: implemented\n\n## Body\n\nx\n",
+            encoding="utf-8",
+        )
+
+        # Active backlog item
+        self.backlog = self.root / ".aw" / "records" / "backlog" / "open"
+        self.backlog.mkdir(parents=True)
+        (self.backlog / "20260101-bkl111-01-bkl111-open.backlog.md").write_text(
+            "- Id: bkl111\n- Status: open\n- Set: bkl111\n- Priority: high\n- Work-Kind: feature\n- Summary: Open\n\n## Detail\n\nx\n",
+            encoding="utf-8",
+        )
+
+        # Retired done backlog item
+        self.backlog_done = self.root / ".aw" / "records" / "backlog" / "done"
+        self.backlog_done.mkdir(parents=True)
+        (self.backlog_done / "20260101-bkl222-01-bkl222-done.backlog.md").write_text(
+            "- Id: bkl222\n- Status: done\n- Set: bkl222\n- Priority: high\n- Work-Kind: feature\n- Summary: Done\n\n## Detail\n\nx\n",
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_is_retired_helper(self) -> None:
+        self.assertFalse(
+            ce.is_retired(self.pending_plans / "20260101-demo-01-aaa111-active.ipd.md")
+        )
+        self.assertTrue(ce.is_retired(self.executed_plans / "bad-name-executed.md"))
+        self.assertFalse(ce.is_retired(self.specs / "20260101-1200-01-active.spec.md"))
+        self.assertTrue(ce.is_retired(self.specs / "20260101-1200-02-done.spec.md"))
+        self.assertFalse(
+            ce.is_retired(self.backlog / "20260101-demo-01-bkl111-open.backlog.md")
+        )
+        self.assertTrue(
+            ce.is_retired(self.backlog_done / "20260101-demo-01-bkl222-done.backlog.md")
+        )
+
+    def test_check_ignores_retired_by_default(self) -> None:
+        # Without include_retired, bad-name-executed is ignored
+        drift_default = ce.check_names(self.root, "plans")
+        self.assertEqual(drift_default, [])
+
+        # Active items check clean
+        drift_types = ce.check_types(self.root, ["all"])
+        self.assertEqual(drift_types, [])
+
+    def test_check_includes_retired_when_requested(self) -> None:
+        # With include_retired=True, bad-name-executed is flagged
+        drift_retired = ce.check_names(self.root, "plans", include_retired=True)
+        self.assertEqual(len(drift_retired), 1)
+        self.assertIn("bad-name-executed.md", drift_retired[0].location)
+
+
 if __name__ == "__main__":
     unittest.main()

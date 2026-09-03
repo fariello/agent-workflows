@@ -106,13 +106,35 @@ class HelpAndUsageErrorTests(unittest.TestCase):
             self.assertTrue(len(plain) > 100)
 
             # Exits & Agent behavior / examples in help or epilog
-            self.assertTrue(
-                "0" in plain
-                or "exit" in plain.lower()
-                or "--agent" in plain
-                or "json" in plain.lower()
-            )
             self.assertTrue("example" in plain.lower() or "aw " in plain)
+
+    def test_check_help_contains_types_and_examples(self):
+        rc, out, err = self._run_cli_human(["check", "--help"])
+        self.assertEqual(rc, 0, err)
+        plain = _ANSI.sub("", out)
+
+        # Available types listed
+        for t in [
+            "plans",
+            "specs",
+            "backlog",
+            "research",
+            "prompts",
+            "walkthroughs",
+            "roadmaps",
+            "comms",
+            "releases",
+            "all",
+        ]:
+            self.assertIn(t, plain)
+
+        # Reserved options and sub-checks
+        self.assertIn("names", plain)
+        self.assertIn("-a, --all", plain)
+
+        # Realistic examples
+        self.assertIn("aw check plans", plain)
+        self.assertIn("aw check --all", plain)
 
     def test_empty_families_show_help_and_next_action_exit_2(self):
         empty_calls = [

@@ -2544,18 +2544,25 @@ def _build_parser() -> argparse.ArgumentParser:
         ("group", "Assign an artifact of a TYPE to a Set/group."),
     ):
         _p = sub.add_parser(_verb, parents=[common], help=_vhelp)
-        if _verb in ("search", "find"):
+        if _verb in ("search", "find", "check"):
             _p.add_argument(
                 "type",
                 nargs="?",
                 default=None,
-                help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (optional).",
+                help=(
+                    "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (default: all)."
+                    if _verb == "check"
+                    else "Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all' (optional)."
+                ),
             )
             _p.add_argument(
                 "selector",
                 nargs="*",
-                help="Selector / search pattern / args for the verb.",
+                help="Selector/sub-check for the verb ('names', id6, ...)."
+                if _verb == "check"
+                else "Selector / search pattern / args for the verb.",
             )
+        if _verb in ("search", "find"):
             _p.add_argument(
                 "-p",
                 "--paths",
@@ -2577,7 +2584,7 @@ def _build_parser() -> argparse.ArgumentParser:
                 metavar="N",
                 help="Limit search to N directory levels below each record root (0 = the root itself).",
             )
-        else:
+        elif _verb != "check":
             _p.add_argument(
                 "type",
                 help="Artifact type (plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms, releases) or 'all'.",
@@ -2673,12 +2680,43 @@ def _build_parser() -> argparse.ArgumentParser:
             # selfcommit jgcm68 E-01: offer to commit the rename/group's own path-scoped changes.
             _add_commit_flags(_p)
         if _verb == "check":
+            _p.add_argument(
+                "-a",
+                "--all",
+                action="store_true",
+                help="Include retired, archived, and terminal artifacts (executed/superseded/parked/done/shipped).",
+            )
             _p.formatter_class = _AlphaHelpFormatter
             _p.epilog = (
+                "AVAILABLE TYPES\n"
+                "  plans         Implementation Plan Documents (.ipd.md) under pending/ and reusable/\n"
+                "  specs         Technical specification documents (.spec.md)\n"
+                "  backlog       Committed/uncommitted backlog items (.backlog.md)\n"
+                "  research      Research reports, prompts, summaries, reconciliations\n"
+                "  prompts       System and research prompt records\n"
+                "  walkthroughs  Narrative walkthroughs (.walkthrough.md)\n"
+                "  roadmaps      Project roadmaps (.roadmap.md)\n"
+                "  comms         Inter-agent communication inbox/records\n"
+                "  releases      Release definition records (.release.md)\n"
+                "  all           All supported record types across the repository (default)\n"
+                "\n"
+                "RESERVED SUB-CHECKS & OPTIONS\n"
+                "  names         Check filename grammar and clustering conformity only\n"
+                "  -a, --all     Include retired, archived, and terminal artifacts (executed/superseded/parked/done/shipped)\n"
+                "  --agent       Emit machine-readable JSONL (aw.agent/v1)\n"
+                "  --json        Emit full structured JSON representation\n"
+                "\n"
                 "EXAMPLES\n"
-                "  aw check plans               # validate plan artifacts\n"
-                "  aw check all                 # validate every records tree\n"
-                "  aw check specs names         # check spec filename conformance\n"
+                "  aw check                     # validate all active/in-play artifacts across all types\n"
+                "  aw check plans               # validate active plan artifacts (pending and reusable)\n"
+                "  aw check specs               # validate active spec contracts\n"
+                "  aw check backlog             # validate active backlog items (open, graduated, blocked)\n"
+                "  aw check research            # validate active research artifacts\n"
+                "  aw check all                 # validate every active records tree with cross-tree collisions\n"
+                "  aw check plans names         # check plan filename grammar only\n"
+                "  aw check specs names         # check spec filename grammar only\n"
+                "  aw check --all               # include retired/archived/executed artifacts in the check\n"
+                "  aw check plans --all         # validate all plans including executed, superseded, and archived\n"
                 "\n"
                 "OUTPUT & EXITS\n"
                 "  Exit codes: 0 clean, 1 findings, 2 cannot-run/usage error.\n"
@@ -8039,6 +8077,7 @@ def _run_check(
     ctx = context or select_output(args)
     raw_type = getattr(args, "type", None) or "all"
     repo_root = Path(getattr(args, "dir", None) or os.getcwd())
+    include_retired = bool(getattr(args, "all", False))
 
     try:
         norm = at.normalize_type(raw_type)
@@ -8066,6 +8105,7 @@ def _run_check(
             [norm] if norm != "all" else ["all"],
             names_only=only_names,
             collisions=(norm == "all"),
+            include_retired=include_retired,
         )
     except Exception:
         fn = at.resolve_backend(norm, "check")
@@ -8089,7 +8129,9 @@ def _run_check(
     total_checked = 0
     for t in target_types:
         try:
-            files = list(ce._iter_type_files(repo_root, t))
+            files = list(
+                ce._iter_type_files(repo_root, t, include_retired=include_retired)
+            )
             type_counts[t] = len(files)
             total_checked += len(files)
         except Exception:
