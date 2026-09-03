@@ -4,7 +4,7 @@
 - Kind: child
 - Concern: 34 top-level symbols are defined TWICE, once per runner, with AST-identical bodies. Because they are identical there is no behavioral disagreement TODAY, which is exactly why they are the dangerous class: nothing signals when one copy is edited and the other is not, and that is how the 52 currently-diverged symbols got that way. Measured at HEAD `c8bb11ae` by research `tvnq50` (E-01 of orchestrator `5e4sb6`): 33 are AST-identical, `print_status` is identical after host-token normalization, and together they are 551 lines of the runners' definition mass. The concrete cost of leaving them duplicated is already visible: `DriverError` is defined in BOTH runners (`oc_runipd.py:202`, `agy_runipd.py:379`) as two DISTINCT classes, and `agy_runipd.py:87-93` records a hand-written wrapper that exists solely to translate one into the other, because `enforce_dependency_preflight` raises oc's class and agy's `main` cannot catch it.
 - Scope: Create ONE shared runner library and move all 34 class (a) symbols into it, then have both runners import them. PURE MOVE: no body may change, and every move is verified by an AST-identity assertion against the pre-move definition plus an object-identity assertion that both runners resolve to the same object. Excludes reconciling any diverged symbol (deferred behind `lanectn` and E-02's characterization baseline), excludes the class (d) re-forks (child 01 owns them), excludes re-homing the 40 names `agy_runipd` already imports from `oc_runipd`, and excludes any behavior change whatsoever, including the `DriverError` wrapper's REMOVAL if removing it would alter what `main` catches.
-- Scope-Paths: agent_workflows/runner_common.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_common.py, tests/test_runner_refork_guard.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: executed:2r306y
 - Status: to-review
 - Set: rununify
@@ -29,12 +29,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the module, and the identity harness that makes "pure move" falsifiable
 
-- [ ] E-01 Create `agent_workflows/runner_common.py`, following `host_runner.py`'s conventions (module docstring stating what it owns and why, section banner comments, no import of either runner so no cycle can form). It starts EMPTY of moved logic; this item establishes the module and its contract only. Record in the docstring the constraint that decides every later question here: this module holds only symbols PROVEN identical across both runners, it may never import either runner, and a symbol whose bodies differ belongs in a later child, not here. Per OQ-02 of the orchestrator, this module is the shared runner library and `plan_readiness.py` is DESIGNATED a peer it may import, NOT absorbed (its consumers include `status_set.py` and `ipd_schema.py`, which are not runners).
+- [ ] E-01 Create `agent_workflows/runner_shared.py`, following `host_runner.py`'s conventions (module docstring stating what it owns and why, section banner comments, no import of either runner so no cycle can form). It starts EMPTY of moved logic; this item establishes the module and its contract only. Record in the docstring the constraint that decides every later question here: this module holds only symbols PROVEN identical across both runners, it may never import either runner, and a symbol whose bodies differ belongs in a later child, not here. Per OQ-02 of the orchestrator, this module is the shared runner library and `plan_readiness.py` is DESIGNATED a peer it may import, NOT absorbed (its consumers include `status_set.py` and `ipd_schema.py`, which are not runners).
   - Depends on: none
-  - Expected outcome: a new module that imports cleanly, defines no runner logic yet, and states its own admission rule; `python3 -c "import agent_workflows.runner_common"` succeeds and a cycle check shows it imports neither runner.
+  - Expected outcome: a new module that imports cleanly, defines no runner logic yet, and states its own admission rule; `python3 -c "import agent_workflows.runner_shared"` succeeds and a cycle check shows it imports neither runner.
   - Execution state: pending
 
-- [ ] E-02 Build the MOVE HARNESS before moving anything, because "pure move" is a claim that must be mechanically checkable rather than eyeballed 34 times. Capture the pre-move AST fingerprint of all 34 symbols from BOTH runners (`ast.dump(ast.parse(ast.unparse(node)), include_attributes=False)`, the same method E-01 of the orchestrator used), store it as a fixture, and assert after each move that the shared definition's fingerprint EQUALS the captured one. RESOLVE THE FOUR OUTSIDE-DEPENDENCIES here, which is the part a naive lift gets wrong (measured): `run_checked` calls `pinned_child_env` (oc-only, host-specific), `discover_plans` calls `parse_plan_file` (class (c) DIVERGED), `save_state` calls `write_report` (class (c) DIVERGED), `validate_manifest` calls `parse_dependency_token` (oc-only, host-specific). A moved symbol must NOT import a diverged symbol from a runner, because that both re-creates the coupling and drags undecided behavior into shared code. Use INJECTION: the moved function takes the dependency as a parameter (or the module exposes a small registration seam), and each runner passes its own. State the mechanism once and apply it uniformly.
+- [ ] E-02 Build the MOVE HARNESS before moving anything, because "pure move" is a claim that must be mechanically checkable rather than eyeballed 34 times. Capture the pre-move AST fingerprint of all 34 symbols from BOTH runners (`ast.dump(ast.parse(ast.unparse(node)), include_attributes=False)`, the same method E-01 of the orchestrator used), store it as a fixture, and assert after each move that the shared definition's fingerprint EQUALS the captured one. RESOLVE THE FOUR OUTSIDE-DEPENDENCIES here, which is the part a naive lift gets wrong (measured): `run_checked` calls `pinned_child_env` (oc-only, host-specific), `discover_plans` calls `parse_plan_file` (class (c) DIVERGED), `save_state` calls `write_report` (class (c) DIVERGED), `validate_manifest` calls `parse_dependency_token` (oc-only, host-specific). A moved symbol must NOT import a diverged symbol from a runner, because that both re-creates the coupling and drags undecided behavior into shared code. RESOLVED BY MAINTAINER 2026-09-03: use explicit PARAMETER INJECTION. Each moved function takes the dependency it needs as a parameter and each runner passes its own. Do not add a registration seam or module-level mutable state. Apply this mechanism uniformly.
   - Depends on: E-01
   - Expected outcome: a fixture of 34 pre-move fingerprints; a documented injection mechanism; a test that FAILS if any moved body's fingerprint differs from its pre-move capture. Paste the mechanism and one worked example.
   - Execution state: pending
@@ -43,9 +43,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Move order is deliberate: each seam is independently verifiable, and the two seams with outside-dependencies come last so the harness is already proven on clean cases.
 
-- [ ] E-03 Move the `DriverError` unification FIRST, alone, because it is the one symbol here that is a latent BUG rather than only a duplicate. `oc_runipd.py:202` and `agy_runipd.py:379` define two DISTINCT classes; `agy_runipd.py:87-93` documents a hand-written `enforce_dependency_preflight` wrapper whose only purpose is translating oc's class into agy's so agy's `main` can catch it. Move the single definition to `runner_common`, have both runners import it, and then check whether that wrapper is still needed. DO NOT DELETE THE WRAPPER AS A MATTER OF COURSE: if removing it changes what `agy_runipd.main` catches or what message it prints, it stays and this plan records why. `StallTimeout` subclasses agy's `DriverError` (`agy_runipd.py:383`), so verify the subclass relationship still holds after the move.
+- [ ] E-03 Move the `DriverError` unification FIRST, alone, because it is the one symbol here that is a latent BUG rather than only a duplicate. `oc_runipd.py:202` and `agy_runipd.py:379` define two DISTINCT classes; `agy_runipd.py:87-93` documents a hand-written `enforce_dependency_preflight` wrapper whose only purpose is translating oc's class into agy's so agy's `main` can catch it. Move the single definition to `runner_shared`, have both runners import it, and then check whether that wrapper is still needed. DO NOT DELETE THE WRAPPER AS A MATTER OF COURSE: if removing it changes what `agy_runipd.main` catches or what message it prints, it stays and this plan records why. `StallTimeout` subclasses agy's `DriverError` (`agy_runipd.py:383`), so verify the subclass relationship still holds after the move.
   - Depends on: E-02
-  - Expected outcome: exactly one `DriverError` in the package; `oc_runipd.DriverError is agy_runipd.DriverError` is True; `issubclass(agy_runipd.StallTimeout, runner_common.DriverError)` is True; agy's `main` still catches a preflight refusal and still prints its `runagy: ...` message, demonstrated rather than asserted; an explicit statement of whether the wrapper was kept or removed, with the reason.
+  - Expected outcome: exactly one `DriverError` in the package; `oc_runipd.DriverError is agy_runipd.DriverError` is True; `issubclass(agy_runipd.StallTimeout, runner_shared.DriverError)` is True; agy's `main` still catches a preflight refusal and still prints its `runagy: ...` message, demonstrated rather than asserted; an explicit statement of whether the wrapper was kept or removed, with the reason.
   - Execution state: pending
 
 - [ ] E-04 Move the RUN/MISC seam (5 remaining symbols, 37 lines): `utc_now`, `should_color`, `new_run_id`, `state_root`, `resolve_run_dir`. `print_status` is deliberately NOT in this item: it is the one host-naming-only symbol, so it needs the normalization decision E-06 makes.
@@ -94,7 +94,7 @@ Move order is deliberate: each seam is independently verifiable, and the two sea
 
 ## Proposed changes (ordered, validatable)
 
-1. Create `runner_common.py` with its admission rule stated (E-01).
+1. Create `runner_shared.py` with its admission rule stated (E-01).
 2. Build the fingerprint harness and decide the injection mechanism for the four outside-dependencies (E-02).
 3. Unify `DriverError` alone, and settle the translation wrapper's fate (E-03).
 4. Move run/misc, git, json/state, lane, plan/selector, in that order (E-04 to E-08).
@@ -116,40 +116,40 @@ Move order is deliberate: each seam is independently verifiable, and the two sea
 
 ## Required tests / validation
 
-- `tests/test_runner_common.py`: for each of the 34, an AST-fingerprint match against the pre-move capture AND an `assertIs` proving both runners resolve to the same object.
+- `tests/test_runner_shared.py`: for each of the 34, an AST-fingerprint match against the pre-move capture AND an `assertIs` proving both runners resolve to the same object.
 - The extended symmetric guard from child 01, sabotage-verified in BOTH runner directions.
 - `DriverError` specifically: one definition package-wide, identity across both runners, `StallTimeout` subclassing intact, and agy's `main` still catching a preflight refusal with its existing message.
 - `print_status` byte-identical output for both hosts, shown side by side.
 - Both driver suites green: `tests/test_oc_runipd.py` (93 at authoring) and `tests/test_agy_runipd_cli.py` (20).
 - Full suite bare (`python3 -m pytest`), compared against YOUR OWN pre-change measurement. Baseline at authoring HEAD `c8bb11ae`: `4092 passed, 3 skipped, 4 xfailed`. No `-n0`, no second `-q`, no `-p no:randomly`.
-- A cycle check: `runner_common` imports neither runner.
+- A cycle check: `runner_shared` imports neither runner.
 
 ## Spec / documentation sync
 
-- N/A for public contracts: every moved name stays reachable at its existing runner attribute path, so no documented interface changes. If `AGENTS.md` or a module map enumerates the package's modules, add `runner_common.py` there.
+- N/A for public contracts: every moved name stays reachable at its existing runner attribute path, so no documented interface changes. If `AGENTS.md` or a module map enumerates the package's modules, add `runner_shared.py` there.
 
 ## Open questions
 
-### OQ-01: Is the module name `runner_common.py` right, given `runner_shutdown.py` and `runner_stop.py` already exist?
+### OQ-01: Is the module name `runner_shared.py` right, given `runner_shutdown.py` and `runner_stop.py` already exist?
 
 - Blocking: no
-- Status: open
-- Owner: maintainer (cosmetic; executor may proceed with the stated default)
-- Resolution or deferral rationale: NOT BLOCKING because the name is a rename away and nothing external depends on it. Default `runner_common.py`, chosen for consistency with the existing `runner_*` prefix that `runner_shutdown.py` and `runner_stop.py` established. The orchestrator's OQ-02 said "a NEW dedicated module following `host_runner.py`'s conventions", which fixes the CONVENTIONS but not the name. If you prefer something more descriptive (for example `runner_shared.py` or `driver_common.py`), say so before E-01; after E-08 a rename touches both runners again.
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: use `runner_shared.py`. It reads as the module shared by the host runners, whereas `runner_common.py` can be misread as a common or canonical runner. `runner_shared_lib.py` was declined as redundant because a Python module is already a library. The name remains internal and introduces no public contract.
 
 ### OQ-02: Injection or a registration seam for the four outside-dependencies?
 
 - Blocking: no
-- Status: open
-- Owner: executor (E-02), with a stated default
-- Resolution or deferral rationale: NOT BLOCKING, but it MUST be decided once in E-02 and applied uniformly rather than per-symbol, or the shared module acquires four different coupling styles. Default: plain PARAMETER injection, because it is explicit at every call site, needs no module-level mutable state, and cannot produce an import-order bug. A registration seam is only preferable if parameter threading proves to change many call sites, in which case record the measurement that justified it. Whichever is chosen, the invariant is absolute: `runner_common` must never import a DIVERGED symbol from a runner.
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: use explicit parameter injection. The four dependencies remain visible at each call site, require no module-level mutable state, and avoid import-order bugs. A registration seam was declined because its process-global state would create registration-order and test-isolation risks. `runner_shared` must never import a DIVERGED symbol from a runner.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the new module's docstring showing it states its own admission rule (identical-only, never imports a runner). Paste `python3 -c "import agent_workflows.runner_common"` succeeding, and paste a check proving it imports neither runner (for example an AST scan of its `ImportFrom` targets). State which OQ-01 name was used.
+  - Required evidence: paste the new module's docstring showing it states its own admission rule (identical-only, never imports a runner). Paste `python3 -c "import agent_workflows.runner_shared"` succeeding, and paste a check proving it imports neither runner (for example an AST scan of its `ImportFrom` targets). State which OQ-01 name was used.
   - Observed evidence:
   - Result: pending
 
@@ -159,7 +159,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste a package-wide check showing exactly ONE `DriverError` definition. Paste `oc_runipd.DriverError is agy_runipd.DriverError` -> True and `issubclass(agy_runipd.StallTimeout, runner_common.DriverError)` -> True. Paste a DEMONSTRATION that agy's `main` still catches a dependency-preflight refusal and still prints its `runagy: ...` message (run it; do not reason about it). State plainly whether the translation wrapper at `agy_runipd.py:87-93` was kept or removed, and if removed, paste the evidence that removal changed nothing about what `main` catches.
+  - Required evidence: paste a package-wide check showing exactly ONE `DriverError` definition. Paste `oc_runipd.DriverError is agy_runipd.DriverError` -> True and `issubclass(agy_runipd.StallTimeout, runner_shared.DriverError)` -> True. Paste a DEMONSTRATION that agy's `main` still catches a dependency-preflight refusal and still prints its `runagy: ...` message (run it; do not reason about it). State plainly whether the translation wrapper at `agy_runipd.py:87-93` was kept or removed, and if removed, paste the evidence that removal changed nothing about what `main` catches.
   - Observed evidence:
   - Result: pending
 
@@ -169,7 +169,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: fingerprint match and `assertIs` per symbol for all six. Paste the `run_checked` call sites showing `pinned_child_env` is INJECTED, plus proof `runner_common` does not import it from a runner. Paste the `_run_git` collision check showing `layout_inventory.py`/`layout_migration.py` were left alone and their bodies genuinely differ.
+  - Required evidence: fingerprint match and `assertIs` per symbol for all six. Paste the `run_checked` call sites showing `pinned_child_env` is INJECTED, plus proof `runner_shared` does not import it from a runner. Paste the `_run_git` collision check showing `layout_inventory.py`/`layout_migration.py` were left alone and their bodies genuinely differ.
   - Observed evidence:
   - Result: pending
 
@@ -193,11 +193,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 - Size assessment: standard
 - Cohesion rationale: 8 E-leaves across 2 task groups, one concern throughout (move the proven-identical symbols into one module without changing behavior). It is at the upper end deliberately: the seams are sequential edits to the SAME two files, so splitting them into separate plans would guarantee the merge conflicts the orchestrator warns about, while each E-item remains one seam with its own V-item. If a reviewer judges E-07 (the 242-line lane seam) too large, split THAT item, not the plan.
 
-Open questions: OQ-01 (module name) and OQ-02 (injection mechanism) are both non-blocking with stated defaults. No blocking question remains, so this plan is executable once approved AND once child 01 (`2r306y`) has executed.
+Open questions: none. OQ-01 and OQ-02 were resolved by the maintainer 2026-09-03: use `runner_shared.py` and explicit parameter injection. No blocking question remains, so this plan is executable once approved AND once child 01 (`2r306y`) has executed.
 
 This plan is `to-review` and requires explicit human approval before execution. It also has a hard prerequisite: `Item-Dependencies: executed:2r306y`, because it EXTENDS the symmetric guard child 01 installs.
 
-Scope fence: touch ONLY `agent_workflows/runner_common.py` (new), `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `tests/test_runner_common.py` (new), and `tests/test_runner_refork_guard.py` (child 01's, extended). Do NOT edit any class (c) DIVERGED symbol's body, in either runner, for any reason: touching one is this plan's stop condition, not a judgment call. Do NOT change `render_stream.py` or `selectors.py`. Do NOT re-home the 40 oc-to-agy imports. Do not broaden CASUALLY; if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until every out-of-scope path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`, so an unjustified widening is CAUGHT AT THE GATE rather than prevented by halting a run (maintainer ruling 2026-09-01; a scope fence DECLARES, it does not halt). Do NOT edit a sibling plan or the orchestrator.
+Scope fence: touch ONLY `agent_workflows/runner_shared.py` (new), `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `tests/test_runner_shared.py` (new), and `tests/test_runner_refork_guard.py` (child 01's, extended). Do NOT edit any class (c) DIVERGED symbol's body, in either runner, for any reason: touching one is this plan's stop condition, not a judgment call. Do NOT change `render_stream.py` or `selectors.py`. Do NOT re-home the 40 oc-to-agy imports. Do not broaden CASUALLY; if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until every out-of-scope path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`, so an unjustified widening is CAUGHT AT THE GATE rather than prevented by halting a run (maintainer ruling 2026-09-01; a scope fence DECLARES, it does not halt). Do NOT edit a sibling plan or the orchestrator.
 
 Honesty rule (HARD MUST): paste the ACTUAL runner output with the `git rev-parse HEAD` it was measured at. A "pure move" claim rests on the fingerprint fixture and the identity assertions, NOT on a grep and NOT on the suites being green: the suites were green while `DriverError` was two different classes. If any body changed, say so and treat it as a finding, because a changed body means this was not a move.
 

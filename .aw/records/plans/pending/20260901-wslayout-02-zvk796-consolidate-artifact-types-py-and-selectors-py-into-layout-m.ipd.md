@@ -99,24 +99,10 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ### OQ-01: Keep the seven current traversal exclusions, or widen to ten?
 
 - Blocking: no
-- Status: open
-- Owner: executor of this Order, recorded in E-02 before implementing
+- Status: resolved
+- Owner: maintainer
 - Finding: PR-005
-- Resolution or deferral rationale: DELIBERATELY LEFT OPEN with a SAFE DEFAULT, so the decision is made
-  once and visibly rather than as a side effect. Non-blocking because the default (keep seven) is
-  behavior-preserving and needs no permission; only the widening is a change.
-  THE FACTS: `selectors.EXCLUDED_RECORD_DIRS` currently holds SEVEN entries (`.git`,
-  `.system_generated`, `__pycache__`, `runs`, `scratch`, `temp`, `tmp`). An earlier draft of spec
-  `kw5y2s` additionally listed `node_modules`, `venv`, and `.venv`; those are NOT in the code, and the
-  spec's Section 3.4 has been corrected to the real seven. `wpu5zu` pins the model to those seven so
-  this consolidation is provably behavior-preserving.
-  THE CHOICE: EITHER keep the seven exactly (DEFAULT; V-02 asserts equality and nothing else is needed),
-  OR widen to ten as an EXPLICIT change, which additionally requires updating the `wpu5zu` parity test
-  in the SAME commit and stating the reason here. Widening is plausibly desirable (a vendored
-  `node_modules` under a records tree would be skipped), but it changes what record resolution walks, so
-  it must not happen merely because the model became the source.
-  REQUIRED: V-02 pastes the resulting set, and a set that changed WITHOUT a stated decision is a FAILED
-  validation, not a pass.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: keep the seven exclusions exactly. This consolidation preserves current selector behavior; adding `node_modules`, `venv`, and `.venv` would be a separate policy change that needs its own evidence and regression coverage. `selectors.EXCLUDED_RECORD_DIRS` therefore remains the source behavior that E-02 reproduces.
 
 ## Validation and cross-check (verify before reporting done)
 

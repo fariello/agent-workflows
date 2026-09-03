@@ -126,24 +126,10 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ### OQ-01: Should the layout surface be a new top-level `aw layout` verb, or live under an existing noun?
 
 - Blocking: no
-- Status: open
-- Owner: executor of this Order, recorded in E-01 before implementing
+- Status: resolved
+- Owner: maintainer
 - Finding: PR-008
-- Resolution or deferral rationale: DELIBERATELY LEFT OPEN for the executor to decide and RECORD, not
-  for the human to unblock. It is non-blocking because either choice satisfies the spec's requirement
-  that the vocabulary be inspectable; only the surface differs, and the cost of being wrong is a
-  rename, not a redesign.
-  THE TENSION: `aw layout` sits one word from the EXISTING `aw migrate-layout`, a transactional
-  physical-layout MIGRATION, so a read-only inspector and a file-moving migration become tab-completion
-  neighbours. It also overlaps `aw context`, which ALREADY prints the four resolved logical roots, and
-  `aw path <root>`, which already prints one resolved path for scripting (`aw context --json` emits
-  `data.logical_roots` and `data.effective_framework_version`). The project prefers existing canonical
-  mechanisms, so a NEW top-level noun needs a stated reason.
-  THE LIKELY ANSWER, not imposed: this command emits the record-CLASS vocabulary and the JSON Schema,
-  neither of which `aw context` models, which is a genuine reason for a separate verb. If that holds,
-  say so in E-01; if it does not, implement `aw context --layout` instead.
-  REQUIRED: E-01 must record the choice and its reason, and V-01 FAILS if the justification is absent.
-  An unrecorded default is the failure mode this question exists to prevent.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: add a new read-only `aw layout` verb. It exposes the record-class vocabulary and JSON Schema, neither of which `aw context` models; `aw context` remains the inspector for resolved logical roots and `aw path <root>` remains the scripting surface for one resolved path. Although `aw migrate-layout` is adjacent in completion, its transactional migration purpose is distinct from read-only model inspection.
 
 ## Validation and cross-check (verify before reporting done)
 

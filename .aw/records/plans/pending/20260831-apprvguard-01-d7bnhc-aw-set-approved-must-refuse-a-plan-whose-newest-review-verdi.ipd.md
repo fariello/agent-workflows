@@ -139,16 +139,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ### OQ-01: Should the override flag be spelled `--allow-open-questions`, or reuse an existing convention?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Proceeding with `--allow-open-questions` because it names exactly what it permits and cannot be confused with the verdict half, which has NO override by design. The backlog item requires only that it be a named flag, that it be recorded in history, and that `--by-human` not imply it; all three hold regardless of spelling. A rename is a one-line change if the maintainer prefers another.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: use `--allow-open-questions`. It names exactly what it permits and cannot be confused with the verdict half, which has NO override by design. The backlog item requires only that it be a named flag, that it be recorded in history, and that `--by-human` not imply it; all three hold.
 
 ### OQ-02: Should a NEGATIVE verdict also gate `aw specs set approved`?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: Not blocking, because the answer cannot change this plan's shape: `review_findings` keys review artifacts by `Plan-Id` (`review_findings.py:67`, `:187`, `:353`) and there is no spec review artifact type, so the verdict half has NOTHING to read for a spec today. E-07 therefore wires the open-question half to specs now (which does apply) and calls the same predicate so the verdict half activates automatically if a spec review type is ever added. If the maintainer wants specs verdict-gated sooner, that requires first defining a spec review artifact, which is its own plan.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: do not add spec verdict gating now. Apply the open-question approval gate to specs, but do not define a spec-review artifact within this plan. `review_findings` keys review artifacts by `Plan-Id` (`review_findings.py:67`, `:187`, `:353`), so no formal spec verdict exists to inspect today. E-07 calls the shared predicate, allowing verdict gating to activate automatically if a spec-review type is added later. A spec-review artifact is a separate follow-up concern.
 
 ## Validation and cross-check (verify before reporting done)
 

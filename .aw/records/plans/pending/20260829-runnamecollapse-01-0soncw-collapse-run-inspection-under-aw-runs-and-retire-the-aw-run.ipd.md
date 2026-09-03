@@ -28,8 +28,7 @@
 
 Make one job have one name. Today `aw run list` and `aw runs` emit byte-identical output, and the
 whole `aw run` noun is a read-only inspector holding a name that reads like "run an agent". This plan
-moves the NINE READ-ONLY `aw run` subcommands under `aw runs`, deletes the duplicate `list`, and leaves
-a per-leaf deprecation response for each moved leaf. RE-SCOPED 2026-08-31 (OQ-03): `aw run` itself is
+moves the NINE READ-ONLY `aw run` subcommands under `aw runs`, deletes the duplicate `list`, and removes the old viewer leaves so normal argument parsing rejects them. RE-SCOPED 2026-08-31 (OQ-03): `aw run` itself is
 NOT retired. It survives as the WRITING noun (`start`, `record`, `cancel`, `finalize`) and is the verb
 the approved `runprofile` Set extends with `aw run as <profile>`, so this plan vacates only the
 inspection leaves rather than the whole name. This plan still does NOT take on the default-host design
@@ -118,19 +117,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-05 Do NOT retire the `aw run` noun. REVERSED BY MAINTAINER RULING 2026-08-31 (see OQ-03).
       `aw run` SURVIVES as the WRITING verb, keeping `start`, `record`, `cancel` and `finalize`, and it
-      is the noun the `runprofile` Set then extends with `aw run as <profile>`. What this item must do
-      instead is narrower: for each of the NINE leaves MOVED to `aw runs` by E-03, leave an actionable
-      deprecation response under `aw run` naming the `aw runs` replacement and exiting nonzero, rather
-      than argparse's bare "invalid choice". Do NOT silently forward, because silent aliases are how
-      the duplicate in E-04 survived unnoticed. So `aw run show X` must say "use `aw runs show X`" and
-      fail, while `aw run start ...` must keep WORKING unchanged.
+      is the noun the `runprofile` Set then extends with `aw run as <profile>`. For each of the NINE
+      leaves MOVED to `aw runs` by E-03, remove its `aw run` parser registration entirely. RESOLVED BY
+      MAINTAINER 2026-09-03 (OQ-01): do not retain a compatibility response; `aw run show X` must fail
+      through normal argument parsing, while `aw run start ...` keeps WORKING unchanged. Do NOT silently
+      forward, because silent aliases are how the duplicate in E-04 survived unnoticed.
       WHY THIS MATTERS BEYOND TIDINESS: retiring the whole noun would have installed a failing stub over
       the exact namespace the approved `runprofile` Set builds on, so `aw run as gem` would have begun
       exiting nonzero. That collision was found in this session's review of that Set and is the reason
       the ordering (`0soncw` first, then `runprofile`) was settled.
   - Depends on: E-03, E-04
-  - Expected outcome: `aw run show X` prints a message naming `aw runs show X` and exits nonzero;
-    no ledger work is performed.
+  - Expected outcome: `aw run show X` is rejected by normal argument parsing with a nonzero exit and no
+    ledger work is performed; `aw run start ...` remains unchanged.
   - Execution state: pending
 
 ### Task group 3: keep the declared surface honest
@@ -158,8 +156,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-08 Update the tests that invoke the verb to the new spelling: `tests/test_run_recovery_cli.py`
       (31 `"run"` invocations), `tests/test_run_evidence_completion.py` (12), `tests/test_run_viewer.py`
       (2), and the completion expectations in `tests/test_completion.py:269,297,381`. Retain at least
-      one test asserting the E-05 deprecation stub's message and exit code, so the retirement itself
-      stays covered. ALSO settle the COMPLETION surface (PR-005, F-7), which the plan did not mention:
+      one test asserting the E-05 normal-parser rejection and nonzero exit for a moved viewer leaf, so
+      the removal stays covered. ALSO settle the COMPLETION surface (PR-005, F-7), which the plan did not mention:
       `completion.py:632` routes target completion for `words[1] in ("run", "runs")` as one surface, and
       `tests/test_completion.py` asserts `run` is among the offered subcommands. Decide explicitly
       whether the retired noun (a) still completes, so a user tab-completing `aw run ` is guided to the
@@ -305,12 +303,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ### OQ-01: Should the per-leaf `aw run` deprecation responses be permanent or time-boxed?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: LARGELY ANSWERED BY OQ-03's RULING (2026-08-31), and reframed: there is no whole-noun stub any more, because `aw run` SURVIVES as the writing verb. What remains is nine per-leaf deprecation responses (one for each moved viewer), and the original recommendation now describes reality rather than a future hope: it said keep the stub "until a real driver `aw run` exists", and a real driver `aw run` is exactly what the `runprofile` Set adds immediately after this plan. So the sensible answer is KEEP the nine per-leaf responses indefinitely (they cost nothing and prevent a stale `aw run show` from silently doing nothing), and revisit only if the help output becomes cluttered. Still non-blocking either way. ORIGINAL RATIONALE: E-05 ships a stub either way, so execution is not blocked. The
-  question is only whether a later release deletes it. Recommendation: keep it until a real driver
-  `aw run` exists, because the stub is exactly what prevents a stale `aw run show` from being read as
-  the future "run something" verb.
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-03: retain no compatibility responses. Once the nine read-only leaves move to `aw runs`, remove their old `aw run` parser registrations immediately, so old spellings fail through normal argument parsing. `aw run` remains the writing and dispatch noun; only the old viewer leaves disappear. This avoids silent forwarding and avoids an additional compatibility surface.
 
 ### OQ-02: Do the twelve leaves belong under `aw runs`, or do the ten transaction verbs belong under a separate `aw ledger` noun?
 
@@ -387,16 +382,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the output of `aw run list` after the change (expect the per-leaf
-    deprecation response from the corrected E-05, not a table; `list` is one of the NINE moved leaves) and confirm exactly one spelling renders the viewer, by showing `grep -n` of the alias
-    tuple in `run_cli.py` with `list`/`summary`/`viewer` gone.
+  - Required evidence: paste the output of `aw run list` after the change (expect normal argument-parser
+    rejection, not a table; `list` is one of the NINE moved leaves) and confirm exactly one spelling
+    renders the viewer, by showing `grep -n` of the alias tuple in `run_cli.py` with
+    `list`/`summary`/`viewer` gone.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste `aw run show <target>; echo rc=$?` showing the actionable message that
-    names `aw runs show <target>` and a NONZERO rc. Additionally show that no ledger write occurred
-    (the stub must not touch the store): paste the target dir listing before and after, identical.
+  - Required evidence: paste `aw run show <target>; echo rc=$?` showing normal argument-parser rejection
+    and a NONZERO rc. Additionally show that no ledger write occurred: paste the target dir listing
+    before and after, identical.
   - Observed evidence:
   - Result: pending
 
@@ -446,12 +442,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   line previously said the plan retires the `aw run` noun, which the maintainer ruling of 2026-08-31
   REVERSED (see OQ-03 and E-05); the stale wording contradicted both the title and E-05 and is fixed here
   rather than left to mislead an executor. The E-items are ordered sub-steps of that one split:
-  characterize, move the viewers, de-duplicate, leave a per-leaf deprecation response on each moved leaf,
-  then reconcile declarations/help/tests. No E-item changes ledger semantics or rendering.
+  characterize, move the viewers, de-duplicate, remove each old viewer leaf from `aw run`, then reconcile
+  declarations/help/tests. No E-item changes ledger semantics or rendering.
 
 This plan is `to-review` and requires explicit human approval before execution. It is a user-facing
 CLI naming change: even though no production code shells `aw run <sub>` (F-4), a human's muscle memory
-and any personal scripts do, which is exactly why E-05 ships a loud stub instead of a silent removal.
+and any personal scripts do, which is why E-05 makes their failure explicit through normal command parsing rather than silently forwarding.
 
 Execution contract:
 
@@ -459,7 +455,7 @@ Execution contract:
    OQ-03 blocking). OQ-03 was RESOLVED by the maintainer on 2026-08-31, and its ruling is what dissolved
    the argparse blocker rather than working around it: because only viewers move to `aw runs`, that parser
    needs no subparsers, so nothing competes with its `targets nargs="*"`. OQ-02 was resolved by the same
-   ruling. OQ-01 remains open, non-blocking, and may be executed around.
+   ruling. OQ-01 was resolved by the maintainer 2026-09-03: remove the old viewer leaves without a compatibility response.
 2. Scope fence: touch ONLY the paths in `Scope-Paths`. Do NOT change ledger semantics, storage, or the
    viewer's rendering; do NOT fix any `tests/test_run_viewer.py` failure (F-8/F-9; that file's failures
    belong to backlog `agrlvw`, not to this rename) or the
@@ -471,10 +467,9 @@ Execution contract:
    (F-9): 4099 tests / 0 failed / 7 skipped. Review's 2883/1/7 is stale. Re-measure before starting and
    compare against your OWN pre-change measurement; run the suite BARE (`python3 -m pytest --junitxml=<f>`)
    without adding `-n0`, a second `-q`, or `-p no:randomly`.
-4. NO SILENT FORWARDING: each of the NINE MOVED leaves must answer with a loud, nonzero per-leaf
-   deprecation response. Do not make a moved leaf an invisible alias - silent aliasing is exactly how the
-   E-04 duplicate survived unnoticed. (Corrected 2026-09-03: this item said "E-05 must be a loud, nonzero
-   stub" in the singular, from the retired whole-noun-stub design; the noun itself is NOT retired.)
+4. NO SILENT FORWARDING: remove each of the NINE MOVED leaves from `aw run`; their old spellings must
+   fail through normal command parsing with a nonzero exit. Do not make a moved leaf an invisible alias -
+   silent aliasing is exactly how the E-04 duplicate survived unnoticed. `aw run` itself is NOT retired.
 5. PRE-EXISTING FAILURE DISCIPLINE: capture the failure SET before starting and confirm it is IDENTICAL at
    the end. Do NOT expect a specific count: the set is machine-dependent (F-9, backlog `agrlvw`), and it is
    currently EMPTY on this machine at this HEAD while being 15-strong in a fresh clone. A newly green or
