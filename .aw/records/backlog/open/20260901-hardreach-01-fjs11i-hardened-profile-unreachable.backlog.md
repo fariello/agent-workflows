@@ -1,12 +1,13 @@
 - Id: fjs11i
 - Status: open
+- Blocks-Release: next
 - Set: hardreach
 - Priority: medium
-- Work-Kind: followup
+- Work-Kind: bug
 - Summary: The hardened OS-sandbox execution profile is live dead code: options[execution_profile] is read but never set and has no CLI flag, so the capability cannot be requested
 
 ## Workflow history
-- 2026-09-01 created (aw backlog): Filed while reconciling 1o4eif's lifecycle record (b2b2bf6c), so finalizing Phase 6 does not imply a usable capability. Carries the two constraints that must shape the fix: Landlock is Linux-only against a macOS-100%-MUST bar (research q65sz3 is in flight on exactly this), and hardened mode will refuse loudly until dh0uno is fixed by the unmerged 7p9n2v.
+- 2026-09-03 set (aw backlog): RECLASSIFIED followup -> bug AND GATED, maintainer ruling 2026-09-03. Each of these three describes shipped behavior that does not match what the product claims, so under the all-bugs-block-release rule they are bugs, and the 'followup' label was the reason the 2026-09-03 gating audit skipped them. Work-Kind edited directly because 'aw backlog set' has no --work-kind flag (its 'aw ipd set' twin does); that tooling gap is filed separately.
 
 `1o4eif` (wtiso Phase 6) landed a WORKING hardened OS-sandbox profile that NOTHING can request, so the
 capability ships but is unreachable. Found while reconciling that plan's lifecycle record (`b2b2bf6c`),

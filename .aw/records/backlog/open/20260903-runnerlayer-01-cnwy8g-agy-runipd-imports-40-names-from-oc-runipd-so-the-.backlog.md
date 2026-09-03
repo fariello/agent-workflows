@@ -1,12 +1,13 @@
 - Id: cnwy8g
 - Status: open
+- Blocks-Release: next
 - Set: runnerlayer
 - Priority: medium
-- Work-Kind: followup
+- Work-Kind: bug
 - Summary: agy_runipd imports 40 names from oc_runipd, so the two host runners are not peers: a host driver depends on the other host's driver module, which the rununify shared library must correct rather than preserve
 
 ## Workflow history
-- 2026-09-03 created (aw backlog): agy_runipd imports 40 names from oc_runipd, so the two host runners are not peers: a host driver depends on the other host's driver module, which the rununify shared library must correct rather than preserve
+- 2026-09-03 set (aw backlog): RECLASSIFIED followup -> bug AND GATED, maintainer ruling 2026-09-03. Each of these three describes shipped behavior that does not match what the product claims, so under the all-bugs-block-release rule they are bugs, and the 'followup' label was the reason the 2026-09-03 gating audit skipped them. Work-Kind edited directly because 'aw backlog set' has no --work-kind flag (its 'aw ipd set' twin does); that tooling gap is filed separately.
 
 FOUND 2026-09-03 by E-01 of orchestrator `5e4sb6` (research `tvnq50`), while inventorying the two host
 runners for de-duplication. Filed because the finding would otherwise live ONLY in the Deferred section

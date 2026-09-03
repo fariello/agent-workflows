@@ -1,13 +1,13 @@
 - Id: a8eufb
 - Status: open
+- Blocks-Release: next
 - Set: scopeattrib
 - Priority: medium
-- Work-Kind: followup
+- Work-Kind: bug
 - Summary: finalize still demands a scope reason for a CONCURRENT agent's COMMITTED out-of-scope path (the committed half of the shared-checkout attribution defect)
 
 ## Workflow history
-- 2026-09-03 open (opencode its_direct/pt3-claude-opus-5-1m-us): STALENESS CORRECTION, no status change (verified: `aw backlog set open a8eufb` reports `unchanged`). The item's claim that no durable per-commit ownership record exists is now FALSE: plan `m73aet` shipped the `AW-Run`/`AW-Item` git trailers, which are exactly the missing signal. But ZERO commits carry the trailer, because the only caller is `work_cmd.py:479` and the runner wiring is deliberately deferred, so the reader exists and the data does not. Recorded the precise remaining gap (`oc_runipd.py:1199` already calls `offer_commit` without `trailers=`; `agy_runipd.py` never calls it), the sequencing warning (that wiring edits the repo's highest-contention files, which `lanectn` and `5e4sb6` both touch), and the observed cost from finalizing `97df1z` (7 paths demanded a reason, 5 of them other agents' commits). STAYS OPEN by maintainer decision: `lanectn` removes the trigger more cheaply, since an isolated lane is immune. No code changed.
-- 2026-08-30 created (aw backlog): filed by plan lbgzxg (scopeattrib-01) as the required follow-up for its declared residual gap F9
+- 2026-09-03 set (aw backlog): RECLASSIFIED followup -> bug AND GATED, maintainer ruling 2026-09-03. Each of these three describes shipped behavior that does not match what the product claims, so under the all-bugs-block-release rule they are bugs, and the 'followup' label was the reason the 2026-09-03 gating audit skipped them. Work-Kind edited directly because 'aw backlog set' has no --work-kind flag (its 'aw ipd set' twin does); that tooling gap is filed separately.
 
 Plan `lbgzxg` fixed the WORKING-TREE half of finalize's out-of-scope attribution: an uncommitted path that the finalizing execution cannot be shown to own is now disregarded instead of demanding a --scope-reason. It deliberately did NOT touch the COMMITTED half, so this defect remains:
 
