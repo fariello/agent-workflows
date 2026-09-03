@@ -13,7 +13,6 @@
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 818uru
 - Blocks-Release: next
-- From-Spec: none
 
 ## Workflow history
 
