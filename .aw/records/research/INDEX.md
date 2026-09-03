@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 70 hot docs (archive excluded).
+Showing the most-recent 40 of 71 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -20,12 +20,14 @@ Showing the most-recent 40 of 70 hot docs (archive excluded).
 - `q65sz3` 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 - `nilw5h` 20260830-privrecs-00-nilw5h-private-records-repo-trackedness.research-prompt.md - Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
+- `tvnq50` 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
 - `ig9bai` 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
 - `x0spmh` 20260829-sessalloc-00-x0spmh-agent-runner-session-allocation.gpt56.research-report.md - GPT-5.6 evidence-based session-allocation policy for aw oc run: fresh session per isolated execute turn, workspace-bound sessions, and context-pack compilation as the real cost lever
 - `x03wgn` 20260828-wtiso-00-x03wgn-worktree-isolation-state-model.gpt56.research-report.md - GPT-5.6 architecture for isolating concurrent agent lanes with a driver-owned control plane and out-of-repo machine state
 
 ## Most recent
 
+- `tvnq50` [todo] 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
 - `8sq8ls` [todo] 20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md - Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session
 - `q65sz3` [todo] 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` [todo] 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
@@ -65,4 +67,3 @@ Showing the most-recent 40 of 70 hot docs (archive excluded).
 - `krgxp6` [reference] reference/202608/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
 - `tgmqnb` [reference] reference/202608/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
 - `w0ilhj` [reference] reference/202608/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)
-- `qcxc6c` [reference] 20260807-codexfit-00-qcxc6c-codex-cli-gpt-5.findings.md - Migrated from 20260807-2053-01-20260726-skills-00-vdz4ui-codex-cli-gpt-5.findings.md.

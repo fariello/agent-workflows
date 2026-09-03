@@ -1437,6 +1437,26 @@
   },
   {
     "consumed_by": [],
+    "created": "20260903",
+    "date": "20260903",
+    "id6": "tvnq50",
+    "kind": "findings",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md",
+    "priority": "",
+    "set_id": "rununify",
+    "status": "todo",
+    "summary": "Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce",
+    "topic": [
+      "runners",
+      "de-duplication",
+      "rununify"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260713",
     "date": "20260713",
     "id6": "u5wtc3",
