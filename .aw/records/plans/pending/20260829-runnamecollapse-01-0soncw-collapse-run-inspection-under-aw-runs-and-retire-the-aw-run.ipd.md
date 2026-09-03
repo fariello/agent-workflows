@@ -16,6 +16,7 @@
 - From-Backlog: q5pdiy
 
 ## Workflow history
+- 2026-09-03 approved (opencode its_direct/pt3-claude-opus-5-1m-us): STALENESS AMENDMENT ONLY at the maintainer's direction; status UNCHANGED (`approved`), scope UNCHANGED, no E/V item added or removed. Two defects fixed before this plan is executed, both of which would have sent an executor after a wrong number or a reversed design. (1) THE SUITE BASELINE WAS STALE BY ~42 PERCENT. Review recorded 2883 tests / 1 failed / 7 skipped; re-measured at HEAD `34cefa8b` the suite is `4092 passed, 3 skipped, 4 xfailed` with `--junitxml` attributes `tests=4099 failures=0 errors=0 skipped=7`. Recorded as new finding F-9 and propagated to the Required-tests baseline, V-08's required evidence, and execution-contract items 3 and 5. F-8's named pre-existing failure `test_run_viewer_cli_issues_flag` is now GREEN (`2 passed, 40 deselected`), and the plan is corrected to NOT read that as a fix: backlog `agrlvw` (open, high) measures 15 tests in `tests/test_run_viewer.py` reading gitignored live run data under `.aw/records/runs/`, so that file's pass/fail set is a property of the MACHINE, not of this plan. The invariant is therefore restated as "the failure SET is unchanged against your own pre-change measurement", never a fixed count and never "zero failures". (2) THREE PLACES STILL DESCRIBED THE REVERSED DESIGN. The Cohesion rationale still said the plan retires the `aw run` noun, contradicting both the title and E-05 after the 2026-08-31 ruling; execution-contract item 1 still called OQ-03 BLOCKING although the maintainer resolved it that same day; item 4 still spoke of a single whole-noun stub instead of nine per-leaf deprecation responses. All three corrected in place with the correction marked, so the record shows what changed rather than reading as if it were always right. `aw ipd lint` conforming after the edit. `aw check plans` reports 13 errors both before and after (verified by stash-and-recheck), so the pre-existing `check.lifecycle-transition-invalid` finding on this plan is untouched by this amendment and is not introduced by it.
 - 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): MAINTAINER RESOLVED OQ-03 AND OQ-02, and the plan is RE-SCOPED accordingly; this was the last blocking question, so the plan is now executable. RULING: TWO NOUNS SPLIT BY DIRECTION - `aw run` WRITES, `aw runs` READS. Close to the old option (c) but not identical: (c) parked the ledger leaves under a third noun `aw ledger`; the ruling keeps TWO words and leaves the writers under `aw run`. THE ARGPARSE BLOCKER DISSOLVES rather than being worked around: with only viewers under `aw runs`, that parser needs NO subparsers, so nothing competes with its `targets nargs="*"`, bare `aw runs <id>` keeps working, and the proven-unimplementable combination is simply never built. SPLIT decided from measured behavior, not names: MOVED (9 viewers) `show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger` (`next`/`resume` sound like actions but only reconstruct state and report); RETAINED (4 writers) `start`, `record`, `cancel`, `finalize`. EDITS APPLIED: title and Concern re-scoped (the plan no longer 'retires the aw run noun'); Goal corrected; E-03 narrowed from 'every subcommand' to the nine viewers with the argparse rationale kept as the record of why the original design failed; E-05 REVERSED from 'retire the noun to a stub' to 'leave a per-leaf deprecation response for the nine moved leaves while `aw run start ...` keeps working'; V-03, V-04 and the command_surface count corrected (10 under `runs`, not 13). WHY E-05'S REVERSAL MATTERS BEYOND TIDINESS: retiring the whole noun would have installed a failing stub over the exact namespace the approved `runprofile` Set builds on, so `aw run as gem` would have started exiting nonzero. That collision was found in this session's review of that Set, and the maintainer settled the order as `0soncw` FIRST then `runprofile`, which is now encoded as `executed:0soncw` on that Set's chain head.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-006. BLOCKER: E-03's premise is unimplementable - argparse cannot combine targets nargs='*' with subparsers (verified: show/RUN1, RUN1, RUN1 RUN2 all exit 2), so routing needs pre-parse argv inspection plus a collision rule; raised as blocking OQ-03. Also corrected the suite baseline (2883/1 failed/7 skipped, not 2865 passed) and disclosed a pre-existing red test inside the plan's own Scope-Paths.
@@ -166,9 +167,10 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
       undecided means the test expectations and the parser can disagree silently.
       DO NOT "fix" the pre-existing failure in `tests/test_run_viewer.py` (F-8) while editing that file.
   - Depends on: E-03, E-04, E-05
-  - Expected outcome: default suite shows the SAME single pre-existing failure as the recorded baseline
-    and no new ones, with no reference to a live `aw run <leaf>` path; the completion decision is
-    implemented and asserted.
+  - Expected outcome: default suite shows the SAME failure SET as your own pre-change measurement and no
+    new ones, with no reference to a live `aw run <leaf>` path; the completion decision is implemented and
+    asserted. (Corrected 2026-09-03: this said "the SAME single pre-existing failure", which is no longer
+    true - the set is machine-dependent and currently EMPTY here; see F-9 and backlog `agrlvw`.)
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -195,7 +197,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-3 | `aw run` runs nothing; it is inspection plus ledger transaction verbs. | `run_cli.py:53-89` dispatches only show/evidence/verify-ledger/start/next/record/resume/cancel/status/finalize/decisions/questions, then prints a usage string. |
 | F-4 | The migration is cheap, contradicting an earlier assessment that called it a breaking migration needing its own spec. | One parser site (`cli.py:1389-1560`), the `run` dispatch at `cli.py:8273-8281` AND the separate `runs` dispatch immediately after at `cli.py:8282-8285` (the plan cited only one site - both must be reconciled), four test files invoking the verb, one workflow doc (`exec-set.md:47-49`), zero shims or hooks. Confirmed no production code shells `aw run <sub>`: every `agent_workflows/` hit is a docstring, help string, or the dispatch itself. |
 | F-7 | `completion.py` treats `run` and `runs` as ONE completion surface, so retiring the noun must not silently break tab completion. | `completion.py:632` is `if cword >= 2 and words[1] in ("run", "runs")`, and `tests/test_completion.py` asserts both `run` and `runs` appear in subcommand candidates (`:269`, `:381`) and completes targets after `aw run` (`:297`). E-08 must decide whether the retired noun still completes. |
-| F-8 | A pre-existing suite failure sits in a file this plan edits. | `tests/test_run_viewer.py::RunViewerTests::test_run_viewer_cli_issues_flag` fails at HEAD (reproducible in isolation), introduced by `20caf1c`. Measured baseline is 2883 tests / 1 failed / 7 skipped, not the plan's original `2865 passed, 3 skipped, 4 xfailed`. |
+| F-8 | A pre-existing suite failure sits in a file this plan edits. SUPERSEDED BY F-9; retained for the record. | `tests/test_run_viewer.py::RunViewerTests::test_run_viewer_cli_issues_flag` failed at the review HEAD (reproducible in isolation), introduced by `20caf1c`. Baseline as measured on 2026-08-29 was 2883 tests / 1 failed / 7 skipped, not the plan's original `2865 passed, 3 skipped, 4 xfailed`. |
+| F-9 | **BASELINE RE-MEASURED 2026-09-03 AND BOTH EARLIER NUMBERS ARE STALE. Use this row, not F-8.** The suite has grown by roughly 42 percent since review and is now fully GREEN on this machine, and F-8's named failure is green too. Critically, the failure it describes is NOT a fixed bug but an ENVIRONMENT-DEPENDENT one, so the executor must not treat either result as the invariant. | Measured at HEAD `34cefa8b`: bare `python3 -m pytest` reports `4092 passed, 3 skipped, 4 xfailed in 36.07s`; `--junitxml` `testsuite` attributes are `tests=4099 failures=0 errors=0 skipped=7`, against review's 2883/1/7. `python3 -m pytest tests/test_run_viewer.py -o addopts="" -q -k issues_flag` -> `2 passed, 40 deselected`. THE REASON IT MOVED: backlog `agrlvw` (open, high, filed 2026-09-02) measures that 15 tests in `tests/test_run_viewer.py` read gitignored live run data under `.aw/records/runs/`, so they pass only on a machine that has actually run the driver and fail in every fresh clone and in CI. So this file's pass/fail set is a property of the machine, not of this plan. |
 | F-5 | `aw runs` is undeclared in the normative command surface while all twelve `run *` leaves are declared. | `grep -n 'command="runs' agent_workflows/command_surface.py` -> no matches; `grep -c 'command="run ' ...` -> 12. |
 | F-6 | A real `aw run` meaning "run on the default host" is blocked on a concept that does not exist. | `project_schema.py` has `enabled_hosts` (default `["opencode","claude","antigravity"]`) but no default or preferred host field, and nothing in the pipeline defines one. |
 
@@ -244,13 +247,27 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. `python3 -m pytest tests/test_run_recovery_cli.py tests/test_run_evidence_completion.py
    tests/test_run_viewer.py tests/test_completion.py tests/test_cli_conformance_matrix.py -q` green
    EXCEPT for the pre-existing failure named below, which must stay the only failure.
-2. The full default suite with the actual counts pasted. CORRECTED BASELINE (PR-004, measured in review
-   on 2026-08-29 at HEAD; the plan's `2865 passed, 3 skipped, 4 xfailed` was wrong): **2883 tests, 1
-   failed, 0 errors, 7 skipped** (counts read from `--junitxml`, because the repo's `addopts` uses
-   `-q -n auto` and the xdist summary line is suppressed - use
-   `python3 -m pytest -p no:randomly -n0 --tb=no -q --junitxml=<f>` then read the `testsuite`
-   attributes, and say so in the evidence).
-3. THE PRE-EXISTING FAILURE MUST BE HANDLED HONESTLY, not adopted and not hidden:
+2. The full default suite with the actual counts pasted. BASELINE RE-MEASURED 2026-09-03 AT HEAD
+   `34cefa8b` (F-9); BOTH earlier figures are stale and must not be used: **4099 tests, 0 failed,
+   0 errors, 7 skipped** from the `--junitxml` `testsuite` attributes, which the bare run reports as
+   `4092 passed, 3 skipped, 4 xfailed`. (Review's 2883/1/7 and the plan's original 2865 are both
+   superseded.) Read the counts from `--junitxml`, because the repo's `addopts` uses `-q -n auto` and the
+   xdist summary line is suppressed. RUN THE SUITE BARE, as `python3 -m pytest --junitxml=<f>`: do NOT
+   add `-n0` (it disables xdist and makes the run several times slower here), do NOT add a second `-q`
+   (it compounds into `-qq` and suppresses the summary), and do NOT add `-p no:randomly` (it switches off
+   the order randomization that surfaces order-dependence bugs). RE-MEASURE THE BASELINE YOURSELF BEFORE
+   STARTING rather than trusting this number: the suite grew about 42 percent between review and this
+   re-measurement, and it will keep moving.
+3. THE FAILURE SET IS MACHINE-DEPENDENT, WHICH IS THE HONEST INVARIANT (F-9, and the reason step 2's
+   number is a snapshot rather than a contract). Do not encode "zero failures" as the expectation either:
+   backlog `agrlvw` measures 15 tests in `tests/test_run_viewer.py` reading gitignored live run data under
+   `.aw/records/runs/`, so they pass on a machine that has run the driver and fail in every fresh clone
+   and in CI. `tests/test_run_viewer.py` is IN this plan's Scope-Paths (E-08), so the required discipline
+   is unchanged even though the numbers moved: capture the failure set BEFORE starting, confirm it is
+   IDENTICAL at the end, explain any difference rather than absorbing it, and do NOT adopt or "fix" a
+   failure in that file - it belongs to `agrlvw`, not to this rename.
+4. HISTORICAL, SUPERSEDED BY F-9, retained so the reasoning is auditable rather than silently rewritten.
+   As measured at the review HEAD, the pre-existing failure had to be handled honestly:
    `tests/test_run_viewer.py::RunViewerTests::test_run_viewer_cli_issues_flag` FAILS at HEAD
    (`AssertionError: 'Artifact & Status Discrepancies' not found in 'no artifact or status
    discrepancies found'`), reproducible in isolation, introduced by commit `20caf1c`
@@ -260,12 +277,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
    starting, do NOT fix it (out of scope, not this plan's bug), do NOT let it be mistaken for
    regression, and confirm at the end that the failure set is still exactly this one test. If it
    disappears or multiplies, STOP and report.
-4. E-02's duplicate-output test demonstrated FAILING at pre-change HEAD and passing after, pasting
+5. E-02's duplicate-output test demonstrated FAILING at pre-change HEAD and passing after, pasting
    both runs, plus evidence it is stable (run it twice). A guard never seen to fail is not evidence.
-5. Manual confirmation that bare `aw runs`, `aw runs <run-id>`, and `aw runs <set-id>` still render the
+6. Manual confirmation that bare `aw runs`, `aw runs <run-id>`, and `aw runs <set-id>` still render the
    viewer table unchanged, by diffing against output captured before the change WITH volatile
    `runtime:`/elapsed fields masked (see E-02: raw output differs run-to-run for live processes).
-6. The E-03 ambiguity rule exercised: a target whose name equals a leaf name routes as the documented
+7. The E-03 ambiguity rule exercised: a target whose name equals a leaf name routes as the documented
    rule says, and the escape hatch reaches the viewer.
 
 ## Spec / documentation sync
@@ -403,23 +420,34 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-08 validates E-08
   - Required evidence: paste the full default suite result with actual counts read from `--junitxml`
-    (the `-q -n auto` addopts suppress the summary line), compared against the CORRECTED baseline of
-    **2883 tests / 1 failed / 0 errors / 7 skipped**. The failure set MUST still be exactly
-    `test_run_viewer_cli_issues_flag` (F-8, pre-existing, introduced by `20caf1c`): paste it before and
-    after and state that it was neither fixed nor adopted. Any other change in the failure set, or that
-    test becoming green, must be explained rather than absorbed. Also paste the specific test asserting
-    the deprecation stub's message and exit code, and the completion-surface assertion showing the
-    E-08 decision (retired noun still completes, or does not) is implemented and tested.
+    (the `-q -n auto` addopts suppress the summary line). BASELINE RE-MEASURED 2026-09-03 AT HEAD
+    `34cefa8b` (F-9): **4099 tests / 0 failed / 0 errors / 7 skipped**, reported by the bare run as
+    `4092 passed, 3 skipped, 4 xfailed`. Review's 2883/1/7 is STALE and must not be compared against.
+    RE-MEASURE THE BASELINE YOURSELF IMMEDIATELY BEFORE STARTING and paste that measurement too, because
+    the suite grew about 42 percent between review and this re-measurement and will keep moving; compare
+    your final run against YOUR OWN pre-change measurement, not against a number written here.
+    DO NOT assert "zero failures" as the invariant either. The invariant is that the failure SET is
+    UNCHANGED, because it is machine-dependent: backlog `agrlvw` measures 15 tests in
+    `tests/test_run_viewer.py` reading gitignored live run data under `.aw/records/runs/`, so they pass on
+    a machine that has run the driver and fail in every fresh clone and in CI. `test_run_viewer_cli_issues_flag`
+    (F-8) is GREEN on this machine at this HEAD, which does NOT mean it was fixed. Paste the set before and
+    after, state that nothing in that file was fixed or adopted, and explain any difference rather than
+    absorbing it. Also paste the specific test asserting the deprecation stub's message and exit code, and
+    the completion-surface assertion showing the E-08 decision (retired noun still completes, or does not)
+    is implemented and tested.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: one concern (collapse the run-inspection naming surface onto `aw runs` and retire
-  the `aw run` noun). The E-items are ordered sub-steps of that one rename: characterize, move,
-  de-duplicate, retire, then reconcile declarations/help/tests. No E-item changes ledger semantics or
-  rendering.
+- Cohesion rationale: one concern (SPLIT the run surface by direction, moving the nine read-only
+  inspection leaves onto `aw runs` while `aw run` survives as the WRITING noun). CORRECTED 2026-09-03: this
+  line previously said the plan retires the `aw run` noun, which the maintainer ruling of 2026-08-31
+  REVERSED (see OQ-03 and E-05); the stale wording contradicted both the title and E-05 and is fixed here
+  rather than left to mislead an executor. The E-items are ordered sub-steps of that one split:
+  characterize, move the viewers, de-duplicate, leave a per-leaf deprecation response on each moved leaf,
+  then reconcile declarations/help/tests. No E-item changes ledger semantics or rendering.
 
 This plan is `to-review` and requires explicit human approval before execution. It is a user-facing
 CLI naming change: even though no production code shells `aw run <sub>` (F-4), a human's muscle memory
@@ -427,22 +455,30 @@ and any personal scripts do, which is exactly why E-05 ships a loud stub instead
 
 Execution contract:
 
-1. Open questions: OQ-01 and OQ-02 are non-blocking and may be executed around; OQ-03 is BLOCKING and
-   must be answered before E-03 is implemented, because it fixes the routing mechanism and the
-   collision rule that E-03 depends on.
+1. Open questions: NO BLOCKING QUESTION REMAINS (corrected 2026-09-03; this item previously still called
+   OQ-03 blocking). OQ-03 was RESOLVED by the maintainer on 2026-08-31, and its ruling is what dissolved
+   the argparse blocker rather than working around it: because only viewers move to `aw runs`, that parser
+   needs no subparsers, so nothing competes with its `targets nargs="*"`. OQ-02 was resolved by the same
+   ruling. OQ-01 remains open, non-blocking, and may be executed around.
 2. Scope fence: touch ONLY the paths in `Scope-Paths`. Do NOT change ledger semantics, storage, or the
-   viewer's rendering; do NOT fix the pre-existing `test_run_viewer_cli_issues_flag` failure (F-8) or the
+   viewer's rendering; do NOT fix any `tests/test_run_viewer.py` failure (F-8/F-9; that file's failures
+   belong to backlog `agrlvw`, not to this rename) or the
    42 undeclared leaves; do NOT edit spec `25kzda`; do NOT touch `.aw/worktrees/*/` lane copies (other
    agents' checkouts). Do not broaden CASUALLY; if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until every out-of-scope path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`, so an unjustified widening is CAUGHT AT THE GATE rather than prevented by halting a run (maintainer ruling 2026-09-01; a scope fence DECLARES, it does not halt). Do NOT edit a sibling plan or this orchestrator, and do NOT reimplement a rule another plan owns.
 3. Honesty rule (HARD MUST): paste the ACTUAL runner output for every named command. A V-item whose
    command was not executed stays `Result: pending`. Report suite counts from `--junitxml` (the repo's
-   `-q -n auto` addopts suppress the summary line) and compare against the corrected baseline of
-   2883 tests / 1 pre-existing failure / 7 skipped.
-4. NO SILENT FORWARDING: E-05 must be a loud, nonzero stub. Do not make `aw run` an invisible alias -
-   silent aliasing is exactly how the E-04 duplicate survived unnoticed.
-5. PRE-EXISTING FAILURE DISCIPLINE: record the single known failure before starting and confirm the
-   failure set is IDENTICAL at the end. A newly green or newly red test in that file must be explained,
-   not absorbed.
+   `-q -n auto` addopts suppress the summary line). BASELINE RE-MEASURED 2026-09-03 AT HEAD `34cefa8b`
+   (F-9): 4099 tests / 0 failed / 7 skipped. Review's 2883/1/7 is stale. Re-measure before starting and
+   compare against your OWN pre-change measurement; run the suite BARE (`python3 -m pytest --junitxml=<f>`)
+   without adding `-n0`, a second `-q`, or `-p no:randomly`.
+4. NO SILENT FORWARDING: each of the NINE MOVED leaves must answer with a loud, nonzero per-leaf
+   deprecation response. Do not make a moved leaf an invisible alias - silent aliasing is exactly how the
+   E-04 duplicate survived unnoticed. (Corrected 2026-09-03: this item said "E-05 must be a loud, nonzero
+   stub" in the singular, from the retired whole-noun-stub design; the noun itself is NOT retired.)
+5. PRE-EXISTING FAILURE DISCIPLINE: capture the failure SET before starting and confirm it is IDENTICAL at
+   the end. Do NOT expect a specific count: the set is machine-dependent (F-9, backlog `agrlvw`), and it is
+   currently EMPTY on this machine at this HEAD while being 15-strong in a fresh clone. A newly green or
+   newly red test in `tests/test_run_viewer.py` must be explained, not absorbed, and not fixed here.
 6. Shared checkout: other agents work concurrently here. Commit only this plan's changed files,
    path-scoped (`git commit -m msg -- <path>`); verify with `git diff --cached --name-only` before each
    commit; never `git add -A`/bare/`-a`; never push; never `--no-verify`.
