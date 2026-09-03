@@ -144,7 +144,7 @@ Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 
 ## findidx
 
-- `e32j35` [pending] 01 pending/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md
+- `e32j35` [superseded] 01 superseded/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md
 
 ## fullauto
 

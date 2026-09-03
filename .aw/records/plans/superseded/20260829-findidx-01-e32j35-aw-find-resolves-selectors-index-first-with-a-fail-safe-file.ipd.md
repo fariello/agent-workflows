@@ -1,3 +1,32 @@
+RETIRED 2026-09-03: retiring PARTIALLY LANDED, superseded by backlog item `f8m2z2`
+(`.aw/records/backlog/open/20260901-findtwotier-01-f8m2z2-re-author-aw-find-as-two-tier-filesystem-first.backlog.md`)
+at the maintainer's direction. This plan's INDEX-FIRST premise was displaced by the maintainer AFTER
+approval, in `faf2e18b`, whose own words are that this plan "needs re-authoring, not just re-approval";
+backlog `ila6vl` (untrack the INDEX manifests) cites the same re-scope as having removed the speed
+argument. So E-01 (the freshness sidecar), E-02 (the directory fingerprint), and E-04 (the index-backed
+resolver) were WITHDRAWN unexecuted rather than built against a displaced premise, and V-01/V-02/V-04
+carry `blocked` for that reason. It is therefore NOT filed under `executed/`: the plan's headline
+deliverable was never implemented, and claiming otherwise would be false.
+
+WHAT DID LAND, and stays on `main` unaffected by this retirement (commit `b3233960`, merged `1a41cab4`):
+E-05's `selectors._iter_paths`, a text-free enumeration sharing ONE traversal with the header-reading
+view; E-03's `Status:` regex parity constraint, pinned as cross-reference comments at BOTH regexes with
+tests that fail if they are ever "harmonized"; and E-06's documented exclusion of the research type,
+whose YAML front matter the bullet-oriented selectors cannot read.
+
+WHY V-05 READS `failed` RATHER THAN `pass`, preserved because it is a finding and not a concession: the
+plan required that a stem or substring QUERY open zero record files, and that is unreachable while
+`_PRECEDENCE` stays frozen. `stem` and `substring` sit LAST, so the resolver must first establish that
+`setid` and `status` did not match, and both live in front matter. A token can legitimately be both a Set
+id and a filename fragment, so short-circuiting would change which record a selector resolves to, which
+the plan's own contract forbids. The executor recorded the actual failing output rather than reporting a
+pass.
+
+SUCCESSORS, so nothing is silently dropped: `f8m2z2` carries the two-tier (filesystem-first) re-authoring
+together with the maintainer's mandatory-fallback measurements; `05aqbj` carries the research
+front-matter dialect gap E-06 documented. This plan carried no `Blocks-Release` gate, so none is
+transferred. Retired, not deleted.
+
 # IPD: aw find resolves selectors index-first with a fail-safe filesystem fallback, so it stops reading record bodies
 
 - Date: 2026-08-29
@@ -6,15 +35,15 @@
 - Scope: Make selector resolution INDEX-FIRST with a FAIL-SAFE FILESYSTEM FALLBACK, never index-only, for the PLANS type (the one indexed type whose index is semantically parity-capable; see Deferred for research). Resolve MATCH_ID6/MATCH_SETID/MATCH_STATUS from the index when it is trustworthy; if the index is missing, unparseable, or judged stale, fall back to today's bounded-header filesystem scan and still return the correct answer. MATCH_PATH/MATCH_STEM/MATCH_SUBSTRING already need no file contents (they match on the path/filename) and must stop being fed file text at all. Add the staleness signal the index currently lacks so 'is the index trustworthy?' is a cheap deterministic check rather than a guess. Out of scope: changing what `aw find` MATCHES (precedence and semantics are frozen, and PARITY between the index path and the fallback path is the hard invariant), changing `aw search`, the CLI display layer's own re-scan, and building indexes for the eight types that do not have one.
 - Scope-Paths: agent_workflows/selectors.py, agent_workflows/plans_index.py, tests/, .aw/records/plans/README.md, .gitignore, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: approved
+- Status: superseded
 - Set: findidx
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: e32j35
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-03 superseded (opencode its_direct/pt3-claude-opus-5-1m-us): RETIRED partially-landed and superseded by backlog f8m2z2 at the maintainer's direction: the index-first premise was displaced by faf2e18b AFTER approval, so E-01/E-02/E-04 were withdrawn unexecuted and the plan cannot be honestly called executed. What landed (selectors._iter_paths, the Status-regex parity constraint, the research dialect exclusion) stays on main via b3233960. V-05 remains 'failed' by design: a stem/substring query cannot reach zero opens while precedence is frozen.
 - 2026-09-01 partially-executed (opencode its_direct/pt3-claude-opus-5-1m-us): PARTIAL EXECUTION; plan stays in `pending/` and is NOT claimed executed. PERFORMED E-03 (documentation half), E-05, E-06. WITHDRAWN unexecuted: E-01, E-02, E-04, whose index-first premise the maintainer displaced in `faf2e18b` AFTER approval - that commit's own words are that this plan "needs re-authoring, not just re-approval", and backlog `ila6vl` (a separate maintainer decision to untrack the INDEX manifests) cites the same re-scope as having removed the speed argument. Building them would have added a freshness primitive the maintainer called unnecessary, using a fingerprint the maintainer recorded as blind to a routine drift mode, over manifests slated to be untracked. FINDING, proven not conceded: E-05's expected outcome ("a stem or substring query opens zero record files") is UNREACHABLE while precedence stays frozen, because `stem`/`substring` sit last and the resolver must first prove `setid`/`status` lost, which requires front matter; a token can be both a Set id and a filename fragment, so short-circuiting would change which record wins. V-05 is therefore recorded `failed` with the actual failing output rather than reported as a pass. DELIVERED: `selectors._iter_paths`, a text-free enumeration sharing ONE traversal with the header-reading view (a first version walked twice, 83.2ms vs a 50.6ms baseline; now 46.9ms, guarded by a test asserting opens == distinct opens); the `Status:` parity constraint pinned as cross-reference comments at both regexes with tests that fail if they are harmonized; the research YAML-vs-bullet dialect exclusion documented in the module docstring. FILED: backlog `05aqbj` (research dialect gap) and `f8m2z2` (the two-tier re-authoring, carrying the maintainer's mandatory-fallback measurements and both added requirements). HONESTY NOTE: `aw find` has NOT stopped reading record files - end-to-end `aw find plans e32j35` still makes 938 opens across 469 distinct files, because the display layer's unbounded scan is out of scope and remains. Full suite 4006 passed / 3 skipped / 4 xfailed with 32 failures BYTE-IDENTICAL to the pristine baseline (3972 passed, same 32, all environmental: `AW_EXECUTION_ROLE=worker` and a missing `.aw/records/runs` in the lane). `aw check all` 103 findings before and after, zero introduced; `aw sanitize --agent` clean. `aw ipd lint --phase pre-transition` correctly reports error on the withdrawn items, which is why no terminal transition was attempted. RECOMMENDATION FOR THE MAINTAINER: supersede this plan in favour of the `f8m2z2` re-authoring.
 - 2026-08-30 approved (aw set): status set to approved
 - 2026-08-29 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-007 (5 blockers) fixed in place; OQ-03 open (blocking, maintainer scope call)
