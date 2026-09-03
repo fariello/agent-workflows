@@ -1,5 +1,5 @@
 - Id: xvx8ez
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: runorder
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw oc run A B silently executes B first (typed order recorded as position but sorted LAST, so setid decides alphabetically); honor the typed order AND announce any dependency-caused reordering loudly, naming both orders and the causing edge
 
 ## Workflow history
+- 2026-09-03 graduated (aw set): Graduated to plan prpipy (runorder-01, to-review), which carries From-Backlog: xvx8ez and inherits Blocks-Release: next so the release gate is preserved through the handoff. The maintainer's 2026-09-01 ruling is implemented rather than reopened: move position above setid in the one shared queue_sort_key (dependency_depth stays FIRST so a declared edge still wins), plus the mandatory second half, announcing every reordering with both orders and the per-item cause. FOUR THINGS VERIFIED AT AUTHORING: agy_runipd.queue_sort_key IS the same object (one edit, both drivers); an EXISTING test will invert (test_set_order_still_breaks_ties_among_equally_ready_nodes, which must be inverted with its reason recorded, never deleted); the preview bug is confirmed at source (print_status applies no sort, so --prepare-only shows position order); and a NEW finding the item lacked, that ordering is computed BEFORE status is consulted, so a mixed to-review/approved queue interleaves reviews and code execution, and a review-only item is still ranked by a dependency depth that does not apply to it. That last one is recorded as F-7 and deliberately NOT fixed inside prpipy.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-09-01. The maintainer ran `aw oc run m73aet 6lu3rq`, meaning "run m73aet BEFORE 6lu3rq".

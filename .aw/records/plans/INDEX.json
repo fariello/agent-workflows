@@ -4434,6 +4434,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md",
+    "plan_id": "prpipy",
+    "set_id": "runorder",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-03",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md",
     "plan_id": "2r306y",
     "set_id": "rununify",

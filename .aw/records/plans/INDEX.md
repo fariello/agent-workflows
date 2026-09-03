@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 202 Sets; the full manifest is INDEX.json.
+
+## runorder
+
+- `prpipy` [pending] 01 pending/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md
 
 ## rununify
 
@@ -182,10 +186,6 @@ Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 ## promptmint
 
 - `jxqdcw` [executed] 01 executed/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
-
-## reposcfg
-
-- `8h9lap` [executed] 01 executed/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md
 
 ## (singletons: no Set)
 
