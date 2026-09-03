@@ -4,6 +4,12 @@
 
 Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 
+## rununify
+
+- `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
+- `2r306y` [pending] 01 pending/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md
+- `818uru` [pending] 02 pending/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md
+
 ## ctlroot
 
 - `eulhzt` [pending] 01 pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
@@ -180,13 +186,6 @@ Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 ## reposcfg
 
 - `8h9lap` [executed] 01 executed/20260829-reposcfg-01-8h9lap-migrate-user-config-schema-to-nested-repos-hierarchy-with-au.ipd.md
-
-## revgate
-
-- `15zvu6` [executed] 01 executed/20260829-revgate-01-15zvu6-typed-review-findings-artifact-review-facet-and-the-findings.ipd.md
-- `plqjt7` [executed] 02 executed/20260829-revgate-02-plqjt7-unfixed-findings-at-or-above-the-threshold-must-carry-a-bloc.ipd.md
-- `7nkcgp` [executed] 03 executed/20260829-revgate-03-7nkcgp-block-dependents-of-a-plan-carrying-unresolved-gating-findin.ipd.md
-- `c621h9` [executed] 04 executed/20260829-revgate-04-c621h9-record-self-resolved-decisions-in-the-review-artifact-so-a-w.ipd.md
 
 ## (singletons: no Set)
 
