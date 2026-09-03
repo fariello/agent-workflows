@@ -3644,6 +3644,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md",
+    "plan_id": "97df1z",
+    "set_id": "fullauto",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md",
     "plan_id": "rygds7",
     "set_id": "gatestale",
@@ -4157,16 +4167,6 @@
     "path": "pending/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md",
     "plan_id": "e32j35",
     "set_id": "findidx",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md",
-    "plan_id": "97df1z",
-    "set_id": "fullauto",
     "status": "approved"
   },
   {

@@ -148,7 +148,7 @@ Showing the 40 most-recent of 201 Sets; the full manifest is INDEX.json.
 
 ## fullauto
 
-- `97df1z` [pending] 01 pending/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
+- `97df1z` [executed] 01 executed/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
 
 ## gatestale
 
