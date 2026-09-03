@@ -1,12 +1,13 @@
 - Id: 05aqbj
 - Status: open
+- Blocks-Release: next
 - Set: selfmdialect
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw find is blind to research YAML front matter: research id6/status/set resolve by FILENAME only, so a status query returns 5 files where the index holds 52
 
 ## Workflow history
-- 2026-09-01 created (aw backlog): filed by IPD e32j35 E-06: the selector understands only the bullet front-matter dialect
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 FILED BY IPD `e32j35` E-06, which was narrowed to documentation precisely because closing this gap
 CHANGES RESULTS and is therefore a semantic decision the maintainer should make, not a side effect of

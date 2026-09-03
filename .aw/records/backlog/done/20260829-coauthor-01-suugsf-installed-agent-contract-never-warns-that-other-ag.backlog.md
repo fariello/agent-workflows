@@ -1,11 +1,12 @@
 - Id: suugsf
-- Status: graduated
+- Status: done
 - Set: coauthor
 - Priority: high
 - Work-Kind: bug
 - Summary: installed agent contract never warns that other agents or humans share the checkout, so agents sweep others' uncommitted work into their own commits
 
 ## Workflow history
+- 2026-09-03 done (aw set): Closing done: the graduated design SHIPPED. Plan a5ni7v (From-Backlog: suugsf) is in executed/, so the fix is on main and the item was only still 'graduated' because nobody closed it. Found during the 2026-09-03 all-bugs-block-release audit; closed rather than gated, since gating a shipped fix would record a release blocker for finished work.
 - 2026-08-29 graduated (aw set): Graduated to plan a5ni7v (review-ready).
 - 2026-08-29 created (aw backlog): installed agent contract never warns that other agents/humans share the checkout; agents sweep others' uncommitted work into their commits (observed: Gemini under agy committed another session's run_viewer.py edits)
 

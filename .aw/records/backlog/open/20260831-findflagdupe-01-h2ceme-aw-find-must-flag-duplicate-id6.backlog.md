@@ -1,12 +1,13 @@
 - Id: h2ceme
 - Status: open
+- Blocks-Release: next
 - Set: findflagdupe
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw find renders a duplicate id6 as an ordinary multi-result list with exit 0, bypassing the resolver's own UNIQUE_KINDS collision policy; it must flag the violation and name the remedy
 
 ## Workflow history
-- 2026-08-31 created (aw backlog): aw find renders a duplicate id6 as an ordinary multi-result list with exit 0, bypassing the resolver's own UNIQUE_KINDS collision policy; it must flag the violation and name the remedy
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-08-31, maintainer-requested. `aw find` presents a duplicate id6 as an ordinary
 multi-result answer, so the surface an operator uses to LOOK UP an artifact is also the surface most

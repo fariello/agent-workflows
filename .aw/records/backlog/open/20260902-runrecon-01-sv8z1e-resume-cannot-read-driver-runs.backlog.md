@@ -1,12 +1,13 @@
 - Id: sv8z1e
 - Status: open
+- Blocks-Release: next
 - Set: runrecon
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw run resume cannot recover a crashed driver run: it resolves a run id only to ledger.jsonl while both drivers write events.jsonl, so the one verb named for interrupted-run recovery is unusable on the runs that actually crash
 
 ## Workflow history
-- 2026-09-02 created (aw backlog): aw run resume cannot recover a crashed driver run: it resolves a run id only to ledger.jsonl while both drivers write events.jsonl, so the one verb named for interrupted-run recovery is unusable on the runs that actually crash
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-09-02, while trying to recover `run-20260902T013603Z-1758564` after a server reboot killed
 the driver mid-turn (see sibling item in Set `runrecon` for the crash and its evidence).

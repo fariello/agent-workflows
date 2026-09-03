@@ -1,12 +1,13 @@
 - Id: ydbhfd
 - Status: open
+- Blocks-Release: next
 - Set: runrecon
 - Priority: high
 - Work-Kind: bug
 - Summary: aw runs reports abandoned? for a crashed driver step whose outcome file on disk already records the real disposition: run_viewer flips running -> abandoned? on a dead lock holder without ever reading outcomes/*.json
 
 ## Workflow history
-- 2026-09-02 created (aw backlog): aw runs reports abandoned? for a crashed driver step whose outcome file on disk already records the real disposition: run_viewer flips running -> abandoned? on a dead lock holder without ever reading outcomes/*.json
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-09-02 by the maintainer, after `aw oc run e32j35 97df1z` was killed by a server + network
 reboot mid-run. `aw runs -l` reported:

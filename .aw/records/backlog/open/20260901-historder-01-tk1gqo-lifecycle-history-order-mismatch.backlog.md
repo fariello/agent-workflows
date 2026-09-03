@@ -1,12 +1,13 @@
 - Id: tk1gqo
 - Status: open
+- Blocks-Release: next
 - Set: historder
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw check reports check.lifecycle-transition-invalid on conformant plans: _plan_status_events reverses inline history on a newest-first assumption while the repo's actual convention is oldest-first (9 diagnostics repo-wide, incl. approved plans)
 
 ## Workflow history
-- 2026-09-01 created (aw backlog): aw check reports check.lifecycle-transition-invalid on conformant plans: _plan_status_events reverses inline history on a newest-first assumption while the repo's actual convention is oldest-first (9 diagnostics repo-wide, incl. approved plans)
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 FOUND during `/aw plan-review` of Set `wslayout` (review record
 `.aw/records/reviews/20260901-wslayout-00-rh5tt6-...review.md`, finding PR-009). Filed rather than worked

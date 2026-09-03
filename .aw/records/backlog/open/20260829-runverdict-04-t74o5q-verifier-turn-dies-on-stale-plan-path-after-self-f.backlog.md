@@ -1,12 +1,13 @@
 - Id: t74o5q
 - Status: open
+- Blocks-Release: next
 - Set: runverdict
 - Priority: high
 - Work-Kind: bug
 - Summary: 40% of verifier turns never ran: self-finalize moves the plan pending/ -> executed/ before the verifier launches, the verify prompt still cites the pending/ path, and opencode exits instantly with 'File not found' leaving verification silently skipped
 
 ## Workflow history
-- 2026-08-29 created (aw backlog): Found while assessing wyw936: 23 of 57 recorded verify turns produced a ~190-byte log containing only 'Error: File not found: .../pending/<plan>.ipd.md' and no outcome file. Distinct from wyw936 (verdict mapping); this one skips verification entirely.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the verifier turn is handed a plan path that a PRECEDING step in the
 same turn already invalidated. `aw ipd finalize` moves the plan `pending/` -> `executed/`, but the

@@ -1,11 +1,12 @@
 - Id: l670yn
-- Status: graduated
+- Status: done
 - Set: runstale
 - Priority: high
 - Work-Kind: bug
 - Summary: aw runs shows a dead run's item as 'running' forever (no read-time liveness check) and an interrupted driver never writes a terminal status
 
 ## Workflow history
+- 2026-09-03 done (aw set): Closing done: the graduated design SHIPPED. Plan ssk6nf (From-Backlog: l670yn) is in executed/, carrying Bug A's read-time liveness projection; Bug B was cross-referenced at graduation to spec c4gd2h and plans 2ouj70/71vjbn, which already own it and are themselves executed. Found during the 2026-09-03 all-bugs-block-release audit; closed rather than gated, since gating a shipped fix would record a release blocker for finished work.
 - 2026-08-29 graduated (aw set): Bug A graduated to plan ssk6nf (review-ready). Bug B cross-referenced to spec c4gd2h and plans 2ouj70/71vjbn, which already own it.
 - 2026-08-29 created (aw backlog): aw runs reports a dead run's item as 'running' forever: reconcile_interrupted is called only from run_queue (resume), so no read path checks driver liveness; and an interrupted driver never writes a terminal status because it installs no SIGINT/SIGTERM handler and leaves driver.lock holding a dead PID
 

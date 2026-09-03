@@ -1,12 +1,13 @@
 - Id: gjadwm
 - Status: open
+- Blocks-Release: next
 - Set: gatejrnl
 - Priority: medium
 - Work-Kind: bug
 - Summary: executed-transition pre-commit gate false-positives on any follow-up commit to a legitimately finalized plan, because the finalize journal it looks for is deleted on success
 
 ## Workflow history
-- 2026-08-30 created (aw backlog): executed-transition pre-commit gate false-positives on any follow-up commit to a legitimately finalized plan, because the finalize journal it looks for is deleted on success
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-08-30, twice, in two different shapes.
 

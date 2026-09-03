@@ -1,12 +1,13 @@
 - Id: wx95o4
 - Status: open
+- Blocks-Release: next
 - Set: id6global
 - Priority: medium
 - Work-Kind: bug
 - Summary: id6 is minted per-tree not globally, D140's identity-slot rule cannot catch a walkthrough that DECLARES a plan's id6, and the cross-type collision rule only runs in the full sweep
 
 ## Workflow history
-- 2026-08-31 created (aw backlog): id6 is minted per-tree not globally, D140's identity-slot rule cannot catch a walkthrough that DECLARES a plan's id6, and the cross-type collision rule only runs in the full sweep
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-08-31, and it produced a REAL violation in this session rather than being theoretical.
 

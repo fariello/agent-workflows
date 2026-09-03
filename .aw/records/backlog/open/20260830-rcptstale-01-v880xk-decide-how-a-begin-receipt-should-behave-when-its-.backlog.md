@@ -1,12 +1,13 @@
 - Id: v880xk
 - Status: open
+- Blocks-Release: next
 - Set: rcptstale
 - Priority: medium
 - Work-Kind: bug
 - Summary: Decide how a begin receipt should behave when its frozen base goes stale: scope-drift emits ~1000 findings for plans that are not actually drifting
 
 ## Workflow history
-- 2026-08-30 created (aw backlog): Decide how a begin receipt should behave when its frozen base goes stale: scope-drift emits ~1000 findings for plans that are not actually drifting
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 THIS ITEM IS AN EXPLORATION, NOT A FIX. Do not graduate it into a plan that implements receipt
 expiration. The maintainer explicitly declined that as the presumed answer, and the reason is recorded

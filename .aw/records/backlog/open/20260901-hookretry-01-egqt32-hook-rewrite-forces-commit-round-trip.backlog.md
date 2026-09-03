@@ -1,12 +1,13 @@
 - Id: egqt32
 - Status: open
+- Blocks-Release: next
 - Set: hookretry
 - Priority: medium
 - Work-Kind: bug
 - Summary: A mutating pre-commit hook (whitespace/eof fixer, formatter) rewrites a staged file and rejects, and offer_commit unstages and exits 1 instead of re-staging, so routine whitespace churn costs every agent a full commit round trip plus a mandated index re-verify
 
 ## Workflow history
-- 2026-09-01 created (aw backlog): A mutating pre-commit hook (whitespace/eof fixer, formatter) rewrites a staged file and rejects, and offer_commit unstages and exits 1 instead of re-staging, so routine whitespace churn costs every agent a full commit round trip plus a mandated index re-verify
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED (maintainer, 2026-09-01): "it seems that the commit hook ALWAYS removed some whitespace and
 you \"by contract\" need to re-verify. That seems extremely wasteful. How do we make it so this does not

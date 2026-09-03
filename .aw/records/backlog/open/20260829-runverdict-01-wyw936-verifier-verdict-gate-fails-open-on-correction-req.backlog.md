@@ -1,12 +1,13 @@
 - Id: wyw936
 - Status: open
+- Blocks-Release: next
 - Set: runverdict
 - Priority: high
 - Work-Kind: bug
 - Summary: Both runners' verifier gate fails OPEN: only BLOCKED/NOT CONFORMING downgrade, so the schema's own CORRECTION_REQUIRED verdict (and any typo/empty/garbage) is recorded 'verified' and proceeds to finalize+merge
 
 ## Workflow history
-- 2026-08-29 created (aw backlog): Found auditing 28 verification outcomes across 63 runs: 28/28 VERIFIED, 0 rejections ever. The gate cannot express the rejection the prompt asks for. verify_roles.py already defines the correct correction_required transitions but neither runner imports it.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the verifier PROMPT asks for a three-value verdict, but the GATE that
 consumes it can only express two outcomes, and its fallback is the permissive one. `build_verifier_prompt`

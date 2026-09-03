@@ -1,12 +1,13 @@
 - Id: vlf75p
 - Status: open
+- Blocks-Release: next
 - Set: runverdict
 - Priority: high
 - Work-Kind: bug
 - Summary: Run records cannot attribute a turn to a model or price it: state.json records model=null and 0 of 9757 cost-bearing steps carry a modelID, while the rate card that produced the recorded costs lives only in the user's opencode.json outside the repo
 
 ## Workflow history
-- 2026-08-29 created (aw backlog): Found while trying to answer 'how does validation do under Opus 5' from the run record. It is not answerable: per-model attribution had to be reconstructed by grepping model strings that appear only because the agent typed them into an --actor argument.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the run record captures per-step COST but neither the MODEL that
 incurred it nor the RATE CARD that priced it, so a recorded dollar figure cannot be attributed or

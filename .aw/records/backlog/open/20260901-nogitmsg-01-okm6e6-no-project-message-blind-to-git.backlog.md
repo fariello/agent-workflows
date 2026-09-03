@@ -1,12 +1,13 @@
 - Id: okm6e6
 - Status: open
+- Blocks-Release: next
 - Set: nogitmsg
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw attention's no-project message never checks whether cwd is a git repo, so it reports where it looked but cannot offer the install that would fix it
 
 ## Workflow history
-- 2026-09-01 created (aw backlog): aw attention's no-project message never checks whether cwd is a git repo, so it reports where it looked but cannot offer the install that would fix it
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED (maintainer, 2026-09-01), run in a git repo with no AW layout:
 

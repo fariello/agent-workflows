@@ -1,13 +1,13 @@
 - Id: xvx8ez
 - Status: open
+- Blocks-Release: next
 - Set: runorder
 - Priority: high
 - Work-Kind: bug
 - Summary: aw oc run A B silently executes B first (typed order recorded as position but sorted LAST, so setid decides alphabetically); honor the typed order AND announce any dependency-caused reordering loudly, naming both orders and the causing edge
 
 ## Workflow history
-- 2026-09-01 decided (opencode/its_direct/pt3-claude-opus-5-1m-us, on the maintainer's call): TWO rulings recorded. (1) HONOR THE TYPED ORDER: move `position` above `setid` in the shared `queue_sort_key`. Safe because `dependency_depth` stays FIRST, so a declared edge still beats a typed sequence and spec 5.4 rule 5 is preserved. Chosen over detecting explicit-vs-expanded selections, because measurement showed the typed order is only meaningful for small explicit lists and is a no-op for large selector expansions (observed runs of 7 and 12 items across 5-6 Sets), so the extra durable state would buy nothing. (2) ANNOUNCE ANY DEPENDENCY-CAUSED REORDERING LOUDLY, possibly interactively, naming BOTH orders and the CAUSING EDGE per moved item, so a declared prerequisite is distinguishable from an arbitrary tiebreak. Measured gaps recorded: the driver announces NOTHING about ordering today (greps return only comments), and `--prepare-only` would NOT have helped because `print_status` renders POSITION order, so a pre-flight preview tonight would have shown 01 m73aet / 02 6lu3rq and still run 6lu3rq first. HARD CONSTRAINT recorded for the interactive part: never prompt where a child can inherit the TTY - `oc_runipd.py:711-715` records a nested `aw` wedging a finalize for 1h49m that way (backlog v1ex5z / ttywedge g40w37), which is why children get stdin=DEVNULL; the confirmation must live in the DRIVER before the first child spawns and must degrade to a printed warning with no TTY, so an unattended run never blocks.
-- 2026-09-01 created (aw backlog): aw oc run A B silently executes B first: the operator's typed order is recorded as position but sorted LAST, so setid decides alphabetically and a documented prerequisite ordering can be inverted without warning
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-09-01. The maintainer ran `aw oc run m73aet 6lu3rq`, meaning "run m73aet BEFORE 6lu3rq".
 The runner executed 6lu3rq FIRST. The command-line order is recorded correctly and then discarded at

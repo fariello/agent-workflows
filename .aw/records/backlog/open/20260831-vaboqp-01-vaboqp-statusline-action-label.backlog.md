@@ -1,12 +1,13 @@
 - Id: vaboqp
 - Status: open
+- Blocks-Release: next
 - Set: vaboqp
 - Priority: medium
 - Work-Kind: bug
 - Summary: runner statusline always shows Review: both drivers derive the action label from a queue status that is never approved/to-review
 
 ## Workflow history
-- 2026-08-31 created (aw backlog): runner statusline always shows Review: both drivers derive the action label from a queue status that is never approved/to-review
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED by the maintainer during a live run of y6mfgo (run-20260831T153226Z-3424176), an EXECUTE run whose statusline read `Review IPD` for its whole duration.
 

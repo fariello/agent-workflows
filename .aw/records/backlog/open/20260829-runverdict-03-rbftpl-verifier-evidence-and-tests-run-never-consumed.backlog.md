@@ -1,12 +1,13 @@
 - Id: rbftpl
 - Status: open
+- Blocks-Release: next
 - Set: runverdict
 - Priority: medium
 - Work-Kind: bug
 - Summary: The runner reads only 'verdict' from the verification outcome: the substantive evidence/tests_run/corrections_made fields all 28 verifiers populated are written, committed, and then ignored by every gate
 
 ## Workflow history
-- 2026-08-29 created (aw backlog): Corrected an earlier assumption during the audit: all 28 outcomes DO populate evidence and tests_run (one even recorded mutation testing). The defect is on the consuming side, not the producing side: grep shows v_data.get is called for 'verdict' only.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the verifier outcome schema requests five fields, the verifiers fill
 them in substantively, and the runner reads exactly ONE. `build_verifier_prompt` asks for

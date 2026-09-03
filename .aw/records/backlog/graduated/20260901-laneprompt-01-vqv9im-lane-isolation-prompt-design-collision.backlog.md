@@ -1,13 +1,13 @@
 - Id: vqv9im
 - Status: graduated
+- Blocks-Release: next
 - Set: laneprompt
 - Priority: high
 - Work-Kind: bug
 - Summary: Decide which lane-isolation prompt design survives: main's absolute-path exception vs qcqhj7's lane-relative contract, then re-scope or retire wtiso Phase 1
 
 ## Workflow history
-- 2026-09-01 graduated (aw set): DECIDED by the maintainer 2026-09-01: the LANE-SIDE design wins; an isolated worker is handed NO absolute path outside its lane, and main's 'these absolute paths are legitimate exceptions' framing is retired. Settled by direct measurement rather than argument: building a real isolated prompt from each side gives MAIN 5 absolute out-of-lane paths (the plan file, the run dir, the decisions register, the report, and the outcome JSON) versus LANE 0 of any kind. Corroborated by main's own docstring recording run-20260831T153226Z-3424176, where an agent read ../../../DECISIONS.md and committed 18 files into MAIN despite --dir <lane>. CRITICAL SCOPE CORRECTION recorded on the item: this does NOT mean merge aw/lane/qcqhj7. The lane predates a large amount of main-side work and does not contain it (runner_stop main 73 refs vs lane 0; also stall_progress, Statusline, _apply_execution_profile, build_isolation_notice), so a wholesale merge would destroy the entire runstop Set just verified in zpbx7o. The resolution is a PORT of the lane's ~516-line prompt-isolation section onto current main, keeping every main-side mechanism. The item enumerates exactly what must move, including harvest_lane_submissions, which is the other half of the loop and the reason a naive port fails: without it an obedient worker's outcome is written lane-side, never found by reconcile_disposition, scored from the empty-outcome fallback, and silently never finalized. Also names the four qyaime defenses main lacks entirely (external_directory/question deny with policy read-back, TurnBounds, is_meaningful_event, detect_permission_request) that must not be dropped. Graduated rather than done: the design is settled and handed off, no code has moved.
-- 2026-09-01 created (aw backlog): Filed after 6knsrx's E-01 stop condition FIRED during a phase-by-phase landing attempt: Phase 1's conflict surface differs from the plan's map AND one conflict is a competing design, not drift. Nothing was merged. Carries the maintainer's stated preference against absolute paths, the measured conflict counts, the y6mfgo evidence that the exception misleads agents in practice, and the five qyaime defenses main lacks that must be re-homed if Phase 1 is retired.
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the fix is not on main, so the item now carries Blocks-Release: next explicitly rather than relying on a successor plan to carry it.
 
 DECIDE which lane-isolation prompt design survives, then re-scope or retire wtiso Phase 1
 (`qcqhj7`). This blocks landing the rest of the `wtiso` stack; it does NOT block `i452hf`, which was

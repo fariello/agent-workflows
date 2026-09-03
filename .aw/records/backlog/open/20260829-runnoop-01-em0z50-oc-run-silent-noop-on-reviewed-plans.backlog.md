@@ -1,12 +1,13 @@
 - Id: em0z50
 - Status: open
+- Blocks-Release: next
 - Set: runnoop
 - Priority: high
 - Work-Kind: bug
 - Summary: aw oc run silently skips matched artifacts with no per-artifact reason and no end-of-run disposition summary (surfaced by reviewed plans counting as SUCCESS_STATES: 8/8 skipped, zero output explaining why)
 
 ## Workflow history
-- 2026-08-29 created (aw backlog): aw oc run silently no-ops on reviewed plans: 'reviewed' is in SUCCESS_STATES so every step counts as already-succeeded (attempts 0) while routing to action=execute, and the driver prints no reason - no 'nothing to run / approve first' notice
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-08-29: 'aw oc run wtiso' with all 8 wtiso plans at Status: reviewed. Output was ONLY the run id, the state dir, and 'No OpenCode session was captured for this run.' The run dir WAS created (unlike i2fjf8) and 'aw runs <id>' shows '8 steps: 8 reviewed' with action=execute, Attempts: 0 for every row, an empty outcomes/, and a single 'run-created' event. Nothing was attempted and nothing explained why.
 

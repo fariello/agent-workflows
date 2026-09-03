@@ -1,12 +1,13 @@
 - Id: i2fjf8
 - Status: open
+- Blocks-Release: next
 - Set: runghostid
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw oc run on a no-op selector (e.g. a to-review orchestrator with no runnable children) prints a resume hint for a run-id it never persisted (no run dir written), so the run appears to have started and be resumable when it did not exist
 
 ## Workflow history
-- 2026-08-28 created (aw backlog): aw oc run on a no-op selector (e.g. a to-review orchestrator with no runnable children) prints a resume hint for a run-id it never persisted (no run dir written), so the run appears to have started and be resumable when it did not exist
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 Observed 2026-08-28: `aw oc run 20260827-driverfin-00-yt93ir` (naming only the Order-00 orchestrator, whose children are `reviewed` not `approved` and were not in the queue) printed:
 ```

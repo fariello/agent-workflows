@@ -1,12 +1,13 @@
 - Id: wwdm4g
 - Status: open
+- Blocks-Release: next
 - Set: actorparen
 - Priority: medium
 - Work-Kind: bug
 - Summary: A parenthesized actor breaks the IPD-S406 history regex, so finalize commits the lifecycle transition then refuses post-transition validation
 
 ## Workflow history
-- 2026-08-30 created (aw backlog): A parenthesized actor breaks the IPD-S406 history regex, so finalize commits the lifecycle transition then refuses post-transition validation
+- 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED TWICE ON 2026-08-30, independently, by two different agents. That is what makes it worth
 filing rather than shrugging at: it is not one agent's typo, it is a shape the tooling invites and the
