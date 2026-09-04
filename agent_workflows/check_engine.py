@@ -1981,6 +1981,20 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
     repo_root = Path(repo_root)
     from agent_workflows import backlog as _backlog
 
+    # Build the plan handoff index once. Calling `find_from_backlog_plans` for every
+    # open blocker re-walked the complete plans tree per item, even when no warning
+    # existed. The warning needs only a source backlog id6 and its inherited release
+    # gate, so this index preserves its plan-only semantics without the repeated scans.
+    plan_gates_by_backlog: Dict[str, set[str]] = {}
+    for _p, text in _iter_plan_ipds(repo_root):
+        mfb = _META_FROM_BACKLOG_RE.search(text)
+        if not mfb:
+            continue
+        mbr = _META_BLOCKS_RELEASE_RE.search(text)
+        plan_gates_by_backlog.setdefault(mfb.group(1), set()).add(
+            mbr.group(1) if mbr else ""
+        )
+
     warnings: List[_core.Drift] = []
     for f in _backlog._iter_items(repo_root):
         if f.parent.name != "open":
@@ -1993,21 +2007,19 @@ def release_gate_warnings(repo_root: Path) -> List[_core.Drift]:
         mid = _ITEM_ID_RE.search(text)
         if not mbr or not mid:
             continue
-        for _p, plan_br in find_from_backlog_plans(repo_root, mid.group(1)):
-            if plan_br == mbr.group(1):
-                _id6 = mid.group(1)
-                warnings.append(
-                    _core.Drift(
-                        str(f),
-                        "check.orphaned-live-blocker",
-                        (
-                            "an open release-blocking item is already graduated to a From-Backlog "
-                            "plan; close it `done` (the gate is preserved via handoff).\n"
-                            f"    Fix: aw backlog set done {_id6}"
-                        ),
-                    )
+        _id6 = mid.group(1)
+        if mbr.group(1) in plan_gates_by_backlog.get(_id6, set()):
+            warnings.append(
+                _core.Drift(
+                    str(f),
+                    "check.orphaned-live-blocker",
+                    (
+                        "an open release-blocking item is already graduated to a From-Backlog "
+                        "plan; close it `done` (the gate is preserved via handoff).\n"
+                        f"    Fix: aw backlog set done {_id6}"
+                    ),
                 )
-                break
+            )
     return warnings
 
 

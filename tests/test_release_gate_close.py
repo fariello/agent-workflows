@@ -20,6 +20,7 @@ import io
 import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
+from unittest.mock import patch
 from pathlib import Path
 
 from agent_workflows import backlog as B
@@ -427,6 +428,32 @@ class WarnSurfaceTests(unittest.TestCase):
         warns = CE.release_gate_warnings(self.root)
         w = next(d for d in warns if d.rule == "check.orphaned-live-blocker")
         self.assertIn("Fix: aw backlog set done aaa111", w.detail)
+
+    def test_multiple_blockers_build_one_plan_handoff_index(self):
+        """The advisory warning path scans plans once, not once per open blocker."""
+        _write_item(self.root, "aaa111", status="open", blocks_release="next")
+        _write_item(self.root, "bbb222", status="open", blocks_release="release2")
+        _write_item(self.root, "ccc333", status="open", blocks_release="next")
+        _write_plan(self.root, "pl0001", from_backlog="aaa111", blocks_release="next")
+        _write_plan(
+            self.root, "pl0002", from_backlog="bbb222", blocks_release="different"
+        )
+
+        real_iter = CE._iter_plan_ipds
+        calls = 0
+
+        def counted_iter(repo_root):
+            nonlocal calls
+            calls += 1
+            yield from real_iter(repo_root)
+
+        with patch.object(CE, "_iter_plan_ipds", side_effect=counted_iter):
+            warnings = CE.release_gate_warnings(self.root)
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].rule, "check.orphaned-live-blocker")
+        self.assertIn("done aaa111", warnings[0].detail)
 
 
 if __name__ == "__main__":
