@@ -47,6 +47,53 @@ class Item(NamedTuple):
     detail_kind: Optional[str] = None
     detail_text: Optional[str] = None
     readiness: Optional[str] = None
+    oqs: int = 0
+
+
+_OQ_SECTION_RE = re.compile(r"^##\s+Open questions(?:\s+.*)?$", re.IGNORECASE)
+_OQ_HEADING_RE = re.compile(
+    r"^###\s+(OQ-[0-9]+|OQ-[A-Za-z0-9_-]+):?\s*(.*)$", re.IGNORECASE
+)
+_OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
+
+
+def count_unresolved_open_questions(text: str) -> int:
+    """Count open/unresolved questions in an artifact's '## Open questions' section."""
+    if not text or "Open questions" not in text:
+        return 0
+    in_section = False
+    unresolved_count = 0
+    current_status = None
+    in_question_block = False
+
+    def _flush_question():
+        nonlocal unresolved_count, in_question_block, current_status
+        if in_question_block:
+            if current_status != "resolved":
+                unresolved_count += 1
+        in_question_block = False
+        current_status = None
+
+    for line in text.splitlines():
+        if line.startswith("## "):
+            _flush_question()
+            in_section = bool(_OQ_SECTION_RE.match(line.strip()))
+            continue
+        if not in_section:
+            continue
+        if line.startswith("### "):
+            _flush_question()
+            if _OQ_HEADING_RE.match(line.strip()):
+                in_question_block = True
+                current_status = None
+            continue
+        if in_question_block:
+            m = _OQ_STATUS_RE.match(line.strip())
+            if m and current_status is None:
+                current_status = m.group(1).lower()
+
+    _flush_question()
+    return unresolved_count
 
 
 _FIELD_PATTERNS = (
@@ -316,6 +363,7 @@ def _release_record(
     mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
     lha = A.last_history_at(_history_section_lines(text))
     d_kind, d_text = _extract_detail(text)
+    oqs = count_unresolved_open_questions(text)
     return Item(
         mid.group(1) if mid else "",
         rel,
@@ -326,6 +374,7 @@ def _release_record(
         lha,
         detail_kind=d_kind,
         detail_text=d_text,
+        oqs=oqs,
     ), drift
 
 
@@ -351,6 +400,7 @@ def _spec_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
+    oqs = count_unresolved_open_questions(text)
     return Item(
         "",
         rel,
@@ -364,6 +414,7 @@ def _spec_record(
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,
+        oqs=oqs,
     ), drift
 
 
@@ -422,6 +473,7 @@ def _plans_record(
         rd = _schema.read_readiness(text) or (rd_m.group(1).lower() if rd_m else None)
     except Exception:
         rd = rd_m.group(1).lower() if rd_m else None
+    oqs = count_unresolved_open_questions(text)
     return Item(
         pid or "",
         rel,
@@ -435,6 +487,7 @@ def _plans_record(
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,
+        oqs=oqs,
     ), drift
 
 
@@ -476,6 +529,7 @@ def _research_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
+    oqs = count_unresolved_open_questions(text)
     return Item(
         rid,
         rel,
@@ -488,6 +542,7 @@ def _research_record(
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,
+        oqs=oqs,
     ), drift
 
 
@@ -521,6 +576,7 @@ def _backlog_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
+    oqs = count_unresolved_open_questions(text)
     return Item(
         item.id or "",
         rel,
@@ -534,6 +590,7 @@ def _backlog_record(
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,
+        oqs=oqs,
     ), drift
 
 
@@ -1064,13 +1121,27 @@ def _render_table_row(
     else:
         ident = _identity_stem(it.path)
 
+    oq_cnt = getattr(it, "oqs", 0) or 0
+    oq_raw = str(oq_cnt)
+    left_pad = " " * (3 - len(oq_raw))
+    if colored:
+        if oq_cnt > 0:
+            oq_styled = term.color256(oq_raw, 214, bold=True)
+        else:
+            oq_styled = term.color256(oq_raw, 244)
+    else:
+        oq_styled = oq_raw
+    oq_col = f"{left_pad}{oq_styled}  "
+
     inline_gate = ""
     if it.gate:
         inline_gate = (
             f"  [gate {it.gate.get('kind')}: {A.escape_detail(it.gate.get('ref', ''))}]"
         )
 
-    row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{ident}{inline_gate}"
+    row_line = (
+        f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{ident}{inline_gate}"
+    )
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
@@ -1091,7 +1162,7 @@ def render_table(
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), Artifact Set / ID.
+    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), OQs (3), Artifact Set / ID.
     Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -1137,7 +1208,7 @@ def render_table(
         return (type_word, is_blocking, prio_rank, name, it.path)
 
     visible.sort(key=_sort_key)
-    header = "Status    Type    Blocking Priority Readiness  Artifact Set / ID"
+    header = "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID"
     lines.append(term.colorize(header, "bold") if colored else header)
 
     for it in visible:

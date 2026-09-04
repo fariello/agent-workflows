@@ -35,14 +35,14 @@ class AttentionCompactTests(unittest.TestCase):
         ]
         out = self._colored(items)
         # the table format shows the compact identity stem, not the full path.
-        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+a")
-        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+b")
+        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+0\s+a")
+        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+0\s+b")
         self.assertNotIn(".aw/records/backlog/open/a.backlog.md (open)", out)
 
     def test_stale_marker(self):
         old = (date.today() - timedelta(days=60)).strftime("%Y-%m-%d")
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md", lha=old)])
-        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+a")
+        self.assertRegex(out, r"open\s+backlog\s+-\s+-\s+-\s+0\s+a")
 
     def test_unknown_and_gate_markers(self):
         # gate -> [gate artifact: TODO.md]
@@ -58,7 +58,7 @@ class AttentionCompactTests(unittest.TestCase):
             ]
         )
         self.assertRegex(
-            out, r"blocked\s+backlog\s+-\s+-\s+-\s+a\s+\[gate artifact: TODO.md\]"
+            out, r"blocked\s+backlog\s+-\s+-\s+-\s+0\s+a\s+\[gate artifact: TODO.md\]"
         )
 
     def test_plain_board_unchanged(self):
