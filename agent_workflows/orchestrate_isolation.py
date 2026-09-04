@@ -27,6 +27,7 @@ import datetime
 import fnmatch
 import hashlib
 import json
+import re
 from collections import defaultdict
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, NamedTuple
@@ -36,6 +37,40 @@ from agent_workflows import verify_roles as vr
 # ==================================================================================================
 # Constants & Vocabularies (E-01)
 # ==================================================================================================
+
+# A REAL git conflict marker: seven identical `<`, `=` or `>` at the START of a line, followed by end
+# of line or whitespace (git writes `<<<<<<< ours` / `=======` / `>>>>>>> theirs`).
+#
+# ANCHORING IS THE WHOLE POINT, and the unanchored version was a live defect. The check used to be a
+# plain substring scan, `any(marker in outcome.diff for marker in ("<<<<<<<", "=======", ">>>>>>>"))`,
+# over the ENTIRE lane diff - which includes every ADDED LINE of content, not just merge residue. So
+# any lane whose diff merely CONTAINED those characters was refused integration.
+#
+# MEASURED FAILURE (2026-09-04, lane `aw/lane/prpipy`): pytest's own summary separator,
+# `========================= 3 failed, 3 passed in 0.20s ==========================`, contains
+# `=======`, so a verified, finalized lane was rejected with "unresolved git conflict markers" when
+# its diff held ZERO markers. That lane had pasted real runner output as V-item evidence, which the
+# execution contract REQUIRES ("paste the ACTUAL runner output"), so the gate punished a plan for
+# obeying the rule. Any plan pasting pytest output, or documenting a conflict, hit the same wall.
+#
+# Match per LINE, never against the whole blob: a multiline search over concatenated text would
+# re-admit the same class of false positive.
+_CONFLICT_MARKER_RE = re.compile(r"^(?:<{7}|={7}|>{7})(?:\s|$)")
+
+
+def diff_has_conflict_markers(diff: str) -> bool:
+    """Whether ``diff`` contains a REAL unresolved git conflict marker.
+
+    True only when some LINE begins with exactly seven `<`, `=` or `>` followed by whitespace or end
+    of line. Pasted test output, ASCII rules, and prose that merely mentions markers do NOT count;
+    see :data:`_CONFLICT_MARKER_RE` for the measured false positive this exists to prevent.
+
+    Pure and total: an empty or unparseable diff is simply not a conflict.
+    """
+    if not diff:
+        return False
+    return any(_CONFLICT_MARKER_RE.match(line) for line in diff.splitlines())
+
 
 # Isolation Modes
 ISOLATION_FRESH_SESSION: str = "fresh_session"
@@ -1046,8 +1081,10 @@ def execute_merge_and_revalidate_gate(
     for idx, lid in enumerate(merge_order):
         outcome = outcome_map[lid]
 
-        # Check for conflict markers
-        if any(marker in outcome.diff for marker in ("<<<<<<<", "=======", ">>>>>>>")):
+        # Check for conflict markers (LINE-ANCHORED; see `diff_has_conflict_markers`, and do NOT
+        # "simplify" this back to a substring scan - that rejected a clean lane for pasting pytest
+        # output, which the execution contract requires).
+        if diff_has_conflict_markers(outcome.diff):
             findings.append(
                 IntegrationFinding(
                     check_name="conflict_marker_check",

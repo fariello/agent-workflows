@@ -449,6 +449,80 @@ class TestMergeAndRevalidateGates(unittest.TestCase):
             any(f.check_name == "conflict_marker_check" for f in res.findings)
         )
 
+    def test_pasted_test_output_is_not_a_conflict_marker(self) -> None:
+        """A lane pasting pytest output must still integrate (regression, measured 2026-09-04).
+
+        THE BUG: this check was `any(marker in outcome.diff for marker in ("<<<<<<<", "=======",
+        ">>>>>>>"))`, an unanchored substring scan over the WHOLE lane diff, which includes every
+        ADDED LINE of content. pytest's own summary separator contains `=======`, so lane
+        `aw/lane/prpipy` - verified, finalized, ZERO real markers - was refused integration with
+        "unresolved git conflict markers".
+
+        This is the perverse case worth pinning: the execution contract REQUIRES pasting the actual
+        runner output as V-item evidence, so the gate punished a plan for obeying the rule, and every
+        future plan pasting pytest output would hit the same wall.
+        """
+        diff = (
+            "+## Validation and cross-check\n"
+            "+  - Observed evidence: bare `python3 -m pytest` at HEAD `abc1234`:\n"
+            "+========================= 3 failed, 3 passed in 0.20s ==========================\n"
+            "+====================== 11 passed, 45 deselected in 0.26s =======================\n"
+            "+  - Result: pass\n"
+        )
+        lane1 = iso.LaneOutcome(
+            lane_id="lane-01",
+            actor_role=vr.ROLE_EXECUTOR,
+            base_commit="c000",
+            head_commit="c001",
+            worktree_path="/tmp/wt-1",
+            changed_files=("agent_workflows/mod_a.py",),
+            diff=diff,
+            per_lane_validation_passed=True,
+            status=iso.STATUS_COMPLETED,
+        )
+        res = iso.execute_merge_and_revalidate_gate(
+            integration_base_commit="c000",
+            lane_outcomes=(lane1,),
+            merge_order=("lane-01",),
+            full_validation_runner=lambda diff, files: True,
+        )
+        self.assertTrue(
+            res.passed,
+            f"pasted pytest output must not read as a conflict marker; got {res.status}: {res.message}",
+        )
+        self.assertFalse(
+            any(f.check_name == "conflict_marker_check" for f in res.findings)
+        )
+
+    def test_conflict_marker_predicate_is_line_anchored(self) -> None:
+        """The predicate matches only a REAL marker: seven chars at line start, then space or EOL."""
+        # REAL markers, in the exact forms git writes.
+        for real in (
+            "<<<<<<< HEAD",
+            "<<<<<<< ours\nfoo",
+            "=======",
+            "=======\n",
+            ">>>>>>> aw/lane/x",
+            "context\n=======\nmore",  # mid-diff, still line-anchored
+        ):
+            self.assertTrue(
+                iso.diff_has_conflict_markers(real), f"should detect: {real!r}"
+            )
+        # NOT markers: pasted output, ASCII rules, prose, and near-misses on length/position.
+        for benign in (
+            "========================= 3 failed in 0.20s ==========================",
+            "====================== 11 passed, 45 deselected =======================",
+            "-------------------------------",
+            "the gate scans for ======= in the diff",
+            "======",  # six, not seven
+            "  =======",  # indented, so not a marker git wrote
+            "=======x",  # seven then a non-space
+            "",
+        ):
+            self.assertFalse(
+                iso.diff_has_conflict_markers(benign), f"should NOT detect: {benign!r}"
+            )
+
     def test_combined_diff_scope_fence_enforcement(self) -> None:
         """Out-of-scope files in merged diff cause integration failure."""
         lane1 = iso.LaneOutcome(
