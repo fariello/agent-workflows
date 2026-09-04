@@ -1,5 +1,5 @@
 - Id: xvx8ez
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: runorder
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw oc run A B silently executes B first (typed order recorded as position but sorted LAST, so setid decides alphabetically); honor the typed order AND announce any dependency-caused reordering loudly, naming both orders and the causing edge
 
 ## Workflow history
+- 2026-09-04 done (aw set): Closed: plan prpipy (From-Backlog: xvx8ez) reached executed and integrated to main in merge 4fff71f8. The typed order is now honored: queue_sort_key ranks position immediately after dependency_depth, verified live in the primary tree (typed [0soncw mjx7ne d7bnhc 2r306y 818uru] executes in that exact order; a declared edge still wins, so typed [818uru 2r306y] correctly executes 2r306y first). Suite 4129 passed. The close was not evaluated during run-20260904T042345Z-1012332 because that lane ended merge-conflict on a FALSE POSITIVE in the integration gate (pytest's ======= separator read as a conflict marker), fixed separately in 4ae893ab.
 - 2026-09-03 graduated (aw set): Graduated to plan prpipy (runorder-01, to-review), which carries From-Backlog: xvx8ez and inherits Blocks-Release: next so the release gate is preserved through the handoff. The maintainer's 2026-09-01 ruling is implemented rather than reopened: move position above setid in the one shared queue_sort_key (dependency_depth stays FIRST so a declared edge still wins), plus the mandatory second half, announcing every reordering with both orders and the per-item cause. FOUR THINGS VERIFIED AT AUTHORING: agy_runipd.queue_sort_key IS the same object (one edit, both drivers); an EXISTING test will invert (test_set_order_still_breaks_ties_among_equally_ready_nodes, which must be inverted with its reason recorded, never deleted); the preview bug is confirmed at source (print_status applies no sort, so --prepare-only shows position order); and a NEW finding the item lacked, that ordering is computed BEFORE status is consulted, so a mixed to-review/approved queue interleaves reviews and code execution, and a review-only item is still ranked by a dependency depth that does not apply to it. That last one is recorded as F-7 and deliberately NOT fixed inside prpipy.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
