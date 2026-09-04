@@ -6,8 +6,8 @@
 - Scope: Refactor `agent_workflows/record_producers.py` and `agent_workflows/project_schema.py` to source definitions from `agent_workflows/layout.py` while preserving existing exception types, class enums, and legacy migration path adapters. Author unit tests in `tests/test_record_producers.py`.
 - Scope-Paths: agent_workflows/record_producers.py, agent_workflows/project_schema.py, tests/test_record_producers.py
 - Item-Dependencies: executed:wpu5zu
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 3
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-201; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged. Lint conforming at both checkpoints. CLAIMS RE-MEASURED: `_RECORD_CLASS_SUBPATHS['records'] == ''` (the mandatory empty-subpath carve-out) HOLDS; `_LEGACY_RECORD_CLASS_SUBPATHS` retains a key per class; `LogicalRoot` is exactly 4 (`system`/`config`/`state`/`records`) and `RootClass` exactly 6, so F-4's do-not-collapse rule is current; and `tests/test_record_producers.py` genuinely does NOT exist, so PR-002's create-not-edit correction stands while `tests/test_project_context.py` does exist. THE FINDING (PR-201, MEDIUM, fixed): this plan's own member count was wrong in a way that would corrupt a derivation. E-01 and the Step-0 note said "9 members + `records` root-level carve-out", which reads as TEN; measured, `RecordClass` has NINE members TOTAL with `records` AMONG them, and `_RECORD_CLASS_SUBPATHS` has nine keys. A derivation built to produce ten would either invent a member or mis-map `records` to `records/records/`. Worse, `reviews` is ALREADY a member (shipped by revgate `15zvu6` E-09 with its own deliberate no-legacy-override comment), so the net-new union members are `backlog` and `other` ONLY - an executor following the old text might have tried to add `reviews` and hit a duplicate. Corrected in E-01, the conventions note, and new findings F-6/F-7. No open questions.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-020, PR-022, PR-023 fixed (added test file to Scope-Paths, added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
@@ -49,6 +50,17 @@ Execution-state rule: mark an E-* item complete only after performing the action
   - `backlog` and `other` are in the union model but NOT in today's `RecordClass`. Adding them is
     intended (union ruling), but each new member needs a subpath that matches where those artifacts
     ALREADY live (`.aw/records/backlog/`, `.aw/records/other/`); do not invent new directories.
+  - COUNT CORRECTED AT PLAN-REVIEW 2026-09-04 (PR-201), because this item's own framing was wrong and
+    would mislead a derivation. Measured: `RecordClass` has NINE members TOTAL and `records` is ONE OF
+    THE NINE (`plans`, `specs`, `research`, `records`, `prompts`, `comms`, `walkthroughs`, `releases`,
+    `reviews`), and `_RECORD_CLASS_SUBPATHS` has exactly nine keys. The Step-0 note saying "9 members +
+    `records` root-level carve-out" reads as ten and is corrected below. `records` is a carve-out in its
+    SUBPATH VALUE (empty string), not an extra member.
+  - AND `reviews` IS ALREADY A MEMBER, which changes what "adding union members" means here: the
+    net-new members are `backlog` and `other` ONLY. Do not "add" `reviews`; it has shipped since
+    revgate Order 01 (`15zvu6`) E-09, carries a deliberate no-legacy-override comment, and is the class
+    `check.review-dangling` resolves the reviews tree through. Re-adding it would be a no-op at best and
+    a duplicate-member error at worst.
   - `_LEGACY_RECORD_CLASS_SUBPATHS` (`:148`) and `resolve_record_read_paths` (`:608`, legacy lookup at
     `:631`) MUST keep working for `.agents/` migration reads. Any new member inherits the final subpath
     through the existing `**` spread, which is correct-by-absence; do not hand-add legacy entries for
@@ -69,7 +81,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Project conventions discovered (Step 0)
 
-- `agent_workflows/record_producers.py`: central record routing and write guard. Defines `RecordClass` (9 members + `records` root-level carve-out), `DurableStateClass` (5 members), `RuntimeStateClass` (6 members), `_RECORD_CLASS_SUBPATHS`, and `_LEGACY_RECORD_CLASS_SUBPATHS`.
+- `agent_workflows/record_producers.py`: central record routing and write guard. Defines `RecordClass` (NINE members TOTAL, of which `records` is one; corrected at plan-review 2026-09-04 from "9 + carve-out", which read as ten), `DurableStateClass`, `RuntimeStateClass`, `_RECORD_CLASS_SUBPATHS` (nine keys), and `_LEGACY_RECORD_CLASS_SUBPATHS`. `reviews` is ALREADY among the nine.
 - `agent_workflows/project_schema.py`: canonical project schema vocabulary. `LogicalRoot` (4 members: system, config, state, records) and `RootClass` (6 members: system, config_project, config_local, state_durable, state_runtime, records).
 - Controlling spec `kw5y2s` is `approved` again (re-measured at round 5; the round-4 `to-review` claim is stale). Its rule against collapsing `RootClass` (6) into `LogicalRoot` (4) is unchanged, and the spec is immutable during execution.
 - `_RECORD_CLASS_SUBPATHS['records'] == ""` is the mandatory empty-subpath carve-out for the records root itself; naive mapping would produce invalid `records/records/` paths.
@@ -82,6 +94,8 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | --- | --- | --- |
 | F-1 | **Consolidating `record_producers.py` and `project_schema.py` onto `layout.py` establishes a single source of truth for record and state classes.** Preserves exact backward compatibility. | `agent_workflows/record_producers.py:85-160`; `agent_workflows/project_schema.py:45-65`. |
 | F-2 | **The `records` empty-subpath carve-out is mandatory.** `RecordClass.RECORDS` maps to `""` representing the root records directory itself (`_RECORD_CLASS_SUBPATHS['records'] == ''`). | `record_producers.py:136`; spec Section 3.2.1. |
+| F-6 | **FOUND AT PLAN-REVIEW 2026-09-04 (PR-201): this plan's member count was wrong in a way that would corrupt a derivation.** E-01 and the Step-0 note said "9 members + `records` carve-out", implying ten. Measured: NINE total, `records` INCLUDED, and `_RECORD_CLASS_SUBPATHS` has nine keys. A derivation built to produce ten would either invent a member or mis-map `records`. Also measured: `reviews` is ALREADY a member, so the only net-new union members are `backlog` and `other`. Corrected in place. | `RecordClass` enumerated live: `['comms','plans','prompts','records','releases','research','reviews','specs','walkthroughs']`; `len(_RECORD_CLASS_SUBPATHS) == 9` |
+| F-7 | **`_LEGACY_RECORD_CLASS_SUBPATHS` has a key for every current class, including `reviews`.** So the "correct-by-absence" claim in E-01 is about NET-NEW classes only (`backlog`, `other`), not about `reviews`, which already has an inherited entry via the `**` spread. Stated so an executor does not hand-add a legacy `docs/` override for a tree that never had one. | `sorted(_LEGACY_RECORD_CLASS_SUBPATHS)` == the same nine keys |
 | F-3 | **Legacy `.agents/` migration paths must be preserved.** `_LEGACY_RECORD_CLASS_SUBPATHS` maintains legacy `docs/` paths (`docs/specs`, `docs/research`, `docs/walkthroughs`) for `resolve_record_read_paths`. | `record_producers.py:148-154,608-631`. |
 | F-4 | **`LogicalRoot` (4) and `RootClass` (6) answer distinct questions and must not be collapsed.** Spec Section 5.1 item 4 explicitly forbids collapsing physical placement classes to logical roots. | `project_schema.py:45-64`; spec Section 5.1 item 4. |
 | F-5 | **`tests/test_record_producers.py` is newly created by this plan.** Covers the empty-subpath carve-out, preserved legacy read paths, and write guards. Scope-Paths updated to include it (PR-020). | V-01 / E-02 notes; file verified absent before execution. |

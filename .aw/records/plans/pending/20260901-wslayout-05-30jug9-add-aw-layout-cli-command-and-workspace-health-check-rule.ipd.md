@@ -6,8 +6,8 @@
 - Scope: Add `aw layout` command (supporting `--json`, `--schema`) to `agent_workflows/cli.py`, add layout consistency checking to `check_engine.py` / `doctor.py`, and author unit tests in `tests/test_cli_layout.py`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_cli_layout.py
 - Item-Dependencies: executed:hauwqh,executed:zvk796
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 5
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-301; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged. Lint conforming at both checkpoints. CLAIMS RE-MEASURED LIVE: `aw layout` genuinely does NOT exist (argparse rejects it and lists every real verb), so E-01 is correctly net-new; `aw migrate-layout` DOES exist, so F-2's adjacency concern is real and its read-only-vs-transactional distinction is the right resolution; and `aw check reviews` still errors with "unknown artifact type 'reviews'", which is precisely the fence E-03 must assert flips to accepted while `aw check roadmaps` stays accepted. THE FINDING (PR-301, LOW, fixed): the `cli.py` contention count was stale - the plan says 13 pending plans declare it, measured 10 at this HEAD, the drop being siblings that executed. Corrected in F-5 and the Scope check, with the point made explicitly that any number written in a plan is a snapshot and the re-measurement clause is what actually protects the edit. Its dependency edge (`executed:hauwqh,executed:zvk796`) is correct and non-obvious: it needs `hauwqh` for emission behavior and `zvk796` for the `reviews` noun V-03 asserts. No open questions.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added eleven-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
@@ -102,7 +103,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | F-2 | **Naming decision is resolved by the maintainer (OQ-01).** `aw layout` is added as a new top-level read-only verb because it exposes the record-class vocabulary and schema, which `aw context` does not model. | Maintainer resolution on OQ-01. |
 | F-3 | **`aw check` layout rules are the essential loud-failure backstop.** Because emitted layout files are gitignored via `.aw/.gitignore`, git cannot show diffs; `check.system-layout-missing` and `check.system-layout-drift` catch absent or out-of-date files. | `check_engine.py`; `doctor.py`. |
 | F-4 | **`tests/test_cli_layout.py` is newly created by this plan.** Covers `aw layout` modes, the three check engine states, and the union vocabulary CLI fence (`aw check reviews` and `aw check roadmaps`). | E-03 / V-03 notes; file verified absent before execution. |
-| F-5 | **Concurrent scope collision on `agent_workflows/cli.py`.** Declared by 13 pending plans. Re-measurement required immediately before execution. | Measured `grep -l` over pending plans. |
+| F-5 | **Concurrent scope collision on `agent_workflows/cli.py`.** RE-MEASURED 2026-09-04 (PR-301): **10** pending plans declare it, not 13 - the count dropped as siblings executed, and it will keep moving, which is exactly why the re-measurement clause matters more than the number. Re-measure immediately before execution and treat any figure written here as a snapshot. | `grep -l 'agent_workflows/cli.py' .aw/records/plans/pending/*.ipd.md \| wc -l` -> 10 at HEAD 16777ccc |
 
 ## Proposed changes (ordered, validatable)
 
@@ -118,7 +119,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - Over-scope: none.
 - Under-scope: none. `tests/test_cli_layout.py`, `agent_workflows/command_surface.py`, and `tests/conformance_matrix.py` are in `Scope-Paths` because every new read-only CLI leaf must declare and exercise the output contract.
-- Concurrent-scope collision (PR-010): `agent_workflows/cli.py` is declared by 13 pending plans. Re-measure immediately before execution.
+- Concurrent-scope collision (PR-010): `agent_workflows/cli.py` is declared by 10 pending plans (re-measured 2026-09-04; was 13 when first written). Re-measure immediately before execution rather than trusting either number.
 
 ## Required tests / validation
 

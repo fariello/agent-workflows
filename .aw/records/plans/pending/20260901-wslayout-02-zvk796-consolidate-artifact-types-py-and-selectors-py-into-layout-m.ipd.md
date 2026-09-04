@@ -6,8 +6,8 @@
 - Scope: Refactor `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py` to import constants and helper logic from `agent_workflows/layout.py`.
 - Scope-Paths: agent_workflows/artifact_types.py, agent_workflows/selectors.py
 - Item-Dependencies: executed:wpu5zu
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 2
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-101, PR-102; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged, so the pre-review snapshot was correctly skipped. Lint conforming at `--phase author` before and `--phase review-finalize` after. EVERY CHECKABLE CLAIM RE-MEASURED LIVE rather than trusted: `ARTIFACT_TYPES` is the 10 types claimed and DOES contain `roadmaps`; `normalize_type('roadmap')` -> `roadmaps`; `EXCLUDED_RECORD_DIRS` is exactly the 7 pinned entries; `KNOWN_PRIMARY_TYPES` is 9; `NON_PRIMARY_RECORD_DIRS == {'reviews'}`; and `aw check reviews` does still error with "unknown artifact type", so F-4's net-new-behavior claim is current. `layout.py` correctly does not exist yet (Order 01 creates it). ONE MATERIAL FINDING (PR-101, HIGH, fixed): E-02 instructed sourcing the three INPUT sets from `layout.py` but never named `_OTHER_SWEEP_SKIP_DIRS` (`selectors.py:183`), the UNION of those three that the `other` complement actually consults (`:215`). Re-sourcing the inputs silently redefines the union, and V-02 asserted only the 7 exclusions - so a derivation that dropped `reviews` from the union would have PASSED validation while re-opening a measured outage: with `reviews` in neither set, a bare id6 matched twice and `aw set approved <id6>` refused for ALL 28 reviewed plans until `d802e917` added the third set. E-02 now requires the union stay derived, and V-02 now demands the union, the `other`-resolves-empty check, the single-match check, and `tests/test_selector_resolver_matrix.py`. Also recorded (PR-102, F-8): `reviews` is ALREADY a `RecordClass` member while absent from `ARTIFACT_TYPES`, so the union ruling RECONCILES two live vocabularies rather than adding to one. No blocking question; OQ-01 resolved.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
@@ -65,6 +66,21 @@ Execution-state rule: mark an E-* item complete only after performing the action
     EXPLICIT, stated change and update the `wpu5zu` parity test in the same commit. Do NOT let the set
     change as a side effect of "sourcing from the model". Whichever is chosen, V-02 must paste the
     resulting set.
+  - THE DERIVED SET IS THE ONE THAT ACTUALLY GATES THE SWEEP, and this item names only its three
+    INPUTS (found at plan-review 2026-09-04, PR-101). `selectors.py` computes
+    `_OTHER_SWEEP_SKIP_DIRS = KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS`
+    (`selectors.py:183`) and the `other` catch-all consults THAT union, not the three sets
+    individually (`:215`). So re-sourcing the inputs from `layout.py` silently redefines the derived
+    set too. Keep `_OTHER_SWEEP_SKIP_DIRS` computed from whatever the three sets become, never
+    hardcoded, and never bypassed by a fourth direct membership test.
+  - WHY THIS IS LOAD-BEARING RATHER THAN TIDINESS: that union is what stops the `other` complement
+    from swallowing `.aw/records/reviews/`. When `reviews` was in NEITHER the primary types nor the
+    exclusions, a bare id6 matched TWICE (the plan as `plans`/id6 and its own review record as
+    `other`/substring) and `aw set approved <id6>` refused with "id6 collision ... a data bug to fix,
+    not overridable by --force", for ALL 28 reviewed plans. Fixed 2026-09-04 in `d802e917` by adding
+    the third set. A derivation that drops `reviews` from the union re-opens exactly that outage, and
+    it would NOT be caught by V-02's exclusion-set assertion, which never looks at the union.
+  - V-02 therefore asserts the union AND the collision, not just the 7 exclusions.
 
 ## Project conventions discovered (Step 0)
 
@@ -86,6 +102,8 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | F-4 | **`reviews` becomes an accepted type token by derivation**, allowing `aw check reviews` to succeed (net-new behavior enabled by the union vocabulary). | `artifact_types.py:42-60`; `aw check reviews`. |
 | F-5 | **Resolver isolation for `NON_PRIMARY_RECORD_DIRS` (`reviews`) must be preserved** so that `_OTHER_SWEEP_SKIP_DIRS` continues to prevent `other` from capturing `.review.md` files. | `selectors.py:140-185`. |
 | F-6 | **Concurrent scope must be measured at execution time.** The prior `e32j35` example is superseded; inspect current pending declarations for `selectors.py` immediately before editing. | Current pending-plan board. |
+| F-7 | **FOUND AT PLAN-REVIEW 2026-09-04 (PR-101). E-02 named the three INPUT sets but not the DERIVED set that actually gates the sweep.** `selectors.py:183` computes `_OTHER_SWEEP_SKIP_DIRS = KNOWN_PRIMARY_TYPES \| NON_PRIMARY_RECORD_DIRS \| EXCLUDED_RECORD_DIRS`, and the `other` complement consults THAT union (`:215`), not the three sets individually. Re-sourcing the inputs silently redefines the union, and V-02 as written asserted only the 7 exclusions, so a derivation that dropped `reviews` from the union would PASS validation while re-opening a measured outage: with `reviews` in neither set, a bare id6 matched twice and `aw set approved <id6>` refused for ALL 28 reviewed plans until `d802e917` added the third set. E-02 and V-02 now cover the union and the collision. | `selectors.py:183`, `:215`; `d802e917`; `tests/test_selector_resolver_matrix.py` (`OtherCatchAllDoesNotClaimTypedTreesTests`) |
+| F-8 | **`reviews` is ALREADY a `RecordClass` member, so `record_producers` and `artifact_types` disagree TODAY.** Measured: `RecordClass` has 9 members including `REVIEWS`, while `artifact_types.ARTIFACT_TYPES` has 10 and does NOT include `reviews` (`aw check reviews` errors with "unknown artifact type"). So the union ruling does not merely ADD a token to one vocabulary; it RECONCILES two live vocabularies that already differ. Recorded so an executor does not read F-4's "net-new behavior" as meaning nothing consumes `reviews` yet. | `record_producers.RecordClass` (9 members, `REVIEWS` present with its own comment); `artifact_types.ARTIFACT_TYPES` (10, no `reviews`); `aw check reviews` -> error |
 
 ## Proposed changes (ordered, validatable)
 
@@ -149,6 +167,17 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     Required result: either the unchanged 7-entry set, or the deliberately widened 10-entry set WITH the
     `wpu5zu` parity test updated in the same commit. A set that changed without a stated decision is a
     FAILED validation, not a pass.
+  - PLUS THE DERIVED UNION AND THE COLLISION IT PREVENTS (PR-101). The exclusion set alone does not
+    prove the sweep is still correct, because the sweep reads the UNION. Paste all three:
+    `python3 -c "from agent_workflows import selectors as S; print(sorted(S._OTHER_SWEEP_SKIP_DIRS))"`
+    showing `reviews` is present and the union equals
+    `KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS`;
+    `python3 -c "from pathlib import Path; from agent_workflows import selectors as S; print(S.resolve(Path('.'),'other','2r306y').paths)"`
+    returning an EMPTY list (a review record must not resolve as `other`);
+    and `python3 -c "from pathlib import Path; from agent_workflows import status_set as SS; r=SS.inventory_all_artifacts(Path('.')); print([m.record_type for m in SS.match_selector('2r306y',r,Path('.'))])"`
+    returning exactly `['plans']`. A second match here is the 28-plan `aw set` outage regressing
+    (`d802e917`), and `tests/test_selector_resolver_matrix.py` already pins it - so run that file too
+    and paste its result.
   - Observed evidence:
   - Result: pending
 
