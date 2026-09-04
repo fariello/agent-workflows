@@ -115,7 +115,7 @@ Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 
 ## hostcap
 
-- `mjx7ne` [pending] 01 pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
+- `mjx7ne` [executed] 01 executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
 
 ## locksafe
 

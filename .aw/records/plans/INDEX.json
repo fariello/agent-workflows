@@ -4054,6 +4054,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
+    "plan_id": "mjx7ne",
+    "set_id": "hostcap",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-30",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md",
     "plan_id": "y6mfgo",
     "set_id": "locksafe",
@@ -4254,16 +4264,6 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
-    "path": "pending/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md",
-    "plan_id": "mjx7ne",
-    "set_id": "hostcap",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-30",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
     "path": "pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md",
     "plan_id": "wlxkoz",
     "set_id": "runcodes",
@@ -4407,7 +4407,7 @@
     "path": "pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
     "plan_id": "zvk796",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4417,7 +4417,7 @@
     "path": "pending/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md",
     "plan_id": "rodj06",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4427,7 +4427,7 @@
     "path": "pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md",
     "plan_id": "hauwqh",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4437,7 +4437,7 @@
     "path": "pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
     "plan_id": "30jug9",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-03",
