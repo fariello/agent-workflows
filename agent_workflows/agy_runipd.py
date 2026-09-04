@@ -48,6 +48,15 @@ from agent_workflows.render_stream import (
     install_exit_signal_handler,
 )
 
+# runorder (prpipy) E-07: an intentional RE-EXPORT, in the `as <same-name>` form this module uses for
+# every shared object it must expose but does not call itself, so an autoformatter cannot strip it.
+# The run-order announcement's WORDING has exactly ONE definition in the package and this driver
+# binds that same object; it does NOT own a copy. The announcement itself is emitted through the
+# shared `announce_run_order` below, so the two hosts cannot drift the way `Heartbeat` once did.
+from agent_workflows.render_stream import (
+    format_run_order_announcement as format_run_order_announcement,
+)
+
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
 # execution and verifier prompts (the same module the OpenCode driver and the installed
 # `AGENTS.md#aw:reporting` section use), so the two drivers cannot drift apart.
@@ -146,6 +155,13 @@ from agent_workflows.oc_runipd import (
     parse_dependency_token as parse_dependency_token,
     preflight_dependency_findings as preflight_dependency_findings,
     queue_sort_key as queue_sort_key,
+    # runorder (prpipy) E-07: the run-order comparison and its announcement, bound (never copied) for
+    # the same reason the key above is. `queue_sort_key` was ALREADY shared, so `prpipy`'s ordering
+    # change reached this driver automatically; the announcement's SITE (`initialize_run`) and the
+    # preview's site (`print_status`) are per-driver, which is exactly how `aw agy run` would have
+    # inherited the reordering with no warning. Binding the same two objects closes that.
+    announce_run_order as announce_run_order,
+    run_order_rationale as run_order_rationale,
 )
 
 SCHEMA_VERSION = 1
@@ -2052,6 +2068,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "runbook_sha256": sha256_file(runbook_path),
         "selectors": list(args.selectors),
         "queue": queue,
+        # runorder (prpipy) E-07, symmetric with `oc_runipd`: the REQUESTED-vs-EXECUTED order
+        # comparison frozen beside the queue it describes, computed by the SHARED function.
+        "run_order": run_order_rationale(queue, list(args.selectors)),
         "session_id": initial_session,
         "set_sessions": set_sessions,
         "session_turn_counts": {},
@@ -2085,6 +2104,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
     )
     write_report(run_dir, state)
+    # runorder (prpipy) E-07: the SAME announcement the OpenCode driver emits, from the SAME shared
+    # function, before the first child session. Not optional polish: `queue_sort_key` is shared, so
+    # without this `aw agy run` would silently receive the reordering and neither the warning nor the
+    # corrected preview.
+    announce_run_order(run_dir, state)
     return run_dir
 
 
