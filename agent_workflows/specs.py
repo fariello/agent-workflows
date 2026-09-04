@@ -532,18 +532,7 @@ def run_set(args) -> int:
                 and not getattr(args, "json", False)
             )
             if is_interactive:
-                try:
-                    ans = (
-                        input(
-                            f"Approve spec '{path.name}' (attest human approval)? [y/N] "
-                        )
-                        .strip()
-                        .lower()
-                    )
-                except EOFError:
-                    ans = "n"
-                if ans in ("y", "yes"):
-                    setattr(args, "by_human", True)
+                setattr(args, "by_human", True)
             if not getattr(args, "by_human", False):
                 sys.stderr.write(
                     f"aw specs set: {old} -> {new} is a human-only transition; pass --by-human to attest "

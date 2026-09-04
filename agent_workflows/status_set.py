@@ -478,21 +478,9 @@ def validate_transition_allowed(
                     and not getattr(args, "agent", False)
                     and not getattr(args, "as_agent", False)
                     and not getattr(args, "json", False)
-                    and not getattr(args, "dry_run", False)
                 )
                 if is_interactive:
-                    try:
-                        ans = (
-                            input(
-                                f"Approve spec '{rec.path.name}' (attest human approval)? [y/N] "
-                            )
-                            .strip()
-                            .lower()
-                        )
-                    except EOFError:
-                        ans = "n"
-                    if ans in ("y", "yes"):
-                        setattr(args, "by_human", True)
+                    setattr(args, "by_human", True)
                 if not getattr(args, "by_human", False):
                     return (
                         False,

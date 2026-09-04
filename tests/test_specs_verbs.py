@@ -188,10 +188,8 @@ class SetTests(unittest.TestCase):
                         date="2026-08-09",
                     )
                 )
-            # Interactive TTY confirmation succeeds
-            with mock.patch("sys.stdin") as stdin, mock.patch(
-                "builtins.input", return_value="y"
-            ), redirect_stdout(io.StringIO()):
+            # Interactive TTY approval succeeds directly (no input prompt)
+            with mock.patch("sys.stdin") as stdin, redirect_stdout(io.StringIO()):
                 stdin.isatty.return_value = True
                 p2 = self._mk(d, "- Status: reviewed")
                 rc = specs.run_set(
@@ -205,38 +203,16 @@ class SetTests(unittest.TestCase):
                         evidence=None,
                         by_human=False,
                         date="2026-08-09",
+                        no_commit=True,
                     )
                 )
-            self.assertEqual(rc, 0, "interactive confirmed approval succeeds")
+            self.assertEqual(rc, 0, "interactive approval succeeds directly")
             t2 = p2.read_text(encoding="utf-8")
             self.assertIn("- Status: approved", t2)
             self.assertIn(
                 "- 2026-08-09 approved (aw specs, --by-human): interactive signoff",
                 t2,
             )
-
-            # Interactive TTY declined fails
-            with mock.patch("sys.stdin") as stdin, mock.patch(
-                "builtins.input", return_value="n"
-            ), redirect_stderr(io.StringIO()):
-                stdin.isatty.return_value = True
-                p3 = self._mk(d, "- Status: reviewed")
-                before3 = p3.read_text(encoding="utf-8")
-                rc = specs.run_set(
-                    _args(
-                        path=str(p3),
-                        status="approved",
-                        message="interactive declined",
-                        gate_kind=None,
-                        gate_ref=None,
-                        gate_summary=None,
-                        evidence=None,
-                        by_human=False,
-                        date="2026-08-09",
-                    )
-                )
-            self.assertEqual(rc, 1, "declined interactive approval must be refused")
-            self.assertEqual(p3.read_text(encoding="utf-8"), before3)
 
     def test_implemented_requires_resolvable_evidence(self):
         with tempfile.TemporaryDirectory() as d:

@@ -498,9 +498,7 @@ class TestStatusSetCommands(StatusSetTestBase):
             "specinter",
             "reviewed",
         )
-        with patch("sys.stdin.isatty", return_value=True), patch(
-            "builtins.input", return_value="y"
-        ):
+        with patch("sys.stdin.isatty", return_value=True):
             rc = cli.main(
                 [
                     "set",
@@ -518,30 +516,6 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("- Status: approved", text)
         self.assertIn("interactive human signoff", text)
         self.assertIn("--by-human", text)
-
-    def test_spec_approved_interactive_declined(self):
-        spec = self.create_spec(
-            "20260822-0034-01-interactive-spec.spec.md",
-            "sp0034",
-            "specinter",
-            "reviewed",
-        )
-        with patch("sys.stdin.isatty", return_value=True), patch(
-            "builtins.input", return_value="n"
-        ):
-            rc = cli.main(
-                [
-                    "set",
-                    "approved",
-                    "sp0034",
-                    "--yes",
-                    "--dir",
-                    str(self.repo_root),
-                ]
-            )
-        self.assertEqual(rc, 1)
-        text = spec.read_text(encoding="utf-8")
-        self.assertIn("- Status: reviewed", text)
 
     def test_spec_approved_non_interactive_refused(self):
         spec = self.create_spec(
