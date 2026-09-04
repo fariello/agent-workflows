@@ -104,6 +104,7 @@ The `prompt` verb may report transport success, but it must not emit `verified`,
 aw <host> run <selector>
     [--type <ipd|spec|backlog|prompt|research|release|walkthrough>]...
     [--allow-mixed]
+    [--allow-drafts]
     [--unattended]
     [--full-auto]
     [--allow-unverifiable]
@@ -113,6 +114,8 @@ aw <host> run <selector>
     [--retry-budget <0..10>]
     [--action <review|plan|execute>]
     [--json]
+
+aw <host> review [<selector>] [<any run flag>]...
 
 aw <host> run --resume <run-id> [--json]
 aw runs show <run-id> [--json]
@@ -127,11 +130,13 @@ Rules:
 - `<host>` is `oc` or `agy`.
 - A new run accepts exactly one selector. A selector may resolve to one item or many items.
 - `--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy. Resume uses the original host, queue, and options. A different host cannot resume the run.
+- `aw <host> review [<selector>]` is a THIN ALIAS, not a second action. It is exactly `aw <host> run <selector> --action review`, and with the selector omitted it is exactly `aw <host> run <needs-review-selector> --action review`, where the needs-review selector is defined in Section 2.4a. Every flag, gate, preview, confirmation, ledger record, and exit code is the run verb's, unchanged. It exists because the review sweep is the single most frequent invocation and, spelled through `run`, it requires the operator to know both a magic bareword and a flag whose legality depends on the selection. The alias MUST NOT acquire behavior of its own: an operator-visible difference between `aw <host> review X` and `aw <host> run X --action review` is a defect in the alias, not a feature of it.
 - `--full-auto` implies `--unattended`. It does not imply `--allow-mixed`, `--allow-unverifiable`, `--unverifiable-ok`, `--follow-generated`, `--with-dependencies`, permission bypass, network access, hook bypass, or human approval.
 - `--retry-budget` is an integer from 0 through 10 inclusive. It counts automatic correction attempts after the initial execution attempt. The CLI value overrides repository policy; repository policy overrides the default of 2. The frozen value cannot change on resume.
 - `--unverifiable-ok` is legal only when contractless prompts were explicitly admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation. It affects only aggregate success and exit-code calculation, never the item's outcome or verification label.
 - `--with-dependencies` expands the selection to the transitive declared dependency closure before the queue is frozen. Any newly introduced type is subject to the same mixed-type gate. Without the flag, dependencies outside the selection are checked against current repository state but are not silently enqueued.
 - `--action` is allowed only when every selected item has the same type and the requested action is legal from every item's current status. It cannot force a status transition, execute an unapproved item, or turn a non-runnable record into a runnable one.
+- `--allow-drafts` is the unattended half of the draft admission gate defined in Section 2.5a. It acknowledges only that complete `draft` items may be promoted and reviewed in this run. It waives no other gate, and it never converts an INCOMPLETE draft into a runnable item: an incomplete draft is skipped with findings at every setting of this flag.
 - There is no `--no-verify`, `--skip-audit`, `--dangerous`, or hook-bypass flag on `run`.
 - Before any actionable item starts, the engine loads a current capability descriptor for the exact host/version/mode and refuses the item if a required guarantee is unsupported, unverified, degraded below the required assurance, or stale.
 
@@ -193,6 +198,18 @@ Selects all three types and therefore invokes the mixed-type policy.
 
 `all` never implicitly grows to include a new artifact type added in a later release. A new type must be explicitly named until the user selects it.
 
+### 2.4a The needs-review selector
+
+`reviews` is a status selector, resolved by the ordinary Section 2.3 algorithm at its status-token precedence step. It selects every item whose type has a review action in Section 3 and whose current status makes review the next legal action. Concretely: an IPD or spec whose status is `to-review`, plus, when the draft gate of Section 2.5a admits them, an IPD or spec whose status is `draft` and whose deterministic completeness check passes.
+
+Three properties are normative because each one is a way an implementation has already diverged or could:
+
+1. **It is type-scoped exactly like `all`.** With no `--type`, `reviews` selects IPDs only. `--type spec` selects specs only. Repeating `--type` selects the union and therefore invokes the mixed-type gate. A type added in a later release never joins `reviews` implicitly, for the same reason it never joins `all`.
+2. **Its membership predicate is the dispatch table, not a copy of it.** An item is in `reviews` if and only if Section 3's table for its type gives it a review action at its current status. There is exactly one implementation of that predicate, shared by every host and by the preview. A second copy is how `reviews` came to exclude complete `draft` IPDs that the dispatch table routes to review, so that a plan named explicitly was reviewed while the same plan was silently absent from the sweep.
+3. **An empty result is a success, not an error.** `reviews` matching nothing means the repository has nothing awaiting review, which is the healthy state and the common one. It reports that plainly and exits 0. This is the one deliberate exception to the Section 2.3 rule that zero matches exit 2, and it is justified because `reviews` is a standing question about repository state rather than an assertion that a named item exists. A misspelled id6 still exits 2; only the status selectors are exempt.
+
+`review` and `to-review` are accepted spellings of `reviews`.
+
 ### 2.5 Mixed-type gate
 
 After resolution and before leases or sessions, the runner prints a sorted count and action preview. For example:
@@ -215,6 +232,34 @@ Exact refusal:
 [RUN-MIXED-TYPES] Selection contains <counts>. No work started. Review the selection, then run: aw <host> run <selector> --type <type> ... --allow-mixed
 ```
 
+### 2.5a Draft admission gate
+
+A `draft` item is not refused, and it is not silently included. Section 3 already splits drafts deterministically: an INCOMPLETE draft is skipped with enumerated findings, and a COMPLETE draft is promoted through `to-review` and reviewed. This section governs only the admission of the second kind, and only when the operator did not name it explicitly.
+
+- An INCOMPLETE draft is ALWAYS a skip with findings, at every setting of every flag. It is never an abort, because one unfinished draft must not deny review to the finished items beside it, and it is never an error, because `draft` is a legitimate resting state. This gate does not apply to it.
+- A draft named EXPLICITLY by path or id6 is admitted without gating. The operator named it; asking is noise.
+- A COMPLETE draft reached through a STATUS selector (`reviews` or `all`) is admitted only through this gate, because promoting `draft` to `to-review` is a lifecycle write the operator did not literally name.
+
+The gate is the same shape as the mixed-type gate of Section 2.5, and for the same reason: it is asked ONCE, after resolution, BEFORE any lease or session, so a batch cannot stop to ask halfway through. The preview names the drafts:
+
+```text
+Selection includes complete drafts that will be promoted to to-review:
+  IPDs:  2 (2 draft -> to-review -> review)
+  Specs: 1 (1 draft -> to-review -> review)
+Also skipping 1 incomplete draft (findings will be reported).
+```
+
+- In an interactive terminal, the user must type the exact phrase `run drafts`. `y`, an empty response, and a generic confirmation are rejected.
+- In unattended mode, the drafts are refused unless `--allow-drafts` was present on the original command. Refusal here means the drafts are EXCLUDED and the rest of the queue proceeds; it does not fail the run. This differs deliberately from the mixed-type refusal, which starts no work at all: a mixed selection means the operator's intent is unclear, whereas an ungated draft is one item's admission and the remaining items' intent is not in doubt.
+- When a selection is BOTH mixed-type and draft-admitting, the two previews are printed together and both confirmations are collected before any work starts, in one interaction. Front-loading every question is the point; a second prompt after the first item has run defeats it.
+- The draft counts, the preview, the response or flag, and the resulting admitted set are recorded in the run ledger.
+
+Exact refusal, when drafts were excluded unattended:
+
+```text
+[RUN-DRAFTS-EXCLUDED] Selection included <count> complete draft item(s), excluded because --allow-drafts was absent. <remaining> item(s) proceeded. To include them, run: aw <host> run <selector> --allow-drafts
+```
+
 ### 2.6 Overrides
 
 Overrides narrow behavior; they never relax invariants.
@@ -224,6 +269,8 @@ Overrides narrow behavior; they never relax invariants.
 - `--action execute` is legal only for `approved`, `auto-approved`, or `reusable` IPDs.
 - `--follow-generated` adds newly generated IPDs to the same frozen run as explicit child queue entries. Without it, the new IPD is reported as a generated next action and is not silently executed.
 - `--with-dependencies` changes selection, not satisfaction semantics. Every declared dependency is enforced whether or not its target was selected.
+- `--allow-drafts` admits complete drafts reached through a status selector, per Section 2.5a. It cannot admit an incomplete draft, and it cannot substitute for the approval gate a promoted draft still has to pass.
+- `aw <host> review` overrides nothing. Being definitionally `run --action review`, it inherits `--action review`'s legality rules exactly, including the rule that it cannot force a transition or make a non-runnable record runnable.
 - No override may create human approval, ignore a gate, broaden scope after execution starts, skip verification, include uncommitted pre-existing edits in a run commit, push, or bypass hooks.
 
 ### 2.7 Mandatory cross-item dependency statement
@@ -385,7 +432,7 @@ Before dispatch, two fail-closed gates apply to every actionable item:
 | Status and condition | Interactive action | Unattended action | Forbidden unattended |
 | --- | --- | --- | --- |
 | `draft`, authoring-completeness check fails, including missing or `unresolved` `Item-Dependencies` | Yellow skip: identify each unresolved placeholder, dependency decision, or missing section. | Same skip. | Authoring content or asserting `none` by guessing intent. |
-| `draft`, authoring-completeness check passes | Tool-set `to-review`; run plan review; apply corrections; tool-set `reviewed`; redispatch. | Same. Under `--full-auto`, redispatch may continue through `auto-approved` to execution. | None beyond normal gates. |
+| `draft`, authoring-completeness check passes | Tool-set `to-review`; run plan review; apply corrections; tool-set `reviewed`; redispatch. Admission through a status selector requires the Section 2.5a draft gate. | Same. Under `--full-auto`, redispatch may continue through `auto-approved` to execution. | None beyond normal gates. Promoting a draft reached through a status selector without `--allow-drafts`. |
 | `to-review` | Run plan review; apply corrections; tool-set `reviewed`; redispatch. | Same. Under `--full-auto`, redispatch may continue. | None beyond normal gates. |
 | `reviewed`, default | Ask for explicit approval. If approved, tool-set `approved` with a human receipt and execute. If declined, stop `needs_input` or `skipped`. | Stop `needs_input`. Exact recovery names the human approval command. | Self-approval or treating model approval as human approval. |
 | `reviewed`, `--full-auto` | Tool-set `auto-approved` with a run receipt and explicit automated-approval message, then execute. | Same. | Writing `approved`, an `Approval:` human field, or a human actor receipt. |
@@ -404,7 +451,7 @@ The deterministic authoring-completeness check, not an LLM, distinguishes a comp
 | Status and condition | Interactive action | Unattended action | Forbidden unattended |
 | --- | --- | --- | --- |
 | `draft`, incomplete | Yellow skip with deterministic completeness findings. | Same. | Inventing missing requirements or decisions. |
-| `draft`, complete | Tool-set `to-review`; run spec review; apply corrections; tool-set `reviewed`; redispatch. | Same, then stop at the approval gate. | Human approval. |
+| `draft`, complete | Tool-set `to-review`; run spec review; apply corrections; tool-set `reviewed`; redispatch. Admission through a status selector requires the Section 2.5a draft gate. | Same, then stop at the approval gate. | Human approval. Promoting a draft reached through a status selector without `--allow-drafts`. |
 | `to-review` | Run spec review; apply corrections; tool-set `reviewed`; redispatch. | Same, then stop at the approval gate. | Human approval. |
 | `reviewed`, default | Ask the human to approve, reject, or stop. On approval, write a human approval receipt, tool-set `approved`, and redispatch. | Stop `needs_input`, including under `--full-auto`. | Any synthesized or automated approval. |
 | `reviewed`, `--action review` | Re-review; keep `reviewed`; append a review receipt. | Re-review; keep `reviewed`; append a review receipt. | Approval. |
@@ -982,6 +1029,8 @@ Both modes use identical resolution, freezing, host packets, evidence capture, s
 | Gate | Interactive | Unattended |
 | --- | --- | --- |
 | Mixed types | Type `run mixed` | Requires `--allow-mixed` |
+| Complete draft via status selector | Type `run drafts` | Requires `--allow-drafts`; without it the drafts are excluded and the rest of the queue proceeds |
+| Incomplete draft | Skip with findings; not a gate | Same. No flag admits it |
 | Reviewed IPD | Human may approve, decline, or stop | `--full-auto` creates `auto-approved`; otherwise `needs_input` |
 | Reviewed spec | Human may approve, decline, or stop | Always `needs_input`; `--full-auto` has no effect |
 | Contractless prompt admission | Type `run unverifiable` | Requires `--allow-unverifiable` |
@@ -1133,4 +1182,5 @@ This example demonstrates the revised guarantees: `all` is safely bounded; depen
 
 ## Workflow history
 
+- 2026-09-04 note (aw specs): Amended Section 2 on the maintainer's 2026-09-04 request for a review-only driver invocation, keeping the spec the single authority for the runner surface rather than letting the ergonomics land as undocumented CLI behavior. THREE ADDITIONS, each written as a constraint on existing machinery and not as new policy. (1) Section 2.1 declares 'aw <host> review [<selector>]' a THIN ALIAS defined as 'run <selector> --action review', with the explicit rule that an operator-visible difference between the two spellings is a DEFECT in the alias; it exists because the review sweep is the most frequent invocation and, spelled through run, it demands both a magic bareword and a flag whose legality depends on the selection. (2) New Section 2.4a promotes 'reviews' from an undocumented bareword to a specified STATUS SELECTOR, type-scoped exactly like 'all' (IPDs only without --type), whose membership predicate MUST BE the Section 3 dispatch table rather than a copy of it, and whose empty result is a SUCCESS rather than the Section 2.3 zero-match exit 2. The predicate rule is written because the shipped implementation already diverged: oc_runipd.py expand_selectors filters status == 'to-review' only, while determine_action routes a complete 'draft' to review, so a draft named explicitly IS reviewed while the same draft is silently absent from the sweep, and the closure is duplicated verbatim in agy_runipd.py. (3) New Section 2.5a specifies the DRAFT ADMISSION GATE with a new --allow-drafts flag, modeled on the Section 2.5 mixed-type gate so the question is FRONT-LOADED after resolution and before any lease or session, never asked mid-run: interactive requires the exact phrase 'run drafts', unattended requires the flag, and when a selection is both mixed and draft-admitting BOTH confirmations are collected in one interaction. Two asymmetries are deliberate and stated: an INCOMPLETE draft is always a skip with findings and no flag admits it (Section 3.2 already rules this, and one unfinished draft must not deny review to the finished items beside it), and an ungated draft is EXCLUDED while the rest of the queue proceeds, unlike the mixed-type refusal which starts no work at all, because a mixed selection means the operator's intent is unclear whereas the remaining items' intent is not in doubt. A draft named EXPLICITLY is admitted without gating. Sections 3.2, 3.3, 2.6 and the 5.8 parity table updated in place so no row still implies an ungated draft promotion. Spec stays approved: this is the DECISION the undocumented 'reviews' bareword and its draft asymmetry needed.
 - 2026-09-04 note (aw specs): Amended 5.4 rule 4 and added rule 5a on the maintainer's 2026-09-03 ruling, implemented by runorder plan prpipy (spec stays approved; this is the DECISION the runner's silent reordering needed). Rule 4 now ranks the operator's REQUESTED order (frozen queue position) BELOW dependency depth and ABOVE Set/Order, so 'aw <host> run A B' runs A first among independent ready nodes while a declared edge still wins (rule 5). Rule 5 restated symmetrically for the requested order. New rule 5a requires the executed order to be announced at queue build unconditionally, to warn naming both orders plus a per-item declared-edge-vs-tiebreak cause on divergence, and to be recorded durably. Two limits stated honestly in the rule text: the total order is no longer a function of artifact content alone, and the requested order equals a TYPED order only for literal id6 selectors (a setid/all/reviews/path selector expands in manifest order).
