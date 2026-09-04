@@ -234,15 +234,14 @@ class ScanTests(unittest.TestCase):
         self.assertNotIn("[research]", board)
         # Status is 256-colored + bold.
         self.assertIn("\033[1;38;5;39mactive\033[0m", board)  # active azure
-        # awdoctorfix Order 02: the default colored board shows the compact identity stem (not the
-        # folded prefix / full path); a non-clustered name like `r.md` falls back to `r`. A None
-        # last_history_at yields a '?' age marker.
+        # Default colored board shows the compact identity stem (not the folded prefix / full path);
+        # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(stripped, r"- \??\s*active\s+research\s+r")
-        # Blocked gate folds into the section header, not each line. Dropped '## ' in colored view.
-        self.assertIn("blocked (1) in TODO.md", stripped)
+        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+r")
+        self.assertRegex(
+            stripped, r"deferred\s+spec\s+-\s+-\s+-\s+s\s+\[gate artifact: TODO.md\]"
+        )
         self.assertNotIn("## blocked", stripped)
-        self.assertNotIn("[gate artifact: TODO.md]", board)
         # No trailing " tree" tag after the status.
         self.assertNotIn("(active) research", stripped)
 
@@ -768,18 +767,410 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             out = buf.getvalue()
             stripped = re.sub(r"\033\[[0-9;]*m", "", out)
 
-            # Interactive headers should NOT have "## "
-            self.assertIn("active (1)", stripped)
+            # Interactive output is a table with header
+            self.assertIn(
+                "Status    Type    Blocking Priority Readiness  Artifact Set / ID",
+                stripped,
+            )
             self.assertNotIn("## active", stripped)
-            self.assertIn("ready (2)", stripped)
             self.assertNotIn("## ready", stripped)
 
-            # Note and Legend must be at the very bottom
+            # Note must be at the very bottom
             self.assertTrue(
-                stripped.endswith(
-                    "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]\nTODO: Run `/aw setup-repo` to set up this repo.\n"
-                )
+                stripped.endswith("TODO: Run `/aw setup-repo` to set up this repo.\n")
             )
+
+
+class AttentionTableFormattingAndSortingTests(unittest.TestCase):
+    def test_exact_user_columns_and_formatting(self):
+        items = [
+            att.Item(
+                "c4gd2h",
+                ".aw/records/specs/20260829-c4gd2h-01-c4gd2h.spec.md",
+                "specs",
+                "implementing",
+                A.ACTIVE,
+                None,
+                None,
+                blocks_release="2.0.0",
+            ),
+            att.Item(
+                "p0l1to",
+                ".aw/records/plans/pending/20260829-runprofile-02-p0l1to.ipd.md",
+                "plans",
+                "reviewed",
+                A.READY,
+                None,
+                None,
+            ),
+            att.Item(
+                "cnwy8g",
+                ".aw/records/backlog/open/20260903-runnerlayer-01-cnwy8g.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority="medium",
+                blocks_release="2.0.0",
+            ),
+            att.Item(
+                "d07nz2",
+                ".aw/records/backlog/open/20260904-rununbound-01-d07nz2.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority="medium",
+                blocks_release="2.0.0",
+            ),
+            att.Item(
+                "5e4sb6",
+                ".aw/records/plans/pending/20260829-rununify-00-5e4sb6.ipd.md",
+                "plans",
+                "approved",
+                A.READY,
+                None,
+                None,
+                blocks_release="2.0.0",
+            ),
+            att.Item(
+                "wlxkoz",
+                ".aw/records/plans/pending/20260830-runcodes-01-wlxkoz.ipd.md",
+                "plans",
+                "reviewed",
+                A.READY,
+                None,
+                None,
+                blocks_release="2.0.0",
+                readiness="go-pending-approval",
+            ),
+            att.Item(
+                "76gsmv",
+                ".aw/records/plans/pending/20260904-revsweep-01-76gsmv.ipd.md",
+                "plans",
+                "to-review",
+                A.READY,
+                None,
+                None,
+                blocks_release="2.0.0",
+            ),
+        ]
+
+        # Colored output
+        term = att.T.Term(color=True)
+        colored_out = att.render_board(items, [], show_all=True, term=term)
+        stripped = re.sub(r"\033\[[0-9;]*m", "", colored_out)
+
+        # Plain output
+        plain_out = att.render_table(
+            items, [], show_all=True, term=att.T.Term(color=False)
+        )
+        self.assertEqual(stripped, plain_out)
+
+        lines = [line for line in stripped.splitlines() if line.strip()]
+        self.assertEqual(
+            lines[0],
+            "Status    Type    Blocking Priority Readiness  Artifact Set / ID",
+        )
+
+        # Verify exact sorted lines:
+        # 1. Type: backlog (medium, 2.0.0)
+        self.assertEqual(
+            lines[1],
+            "open      backlog    2.0.0 medium   -          20260903-runnerlayer-01-cnwy8g",
+        )
+        self.assertEqual(
+            lines[2],
+            "open      backlog    2.0.0 medium   -          20260904-rununbound-01-d07nz2",
+        )
+        # 2. Type: plan (non-blocking first, then blocking)
+        self.assertEqual(
+            lines[3],
+            "reviewed  plan           - -        -          20260829-runprofile-02-p0l1to",
+        )
+        self.assertEqual(
+            lines[4],
+            "approved  plan       2.0.0 -        -          20260829-rununify-00-5e4sb6",
+        )
+        self.assertEqual(
+            lines[5],
+            "reviewed  plan       2.0.0 -        go-pendin  20260830-runcodes-01-wlxkoz",
+        )
+        self.assertEqual(
+            lines[6],
+            "to-revie  plan       2.0.0 -        -          20260904-revsweep-01-76gsmv",
+        )
+        # 3. Type: spec
+        self.assertEqual(
+            lines[7],
+            "implemen  spec       2.0.0 -        -          20260829-c4gd2h-01-c4gd2h",
+        )
+
+    def test_priority_sorting(self):
+        items = [
+            att.Item(
+                "1",
+                ".aw/records/backlog/open/a.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority="high",
+            ),
+            att.Item(
+                "2",
+                ".aw/records/backlog/open/b.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority="low",
+            ),
+            att.Item(
+                "3",
+                ".aw/records/backlog/open/c.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority=None,
+            ),
+            att.Item(
+                "4",
+                ".aw/records/backlog/open/d.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+                priority="medium",
+            ),
+        ]
+        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        lines = [line for line in out.splitlines() if line.strip()][1:]
+        # None first, then low, med, high
+        self.assertTrue(lines[0].endswith("c"))
+        self.assertTrue(lines[1].endswith("b"))
+        self.assertTrue(lines[2].endswith("d"))
+        self.assertTrue(lines[3].endswith("a"))
+
+    def test_name_sorting(self):
+        items = [
+            att.Item(
+                "1",
+                ".aw/records/backlog/open/z-item.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+            ),
+            att.Item(
+                "2",
+                ".aw/records/backlog/open/m-item.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+            ),
+            att.Item(
+                "3",
+                ".aw/records/backlog/open/a-item.backlog.md",
+                "backlog",
+                "open",
+                A.READY,
+                None,
+                None,
+            ),
+        ]
+        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        lines = [line for line in out.splitlines() if line.strip()][1:]
+        self.assertTrue(lines[0].endswith("a-item"))
+        self.assertTrue(lines[1].endswith("m-item"))
+        self.assertTrue(lines[2].endswith("z-item"))
+
+
+class AttentionFilteringTests(unittest.TestCase):
+    def test_parse_filter_tokens(self):
+        self.assertEqual(att.parse_filter_tokens(None), set())
+        self.assertEqual(att.parse_filter_tokens([]), set())
+        self.assertEqual(
+            att.parse_filter_tokens(["to-review", "draft"]),
+            {"to-review", "draft"},
+        )
+        self.assertEqual(
+            att.parse_filter_tokens(["to-review,draft"]),
+            {"to-review", "draft"},
+        )
+        self.assertEqual(
+            att.parse_filter_tokens(["to-review, draft", "open"]),
+            {"to-review", "draft", "open"},
+        )
+
+    def test_status_filtering(self):
+        item_rev = att.Item("1", "p1.md", "plans", "to-review", A.READY, None, None)
+        item_dft = att.Item("2", "p2.md", "plans", "draft", A.READY, None, None)
+        item_opn = att.Item("3", "b1.md", "backlog", "open", A.READY, None, None)
+
+        filters = att.parse_status_filters(["to-review", "draft"])
+        self.assertTrue(att.matches_status(item_rev, filters))
+        self.assertTrue(att.matches_status(item_dft, filters))
+        self.assertFalse(att.matches_status(item_opn, filters))
+
+        filters_comma = att.parse_status_filters(["to-review,draft"])
+        self.assertTrue(att.matches_status(item_rev, filters_comma))
+        self.assertTrue(att.matches_status(item_dft, filters_comma))
+        self.assertFalse(att.matches_status(item_opn, filters_comma))
+
+    def test_priority_filtering(self):
+        item_high = att.Item(
+            "1", "b1.md", "backlog", "open", A.READY, None, None, priority="high"
+        )
+        item_med = att.Item(
+            "2", "b2.md", "backlog", "open", A.READY, None, None, priority="medium"
+        )
+        item_none = att.Item(
+            "3", "b3.md", "backlog", "open", A.READY, None, None, priority=None
+        )
+
+        filters = att.parse_priority_filters(["high", "medium"])
+        self.assertTrue(att.matches_priority(item_high, filters))
+        self.assertTrue(att.matches_priority(item_med, filters))
+        self.assertFalse(att.matches_priority(item_none, filters))
+
+        filters_none = att.parse_priority_filters(["-"])
+        self.assertFalse(att.matches_priority(item_high, filters_none))
+        self.assertTrue(att.matches_priority(item_none, filters_none))
+
+    def test_blocking_filtering(self):
+        item_blk = att.Item(
+            "1",
+            "p1.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            blocks_release="2.0.0",
+        )
+        item_nonblk = att.Item("2", "p2.md", "plans", "approved", A.READY, None, None)
+
+        filters_ver = att.parse_blocking_filters(["2.0.0"])
+        self.assertTrue(att.matches_blocking(item_blk, filters_ver))
+        self.assertFalse(att.matches_blocking(item_nonblk, filters_ver))
+
+        filters_bool_true = att.parse_blocking_filters(["true"])
+        self.assertTrue(att.matches_blocking(item_blk, filters_bool_true))
+        self.assertFalse(att.matches_blocking(item_nonblk, filters_bool_true))
+
+        filters_bool_false = att.parse_blocking_filters(["-"])
+        self.assertFalse(att.matches_blocking(item_blk, filters_bool_false))
+        self.assertTrue(att.matches_blocking(item_nonblk, filters_bool_false))
+
+    def test_readiness_filtering(self):
+        item_ready = att.Item(
+            "1",
+            "p1.md",
+            "plans",
+            "reviewed",
+            A.READY,
+            None,
+            None,
+            readiness="go-pending-approval",
+        )
+        item_noready = att.Item("2", "p2.md", "plans", "reviewed", A.READY, None, None)
+
+        filters = att.parse_readiness_filters(["go-pending-approval"])
+        self.assertTrue(att.matches_readiness(item_ready, filters))
+        self.assertFalse(att.matches_readiness(item_noready, filters))
+
+        filters_none = att.parse_readiness_filters(["-"])
+        self.assertFalse(att.matches_readiness(item_ready, filters_none))
+        self.assertTrue(att.matches_readiness(item_noready, filters_none))
+
+    def test_run_with_status_and_priority_filters(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _mk_repo(Path(td))
+            # Test --status with multiple values and comma-separated
+            args = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=["to-review", "draft"],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            for item in data["items"]:
+                self.assertIn(item["native_status"], ("to-review", "draft"))
+
+            # Test --status comma-separated: --status to-review,draft
+            args2 = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=["to-review,draft"],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf2 = io.StringIO()
+            with mock.patch("sys.stdout", buf2):
+                rc2 = att.run(args2)
+            self.assertEqual(rc2, 0)
+            data2 = json.loads(buf2.getvalue())
+            self.assertEqual(len(data["items"]), len(data2["items"]))
+
+    def test_cli_parsing_filters(self):
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+
+        args = parser.parse_args(
+            ["attention", "--status", "to-review", "--status", "draft"]
+        )
+        self.assertEqual(args.status, ["to-review", "draft"])
+
+        args2 = parser.parse_args(
+            [
+                "att",
+                "--status",
+                "to-review,draft",
+                "-p",
+                "high,medium",
+                "-b",
+                "2.0.0",
+                "-r",
+                "go-pending-approval",
+            ]
+        )
+        self.assertEqual(args2.status, ["to-review,draft"])
+        self.assertEqual(args2.priority, ["high,medium"])
+        self.assertEqual(args2.blocking, ["2.0.0"])
+        self.assertEqual(args2.readiness, ["go-pending-approval"])
 
 
 if __name__ == "__main__":

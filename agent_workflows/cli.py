@@ -3165,6 +3165,38 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by artifact type (plans/specs/backlog/research/releases/roadmaps/walkthroughs). Supports multiple flags or comma-separated lists (e.g. -t plans,specs or -t plans -t specs).",
     )
     p_attention.add_argument(
+        "--status",
+        "-s",
+        dest="status",
+        action="append",
+        default=[],
+        help="Filter by artifact status (e.g. to-review, draft, open, approved). Supports multiple flags or comma-separated lists (e.g. --status to-review,draft or --status to-review --status draft).",
+    )
+    p_attention.add_argument(
+        "--priority",
+        "-p",
+        dest="priority",
+        action="append",
+        default=[],
+        help="Filter by priority (e.g. high, medium, low, -). Supports multiple flags or comma-separated lists (e.g. --priority high,medium or --priority high --priority medium).",
+    )
+    p_attention.add_argument(
+        "--blocking",
+        "-b",
+        dest="blocking",
+        action="append",
+        default=[],
+        help="Filter by release-blocking status or release version (e.g. 2.0.0, next, -, true, false). Supports multiple flags or comma-separated lists (e.g. --blocking 2.0.0,-).",
+    )
+    p_attention.add_argument(
+        "--readiness",
+        "-r",
+        dest="readiness",
+        action="append",
+        default=[],
+        help="Filter by readiness (e.g. go-pending-approval, -). Supports multiple flags or comma-separated lists.",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],

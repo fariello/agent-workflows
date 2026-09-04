@@ -46,6 +46,7 @@ class Item(NamedTuple):
     blocks_release: Optional[str] = None
     detail_kind: Optional[str] = None
     detail_text: Optional[str] = None
+    readiness: Optional[str] = None
 
 
 _FIELD_PATTERNS = (
@@ -348,6 +349,8 @@ def _spec_record(
     # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
     pr = specs_mod._read_priority(lines)
     d_kind, d_text = _extract_detail(text)
+    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
+    rd = rd_m.group(1).lower() if rd_m else None
     return Item(
         "",
         rel,
@@ -360,6 +363,7 @@ def _spec_record(
         priority=pr,
         detail_kind=d_kind,
         detail_text=d_text,
+        readiness=rd,
     ), drift
 
 
@@ -411,6 +415,13 @@ def _plans_record(
     pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
     pr = pr_m.group(1) if pr_m else None
     d_kind, d_text = _extract_detail(text)
+    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
+    try:
+        from agent_workflows import ipd_schema as _schema
+
+        rd = _schema.read_readiness(text) or (rd_m.group(1).lower() if rd_m else None)
+    except Exception:
+        rd = rd_m.group(1).lower() if rd_m else None
     return Item(
         pid or "",
         rel,
@@ -423,6 +434,7 @@ def _plans_record(
         priority=pr,
         detail_kind=d_kind,
         detail_text=d_text,
+        readiness=rd,
     ), drift
 
 
@@ -462,6 +474,8 @@ def _research_record(
     pr_val = data.get("priority")
     pr = str(pr_val) if pr_val not in (None, "") else None
     d_kind, d_text = _extract_detail(text)
+    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
+    rd = rd_m.group(1).lower() if rd_m else None
     return Item(
         rid,
         rel,
@@ -473,6 +487,7 @@ def _research_record(
         priority=pr,
         detail_kind=d_kind,
         detail_text=d_text,
+        readiness=rd,
     ), drift
 
 
@@ -504,6 +519,8 @@ def _backlog_record(
         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
     lha = A.last_history_at(_history_section_lines(text))
     d_kind, d_text = _extract_detail(text)
+    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
+    rd = rd_m.group(1).lower() if rd_m else None
     return Item(
         item.id or "",
         rel,
@@ -516,6 +533,7 @@ def _backlog_record(
         blocks_release=item.blocks_release,
         detail_kind=d_kind,
         detail_text=d_text,
+        readiness=rd,
     ), drift
 
 
@@ -644,6 +662,141 @@ def parse_type_filters(raw_types: Sequence[str] | None) -> set[str]:
             canonical = TYPE_ALIASES.get(p, p)
             result.add(canonical)
     return result
+
+
+def parse_filter_tokens(raw_values: Sequence[str] | None) -> set[str]:
+    """Parse a sequence of filter arguments (supporting comma-separated strings and repeated flags)
+    into a set of normalized lowercase tokens.
+    """
+    if not raw_values:
+        return set()
+    result: set[str] = set()
+    for raw in raw_values:
+        if not raw:
+            continue
+        parts = [p.strip().lower() for p in str(raw).split(",") if p.strip()]
+        result.update(parts)
+    return result
+
+
+def parse_status_filters(raw_statuses: Sequence[str] | None) -> set[str]:
+    """Parse status filter arguments, normalizing hyphens and underscores."""
+    tokens = parse_filter_tokens(raw_statuses)
+    result: set[str] = set()
+    for t in tokens:
+        result.add(t)
+        if "_" in t:
+            result.add(t.replace("_", "-"))
+        elif "-" in t:
+            result.add(t.replace("-", "_"))
+    return result
+
+
+def parse_priority_filters(raw_priorities: Sequence[str] | None) -> set[str]:
+    """Parse priority filter arguments."""
+    return parse_filter_tokens(raw_priorities)
+
+
+def parse_blocking_filters(raw_blocking: Sequence[str] | None) -> set[str]:
+    """Parse blocking filter arguments."""
+    return parse_filter_tokens(raw_blocking)
+
+
+def parse_readiness_filters(raw_readiness: Sequence[str] | None) -> set[str]:
+    """Parse readiness filter arguments, normalizing hyphens and underscores."""
+    tokens = parse_filter_tokens(raw_readiness)
+    result: set[str] = set()
+    for t in tokens:
+        result.add(t)
+        if "_" in t:
+            result.add(t.replace("_", "-"))
+        elif "-" in t:
+            result.add(t.replace("-", "_"))
+    return result
+
+
+def matches_status(it: Item, status_filters: set[str]) -> bool:
+    """Return True if item matches any of the given status filters."""
+    if not status_filters:
+        return True
+    ns = (it.native_status or "").lower()
+    ac = (it.attention_class or "").lower()
+    candidates = {
+        ns,
+        ns.replace("_", "-"),
+        ns.replace("-", "_"),
+        ac,
+        ac.replace("_", "-"),
+        ac.replace("-", "_"),
+    }
+    return bool(candidates & status_filters)
+
+
+def matches_priority(it: Item, priority_filters: set[str]) -> bool:
+    """Return True if item matches any of the given priority filters."""
+    if not priority_filters:
+        return True
+    p = (it.priority or "").lower()
+    if not p or p == "-":
+        return "-" in priority_filters or "none" in priority_filters
+    return p in priority_filters
+
+
+def matches_blocking(
+    it: Item, blocking_filters: set[str], repo_root: Path | None = None
+) -> bool:
+    """Return True if item matches any of the given blocking filters."""
+    if not blocking_filters:
+        return True
+    is_blk = bool(it.blocks_release and it.blocks_release != "-")
+    raw_blk = (it.blocks_release or "").lower()
+    resolved_ver = (
+        _resolve_release_version(repo_root, it.blocks_release).lower() if is_blk else ""
+    )
+    planned_ver = ""
+    planned_id = ""
+    if repo_root:
+        try:
+            from agent_workflows import releases as _releases
+
+            desc = _releases.describe_planned_release(repo_root)
+            if desc:
+                planned_id = (desc[0] or "").lower()
+                planned_ver = (desc[1] or "").lower()
+        except (AttributeError, OSError, ValueError):
+            pass
+
+    for tok in blocking_filters:
+        if tok in ("true", "yes", "1", "any", "blocking"):
+            if is_blk:
+                return True
+        elif tok in ("false", "no", "0", "none", "-", "non-blocking"):
+            if not is_blk:
+                return True
+        elif is_blk:
+            if tok in (raw_blk, resolved_ver):
+                return True
+            if tok == "next" and (
+                raw_blk in ("next", planned_id, planned_ver)
+                or resolved_ver == planned_ver
+            ):
+                return True
+    return False
+
+
+def matches_readiness(it: Item, readiness_filters: set[str]) -> bool:
+    """Return True if item matches any of the given readiness filters."""
+    if not readiness_filters:
+        return True
+    r = (it.readiness or "").lower()
+    if not r or r == "-":
+        return "-" in readiness_filters or "none" in readiness_filters
+    r_norm = r.replace("_", "-")
+    for tok in readiness_filters:
+        tok_norm = tok.replace("_", "-")
+        if tok_norm in (r, r_norm):
+            return True
+    return False
 
 
 def _colorize_tree_segment(term: T.Term, path: str, tree: str) -> str:
@@ -813,6 +966,195 @@ def _render_item_row(
     return line
 
 
+def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> str:
+    """Resolve a Blocks-Release value to a concrete release version string (e.g. '2.0.0'),
+    or '-' if absent/None."""
+    if not val or val == "-":
+        return "-"
+    if repo_root:
+        try:
+            from agent_workflows import releases as _releases
+
+            p = _releases.resolve_release(repo_root, val)
+            if p and p.is_file():
+                m = _releases._VERSION_RE.search(p.read_text(encoding="utf-8"))
+                if m:
+                    return m.group(1)
+            if val == "next":
+                desc = _releases.describe_planned_release(repo_root)
+                if desc and desc[1] and desc[1] != "?":
+                    return desc[1]
+        except Exception:
+            pass
+    return val
+
+
+PRIORITY_RANK = {"": 0, "-": 0, "none": 0, "low": 1, "medium": 2, "med": 2, "high": 3}
+
+
+def _render_table_row(
+    it: Item,
+    term: T.Term,
+    colored: bool,
+    long: bool,
+    details: bool = False,
+    repo_root: Optional[Path] = None,
+) -> str:
+    st_raw = it.native_status[:8]
+    if colored:
+        code = _STATUS_COLOR_256.get(
+            it.native_status, _CLASS_COLOR_256.get(it.attention_class, 244)
+        )
+        st_styled = term.color256(st_raw, code, bold=True)
+    else:
+        st_styled = st_raw
+    st_col = st_styled + (" " * (8 - len(st_raw))) + "  "
+
+    type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
+    tp_raw = type_word[:8]
+    if colored:
+        tp_styled = term.color256(tp_raw, _TREE_COLOR_256, bold=True)
+    else:
+        tp_styled = tp_raw
+    tp_col = tp_styled + (" " * (8 - len(tp_raw)))
+
+    blk_ver = _resolve_release_version(repo_root, it.blocks_release)
+    blk_raw = blk_ver[:8]
+    left_pad = " " * (8 - len(blk_raw))
+    if colored:
+        if blk_raw != "-":
+            blk_styled = term.color256(blk_raw, 196, bold=True)
+        else:
+            blk_styled = term.color256(blk_raw, 244)
+    else:
+        blk_styled = blk_raw
+    blk_col = f"{left_pad}{blk_styled} "
+
+    prio_raw = (it.priority or "-")[:9]
+    if colored:
+        if prio_raw != "-":
+            pcode = {"high": 196, "medium": 214, "low": 244}.get(
+                (it.priority or "").lower(), 244
+            )
+            prio_styled = term.color256(prio_raw, pcode, bold=True)
+        else:
+            prio_styled = term.color256(prio_raw, 244)
+    else:
+        prio_styled = prio_raw
+    prio_col = prio_styled + (" " * (9 - len(prio_raw)))
+
+    rd_raw = (it.readiness or "-")[:9]
+    if colored:
+        if rd_raw != "-":
+            lower = rd_raw.lower()
+            rcode = (
+                114
+                if ("go" in lower and "no" not in lower)
+                else (196 if "no" in lower else 244)
+            )
+            rd_styled = term.color256(rd_raw, rcode, bold=True)
+        else:
+            rd_styled = term.color256(rd_raw, 244)
+    else:
+        rd_styled = rd_raw
+    rd_col = rd_styled + (" " * (9 - len(rd_raw))) + "  "
+
+    if long:
+        ident = _colorize_tree_segment(term, it.path, it.tree) if colored else it.path
+    else:
+        ident = _identity_stem(it.path)
+
+    inline_gate = ""
+    if it.gate:
+        inline_gate = (
+            f"  [gate {it.gate.get('kind')}: {A.escape_detail(it.gate.get('ref', ''))}]"
+        )
+
+    row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{ident}{inline_gate}"
+    if details and it.detail_text:
+        tag = it.detail_kind or "summary"
+        tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
+        detail_txt = term.color256(it.detail_text, 250) if colored else it.detail_text
+        row_line += f"\n      {tag_txt} {detail_txt}"
+
+    return row_line
+
+
+def render_table(
+    items: List[Item],
+    drift: List[core.Drift],
+    show_all: bool = False,
+    term: Optional[T.Term] = None,
+    long: bool = False,
+    details: bool = False,
+    repo_root: Optional[Path] = None,
+) -> str:
+    """Render items in a compact columnar table for interactive/TTY viewing.
+
+    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), Artifact Set / ID.
+    Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
+    """
+    if term is None:
+        term = T.Term(color=True)
+    colored = bool(getattr(term, "color", False))
+
+    if repo_root is None:
+        try:
+            from agent_workflows.project_context import (
+                is_project_dir,
+                resolve_verb_repo_root,
+            )
+
+            cand = resolve_verb_repo_root(None)
+            if is_project_dir(cand):
+                repo_root = cand
+        except Exception:
+            pass
+
+    lines: List[str] = []
+    if drift:
+        lines.append(
+            "VIEW INVALID: contract violations must be resolved before this board is authoritative."
+        )
+        for d in drift:
+            lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
+        lines.append("")
+
+    if not show_all:
+        visible = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
+    else:
+        visible = list(items)
+
+    if not visible:
+        return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
+
+    def _sort_key(it: Item) -> Tuple:
+        type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
+        blk_ver = _resolve_release_version(repo_root, it.blocks_release)
+        is_blocking = 0 if (blk_ver == "-" or not it.blocks_release) else 1
+        prio_rank = PRIORITY_RANK.get((it.priority or "").lower(), 0)
+        name = _identity_stem(it.path)
+        return (type_word, is_blocking, prio_rank, name, it.path)
+
+    visible.sort(key=_sort_key)
+    header = "Status    Type    Blocking Priority Readiness  Artifact Set / ID"
+    lines.append(term.colorize(header, "bold") if colored else header)
+
+    for it in visible:
+        lines.append(
+            _render_table_row(
+                it,
+                term=term,
+                colored=colored,
+                long=long,
+                details=details,
+                repo_root=repo_root,
+            )
+        )
+
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
 def render_board(
     items: List[Item],
     drift: List[core.Drift],
@@ -821,18 +1163,28 @@ def render_board(
     long: bool = False,
     details: bool = False,
     legend: bool | None = None,
+    repo_root: Path | None = None,
 ) -> str:
     """Render the attention board.
 
-    When ``term`` is colored (a real TTY / FORCE_COLOR), the human view drops the ``[tree]``
-    bracket, colors the tree name (bold blue) and the native status (bold, status-specific
-    256-color), and folds a blocked item's gate artifact into its section header. When color
-    is OFF (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
+    When ``term`` is colored (a real TTY / FORCE_COLOR), the human view renders the columnar
+    table (Status, Type, Blocking, Priority, Readiness, Artifact Set / ID). When color is OFF
+    (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
     ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape.
     """
     if term is None:
         term = T.Term(color=False)
     colored = bool(getattr(term, "color", False))
+    if colored:
+        return render_table(
+            items,
+            drift,
+            show_all=show_all,
+            term=term,
+            long=long,
+            details=details,
+            repo_root=repo_root,
+        )
     if legend is None:
         legend = colored
 
@@ -1054,6 +1406,33 @@ def run(args) -> int:
                 d for d in drift if (repo_root / d.location).resolve() in selected_paths
             ]
 
+    status_filters = parse_status_filters(getattr(args, "status", None))
+    if status_filters:
+        items = [it for it in items if matches_status(it, status_filters)]
+
+    priority_filters = parse_priority_filters(getattr(args, "priority", None))
+    if priority_filters:
+        items = [it for it in items if matches_priority(it, priority_filters)]
+
+    blocking_filters = parse_blocking_filters(getattr(args, "blocking", None))
+    if blocking_filters:
+        items = [
+            it for it in items if matches_blocking(it, blocking_filters, repo_root)
+        ]
+
+    readiness_filters = parse_readiness_filters(getattr(args, "readiness", None))
+    if readiness_filters:
+        items = [it for it in items if matches_readiness(it, readiness_filters)]
+
+    if (
+        any((status_filters, priority_filters, blocking_filters, readiness_filters))
+        and drift
+    ):
+        selected_paths = {(repo_root / it.path).resolve() for it in items}
+        drift = [
+            d for d in drift if (repo_root / d.location).resolve() in selected_paths
+        ]
+
     fmt = getattr(args, "format", None)
 
     if check:
@@ -1145,48 +1524,75 @@ def run(args) -> int:
         term = T.Term(stream=sys.stdout, color=color)
         colored = bool(getattr(term, "color", False))
         long = getattr(args, "long", False)
-        show_all = getattr(args, "all", False) or bool(selectors_arg)
+        has_terminal_status = any(
+            s
+            in (
+                "done",
+                "parked",
+                "superseded",
+                "not-executed",
+                "implemented",
+                "shipped",
+                "abandoned",
+            )
+            for s in status_filters
+        )
+        show_all = (
+            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
+        )
         details = getattr(args, "details", False)
 
-        blockers = release_blockers(items, repo_root)
-        blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
-        main_items = [
-            it for it in items if (repo_root / it.path).resolve() not in blocker_keys
-        ]
+        if not colored:
+            blockers = release_blockers(items, repo_root)
+            blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
+            main_items = [
+                it
+                for it in items
+                if (repo_root / it.path).resolve() not in blocker_keys
+            ]
 
-        board = render_board(
-            main_items,
-            drift,
-            show_all=show_all,
-            term=term,
-            long=long,
-            details=details,
-            legend=False,
-        )
-        if blockers:
-            # Name the release the blockers gate (id6 + version), not just a count, so the
-            # planned release is visible during ordinary tool use - not only a hidden record.
-            try:
-                from agent_workflows import releases as _releases
+            board = render_board(
+                main_items,
+                drift,
+                show_all=show_all,
+                term=term,
+                long=long,
+                details=details,
+                legend=False,
+                repo_root=repo_root,
+            )
+            if blockers:
+                # Name the release the blockers gate (id6 + version), not just a count, so the
+                # planned release is visible during ordinary tool use - not only a hidden record.
+                try:
+                    from agent_workflows import releases as _releases
 
-                _rel = _releases.describe_planned_release(repo_root)
-            except Exception:
-                _rel = None
-            _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
-            rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
-            if colored:
-                board += term.color256(rel_header, 196, bold=True) + "\n"
-            else:
+                    _rel = _releases.describe_planned_release(repo_root)
+                except Exception:
+                    _rel = None
+                _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
+                rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
                 board += f"## {rel_header}\n"
-            # Render each blocker in the SAME compact columnar form as active/ready/blocked
-            # (not a raw absolute path), so the section reads consistently with the board.
-            for it in blockers:
-                board += (
-                    _render_item_row(
-                        it, it.attention_class, term, colored, long, details=details
+                # Render each blocker in the SAME compact columnar form as active/ready/blocked
+                # (not a raw absolute path), so the section reads consistently with the board.
+                for it in blockers:
+                    board += (
+                        _render_item_row(
+                            it, it.attention_class, term, colored, long, details=details
+                        )
+                        + "\n"
                     )
-                    + "\n"
-                )
+        else:
+            board = render_board(
+                items,
+                drift,
+                show_all=show_all,
+                term=term,
+                long=long,
+                details=details,
+                legend=False,
+                repo_root=repo_root,
+            )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a
         # plan) with a de-gate/close hint.
@@ -1221,10 +1627,6 @@ def run(args) -> int:
                     board += f"    Fix: {fix.strip()}\n"
 
         footer_lines: list[str] = []
-        if colored:
-            footer_lines.append(
-                "legend: ! stale(>30d)  ? unknown-age  # blocked-by-gate  > release-blocker  [priority]"
-            )
         has_hidden = (
             any(it.attention_class in (A.DONE, A.PARKED) for it in items)
             and not show_all

@@ -44,26 +44,33 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         out = self._colored(
             [_item(".aw/records/backlog/open/a.backlog.md", priority="high")]
         )
-        self.assertIn("[high]", out)
+        self.assertIn("high", out)
+        raw = attention.render_board(
+            [_item(".aw/records/backlog/open/a.backlog.md", priority="high")],
+            [],
+            show_all=True,
+            term=T.Term(color=True),
+        )
+        self.assertIn("\033[1;38;5;196mhigh", raw)
 
     def test_release_blocker_marker(self):
         item = _item(".aw/records/backlog/open/a.backlog.md", blocks_release="next")
         out = self._colored([item])
-        # the '>' release-blocker glyph leads the item line and [blocking] tag is present
-        self.assertRegex(out, r"- [!?#]*>\s+open\s+backlog\s+a")
-        self.assertIn("[blocking]", out)
+        # the Blocking column renders the resolved release version or 'next'
+        self.assertRegex(out, r"open\s+backlog\s+(?:2\.0\.0|next)\s+-\s+-\s+a")
 
         raw = attention.render_board([item], [], show_all=True, term=T.Term(color=True))
-        # [blocking] is styled in red (256-color code 196, bold)
-        self.assertIn("\033[1;38;5;196m[blocking]\033[0m", raw)
+        # blocking release version is styled in red (256-color code 196, bold)
+        self.assertIn("\033[1;38;5;196m", raw)
 
         out_noblock = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
-        self.assertNotIn("[blocking]", out_noblock)
+        self.assertRegex(out_noblock, r"open\s+backlog\s+-\s+-\s+-\s+a")
 
-    def test_legend_present_colored(self):
+    def test_table_header_present_colored(self):
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
-        self.assertIn("legend:", out)
-        self.assertIn("release-blocker", out)
+        self.assertIn(
+            "Status    Type    Blocking Priority Readiness  Artifact Set / ID", out
+        )
 
     def test_plain_board_unchanged(self):
         out = self._plain(
@@ -128,7 +135,7 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
             )
 
     def test_plan_release_blocker_renders_blocking_markers(self):
-        # Display parity: an Item with blocks_release set renders the `>` glyph / [blocking] label.
+        # Display parity: an Item with blocks_release set renders in the Blocking column
         it = attention.Item(
             "pl0001",
             ".aw/records/plans/pending/20260101-demo-01-pl0001-x.ipd.md",
@@ -142,7 +149,9 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
         out = _strip(
             attention.render_board([it], [], show_all=True, term=T.Term(color=True))
         )
-        self.assertIn("[blocking]", out)
+        self.assertRegex(
+            out, r"draft\s+plan\s+(?:2\.0\.0|next)\s+-\s+-\s+20260101-demo-01-pl0001"
+        )
 
 
 class RetiredPlanIsNotAReleaseBlockerTests(unittest.TestCase):
