@@ -6,7 +6,8 @@
 - Scope: Refactor `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py` to import constants and helper logic from `agent_workflows/layout.py`.
 - Scope-Paths: agent_workflows/artifact_types.py, agent_workflows/selectors.py
 - Item-Dependencies: executed:wpu5zu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 2
 - Highest E allocated: 02
@@ -16,6 +17,7 @@
 
 ## Workflow history
 
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
@@ -65,12 +67,24 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Project conventions discovered (Step 0)
 
-- `agent_workflows/artifact_types.py`: closed TYPE-noun vocabulary.
+- `agent_workflows/artifact_types.py`: closed TYPE-noun vocabulary and verb routing.
 - `agent_workflows/selectors.py`: shared selector resolver.
+- Controlling spec `kw5y2s` Section 5.1 is `- Status: approved`, carrying the maintainer's UNION vocabulary ruling (11 record classes + `records` root carve-out) and GITIGNORED emission ruling.
+- `KNOWN_PRIMARY_TYPES` is 9 members (`ARTIFACT_TYPES` minus `other`), sourced from `layout.py` (PR-015).
+- `NON_PRIMARY_RECORD_DIRS = frozenset({"reviews"})` exists in `selectors.py` to prevent `other` from capturing review records and colliding with plan id6 resolution; sourcing from `layout.py` must preserve this isolation.
+- `EXCLUDED_RECORD_DIRS` is pinned to the current 7 entries (`runs`, `scratch`, `tmp`, `temp`, `.git`, `.system_generated`, `__pycache__`) per maintainer ruling OQ-01.
+- Python 3.9 is the floor (`pyproject.toml:12`).
 
 ## Findings
 
-- `artifact_types.py` is imported across the CLI and test suite; re-exporting ensures zero downstream breakage.
+| Id | Finding | Evidence |
+| --- | --- | --- |
+| F-1 | **Consolidating `artifact_types.py` and `selectors.py` onto `layout.py` removes duplication without breaking existing imports or tests.** Re-exporting preserves backward compatibility across the entire repository. | `agent_workflows/artifact_types.py:12-40`; `agent_workflows/selectors.py:120-185`. |
+| F-2 | **The union vocabulary preserves `roadmaps` and `roadmap` alias.** Deleting `roadmaps` would break `run_rename_roadmaps` / `run_group_roadmaps` and orphan 5 on-disk artifacts. | `artifact_rename.py:827-828,855-856`; `.aw/records/roadmaps/`. |
+| F-3 | **Traversal exclusions stay at seven per maintainer ruling OQ-01.** Sourcing exclusions from `layout.py` must not silently widen to include `node_modules`, `venv`, or `.venv`. | `selectors.py:168-178`; maintainer resolution on OQ-01. |
+| F-4 | **`reviews` becomes an accepted type token by derivation**, allowing `aw check reviews` to succeed (net-new behavior enabled by the union vocabulary). | `artifact_types.py:42-60`; `aw check reviews`. |
+| F-5 | **Resolver isolation for `NON_PRIMARY_RECORD_DIRS` (`reviews`) must be preserved** so that `_OTHER_SWEEP_SKIP_DIRS` continues to prevent `other` from capturing `.review.md` files. | `selectors.py:140-185`. |
+| F-6 | **Concurrent scope collision on `agent_workflows/selectors.py`.** APPROVED plan `e32j35` (Set `findidx`) also declares `selectors.py`. Re-measurement required immediately before execution. | `.aw/records/plans/pending/20260901-findidx-00-e32j35-...ipd.md`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -83,16 +97,21 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Scope check
 
-- Over-scope: none.
+- Over-scope: none. Both files are strictly internal refactors re-exporting canonical constants from `layout.py`.
 - Under-scope: none.
+- Concurrent-scope collision (PR-010): `agent_workflows/selectors.py` is declared by APPROVED plan `e32j35`. Re-measure immediately before execution.
 
 ## Required tests / validation
 
-- `pytest tests/test_awcmdsurf_vocab_and_parsers.py tests/test_selector_resolver_matrix.py` passing.
+- `python3 -m pytest tests/test_awcmdsurf_vocab_and_parsers.py tests/test_selector_resolver_matrix.py` passing, with actual output pasted.
+- Bare full repository suite `python3 -m pytest` from the PRIMARY checkout, with baseline re-measured on unmodified HEAD at execution time.
+- `aw check --agent` showing no new diagnostic class (expecting the six `tk1gqo` reports).
+- `aw sanitize --agent` passing clean.
 
 ## Spec / documentation sync
 
-- Implements Spec `kw5y2s` Section 5.1.
+- Implements Spec `kw5y2s` Section 5.1. Spec is `approved`; do NOT edit it.
+- No user-facing documentation changes owned by this internal refactor.
 
 ## Open questions
 
@@ -136,3 +155,19 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+
+Execution contract:
+
+1. Human approval of this plan is required before execution. There are no unresolved blocking questions: OQ-01 is `Status: resolved` by the maintainer.
+2. Serial prerequisite: `wpu5zu` (Order 01) MUST reach `executed` before starting this plan, as this plan imports `agent_workflows/layout.py`.
+3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/selectors.py` is declared by APPROVED plan `e32j35` (Set `findidx`). If concurrent edits are in flight, verify mergeability before editing.
+4. Non-narrowing invariant: `roadmaps` MUST survive in `ARTIFACT_TYPES` and `roadmap` in `_ALIASES` (PR-001).
+5. Exclusions invariant: Keep exactly the 7 current exclusions per maintainer ruling OQ-01.
+6. Validation requires ACTUAL pasted runner output; never claim a pass without running the commands.
+7. Shared checkout discipline: commit only files this plan changed, path-scoped. Verify the staged set with `git diff --cached --name-only` and unstage anything not yours with `git restore --staged`. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
+8. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
+9. Scope fence: declared paths are `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py`. An out-of-scope edit requires `--scope-reason`, and an unmodified declared path requires `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a concurrent-edit conflict cannot be safely combined.
+10. Expect the `check.lifecycle-transition-invalid` diagnostic; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
+11. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.

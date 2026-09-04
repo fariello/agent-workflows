@@ -3,10 +3,11 @@
 - Date: 2026-09-01
 - Kind: child
 - Concern: `record_producers.py` and `project_schema.py` maintain separate `RecordClass`, `DurableStateClass`, `RuntimeStateClass`, and subpath maps. Aligning them with `layout.py` removes duplication.
-- Scope: Refactor `agent_workflows/record_producers.py` and `agent_workflows/project_schema.py` to source definitions from `agent_workflows/layout.py` while preserving existing exception types, class enums, and legacy migration path adapters.
-- Scope-Paths: agent_workflows/record_producers.py, agent_workflows/project_schema.py
+- Scope: Refactor `agent_workflows/record_producers.py` and `agent_workflows/project_schema.py` to source definitions from `agent_workflows/layout.py` while preserving existing exception types, class enums, and legacy migration path adapters. Author unit tests in `tests/test_record_producers.py`.
+- Scope-Paths: agent_workflows/record_producers.py, agent_workflows/project_schema.py, tests/test_record_producers.py
 - Item-Dependencies: executed:wpu5zu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 3
 - Highest E allocated: 02
@@ -16,6 +17,7 @@
 
 ## Workflow history
 
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-020, PR-022, PR-023 fixed (added test file to Scope-Paths, added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
@@ -66,17 +68,27 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Project conventions discovered (Step 0)
 
-- `agent_workflows/record_producers.py`: central record routing and write guard.
-- `agent_workflows/project_schema.py`: canonical project schema vocabulary.
+- `agent_workflows/record_producers.py`: central record routing and write guard. Defines `RecordClass` (9 members + `records` root-level carve-out), `DurableStateClass` (5 members), `RuntimeStateClass` (6 members), `_RECORD_CLASS_SUBPATHS`, and `_LEGACY_RECORD_CLASS_SUBPATHS`.
+- `agent_workflows/project_schema.py`: canonical project schema vocabulary. `LogicalRoot` (4 members: system, config, state, records) and `RootClass` (6 members: system, config_project, config_local, state_durable, state_runtime, records).
+- Controlling spec `kw5y2s` Section 5.1 is `- Status: approved`. Item 4 explicitly forbids collapsing `RootClass` (6) into `LogicalRoot` (4).
+- `_RECORD_CLASS_SUBPATHS['records'] == ""` is the mandatory empty-subpath carve-out for the records root itself; naive mapping would produce invalid `records/records/` paths.
+- `_LEGACY_RECORD_CLASS_SUBPATHS` preserves `docs/specs`, `docs/research`, and `docs/walkthroughs` overrides for legacy `.agents/` migration reads.
+- Python 3.9 is the floor (`pyproject.toml:12`).
 
 ## Findings
 
-- `_LEGACY_RECORD_CLASS_SUBPATHS` must be retained in `record_producers.py` for legacy `.agents/` migration reads (`resolve_record_read_paths`).
+| Id | Finding | Evidence |
+| --- | --- | --- |
+| F-1 | **Consolidating `record_producers.py` and `project_schema.py` onto `layout.py` establishes a single source of truth for record and state classes.** Preserves exact backward compatibility. | `agent_workflows/record_producers.py:85-160`; `agent_workflows/project_schema.py:45-65`. |
+| F-2 | **The `records` empty-subpath carve-out is mandatory.** `RecordClass.RECORDS` maps to `""` representing the root records directory itself (`_RECORD_CLASS_SUBPATHS['records'] == ''`). | `record_producers.py:136`; spec Section 3.2.1. |
+| F-3 | **Legacy `.agents/` migration paths must be preserved.** `_LEGACY_RECORD_CLASS_SUBPATHS` maintains legacy `docs/` paths (`docs/specs`, `docs/research`, `docs/walkthroughs`) for `resolve_record_read_paths`. | `record_producers.py:148-154,608-631`. |
+| F-4 | **`LogicalRoot` (4) and `RootClass` (6) answer distinct questions and must not be collapsed.** Spec Section 5.1 item 4 explicitly forbids collapsing physical placement classes to logical roots. | `project_schema.py:45-64`; spec Section 5.1 item 4. |
+| F-5 | **`tests/test_record_producers.py` is newly created by this plan.** Covers the empty-subpath carve-out, preserved legacy read paths, and write guards. Scope-Paths updated to include it (PR-020). | V-01 / E-02 notes; file verified absent before execution. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Refactor `agent_workflows/record_producers.py` (E-01).
-2. Refactor `agent_workflows/project_schema.py` (E-02).
+1. Refactor `agent_workflows/record_producers.py` and create unit tests (E-01).
+2. Refactor `agent_workflows/project_schema.py` and finalize `tests/test_record_producers.py` (E-02).
 
 ## Deferred / out of scope (with reason)
 
@@ -85,15 +97,19 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none.
+- Under-scope: none. `tests/test_record_producers.py` is newly created by this plan and is included in `Scope-Paths` (PR-020).
 
 ## Required tests / validation
 
-- `pytest tests/test_record_producers.py tests/test_project_context.py` passing.
+- `python3 -m pytest tests/test_record_producers.py tests/test_project_context.py` passing, with actual output pasted.
+- Bare full repository suite `python3 -m pytest` from the PRIMARY checkout, with baseline re-measured on unmodified HEAD at execution time.
+- `aw check --agent` showing no new diagnostic class (expecting the six `tk1gqo` reports).
+- `aw sanitize --agent` passing clean.
 
 ## Spec / documentation sync
 
-- Implements Spec `kw5y2s` Section 5.1.
+- Implements Spec `kw5y2s` Section 5.1. Spec is `approved`; do NOT edit it.
+- No user-facing documentation changes owned by this internal refactor.
 
 ## Open questions
 
@@ -131,3 +147,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+
+Execution contract:
+
+1. Human approval of this plan is required before execution. There are no unresolved blocking questions.
+2. Serial prerequisite: `wpu5zu` (Order 01) MUST reach `executed` before starting this plan, as this plan imports `agent_workflows/layout.py`.
+3. Carve-out invariant: `RecordClass.RECORDS` MUST map to the empty string `""` in `_RECORD_CLASS_SUBPATHS` (PR-001).
+4. Legacy preservation: `_LEGACY_RECORD_CLASS_SUBPATHS` MUST retain the `docs/`-prefixed subpaths for `specs`, `research`, and `walkthroughs`.
+5. Class separation: Aligning with `layout.py` MUST NOT collapse `RootClass` (6 members) to `LogicalRoot` (4 members).
+6. Create new tests: `tests/test_record_producers.py` must be authored and committed with this plan.
+7. Validation requires ACTUAL pasted runner output; never claim a pass without running the commands.
+8. Shared checkout discipline: commit only files this plan changed, path-scoped. Verify the staged set with `git diff --cached --name-only` and unstage anything not yours with `git restore --staged`. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
+9. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
+10. Scope fence: declared paths are `agent_workflows/record_producers.py`, `agent_workflows/project_schema.py`, and `tests/test_record_producers.py`. An out-of-scope edit requires `--scope-reason`, and an unmodified declared path requires `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a concurrent-edit conflict cannot be safely combined.
+11. Expect the `check.lifecycle-transition-invalid` diagnostic; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
+12. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.

@@ -403,3 +403,48 @@ and then fails in Order 02 or 03 at import time, or worse, silently changes dire
   in-repo imports and no declaration; `requires-python = ">=3.9"` against the spec's `tuple[...]` snippet.
 - `aw sanitize --agent` -> `outcome: clean, findings: 0`.
 - No product code was touched by this round; no suite run is claimed.
+
+## Round 4
+
+Scope of THIS round: the FULL SET `wslayout` (all six plans: orchestrator `rh5tt6` and children `wpu5zu`, `zvk796`, `rodj06`, `hauwqh`, `30jug9`), as requested by `/aw plan-review-long wslayout`.
+
+Reviewed at HEAD `754dd6f1`; all six plans were committed and unchanged before review, so the pre-review snapshot was correctly skipped. `aw ipd lint --phase author --agent` returned `conforming` for all six before edits, and `--phase review-finalize --agent` returned `conforming` for all six after edits.
+
+ALL FIVE CHILDREN ARE NOW HARDENED AND AT `Status: reviewed`, resolving orchestrator advisory finding F-9. All six plans now carry the mandatory structured `- Readiness: go-pending-approval` machine-readable front-matter field. There are ZERO blocking open questions remaining across the entire Set (all open questions were previously answered and encoded, or resolved by the maintainer).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-019 | HIGH | UNDER-SCOPE | G. Plan executability | `zvk796:135`, `rodj06:130`, `hauwqh:161`, `30jug9:173` gates as written (two lines each); `wpu5zu` and `rh5tt6` gates | **Four child plans had NO execution contract in their Approval and execution gate.** Their gates contained only `Size assessment` and `Cohesion rationale`, omitting the cleared spec gate, prerequisite plan execution, scope fence, honesty rule (paste actual runner output), shared-checkout staging verification (`git diff --cached --name-only`), path-scoped commit, never-push, primary-checkout validation, expected `tk1gqo` diagnostic instruction, and lifecycle transition as a post-gate step. Live concurrent scope collisions (`selectors.py` declared by approved plan `e32j35`, `engine.py` declared by reviewed plan `6knsrx`, `cli.py` declared by 13 pending plans) were unrecorded in their gates. | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | FIXED 2026-09-04. Added complete eleven-clause execution contracts to all four child plans with per-child prerequisites, collision warnings, honesty rules, staging verification, and lifecycle post-gate steps. |
+| PR-020 | HIGH | UNDER-SCOPE | E. Testing and verification | `rodj06:7,60,107-110` | **Plan 03 (`rodj06`) omitted `tests/test_record_producers.py` from its `Scope-Paths`.** E-02 and V-01 explicitly require creating and verifying this new file, but `Scope-Paths` listed only `agent_workflows/record_producers.py, agent_workflows/project_schema.py`. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED 2026-09-04. Added `tests/test_record_producers.py` to `Scope-Paths` and `Scope check` in `rodj06`. |
+| PR-021 | MEDIUM | IN-SCOPE | A. Correctness | `hauwqh:6,30,36,41,127`, `rh5tt6:69,92`; `agent_workflows/engine.py:5420` | **Plan 04 (`hauwqh`) and orchestrator `rh5tt6` named `engine.install()` as the emission function.** The actual function in `agent_workflows/engine.py` is `engine.install_into_repo()` (lines 5420-5560). | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | FIXED 2026-09-04. Corrected function name to `engine.install_into_repo()` across `hauwqh` and `rh5tt6`. |
+| PR-022 | LOW | UNDER-SCOPE | G. Plan executability | `zvk796:73`, `rodj06:74`, `hauwqh:89`, `30jug9:95` | **Plans 02, 03, 04, 05 had single prose-bullet Findings sections without evidence citations or structured tables.** Also carried minimal placeholder sections for conventions, scope check, and required tests. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | FIXED 2026-09-04. Converted Findings to structured `Id / Finding / Evidence` tables with measured repository citations, and filled in conventions, scope checks, and bare-suite test requirements with baseline re-measurement. |
+| PR-023 | LOW | IN-SCOPE | G. Plan executability / Lifecycle | All 6 plans front-matter; `rh5tt6` F-9 advisory | **All six plans lacked the mandatory structured `- Readiness:` machine-readable front-matter field.** Orchestrator `rh5tt6` advisory finding F-9 flagged the children as `Status: to-review` on an expired rationale; with this review, all four remaining children advance to `Status: reviewed`. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | FIXED 2026-09-04. Added `- Readiness: go-pending-approval` to all six plans, advanced Plans 02, 03, 04, 05 from `to-review` to `reviewed`, and updated F-9 in `rh5tt6` to resolved. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-14 | Should the four remaining child plans (`zvk796`, `rodj06`, `hauwqh`, `30jug9`) be advanced to `Status: reviewed` and assigned `Readiness: go-pending-approval`? | Advance all four to `Status: reviewed` and assign `Readiness: go-pending-approval` across all six plans. | (a) Leave children at `to-review`, rejected because all four were thoroughly reviewed, hardened, and verified clean with `aw ipd lint --phase review-finalize` in this round. (b) Advance without structured readiness, rejected because the workflow contract mandates `- Readiness: <go \| go-pending-approval \| no-go>` in front-matter. | Plan-review Step 2 & 3; `rh5tt6` F-9 advisory; `aw ipd lint` clean across Set | yes |
+| D-15 | Should `tests/test_record_producers.py` be added to `Scope-Paths` in `rodj06`? | Yes. Add to `Scope-Paths` and `Scope check`. | Omit from `Scope-Paths` and require `--scope-reason` during finalization. Rejected because the plan explicitly creates the file in E-02 and verifies it in V-01, so omitting it from `Scope-Paths` was an authoring oversight. | `rodj06` E-02 / V-01 text; PR-002 resolution in round 1 | yes |
+| D-16 | What is the exact function name in `agent_workflows/engine.py` for repository installation? | `engine.install_into_repo`. Update references in `hauwqh` and `rh5tt6`. | Retain `engine.install()`, rejected because no such function exists in `engine.py` (`cli.py:4226` and tests invoke `engine.install_into_repo`). | `agent_workflows/engine.py:5420`; `cli.py:4226` | yes |
+| D-17 | What execution contract should be added to the four child plans? | Standard eleven-clause execution contract matching `wpu5zu` and `rh5tt6`: cleared spec gate, serial prerequisites, concurrent scope collision checks, invariant preservation, honesty rule (actual pasted runner output), shared-checkout staging verification, primary-checkout validation, scope fence, expected `tk1gqo` diagnostic, and post-gate lifecycle finalization. | Leave minimal gates, rejected because the repository execution contract and review rubric require the gate to carry these essential safeguards. | Plan-review rubric Section A; `wpu5zu:232-243`; `rh5tt6:238-251` | yes |
+
+### Edits applied (round 4, all 6 plans)
+
+- `rh5tt6`: Added `- Readiness: go-pending-approval`; updated Workflow history; updated `engine.install()` references to `engine.install_into_repo()` in completion criteria and conventions; resolved F-9 advisory in Findings (PR-021, PR-023).
+- `wpu5zu`: Added `- Readiness: go-pending-approval`; updated Workflow history (PR-023).
+- `zvk796`: Advanced `Status: to-review` -> `reviewed`; added `- Readiness: go-pending-approval`; updated Workflow history; added 11-clause execution contract with `e32j35` collision check; converted Findings to 6-row evidence table; expanded conventions, scope check, and bare-suite testing (PR-019, PR-022, PR-023).
+- `rodj06`: Advanced `Status: to-review` -> `reviewed`; added `- Readiness: go-pending-approval`; added `tests/test_record_producers.py` to `Scope-Paths` and `Scope check`; updated Workflow history; added 12-clause execution contract; converted Findings to 5-row evidence table; expanded conventions and bare-suite testing (PR-019, PR-020, PR-022, PR-023).
+- `hauwqh`: Advanced `Status: to-review` -> `reviewed`; added `- Readiness: go-pending-approval`; corrected `engine.install()` to `engine.install_into_repo()` in Goal, Scope, E-01, V-01, and conventions; updated Workflow history; added 12-clause execution contract with `6knsrx` collision check; converted Findings to 5-row evidence table; expanded conventions, scope check, and bare-suite testing (PR-019, PR-021, PR-022, PR-023).
+- `30jug9`: Advanced `Status: to-review` -> `reviewed`; added `- Readiness: go-pending-approval`; recorded maintainer resolution on OQ-01 in E-01; updated Workflow history; added 12-clause execution contract with 13-plan `cli.py` collision check; converted Findings to 5-row evidence table; expanded conventions, scope check, and bare-suite testing (PR-019, PR-022, PR-023).
+
+### Validation of this review's own edits (round 4)
+
+- `aw ipd lint --phase review-finalize --agent` -> `clean`, `findings=0` across ALL SIX plans.
+- All six plans carry valid `- Readiness: go-pending-approval` front-matter fields.
+- Open questions parsed cleanly: `rh5tt6` (3 resolved), `wpu5zu` (0), `zvk796` (1 resolved), `rodj06` (0), `hauwqh` (0), `30jug9` (1 resolved). Zero blocking open questions remaining.
+- `aw specs check` -> all specs conform.
+- `aw check-local-leaks --agent` -> `outcome: clean, findings: 0`.
+- No product code was touched by this round; no suite run is claimed.

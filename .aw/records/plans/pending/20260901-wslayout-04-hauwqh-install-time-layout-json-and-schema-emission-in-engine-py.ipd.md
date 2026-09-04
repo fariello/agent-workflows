@@ -3,10 +3,11 @@
 - Date: 2026-09-01
 - Kind: child
 - Concern: Non-Python tools require a machine-readable `.aw/system/layout.json` and `.aw/system/layout.schema.json` in the target repository. Emitting them during repository installation ensures zero git drift and version alignment with `.aw/system/VERSION`.
-- Scope: Update `agent_workflows/engine.py` to write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during `engine.install()` (the only emission site; `/aw setup-repo` inherits it transitively), gitignore them via the framework-owned `.aw/.gitignore`, and add integration test coverage.
+- Scope: Update `agent_workflows/engine.py` to write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during `engine.install_into_repo()` (the only emission site; `/aw setup-repo` inherits it transitively), gitignore them via the framework-owned `.aw/.gitignore`, and add integration test coverage in `tests/test_engine_install.py`.
 - Scope-Paths: agent_workflows/engine.py, .aw/.gitignore, tests/test_engine_install.py
 - Item-Dependencies: executed:wpu5zu
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 4
 - Highest E allocated: 03
@@ -16,6 +17,7 @@
 
 ## Workflow history
 
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-021, PR-022, PR-023 fixed (corrected engine function name to install_into_repo, added eleven-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
@@ -25,7 +27,7 @@
 
 ## Goal
 
-Ensure `engine.install()` and `aw setup-repo` bake `.aw/system/layout.json` and `.aw/system/layout.schema.json` into target workspaces alongside `.aw/system/VERSION`.
+Ensure `engine.install_into_repo()` bakes `.aw/system/layout.json` and `.aw/system/layout.schema.json` into target workspaces alongside `.aw/system/VERSION` (and `/aw setup-repo` inherits it transitively).
 
 ## Detailed Implementation Checklist (TODO)
 
@@ -33,12 +35,12 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: Engine Install Integration
 
-- [ ] E-01 Update `agent_workflows/engine.py` to call `layout.build_default_layout().to_json(framework_version)` and `layout.build_default_layout().to_schema()` and write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation.
+- [ ] E-01 Update `agent_workflows/engine.py` (`install_into_repo`) to call `layout.build_default_layout().to_json(framework_version)` and `layout.build_default_layout().to_schema()` and write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation.
   - Depends on: none
   - Expected outcome: Target repository `.aw/system/` directory receives layout.json and schema.
   - Execution state: pending
   - Set-level prerequisite: `wpu5zu` must be executed first; see `- Item-Dependencies:` in the metadata.
-  - THE ONLY EMISSION SITE IS `engine.install()` (plan-review PR-003). `/aw setup-repo` (alias
+  - THE ONLY EMISSION SITE IS `engine.install_into_repo()` (plan-review PR-003, PR-021). `/aw setup-repo` (alias
     `/setup-repo`) is an AGENT SLASH-COMMAND backed by a workflow BODY
     (`.aw/system/workflows/setup-repo/setup-repo.md`), NOT a CLI verb and NOT a Python entry point, so it
     has no call site to wire. The order is the REVERSE of what this plan originally assumed: `aw install`
@@ -82,18 +84,27 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Project conventions discovered (Step 0)
 
-- `agent_workflows/engine.py`: primary workspace installer.
+- `agent_workflows/engine.py`: primary workspace installer (`engine.install_into_repo`, lines 5420-5560).
+- `.aw/.gitignore`: framework-owned ignore file; header specifies it lives inside the `.aw/` tree and the user's root `.gitignore` is never touched.
+- Controlling spec `kw5y2s` Section 6.1 is `- Status: approved`, carrying the maintainer's GITIGNORED emission ruling (OQ-02) and `engine.install_into_repo()` sole-emission ruling (OQ-03).
+- Emitted files: `.aw/system/layout.json` and `.aw/system/layout.schema.json` mode `0o644`, with deterministic byte serialization (stable keys) so re-install is a no-op.
+- Python 3.9 is the floor (`pyproject.toml:12`).
 
 ## Findings
 
-- `layout.json` should be installed with standard permissions (0o644) and validated during setup.
-- Emission belongs ONLY in `engine.install()`. `/aw setup-repo` is a slash-command backed by a workflow body with no Python call site, and `aw install` already RECOMMENDS it as a follow-up (`engine.py:3581-3597`), so it inherits emission for free (plan-review PR-003).
-- The emitted artifacts are GITIGNORED via the framework-owned `.aw/.gitignore`, never the user's root `.gitignore` (maintainer ruling, plan-review PR-004/OQ-2). Consequence: a fresh clone has no `layout.json` until an install runs, so readers must tolerate absence and `30jug9`'s `aw check` presence rule is the loud-failure backstop.
+| Id | Finding | Evidence |
+| --- | --- | --- |
+| F-1 | **`engine.install_into_repo()` in `engine.py` is the sole emission site.** `/aw setup-repo` is an agent slash-command backed by a workflow body with no Python call site, and inherits emission transitively without code of its own. | `agent_workflows/engine.py:3581-3597,5420-5560`; workflow index. |
+| F-2 | **The emitted layout artifacts are gitignored via `.aw/.gitignore`.** Avoids git churn and maintains parity with `ila6vl` manifest ruling; user's root `.gitignore` remains untouched. | `.aw/.gitignore:1-16`; maintainer ruling on OQ-02. |
+| F-3 | **`tests/test_engine_install.py` is newly created by this plan.** Asserts install-time generation, schema validity, and gitignore enforcement in a temporary repo. `tests/test_setup_repo_cli.py` was dropped because no such CLI surface exists. | E-03 / V-03 notes; file verified absent before execution. |
+| F-4 | **Deterministic serialization is required.** Re-running `install_into_repo` on an unchanged version must leave the emitted files byte-identical (no rewrites or timestamp drift). | E-01 / V-01 notes. |
+| F-5 | **Concurrent scope collision on `agent_workflows/engine.py`.** REVIEWED plan `6knsrx` (Set `wtisoland`) also declares `engine.py` and lands lane branches. Re-measurement required immediately before execution. | `.aw/records/plans/pending/20260901-wtisoland-00-6knsrx-...ipd.md`. |
 
 ## Proposed changes (ordered, validatable)
 
-1. Wire layout emission in `agent_workflows/engine.py` (E-01).
-2. Add install verification tests (E-02).
+1. Wire layout emission in `agent_workflows/engine.py` `install_into_repo` (E-01).
+2. Add `.aw/.gitignore` entries (E-02).
+3. Author integration tests in `tests/test_engine_install.py` (E-03).
 
 ## Deferred / out of scope (with reason)
 
@@ -102,18 +113,20 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none.
+- Under-scope: none. `tests/test_engine_install.py` is newly created by E-03 and is in `Scope-Paths`.
+- Concurrent-scope collision (PR-010): `agent_workflows/engine.py` is declared by REVIEWED plan `6knsrx`. Re-measure immediately before execution.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_engine_install.py` passing (NEW file created by E-03), with actual output pasted.
-- Bare full suite `python3 -m pytest` passing with zero regressions (the installer is widely depended upon).
+- Bare full suite `python3 -m pytest` from the PRIMARY checkout, with baseline re-measured on unmodified HEAD at execution time.
 - `git check-ignore -v` confirming both emitted artifacts are ignored via `.aw/.gitignore`.
 - NOTE: `tests/test_setup_repo_cli.py` was REMOVED from scope (plan-review PR-002/PR-003): it does not exist and there is no `setup-repo` CLI surface to test.
 
 ## Spec / documentation sync
 
-- Implements Spec `kw5y2s` Section 6.1.
+- Implements Spec `kw5y2s` Section 6.1. Spec is `approved`; do NOT edit it.
+- No user-facing documentation changes owned by this installer wiring.
 
 ## Open questions
 
@@ -124,7 +137,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: in a temporary repo, `engine.install()` (via `aw install`) writes BOTH
+  - Required evidence: in a temporary repo, `engine.install_into_repo()` (via `aw install`) writes BOTH
     `.aw/system/layout.json` and `.aw/system/layout.schema.json` at mode `0o644`. Paste a directory
     listing showing both files and their mode, plus the emitted `framework_version` matching that repo's
     `.aw/system/VERSION`.
@@ -162,3 +175,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+
+Execution contract:
+
+1. Human approval of this plan is required before execution. There are no unresolved blocking questions.
+2. Serial prerequisite: `wpu5zu` (Order 01) MUST reach `executed` before starting this plan, as this plan imports `agent_workflows/layout.py`.
+3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/engine.py` is declared by REVIEWED plan `6knsrx` (Set `wtisoland`). If concurrent edits are in flight, verify mergeability before editing.
+4. Emission site invariant: Wire emission solely into `engine.install_into_repo()`; do not add Python code to workflow bodies or non-existent verbs.
+5. Gitignore invariant: Add entries only to `.aw/.gitignore`; never modify the target user's root `.gitignore`.
+6. File mode and determinism: Write at mode `0o644` with stable key order.
+7. Validation requires ACTUAL pasted runner output; never claim a pass without running the commands.
+8. Shared checkout discipline: commit only files this plan changed, path-scoped. Verify the staged set with `git diff --cached --name-only` and unstage anything not yours with `git restore --staged`. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
+9. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
+10. Scope fence: declared paths are `agent_workflows/engine.py`, `.aw/.gitignore`, and `tests/test_engine_install.py`. An out-of-scope edit requires `--scope-reason`, and an unmodified declared path requires `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a concurrent-edit conflict cannot be safely combined.
+11. Expect the `check.lifecycle-transition-invalid` diagnostic; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
+12. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.

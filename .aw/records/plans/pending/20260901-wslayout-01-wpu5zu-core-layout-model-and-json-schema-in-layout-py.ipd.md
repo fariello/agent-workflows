@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/layout.py, tests/test_layout.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 1
 - Highest E allocated: 02
@@ -15,6 +16,8 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019..PR-023 fixed across Set (added structured readiness field; consumer interface confirmed against newly-reviewed children 02-05).
 - 2026-09-02 reviewed (aw set): plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-015..PR-018 fixed (incomplete consumer interface, other/3.9, undeclared jsonschema, missing execution contract)
 
 - 2026-09-01 draft (antigravity): created child plan.

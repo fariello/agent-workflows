@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/layout.py, agent_workflows/artifact_types.py, agent_workflows/selectors.py, agent_workflows/record_producers.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 0
 - Highest E allocated: 02
@@ -15,6 +16,8 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019..PR-023 fixed across Set (all 5 children reviewed and brought to Status: reviewed with execution contracts and readiness; F-9 advisory resolved).
 - 2026-09-02 reviewed (aw set): plan-review round 2 (orchestrator): APPROVE WITH REVISIONS APPLIED; PR-010..PR-014 fixed; spec kw5y2s now approved so the round-1 external gate is cleared
 
 - 2026-09-01 draft (antigravity): created orchestrator.
@@ -66,7 +69,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/layout.py` exists as the single source of truth for workspace layout definitions, carrying the UNION vocabulary (eleven record classes plus the `records` root carve-out) per the maintainer ruling.
 - `artifact_types.py`, `record_producers.py`, `selectors.py`, and `project_schema.py` re-export from `layout.py` with backward compatibility PROVEN, not asserted: every public name each module exported before still exists with an identical value, and the bare full suite passes.
-- `engine.install()` bakes `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation, as the SOLE emission site. CORRECTED at round 1 (PR-003) and restated here because the original wording survives in other sections: `aw setup-repo` is NOT a CLI verb, it is an agent slash-command backed by a workflow body, and it inherits emission transitively from `aw install` with no code of its own.
+- `engine.install_into_repo()` in `engine.py` bakes `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation, as the SOLE emission site. CORRECTED at round 1 (PR-003) and restated here because the original wording survives in other sections: `aw setup-repo` is NOT a CLI verb, it is an agent slash-command backed by a workflow body, and it inherits emission transitively from `aw install` with no code of its own.
 - Both emitted files are GITIGNORED via the framework-owned `.aw/.gitignore`, with the user's root `.gitignore` untouched.
 - The layout surface (`aw layout` or whatever `30jug9` OQ-01 settles on) and `aw check` verify layout presence and validity, and both behave correctly when the file is ABSENT (the fresh-clone case).
 - All 5 child plans are finalized in `executed/` with every `V-*` carrying non-empty pasted evidence.
@@ -89,7 +92,7 @@ These are the checks NO single child can perform, which is the orchestrator's re
 - A lifecycle transition is a POST-gate step performed with `aw ipd finalize`, never an E-item (`ipd-lifecycle` workflow).
 - Execution against an unapproved controlling spec is forbidden (`ipd-lifecycle.md:16`); that gate is now satisfied.
 - `.aw/.gitignore` is the FRAMEWORK-OWNED ignore file and already carries this convention for other generated paths; the user's root `.gitignore` is never touched (`.aw/.gitignore:1-15`).
-- `engine.install()` is the sole install entry point in Python; `/aw setup-repo` is an agent slash-command backed by a workflow body with no Python call site, and `aw install` RECOMMENDS it as a follow-up (`engine.py:3581-3597`). There is no `aw update` verb.
+- `engine.install_into_repo()` is the sole install entry point in Python; `/aw setup-repo` is an agent slash-command backed by a workflow body with no Python call site, and `aw install` RECOMMENDS it as a follow-up (`engine.py:3581-3597`). There is no `aw update` verb.
 - The suite is run BARE (`python3 -m pytest`); `pyproject.toml` `addopts` already supplies the intended flags.
 
 ## Findings
@@ -103,7 +106,7 @@ These are the checks NO single child can perform, which is the orchestrator's re
 | F-5 | **Two premises the Set relies on are still true at round 2, so its work is not already done.** `aw layout` does not exist (invalid choice), and `aw check reviews` still errors (`outcome: error, exit 2`), which is the net-new behavior `30jug9` owns. | `python3 -m agent_workflows layout`; `aw check reviews --agent`. |
 | F-6 | **PR-009's tooling defect is unresolved and will fire during execution.** `check.lifecycle-transition-invalid` still reports on all six wslayout plans and on 3 unrelated ones (9 repo-wide), and backlog `tk1gqo` is still `open`. The executor must expect it and must NOT "fix" it by reordering histories. | `aw check plans --agent` at round 2; `.aw/records/backlog/open/20260901-historder-01-tk1gqo-...backlog.md:2`. |
 | F-7 | **REVIEW FINDING (round 2): the orchestrator had NO execution contract at all**, while its own children and comparable orchestrators in this repo carry one (compare `3m0urk`'s eight-clause contract). Added, including the scope fence, the honesty rule, path-scoped commits, and the lifecycle-transition-is-not-an-E-item rule. | Round 2 diff of this file; `3m0urk` gate section. |
-| F-9 | **REVIEW FINDING (round 2, ADVISORY, not fixed here): the five CHILDREN are still `Status: to-review`, and the sole stated reason has expired.** Round 1's D-4 deliberately held them there because "`ipd-lifecycle.md:16` gates execution on approval of controlling spec `kw5y2s`, which remains `draft`". That spec is now `approved` (F-2), so the rationale no longer holds, yet the children still read `to-review` while this orchestrator reads `reviewed`. Round 2's ledger was the ORCHESTRATOR only, so advancing five plans this round did not re-review would overstate the review performed; they are left as-is deliberately. RECOMMENDED NEXT STEP: either re-run `/plan-review` over the five children (which would also let their two `open` executor questions be re-confirmed), or advance them on round 1's recorded authority with `aw ipd set reviewed`, before seeking approval. Until then the Set's own plans disagree about their pipeline position. | Round 1 record D-4; `grep '^- Status:'` across the Set at round 2; spec status at `...kw5y2s...spec.md:4`. |
+| F-9 | **RESOLVED (round 4): the five children are now reviewed and Status: reviewed.** The full Set was reviewed in batch; all child plans now carry execution contracts, verified citations, bare suite validation with baseline re-measurement, and `- Readiness: go-pending-approval`. | Round 4 review across the Set; all children `Status: reviewed`. |
 | F-8 | **REVIEW FINDING (round 2): live concurrent scope collisions on two of the Set's modules.** APPROVED plan `e32j35` (Set `findidx`) declares `agent_workflows/selectors.py`, which `zvk796` rewrites; REVIEWED plan `6knsrx` declares `agent_workflows/engine.py`, which `hauwqh` edits and which lands a stack of unmerged lane branches. Across pending plans `cli.py` is declared by 13 and `engine.py` by 3. | Measured `grep -l` over `.aw/records/plans/pending/*.ipd.md` with each plan's `- Status:`. |
 
 ## Proposed changes (ordered, validatable)

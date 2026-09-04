@@ -6,7 +6,8 @@
 - Scope: Add `aw layout` command (supporting `--json`, `--schema`) to `agent_workflows/cli.py`, add layout consistency checking to `check_engine.py` / `doctor.py`, and author unit tests in `tests/test_cli_layout.py`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_cli_layout.py
 - Item-Dependencies: executed:hauwqh
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 5
 - Highest E allocated: 03
@@ -16,6 +17,7 @@
 
 ## Workflow history
 
+- 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added eleven-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
 - 2026-09-01 to-review (antigravity): authored complete plan.
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REJECT - NEEDS REPLAN (Set-level); see orchestrator rh5tt6 OQ-1/OQ-2 and review record 20260901-wslayout-00-rh5tt6-...review.md
@@ -38,19 +40,12 @@ Execution-state rule: mark an E-* item complete only after performing the action
   - Expected outcome: `aw layout` command works in human and agent modes.
   - Execution state: pending
   - Set-level prerequisite: `hauwqh` must be executed first; see `- Item-Dependencies:` in the metadata.
-  - NAMING MUST BE JUSTIFIED BEFORE IMPLEMENTING (plan-review PR-008). `aw layout` sits one word from the
-    EXISTING `aw migrate-layout`, a transactional physical-layout MIGRATION, so the two are adjacent in
-    tab completion while one is read-only and the other moves files. It also overlaps `aw context`, which
-    ALREADY prints the four resolved logical roots, and `aw path <root>`, which already prints one
-    resolved path for scripting (`aw context --json` emits `data.logical_roots` plus
-    `data.effective_framework_version`).
-  - Therefore the executor MUST record, in this plan, ONE of: (a) keep `aw layout` as a new top-level
-    read-only noun, stating why `aw context` cannot carry it (the likely answer: this emits the record
-    CLASS vocabulary and the schema, which `context` does not model); or (b) implement it as
-    `aw context --layout` / a `layout` subcommand of an existing noun. Do not choose by default. The
-    project prefers existing canonical mechanisms, so option (a) needs the stated reason.
-  - Whichever is chosen, the human output must make the read-only nature obvious so it is never confused
-    with `aw migrate-layout`.
+  - NAMING DECISION RESOLVED BY MAINTAINER (2026-09-03, OQ-01): Option (a) chosen. Add a new top-level
+    read-only `aw layout` verb. It exposes the record-class vocabulary and JSON Schema, neither of which
+    `aw context` models; `aw context` remains the inspector for resolved logical roots and `aw path <root>`
+    remains the scripting surface for one resolved path. Although `aw migrate-layout` is adjacent in
+    tab completion, its transactional physical-layout migration purpose is distinct from read-only model
+    inspection. Human output must make the read-only nature obvious.
   - Per the maintainer's OQ-2 ruling the emitted `layout.json` is GITIGNORED, so this command MUST work
     from the in-process model even when no emitted file exists (a fresh clone has none until an install
     runs). It must not require the file to be present.
@@ -89,18 +84,28 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/cli.py`: main CLI surface.
 - `agent_workflows/check_engine.py`: consistency check engine.
+- `agent_workflows/doctor.py`: comprehensive read-only repository health inspector.
+- Controlling spec `kw5y2s` Section 6.2 is `- Status: approved`, carrying the maintainer's `aw layout` naming resolution (OQ-01) and gitignored layout.json handling.
+- `aw layout` is a read-only inspection verb; distinct from transactional `aw migrate-layout`.
+- Because `.aw/system/layout.json` is gitignored, `aw layout` must fall back to the in-process model if the file is absent on a fresh clone.
+- `check.system-layout-missing` and `check.system-layout-drift` rules distinguish (a) no workspace (clean/skip), (b) installed workspace with missing layout (defect), and (c) installed workspace with version/schema drift (defect).
+- Python 3.9 is the floor (`pyproject.toml:12`).
 
 ## Findings
 
-- `aw layout` provides direct stdout inspection without requiring non-Python tools to parse the filesystem if they choose to shell out.
-- The verb name is NOT yet settled: `aw layout` is adjacent to the existing destructive-sounding `aw migrate-layout` and overlaps `aw context` (which already emits the four resolved logical roots) and `aw path`. E-01 must record the naming justification or move the surface under an existing noun (plan-review PR-008).
-- Because the emitted `layout.json` is GITIGNORED per the maintainer's OQ-2 ruling, this Order carries extra weight: `aw check`'s presence/drift rule is the ONLY loud-failure backstop for an absent or stale emitted file, since git will never show a diff for it.
+| Id | Finding | Evidence |
+| --- | --- | --- |
+| F-1 | **`aw layout` provides direct stdout inspection without requiring non-Python tools to parse filesystem files.** Emits human-readable overview, `--json`, and `--schema`. | Spec Section 6.2; `cli.py`. |
+| F-2 | **Naming decision is resolved by the maintainer (OQ-01).** `aw layout` is added as a new top-level read-only verb because it exposes the record-class vocabulary and schema, which `aw context` does not model. | Maintainer resolution on OQ-01. |
+| F-3 | **`aw check` layout rules are the essential loud-failure backstop.** Because emitted layout files are gitignored via `.aw/.gitignore`, git cannot show diffs; `check.system-layout-missing` and `check.system-layout-drift` catch absent or out-of-date files. | `check_engine.py`; `doctor.py`. |
+| F-4 | **`tests/test_cli_layout.py` is newly created by this plan.** Covers `aw layout` modes, the three check engine states, and the union vocabulary CLI fence (`aw check reviews` and `aw check roadmaps`). | E-03 / V-03 notes; file verified absent before execution. |
+| F-5 | **Concurrent scope collision on `agent_workflows/cli.py`.** Declared by 13 pending plans. Re-measurement required immediately before execution. | Measured `grep -l` over pending plans. |
 
 ## Proposed changes (ordered, validatable)
 
 1. Add `layout` parser and runner in `agent_workflows/cli.py` (E-01).
-2. Add check rule in `check_engine.py` (E-02).
-3. Add unit test suite in `tests/test_cli_layout.py` (E-03).
+2. Add check rules in `check_engine.py` and integrate with `doctor.py` (E-02).
+3. Author unit test suite in `tests/test_cli_layout.py` (E-03).
 
 ## Deferred / out of scope (with reason)
 
@@ -109,17 +114,21 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none.
+- Under-scope: none. `tests/test_cli_layout.py` is newly created by E-03 and is in `Scope-Paths`.
+- Concurrent-scope collision (PR-010): `agent_workflows/cli.py` is declared by 13 pending plans. Re-measure immediately before execution.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_cli_layout.py` passing (NEW file created by E-03), with actual output pasted.
-- Full repository test suite passing bare (`python3 -m pytest`), `N passed` line pasted, zero regressions.
+- Bare full repository suite `python3 -m pytest` from the PRIMARY checkout, with baseline re-measured on unmodified HEAD at execution time.
 - `aw check reviews` accepted (net-new) AND `aw check roadmaps` still accepted, proving the union vocabulary added a type without removing one.
+- `aw check --agent` showing no new diagnostic class (expecting the six `tk1gqo` reports).
+- `aw sanitize --agent` passing clean.
 
 ## Spec / documentation sync
 
-- Implements Spec `kw5y2s` Section 6.2.
+- Implements Spec `kw5y2s` Section 6.2. Spec is `approved`; do NOT edit it.
+- Update `--help` text in CLI parser for `aw layout`.
 
 ## Open questions
 
@@ -172,3 +181,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 
 - Size assessment: standard
 - Cohesion rationale: not required
+
+THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+
+Execution contract:
+
+1. Human approval of this plan is required before execution. There are no unresolved blocking questions: OQ-01 is `Status: resolved` by the maintainer.
+2. Serial prerequisite: `hauwqh` (Order 04) MUST reach `executed` before starting this plan.
+3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/cli.py` is declared by 13 pending plans. If concurrent edits are in flight, verify mergeability before editing.
+4. Read-only verb: `aw layout` must be strictly read-only, clearly distinguished from `aw migrate-layout`.
+5. Missing-file tolerance: `aw layout` must function from in-process defaults when `.aw/system/layout.json` does not exist on disk (fresh clone).
+6. Non-failing missing check on fresh clone: `check.system-layout-missing` must not report an error on a repo without an installed AW workspace.
+7. Validation requires ACTUAL pasted runner output; never claim a pass without running the commands.
+8. Shared checkout discipline: commit only files this plan changed, path-scoped. Verify the staged set with `git diff --cached --name-only` and unstage anything not yours with `git restore --staged`. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
+9. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
+10. Scope fence: declared paths are `agent_workflows/cli.py`, `agent_workflows/check_engine.py`, `agent_workflows/doctor.py`, and `tests/test_cli_layout.py`. An out-of-scope edit requires `--scope-reason`, and an unmodified declared path requires `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a concurrent-edit conflict cannot be safely combined.
+11. Expect the `check.lifecycle-transition-invalid` diagnostic; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
+12. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.
