@@ -972,8 +972,20 @@ class PrintStatusRenderingTests(unittest.TestCase):
                     f"{runner}.print_status diverged from the shared definition",
                 )
 
-    def test_the_two_hosts_render_differently_only_by_their_label(self):
-        """If they rendered the SAME, the host token would have been lost in the move."""
+    def test_each_host_still_names_itself_and_not_the_other(self):
+        """If the host token were lost in the move, both would render the same label.
+
+        DELIBERATELY NOT a `replace("opencode", "antigravity")` comparison of the two outputs: the
+        summary is a box-drawn TABLE, so swapping a 8-character label for an 11-character one shifts
+        the column padding and the two renderings are legitimately not translations of each other.
+        A test asserting that would fail for a formatting reason while telling you nothing about the
+        move. What matters is that each host names ITSELF, which is what the injected parameter
+        carries.
+
+        Byte-identity against the PRE-MOVE rendering is proven separately and is the stronger claim;
+        see the E-06 evidence in the plan's V-06 (both hosts' output captured at HEAD `1ecc5891` in a
+        detached worktree and diffed against the post-move output: identical).
+        """
         import contextlib as _ctx
         import io
         import tempfile
@@ -986,10 +998,11 @@ class PrintStatusRenderingTests(unittest.TestCase):
                 with _ctx.redirect_stdout(buf):
                     _MODULES[runner].print_status(run_dir)
                 out[runner] = buf.getvalue()
+        self.assertIn("opencode", out["oc_runipd"])
+        self.assertNotIn("antigravity", out["oc_runipd"])
+        self.assertIn("antigravity", out["agy_runipd"])
+        self.assertNotIn("opencode", out["agy_runipd"])
         self.assertNotEqual(out["oc_runipd"], out["agy_runipd"])
-        self.assertEqual(
-            out["oc_runipd"].replace("opencode", "antigravity"), out["agy_runipd"]
-        )
 
 
 if __name__ == "__main__":

@@ -21,7 +21,6 @@ import select
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from collections.abc import Iterable, Sequence
@@ -134,6 +133,21 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     utc_now as utc_now,
+)
+from agent_workflows.runner_shared import (
+    append_jsonl as append_jsonl,
+)
+from agent_workflows.runner_shared import (
+    atomic_write_json as atomic_write_json,
+)
+from agent_workflows.runner_shared import (
+    load_json as load_json,
+)
+from agent_workflows.runner_shared import (
+    load_state as load_state,
+)
+from agent_workflows.runner_shared import (
+    sha256_file as sha256_file,
 )
 from agent_workflows.runner_shared import (
     _run_git as _run_git,
@@ -2111,53 +2125,6 @@ def make_integration_validation_runner(
     return _runner
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise DriverError(f"Required file not found: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise DriverError(f"Invalid JSON in {path}: {exc}") from exc
-
-
-def atomic_write_json(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(data, indent=2, sort_keys=True) + "\n"
-    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp_name, path)
-        if hasattr(os, "O_DIRECTORY"):
-            with contextlib.suppress(OSError):
-                dir_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-                try:
-                    os.fsync(dir_fd)
-                finally:
-                    os.close(dir_fd)
-    finally:
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(temp_name)
-
-
-def append_jsonl(path: Path, event: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, sort_keys=True) + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
 @contextlib.contextmanager
 def run_lock(run_dir: Path):
     """Hold the run's ``driver.lock`` for this driver process.
@@ -3047,16 +3014,6 @@ def initialize_run(args: argparse.Namespace) -> Path:
     return run_dir
 
 
-def load_state(run_dir: Path) -> dict[str, Any]:
-    return load_json(run_dir / "state.json")
-
-
-def save_state(run_dir: Path, state: dict[str, Any]) -> None:
-    state["updated_at"] = utc_now()
-    atomic_write_json(run_dir / "state.json", state)
-    write_report(run_dir, state)
-
-
 def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     counts: dict[str, int] = {}
     for item in state["queue"]:
@@ -3116,6 +3073,14 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
         ]
     )
     (run_dir / "execution-report.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+# rununify 02 (`818uru`) E-06: one-line wrapper over the shared `save_state`, binding THIS driver's
+# `write_report`. `write_report` is class (c) DIVERGED (the two drivers render different reports), so
+# importing one into shared code would silently give BOTH drivers that one's format. Keeping the
+# original name and signature is what leaves this module's 32 `save_state` call sites untouched.
+def save_state(run_dir: Path, state: dict[str, Any]) -> None:
+    runner_shared.save_state(run_dir, state, write_report=write_report)
 
 
 _SESSION_ID_KEYS = ("sessionID", "sessionId", "session_id")
@@ -6323,12 +6288,6 @@ def render_continuation_hint(
     return "\n".join(lines)
 
 
-def print_status(run_dir: Path) -> None:
-    state = load_state(run_dir)
-    pal = Palette(should_color(sys.stdout))
-    print(render_run_summary_table(state, run_dir, pal=pal, driver_label="opencode"))
-
-
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
     group = sub_parser.add_mutually_exclusive_group()
     group.add_argument(
@@ -6346,6 +6305,14 @@ def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
         help="Stream the child agent's raw JSON events verbatim (legacy behavior)",
     )
     sub_parser.set_defaults(output_mode="clean")
+
+
+# rununify 02 (`818uru`) E-06: one-line wrapper over the shared `print_status`, supplying THIS host's
+# label. `print_status` is the ONE symbol of the 34 that was not AST-identical across the runners: the
+# two bodies were identical EXCEPT for the literal `driver_label="opencode"`. So the host string is a
+# parameter and each driver binds its own; the rendered output is byte-identical to before.
+def print_status(run_dir: Path) -> None:
+    runner_shared.print_status(run_dir, driver_label="opencode")
 
 
 def build_parser() -> argparse.ArgumentParser:
