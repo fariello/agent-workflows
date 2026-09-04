@@ -3385,6 +3385,44 @@ def run_order_rationale(
                         f"so it waits for {target}"
                     )
                     break
+        # Moved because DEPENDENCY DEPTH differs from the item it swapped with. The two loops above
+        # only see a DIRECT edge between the mover and something requested before/after it, which
+        # misses the commonest real case: `dependency_depth` is the FIRST element of
+        # `queue_sort_key`, so a depth-1 node yields to every depth-0 node in the queue even when
+        # there is no edge between those two at all. Measured live in `aw oc run revsweep`: `6ypimw`
+        # (depth 1, via `executed:76gsmv`) and `eyh1fu` (depth 0, no edges) swapped, and BOTH were
+        # reported as `tiebreak: no declared dependency explains this move` while a declared
+        # dependency was the entire explanation. Attributing an edge-driven move to the tiebreak is
+        # the specific lie this branch exists to stop: the tiebreak label is the operator's signal
+        # that the runner reordered them on lower-ranked fields, so it must never absorb a move the
+        # dependency graph forced.
+        if not reason:
+            depth = dependency_depth(id6, by_id)
+            moved_later = exec_index[id6] > req_index[id6]
+            # The counterpart that displaced it: among the items that crossed this one, the one whose
+            # depth differs in the direction that explains the move. Naming it keeps the message
+            # actionable rather than a bare "depth differs".
+            for other in requested:
+                if other == id6:
+                    continue
+                crossed = (req_index[other] > req_index[id6]) != (
+                    exec_index[other] > exec_index[id6]
+                )
+                if not crossed:
+                    continue
+                other_depth = dependency_depth(other, by_id)
+                if moved_later and other_depth < depth:
+                    reason = (
+                        f"declared dependency: {id6} has {depth} declared prerequisite level(s) "
+                        f"in this queue and {other} has {other_depth}, so {other} runs first"
+                    )
+                    break
+                if not moved_later and other_depth > depth:
+                    reason = (
+                        f"declared dependency: {other} has {other_depth} declared prerequisite "
+                        f"level(s) in this queue and {id6} has {depth}, so {id6} runs first"
+                    )
+                    break
         if not reason:
             item = by_id.get(id6, {})
             pos = item.get("position")

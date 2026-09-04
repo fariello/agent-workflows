@@ -183,6 +183,87 @@ class RunOrderRationaleTests(unittest.TestCase):
                 f"{id6}: a move with NO declared edge must be labelled a tiebreak, got {cause!r}",
             )
 
+    def test_depth_driven_move_is_not_blamed_on_the_tiebreak(self):
+        """A depth difference with NO direct edge between the movers is still a DECLARED cause.
+
+        THE DEFECT THIS PINS, measured live in `aw oc run revsweep`. The queue was
+        `76gsmv`(no deps) / `6ypimw`(`executed:76gsmv`) / `eyh1fu`(no deps) / `5slbpi`(deps on both
+        middle items). `6ypimw` and `eyh1fu` swapped because `dependency_depth` is the FIRST element
+        of `queue_sort_key`, so depth-1 `6ypimw` yields to depth-0 `eyh1fu`. Both were reported as
+        `tiebreak: no declared dependency explains this move`, which is the exact opposite of the
+        truth: a declared dependency was the whole explanation. The two edge loops only detect a
+        DIRECT edge between the mover and an item requested before/after it, and here the edge points
+        at `76gsmv`, which never moved, so both fell through to the tiebreak branch.
+
+        Why this matters more than wording: the tiebreak label is the operator's ONLY signal
+        distinguishing "the runner honored my declared edges" from "the runner reordered me on
+        lower-ranked fields". Mislabelling the first as the second is what `run_order_rationale`
+        exists to prevent.
+        """
+        queue = [
+            _item("76gsmv", order=1, position=1),
+            _item("6ypimw", order=2, position=2, deps=["executed:76gsmv"]),
+            _item("eyh1fu", order=3, position=3),
+            _item(
+                "5slbpi",
+                order=4,
+                position=4,
+                deps=["executed:eyh1fu", "executed:6ypimw"],
+            ),
+        ]
+        r = oc_runipd.run_order_rationale(queue, selectors=["revsweep"])
+        self.assertTrue(r["reordered"])
+        self.assertEqual(r["executed"], ["76gsmv", "eyh1fu", "6ypimw", "5slbpi"])
+        self.assertEqual(
+            sorted(r["causes"]),
+            ["6ypimw", "eyh1fu"],
+            "exactly the two items that swapped must carry a cause",
+        )
+        for id6, cause in r["causes"].items():
+            self.assertTrue(
+                cause.startswith("declared dependency:"),
+                f"{id6}: the move was forced by dependency depth, so it must NOT be "
+                f"attributed to the tiebreak, got {cause!r}",
+            )
+            self.assertNotIn("no declared dependency explains this move", cause)
+
+    def test_depth_cause_names_both_items_and_their_depths(self):
+        """The message must be actionable: name the counterpart, not just 'depth differs'."""
+        queue = [
+            _item("76gsmv", order=1, position=1),
+            _item("6ypimw", order=2, position=2, deps=["executed:76gsmv"]),
+            _item("eyh1fu", order=3, position=3),
+        ]
+        r = oc_runipd.run_order_rationale(queue, selectors=["revsweep"])
+        cause = r["causes"]["6ypimw"]
+        self.assertIn("6ypimw", cause)
+        self.assertIn("eyh1fu", cause)
+        self.assertIn("so eyh1fu runs first", cause)
+
+    def test_a_genuine_tiebreak_is_still_reachable_after_the_depth_branch(self):
+        """The depth branch must not swallow the tiebreak label it sits in front of.
+
+        Guards the obvious over-correction: if every move were attributed to depth, the tiebreak
+        case that `prpipy` was written for would become unreportable and this suite would still be
+        green. Two depth-0 nodes tied on `position` reorder purely on `setid`.
+        """
+        queue = [
+            _item("bbbbbb", setid="zzzset", order=1, position=1),
+            _item("aaaaaa", setid="aaaset", order=1, position=1),
+        ]
+        r = oc_runipd.run_order_rationale(queue, selectors=["all"])
+        self.assertTrue(r["reordered"])
+        self.assertEqual(r["executed"], ["aaaaaa", "bbbbbb"])
+        for id6, cause in r["causes"].items():
+            self.assertTrue(
+                cause.startswith("tiebreak:"),
+                f"{id6}: no declared edge and equal depth is a real tiebreak, got {cause!r}",
+            )
+
+    def test_both_hosts_share_the_fixed_rationale(self):
+        """agy binds the same object, so the fix must reach it without a second edit."""
+        self.assertIs(agy_runipd.run_order_rationale, oc_runipd.run_order_rationale)
+
     def test_expanded_selection_is_not_called_a_typed_order(self):
         queue = [_item("aaaaaa", position=1), _item("bbbbbb", position=2)]
         for selectors in (
