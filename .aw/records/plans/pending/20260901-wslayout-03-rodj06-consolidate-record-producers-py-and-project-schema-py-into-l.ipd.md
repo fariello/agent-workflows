@@ -71,7 +71,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/record_producers.py`: central record routing and write guard. Defines `RecordClass` (9 members + `records` root-level carve-out), `DurableStateClass` (5 members), `RuntimeStateClass` (6 members), `_RECORD_CLASS_SUBPATHS`, and `_LEGACY_RECORD_CLASS_SUBPATHS`.
 - `agent_workflows/project_schema.py`: canonical project schema vocabulary. `LogicalRoot` (4 members: system, config, state, records) and `RootClass` (6 members: system, config_project, config_local, state_durable, state_runtime, records).
-- Controlling spec `kw5y2s` is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its rule against collapsing `RootClass` (6) into `LogicalRoot` (4) remains unchanged.
+- Controlling spec `kw5y2s` is `approved` again (re-measured at round 5; the round-4 `to-review` claim is stale). Its rule against collapsing `RootClass` (6) into `LogicalRoot` (4) is unchanged, and the spec is immutable during execution.
 - `_RECORD_CLASS_SUBPATHS['records'] == ""` is the mandatory empty-subpath carve-out for the records root itself; naive mapping would produce invalid `records/records/` paths.
 - `_LEGACY_RECORD_CLASS_SUBPATHS` preserves `docs/specs`, `docs/research`, and `docs/walkthroughs` overrides for legacy `.agents/` migration reads.
 - Python 3.9 is the floor (`pyproject.toml:12`).
@@ -149,7 +149,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
+THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan.
 
 Execution contract:
 

@@ -70,7 +70,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/artifact_types.py`: closed TYPE-noun vocabulary and verb routing.
 - `agent_workflows/selectors.py`: shared selector resolver.
-- Controlling spec `kw5y2s` is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the spec gate. Its UNION vocabulary and GITIGNORED rulings remain unchanged.
+- Controlling spec `kw5y2s` is `approved` again (re-measured at round 5; the round-4 `to-review` claim is stale, the correction having been re-approved `--by-human` after these plans were demoted). Its UNION vocabulary and GITIGNORED rulings are unchanged, and the spec is immutable during execution.
 - `KNOWN_PRIMARY_TYPES` is 9 members (`ARTIFACT_TYPES` minus `other`), sourced from `layout.py` (PR-015).
 - `NON_PRIMARY_RECORD_DIRS = frozenset({"reviews"})` exists in `selectors.py` to prevent `other` from capturing review records and colliding with plan id6 resolution; sourcing from `layout.py` must preserve this isolation.
 - `EXCLUDED_RECORD_DIRS` is pinned to the current 7 entries (`runs`, `scratch`, `tmp`, `temp`, `.git`, `.system_generated`, `__pycache__`) per maintainer ruling OQ-01.
@@ -157,7 +157,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
+THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan.
 
 Execution contract:
 

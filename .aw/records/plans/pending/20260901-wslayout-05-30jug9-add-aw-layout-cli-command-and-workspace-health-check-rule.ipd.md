@@ -88,7 +88,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 - `agent_workflows/cli.py`: main CLI surface.
 - `agent_workflows/check_engine.py`: consistency check engine.
 - `agent_workflows/doctor.py`: comprehensive read-only repository health inspector.
-- Controlling spec `kw5y2s` Section 6.2 is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its `aw layout` naming resolution and gitignored layout.json handling remain unchanged.
+- Controlling spec `kw5y2s` Section 6.2 is `approved` again (re-measured at round 5; the round-4 `to-review` claim is stale). Its `aw layout` naming resolution and gitignored layout.json handling are unchanged, and the spec is immutable during execution.
 - `aw layout` is a read-only inspection verb; distinct from transactional `aw migrate-layout`.
 - Because `.aw/system/layout.json` is gitignored, `aw layout` must fall back to the in-process model if the file is absent on a fresh clone.
 - `check.system-layout-missing` and `check.system-layout-drift` rules distinguish (a) no workspace (clean/skip), (b) installed workspace with missing layout (defect), and (c) installed workspace with version/schema drift (defect).
@@ -185,7 +185,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
+THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan.
 
 Execution contract:
 

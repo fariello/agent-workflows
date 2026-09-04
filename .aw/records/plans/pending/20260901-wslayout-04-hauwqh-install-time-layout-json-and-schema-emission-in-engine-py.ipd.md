@@ -49,6 +49,15 @@ Execution-state rule: mark an E-* item complete only after performing the action
     (`agent_workflows/engine.py:3581-3597`, "NEXT STEP ... run /setup-repo"). `/aw setup-repo` therefore
     inherits emission transitively at zero cost. `aw update` is not a verb either; `aw install` is the
     idempotent update path. Do NOT add emission code to the workflow body.
+  - PUT THE CALL INSIDE `install_into_repo` ITSELF, NOT IN A CALLER (plan-review round 5, PR-026).
+    Measured: `install_into_repo` (`engine.py:5420-5576`) has THREE callers, and the second CLI one is a
+    real verb this plan never mentions. `aw install` reaches it via `engine.run()` (`engine.py:5656`),
+    but `aw setup` -- the machine-wide first-run wizard, a genuine CLI verb, NOT a synonym for
+    `aw install` and NOT the `/setup-repo` slash-command -- reaches it via `cli._run_setup`
+    (`cli.py:5639-5757`) -> `cli._install_one` (`cli.py:4202-4314`) -> `engine.install_into_repo`
+    (`cli.py:4226`). Wiring emission into the shared function therefore covers `aw install`, `aw setup`,
+    and library callers BY CONSTRUCTION; wiring it into `engine.run()` would leave `aw setup` silently
+    emitting nothing, and no test in this plan as originally written would have caught that.
   - Write mode `0o644`, deterministic byte output (stable key order) so a re-install of the same version
     is a no-op rather than a rewrite.
 
@@ -67,9 +76,31 @@ Execution-state rule: mark an E-* item complete only after performing the action
     (`.aw/.gitignore:1-15`), and its header states it "lives inside the framework-owned `.aw/` tree; it
     is NOT the user's root `.gitignore`". Add `system/layout.json` and `system/layout.schema.json`
     (paths are relative to `.aw/`), with a one-line comment naming this plan, in the same style as the
-    existing entries. The installer MUST NEVER touch the user's root `.gitignore`.
-  - The installer must ensure the entries exist idempotently (no duplicate lines on re-install) for
-    repos whose `.aw/.gitignore` predates this change.
+    existing entries.
+  - EDIT THE GENERATOR, NOT (ONLY) THIS REPO'S CHECKED-IN FILE (plan-review round 5, PR-027). A target
+    repo's `.aw/.gitignore` is GENERATED, never copied: `_ensure_aw_gitignore`
+    (`agent_workflows/engine.py:5236-5261`) writes `_AW_GITIGNORE_TEMPLATE`
+    (`agent_workflows/engine.py:4208-4222`) when the file is absent, and otherwise APPENDS only the
+    patterns missing from an explicit `additions` back-fill list. Verified: this repo's own
+    `.aw/.gitignore` and a freshly installed target's differ in comment text, proving the target's copy
+    comes from the template. Therefore this E-item MUST touch TWO places in `engine.py`:
+    (a) `_AW_GITIGNORE_TEMPLATE`, so a FRESH install emits the entries; and
+    (b) the `additions` list in `_ensure_aw_gitignore`, so a repo installed BEFORE this change gains
+    them on update (this is the pre-existing gap the `records/history.jsonl` comment at `:5254-5257`
+    records having already been hit once). Editing only the checked-in `.aw/.gitignore` in THIS repo
+    would change nothing for any target repo, and would pass a naive "the file contains the line" test.
+  - The `additions` mechanism is inherently idempotent (it appends only what a substring check reports
+    missing), so satisfying the no-duplicate-lines requirement means REUSING it, not writing new logic.
+  - THE INSTALLER DOES MUTATE THE TARGET'S ROOT `.gitignore`, so state the rule precisely: this plan must
+    never ADD A LAYOUT ENTRY to the root `.gitignore`. It is NOT true that the installer never touches
+    that file. `ensure_untracked_gitignore` (`engine.py:2698-2735`) writes a managed `aw:block` of
+    untracked-safety patterns into the target's ROOT `.gitignore`, and `ensure_backups_gitignored`
+    (`:2576`) adds the installer-backups line; both are called from `install_into_repo`
+    (`engine.py:5506-5507`). Verified in a temporary target repo: after `aw install`, the root
+    `.gitignore` carries `.agent-workflows-installer-backups/` plus the `aw:block`, while the
+    pre-existing user line was preserved. V-02's "root `.gitignore` untouched" evidence must therefore
+    be scoped to "carries no layout entry", NOT to "has no diff", or it will fail for a legitimate
+    reason on a first install.
 
 - [ ] E-03 Create `tests/test_engine_install.py` verifying that fresh and updated installs emit valid, gitignored `layout.json` and `layout.schema.json`.
   - Depends on: E-01, E-02
@@ -87,7 +118,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/engine.py`: primary workspace installer (`engine.install_into_repo`, lines 5420-5560).
 - `.aw/.gitignore`: framework-owned ignore file; header specifies it lives inside the `.aw/` tree and the user's root `.gitignore` is never touched.
-- Controlling spec `kw5y2s` Section 6.1 is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its GITIGNORED emission ruling and `engine.install_into_repo()` sole-emission ruling remain unchanged.
+- Controlling spec `kw5y2s` Section 6.1 is `approved` again (re-measured at round 5; the round-4 `to-review` claim is stale). Its GITIGNORED emission ruling and `engine.install_into_repo()` sole-emission ruling are unchanged, and the spec is immutable during execution.
 - Emitted files: `.aw/system/layout.json` and `.aw/system/layout.schema.json` mode `0o644`, with deterministic byte serialization (stable keys) so re-install is a no-op.
 - Python 3.9 is the floor (`pyproject.toml:12`).
 
@@ -95,11 +126,11 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 | Id | Finding | Evidence |
 | --- | --- | --- |
-| F-1 | **`engine.install_into_repo()` in `engine.py` is the sole emission site.** `/aw setup-repo` is an agent slash-command backed by a workflow body with no Python call site, and inherits emission transitively without code of its own. | `agent_workflows/engine.py:3581-3597,5420-5560`; workflow index. |
-| F-2 | **The emitted layout artifacts are gitignored via `.aw/.gitignore`.** Avoids git churn and maintains parity with `ila6vl` manifest ruling; user's root `.gitignore` remains untouched. | `.aw/.gitignore:1-16`; maintainer ruling on OQ-02. |
+| F-1 | **`engine.install_into_repo()` is the sole emission site, and it is a CHOKEPOINT with THREE callers, not a single entry point.** `/aw setup-repo` is an agent slash-command backed by a workflow body with no Python call site and inherits emission transitively. But `aw setup` IS a real CLI verb and a second install path, reaching the function through `cli._run_setup` -> `cli._install_one`. Emission must therefore live INSIDE `install_into_repo` (PR-026). Line range also corrected: the function is `5420-5576`, and the `/setup-repo` recommendation is at `3598-3613` inside `print_summary` (`3515-3613`), not `3581-3597`. | `agent_workflows/engine.py:5420-5576`, `:5656` (`run`), `:3598-3613`; `cli.py:5748`, `cli.py:4226`; workflow index. |
+| F-2 | **The emitted layout artifacts are gitignored via a GENERATED `.aw/.gitignore`, and the root `.gitignore` is NOT untouched by the installer.** A target's `.aw/.gitignore` comes from `_AW_GITIGNORE_TEMPLATE` via `_ensure_aw_gitignore`, so E-02 must edit the template AND the back-fill list, not this repo's checked-in file. Separately, `install_into_repo` DOES write an untracked-safety `aw:block` and the backups line into the target's ROOT `.gitignore`, so the correct assertion is "no layout entry in the root file", not "root file unchanged" (PR-027). | `agent_workflows/engine.py:4208-4222` (template), `:5236-5261` (back-fill), `:2576`, `:2698-2735`, `:5506-5507`; verified in a temporary installed repo at round 5; maintainer ruling on OQ-02. |
 | F-3 | **`tests/test_engine_install.py` is newly created by this plan.** Asserts install-time generation, schema validity, and gitignore enforcement in a temporary repo. `tests/test_setup_repo_cli.py` was dropped because no such CLI surface exists. | E-03 / V-03 notes; file verified absent before execution. |
 | F-4 | **Deterministic serialization is required.** Re-running `install_into_repo` on an unchanged version must leave the emitted files byte-identical (no rewrites or timestamp drift). | E-01 / V-01 notes. |
-| F-5 | **Concurrent scope must be measured at execution time.** The prior `6knsrx` example is superseded; inspect current pending declarations for `engine.py` immediately before editing. | Current pending-plan board. |
+| F-5 | **Concurrent scope must be measured at execution time; measured at round 5 there is currently NO conflict.** The prior `6knsrx` example is `Status: superseded`, and a round-5 scan of `- Scope-Paths:` across pending plans finds no non-wslayout claimant on `agent_workflows/engine.py`. Re-measure immediately before editing regardless, since a new plan can land mid-Set. | Round-5 scan of pending `- Scope-Paths:` with each plan's `- Status:`; `6knsrx` resolved under `plans/superseded/`. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -115,13 +146,16 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - Over-scope: none.
 - Under-scope: none. `tests/test_engine_install.py` is newly created by E-03 and is in `Scope-Paths`.
-- Concurrent-scope collision: the prior `6knsrx` example is superseded. Re-measure current pending declarations immediately before execution.
+- SCOPE-PATHS NOTE (round 5, PR-027): `.aw/.gitignore` stays declared, but understand WHY it is the lesser half of E-02. The substantive edit is to `agent_workflows/engine.py` (the `_AW_GITIGNORE_TEMPLATE` string and the `_ensure_aw_gitignore` back-fill list), which is already declared. Touching this repo's own `.aw/.gitignore` is optional dogfooding and changes nothing for a target repo.
+- Concurrent-scope collision: re-measured at round 5. The prior `6knsrx` example is SUPERSEDED, and `agent_workflows/engine.py` currently has NO non-wslayout pending claimant. Re-measure immediately before execution anyway; the point of the rule is that this can change mid-Set.
 
 ## Required tests / validation
 
 - `python3 -m pytest tests/test_engine_install.py` passing (NEW file created by E-03), with actual output pasted.
 - Bare full suite `python3 -m pytest` from the PRIMARY checkout, with baseline re-measured on unmodified HEAD at execution time.
-- `git check-ignore -v` confirming both emitted artifacts are ignored via `.aw/.gitignore`.
+- `git check-ignore -v` confirming both emitted artifacts are ignored via `.aw/.gitignore` (and NOT via the root `.gitignore`).
+- Emission proven through BOTH CLI install paths, `aw install` and `aw setup`, or proven to sit inside the shared `install_into_repo` chokepoint (PR-026).
+- Gitignore entries proven on BOTH generation paths: fresh install (template) and already-installed repo (back-fill) (PR-027).
 - NOTE: `tests/test_setup_repo_cli.py` was REMOVED from scope (plan-review PR-002/PR-003): it does not exist and there is no `setup-repo` CLI surface to test.
 
 ## Spec / documentation sync
@@ -147,6 +181,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
   - PLUS the negative check for PR-003: confirm no emission code was added to
     `.aw/system/workflows/setup-repo/setup-repo.md` (it is a workflow body, not an entry point), e.g.
     paste `git diff --name-only` showing that path is untouched.
+  - PLUS the SHARED-CHOKEPOINT proof (PR-026): paste the diff hunk showing the emission call sits inside
+    `install_into_repo` itself, and demonstrate emission through the SECOND CLI install path by running
+    `aw setup` (or calling `cli._install_one`) against a temporary repo and pasting the resulting
+    `.aw/system/layout.json` listing. A call added to `engine.run()` instead is a FAILED validation even
+    if `aw install` emits correctly, because `aw setup` would silently emit nothing.
   - Observed evidence:
   - Result: pending
 
@@ -157,10 +196,20 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     `git status --porcelain` showing NEITHER emitted file appears, and
     `git check-ignore -v .aw/system/layout.json .aw/system/layout.schema.json` naming `.aw/.gitignore`
     as the source of the rule.
-  - PLUS proof the user's ROOT `.gitignore` was NOT modified by the installer (paste `git diff --
-    .gitignore` showing no change), since the ruling is explicit that only the framework-owned file is
-    touched.
-  - PLUS idempotency: re-run the install and paste evidence no duplicate lines were appended.
+  - PLUS proof the user's ROOT `.gitignore` carries NO LAYOUT ENTRY. CORRECTED at round 5 (PR-027): the
+    earlier wording demanded `git diff -- .gitignore` show NO CHANGE, which is an assertion this plan
+    cannot satisfy and must not make. The installer legitimately writes a managed untracked-safety
+    `aw:block` and the installer-backups line into the target's ROOT `.gitignore`
+    (`engine.py:2576,2698-2735`, both called from `install_into_repo` at `:5506-5507`); on a first
+    install that file necessarily changes. Paste instead: `grep -n layout .gitignore` returning NO match
+    in the target's root file, and `git check-ignore -v` attributing BOTH emitted paths to
+    `.aw/.gitignore` (never to the root file). Optionally show the pre-existing user lines survived.
+  - PLUS idempotency across BOTH generation paths (PR-027), since the mechanism is a template plus a
+    back-fill list, not one file: (a) FRESH install into a new temporary repo, then install AGAIN, and
+    paste evidence `.aw/.gitignore` gained no duplicate line; and (b) BACK-FILL, i.e. start from a repo
+    whose `.aw/.gitignore` LACKS the two entries (simulating a repo installed before this change), run
+    the install, and paste evidence both entries were appended exactly once. Case (b) is the one a
+    template-only edit silently fails.
   - Observed evidence:
   - Result: pending
 
@@ -177,7 +226,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
+THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan.
 
 Execution contract:
 
