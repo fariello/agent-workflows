@@ -44,9 +44,9 @@ prior run's state and continues it without replaying completed side effects.
 
 ## Inspecting, answering, and resuming a run
 
-- Run status:            `aw run status <run-id>`
-- Autonomous decisions:  `aw run decisions <run-id>`
-- Unresolved questions:  `aw run questions <run-id>`
+- Run status:            `aw runs status <run-id>`
+- Autonomous decisions:  `aw runs decisions <run-id>`
+- Unresolved questions:  `aw runs questions <run-id>`
 - Resume after an answer: `aw ipd execute-set --resume <run-id>`
 
 An unresolved question is also promoted to an attention-visible blocked backlog item

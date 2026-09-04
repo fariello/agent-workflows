@@ -608,7 +608,7 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "show", str(self.ledger_path)])
+            exit_code = cli.main(["runs", "show", str(self.ledger_path)])
             out = mock_stdout.getvalue()
 
         self.assertEqual(exit_code, 0)
@@ -623,7 +623,7 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "show", str(self.ledger_path)])
+            exit_code = cli.main(["runs", "show", str(self.ledger_path)])
             out = mock_stdout.getvalue()
 
         self.assertEqual(exit_code, 1)
@@ -636,7 +636,7 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "show", str(self.ledger_path), "--agent"])
+            exit_code = cli.main(["runs", "show", str(self.ledger_path), "--agent"])
             out = mock_stdout.getvalue().strip()
 
         self.assertEqual(exit_code, 0)
@@ -652,7 +652,7 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "evidence", str(self.ledger_path)])
+            exit_code = cli.main(["runs", "evidence", str(self.ledger_path)])
             out = mock_stdout.getvalue()
 
         self.assertEqual(exit_code, 0)
@@ -666,7 +666,7 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "verify-ledger", str(self.ledger_path)])
+            exit_code = cli.main(["runs", "verify-ledger", str(self.ledger_path)])
             out = mock_stdout.getvalue()
 
         self.assertEqual(exit_code, 0)
@@ -686,7 +686,7 @@ class TestRunCLI(unittest.TestCase):
         self.ledger_path.write_text("".join(lines), encoding="utf-8")
 
         with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
-            exit_code = cli.main(["run", "verify-ledger", str(self.ledger_path)])
+            exit_code = cli.main(["runs", "verify-ledger", str(self.ledger_path)])
             out = mock_stdout.getvalue()
 
         self.assertEqual(exit_code, 2)
@@ -699,9 +699,9 @@ class TestRunCLI(unittest.TestCase):
             self.store.append(r)
 
         before_bytes = self.ledger_path.read_bytes()
-        cli.main(["run", "show", str(self.ledger_path)])
-        cli.main(["run", "evidence", str(self.ledger_path)])
-        cli.main(["run", "verify-ledger", str(self.ledger_path)])
+        cli.main(["runs", "show", str(self.ledger_path)])
+        cli.main(["runs", "evidence", str(self.ledger_path)])
+        cli.main(["runs", "verify-ledger", str(self.ledger_path)])
         after_bytes = self.ledger_path.read_bytes()
 
         self.assertEqual(before_bytes, after_bytes)

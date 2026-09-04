@@ -671,8 +671,39 @@ def complete_query(
         except Exception:
             return []
 
-    # 3. run / runs targets -> Set ids + run ids (pure dynamic answer).
-    if cword >= 2 and words[1] in ("run", "runs"):
+    # 3. Run-family TARGET positions -> Set ids + run ids (pure dynamic answer).
+    #
+    # runnamecollapse 0soncw E-08: `run` and `runs` used to be ONE completion surface, which is now
+    # wrong in both directions, because the two nouns no longer take the same thing in the same slot:
+    #
+    #   * `aw runs <TAB>`        -> a TARGET (bare viewer), so offer set ids + run ids.
+    #   * `aw runs <leaf> <TAB>` -> a TARGET for that leaf, so offer them here too.
+    #   * `aw run <TAB>`         -> a WRITER LEAF (start/record/cancel/finalize), NOT a target. It is
+    #                              left to the static subcommand layer below. Offering run ids here
+    #                              suggested a shape `aw run` no longer accepts.
+    #   * `aw run <leaf> <TAB>`  -> a TARGET for that writer leaf, so offer them.
+    #
+    # The retired noun therefore still COMPLETES, but it completes its own real surface (its four
+    # leaves) instead of targets it cannot take. That is the E-08 decision, asserted in
+    # `tests/test_completion.py`.
+    if cword == 2 and words[1] == "runs":
+        # The FIRST slot after `runs` is genuinely ambiguous by design (that is what the parser's
+        # routing action resolves), so completion must offer BOTH what can legally appear there: the
+        # nine viewer leaf names AND the targets. Offering only targets hid `aw runs status` from tab
+        # completion entirely; offering only leaves would hide every run id.
+        try:
+            dynamic = set_id_candidates(repo_root) + run_id_candidates(repo_root)
+        except Exception:
+            dynamic = []
+        return _prefix_filter(_subcommand_candidates(words, cword) + dynamic, prefix)
+    if cword >= 3 and words[1] == "runs":
+        try:
+            return _prefix_filter(
+                set_id_candidates(repo_root) + run_id_candidates(repo_root), prefix
+            )
+        except Exception:
+            return []
+    if cword >= 3 and words[1] == "run":
         try:
             return _prefix_filter(
                 set_id_candidates(repo_root) + run_id_candidates(repo_root), prefix

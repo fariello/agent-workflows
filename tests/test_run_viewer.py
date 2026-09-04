@@ -498,7 +498,7 @@ class RunViewerTests(TestCase):
         buf2 = io.StringIO()
         with redirect_stdout(buf2):
             try:
-                cli.main(["run", "list", "--last", "--no-color"])
+                cli.main(["runs", "list", "--last", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf2.getvalue())
@@ -507,7 +507,7 @@ class RunViewerTests(TestCase):
         buf3 = io.StringIO()
         with redirect_stdout(buf3):
             try:
-                cli.main(["run", "list", "--last", "2", "--json"])
+                cli.main(["runs", "list", "--last", "2", "--json"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         data3 = json.loads(buf3.getvalue())

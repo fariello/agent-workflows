@@ -7,7 +7,7 @@ Goal: from a clean state, inspect a run's provenance evidence and verify its int
 1. List the captured evidence envelopes and tool events for a run:
 
    ```
-   aw run evidence <run-id-or-path>
+   aw runs evidence <run-id-or-path>
    ```
 
    Each envelope records what tool ran, what it produced, and which artifacts it references.
@@ -16,7 +16,7 @@ Goal: from a clean state, inspect a run's provenance evidence and verify its int
 2. Verify the ledger hash chain and the evidence validity:
 
    ```
-   aw run verify-ledger <run-id-or-path>
+   aw runs verify-ledger <run-id-or-path>
    ```
 
    A clean result means every record is chained by SHA-256 to the previous one with no gap and

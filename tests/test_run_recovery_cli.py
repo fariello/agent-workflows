@@ -476,7 +476,7 @@ class TestRunCliSubcommands(unittest.TestCase):
     # ---- exit-class: invalid invocation / missing ledger -----------------------------------------
 
     def test_missing_ledger_invalid_invocation(self) -> None:
-        rc, out = self._cli("run", "status", str(self.tmp / "nope.jsonl"))
+        rc, out = self._cli("runs", "status", str(self.tmp / "nope.jsonl"))
         self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
 
     def test_start_without_step_invalid_invocation(self) -> None:
@@ -495,13 +495,13 @@ class TestRunCliSubcommands(unittest.TestCase):
 
     def test_status_incomplete_exit_one(self) -> None:
         self._seed_incomplete()
-        rc, out = self._cli("run", "status", str(self.ledger))
+        rc, out = self._cli("runs", "status", str(self.ledger))
         self.assertEqual(rc, run_cli.EXIT_INCOMPLETE)
         self.assertIn("Run:", out)
 
     def test_status_agent_machine_is_ansi_free(self) -> None:
         self._seed_incomplete()
-        rc, out = self._cli("run", "status", str(self.ledger), "--agent")
+        rc, out = self._cli("runs", "status", str(self.ledger), "--agent")
         self.assertNotIn("\x1b", out)
         data = json.loads(out.strip())
         self.assertEqual(data["run_id"], RUN_ID)
@@ -511,7 +511,7 @@ class TestRunCliSubcommands(unittest.TestCase):
     def test_next_lists_runnable(self) -> None:
         self._seed_incomplete()
         rc, out = self._cli(
-            "run",
+            "runs",
             "next",
             str(self.ledger),
             "--workflow",
@@ -541,7 +541,7 @@ class TestRunCliSubcommands(unittest.TestCase):
         )
         # S-02 requires the deploy_gate; without approval nothing is runnable.
         rc, _ = self._cli(
-            "run",
+            "runs",
             "next",
             str(self.ledger),
             "--workflow",
@@ -623,7 +623,7 @@ class TestRunCliSubcommands(unittest.TestCase):
 
     def test_resume_ok(self) -> None:
         self._seed_incomplete()
-        rc, out = self._cli("run", "resume", str(self.ledger), "--json")
+        rc, out = self._cli("runs", "resume", str(self.ledger), "--json")
         self.assertEqual(rc, run_cli.EXIT_OK)
         data = json.loads(out)
         self.assertFalse(data["terminal"])
@@ -644,7 +644,7 @@ class TestRunCliSubcommands(unittest.TestCase):
             run_recovery, "detect_unknown_outcomes", _fake_detect
         ), patch.object(run_recovery, "resume", _fake_resume):
             rc, out = self._cli(
-                "run",
+                "runs",
                 "resume",
                 str(self.ledger),
                 "--workflow",
@@ -786,11 +786,13 @@ class TestRunCliSubcommands(unittest.TestCase):
 
     def test_all_machine_modes_ansi_free(self) -> None:
         self._seed_complete()
+        # `status`, `next` and `resume` are READ verbs, so they live under `aw runs` after the
+        # runnamecollapse 0soncw split (`next`/`resume` only reconstruct state and report).
         for sub in ("status", "next", "resume"):
-            _, out = self._cli("run", sub, str(self.ledger), "--agent")
-            self.assertNotIn("\x1b", out, f"ANSI leaked in `run {sub} --agent`")
-            _, out2 = self._cli("run", sub, str(self.ledger), "--json")
-            self.assertNotIn("\x1b", out2, f"ANSI leaked in `run {sub} --json`")
+            _, out = self._cli("runs", sub, str(self.ledger), "--agent")
+            self.assertNotIn("\x1b", out, f"ANSI leaked in `runs {sub} --agent`")
+            _, out2 = self._cli("runs", sub, str(self.ledger), "--json")
+            self.assertNotIn("\x1b", out2, f"ANSI leaked in `runs {sub} --json`")
 
 
 # ==================================================================================================
@@ -886,35 +888,35 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
     # ---- the verdict --------------------------------------------------------------------------
 
     def test_show_on_a_real_run_id_reports_missing_not_corrupt(self) -> None:
-        rc, out = self._cli("run", "show", self.run_id, "--dir", str(self.tmp))
+        rc, out = self._cli("runs", "show", self.run_id, "--dir", str(self.tmp))
         self.assertEqual(rc, run_cli.EXIT_INVALID_INVOCATION)
         self.assertNotIn("corruption", out.lower())
 
     def test_show_on_the_event_log_path_is_wrong_format_not_corruption(self) -> None:
-        rc, out = self._cli("run", "show", str(self.run_dir / "events.jsonl"))
+        rc, out = self._cli("runs", "show", str(self.run_dir / "events.jsonl"))
         self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
         self.assertIn("not a run ledger", out.lower())
         self.assertNotIn("corrupt", out.lower())
 
     def test_verify_ledger_on_the_event_log_is_wrong_format(self) -> None:
-        rc, out = self._cli("run", "verify-ledger", str(self.run_dir / "events.jsonl"))
+        rc, out = self._cli("runs", "verify-ledger", str(self.run_dir / "events.jsonl"))
         self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
         self.assertNotIn("corrupt", out.lower())
 
     def test_evidence_on_the_event_log_is_wrong_format(self) -> None:
-        rc, out = self._cli("run", "evidence", str(self.run_dir / "events.jsonl"))
+        rc, out = self._cli("runs", "evidence", str(self.run_dir / "events.jsonl"))
         self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
         self.assertNotIn("corrupt", out.lower())
 
     def test_status_on_the_event_log_is_wrong_format(self) -> None:
         """The mutating family shares the verdict through `_build_engine`."""
-        rc, out = self._cli("run", "status", str(self.run_dir / "events.jsonl"))
+        rc, out = self._cli("runs", "status", str(self.run_dir / "events.jsonl"))
         self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
         self.assertNotIn("corrupt", out.lower())
 
     def test_machine_output_flags_not_a_ledger_and_denies_corruption(self) -> None:
         rc, out = self._cli(
-            "run", "show", str(self.run_dir / "events.jsonl"), "--agent"
+            "runs", "show", str(self.run_dir / "events.jsonl"), "--agent"
         )
         self.assertEqual(rc, run_cli.EXIT_NOT_A_LEDGER)
         payload = json.loads(out.strip().splitlines()[-1])
@@ -937,7 +939,7 @@ class TestLedgerResolutionAndWrongFormatVerdict(unittest.TestCase):
         lines[1] = json.dumps(tampered, sort_keys=True) + "\n"
         ledger.write_text("".join(lines), encoding="utf-8")
 
-        rc, out = self._cli("run", "show", str(ledger))
+        rc, out = self._cli("runs", "show", str(ledger))
         self.assertNotEqual(
             rc,
             run_cli.EXIT_NOT_A_LEDGER,
