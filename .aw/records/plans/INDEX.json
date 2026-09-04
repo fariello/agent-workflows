@@ -4180,6 +4180,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-03",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md",
+    "plan_id": "818uru",
+    "set_id": "rununify",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4478,16 +4488,6 @@
     "plan_id": "uyeko5",
     "set_id": "runflags",
     "status": "to-review"
-  },
-  {
-    "date": "2026-09-03",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md",
-    "plan_id": "818uru",
-    "set_id": "rununify",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",
