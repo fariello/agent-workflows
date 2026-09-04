@@ -1,12 +1,13 @@
 # Spec: Unified Workspace Hierarchy Specification and Machine-Readable Install-Time Layout Emission
 
 - Date: 2026-09-01
-- Status: reviewed
+- Status: approved
 - Id: kw5y2s
 - Author: antigravity
 - Scope: Consolidate workspace directory definitions into a unified Python layout model and emit machine-readable layout.json during repository installation for non-Python tools.
 
 ## Workflow history
+- 2026-09-04 approved (aw set, --by-human): status set to approved
 - 2026-09-04 reviewed (aw set): Reviewed updated wslayout spec (API terminology corrections verified against codebase; no blocking findings)
 
 - 2026-09-04 to-review (aw specs): API terminology correction is ready for renewed human review and approval.
