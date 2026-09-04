@@ -34,60 +34,60 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: one shared readiness predicate
 
-- [ ] E-01 **DO NOT CREATE `plan_readiness.py`. IT ALREADY EXISTS AND ALREADY DOES THIS.** RE-SCOPED AT REVIEW (PR-401); this item's original instruction was written on 2026-08-31 and its foundation landed on 2026-09-02, so executing it literally would recreate shipped code. MEASURED AT REVIEW: `agent_workflows/plan_readiness.py` exists (committed in `209227d5` by plan `97df1z`); `extract_newest_history_entry(text) -> str | None` exists there and ALREADY fixes both bugs this item names - it bounds the section by REUSING `attention._history_section_lines` (rather than hand-rolling a fourth parser) and returns the FIRST matching record, requiring it to match `attention_contract.HISTORY_RECORD_RE` so an undated stray bullet is skipped; and `oc_runipd.extract_last_history_entry` is GONE, with `tests/test_oc_runipd.py:1379-1380` and `tests/test_agy_runipd_cli.py:737` now asserting its absence in both runners.
+- [x] E-01 **DO NOT CREATE `plan_readiness.py`. IT ALREADY EXISTS AND ALREADY DOES THIS.** RE-SCOPED AT REVIEW (PR-401); this item's original instruction was written on 2026-08-31 and its foundation landed on 2026-09-02, so executing it literally would recreate shipped code. MEASURED AT REVIEW: `agent_workflows/plan_readiness.py` exists (committed in `209227d5` by plan `97df1z`); `extract_newest_history_entry(text) -> str | None` exists there and ALREADY fixes both bugs this item names - it bounds the section by REUSING `attention._history_section_lines` (rather than hand-rolling a fourth parser) and returns the FIRST matching record, requiring it to match `attention_contract.HISTORY_RECORD_RE` so an undated stray bullet is skipped; and `oc_runipd.extract_last_history_entry` is GONE, with `tests/test_oc_runipd.py:1379-1380` and `tests/test_agy_runipd_cli.py:737` now asserting its absence in both runners.
   THE ACTUAL WORK OF THIS ITEM IS THEREFORE: (1) READ the shipped module and its 30+ tests first; (2) confirm by re-measurement that `extract_newest_history_entry` behaves as this plan needs, and if it does, ADD NOTHING - record that the requirement was already satisfied and by which commit, which is the honest outcome; (3) add only what is genuinely missing for E-03/E-04 to build on. Do NOT fork, re-implement, or "improve" the history reader: its docstring explicitly warns the next reader not to "fix" it back into the old last-bullet bug, and a second reader would re-create exactly the divergence `97df1z` removed.
   - Depends on: none
   - Expected outcome: an explicit statement that the module and function already exist, citing `209227d5`, plus a re-measurement over EVERY plan currently in `.aw/records/plans/pending/` (30 at review, not the 26 this plan was written against) showing each returned string is a real dated history record. If nothing needed adding, this item completes with that finding recorded and NO new code, which is a success and not a shortfall.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add `VERDICTS`, a closed mapping of the four verdict strings documented in the plan-review workflow's verdict vocabulary (`.aw/system/workflows/plan-review/plan-review.md:523-529`, RE-LOCATED AT REVIEW; the plan's `:487-493` is stale, PR-406) onto a polarity, to `plan_readiness.py`: `APPROVE` and `APPROVE WITH REVISIONS APPLIED` are `positive`; `REVIEWED - OPEN QUESTIONS` is `neutral`; `REJECT - NEEDS REPLAN` is `negative`. Also map the separate READINESS vocabulary (now at `:531-546`) - `GO`, `GO - PENDING HUMAN APPROVAL`, `NO-GO` - whose `NO-GO` is `negative`. Do NOT invent `CONDITIONAL-GO`: it appears in NEITHER documented vocabulary (F-4), so keep matching it as negative for backward compatibility and add a comment recording that it is undocumented. NOTE the `oc_runipd.py:536` citation for `CONDITIONAL-GO` is also stale; the token now lives in the shipped `plan_readiness._NEGATIVE_READINESS_RE` (`plan_readiness.py:77`), which already treats it as negative with a comment saying so - so this half of the item may already be satisfied, and if it is, say so instead of adding a second mapping.
+- [x] E-02 Add `VERDICTS`, a closed mapping of the four verdict strings documented in the plan-review workflow's verdict vocabulary (`.aw/system/workflows/plan-review/plan-review.md:523-529`, RE-LOCATED AT REVIEW; the plan's `:487-493` is stale, PR-406) onto a polarity, to `plan_readiness.py`: `APPROVE` and `APPROVE WITH REVISIONS APPLIED` are `positive`; `REVIEWED - OPEN QUESTIONS` is `neutral`; `REJECT - NEEDS REPLAN` is `negative`. Also map the separate READINESS vocabulary (now at `:531-546`) - `GO`, `GO - PENDING HUMAN APPROVAL`, `NO-GO` - whose `NO-GO` is `negative`. Do NOT invent `CONDITIONAL-GO`: it appears in NEITHER documented vocabulary (F-4), so keep matching it as negative for backward compatibility and add a comment recording that it is undocumented. NOTE the `oc_runipd.py:536` citation for `CONDITIONAL-GO` is also stale; the token now lives in the shipped `plan_readiness._NEGATIVE_READINESS_RE` (`plan_readiness.py:77`), which already treats it as negative with a comment saying so - so this half of the item may already be satisfied, and if it is, say so instead of adding a second mapping.
   BUILD ON THE SHIPPED VOCABULARY RATHER THAN BESIDE IT (PR-402): `plan_readiness.py` already encodes this vocabulary as three regexes (`_VERDICT_APPROVE_RE:71`, `_NEGATIVE_READINESS_RE:77`, `_VERDICT_NEGATIVE_RE:80`) and `ipd_schema` already owns the structured enum via `read_readiness`/`READINESS_APPROVABLE`. A new mapping that disagreed with either would give two gates two answers for the same plan. So either express `VERDICTS` in terms of those, or replace them and update their callers - but do not leave two independent encodings of one vocabulary.
   - Depends on: none
   - Expected outcome: `VERDICTS` is a module-level mapping whose keys are exactly the documented strings; the longest-match ordering is explicit so `APPROVE WITH REVISIONS APPLIED` can never be classified by the `APPROVE` prefix; and an explicit statement of how it relates to the three shipped regexes (extends, or replaces-and-rewires), with no second independent encoding left behind.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Add `newest_verdict(text: str) -> tuple[str | None, str]` to `plan_readiness.py` returning the classified polarity of the newest REVIEW entry and the raw entry it read. It must consider ONLY history entries that are themselves review entries (the actor or the leading status token names a review, e.g. `reviewed` or `/plan-review`), NOT the newest entry of any kind. THIS IS THE CENTRAL CORRECTNESS REQUIREMENT and it is why a naive "newest entry contains REJECT" test is wrong: measured, all THREE pending plans matching `grep REJECT` are the item-13 successors (`6lu3rq`, `m73aet`, `wlxkoz`) whose newest entry is a `to-review` entry that merely NARRATES the retired predecessor's REJECT (F-5). Classify a verdict only from a review entry's OWN stated verdict.
+- [x] E-03 Add `newest_verdict(text: str) -> tuple[str | None, str]` to `plan_readiness.py` returning the classified polarity of the newest REVIEW entry and the raw entry it read. It must consider ONLY history entries that are themselves review entries (the actor or the leading status token names a review, e.g. `reviewed` or `/plan-review`), NOT the newest entry of any kind. THIS IS THE CENTRAL CORRECTNESS REQUIREMENT and it is why a naive "newest entry contains REJECT" test is wrong: measured, all THREE pending plans matching `grep REJECT` are the item-13 successors (`6lu3rq`, `m73aet`, `wlxkoz`) whose newest entry is a `to-review` entry that merely NARRATES the retired predecessor's REJECT (F-5). Classify a verdict only from a review entry's OWN stated verdict.
   READ THE STRUCTURED FIELD FIRST, PROSE ONLY AS FALLBACK, AND MATCH THE SHIPPED DECISION ORDER EXACTLY (added at review, PR-402; this is the one change most likely to produce a real bug if skipped). Since this plan was authored, `- Readiness: <go|go-pending-approval|no-go>` became a REQUIRED review output and `plan_readiness.is_plan_review_approved` (`:189-219`) already implements a deliberate THREE-WAY decision: a VALID field is authoritative and beats any prose; an ABSENT field falls back to the corrected newest-history record; a PRESENT-BUT-OUT-OF-VOCAB field REFUSES OUTRIGHT with no fallback, on the stated reasoning that absence means "no signal" while a bad value means "the signal is corrupt". A prose-first `newest_verdict` would disagree with that shipped gate about the same plan, which is worse than either behavior alone. So `newest_verdict` must either consume the field first in the same order, or be documented as prose-only and consumed BY `approval_refusals` strictly after the field check. MEASURED AT REVIEW: exactly 1 of 30 pending plans carries the field today (`eulhzt`, `go-pending-approval`), so the prose fallback is still the common path and BOTH halves must be right.
   - Depends on: E-01, E-02
   - Expected outcome: `newest_verdict` returns `negative` for a plan whose newest review entry states `REJECT - NEEDS REPLAN`, and returns non-negative for all three of `6lu3rq`, `m73aet`, `wlxkoz`, whose REJECT mention belongs to a predecessor; PLUS a stated field-versus-prose ordering that matches `plan_readiness.is_plan_review_approved`'s three-way rule, demonstrated on a plan carrying a valid field, one carrying none, and one carrying a corrupt value. NOTE `6lu3rq` and `m73aet` are now in `executed/`, so re-derive these fixtures from their current locations rather than assuming `pending/`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `approval_refusals(repo_root, plan_path, plan_text, *, allow_open_questions: bool = False) -> list[str]` to `plan_readiness.py` as the ONE predicate every approval surface consumes. It returns a human-readable refusal reason per problem found, empty meaning approval is permitted. It must compose THREE sources rather than reimplementing any: (1) `newest_verdict` from E-03 for the prose verdict; (2) the TYPED artifact via `review_findings.plan_gating_blocks(repo_root, plan_id6)` (`review_findings.py:758`), reused unchanged so the severity comparison is not forked, per the anti-fork precedent test at `tests/test_review_findings_gate.py:261`; (3) blocking open questions via `ipd_lint.parse(text).open_questions` filtered by the EXACT predicate the shipped pre-execution gate uses at `ipd_lint.py:683`, `oq.get("Blocking") == "yes" and oq.get("Status") == "open"`. The verdict refusals are NOT suppressible; only the open-question refusals are suppressed by `allow_open_questions`.
+- [x] E-04 Add `approval_refusals(repo_root, plan_path, plan_text, *, allow_open_questions: bool = False) -> list[str]` to `plan_readiness.py` as the ONE predicate every approval surface consumes. It returns a human-readable refusal reason per problem found, empty meaning approval is permitted. It must compose THREE sources rather than reimplementing any: (1) `newest_verdict` from E-03 for the prose verdict; (2) the TYPED artifact via `review_findings.plan_gating_blocks(repo_root, plan_id6)` (`review_findings.py:758`), reused unchanged so the severity comparison is not forked, per the anti-fork precedent test at `tests/test_review_findings_gate.py:261`; (3) blocking open questions via `ipd_lint.parse(text).open_questions` filtered by the EXACT predicate the shipped pre-execution gate uses at `ipd_lint.py:683`, `oq.get("Blocking") == "yes" and oq.get("Status") == "open"`. The verdict refusals are NOT suppressible; only the open-question refusals are suppressed by `allow_open_questions`.
   REUSE THE SHIPPED BLOCKING-QUESTION PREDICATE, do not write a third one: `plan_readiness.has_unresolved_blocking_question` (`:157-186`) already implements this test and is deliberately FAIL-CLOSED (an OQ block whose `Blocking`/`Status` cannot be parsed counts as blocking). Note it differs from `ipd_lint.py:683`'s `Status == "open"` form by treating anything not `resolved` as unresolved, which is STRICTER; pick one deliberately, state which, and do not leave three predicates answering one question.
   - Depends on: E-03
   - Expected outcome: `approval_refusals` returns a non-empty list naming the verdict for a REJECTed plan even when `allow_open_questions=True`, returns a list naming the question id for a plan carrying an unresolved blocking open question when `allow_open_questions=False` and empty for it when `True`, and returns empty for a plan with no review and no blocking question. RE-DERIVE THE FIXTURE (PR-407): the plan named `mjx7ne`/`OQ-03`, but that question is now `resolved` and ZERO of the 30 pending plans currently carry an unresolved blocking question (measured at review), so this case needs a CONSTRUCTED fixture rather than a live plan - which is better anyway, since a fixture cannot be invalidated by someone answering a question.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: consume the predicate at every approval surface
 
-- [ ] E-05 Consume `approval_refusals` in `status_set.validate_transition_allowed` (`status_set.py:449`, still correct) with a new `if rec.record_type == "plans" and norm_status == "approved":` block inserted immediately AFTER the specs block and BEFORE the backlog `blocked` block. LOCATE THAT POINT BY SYMBOL, NOT BY LINE (PR-403): every line citation in this plan has drifted since authoring, and `:502` is now the backlog-`blocked` line ITSELF rather than the gap before it, so inserting "at :502" would put the new gate on the wrong side of an existing one. The correct anchor is the blank line between the spec `--by-human` refusal (now at `:502-505`) and `if rec.record_type == "backlog" and norm_status == "blocked":` (now at `:507`). Refuse with `return (False, <reason>)`, matching the module's existing refusal shape: the module defines NO exception class and contains no `raise`, and both neighbouring precedents return the tuple. Do not invent an exception type. The pre-flight loop (`for rec in matched_records:` with `validate_transition_allowed` before any write, now at `:1225-1226`, emitting rule `status.invalid_transition` at `:1237`) already makes this atomic across a batch, which is what makes a blanket multi-plan approval refuse WITHOUT partially applying.
+- [x] E-05 Consume `approval_refusals` in `status_set.validate_transition_allowed` (`status_set.py:449`, still correct) with a new `if rec.record_type == "plans" and norm_status == "approved":` block inserted immediately AFTER the specs block and BEFORE the backlog `blocked` block. LOCATE THAT POINT BY SYMBOL, NOT BY LINE (PR-403): every line citation in this plan has drifted since authoring, and `:502` is now the backlog-`blocked` line ITSELF rather than the gap before it, so inserting "at :502" would put the new gate on the wrong side of an existing one. The correct anchor is the blank line between the spec `--by-human` refusal (now at `:502-505`) and `if rec.record_type == "backlog" and norm_status == "blocked":` (now at `:507`). Refuse with `return (False, <reason>)`, matching the module's existing refusal shape: the module defines NO exception class and contains no `raise`, and both neighbouring precedents return the tuple. Do not invent an exception type. The pre-flight loop (`for rec in matched_records:` with `validate_transition_allowed` before any write, now at `:1225-1226`, emitting rule `status.invalid_transition` at `:1237`) already makes this atomic across a batch, which is what makes a blanket multi-plan approval refuse WITHOUT partially applying.
   ALSO GATE `auto-approved`, or state why not (found at review). `TYPE_STATUSES["plans"]` contains BOTH `approved` and `auto-approved` (`status_set.py:42-43`) and `ipd_schema.READY_TO_EXECUTE` is `frozenset(("approved", "auto-approved"))` (`ipd_schema.py:267`), so BOTH strings license execution. A gate keyed on the literal `approved` therefore leaves the automated tier ungated AT THE SETTER. Be precise about the residual risk rather than overstating it: the runners' `--full-auto` path does check `is_plan_review_approved` before calling `set_plan_approved` (`oc_runipd.py:2954`, `:5477`), so today's automated path is not unguarded - but the guard lives in the CALLER, and this plan's whole thesis is that the guard belongs in the shared predicate every surface consumes, because a caller-side check is exactly what a different caller skips. Gate the whole ready-to-execute set, or record explicitly why the automated tier is deliberately exempt.
   - Depends on: E-04
   - Expected outcome: `aw ipd set approved <rejected-plan>` exits 1 with rule `status.invalid_transition`, the plan file is unmodified on disk, and no `- Approval:` line is written; a batch containing one REJECTed plan approves NONE of its members.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the named override flag `--allow-open-questions` to every CLI surface that reaches the approval path, declared beside the existing `--by-human` (RE-MEASURED AT REVIEW, PR-403: `cli.py:1098` for `aw ipd set` is still correct, but `aw set`'s is at `cli.py:2741`, not `:2692`), and thread it as `allow_open_questions`. It MUST NOT be implied by `--by-human` (the backlog item is explicit), and the recorded history entry must state that it was used, so an overridden approval is auditable in the artifact rather than only in a shell history. The history record is composed in `apply_status_change` as `hist_entry = f"- {today} {norm_status} ({actor}): {message}"` (now at `:793`, not `:523`) and PREPENDED under the heading (`new_lines.insert(i + 1, hist_entry)` at `:799`, not `:791`); extend that composition, and note the module already carries the `--by-human` precedent of folding an attestation into the ACTOR string (`actor = f"{actor}, --by-human"`), which is the shape to follow so the override is machine-greppable rather than buried in free-text.
+- [x] E-06 Add the named override flag `--allow-open-questions` to every CLI surface that reaches the approval path, declared beside the existing `--by-human` (RE-MEASURED AT REVIEW, PR-403: `cli.py:1098` for `aw ipd set` is still correct, but `aw set`'s is at `cli.py:2741`, not `:2692`), and thread it as `allow_open_questions`. It MUST NOT be implied by `--by-human` (the backlog item is explicit), and the recorded history entry must state that it was used, so an overridden approval is auditable in the artifact rather than only in a shell history. The history record is composed in `apply_status_change` as `hist_entry = f"- {today} {norm_status} ({actor}): {message}"` (now at `:793`, not `:523`) and PREPENDED under the heading (`new_lines.insert(i + 1, hist_entry)` at `:799`, not `:791`); extend that composition, and note the module already carries the `--by-human` precedent of folding an attestation into the ACTOR string (`actor = f"{actor}, --by-human"`), which is the shape to follow so the override is machine-greppable rather than buried in free-text.
   - Depends on: E-05
   - Expected outcome: `aw ipd set approved <plan-with-blocking-oq>` refuses; adding `--allow-open-questions` succeeds and the resulting `## Workflow history` entry names the override; `--by-human` alone still refuses.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Close the SECOND approval surface, `specs.run_set` (`specs.py:498`, verified still correct), which is a forked implementation reached by the `aw specs set <path> --status approved` spelling while the positional spelling routes to `status_set.run_set_command` (dual dispatch documented at `specs.py:632-634`, verified). Consume the SAME predicate there for the open-question half and the same `--allow-open-questions` flag, declared beside `aw specs set`'s existing arguments (the `--status` argument is at `cli.py:3417` and `--by-human` at `:3469`; the plan's `:3419` is approximately right but locate by symbol), so the gate is not bypassable by choosing a spelling. Per OQ-02 the verdict half is a no-op for specs today because `review_findings` keys reviews by `Plan-Id` (`review_findings.py:67`) and no spec review artifact type exists; implement the call so the verdict half activates automatically if one is ever added, and record that in a comment.
+- [x] E-07 Close the SECOND approval surface, `specs.run_set` (`specs.py:498`, verified still correct), which is a forked implementation reached by the `aw specs set <path> --status approved` spelling while the positional spelling routes to `status_set.run_set_command` (dual dispatch documented at `specs.py:632-634`, verified). Consume the SAME predicate there for the open-question half and the same `--allow-open-questions` flag, declared beside `aw specs set`'s existing arguments (the `--status` argument is at `cli.py:3417` and `--by-human` at `:3469`; the plan's `:3419` is approximately right but locate by symbol), so the gate is not bypassable by choosing a spelling. Per OQ-02 the verdict half is a no-op for specs today because `review_findings` keys reviews by `Plan-Id` (`review_findings.py:67`) and no spec review artifact type exists; implement the call so the verdict half activates automatically if one is ever added, and record that in a comment.
   - Depends on: E-06
   - Expected outcome: `aw specs set <spec> --status approved` refuses a spec carrying a blocking open question and accepts it with `--allow-open-questions`; both spellings of spec approval behave identically.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: falsifiable tests
 
-- [ ] E-08 EXTEND the EXISTING `tests/test_plan_readiness.py` (it already ships, 472 lines, with `ExtractorTests`, `SchemaFieldTests`, `PredicateTruthTableTests`, `RealPlanIntegrationTests` and `NoWideningTests`, added by `97df1z`); do NOT create it or overwrite it. RE-SCOPED AT REVIEW (PR-401). Several cases this item specifies are ALREADY THERE, including the section-bounding fix (`test_section_is_bounded_at_the_next_h2`), the newest-first ordering fix (`test_newest_first_selection`), the old-behavior characterization (`test_characterizes_the_old_broken_behavior`), the blocking-question refusal and its resolved counterpart, and the `NO-GO`/`CONDITIONAL-GO` refusals. READ THEM FIRST and add only the genuinely new cases (the review-entry discriminator, the verdict refusal surviving `allow_open_questions=True`, and the field-versus-prose ordering from E-03). Duplicating an existing case is not neutral: it doubles the maintenance surface and invites the two copies to drift apart in opposite directions.
+- [x] E-08 EXTEND the EXISTING `tests/test_plan_readiness.py` (it already ships, 472 lines, with `ExtractorTests`, `SchemaFieldTests`, `PredicateTruthTableTests`, `RealPlanIntegrationTests` and `NoWideningTests`, added by `97df1z`); do NOT create it or overwrite it. RE-SCOPED AT REVIEW (PR-401). Several cases this item specifies are ALREADY THERE, including the section-bounding fix (`test_section_is_bounded_at_the_next_h2`), the newest-first ordering fix (`test_newest_first_selection`), the old-behavior characterization (`test_characterizes_the_old_broken_behavior`), the blocking-question refusal and its resolved counterpart, and the `NO-GO`/`CONDITIONAL-GO` refusals. READ THEM FIRST and add only the genuinely new cases (the review-entry discriminator, the verdict refusal surviving `allow_open_questions=True`, and the field-versus-prose ordering from E-03). Duplicating an existing case is not neutral: it doubles the maintenance surface and invites the two copies to drift apart in opposite directions.
   Cover the predicate directly, and SABOTAGE each NEW assertion before trusting it (an assertion that cannot fail is worse than no test; this repo has already shipped vacuous isolation tests that passed against a stubbed-out notice). Required cases: the newest-review-entry discriminator (a plan whose newest entry is a `to-review` line NARRATING a predecessor's REJECT must NOT be refused, using the real `6lu3rq` shape); an older REJECT superseded by a newer APPROVE must NOT refuse; a newest REJECT must refuse; the history-ordering fix (newest-first, so a fixture with two review entries proves the newer one wins); the section-bounding fix (a fixture whose final section ends in a `- ` bullet must not have that bullet mistaken for history); `NO-GO` in the readiness vocabulary refuses; blocking-open-question refusal and its override; and the verdict refusal surviving `allow_open_questions=True`.
   - Depends on: E-04
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_plan_readiness.py` reports all tests passing, with the count stated BEFORE and AFTER so the additions are visible and no pre-existing case was lost; each NEW assertion was verified to FAIL when the corresponding predicate branch is deliberately broken; and a statement of which specified cases were found already present rather than added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Add gate tests to `tests/test_status_set.py` beside the existing approval tests, following the established refusal and atomicity precedents (`test_invalid_status_for_artifact_type_refuses:458`, `test_type_mismatch_refuses_execution_before_changes:390`). Required cases: a REJECTed plan refuses with a nonzero exit and an UNCHANGED file; the refusal is not defeated by `--by-human`; a batch of three plans where one is REJECTed approves NONE; `--allow-open-questions` permits the OQ case and records the override in history; and the `test_custom_message_and_by_human_attestation:471` path (`draft -> approved` with `--by-human`) still returns 0 for a clean plan, proving the gate did not break the legitimate author-then-approve flow.
+- [x] E-09 Add gate tests to `tests/test_status_set.py` beside the existing approval tests, following the established refusal and atomicity precedents (`test_invalid_status_for_artifact_type_refuses:458`, `test_type_mismatch_refuses_execution_before_changes:390`). Required cases: a REJECTed plan refuses with a nonzero exit and an UNCHANGED file; the refusal is not defeated by `--by-human`; a batch of three plans where one is REJECTed approves NONE; `--allow-open-questions` permits the OQ case and records the override in history; and the `test_custom_message_and_by_human_attestation:471` path (`draft -> approved` with `--by-human`) still returns 0 for a clean plan, proving the gate did not break the legitimate author-then-approve flow.
   - Depends on: E-05, E-06, E-07
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_status_set.py` passes with the new cases, including the unchanged-file assertion on every refusal path.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -169,52 +169,374 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: FIRST paste the evidence that the module and function ALREADY EXIST (the `git log` line showing `209227d5` created `agent_workflows/plan_readiness.py`, and the shipped `extract_newest_history_entry` definition), since E-01 was re-scoped from create to verify and an executor who "created" it would have duplicated shipped code. THEN paste the ACTUAL output of a loop over EVERY plan currently in `.aw/records/plans/pending/*.ipd.md` (30 at review, not 26 - re-derive the count, do not trust either number) printing `extract_newest_history_entry`'s first 60 characters per plan, showing every line begins `- ` with a date. State plainly whether any new code was needed; "nothing was needed, and here is the proof" is a PASSING outcome for this item.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: E-01 NEEDED NO NEW CODE, and that is the honest outcome. The module and function ALREADY EXISTED before this plan ran:
 
-- [ ] V-02 validates E-02
+    ```
+    $ git log --oneline --diff-filter=A -- agent_workflows/plan_readiness.py
+    209227d5 fix(fullauto): repair the --full-auto gate at its real cause and make it structural (97df1z)
+    ```
+
+    The shipped function, read before touching anything (`plan_readiness.py`, unchanged by this plan except for its docstring's new section): `extract_newest_history_entry(text) -> Optional[str]` bounds the section via `attention._history_section_lines` and returns the FIRST record matching `attention_contract.HISTORY_RECORD_RE`, which is both bugs E-01 was written to fix. `oc_runipd.extract_last_history_entry` is gone; `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` assert its absence.
+
+    RE-MEASURED over EVERY plan currently in `.aw/records/plans/pending/` (the count is 30, re-derived and matching the review's figure, not the 26 the plan was authored against). Every returned string begins `- ` followed by a date:
+
+    ```
+    pending plan count: 30
+    OK  20260829-runprofile-00-3m0ur | - 2026-09-04 reviewed (aw set): record the maintainer-decide
+    OK  20260829-runprofile-01-f2mrs | - 2026-09-01 reviewed (aw set): set Item-Dependencies to exe
+    OK  20260829-runprofile-02-p0l1t | - 2026-09-01 reviewed (aw set): plan-review round 1 (whole S
+    OK  20260829-runprofile-03-3cm15 | - 2026-09-01 reviewed (aw set): plan-review round 1 (whole S
+    OK  20260829-runprofile-04-ygzq7 | - 2026-09-01 reviewed (aw set): plan-review round 1 (whole S
+    OK  20260829-runprofile-05-p7xhh | - 2026-09-01 reviewed (aw set): plan-review round 1 (whole S
+    OK  20260829-rununify-00-5e4sb6- | - 2026-09-03 approved (opencode its_direct/pt3-claude-opus-5
+    OK  20260830-runcodes-01-wlxkoz- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260831-apprvguard-01-d7bnh | - 2026-09-04 approved (aw set): status set to approved
+    OK  20260831-resumedupe-01-txc9l | - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE
+    OK  20260831-worksequence-01-i60 | - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE
+    OK  20260901-ctlroot-01-eulhzt-a | - 2026-09-03 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260901-lanectn-00-h0zljh-w | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-01-cqx5v7-l | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-02-nna8yz-l | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-03-lhmrhx-p | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-04-y5od1h-b | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-05-xdr83v-r | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-lanectn-06-604wra-s | - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-op
+    OK  20260901-wslayout-00-rh5tt6- | - 2026-09-04 reviewed (opencode/its_direct/pt3-claude-opus-5
+    OK  20260901-wslayout-01-wpu5zu- | - 2026-09-04 reviewed (opencode/its_direct/pt3-claude-opus-5
+    OK  20260901-wslayout-02-zvk796- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260901-wslayout-03-rodj06- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260901-wslayout-04-hauwqh- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260901-wslayout-05-30jug9- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260903-runcodes-02-zub5f1- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260903-runcodes-03-sq61qd- | - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5
+    OK  20260903-runflags-01-uyeko5- | - 2026-09-04 to-review (opencode its_direct/pt3-claude-opus-
+    OK  20260903-rununify-01-2r306y- | - 2026-09-04 approved (aw set): status set to approved
+    OK  20260903-rununify-02-818uru- | - 2026-09-04 approved (aw set): status set to approved
+    non-conforming: 0 / 30
+    ```
+
+    Nothing was added to the extractor and nothing about it was "improved". Its docstring's warning against re-breaking it into the old last-bullet behavior was read and respected.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `python3 -c` output printing `VERDICTS` and showing `APPROVE WITH REVISIONS APPLIED` classifies as `positive` (NOT via the `APPROVE` prefix) and `REJECT - NEEDS REPLAN` as `negative`; plus the comment text recording that `CONDITIONAL-GO` is undocumented. ALSO REQUIRED (PR-402): show there is now exactly ONE encoding of this vocabulary in the module - either `VERDICTS` expressed in terms of the shipped `_VERDICT_APPROVE_RE`/`_NEGATIVE_READINESS_RE`/`_VERDICT_NEGATIVE_RE`, or those regexes replaced and their callers rewired. Paste the module's vocabulary section so a reader can see two independent encodings were not left side by side.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ONE encoding, achieved by REPLACEMENT rather than addition (decision D1). The three private regexes `_VERDICT_APPROVE_RE`, `_VERDICT_NEGATIVE_RE` and `_NEGATIVE_READINESS_RE` are GONE; `VERDICTS` and `READINESS_TOKENS` are now the single source, and `history_verdict_approves` is rebuilt on top of them with its truth table unchanged. This was safe because all three were module-private with exactly one in-module consumer (verified by a package-wide grep before the change).
 
-- [ ] V-03 validates E-03
+    ```
+    $ python3 -c "from agent_workflows import plan_readiness as PR; ..."
+    VERDICTS:
+      'APPROVE'                                -> positive
+      'APPROVE WITH REVISIONS APPLIED'         -> positive
+      'REVIEWED - OPEN QUESTIONS'              -> neutral
+      'REJECT - NEEDS REPLAN'                  -> negative
+    READINESS_TOKENS:
+      'GO'                                     -> positive
+      'GO - PENDING HUMAN APPROVAL'            -> positive
+      'NO-GO'                                  -> negative
+      'CONDITIONAL-GO'                         -> negative
+
+      classify('APPROVE WITH REVISIONS APPLIED; PR-001.') -> ('APPROVE WITH REVISIONS APPLIED', 'positive')
+      classify('APPROVE; no defects.')                    -> ('APPROVE', 'positive')
+      classify('REVIEWED - OPEN QUESTIONS; PR-1.')        -> ('REVIEWED - OPEN QUESTIONS', 'neutral')
+      classify('REJECT - NEEDS REPLAN; unsound.')         -> ('REJECT - NEEDS REPLAN', 'negative')
+      classify('REVIEWED  -  OPEN   QUESTIONS spaced oddly') -> ('REVIEWED - OPEN QUESTIONS', 'neutral')
+      classify('nothing here')                            -> (None, None)
+    ```
+
+    `APPROVE WITH REVISIONS APPLIED` classifies as ITSELF, not via the `APPROVE` prefix, because the scan regex is DERIVED from the vocabulary keys sorted longest-first (`_vocabulary_scan_re`) rather than hand-written; the docstring states that this ordering is the whole reason it is derived. The `CONDITIONAL-GO` entry carries the required inline comment: `# UNDOCUMENTED: in no workflow vocabulary; negative for compat.`
+
+    The no-second-encoding property is also asserted MECHANICALLY rather than left to a reader's eye, in `test_there_is_only_one_encoding_of_the_vocabulary`, which fails if any of the three replaced names reappears.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `newest_verdict` output for all three of `6lu3rq`, `m73aet`, `wlxkoz` showing NON-negative (their REJECT belongs to a predecessor), alongside output for a fixture whose newest review entry states `REJECT - NEEDS REPLAN` showing `negative`. Both halves are required: the second alone would pass with a naive grep. NOTE `6lu3rq` and `m73aet` are now in `executed/` (verified at review), so resolve them by id6 rather than by assuming `pending/`.
   ALSO REQUIRED, and this is the half that prevents two gates disagreeing (PR-402): paste the FIELD-VERSUS-PROSE ordering demonstrated on three inputs - a plan carrying a valid `- Readiness:` value (field wins over any prose), one carrying no field (prose fallback), and one carrying an out-of-vocab value (refused outright, NOT fallen back). Show the result agrees with `plan_readiness.is_plan_review_approved` on the same three inputs.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: (a) THE THREE ITEM-13 SUCCESSORS ARE NOT REFUSED, resolved BY ID6 rather than by assuming `pending/` (two have since moved to `executed/`, as the review predicted):
 
-- [ ] V-04 validates E-04
+    ```
+    === F-5 successors: their REJECT belongs to a PREDECESSOR, must be NON-negative ===
+      6lu3rq (in executed/): polarity=None
+          newest review record: - 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied.
+      m73aet (in executed/): polarity=None
+          newest review record: - 2026-08-31 reviewed (aw set): plan-review round 1 complete; revisions applied.
+      wlxkoz (in pending/): polarity=None
+          newest review record: - 2026-09-04 reviewed (opencode ...): SPLIT PERFORMED at the maintainer's direction, disc
+    ```
+
+    (b) THE GENUINE ARTICLE IS REFUSED. `kaygwo`, one of the five plans the 2026-08-30 blanket approval swept up:
+
+    ```
+      kaygwo (in superseded/): polarity='negative'
+          - 2026-08-30 /plan-review pass 2 (OpenCode ...): REJECT - NEEDS REPLAN reaffirmed, residue HALVED; PR-301..PR
+    ```
+
+    Both halves were required: (b) alone would pass with a naive grep, and (a) is what proves it is not one.
+
+    (c) A WHOLE-CORPUS SWEEP over all 476 plans in every disposition returns `negative` for exactly SIX, all in `superseded/`, and they are precisely the five incident plans plus one earlier rejected plan (`39fz2x`). ZERO pending plans are refused, so the gate locks out nothing live.
+
+    (d) FIELD-VERSUS-PROSE ORDERING, demonstrated on the three required inputs and matching `is_plan_review_approved` on each (the four `FieldVersusProseOrderingTests` cases assert both predicates on the same fixture):
+    - VALID field wins over prose: `Readiness: no-go` + `APPROVE` prose -> refused; `Readiness: go-pending-approval` + `REJECT` prose -> permitted.
+    - ABSENT field falls back to prose: `REJECT` prose -> refused, naming the record.
+    - OUT-OF-VOCAB field refuses OUTRIGHT with NO fallback: `Readiness: bogus` + `APPROVE` prose -> refused, and the refusal is the corrupt-field one, NOT the prose one, proving no fallback occurred.
+
+    (e) A MEASURED DIVERGENCE FOUND DURING EXECUTION AND RESOLVED AS DECISION D2, which the plan did not anticipate: inheriting `history_verdict_approves`'s any-mention-of-`NO-GO` rule would have FALSELY REFUSED five live pending plans, because 6 real review records state a POSITIVE verdict and also contain the word `NO-GO` while narrating a readiness transition (e.g. `rh5tt6`: "readiness moves NO-GO -> GO - PENDING HUMAN APPROVAL"). Since the verdict refusal has NO override, that would be an unfixable lockout. `newest_verdict` therefore classifies from the FIRST verdict token and consults readiness tokens only when no verdict is stated. Verified:
+
+    ```
+    === D2 narration case: positive verdict that also says NO-GO, must be NON-negative ===
+      rh5tt6 (in pending/): polarity='positive'
+    ```
+
+    The two predicates now differ deliberately in strictness; both docstrings state the asymmetry and its reason, and `test_positive_verdict_narrating_a_no_go_readiness_is_not_refused` pins BOTH behaviors in one test so the divergence cannot be "fixed" by accident.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `approval_refusals` output for four inputs: a REJECTed fixture with `allow_open_questions=True` (still refuses, naming the verdict), a CONSTRUCTED fixture carrying an unresolved blocking open question with `False` (refuses, naming the question id) and with `True` (empty), and a clean plan with no review (empty). Use a constructed fixture rather than `mjx7ne`, whose `OQ-03` is now `resolved` (PR-407). Confirm in prose that `plan_gating_blocks` was CALLED rather than reimplemented, citing the import line, and likewise that the blocking-question test REUSES `plan_readiness.has_unresolved_blocking_question` rather than adding a third copy; state which strictness rule was chosen where it and `ipd_lint.py:683` differ.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All four required inputs, using a CONSTRUCTED fixture for the open-question case as PR-407 directs (measured again at execution: zero of the 30 pending plans carry an unresolved blocking question, so a live plan would have been a vacuous fixture):
 
-- [ ] V-05 validates E-05
+    ```
+    === (a) REJECTed real plan (kaygwo, scratch copy), allow_open_questions=True -> STILL refuses ===
+       REFUSAL: the newest review record states a verdict that does not clear this plan, so approving it
+       would license execution of a plan its own review rejected. This refusal has NO override. Record:
+       - 2026-08-30 /plan-review pass 2 (OpenCode ...): REJECT - NEEDS REPLAN reaffirmed, residue HALVED; ...
+
+    === (b) CONSTRUCTED blocking-OQ fixture, allow_open_questions=False -> refuses, NAMES the id ===
+       REFUSAL: an unresolved BLOCKING open question remains (OQ-03). Resolve it, or pass
+       --allow-open-questions to approve over it (the override is recorded in the artifact's history).
+
+    === (c) same fixture, allow_open_questions=True -> EMPTY ===
+        []
+
+    === (d) clean plan, no review and no blocking question -> EMPTY ===
+        []
+    ```
+
+    ANTI-FORK CONFIRMATION, asserted mechanically rather than only in prose: `approval_refusals` CALLS `review_findings.plan_gating_blocks` (imported inside the function, `plan_readiness.py`), and `test_it_calls_the_shipped_typed_gate_rather_than_forking_the_severity_rule` patches that symbol and asserts it was called exactly once with the plan's id6, so a future reimplementation of the severity comparison fails the test. The one severity rule (`review_findings.is_gating`) is never touched. `test_a_typed_gating_finding_refuses_and_has_no_override` proves a typed BLOCKER refuses even with `allow_open_questions=True`.
+
+    STRICTNESS CHOICE, stated explicitly as the plan requires: the blocking-question test REUSES the shipped `plan_readiness.has_unresolved_blocking_question` rather than adding a third predicate. Where it differs from `ipd_lint.py`'s checkpoint form (`Status != "resolved"` versus `Status == "open"`), THE STRICTER SHIPPED RULE IS CHOSEN, including its fail-closed treatment of an unparseable OQ block. The reason is recorded in the code: this half IS overridable, so a stricter default costs one explicit flag rather than a missed question, and an unreadable question is exactly the case that deserves a human's attention.
+
+    Absent-review-is-silent is preserved (`test_clean_plan_with_no_review_is_permitted`), and an unreadable path yields no refusals rather than refusing everything, because a gate that refuses every approval is worse than none.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the full terminal output and exit code of `aw ipd set approved` against a scratch copy of a REJECTed plan, showing exit 1 and the refusal reason; plus `git diff --stat` (or a sha256 before/after) proving the file is UNCHANGED and carries no `- Approval:` line; plus the batch case showing a three-plan selection containing one REJECTed plan approved NONE of them.
   ALSO REQUIRED: paste the same refusal for `aw ipd set auto-approved` if E-05 gated the whole ready-to-execute set, OR paste the explicit recorded reason why the automated tier is exempt. Both `approved` and `auto-approved` license execution (`ipd_schema.READY_TO_EXECUTE`), so leaving the question unanswered is not acceptable; either behavior is, provided it is stated and demonstrated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Run against a SCRATCH COPY of the real `kaygwo` (the tree's own plans are never mutated by a test), with the runner pinned to this lane's code. All four attempts, then the unchanged-file proof:
 
-- [ ] V-06 validates E-06
+    ```
+    $ python3 -m agent_workflows ipd set approved kaygwo --yes --no-commit --dir /tmp/.../gatecheck
+    FAIL  Validation error on 20260830-detrun-03-kaygwo-...ipd.md: refusing to set approved for plan
+    kaygwo: the newest review record states a verdict that does not clear this plan, so approving it
+    would license execution of a plan its own review rejected. This refusal has NO override. Record:
+    - 2026-08-30 /plan-review pass 2 (OpenCode ...): REJECT - NEEDS REPLAN reaffirmed, residue HALVED;
+    ...; an unresolved BLOCKING open question remains (OQ-02, OQ-03). Resolve it, or pass
+    --allow-open-questions to approve over it ... Refusing before making changes.
+    EXIT=1
+
+    --- with --by-human (must STILL refuse) ---            EXIT=1
+    --- with --allow-open-questions (verdict half STILL refuses) ---  EXIT=1
+    --- aw ipd set auto-approved (the automated tier) ---   EXIT=1
+
+    --- file STILL unchanged after all four attempts ---
+    /tmp/.../20260830-detrun-03-kaygwo-...ipd.md: OK        # sha256sum -c
+    --- no Approval line written ---
+    0
+    ```
+
+    The sha256 verification is `OK` after every attempt, so the file is BYTE-IDENTICAL, not merely still `reviewed`, and no `- Approval:` line was written.
+
+    BATCH ATOMICITY (three plans, one REJECTed):
+
+    ```
+    --- batch of 3 where ONE is REJECTed: must approve NONE ---
+    FAIL  Validation error on 20260904-btch-03-rej003-p.ipd.md: refusing to set approved for plan
+    rej003: the newest review record states a verdict that does not clear this plan ... EXIT=1
+
+    --- all three files unchanged (atomic pre-flight) ---
+    batch/.../20260904-btch-01-cln001-p.ipd.md: OK
+    batch/.../20260904-btch-02-cln002-p.ipd.md: OK
+    batch/.../20260904-btch-03-rej003-p.ipd.md: OK
+    --- statuses still reviewed ---
+    - Status: reviewed
+    - Status: reviewed
+    - Status: reviewed
+    ```
+
+    THE `auto-approved` QUESTION IS ANSWERED, NOT LEFT OPEN (decision D3): the gate covers the WHOLE ready-to-execute set, keyed on `ipd_schema.READY_TO_EXECUTE` and DERIVED from that constant rather than re-listing literals, so a future third ready-to-execute status is covered by construction. The `EXIT=1` for `aw ipd set auto-approved` above is the demonstration, and `test_auto_approved_is_gated_too` pins it. This makes `--full-auto` strictly safer rather than breaking it: that path already refuses anything `is_plan_review_approved` rejects, and the approval gate's verdict rule is LOOSER than that predicate's, so every plan `--full-auto` would have cleared still passes. The runner suites confirm it (`test_oc_runipd.py`/`test_agy_runipd_cli.py` auto-approval tests pass unchanged).
+
+    The refusal is emitted with rule `status.invalid_transition` in agent mode (`test_agent_mode_emits_the_invalid_transition_rule`), and the human-facing message NAMES its cause (`test_refusal_message_names_its_cause`).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste three runs against a scratch plan carrying a blocking open question: bare (refuses), with `--by-human` only (STILL refuses, proving no implication), and with `--allow-open-questions` (succeeds); plus the resulting `## Workflow history` line showing the override recorded in the artifact.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Three runs against a scratch plan carrying a constructed blocking open question, plus the recorded override:
 
-- [ ] V-07 validates E-07
+    ```
+    --- (1) bare: must REFUSE ---
+    FAIL  Validation error on 20260904-oqc-01-oqp001-p.ipd.md: refusing to set approved for plan
+    oqp001: an unresolved BLOCKING open question remains (OQ-03). Resolve it, or pass
+    --allow-open-questions to approve over it (the override is recorded in the artifact's history)..
+    EXIT=1
+
+    --- (2) --by-human ONLY: must STILL refuse (no implication) ---
+    FAIL  ... an unresolved BLOCKING open question remains (OQ-03). ...
+    EXIT=1
+
+    --- file unchanged after both refusals ---
+    IDENTICAL
+
+    --- (3) --allow-open-questions: must SUCCEED ---
+    -    plan        20260904-oqc-01-oqp001  reviewed -> approved
+    EXIT=0
+
+    --- the override is RECORDED in the artifact's history ---
+    7:- Status: approved
+    11:- Approval: 2026-09-04, recorded via aw ipd set: status set to approved
+    14:- 2026-09-04 approved (aw set, --allow-open-questions): status set to approved
+    ```
+
+    `--by-human` does NOT imply the override, as the backlog item requires. The override is folded into the ACTOR string, following the `--by-human` precedent in the same function, so it is machine-greppable rather than buried in free text. It is recorded ONLY where it could have had an effect (`test_the_override_is_not_recorded_when_it_had_no_effect`), so an inconsequential flag on an unrelated transition leaves no false claim in history.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste both spellings, `aw specs set <spec> --status approved` and the positional `aw specs set approved <selector>`, against a scratch spec with a blocking open question, showing BOTH refuse identically and both accept with `--allow-open-questions`. A single-spelling demonstration is insufficient because dual dispatch is the bypass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH spellings, against scratch specs each carrying a blocking open question. A single-spelling demonstration would have been insufficient, and this is not hypothetical: THE FIRST IMPLEMENTATION HAD A REAL BYPASS HERE, caught by running both. Gating only `specs.run_set` left the POSITIONAL spelling (which routes through `status_set`) approving a spec that the `--status` spelling refused:
 
-- [ ] V-08 validates E-08
+    ```
+    === SPELLING B (positional), BEFORE the fix ===
+    -    spec        20260904-0002-01-sp0002  reviewed -> approved       EXIT=0     <-- BYPASS
+    ```
+
+    After extending the `status_set` gate to specs, both spellings refuse identically:
+
+    ```
+    === SPELLING A: aw specs set <path> --status approved  (FORKED specs.run_set) ===
+    aw specs set: refusing to approve /tmp/.../20260904-0001-01-sp0001-flagform.spec.md (file unchanged):
+      an unresolved BLOCKING open question remains (OQ-01). Resolve it, or pass --allow-open-questions ...
+    EXIT=1
+
+    === SPELLING B: aw specs set approved <selector>  (status_set) ===
+    FAIL  Validation error on 20260904-0002-01-sp0002-positional.spec.md: refusing to set approved for
+    spec sp0002: an unresolved BLOCKING open question remains (OQ-01). ... Refusing before making changes.
+    EXIT=1
+
+    --- BOTH spec files unchanged? ---
+    IDENTICAL
+    ```
+
+    And both ACCEPT with the override, each recording it in the spec's own history shape:
+
+    ```
+    === SPELLING A + --allow-open-questions ===
+    aw specs set: /tmp/.../20260904-0001-01-sp0001-flagform.spec.md -> approved     EXIT=0
+    === SPELLING B + --allow-open-questions ===
+    -    spec        20260904-0002-01-sp0002  reviewed -> approved                  EXIT=0
+
+    --- history records the override on BOTH ---
+    - 2026-09-04 approved (aw specs, --by-human, --allow-open-questions): t
+    - 2026-09-04 approved (aw set, --by-human, --allow-open-questions): t
+    ```
+
+    Per OQ-02 the VERDICT half is inert for specs today and that is deliberate: `review_findings` keys reviews by `Plan-Id`, and re-measured at execution, ZERO specs in this repository record a verdict in prose either. `specs.run_set` nonetheless calls the WHOLE shared predicate, so the verdict half activates by itself if a spec-review artifact type is ever added; a comment at the call site records this. The regression is covered by `test_spec_blocking_open_question_refuses_on_the_positional_spelling`.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the COMPLETE `python3 -m pytest -o addopts="" tests/test_plan_readiness.py` output with its per-test count and exit code BEFORE and AFTER your changes, so the additions are visible and no pre-existing case was dropped (the file already ships 30+ tests). PLUS the sabotage evidence: for each of the three central assertions (review-entry discrimination, field-versus-prose ordering, and the verdict refusal surviving `allow_open_questions=True`) paste the FAILING output produced when that predicate branch is deliberately broken, then confirm the break was reverted. Sabotage the branches THIS plan adds; the newest-first and section-bounding branches already ship with their own tests, so re-sabotaging them proves someone else's work.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE (at the HEAD this work started from, `550d14f2`, with the file untouched):
 
-- [ ] V-09 validates E-09
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_plan_readiness.py
+    collected 33 items
+    tests/test_plan_readiness.py .................................    [100%]
+    ============================== 33 passed in 0.15s ==============================
+    ```
+
+    AFTER:
+
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_plan_readiness.py
+    collected 67 items
+    tests/test_plan_readiness.py ........................................... [ 64%]
+    ........................                                                 [100%]
+    ============================== 67 passed in 0.25s ==============================
+    ```
+
+    33 -> 67, all passing, and NO pre-existing case was dropped or rewritten: the 33 shipped tests pass UNMODIFIED, which is also the regression proof for E-02's vocabulary replacement (had the truth table shifted, `PredicateTruthTableTests`' `NO-GO`/`CONDITIONAL-GO` rows would have failed).
+
+    CASES FOUND ALREADY PRESENT AND THEREFORE NOT RE-ADDED, as the item requires me to state: the section-bounding fix (`test_section_is_bounded_at_the_next_h2`), the newest-first ordering fix (`test_newest_first_selection`), the old-behavior characterization (`test_characterizes_the_old_broken_behavior`), blocking-question refusal and its resolved counterpart, and the `NO-GO`/`CONDITIONAL-GO` refusals. Duplicating them would have doubled the maintenance surface and invited the copies to drift apart.
+
+    SABOTAGE EVIDENCE for the three central assertions THIS plan adds (the newest-first and section-bounding branches were deliberately NOT re-sabotaged, since they ship with their own tests and breaking them would prove someone else's work):
+
+    (1) BREAK THE REVIEW-ENTRY DISCRIMINATOR (`if False:` in place of the `is_review_history_entry` skip):
+
+    ```
+    >       self.assertNotEqual(polarity, PR.NEGATIVE)
+    E       AssertionError: 'negative' == 'negative'
+    FAILED tests/test_plan_readiness.py::ReviewEntryDiscriminatorTests::test_successor_narrating_a_predecessors_reject_is_not_refused
+    ```
+    Three tests caught it, including the REAL-CORPUS one: `AssertionError: None != 'negative' : bmh754 would have been approvable`.
+
+    (2a) BREAK THE CORRUPT-FIELD RULE (treat an out-of-vocab `Readiness:` as absent):
+
+    ```
+    >       self.assertTrue(refusals)
+    E       AssertionError: [] is not true
+    FAILED ...::FieldVersusProseOrderingTests::test_out_of_vocab_field_refuses_outright_with_no_prose_fallback
+    ```
+
+    (2b) BREAK FIELD AUTHORITY (fall through to prose despite a valid field):
+
+    ```
+    FAILED ...::FieldVersusProseOrderingTests::test_valid_positive_field_beats_a_negative_prose_verdict
+    ```
+
+    (3) LET THE OVERRIDE SUPPRESS THE VERDICT REFUSAL (`and not allow_open_questions`):
+
+    ```
+    >       self.assertTrue(refusals)
+    E       AssertionError: [] is not true
+    FAILED ...::ApprovalRefusalsTests::test_verdict_refusal_survives_allow_open_questions
+    ```
+    Its CLI-level twin failed too: `FAILED tests/test_status_set.py::ApprovalGateTests::test_refusal_is_not_defeated_by_allow_open_questions` with `AssertionError: 0 != 1`.
+
+    EVERY SABOTAGE WAS REVERTED and the suite reconfirmed green (117 passed across both files); the committed tree contains none of the breaks, as `git diff` against the commit shows.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste the COMPLETE `python3 -m pytest -o addopts="" tests/test_status_set.py` output with per-test counts and exit code, showing the new refusal/atomicity cases AND the pre-existing `test_custom_message_and_by_human_attestation` still passing; plus the bare full-suite `python3 -m pytest` summary line compared against YOUR OWN pre-change measurement taken at the HEAD you started from, with any delta explained change-by-change. Do NOT reconcile against `3864 passed`: that figure is stale (measured `4096 passed, 3 skipped, 4 xfailed` at review) and comparing against a stale number either manufactures a phantom regression or hides a real one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE (HEAD `550d14f2`, file untouched): `collected 37 items ... 37 passed`.
+
+    AFTER:
+
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_status_set.py
+    collected 50 items
+    tests/test_status_set.py ............................................... [ 94%]
+    ...                                                                      [100%]
+    ============================== 50 passed in 3.77s ==============================
+    ```
+
+    37 -> 50. The pre-existing `test_custom_message_and_by_human_attestation` (the `draft -> approved --by-human` path) still passes, proving the gate did not break the legitimate author-then-approve flow; so do `test_set_plan_status_by_id6`, `test_ipd_set_command`, `test_auto_approved_does_not_get_approval_field` and `test_approval_field_stripped_when_leaving_approved`. Three NEW non-regression cases guard the fail-closed-too-hard direction explicitly: a plan with an approving verdict still approves, a plan with NO review at all still approves, and a successor narrating a predecessor's REJECT still approves. Every refusal case asserts the file is BYTE-IDENTICAL afterwards, not merely unmoved.
+
+    FULL SUITE, run BARE, reconciled against MY OWN pre-change measurement rather than the `3864 passed` figure written in this plan (which the review already measured as stale, and which was stale again by execution):
+
+    ```
+    BEFORE (at 550d14f2, my own baseline):  15 failed, 4185 passed, 3 skipped, 4 xfailed
+    AFTER  (at e344ad06):                   15 failed, 4232 passed, 3 skipped, 4 xfailed
+    ```
+
+    +47 passed, which reconciles EXACTLY with the additions (`test_plan_readiness.py` +34, `test_status_set.py` +13). The failing set is BYTE-IDENTICAL before and after: all 15 are `tests/test_run_viewer.py::RunViewerTests`, PRE-EXISTING at the HEAD I started from and untouched by this plan. `agent_workflows/run_viewer.py` is not in my diff (`git diff --name-only` lists only my six Scope-Paths files), its last commit is `f1baa33a` (the `aw run`/`aw runs` split, another agent's work), and the failures are shape mismatches such as `KeyError: 'run_id'` in the viewer's own JSON, with no reference to any symbol this plan touches. I did NOT attempt to fix them: they belong to another plan's surface and repairing them here would broaden scope into a contended file.
+
+    ENVIRONMENT NOTE, so the numbers are reproducible rather than mysterious: run bare inside the driver's worker process, the suite reports 32 failures instead of 15, because this turn's environment sets `AW_EXECUTION_ROLE=worker` and 17 tests legitimately assert on that variable (e.g. `test_driver_own_process_is_not_worker_role` asserts `AW_EXECUTION_ROLE != "worker"`). Those 17 are artifacts of being executed BY the runner, not of this change; both the before and after figures above were therefore measured with that variable unset, identically, so the comparison is apples to apples.
+
+    `aw ipd lint` on this plan:
+
+    ```
+    $ python3 -m agent_workflows ipd lint .aw/records/plans/pending/20260831-apprvguard-01-d7bnhc-*.ipd.md
+    - >  approved     plan        20260831-apprvguard-01-d7bnhc  [blocking]  conforming
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
