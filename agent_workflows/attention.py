@@ -23,12 +23,14 @@ from typing import Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention_contract as A
+from agent_workflows import ipd_schema as _schema
 from agent_workflows import plans as plans_mod
 from agent_workflows import research_contract
 from agent_workflows import specs as specs_mod
 from agent_workflows import term as T
 
-SCHEMA_VERSION = 2  # awdoctorfix Order 01: items gained priority + blocks_release
+# 3: items gained readiness + oqs + rqs (2 was priority + blocks_release).
+SCHEMA_VERSION = 3
 MAPPING_VERSION = 1
 
 
@@ -127,6 +129,24 @@ def count_question_stats(text: str) -> Tuple[int, int]:
 
     _flush_question()
     return unresolved_count, resolved_count
+
+
+def read_readiness(text: str) -> Optional[str]:
+    """The artifact's `- Readiness:` value normalized to the closed enum, or None.
+
+    DELEGATES to `ipd_schema.read_readiness` rather than re-scanning, because that is the READ-path
+    authority for this field and the enum (`go`/`go-pending-approval`/`no-go`) belongs to it. The
+    four call sites here previously each ran their own `(\\S+)` scan, which stopped at the first
+    space and so folded the workflow's documented multi-word spellings (`GO - PENDING HUMAN
+    APPROVAL`, `go (pending human approval)`) down to a bare `go`. That is the one direction this
+    field must never fail in: it renders and FILTERS as a clean `go` while the source says the plan
+    still needs human approval. The schema reader returns None for anything out-of-vocabulary
+    instead, which is the fail-closed answer the rest of the toolkit already relies on.
+
+    Absent and unrecognized are deliberately the same answer (None), matching the schema reader; the
+    board shows both as `-`. Pure.
+    """
+    return _schema.read_readiness(text)
 
 
 def count_unresolved_open_questions(text: str) -> int:
@@ -445,8 +465,7 @@ def _spec_record(
     # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
     pr = specs_mod._read_priority(lines)
     d_kind, d_text = _extract_detail(text)
-    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
-    rd = rd_m.group(1).lower() if rd_m else None
+    rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
     return Item(
         "",
@@ -514,13 +533,7 @@ def _plans_record(
     pr_m = re.search(r"(?m)^- Priority:[ \t]*(\S+)[ \t]*$", text)
     pr = pr_m.group(1) if pr_m else None
     d_kind, d_text = _extract_detail(text)
-    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
-    try:
-        from agent_workflows import ipd_schema as _schema
-
-        rd = _schema.read_readiness(text) or (rd_m.group(1).lower() if rd_m else None)
-    except Exception:
-        rd = rd_m.group(1).lower() if rd_m else None
+    rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
     return Item(
         pid or "",
@@ -576,8 +589,7 @@ def _research_record(
     pr_val = data.get("priority")
     pr = str(pr_val) if pr_val not in (None, "") else None
     d_kind, d_text = _extract_detail(text)
-    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
-    rd = rd_m.group(1).lower() if rd_m else None
+    rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
     return Item(
         rid,
@@ -624,8 +636,7 @@ def _backlog_record(
         gate = {"kind": item.gate_kind, "ref": item.gate_ref}
     lha = A.last_history_at(_history_section_lines(text))
     d_kind, d_text = _extract_detail(text)
-    rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
-    rd = rd_m.group(1).lower() if rd_m else None
+    rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
     return Item(
         item.id or "",
@@ -666,6 +677,9 @@ def render_json(items: List[Item], drift: List[core.Drift]) -> str:
                 "last_history_at": it.last_history_at,
                 "priority": it.priority,
                 "blocks_release": it.blocks_release,
+                "readiness": it.readiness,
+                "oqs": it.oqs,
+                "rqs": it.rqs,
                 "detail_kind": it.detail_kind,
                 "detail_text": it.detail_text,
             }

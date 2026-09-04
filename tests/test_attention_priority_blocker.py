@@ -89,7 +89,8 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         self.assertIn("- [backlog] .aw/records/backlog/open/a.backlog.md (open)", out)
 
     def test_schema_version_and_json_keys(self):
-        self.assertEqual(attention.SCHEMA_VERSION, 2)
+        # Bumped to 3 when items gained readiness + oqs + rqs (was 2: priority + blocks_release).
+        self.assertEqual(attention.SCHEMA_VERSION, 3)
         obj = json.loads(
             attention.render_json(
                 [_item(".aw/records/backlog/open/a.backlog.md", priority="low")], []
@@ -206,6 +207,86 @@ class RetiredPlanIsNotAReleaseBlockerTests(unittest.TestCase):
             blockers,
             "a live pending plan carrying Blocks-Release must still be counted",
         )
+
+
+class ReadinessReaderTests(unittest.TestCase):
+    """The `- Readiness:` reader must be the schema's closed-enum reader, not a `(\\S+)` scan.
+
+    THE REGRESSION THIS PINS: each of attention's four readers used to run its own
+    `^-[ \\t]*Readiness:[ \\t]*(\\S+)` scan, which stops at the first space. The workflow documents
+    multi-word spellings (`GO - PENDING HUMAN APPROVAL`), so such a value was folded to a bare `go`
+    -- it then RENDERED as `go` and, worse, MATCHED `aw att --readiness go`, reporting a plan that
+    still needs human approval as cleanly ready. Out-of-vocabulary input must fail closed to None.
+    """
+
+    def test_enum_values_round_trip(self):
+        for value in ("go", "go-pending-approval", "no-go"):
+            self.assertEqual(attention.read_readiness(f"- Readiness: {value}"), value)
+
+    def test_value_matching_is_case_insensitive(self):
+        self.assertEqual(
+            attention.read_readiness("- Readiness: GO-PENDING-APPROVAL"),
+            "go-pending-approval",
+        )
+
+    def test_multiword_spelling_is_not_truncated_to_go(self):
+        for value in ("GO - PENDING HUMAN APPROVAL", "go (pending human approval)"):
+            self.assertIsNone(
+                attention.read_readiness(f"- Readiness: {value}"),
+                f"{value!r} must fail closed, never collapse to a bare 'go'",
+            )
+
+    def test_absent_and_out_of_vocab_are_both_none(self):
+        self.assertIsNone(attention.read_readiness("- Status: to-review\n"))
+        self.assertIsNone(attention.read_readiness("- Readiness: banana"))
+        # CONDITIONAL-GO is in no documented IPD vocabulary; it must not read as a value.
+        self.assertIsNone(attention.read_readiness("- Readiness: CONDITIONAL-GO"))
+
+    def test_agrees_with_the_schema_authority(self):
+        from agent_workflows import ipd_schema
+
+        for value in ("go", "no-go", "GO - PENDING HUMAN APPROVAL", "banana", ""):
+            text = f"- Readiness: {value}\n"
+            self.assertEqual(
+                attention.read_readiness(text),
+                ipd_schema.read_readiness(text),
+                f"attention must not fork the schema reader on {value!r}",
+            )
+
+
+class QuestionCountJsonTests(unittest.TestCase):
+    """oqs/rqs/readiness must be in `--format json`, not TTY-only, so agents and --check see them."""
+
+    def test_json_carries_the_new_columns(self):
+        item = attention.Item(
+            "aaa111",
+            ".aw/records/plans/pending/p.ipd.md",
+            "plans",
+            "to-review",
+            "ready",
+            None,
+            "2026-05-01",
+            readiness="go-pending-approval",
+            oqs=2,
+            rqs=1,
+        )
+        it = json.loads(attention.render_json([item], []))["items"][0]
+        self.assertEqual(it["readiness"], "go-pending-approval")
+        self.assertEqual(it["oqs"], 2)
+        self.assertEqual(it["rqs"], 1)
+
+    def test_deferred_question_counts_as_unresolved(self):
+        # Matches plan_readiness.has_unresolved_blocking_question: "Status is not resolved".
+        text = "## Open questions\n\n### OQ-01: q\n\n- Status: deferred\n"
+        self.assertEqual(attention.count_question_stats(text), (1, 0))
+
+    def test_missing_status_counts_as_unresolved(self):
+        text = "## Open questions\n\n### OQ-01: q\n\n- Owner: maintainer\n"
+        self.assertEqual(attention.count_question_stats(text), (1, 0))
+
+    def test_resolved_question_counts_as_rq(self):
+        text = "## Open questions\n\n### OQ-01: q\n\n- Status: resolved\n"
+        self.assertEqual(attention.count_question_stats(text), (0, 1))
 
 
 if __name__ == "__main__":
