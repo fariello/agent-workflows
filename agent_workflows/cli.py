@@ -598,7 +598,14 @@ class _ViewerOrLeafSubParsersAction(argparse._SubParsersAction):
     viewer_parser: Optional[argparse.ArgumentParser] = None
 
     def __call__(self, parser, namespace, values, option_string=None):  # type: ignore[override]
-        collected = list(values)
+        # `values` is a list for this action's `nargs=PARSER`, but normalize defensively: a bare
+        # string or None here must not become a list of characters or raise.
+        if values is None:
+            collected: list = []
+        elif isinstance(values, str):
+            collected = [values]
+        else:
+            collected = list(values)
         if collected and collected[0] in self._name_parser_map:
             # A real leaf: let argparse parse the remainder with the leaf's own parser.
             setattr(namespace, "targets", [])
