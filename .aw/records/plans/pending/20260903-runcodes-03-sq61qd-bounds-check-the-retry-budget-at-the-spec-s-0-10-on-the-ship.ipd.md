@@ -72,7 +72,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - CHANGING `DEFAULT_RETRY_LIMIT`. Already `2` and spec-aligned by maintainer ruling (F-2). Explicitly forbidden here.
 - THE 13 `RUN-*` CODES and their bindings: Order 1 (`wlxkoz`).
 - `--unverifiable-ok` AGGREGATE NEUTRALITY: Order 2 (`zub5f1`).
-- ADDING A `--retry-budget` CLI FLAG. None exists (F-3), and inventing one would be a new user-facing surface rather than a bounds check.
+- ADDING A `--retry-budget` CLI FLAG. None exists (F-3), and inventing one would be a new user-facing surface rather than a bounds check. **NOW OWNED BY `runflags-01` (`uyeko5`), authored 2026-09-04**, which registers the flag on both runners with spec 2.1's CLI-over-policy-over-default precedence and CALLS this plan's range validation rather than duplicating it. So the gap is tracked, and this plan stays a bounds check.
 - A FREEZE MECHANISM for the resume-invariance rule. E-01 asserts it only if cheap at the read site; building one belongs in its own plan.
 
 ## Scope check

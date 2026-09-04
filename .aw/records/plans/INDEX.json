@@ -4397,7 +4397,7 @@
     "path": "pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
     "plan_id": "zvk796",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4407,7 +4407,7 @@
     "path": "pending/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md",
     "plan_id": "rodj06",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4417,7 +4417,7 @@
     "path": "pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md",
     "plan_id": "hauwqh",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-01",
@@ -4427,7 +4427,7 @@
     "path": "pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
     "plan_id": "30jug9",
     "set_id": "wslayout",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-03",
@@ -4447,6 +4447,16 @@
     "path": "pending/20260903-runcodes-03-sq61qd-bounds-check-the-retry-budget-at-the-spec-s-0-10-on-the-ship.ipd.md",
     "plan_id": "sq61qd",
     "set_id": "runcodes",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-03",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md",
+    "plan_id": "uyeko5",
+    "set_id": "runflags",
     "status": "to-review"
   },
   {

@@ -2,13 +2,17 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 202 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 
 ## runcodes
 
 - `wlxkoz` [pending] 01 pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md
 - `zub5f1` [pending] 02 pending/20260903-runcodes-02-zub5f1-unverifiable-ok-aggregate-neutrality-within-its-two-spec-con.ipd.md
 - `sq61qd` [pending] 03 pending/20260903-runcodes-03-sq61qd-bounds-check-the-retry-budget-at-the-spec-s-0-10-on-the-ship.ipd.md
+
+## runflags
+
+- `uyeko5` [pending] 01 pending/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
 
 ## runorder
 
@@ -184,10 +188,6 @@ Showing the 40 most-recent of 202 Sets; the full manifest is INDEX.json.
 ## ocsync
 
 - `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
-
-## promptmint
-
-- `jxqdcw` [executed] 01 executed/20260829-promptmint-01-jxqdcw-aw-prompts-new-mints-a-conforming-staged-prompt-and-the-rese.ipd.md
 
 ## (singletons: no Set)
 

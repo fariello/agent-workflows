@@ -75,7 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- BUILDING `--allow-unverifiable` OR the interactive `run unverifiable` confirmation. Both unbuilt (F-3). They are a user-facing admission surface with their own interactive-confirmation design; this plan consumes the admission as a parameter so it binds cleanly when they exist. See OQ-01.
+- BUILDING `--allow-unverifiable` OR the interactive `run unverifiable` confirmation. Both unbuilt (F-3). **NOW OWNED BY `runflags-01` (`uyeko5`), authored 2026-09-04**, which registers the whole spec-2.1 flag surface on both runners and binds `--unverifiable-ok` to THIS plan's predicate; the parameter seam E-02 builds is the seam that plan plugs into, so the gap is tracked rather than left in prose. They are a user-facing admission surface with their own interactive-confirmation design; this plan consumes the admission as a parameter so it binds cleanly when they exist. See OQ-01.
 - ADDING THE `--unverifiable-ok` CLI FLAG ITSELF. Same reason: the predicate is the deliverable here, and the CLI surface belongs with the admission flag it depends on.
 - THE 13 `RUN-*` CODES: Order 1 (`wlxkoz`).
 - THE RETRY-BUDGET RANGE: Order 3 (`sq61qd`).
@@ -109,7 +109,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - Blocking: no
 - Status: open
 - Owner: maintainer
-- Resolution or deferral rationale: NOT BLOCKING, and the default is to consume only. Spec 2.1 makes `--unverifiable-ok` legal only after contractless prompts were admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation, and MEASUREMENT shows neither exists (F-3). Building them here would add an interactive-confirmation surface, which is a different concern with its own UX and its own fail-open risks, and bundling it is precisely what got the parent plan split. So this plan takes the admission as an explicit parameter and the refusal is fully testable today; when the flags are built they bind to that parameter with no rework. If you want the flags in this plan, say so and they become their own E-items with their own confirmation design.
+- Resolution or deferral rationale: ANSWERED 2026-09-04 by the maintainer, and not by deferring: the flags are owned by a NEW plan, `runflags-01` (`uyeko5`), which registers all seven missing spec-2.1 flags on both runners and binds this one to the predicate E-01/E-02 land here. This plan still consumes only, and the flag is no longer untracked. ORIGINAL RATIONALE RETAINED: NOT BLOCKING, and the default is to consume only. Spec 2.1 makes `--unverifiable-ok` legal only after contractless prompts were admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation, and MEASUREMENT shows neither exists (F-3). Building them here would add an interactive-confirmation surface, which is a different concern with its own UX and its own fail-open risks, and bundling it is precisely what got the parent plan split. So this plan takes the admission as an explicit parameter and the refusal is fully testable today; when the flags are built they bind to that parameter with no rework. If you want the flags in this plan, say so and they become their own E-items with their own confirmation design.
 
 ## Validation and cross-check (verify before reporting done)
 
