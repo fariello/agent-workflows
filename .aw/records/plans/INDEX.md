@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 204 Sets; the full manifest is INDEX.json.
+
+## runbypass
+
+- `ki6tom` [pending] 01 pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md
 
 ## runcodes
 
@@ -184,10 +188,6 @@ Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 - `af7i6p` [executed] 01 executed/20260829-lanetruth-01-af7i6p-make-a-nested-aw-in-a-lane-run-the-drivers-own-tooling-not-t.ipd.md
 - `z2isfg` [executed] 02 executed/20260829-lanetruth-02-z2isfg-scope-begins-dirty-gate-to-the-tree-the-turn-will-actually-e.ipd.md
 - `8guhs0` [executed] 03 executed/20260829-lanetruth-03-8guhs0-runner-preflight-must-consume-the-shared-item-dependencies-p.ipd.md
-
-## ocsync
-
-- `g7hljt` [executed] 01 executed/20260829-ocsync-01-g7hljt-aw-oc-update-models-config-driven-model-pricing-sync-for-ope.ipd.md
 
 ## (singletons: no Set)
 

@@ -1,0 +1,83 @@
+# Review: Wire the spec 2.1 run flag surface onto both host runners
+
+- Plan-Id: uyeko5
+- Reviewed-At: 2026-09-04
+- Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
+- Verdict: APPROVE WITH REVISIONS APPLIED
+
+## Round 1
+
+All claims verified at HEAD `d0919400`, which is AFTER `818uru` executed, so this plan's
+`- Item-Dependencies: executed:818uru` is now satisfied and the tree it will edit is the
+post-extraction shape it was sequenced to wait for. The target plan was committed and unchanged, so the
+pre-review snapshot was correctly skipped. `aw ipd lint` conforming at `--phase author` before review and
+again at `--phase review-finalize` after revisions.
+
+THE PLAN'S CENTRAL MEASUREMENTS ALL HELD, which is worth stating because they are the reason it exists:
+
+- Only `--full-auto` is registered on either runner. The other seven spec 2.1 policy flags grep to zero
+  as parser arguments in `oc_runipd.py`, `agy_runipd.py`, AND `runner_shared.py` (which registers no
+  arguments at all, 0 `add_argument` calls, so `818uru` did not move the parser seam).
+- `run_selection_policy` is still imported by no module in the package. `decide` still has zero callers;
+  the only two mentions outside its own tests are unrelated comments at `selectors.py:142`/`:144`. The
+  mixed-type gate `6lu3rq` built remains dead code.
+- The `--full-auto` default still diverges: agy `True`, opencode `False`, at three sites each, so E-07's
+  normalization is still needed and still a safety fix rather than a cosmetic one.
+
+ONLY THE LINE NUMBERS DRIFTED, because `818uru` restructured both runners between authoring and review
+(`oc_runipd.py:6298` -> `:6052`, `agy_runipd.py:4481` -> `:4026`, and so on). That is not a flaw in the
+plan; its own execution contract already says to locate every site by symbol for exactly this reason.
+The citations were refreshed anyway, since a reader who measures at a stale line and finds unrelated code
+cannot tell whether the plan is describing a different tree.
+
+TWO FINDINGS CHANGED WHAT THE PLAN WILL PRODUCE, not merely how it reads.
+
+PR-001 is the one that matters. E-02's whole purpose is to make `6lu3rq`'s gate fire, and as written the
+plan could have been executed to completion, passed its own V-02, and left the gate exactly as unreachable
+as it found it. `decide` returns `gate_applied=False` immediately unless the classification is mixed, and
+this runner's selection path is structurally incapable of producing a mixed classification: discovery
+walks only the two plans trees and returns plan records, the manifest is compiled from those alone, the
+selector expander resolves against that IPD-only manifest, and neither runner registers `--type`. So the
+call site would be reached and the gate never applied, and a V-02 satisfied by a single-type
+`gate_applied=False` verdict is indistinguishable from the dead code. That is the same failure shape the
+plan itself warns about one paragraph earlier ("a test that only checks the flag parses would pass while
+the gate stayed dead"), reappearing one level up.
+
+PR-002 found a genuine contradiction inside the spec that the plan inherited without noticing. Spec `:129`
+says `--resume` is mutually exclusive with flags that would change frozen policy, but the shipped
+`--full-auto` on resume OVERWRITES the frozen option and saves it. So E-06's two instructions ("follow the
+existing `default=None` pattern" and "refuse a policy-changing flag on resume") described different
+behaviors for the same flag and could not both be satisfied. Resolved narrowly rather than by picking a
+side: refuse `--retry-budget`, which `:131` explicitly freezes, keep `default=None` for the rest, and do
+not retroactively convert a shipped flag's override into a refusal.
+
+PR-003 is a spec violation found while auditing the flag surface, which this plan is NOT the owner of. Both
+hosts expose flags spec `:135` says do not exist, and the agy host does it with `default=True` on
+permission auto-approval. I did not fold it in: removing a shipped flag that defaults `True` is a
+permission-handling behavior change unrelated to registering the eight policy flags. Per the repository's
+own rule against flagging a problem in passing without acting, it was raised to the maintainer, who chose
+to route it to its own IPD; `ki6tom` (`runbypass-01`) was authored review-ready as a result, carrying the
+permission default, the naming removal, and a BLOCKING question about what replaces `--no-verify` without
+flipping either host's verification default.
+
+Zero findings were deferred and zero left open, so nothing required escalation as a blocking question. The
+plan's own OQ-01 was already non-blocking with a recorded default and a stated reasoning; I confirmed the
+reasoning holds rather than re-litigating it, and it needs no maintainer round trip.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | UNDER-SCOPE | D. Anti-regression (the plan's own central deliverable is unfalsifiable as specified) | `run_selection_policy.py:635` (`if not classification.is_mixed:` -> `gate_applied=False`); `runner_shared.discover_plans:614-639` (walks only `.aw/records/plans` and `.agents/plans`, returns plan records); `oc_runipd.build_dynamic_manifest:2204`; `oc_runipd.expand_selectors:2234`; `--type` greps to zero in both runners, present only at `cli.py:3159` for `aw attention` | CONNECTING THE GATE DOES NOT MAKE IT FIRE. E-02 adds the call site and V-02 asks for a gated mixed selection, but no real invocation can produce one: the selection path is structurally single-type end to end and there is no `--type` flag, so `decide` short-circuits to `gate_applied=False` every time. The plan could have been executed, self-validated, and left the dead gate exactly as dead, because a `gate_applied=False` verdict on a single-type selection looks identical to no gate at all. This is the plan's PRIMARY deliverable (its own Required-tests section calls it "the load-bearing evidence"), so an unfalsifiable V-item here undermines the whole plan rather than one item. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-02 now requires proving `gate_applied=True` on a constructed multi-type classification at the `classify_paths` seam, requires the production call site to be shown passing the operator's `allow_mixed` and real TTY state through unchanged, and explicitly forbids building `--type` (spec 2.2/2.3, outside the fence). V-02 now rejects a `gate_applied=False` verdict as evidence and requires the executor to state as a LIMITATION that no live invocation can trigger the gate yet, so a green V-02 is never misread as proof a real mixed selection was gated. Recorded as F-9 in the plan, and the Required-tests and Proposed-changes sections updated to match. |
+| PR-002 | MEDIUM | IN-SCOPE | G. Plan executability (two instructions in one E-item are mutually unsatisfiable) | `oc_runipd.py:6336-6338` and `agy_runipd.py:4267-4269` both assign `state["options"]["full_auto"] = args.full_auto` then `save_state`; spec `25kzda:129` versus `:131` | E-06 CONTAINED CONTRADICTORY INSTRUCTIONS because the spec does. `:129` forbids policy-changing flags on resume; `:131` freezes `--retry-budget` specifically; but the shipped `--full-auto` on resume neither refuses nor preserves, it OVERWRITES the frozen value. So "follow the existing `default=None` pattern for each new flag" and "passing a policy-changing flag with `--resume` is refused" are different behaviors, and an executor would have had to guess which, with a real chance of converting a shipped flag's semantics as a side effect. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-06 now resolves it explicitly: refuse `--retry-budget` (the one flag the spec freezes by name), keep `default=None` for the others so an omitted flag cannot clobber, and do NOT convert `--full-auto`'s existing resume override into a refusal (a behavior change to a shipped flag, outside this fence). V-06 now requires pasting the `--retry-budget` refusal specifically and stating that `--full-auto`'s resume override is unchanged. Recorded as F-10, with the divergence named as belonging to a follow-up rather than silently absorbed. |
+| PR-003 | HIGH | OVER-SCOPE | B. Security (a spec prohibition on bypass flags is violated in the shipped CLI) | `agy_runipd.py:3976-3982` (`--dangerously-skip-permissions`/`--dangerous`, `default=True`), `:3990-3996` (`--no-verify`/`--no-audit`); `oc_runipd.py:6063-6070` (`BooleanOptionalAction` over `--validate`/`--verify`/`--audit`, which makes argparse generate `--no-verify`/`--no-audit`); spec `25kzda:135` | A SPEC PROHIBITION IS ALREADY VIOLATED ON BOTH HOSTS, and on agy in the unsafe direction by default. Spec 2.1 says there is no `--no-verify`, `--skip-audit`, `--dangerous`, or hook-bypass flag on `run`; agy registers `--dangerous` with `default=True` (so a bare `aw agy run` auto-approves every tool permission request) and `--no-verify`/`--no-audit`; opencode generates the prohibited spellings via `BooleanOptionalAction`, so the violation is invisible to grep. Classified OVER-SCOPE for THIS plan deliberately: removing a shipped flag that defaults `True` is a permission-handling behavior change with a blast radius unrelated to registering the eight policy flags `uyeko5` owns, and folding it in would widen a plan already editing the two highest-contention modules in the repo. | C:Medium; U:Low; S:Medium-High; F:Medium; Overall:Medium-High | FIXED | Recorded as F-11 in the plan and added to its Deferred/out-of-scope list rather than left as passing prose. RAISED TO THE MAINTAINER, who chose to route it to a new IPD; `ki6tom` (`runbypass-01`) authored review-ready, `to-review`, `Blocks-Release: next`, `From-Spec: 25kzda`, owning the permission default (three sites), the prohibited-spelling removal on both hosts, the shipped test at `tests/test_oc_runipd.py:1975-1989` that pins the violation, and a BLOCKING OQ-01 on what replaces agy's `--no-verify` without flipping either host's verification default (the two are deliberately opposite, per the code comment at `agy_runipd.py:3077-3082`). `uyeko5` F-11 cross-references it and notes the two must not run concurrently. |
+| PR-004 | LOW | IN-SCOPE | A. Correctness (stale citations after the prerequisite executed) | plan cited `oc_runipd.py:6298`/`:6373`, `agy_runipd.py:4479`/`:4531`, `:1989`, `:3760`, `run_selection_policy.decide:575`; measured at `d0919400`: `:6052`/`:6127`, `:4026`/`:4078`, `:1606`, `:3305`, `decide:576` | EVERY LINE CITATION SHIFTED because `818uru` restructured both runners between authoring and review. The plan's own execution contract already tells the executor to locate sites by symbol, so no edit would have gone to the wrong place; the cost is a reviewer or executor who measures at a cited line, finds unrelated code, and cannot tell whether the plan describes a different tree. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-1, F-2, F-3, E-02, E-06 and E-07 citations refreshed to `d0919400` values, with the re-measurement noted inline and the reason for the drift stated (the prerequisite executed), so the numbers are dated rather than presented as timeless. Also confirmed `runner_shared.py` registers zero arguments, so the parser seam did NOT move into the shared library and this plan still correctly edits both hosts. |
+| PR-005 | LOW | UNDER-SCOPE | G. Plan executability (an exclusion understated what is actually missing) | `--action` greps to zero in both runners; `--json` present only on the `status` subparser (`oc_runipd.py:6165`, `agy_runipd.py:4103`), not on `run`/`start` | THE `--action`/`--json` EXCLUSION SAID "already present or out of this Set", which is half wrong: `--action` does not exist anywhere, and `--json` exists only on `status`, not on `run`. So spec 2.1's grammar has ten unbuilt entries and this plan owns seven, but a reader of the exclusion would conclude the other three are shipped. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The exclusion now states that `--action` greps to zero and `--json` exists only on `status`, so the remaining three are recorded as unbuilt rather than implied shipped. A companion exclusion was added for `--type` and multi-type selection, naming it as the reason PR-001's gate cannot fire on a real invocation and as spec 2.2/2.3 work rather than a flag. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | PR-001 established the mixed-type gate cannot be triggered by any real invocation. Should the review require this plan to BUILD `--type` and multi-type selection so the gate becomes genuinely reachable? | NO. Require proof at the `classify_paths` seam plus an explicit stated limitation, and leave multi-type selection to its own work. | (a) Widen `uyeko5` to add `--type` and non-IPD discovery. Rejected: that is the entire per-type dispatch table, spec section 3 plus the 2.2/2.3 resolution algorithm, not a flag; it would multiply the scope of a plan already editing the two highest-contention modules. (b) Accept the plan as written. Rejected: it would let the plan's own load-bearing V-item pass on a single-type `gate_applied=False` verdict, which is the exact dead-gate state it exists to fix. (c) Mark REPLAN. Rejected: the approach is sound and the gap closed with bounded edits to one E-item and one V-item. | Spec `25kzda:105` puts `--type` in the 2.1 grammar but sections 2.2/2.3 and 3 define the type vocabulary, resolution algorithm and per-type dispatch that would have to exist for it to mean anything; `runner_shared.discover_plans:614-639` and `oc_runipd.build_dynamic_manifest:2204` show discovery is plan-only, so multi-type support is a discovery/dispatch project; this plan's Scope excludes it and its Scope-Paths name only the two runners plus three test files | yes |
+| D-2 | PR-002 found spec `:129` and the shipped `--full-auto` resume behavior in direct conflict. Should this plan make resume refuse ALL policy-changing flags, as `:129` reads literally? | NO. Refuse only `--retry-budget`, which `:131` names explicitly, and leave the shipped `--full-auto` override alone. | (a) Refuse every policy-changing flag on resume, including `--full-auto`. Rejected: that changes a shipped, tested flag's semantics inside a plan whose fence is registering new flags, and `:129`'s blanket wording has never been implemented, so "conformance" here would be a behavior change to working code. (b) Follow the `--full-auto` override pattern for all new flags. Rejected: it directly contradicts `:131`'s explicit "the frozen value cannot change on resume" for `--retry-budget`. (c) Leave E-06 ambiguous. Rejected: an executor would have had to guess, and either guess is a silent semantic decision. | Spec `25kzda:131` freezes `--retry-budget` by name, which is narrower and more specific than `:129`'s general clause; `oc_runipd.py:6336-6338` and `agy_runipd.py:4267-4269` show the shipped override; this plan's Scope excludes "changing any flag's documented semantics" | yes |
+| D-3 | PR-003's `--no-verify`/`--dangerous` violation could have been fixed inside `uyeko5`'s E-07, which already normalizes a per-host default at three sites. Should the reviewer have folded it in on its own authority? | NO. Raise it to the maintainer and act on the answer. Asked; the maintainer chose a new IPD; `ki6tom` authored review-ready. | (a) Fold into E-07. Rejected: E-07 normalizes a default under an explicit maintainer ruling; removing prohibited flags and flipping a permission default is different work with a security blast radius, and bundling it would make one E-item carry two unrelated deliverables, which this repo's right-sizing rule forbids. (b) File a backlog item. Not chosen by the maintainer, who preferred an IPD; a backlog item would also have deferred the design work on the blocking verification-default question. (c) Record as prose only. Rejected outright: that is precisely how the review-mode cascade defect was lost for a week, per this repo's own recorded lesson. | Repository rule that a problem must be fixed, filed, or planned rather than mentioned in passing; spec `25kzda:135`; the security-relevant `default=True` at `agy_runipd.py:3979-3982`; ESCALATED, NOT SELF-AUTHORIZED: raised with the maintainer 2026-09-04, who chose "create an IPD", and the resulting `ki6tom` carries its own BLOCKING OQ-01 so the irreversible half (changing a shipped permission default) cannot execute without a human answer | no |

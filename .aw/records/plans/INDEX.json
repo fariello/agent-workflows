@@ -4487,6 +4487,16 @@
     "path": "pending/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md",
     "plan_id": "uyeko5",
     "set_id": "runflags",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
+    "plan_id": "ki6tom",
+    "set_id": "runbypass",
     "status": "to-review"
   },
   {
