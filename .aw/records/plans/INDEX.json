@@ -4487,7 +4487,47 @@
     "path": "pending/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md",
     "plan_id": "uyeko5",
     "set_id": "runflags",
-    "status": "reviewed"
+    "status": "approved"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260904-revsweep-01-76gsmv-document-the-reviews-selector-and-add-the-aw-host-review-ali.ipd.md",
+    "plan_id": "76gsmv",
+    "set_id": "revsweep",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260904-revsweep-02-6ypimw-one-shared-needs-review-predicate-and-the-draft-admission-ga.ipd.md",
+    "plan_id": "6ypimw",
+    "set_id": "revsweep",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md",
+    "plan_id": "eyh1fu",
+    "set_id": "revsweep",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md",
+    "plan_id": "5slbpi",
+    "set_id": "revsweep",
+    "status": "to-review"
   },
   {
     "date": "2026-09-04",
