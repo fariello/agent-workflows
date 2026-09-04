@@ -21,7 +21,7 @@ Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 ## rununify
 
 - `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
-- `2r306y` [pending] 01 pending/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md
+- `2r306y` [executed] 01 executed/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md
 - `818uru` [pending] 02 pending/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md
 
 ## ctlroot
