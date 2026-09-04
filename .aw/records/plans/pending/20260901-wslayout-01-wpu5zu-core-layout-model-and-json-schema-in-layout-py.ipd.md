@@ -6,8 +6,8 @@
 - Scope: Create `agent_workflows/layout.py` with dataclasses (`RecordClassDefinition`, `LayoutModel`), canonical layout constants, `build_default_layout()`, `to_json()`, and `to_schema()`. Add unit tests in `tests/test_layout.py`.
 - Scope-Paths: agent_workflows/layout.py, tests/test_layout.py
 - Item-Dependencies: none
-- Status: to-review
-- Readiness: no-go
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: wslayout
 - Order: 1
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6 (child wpu5zu alone): APPROVE WITH REVISIONS APPLIED; PR-031..PR-035 all FIXED. PR-031 HIGH: round 2's Python 3.9 rationale was FALSE and taught the executor a wrong language fact. Measured on python3.9 (3.9.25): the spec's exact tuple[str,...]/dict[str,str] dataclass field annotations create, instantiate and type-resolve cleanly with NO __future__ import; what actually breaks on 3.9 is PEP 604 (str|None), which the snippet does not use. The __future__ + typing instruction STANDS on the correct ground (universal house pattern, 132/132 modules) and 3.9 is genuinely CI-enforced across the matrix. PR-032 HIGH: the exclusion-parity assertion was FLAKY as specified in BOTH E-02 and V-01: EXCLUDED_RECORD_DIRS is a frozenset and tuple(...)==tuple(...) compares hash order (three seeds, three orderings measured), so it could fail a correct model while pytest-randomly is deliberately enabled; now a set comparison per the house precedent. PR-033 HIGH: the plan owned normalize_type but never mentioned the 'all' expansion token (a real special case feeding every 'aw <verb> all'), and demanded NO negative-path evidence, while the two live helpers it replaces DISAGREE on errors (normalize_type raises ValueError, record_dirs returns []). PR-034 MEDIUM: right-sizing was never assessed, only inherited from a count-based lint; assessed and recorded as a single cohesive deliverable with a stated trigger for splitting to_schema(). PR-035 MEDIUM: CI installs only pytest+pytest-xdist and never the [test] extra, so an undeclared jsonschema import is a CERTAIN CI failure (and it is absent on python3.9, a matrix version), which also makes the declare-it route insufficient on its own. Also removed a self-contradicting leftover sentence and the stale 'six diagnostics' count (16 repo-wide, 3 on this plan). Three decisions recorded (D-23..D-25).
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019..PR-023 fixed across Set (added structured readiness field; consumer interface confirmed against newly-reviewed children 02-05).
@@ -57,17 +58,39 @@ Execution-state rule: mark an E-* item complete only after performing the action
     class with `subpath: "records"`. Represent it explicitly (a separate constant or an
     `is_root_alias`-style flag) so nothing derives a `records/records/` path.
   - Aliases MUST reproduce `_ALIASES` (`artifact_types.py:26-39`) exactly, including `roadmap` ->
-    `roadmaps`, `others`/`misc` -> `other`, and the identity entries.
+    `roadmaps`, `others`/`misc` -> `other`, and the identity entries. Verified exact at round 6: the live
+    map is 12 entries (`plan, spec, prompt, walkthrough, roadmap, comm, research, backlog, release, other,
+    others, misc`).
+  - THE `all` EXPANSION TOKEN IS PART OF THE LIVE SURFACE AND THIS PLAN OMITS IT (round 6, PR-033).
+    `normalize_type("all")` returns `"all"` as an explicit special case BEFORE the alias lookup
+    (`artifact_types.py:52-53`), the error message advertises it (`valid types: ..., other, all`,
+    `:58`), and `expand_types` turns it into every supported type in `ARTIFACT_TYPES` order (`:62-73`).
+    It is NOT a record class and must NOT become one. DECIDE AND RECORD which side of the boundary it
+    sits on: either the model exposes it as a documented non-class token, or it stays entirely in
+    `artifact_types` and Order 02 keeps that logic outside the model. Either is defensible; leaving it
+    unstated is not, because `normalize_type` is one of the helpers this model is meant to own and every
+    `aw <verb> all` invocation depends on it.
   - `traversal_exclusions` MUST reproduce `selectors.EXCLUDED_RECORD_DIRS` exactly at this stage
     (`.git`, `.system_generated`, `__pycache__`, `runs`, `scratch`, `temp`, `tmp`). Do NOT add
     `node_modules`/`venv`/`.venv` here; that widening is a deliberate behavior change owned by `zvk796`
     E-02 with its own assertion. RE-VERIFIED at round 2: the live set is exactly those seven.
-  - PYTHON 3.9 IS THE FLOOR (`pyproject.toml:12` `requires-python = ">=3.9"`), so the spec's Section 5
-    snippet CANNOT be transcribed literally: its `tuple[str, ...]` and `dict[str, ...]` annotations on
-    dataclass fields are evaluated at class-creation time and fail on 3.9. Follow the house pattern used
-    by every comparable module: `from __future__ import annotations` plus `typing.Tuple`/`Dict`
-    (`attention_contract.py:38,41`; `worktree_lease.py:24,32`; `artifact_core.py:21,30`). Treat the
-    spec snippet as a shape, not as copyable source. (Round 2, PR-016.)
+  - PYTHON 3.9 IS THE FLOOR (`pyproject.toml:12` `requires-python = ">=3.9"`) and it is CI-ENFORCED on
+    every supported minor (`.github/workflows/tests.yml:31,172` -> `["3.9", ..., "3.14"]`), so a
+    3.10-only construct is a merge-blocking failure, not a theoretical risk.
+    RATIONALE CORRECTED AT ROUND 6 (PR-031), because round 2's stated reason is FALSE and would teach the
+    executor a wrong fact about the language. PEP 585 builtin generics (`tuple[str, ...]`,
+    `dict[str, str]`) as dataclass FIELD ANNOTATIONS work correctly on 3.9 WITHOUT
+    `from __future__ import annotations`. MEASURED on `python3.9` (3.9.25): the spec's exact
+    `RecordClassDefinition`/`LayoutModel` shape creates its classes, instantiates, and resolves via
+    `typing.get_type_hints` with no error. What ACTUALLY breaks on 3.9 is PEP 604 union syntax
+    (`str | None`), which raises `TypeError: unsupported operand type(s) for |`; the spec snippet
+    contains no `|` union, so the snippet is in fact 3.9-safe as written.
+  - THE INSTRUCTION STANDS ANYWAY, on the correct ground: `from __future__ import annotations` plus
+    `typing` generics is the UNIVERSAL house pattern here, present in 132 of 132 modules under
+    `agent_workflows/` (measured), including `attention_contract.py:38,41`, `worktree_lease.py:24,32`
+    and `artifact_core.py:21,30`. Follow it for CONSISTENCY and because it makes a later `X | None`
+    annotation safe by construction. Do NOT justify it with the false class-creation claim, and do not
+    treat a bare `tuple[...]` you encounter elsewhere as a 3.9 bug.
   - THE MODEL MUST ALSO CARRY WHAT THE CONSUMER CHILDREN IMPORT, or Orders 02 and 03 cannot do their
     job (round 2, PR-015; each measured live at HEAD):
     * `KNOWN_PRIMARY_TYPES` is a DISTINCT, NARROWER set than the union: 9 members, exactly
@@ -102,7 +125,14 @@ Execution-state rule: mark an E-* item complete only after performing the action
     or `tests/` imports it today (measured: zero matches). Depending on an accidental transitive install
     is precisely the reproducibility hole `pyproject.toml`'s own comments call out (the `filelock` note:
     "An accidental transitive install is not a dependency"), and it would make a clean
-    `pip install '.[test]'` and CI run different code than the maintainer. D138 permits a justified
+    `pip install '.[test]'` and CI run different code than the maintainer.
+    STRENGTHENED AT ROUND 6 (PR-035): this is a CERTAIN CI FAILURE, not a divergence risk. CI installs
+    exactly `pip install --upgrade pip build pytest pytest-xdist` and never the `[test]` extra
+    (`.github/workflows/tests.yml:58`), so an undeclared import fails outright. Measured: `jsonschema`
+    imports on the maintainer's 3.14 (4.26.0) but is ABSENT on `python3.9`, which IS a CI matrix version
+    (`:31,172`). Note the consequence for the dependency route too: adding `jsonschema` to the `[test]`
+    extra would still NOT put it on the CI runner, so the schema test would need its own skip guard or a
+    CI change. That makes the stdlib route the strongly preferred one, not merely the default. D138 permits a justified
     dependency, so this is not a prohibition, but it is a DECLARED-OR-NOT-USED rule: either validate
     structurally with the stdlib (assert the emitted document's required keys, types, and enum values
     against the emitted schema by hand, which is what the schema is for at this scale), or, if genuine
@@ -115,6 +145,17 @@ Execution-state rule: mark an E-* item complete only after performing the action
     fails the suite. This is the regression fence for PR-001.
   - MUST assert the model's `traversal_exclusions` equals `selectors.EXCLUDED_RECORD_DIRS` exactly, so
     `zvk796`'s later widening is a visible, deliberate test change rather than a silent drift.
+  - COMPARE AS SETS, NOT AS TUPLES (round 6, PR-032). `selectors.EXCLUDED_RECORD_DIRS` is a FROZENSET,
+    so `tuple(...) == tuple(...)` compares ITERATION ORDER, which varies with `PYTHONHASHSEED`. MEASURED
+    across three seeds it produced three different orderings, so that assertion is FLAKY: it can pass
+    locally and fail in CI, or pass on one xdist worker and fail on another, for no code reason. The
+    repository deliberately keeps order-randomization on (`pytest-randomly` is a DECLARED dependency
+    precisely because it changes observed behavior, and `addopts` never disables it). Assert
+    `set(model.traversal_exclusions) == set(selectors.EXCLUDED_RECORD_DIRS)`, or compare
+    `sorted(...) == sorted(...)`, matching the house precedent that uses set algebra rather than
+    positional comparison (`tests/test_selector_resolver_matrix.py:277-285`). If the model deliberately
+    exposes an ORDERED tuple as part of its contract, assert the order against a literal expected
+    sequence, never against the frozenset's incidental iteration order.
   - MUST assert the CONSUMER-INTERFACE surface E-01 now owes Orders 02 and 03 (round 2, PR-015), since
     those children import it and a missing piece surfaces there as an ImportError rather than here:
     `KNOWN_PRIMARY_TYPES` and `NON_PRIMARY_RECORD_DIRS` (or their derivation rules) equal the live sets; the durable and runtime
@@ -129,8 +170,9 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Project conventions discovered (Step 0)
 
 - Spec `kw5y2s` is `approved` again (re-measured at round 5): the maintainer-directed API terminology correction was reviewed and re-approved `--by-human`. Treat its Sections 4 and 5 as authoritative and IMMUTABLE during execution, and report any further factual defect rather than editing the spec or diverging silently.
-- The spec's Section 5 code block is a SHAPE, not copyable source: its `tuple[...]`/`dict[...]` field annotations are invalid at class-creation time on the declared 3.9 floor.
-- Python 3.9 is the floor (`pyproject.toml:12`). The house pattern for a 3.9-compatible typed module is `from __future__ import annotations` plus `typing` generics (`attention_contract.py:38,41`; `worktree_lease.py:24,32`; `artifact_core.py:21,30`).
+- The spec's Section 5 code block is a SHAPE, not copyable source, because it elides bodies and defaults (`= ...`), NOT because it is 3.9-invalid. Round 6 measured the opposite of round 2's claim: its `tuple[...]`/`dict[...]` field annotations are perfectly legal on 3.9.
+- Python 3.9 is the floor (`pyproject.toml:12`) and is CI-enforced on every supported minor (`.github/workflows/tests.yml:31,172`). The house pattern for a typed module is `from __future__ import annotations` plus `typing` generics, used by 132 of 132 modules under `agent_workflows/` (`attention_contract.py:38,41`; `worktree_lease.py:24,32`; `artifact_core.py:21,30`). Follow it for consistency. The construct that genuinely breaks on 3.9 is PEP 604 `X | None`, so avoid that specifically.
+- CI installs only `pytest pytest-xdist`, NOT the `[test]` extra (`.github/workflows/tests.yml:58`). So an undeclared third-party import in a test is a CERTAIN CI failure, not merely a reproducibility risk. Confirming this: `jsonschema` is importable on the maintainer's 3.14 (4.26.0) but is ABSENT on this machine's `python3.9`, which is a CI matrix version.
 - Runtime dependencies are `["filelock>=3"]` only, and the `[test]` extra is `pytest`/`pytest-xdist`/`pytest-randomly` (`pyproject.toml:50,68`). D138 permits a justified dependency but the operative rule is DECLARE IT OR DO NOT IMPORT IT; `pyproject.toml`'s own `filelock` comment states "An accidental transitive install is not a dependency".
 - The suite is run BARE (`python3 -m pytest`); `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`.
 - `other` is not a directory anywhere: `selectors.record_dirs` computes it as the complement of `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS` over the records root.
@@ -141,11 +183,14 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | Id | Finding | Evidence |
 | --- | --- | --- |
 | F-1 | **The additive-first shape is correct and is why this plan survived round 1 nearly intact.** Creating `layout.py` standalone changes no existing code and allows full unit validation before any consumer is refactored. | Round 1 review record; this plan's `Scope-Paths` (two new files only). |
-| F-2 | **Round 1's vocabulary pinning is accurate, re-verified live at round 2.** `ARTIFACT_TYPES` has 10 members and `RecordClass` 9; their union is 12 names = the eleven modeled classes plus `records`. `_RECORD_CLASS_SUBPATHS['records'] == ''` confirms the carve-out. `EXCLUDED_RECORD_DIRS` is exactly the seven pinned. `_ALIASES` includes `roadmap -> roadmaps` and `misc`/`others -> other`. | Live import at HEAD `90434d47`. |
+| F-2 | **Round 1's vocabulary pinning is accurate, re-verified live AGAIN at round 6 and unchanged.** `ARTIFACT_TYPES` has 10 members and `RecordClass` 9; their union is 12 names = the eleven modeled classes plus `records`. `_RECORD_CLASS_SUBPATHS['records'] == ''` confirms the carve-out. `EXCLUDED_RECORD_DIRS` is exactly the seven pinned. `_ALIASES` is exactly 12 entries including `roadmap -> roadmaps` and `misc`/`others -> other`. `KNOWN_PRIMARY_TYPES` is 9 and is exactly `ARTIFACT_TYPES` minus `other` (asserted programmatically, not eyeballed). Durable state = 5, runtime = 6, `LogicalRoot` = 4, `RootClass` = 6, legacy map = the three `docs/`-prefixed entries. | Live import at round-6 HEAD `e96ebc61` (the round-2 citation `90434d47` is stale); `artifact_types.py:12-23,26-39`; `record_producers.py:85-101,136,148-152`; `project_schema.py:46-62`. |
 | F-3 | **The controlling spec is `approved` again; the round-4 "reopened" claim is STALE.** The API terminology correction was reviewed and re-approved `--by-human` 459 seconds AFTER these plans were demoted, so the demotion text outlived its premise. The spec gate (`ipd-lifecycle.md:16`) is satisfied; only ordinary human plan approval remains. | `.aw/records/specs/20260901-kw5y2s-01-...spec.md:4` and its `approved (aw set, --by-human)` history line; `git log` timestamps of `298be4b2` vs `3e05c2ba`. |
 | F-4 | **REVIEW FINDING (round 2): E-01's promised surface was incomplete for its own consumers.** `zvk796` E-02 sources `KNOWN_PRIMARY_TYPES` from `layout.py`, and `rodj06` E-01 sources the durable/runtime state classes, but E-01 named none of them. Measured: `KNOWN_PRIMARY_TYPES` is a distinct 9-member set (`ARTIFACT_TYPES` minus `other`), durable = 5 members, runtime = 6. A missing piece would surface in Order 02/03 as an ImportError, after this plan was already marked done. | `selectors.KNOWN_PRIMARY_TYPES`; `record_producers.DurableStateClass`/`RuntimeStateClass`; `zvk796:53`; `rodj06:36`. |
 | F-5 | **REVIEW FINDING (round 2, RE-MEASURED round 5): `other` needs a SECOND carve-out, and the plan named only the `records` one.** The complement branch (`selectors.record_dirs`, `if record_type == "other"`) subtracts `KNOWN_PRIMARY_TYPES`, `NON_PRIMARY_RECORD_DIRS` and `EXCLUDED_RECORD_DIRS` over the records root; no `.aw/records/other/` directory exists. Modeling `other` as `subpath: "other"` would silently change traversal in Order 02. THE MEASURED OUTPUT CHANGED SINCE ROUND 2 and the old value must not be reused as an expected result: it is now `['.aw/records/prompt-library']`, NOT the `['.aw/records/reviews', '.aw/records/prompt-library']` rounds 2-4 recorded, because commit `d802e917` added `NON_PRIMARY_RECORD_DIRS = frozenset({'reviews'})` to `_OTHER_SWEEP_SKIP_DIRS` specifically to stop `other` claiming the reviews tree. A test that pins the round-2 pair would now fail against correct code. | `selectors.py:183-185` (`_OTHER_SWEEP_SKIP_DIRS`), `:210-225` (the branch); `record_dirs(repo,'other')` re-measured at round 5 -> `['.aw/records/prompt-library']`; commit `d802e917`; `ls -d .aw/records/*/`. |
-| F-6 | **REVIEW FINDING (round 2): the spec snippet the plan implements is not 3.9-valid.** `requires-python = ">=3.9"` while the snippet annotates dataclass fields as `tuple[str, ...]`/`dict[str, str]`, which are evaluated at class creation and fail on 3.9 without `from __future__ import annotations`. | `pyproject.toml:12`; spec `:358-372`; house pattern in three comparable modules. |
+| F-6 | **CORRECTED (round 6): round 2's 3.9 claim was FALSE, and the instruction it produced is right for a different reason.** Round 2 asserted the spec's `tuple[str, ...]`/`dict[str, str]` dataclass field annotations "are evaluated at class creation and fail on 3.9". Measured on `python3.9` (3.9.25): they do NOT fail; the spec's exact shape creates, instantiates and type-resolves cleanly with no `__future__` import. The real 3.9 boundary is PEP 604 (`str \| None` -> `TypeError`), and the snippet has no union. The `from __future__ import annotations` + `typing` generics instruction REMAINS, justified by the universal house pattern (132/132 modules) and by making a future `\| None` safe, not by a language error. 3.9 is genuinely CI-enforced, so the floor itself is real. | `python3.9` 3.9.25 execution of the spec's `RecordClassDefinition`/`LayoutModel` shape (class creation + `get_type_hints` both succeed); PEP 604 failing on the same interpreter; `pyproject.toml:12`; `.github/workflows/tests.yml:31,172`; 132/132 `from __future__ import annotations` measured under `agent_workflows/`. |
+| F-8 | **REVIEW FINDING (round 6): the exclusion-parity assertion was FLAKY as specified, in both E-02 and V-01.** `selectors.EXCLUDED_RECORD_DIRS` is a FROZENSET, so the prescribed `tuple(...) == tuple(...)` compares hash iteration order. Measured across three `PYTHONHASHSEED` values it produced three different orderings, so the check could report a mismatch against a perfectly correct model, and an executor "fixing" the model to match one accidental order would encode noise. The repo deliberately keeps `pytest-randomly` enabled, so this is a live risk rather than theoretical. Now a set comparison, matching the house precedent that uses set algebra. | `type(selectors.EXCLUDED_RECORD_DIRS).__name__ == 'frozenset'`; three-seed measurement at round 6; `tests/test_selector_resolver_matrix.py:277-285`; `pyproject.toml:59-66` (`pytest-randomly` declared because it changes observed behavior). |
+| F-9 | **REVIEW FINDING (round 6): the plan owned `normalize_type` but never mentioned the `all` token, and demanded no negative-path behavior at all.** `normalize_type("all")` is an explicit special case returning `"all"` (`artifact_types.py:52-53`) and `expand_types` fans it out to every supported type (`:62-73`), so a model that silently drops it breaks every `aw <verb> all` invocation. Separately, the two live helpers this model replaces DISAGREE on error handling, which the plan never surfaced: `normalize_type` RAISES `ValueError` on unknown/`''`/`None`, while `record_dirs` returns `[]` by documented design (`selectors.py:188-195`). Unifying them silently would be a behavior change landing in Order 02. | `artifact_types.py:50-73` read and executed at round 6 (`normalize_type('nosuchtype')` -> `ValueError`, `normalize_type('all')` -> `'all'`, `expand_types('all', ARTIFACT_TYPES)` -> all 10); `selectors.py:188-195` docstring. |
+| F-10 | **REVIEW FINDING (round 6): CI never installs the `[test]` extra, which upgrades PR-017 from a risk to a certainty.** `.github/workflows/tests.yml:58` installs exactly `pip install --upgrade pip build pytest pytest-xdist`, so ANY undeclared third-party test import fails CI outright rather than merely diverging from a maintainer venv. Confirmed concretely: `jsonschema` imports on the maintainer's 3.14 (4.26.0) but is ABSENT on this machine's `python3.9`, and 3.9 is in the CI matrix. The stdlib route is therefore the only route that works without a `pyproject.toml` change. | `.github/workflows/tests.yml:31,58,172`; `python3 -c "import jsonschema"` OK vs `python3.9 -c "import jsonschema"` -> `ModuleNotFoundError`. |
 | F-7 | **REVIEW FINDING (round 2): E-02 proposed an UNDECLARED dependency.** `jsonschema` imports on a maintainer machine (4.26.0) but appears in neither the runtime deps nor the `[test]` extra, and nothing in `agent_workflows/` or `tests/` imports it. Relying on it would make CI and a clean install run different code, the exact hole `pyproject.toml`'s `filelock` comment warns about. | `pyproject.toml:50,68`; zero `import jsonschema` matches; live import succeeding only incidentally. |
 
 ## Proposed changes (ordered, validatable)
@@ -160,14 +205,14 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Scope check
 
 - Over-scope: none. Both declared paths are new files created by this plan; no existing module is touched, which is what makes Order 01 purely additive.
-- Under-scope, CONDITIONAL (round 2, PR-017): if the executor takes the `jsonschema` route for E-02 instead of stdlib structural validation, `pyproject.toml` MUST be added to `Scope-Paths` in the same change, because declaring the dependency is part of that choice. Taking the dependency without declaring it is a FAILED validation, not an out-of-scope edit to be justified later. The stdlib route needs no scope change and is the default.
+- Under-scope, CONDITIONAL (round 2, PR-017; sharpened round 6, PR-035): if the executor takes the `jsonschema` route for E-02 instead of stdlib structural validation, `pyproject.toml` MUST be added to `Scope-Paths` in the same change, because declaring the dependency is part of that choice. Taking the dependency without declaring it is a FAILED validation, not an out-of-scope edit to be justified later. Note the route is WORSE than round 2 implied: CI installs only `pytest pytest-xdist` and never the `[test]` extra (`.github/workflows/tests.yml:58`), so even a correctly declared `jsonschema` would be missing on the CI runner and the test would need a skip guard or a workflow change (which is a further scope expansion). The stdlib route needs no scope change and is strongly preferred.
 - Under-scope note: this plan creates the interface Orders 02 and 03 consume. The consumer-surface requirements are now enumerated in E-01 and asserted in E-02/V-01 (PR-015), so a gap fails HERE rather than in a later child.
 
 ## Required tests / validation
 
 - `python3 -m pytest -o addopts="" tests/test_layout.py` for per-test names and counts.
 - The bare full suite `python3 -m pytest` from the PRIMARY checkout, with the baseline re-measured on unmodified HEAD at execution time (round 1 observed `4004 passed, 3 skipped, 4 xfailed`; treat that as historical). This module is additive, so the only expected delta is the new tests.
-- Expect the six pre-existing `check.lifecycle-transition-invalid` diagnostics from `aw check plans`; they are a known tooling defect (backlog `tk1gqo`), not a regression, and must NOT be worked around by reordering this plan's history.
+- Expect the `check.lifecycle-transition-invalid` diagnostic CLASS from `aw check plans`; it is a known tooling defect (backlog `tk1gqo`, `open` and carrying `- Blocks-Release: next`), not a regression, and must NOT be worked around by reordering this plan's history. Assert the CLASS, never a count: re-measured at round 6 the rule fires 16 times repo-wide (3 on THIS plan alone), not the "six" earlier rounds recorded, and the number RISES with every history line any tool or reviewer appends, including the ones this review just added.
 
 ## Spec / documentation sync
 
@@ -176,7 +221,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Open questions
 
-- none. Round 2 resolved the three decisions this plan needed from repository evidence rather than deferring them: the consumer-interface surface (D-11), the `other` representation (D-12), and the schema-validation dependency (D-13). Each is recorded in the review record with its basis, and each is reversible.
+- none BLOCKING, and none awaiting a human. Round 2 resolved three decisions from repository evidence rather than deferring them: the consumer-interface surface (D-11), the `other` representation (D-12), and the schema-validation dependency (D-13). Round 6 resolved three more the same way: the corrected 3.9 rationale (D-23), set-vs-tuple parity comparison (D-24), and the `all`-token boundary plus the per-helper error contract (D-25, which asks the EXECUTOR to RECORD a choice rather than leaving it implicit, and fails V-01 if unrecorded). Each is in the review record with its basis, and all six are reversible.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -186,8 +231,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
   - Required evidence: `agent_workflows/layout.py` defines `LayoutModel`, `RecordClassDefinition`, `build_default_layout()`, `to_json()`, and `to_schema()`.
   - PLUS the union-vocabulary proof (PR-001), pasted, not asserted. Run and paste the output of a
     differential check that the model reproduces the live vocabulary with NOTHING dropped, e.g.:
-    `python3 -c "from agent_workflows import layout, artifact_types as AT, record_producers as RP, selectors as S; m=layout.build_default_layout(); rc=set(m.record_classes); print('missing_from_model:', sorted((set(AT.ARTIFACT_TYPES)|{r.value for r in RP.RecordClass}) - rc - {'records'})); print('roadmaps_present:', 'roadmaps' in rc); print('excl_equal:', tuple(m.traversal_exclusions)==tuple(S.EXCLUDED_RECORD_DIRS))"`
+    `python3 -c "from agent_workflows import layout, artifact_types as AT, record_producers as RP, selectors as S; m=layout.build_default_layout(); rc=set(m.record_classes); print('missing_from_model:', sorted((set(AT.ARTIFACT_TYPES)|{r.value for r in RP.RecordClass}) - rc - {'records'})); print('roadmaps_present:', 'roadmaps' in rc); print('excl_equal:', set(m.traversal_exclusions)==set(S.EXCLUDED_RECORD_DIRS))"`
     Required result: `missing_from_model: []`, `roadmaps_present: True`, `excl_equal: True`.
+    NOTE THE SET COMPARISON (round 6, PR-032): this command previously used
+    `tuple(m.traversal_exclusions)==tuple(S.EXCLUDED_RECORD_DIRS)`. `EXCLUDED_RECORD_DIRS` is a
+    FROZENSET, so the tuple form compares hash-order and is `PYTHONHASHSEED`-dependent (measured: three
+    seeds, three different orderings). It could therefore print `excl_equal: False` against a completely
+    correct model, and an executor who then "fixed" the model to match one accidental ordering would be
+    encoding noise. Compare as sets.
   - PLUS THE CONSUMER-INTERFACE PROOF (round 2, PR-015), pasted, because a gap here does not fail in this
     plan; it fails in Orders 02/03 as an ImportError or a silent behavior change. Paste, for each: the
     model's primary-type set (or derived rule) equals the live 9-member `selectors.KNOWN_PRIMARY_TYPES`;
@@ -196,10 +247,31 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     literal `other` subpath; and the model can express the legacy map's `docs/specs`, `docs/research`,
     `docs/walkthroughs`. State explicitly which representation was chosen for `other` and for
     `KNOWN_PRIMARY_TYPES`, since Order 02 must consume exactly that.
-  - PLUS the 3.9 proof (round 2, PR-016): paste the import block showing `from __future__ import
-    annotations` with `typing.Tuple`/`Dict` rather than the spec's bare `tuple[...]`/`dict[...]`, and
-    confirm the module imports cleanly. If a 3.9 interpreter is unavailable, say so plainly and cite the
-    annotation style as the mitigation rather than claiming a run that did not happen.
+  - PLUS the 3.9 proof, STRENGTHENED at round 6 (PR-031, PR-033): paste the import block showing
+    `from __future__ import annotations` with `typing` generics (house pattern, 132/132 modules), AND
+    paste an ACTUAL 3.9 import run, not a stylistic argument. A 3.9 interpreter IS available on this
+    machine (`python3.9` -> 3.9.25, verified at round 6) and 3.9 is in the CI matrix, so the round-2
+    escape clause ("if a 3.9 interpreter is unavailable, cite the annotation style as the mitigation")
+    is REMOVED as an unnecessary loophole: run
+    `python3.9 -c "import sys; sys.path.insert(0,'.'); from agent_workflows import layout; m=layout.build_default_layout(); print('3.9 OK', sys.version.split()[0], len(m.record_classes))"`
+    and paste the output. Only if no 3.9 interpreter genuinely exists in the execution environment may you
+    fall back to stating that plainly; say which, and never claim a run you did not perform.
+  - PLUS the NEGATIVE-PATH proof (round 6, PR-033), which the plan previously demanded nowhere: paste the
+    behavior of `get_record_subpath()`, `is_known_type()` and `normalize_type()` on an UNKNOWN type
+    (e.g. `"nosuchtype"`, `""`, `None`) and on the `records` carve-out. State the contract each honors and
+    MATCH THE LIVE BEHAVIOR PER HELPER, because the two live helpers Order 02 replaces DIFFER from each
+    other (both measured at round 6):
+    * `artifact_types.normalize_type` RAISES `ValueError` on an unknown type, with a message listing the
+      valid types (`unknown artifact type 'nosuchtype'; valid types: plans, ..., other, all`), and it
+      raises on `''` and `None` as well. A model helper that silently returned `None` here would swallow
+      an error the CLI currently surfaces to the user.
+    * `selectors.record_dirs` DEGRADES: "Returns [] for an unknown/unresolvable type rather than raising"
+      (`selectors.py:188-195`).
+    Do NOT unify these two conventions without saying so explicitly, and do not assume one from the other.
+    ALSO state whether the model represents the `all` EXPANSION TOKEN, which appears in the live
+    valid-type list and is handled by `artifact_types.expand_types`/`is_type_token` but is NOT a record
+    class and is mentioned NOWHERE in this plan. If the model omits it, confirm Order 02 keeps handling it
+    outside the model, since a silent loss of `all` would break every `aw <verb> all` invocation.
   - Observed evidence:
   - Result: pending
 
@@ -220,20 +292,35 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Cohesion rationale: SINGLE COHESIVE DELIVERABLE, assessed explicitly at round 6 (PR-034) rather than
+  inherited from a passing count-based lint. `aw ipd lint` measures only structural counts (>18 E-leaves,
+  >5 groups) and this plan has 2 E-items in 2 groups, so the lint says nothing about conceptual density;
+  the rubric requires the judgement to be made anyway. MADE: E-01 carries one deliverable (`layout.py`)
+  and E-02 carries one (`tests/test_layout.py`), and although E-01 now holds many MUST clauses, they are
+  all CONSTRAINTS ON ONE FILE that must be satisfied together, not independent deliverables: the
+  vocabulary, the two carve-outs, the aliases, the exclusions, the annotation style and the consumer
+  surface are all fields of the same two dataclasses, and splitting them would produce children that each
+  leave `layout.py` importable-but-incomplete, which is precisely the foundation failure the gate below
+  warns about. The `Highest E allocated: 02` is therefore correct and NOT an under-decomposition.
+  WHAT WOULD CHANGE THE ANSWER: if the executor finds that `to_schema()` needs substantive logic beyond
+  serializing the same model (for example bespoke per-class schema fragments), that is a genuinely
+  separable second deliverable and should become its own E-item under this plan's Order, not be smuggled
+  into E-01.
 
-THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan. This plan is returned to `to-review`; after correction and re-review it still needs ordinary human plan approval.
+THE EXTERNAL SPEC GATE IS CLEARED (re-measured at plan-review round 5): controlling spec `kw5y2s` is `- Status: approved` with a `--by-human` attestation, so `ipd-lifecycle.md:16` is satisfied. The round-4 "reopened" wording was accurate when written and then outlived its premise: the plans were demoted at commit `298be4b2` (00:10:38 -0400) and the corrected spec was re-approved 459 seconds later at `3e05c2ba` (00:18:17 -0400). RE-VERIFY the spec's `- Status:` line yourself before starting rather than trusting this paragraph; if it is not `approved`, STOP (a genuinely absent prerequisite). The only remaining gate is ordinary human approval of this plan (round 6 removed a trailing sentence left over from the round-4 demotion, which still said the plan was 'returned to to-review' and contradicted the paragraph it ended).
 
 THIS IS ORDER 01, THE FOUNDATION: three of the four later children import what it creates. The dangerous failure is therefore NOT a bug in `layout.py` but an INCOMPLETE INTERFACE that looks finished: if the model omits `KNOWN_PRIMARY_TYPES`, the state-class vocabularies, the `other` complement rule, or the legacy subpath map, this plan validates green and Order 02 or 03 fails at import time or, worse, silently changes traversal (F-4, F-5). V-01's consumer-interface proof exists for exactly that and may not be waived.
 
 Execution contract:
 
 1. Additive only. Do NOT modify `artifact_types.py`, `selectors.py`, `record_producers.py`, or `project_schema.py`; those are Orders 02 and 03. This plan's value is that it changes no existing behavior.
-2. Do NOT transcribe the spec's Section 5 snippet literally; it is not valid on the 3.9 floor (F-6). Use `from __future__ import annotations` plus `typing` generics.
-3. Do NOT add an undeclared dependency. Either validate structurally with the stdlib, or declare `jsonschema` in the `[test]` extra and add `pyproject.toml` to `Scope-Paths` in the same change (F-7, Scope check).
-4. Report validation by pasting the ACTUAL runner output; never claim a test result you did not run.
-5. Commit only files this plan changed, path-scoped. Other agents and runs are ACTIVE in this shared checkout, so before every commit verify the staged set with `git diff --cached --name-only` and `git restore --staged` anything not yours. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
-6. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
-7. Scope fence (a DECLARATION so the runner can reconcile afterwards): the declared paths are `agent_workflows/layout.py` and `tests/test_layout.py`, plus `pyproject.toml` only under clause 3. An out-of-scope edit is permitted but must be JUSTIFIED with a per-path `aw ipd finalize --scope-reason`, and a declared-but-unmodified path needs a `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a file you must edit is being changed concurrently and the two sets of changes cannot be safely combined.
-8. Expect the `check.lifecycle-transition-invalid` diagnostic on this plan; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
-9. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.
+2. Use `from __future__ import annotations` plus `typing` generics, matching the universal house pattern (132/132 modules). Do NOT transcribe the spec's Section 5 snippet literally, because it elides bodies and defaults (`= ...`). CORRECTED AT ROUND 6 (F-6): the snippet is NOT 3.9-invalid, contrary to round 2; PEP 585 field annotations are legal on 3.9 and were measured working on 3.9.25. The construct that genuinely breaks on 3.9 is PEP 604 `X | None`, so avoid that one specifically.
+3. Do NOT add an undeclared dependency. Prefer stdlib structural validation; taking `jsonschema` requires declaring it in the `[test]` extra AND adding `pyproject.toml` to `Scope-Paths` in the same change, AND handling the fact that CI does not install that extra at all (F-7, F-10, Scope check).
+4. Assert set-valued constants as SETS. `EXCLUDED_RECORD_DIRS` and friends are frozensets, so a `tuple(...)==tuple(...)` comparison is `PYTHONHASHSEED`-dependent and flaky (F-8). This applies to any parity assertion this plan adds, not only the exclusions.
+5. State the model's ERROR CONTRACT explicitly, and match the live helpers rather than unifying them by accident: `normalize_type` raises `ValueError`, `record_dirs` returns `[]` (F-9). Say what happens to the `all` token.
+6. Report validation by pasting the ACTUAL runner output; never claim a test result you did not run.
+7. Commit only files this plan changed, path-scoped. Other agents and runs are ACTIVE in this shared checkout, so before every commit verify the staged set with `git diff --cached --name-only` and `git restore --staged` anything not yours. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
+8. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).
+9. Scope fence (a DECLARATION so the runner can reconcile afterwards): the declared paths are `agent_workflows/layout.py` and `tests/test_layout.py`, plus `pyproject.toml` only under clause 3. An out-of-scope edit is permitted but must be JUSTIFIED with a per-path `aw ipd finalize --scope-reason`, and a declared-but-unmodified path needs a `--scope-ack`. Do NOT stop over a scope question. DO stop and report if a file you must edit is being changed concurrently and the two sets of changes cannot be safely combined.
+10. Expect the `check.lifecycle-transition-invalid` diagnostic on this plan; it is a known tooling defect (backlog `tk1gqo`) and must not be "fixed" by reordering the history.
+11. On completion, run `aw ipd lint --phase pre-transition`, then `aw ipd finalize <plan> --actor <AGENT/MODEL> --message <SUMMARY> --apply`, and move the plan to `.aw/records/plans/executed/` with `- Status: executed`. The lifecycle transition is a POST-gate step, never an E-item.
