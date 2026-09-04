@@ -871,6 +871,96 @@ class OrderingAndCascadeTests(unittest.TestCase):
                 self.assertEqual(oc_runipd.cascade_dependency_blocked(state), [])
                 self.assertEqual(state["queue"][1]["status"], "queued")
 
+    def test_review_action_is_not_cascade_blocked_by_a_reviewed_prerequisite(self):
+        """A REVIEW pass must not be killed because its prerequisite is only `reviewed`.
+
+        MEASURED FAILURE (run `run-20260904T042705Z-1025943`): a 6-item all-`review` run of the
+        `wslayout` Set reviewed Orders 00 and 01, and the instant Order 01 reached `reviewed` the
+        cascade marked Orders 02-05 `dependency-blocked` with "prerequisite reached a non-success
+        terminal state", making a review-mode Set run impossible to complete. The cascade hardcoded
+        `EXECUTION_SUCCESS_STATES`, so `reviewed` (in `TERMINAL_STATES`, not in that set) read as a
+        dead prerequisite - while `dependency_status_detailed` returned satisfied=True for the same
+        items. Two functions, opposite answers, and the cascade won because it runs after each item.
+
+        Reviewing a child that imports a module the previous child creates needs only that the
+        previous child was REVIEWED: a review pass writes and imports no code.
+        """
+        for prereq_status in ("reviewed", "approved", "executed"):
+            with self.subTest(prereq=prereq_status):
+                state = {
+                    "repo": "/nonexistent",
+                    "queue": [
+                        self._item("prereq", position=1, status=prereq_status),
+                        self._item("child1", deps=["executed:prereq"], position=2),
+                        self._item("child2", deps=["executed:child1"], position=3),
+                    ],
+                }
+                for entry in state["queue"][1:]:
+                    entry["action"] = "review"
+                self.assertEqual(
+                    oc_runipd.cascade_dependency_blocked(state),
+                    [],
+                    f"a review pass must survive a {prereq_status!r} prerequisite",
+                )
+                self.assertEqual(state["queue"][1]["status"], "queued")
+                self.assertEqual(state["queue"][2]["status"], "queued")
+
+    def test_execute_action_still_blocks_on_a_merely_reviewed_prerequisite(self):
+        """The COUNTERPART: `reviewed` is NOT enough to execute against, and must still block.
+
+        Pins the half of the bar that keeps the fix honest. If this ever passes-through, an execute
+        pass could build against a prerequisite whose code was never written.
+        """
+        state = {
+            "repo": "/nonexistent",
+            "queue": [
+                self._item("prereq", position=1, status="reviewed"),
+                self._item("child1", deps=["executed:prereq"], position=2),
+                self._item("child2", deps=["executed:child1"], position=3),
+            ],
+        }
+        blocked = oc_runipd.cascade_dependency_blocked(state)
+        self.assertEqual({b["id6"] for b in blocked}, {"child1", "child2"})
+        self.assertEqual(state["queue"][1]["status"], "dependency-blocked")
+        self.assertEqual(
+            state["queue"][2]["status"],
+            "dependency-blocked",
+            "the cascade must still reach a fixed point for execute actions",
+        )
+
+    def test_cascade_and_edge_satisfied_agree_on_the_success_bar(self):
+        """ANTI-DIVERGENCE: the two functions must not disagree, which is what caused the outage."""
+        for action, prereq_status, expect_blocked in (
+            ("review", "reviewed", False),
+            ("execute", "reviewed", True),
+            ("review", "failed-safely", True),
+            ("execute", "failed-safely", True),
+            ("review", "executed", False),
+            ("execute", "executed", False),
+        ):
+            with self.subTest(action=action, prereq=prereq_status):
+                queue = [
+                    self._item("prereq", position=1, status=prereq_status),
+                    self._item("child1", deps=["executed:prereq"], position=2),
+                ]
+                queue[1]["action"] = action
+                state = {"repo": "/nonexistent", "queue": queue}
+                edge_ok, _ = oc_runipd.dependency_status(queue[1], state)
+                cascade_blocked = bool(oc_runipd.cascade_dependency_blocked(state))
+                self.assertEqual(
+                    cascade_blocked,
+                    expect_blocked,
+                    f"cascade disagreed for action={action} prereq={prereq_status}",
+                )
+                # The load-bearing invariant: if the readiness check says the edge is satisfied,
+                # the cascade must NOT declare the item dead.
+                if edge_ok:
+                    self.assertFalse(
+                        cascade_blocked,
+                        f"cascade killed an item `dependency_status` called ready "
+                        f"(action={action}, prereq={prereq_status})",
+                    )
+
     def test_no_declared_edges_set_is_untouched_by_the_cascade(self):
         """NO-REGRESSION: the behavior every current run depends on must be identical."""
         state = {

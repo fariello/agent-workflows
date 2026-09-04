@@ -3805,6 +3805,22 @@ def cascade_dependency_blocked(
     written by the orchestrator-deferral path). It does NOT introduce `dependency-not-met`, which is
     the spec's vocabulary but does not exist anywhere in this runner; inventing a parallel state
     would split the run records already on disk.
+
+    THE SUCCESS BAR IS ACTION-DEPENDENT, and it MUST match `edge_satisfied`'s (runorder F-7). A
+    REVIEW pass does not require its prerequisite to have been EXECUTED: reviewing a child that
+    imports a module the previous child creates needs only that the previous child was reviewed,
+    because no code is written or imported during a review. `edge_satisfied` has always encoded this
+    (`is_exec = item.get("action") != "review"`, then `EXECUTION_SUCCESS_STATES if is_exec else
+    SUCCESS_STATES`), so this function reuses the SAME predicate rather than a second one.
+
+    MEASURED FAILURE this fixes (run `run-20260904T042705Z-1025943`): a 6-item all-`review` run of
+    the `wslayout` Set reviewed Orders 00 and 01, and the instant Order 01 reached `reviewed` this
+    cascade declared it a dead prerequisite and killed Orders 02-05 with "prerequisite reached a
+    non-success terminal state". It hardcoded `EXECUTION_SUCCESS_STATES`, and `reviewed` is in
+    `TERMINAL_STATES` but not in that set. Meanwhile `dependency_status_detailed` returned
+    `satisfied: True` for those same items, so TWO functions gave opposite answers to one question
+    and the cascade won because it runs after each item completes. The Set was well-formed and its
+    edges were correct; a review-mode Set run was simply impossible to complete.
     """
     blocked: list[dict[str, Any]] = []
     while True:
@@ -3822,7 +3838,14 @@ def cascade_dependency_blocked(
                 if entry is None:
                     continue
                 st = entry.get("status")
-                if st in TERMINAL_STATES and st not in EXECUTION_SUCCESS_STATES:
+                # SAME action-aware bar as `edge_satisfied`; do NOT hardcode
+                # EXECUTION_SUCCESS_STATES here (that made a review-mode Set run impossible).
+                required = (
+                    EXECUTION_SUCCESS_STATES
+                    if item.get("action") != "review"
+                    else SUCCESS_STATES
+                )
+                if st in TERMINAL_STATES and st not in required:
                     dead.append(f"{edge.canonical()} (target {st})")
             if not dead:
                 continue
