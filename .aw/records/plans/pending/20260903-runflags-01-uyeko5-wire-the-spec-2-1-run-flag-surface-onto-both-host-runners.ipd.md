@@ -61,7 +61,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-05 Register `--follow-generated` and `--with-dependencies`. NEITHER has any implementation anywhere (both grep to zero), and that makes this the item most likely to go wrong: `--with-dependencies` means "expand the selection to the transitive declared dependency closure BEFORE the queue is frozen, and subject any newly introduced type to the same mixed-type gate" (spec 2.1), which is real graph work, and `--follow-generated` means newly generated IPDs JOIN the active graph rather than being reported as next actions.
   DO NOT BUILD EITHER BEHAVIOR HERE. Register both flags and make each REFUSE with `not yet implemented` naming what is missing. A flag that parses and silently does nothing is strictly worse than no flag, because the operator believes the dependency closure was expanded when it was not, and that is a correctness failure rather than a UX one. If you judge the closure expansion small enough to build, that is a SEPARATE plan with its own review, and say so rather than widening this one.
   - Depends on: E-01
-  - Expected outcome: both flags parse and are visible in `--help`, and both refuse with a clear `not yet implemented` message naming the missing capability; NEITHER silently no-ops; a follow-up is named for the real behavior.
+  - Expected outcome: both flags parse and are visible in `--help`, and both refuse with a clear `not yet implemented` message naming the missing capability; NEITHER silently no-ops; the refusal text (or `--help`) points at backlog `x8diyb`, which owns the real behavior.
   - Execution state: pending
 
 ### Task group 3: freeze the values, and prove both hosts agree
@@ -111,18 +111,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ## Deferred / out of scope (with reason)
 
-- BUILDING `--with-dependencies` CLOSURE EXPANSION and `--follow-generated` GRAPH JOINING. Real graph work with its own correctness surface (the closure must be expanded before freezing AND subject new types to the mixed-type gate). E-05 registers them refusing rather than silently no-opping, and a follow-up plan owns the behavior.
+- BUILDING `--with-dependencies` CLOSURE EXPANSION and `--follow-generated` GRAPH JOINING. Real graph work with its own correctness surface (the closure must be expanded before freezing AND subject new types to the mixed-type gate). E-05 registers them refusing rather than silently no-opping. **FILED AS BACKLOG `x8diyb` (`rundepflags-01`), `blocked` with a typed gate on THIS plan (`Gate-Kind: ipd`, `Gate-Ref: uyeko5`) and `Blocks-Release: next`**, so the behavior cannot leave the live tree when this plan reaches `executed/`. It is gated rather than open because the flags do not exist until E-05 lands and the closure expansion belongs in the queue-build path this plan already edits.
 - THE `--unverifiable-ok` AGGREGATION RULE: `zub5f1` owns it. This plan supplies the flag and the precondition refusal only.
 - THE RETRY-BUDGET 0..10 RANGE CHECK: `sq61qd` owns it. This plan supplies the flag and the precedence.
 - THE MIXED-TYPE GATE ITSELF: executed `6lu3rq` built it. This plan CONNECTS it (F-2) and must not reimplement any part.
-- A REPOSITORY-POLICY CONFIG TIER for `--retry-budget`. Spec 2.1 names CLI > repo policy > default, and no repo-policy home exists. E-04 implements CLI-over-default and records the missing tier rather than inventing a config surface.
+- A REPOSITORY-POLICY CONFIG TIER for `--retry-budget`. Spec 2.1 names CLI > repo policy > default, and no repo-policy home exists. E-04 implements CLI-over-default and records the missing tier rather than inventing a config surface. **FILED AS BACKLOG `dh3us4` (`retrypolicy-01`), `blocked` with a typed gate on THIS plan (`Gate-Kind: ipd`, `Gate-Ref: uyeko5`)**, so the unimplemented tier is tracked rather than surviving only as under-scope prose.
 - `--action` AND `--json`: out of this plan's concern; `--action` in particular carries its own legality rules per spec 2.1.
 
 ## Scope check
 
 - Over-scope: none. Every edit registers a spec-declared flag, connects it to an existing predicate, or proves both hosts agree.
 - Under-scope, DELIBERATE and stated plainly: after this plan, `--follow-generated` and `--with-dependencies` PARSE BUT REFUSE. That is the honest end state for a flag whose behavior nobody has built, and it is strictly safer than accepting them silently, which would let an operator believe a dependency closure was expanded when it was not.
-- Under-scope: `--retry-budget`'s middle precedence tier (repository policy) is unimplemented, recorded rather than faked.
+- Under-scope: `--retry-budget`'s middle precedence tier (repository policy) is unimplemented, recorded rather than faked, and tracked as backlog `dh3us4`.
 
 ## Required tests / validation
 
