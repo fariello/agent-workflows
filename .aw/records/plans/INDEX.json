@@ -4114,6 +4114,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md",
+    "plan_id": "d7bnhc",
+    "set_id": "apprvguard",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-31",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md",
     "plan_id": "evgi9n",
     "set_id": "novalnomerge",
@@ -4268,16 +4278,6 @@
     "plan_id": "wlxkoz",
     "set_id": "runcodes",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-08-31",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md",
-    "plan_id": "d7bnhc",
-    "set_id": "apprvguard",
-    "status": "approved"
   },
   {
     "date": "2026-08-31",

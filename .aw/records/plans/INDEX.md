@@ -61,7 +61,7 @@ Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 
 ## apprvguard
 
-- `d7bnhc` [pending] 01 pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md
+- `d7bnhc` [executed] 01 executed/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md
 
 ## novalnomerge
 
