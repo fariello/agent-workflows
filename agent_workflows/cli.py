@@ -3197,6 +3197,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter by readiness (e.g. go-pending-approval, -). Supports multiple flags or comma-separated lists.",
     )
     p_attention.add_argument(
+        "--open-questions",
+        "--oqs",
+        dest="open_questions",
+        action="store_true",
+        default=False,
+        help="Filter to show only artifacts with unresolved open questions.",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],

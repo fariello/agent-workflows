@@ -237,10 +237,10 @@ class ScanTests(unittest.TestCase):
         # Default colored board shows the compact identity stem (not the folded prefix / full path);
         # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+0\s+r")
+        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+0\s+0\s+r")
         self.assertRegex(
             stripped,
-            r"deferred\s+spec\s+-\s+-\s+-\s+0\s+s\s+\[gate artifact: TODO.md\]",
+            r"deferred\s+spec\s+-\s+-\s+-\s+0\s+0\s+s\s+\[gate artifact: TODO.md\]",
         )
         self.assertNotIn("## blocked", stripped)
         # No trailing " tree" tag after the status.
@@ -770,7 +770,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
 
             # Interactive output is a table with header
             self.assertIn(
-                "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID",
+                "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
                 stripped,
             )
             self.assertNotIn("## active", stripped)
@@ -873,40 +873,40 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in stripped.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID",
+            "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
         )
 
         # Verify exact sorted lines:
         # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
-            "open      backlog    2.0.0 medium   -            0  20260903-runnerlayer-01-cnwy8g",
+            "open      backlog    2.0.0 medium   -            0    0  20260903-runnerlayer-01-cnwy8g",
         )
         self.assertEqual(
             lines[2],
-            "open      backlog    2.0.0 medium   -            0  20260904-rununbound-01-d07nz2",
+            "open      backlog    2.0.0 medium   -            0    0  20260904-rununbound-01-d07nz2",
         )
         # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
-            "reviewed  plan           - -        -            0  20260829-runprofile-02-p0l1to",
+            "reviewed  plan           - -        -            0    0  20260829-runprofile-02-p0l1to",
         )
         self.assertEqual(
             lines[4],
-            "approved  plan       2.0.0 -        -            0  20260829-rununify-00-5e4sb6",
+            "approved  plan       2.0.0 -        -            0    0  20260829-rununify-00-5e4sb6",
         )
         self.assertEqual(
             lines[5],
-            "reviewed  plan       2.0.0 -        go-pendin    0  20260830-runcodes-01-wlxkoz",
+            "reviewed  plan       2.0.0 -        go-pendin    0    0  20260830-runcodes-01-wlxkoz",
         )
         self.assertEqual(
             lines[6],
-            "to-revie  plan       2.0.0 -        -            0  20260904-revsweep-01-76gsmv",
+            "to-revie  plan       2.0.0 -        -            0    0  20260904-revsweep-01-76gsmv",
         )
         # 3. Type: spec
         self.assertEqual(
             lines[7],
-            "implemen  spec       2.0.0 -        -            0  20260829-c4gd2h-01-c4gd2h",
+            "implemen  spec       2.0.0 -        -            0    0  20260829-c4gd2h-01-c4gd2h",
         )
 
     def test_oq_count_in_table_and_parser(self):
@@ -928,6 +928,8 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
 - Blocking: no
 """
         self.assertEqual(att.count_unresolved_open_questions(text_with_oqs), 2)
+        self.assertEqual(att.count_resolved_questions(text_with_oqs), 1)
+        self.assertEqual(att.count_question_stats(text_with_oqs), (2, 1))
 
         item = att.Item(
             "1",
@@ -938,14 +940,17 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
             None,
             None,
             oqs=2,
+            rqs=1,
         )
         out = att.render_table([item], [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID",
+            "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
         )
-        self.assertIn("to-revie  plan           - -        -            2  p", lines[1])
+        self.assertIn(
+            "to-revie  plan           - -        -            2    1  p", lines[1]
+        )
 
     def test_priority_sorting(self):
         items = [
@@ -1210,6 +1215,67 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertEqual(args2.priority, ["high,medium"])
         self.assertEqual(args2.blocking, ["2.0.0"])
         self.assertEqual(args2.readiness, ["go-pending-approval"])
+
+        args3 = parser.parse_args(["att", "--open-questions"])
+        self.assertTrue(args3.open_questions)
+        args4 = parser.parse_args(["att", "--oqs"])
+        self.assertTrue(args4.open_questions)
+
+    def test_open_questions_filter(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".aw").mkdir(parents=True)
+            plans_dir = root / ".aw" / "records" / "plans" / "pending"
+            plans_dir.mkdir(parents=True)
+
+            p1 = plans_dir / "20260901-test-01-aaaaaa-has-oq.ipd.md"
+            p1.write_text(
+                "# IPD: has oq\n"
+                "- Status: to-review\n"
+                "- Set: test\n"
+                "- Order: 01\n"
+                "- Id: aaaaaa\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Open\n"
+                "- Status: open\n",
+                encoding="utf-8",
+            )
+            p2 = plans_dir / "20260901-test-02-bbbbbb-resolved-oq.ipd.md"
+            p2.write_text(
+                "# IPD: resolved oq\n"
+                "- Status: to-review\n"
+                "- Set: test\n"
+                "- Order: 02\n"
+                "- Id: bbbbbb\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Resolved\n"
+                "- Status: resolved\n",
+                encoding="utf-8",
+            )
+
+            args = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=[],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                open_questions=True,
+                no_color=True,
+                all=False,
+                long=False,
+                details=False,
+            )
+            buf = io.StringIO()
+            with mock.patch("sys.stdout", buf):
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            data = json.loads(buf.getvalue())
+            self.assertEqual(len(data["items"]), 1)
+            self.assertEqual(data["items"][0]["id"], "aaaaaa")
 
 
 if __name__ == "__main__":

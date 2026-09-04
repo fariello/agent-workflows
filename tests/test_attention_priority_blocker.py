@@ -57,19 +57,20 @@ class AttentionPriorityBlockerTests(unittest.TestCase):
         item = _item(".aw/records/backlog/open/a.backlog.md", blocks_release="next")
         out = self._colored([item])
         # the Blocking column renders the resolved release version or 'next'
-        self.assertRegex(out, r"open\s+backlog\s+(?:2\.0\.0|next)\s+-\s+-\s+0\s+a")
+        self.assertRegex(out, r"open\s+backlog\s+(?:2\.0\.0|next)\s+-\s+-\s+0\s+0\s+a")
 
         raw = attention.render_board([item], [], show_all=True, term=T.Term(color=True))
         # blocking release version is styled in red (256-color code 196, bold)
         self.assertIn("\033[1;38;5;196m", raw)
 
         out_noblock = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
-        self.assertRegex(out_noblock, r"open\s+backlog\s+-\s+-\s+-\s+0\s+a")
+        self.assertRegex(out_noblock, r"open\s+backlog\s+-\s+-\s+-\s+0\s+0\s+a")
 
     def test_table_header_present_colored(self):
         out = self._colored([_item(".aw/records/backlog/open/a.backlog.md")])
         self.assertIn(
-            "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID", out
+            "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
+            out,
         )
 
     def test_plain_board_unchanged(self):
@@ -151,7 +152,7 @@ class PlanReleaseBlockerSurfacingTests(unittest.TestCase):
         )
         self.assertRegex(
             out,
-            r"draft\s+plan\s+(?:2\.0\.0|next)\s+-\s+-\s+0\s+20260101-demo-01-pl0001",
+            r"draft\s+plan\s+(?:2\.0\.0|next)\s+-\s+-\s+0\s+0\s+20260101-demo-01-pl0001",
         )
 
 

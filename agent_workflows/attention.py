@@ -48,31 +48,44 @@ class Item(NamedTuple):
     detail_text: Optional[str] = None
     readiness: Optional[str] = None
     oqs: int = 0
+    rqs: int = 0
 
 
-_OQ_SECTION_RE = re.compile(r"^##\s+Open questions(?:\s+.*)?$", re.IGNORECASE)
+_OQ_SECTION_RE = re.compile(
+    r"^##\s+(?:[0-9]+\.\s*)?(?:Open|Resolved)\s+questions\b", re.IGNORECASE
+)
 _OQ_HEADING_RE = re.compile(
-    r"^###\s+(OQ-[0-9]+|OQ-[A-Za-z0-9_-]+):?\s*(.*)$", re.IGNORECASE
+    r"^###\s+((?:OQ|RQ)-[0-9]+|(?:OQ|RQ)-[A-Za-z0-9_-]+):?\s*(.*)$", re.IGNORECASE
 )
 _OQ_STATUS_RE = re.compile(r"^-[ \t]*Status:[ \t]*(\S+)", re.IGNORECASE)
 
 
-def count_unresolved_open_questions(text: str) -> int:
-    """Count open/unresolved questions in an artifact's '## Open questions' section."""
-    if not text or "Open questions" not in text:
-        return 0
+def count_question_stats(text: str) -> Tuple[int, int]:
+    """Count (unresolved_oqs, resolved_rqs) in an artifact's '## Open questions' section."""
+    if not text or "questions" not in text.lower():
+        return 0, 0
     in_section = False
     unresolved_count = 0
-    current_status = None
+    resolved_count = 0
     in_question_block = False
+    is_resolved = False
+    explicit_status = False
 
     def _flush_question():
-        nonlocal unresolved_count, in_question_block, current_status
+        nonlocal \
+            unresolved_count, \
+            resolved_count, \
+            in_question_block, \
+            is_resolved, \
+            explicit_status
         if in_question_block:
-            if current_status != "resolved":
+            if is_resolved:
+                resolved_count += 1
+            else:
                 unresolved_count += 1
         in_question_block = False
-        current_status = None
+        is_resolved = False
+        explicit_status = False
 
     for line in text.splitlines():
         if line.startswith("## "):
@@ -83,17 +96,49 @@ def count_unresolved_open_questions(text: str) -> int:
             continue
         if line.startswith("### "):
             _flush_question()
-            if _OQ_HEADING_RE.match(line.strip()):
+            m_h = _OQ_HEADING_RE.match(line.strip())
+            if m_h:
                 in_question_block = True
-                current_status = None
+                prefix = m_h.group(1).upper()
+                rest = m_h.group(2)
+                if prefix.startswith("RQ-") or re.search(
+                    r"\bRESOLVED\b", rest, re.IGNORECASE
+                ):
+                    is_resolved = True
+                else:
+                    is_resolved = False
+                explicit_status = False
             continue
         if in_question_block:
-            m = _OQ_STATUS_RE.match(line.strip())
-            if m and current_status is None:
-                current_status = m.group(1).lower()
+            m_s = _OQ_STATUS_RE.match(line.strip())
+            if m_s and not explicit_status:
+                status_val = m_s.group(1).lower().strip("[]().,")
+                explicit_status = True
+                is_resolved = status_val == "resolved"
+            elif not explicit_status:
+                if re.search(r"^-[ \t]*Blocking:.*\(resolved\)", line, re.IGNORECASE):
+                    is_resolved = True
+                elif re.search(
+                    r"^-[ \t]*Resolution(?:\s+or\s+deferral\s+rationale)?:\s*RESOLVED\b",
+                    line,
+                    re.IGNORECASE,
+                ):
+                    is_resolved = True
 
     _flush_question()
-    return unresolved_count
+    return unresolved_count, resolved_count
+
+
+def count_unresolved_open_questions(text: str) -> int:
+    """Count open/unresolved questions in an artifact's '## Open questions' section."""
+    oqs, _ = count_question_stats(text)
+    return oqs
+
+
+def count_resolved_questions(text: str) -> int:
+    """Count resolved questions in an artifact's '## Open questions' section."""
+    _, rqs = count_question_stats(text)
+    return rqs
 
 
 _FIELD_PATTERNS = (
@@ -363,7 +408,7 @@ def _release_record(
     mid = _re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
     lha = A.last_history_at(_history_section_lines(text))
     d_kind, d_text = _extract_detail(text)
-    oqs = count_unresolved_open_questions(text)
+    oqs, rqs = count_question_stats(text)
     return Item(
         mid.group(1) if mid else "",
         rel,
@@ -375,6 +420,7 @@ def _release_record(
         detail_kind=d_kind,
         detail_text=d_text,
         oqs=oqs,
+        rqs=rqs,
     ), drift
 
 
@@ -393,6 +439,7 @@ def _spec_record(
         if summary:
             gate["summary"] = summary
     lha = A.last_history_at(_history_section_lines(text))
+    # awdoctorfix Order 01: read Blocks-Release from the spec's front-matter so the board can surface it.
     br = specs_mod._read_blocks_release(lines)
     # xprio rp859c E-03: populate Item.priority from the spec's `- Priority:` line so the board LABELS
     # a spec's priority via the existing renderer (absent = None = no label). Shared sort key unchanged.
@@ -400,7 +447,7 @@ def _spec_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
-    oqs = count_unresolved_open_questions(text)
+    oqs, rqs = count_question_stats(text)
     return Item(
         "",
         rel,
@@ -415,6 +462,7 @@ def _spec_record(
         detail_text=d_text,
         readiness=rd,
         oqs=oqs,
+        rqs=rqs,
     ), drift
 
 
@@ -473,7 +521,7 @@ def _plans_record(
         rd = _schema.read_readiness(text) or (rd_m.group(1).lower() if rd_m else None)
     except Exception:
         rd = rd_m.group(1).lower() if rd_m else None
-    oqs = count_unresolved_open_questions(text)
+    oqs, rqs = count_question_stats(text)
     return Item(
         pid or "",
         rel,
@@ -488,6 +536,7 @@ def _plans_record(
         detail_text=d_text,
         readiness=rd,
         oqs=oqs,
+        rqs=rqs,
     ), drift
 
 
@@ -529,7 +578,7 @@ def _research_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
-    oqs = count_unresolved_open_questions(text)
+    oqs, rqs = count_question_stats(text)
     return Item(
         rid,
         rel,
@@ -543,6 +592,7 @@ def _research_record(
         detail_text=d_text,
         readiness=rd,
         oqs=oqs,
+        rqs=rqs,
     ), drift
 
 
@@ -576,7 +626,7 @@ def _backlog_record(
     d_kind, d_text = _extract_detail(text)
     rd_m = re.search(r"(?mi)^-[ \t]*Readiness:[ \t]*(\S+)", text)
     rd = rd_m.group(1).lower() if rd_m else None
-    oqs = count_unresolved_open_questions(text)
+    oqs, rqs = count_question_stats(text)
     return Item(
         item.id or "",
         rel,
@@ -591,6 +641,7 @@ def _backlog_record(
         detail_text=d_text,
         readiness=rd,
         oqs=oqs,
+        rqs=rqs,
     ), drift
 
 
@@ -1123,7 +1174,7 @@ def _render_table_row(
 
     oq_cnt = getattr(it, "oqs", 0) or 0
     oq_raw = str(oq_cnt)
-    left_pad = " " * (3 - len(oq_raw))
+    oq_left_pad = " " * (3 - len(oq_raw))
     if colored:
         if oq_cnt > 0:
             oq_styled = term.color256(oq_raw, 214, bold=True)
@@ -1131,7 +1182,19 @@ def _render_table_row(
             oq_styled = term.color256(oq_raw, 244)
     else:
         oq_styled = oq_raw
-    oq_col = f"{left_pad}{oq_styled}  "
+    oq_col = f"{oq_left_pad}{oq_styled}  "
+
+    rq_cnt = getattr(it, "rqs", 0) or 0
+    rq_raw = str(rq_cnt)
+    rq_left_pad = " " * (3 - len(rq_raw))
+    if colored:
+        if rq_cnt > 0:
+            rq_styled = term.color256(rq_raw, 40, bold=True)
+        else:
+            rq_styled = term.color256(rq_raw, 244)
+    else:
+        rq_styled = rq_raw
+    rq_col = f"{rq_left_pad}{rq_styled}  "
 
     inline_gate = ""
     if it.gate:
@@ -1139,9 +1202,7 @@ def _render_table_row(
             f"  [gate {it.gate.get('kind')}: {A.escape_detail(it.gate.get('ref', ''))}]"
         )
 
-    row_line = (
-        f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{ident}{inline_gate}"
-    )
+    row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{rq_col}{ident}{inline_gate}"
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
@@ -1162,7 +1223,7 @@ def render_table(
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), OQs (3), Artifact Set / ID.
+    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), OQs (3), RQs (3), Artifact Set / ID.
     Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -1208,7 +1269,9 @@ def render_table(
         return (type_word, is_blocking, prio_rank, name, it.path)
 
     visible.sort(key=_sort_key)
-    header = "Status    Type    Blocking Priority Readiness  OQs  Artifact Set / ID"
+    header = (
+        "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID"
+    )
     lines.append(term.colorize(header, "bold") if colored else header)
 
     for it in visible:
@@ -1239,7 +1302,7 @@ def render_board(
     """Render the attention board.
 
     When ``term`` is colored (a real TTY / FORCE_COLOR), the human view renders the columnar
-    table (Status, Type, Blocking, Priority, Readiness, Artifact Set / ID). When color is OFF
+    table (Status, Type, Blocking, Priority, Readiness, OQs, RQs, Artifact Set / ID). When color is OFF
     (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
     ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape.
     """
@@ -1495,8 +1558,20 @@ def run(args) -> int:
     if readiness_filters:
         items = [it for it in items if matches_readiness(it, readiness_filters)]
 
+    open_questions_filter = getattr(args, "open_questions", False)
+    if open_questions_filter:
+        items = [it for it in items if (getattr(it, "oqs", 0) or 0) > 0]
+
     if (
-        any((status_filters, priority_filters, blocking_filters, readiness_filters))
+        any(
+            (
+                status_filters,
+                priority_filters,
+                blocking_filters,
+                readiness_filters,
+                open_questions_filter,
+            )
+        )
         and drift
     ):
         selected_paths = {(repo_root / it.path).resolve() for it in items}
@@ -1609,7 +1684,10 @@ def run(args) -> int:
             for s in status_filters
         )
         show_all = (
-            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
+            getattr(args, "all", False)
+            or bool(selectors_arg)
+            or has_terminal_status
+            or bool(open_questions_filter)
         )
         details = getattr(args, "details", False)
 
