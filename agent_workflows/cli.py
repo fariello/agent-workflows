@@ -1224,6 +1224,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_ipd_set.add_argument(
         "--by-human", action="store_true", help="Attest human approval."
     )
+    # apprvguard d7bnhc E-06: the ONE named override on the approval gate. It is deliberately NOT
+    # implied by --by-human (a human attesting they approved is not a human saying which question
+    # they decided to approve over), and it overrides ONLY the blocking-open-question refusal - a
+    # negative review verdict has no override at all, by design.
+    p_ipd_set.add_argument(
+        "--allow-open-questions",
+        dest="allow_open_questions",
+        action="store_true",
+        help="Approve a plan over an unresolved BLOCKING open question, recording the override in "
+        "its history. Does NOT override a negative review verdict (that has no override).",
+    )
     p_ipd_set.add_argument(
         "--actor",
         default=None,
@@ -2953,6 +2964,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_set.add_argument("--message", "-m", default=None, help="History record message.")
     p_set.add_argument("--by-human", action="store_true", help="Attest human approval.")
+    # apprvguard d7bnhc E-06: same named override as `aw ipd set`, declared on every surface that
+    # reaches the approval path so the gate is not bypassable by choosing a different spelling.
+    p_set.add_argument(
+        "--allow-open-questions",
+        dest="allow_open_questions",
+        action="store_true",
+        help="Approve an artifact over an unresolved BLOCKING open question, recording the override "
+        "in its history. Does NOT override a negative review verdict (that has no override).",
+    )
     p_set.add_argument(
         "--actor",
         default=None,
@@ -3684,6 +3704,16 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="by_human",
         action="store_true",
         help="Attest that a HUMAN approved this transition (records attributed approval; no TTY). For human-only transitions like reviewed -> approved.",
+    )
+    # apprvguard d7bnhc E-07: `aw specs set --status approved <path>` routes to the FORKED
+    # `specs.run_set`, not through status_set, so the override must exist on this surface too or the
+    # spelling itself would be the bypass.
+    p_specs_set.add_argument(
+        "--allow-open-questions",
+        dest="allow_open_questions",
+        action="store_true",
+        help="Approve a spec over an unresolved BLOCKING open question, recording the override in "
+        "its history. Does NOT override a negative review verdict (that has no override).",
     )
     p_specs_set.add_argument(
         "--date", default=None, help="Override the history date (YYYY-MM-DD)."

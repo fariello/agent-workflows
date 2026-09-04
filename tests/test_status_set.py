@@ -1135,5 +1135,318 @@ class TestGateFieldClearingOnStatusChange(StatusSetTestBase):
         self.assertEqual(bullets(before), bullets(after))
 
 
+class ApprovalGateTests(StatusSetTestBase):
+    """apprvguard Order 01 (d7bnhc) E-09 / V-05, V-06, V-09: the gate on the approval path itself.
+
+    A bug here fails in one of two directions and BOTH are covered, because neither may be waived:
+    too fail-closed blocks every legitimate approval (the non-regression cases below, plus the
+    pre-existing `test_custom_message_and_by_human_attestation`), and too fail-open silently permits
+    the exact 2026-08-30 accident this gate exists to prevent (the refusal cases).
+    """
+
+    REJECT_RECORD = (
+        "- 2026-08-30 /plan-review pass 2 (opencode/test): REJECT - NEEDS REPLAN "
+        "reaffirmed; the approach is unsound."
+    )
+    APPROVE_RECORD = "- 2026-08-30 /plan-review (opencode/test): APPROVE WITH REVISIONS APPLIED; PR-001."
+    BLOCKING_OQ = (
+        "\n## Open questions\n\n"
+        "### OQ-03: A genuinely undecided blocking question\n\n"
+        "- Blocking: yes\n"
+        "- Status: open\n"
+        "- Owner: maintainer\n"
+        "- Resolution or deferral rationale: pending\n"
+    )
+
+    def create_reviewed_plan(
+        self, id6: str, set_id: str, record: str, extra: str = ""
+    ) -> Path:
+        """A plan in `reviewed` whose history carries a real review record (newest-FIRST)."""
+        plan = self.create_plan(
+            f"20260830-{set_id}-01-{id6}-gate-probe.ipd.md", id6, set_id, "reviewed"
+        )
+        text = plan.read_text(encoding="utf-8").replace(
+            "## Workflow history\n",
+            "## Workflow history\n" + record + "\n",
+        )
+        plan.write_text(text + extra, encoding="utf-8")
+        return plan
+
+    def test_rejected_plan_refuses_and_leaves_the_file_unchanged(self):
+        plan = self.create_reviewed_plan("rj0001", "gatea", self.REJECT_RECORD)
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["set", "approved", "rj0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 1)
+        # UNCHANGED on disk: not merely still `reviewed`, but byte-identical, so no history record
+        # and no `- Approval:` line were written either.
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+        self.assertNotIn("- Approval:", before)
+
+    def test_refusal_is_not_defeated_by_by_human(self):
+        """A human attesting approval cannot overrule the review's own verdict."""
+        plan = self.create_reviewed_plan("rj0002", "gateb", self.REJECT_RECORD)
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "rj0002",
+                "--by-human",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_refusal_is_not_defeated_by_allow_open_questions(self):
+        """THE override asymmetry: the flag clears QUESTIONS, never a verdict."""
+        plan = self.create_reviewed_plan("rj0003", "gatec", self.REJECT_RECORD)
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "rj0003",
+                "--allow-open-questions",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_auto_approved_is_gated_too(self):
+        """`ipd_schema.READY_TO_EXECUTE` holds BOTH tokens, so gating only `approved` leaves the
+        automated tier ungated AT THE SETTER (d7bnhc D3)."""
+        plan = self.create_reviewed_plan("rj0004", "gated", self.REJECT_RECORD)
+        before = plan.read_text(encoding="utf-8")
+        rc = cli.main(
+            ["set", "auto-approved", "rj0004", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+    def test_batch_with_one_rejected_plan_approves_none(self):
+        """The pre-flight loop makes a blanket multi-plan approval refuse WITHOUT partially applying.
+
+        This is the shape of the actual 2026-08-30 incident: one instruction, many plans.
+        """
+        clean_a = self.create_reviewed_plan("bt0001", "batch", self.APPROVE_RECORD)
+        clean_b = self.create_reviewed_plan("bt0002", "batch", self.APPROVE_RECORD)
+        rejected = self.create_reviewed_plan("bt0003", "batch", self.REJECT_RECORD)
+        befores = {
+            p: p.read_text(encoding="utf-8") for p in (clean_a, clean_b, rejected)
+        }
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "bt0001",
+                "bt0002",
+                "bt0003",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        for path, before in befores.items():
+            self.assertEqual(path.read_text(encoding="utf-8"), before, path.name)
+
+    def test_blocking_open_question_refuses_then_the_override_permits_and_is_recorded(
+        self,
+    ):
+        plan = self.create_reviewed_plan(
+            "oq0001", "gateoq", self.APPROVE_RECORD, extra=self.BLOCKING_OQ
+        )
+        before = plan.read_text(encoding="utf-8")
+
+        rc_bare = cli.main(
+            ["set", "approved", "oq0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc_bare, 1)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+        # --by-human MUST NOT imply the override (the backlog item is explicit about this).
+        rc_human = cli.main(
+            [
+                "set",
+                "approved",
+                "oq0001",
+                "--by-human",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc_human, 1)
+        self.assertEqual(plan.read_text(encoding="utf-8"), before)
+
+        rc_override = cli.main(
+            [
+                "set",
+                "approved",
+                "oq0001",
+                "--allow-open-questions",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc_override, 0)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        # The override is auditable in the ARTIFACT, not only in a shell history.
+        self.assertIn("--allow-open-questions", text)
+
+    def test_the_override_is_not_recorded_when_it_had_no_effect(self):
+        """A flag that changed nothing must not leave a false claim in history."""
+        plan = self.create_reviewed_plan("oq0002", "gatenoop", self.APPROVE_RECORD)
+        rc = cli.main(
+            [
+                "set",
+                "to-review",
+                "oq0002",
+                "--allow-open-questions",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        self.assertNotIn("--allow-open-questions", plan.read_text(encoding="utf-8"))
+
+    def test_reviewed_plan_with_an_approving_verdict_still_approves(self):
+        """NON-REGRESSION: the gate must not have broken the legitimate approve path."""
+        plan = self.create_reviewed_plan("ok0001", "gateok", self.APPROVE_RECORD)
+        rc = cli.main(
+            [
+                "set",
+                "approved",
+                "ok0001",
+                "--by-human",
+                "--message",
+                "maintainer signoff",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 0)
+        text = plan.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("- Approval:", text)
+
+    def test_plan_with_no_review_at_all_still_approves(self):
+        """Absent review is SILENT by design: gating on absence would block author-then-approve."""
+        plan = self.create_plan(
+            "20260830-gatenorev-01-nr0001-plan.ipd.md", "nr0001", "gatenorev", "draft"
+        )
+        rc = cli.main(
+            ["set", "approved", "nr0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+
+    def test_successor_narrating_a_predecessors_reject_still_approves(self):
+        """The measured false-refusal case (F-5): the newest record is `to-review` QUOTING a REJECT."""
+        plan = self.create_reviewed_plan(
+            "sc0001",
+            "gatesucc",
+            "- 2026-08-30 to-review (opencode/test): SUPERSEDES `kaygwo`, which was "
+            "REJECT - NEEDS REPLAN twice.\n" + self.APPROVE_RECORD,
+        )
+        rc = cli.main(
+            ["set", "approved", "sc0001", "--yes", "--dir", str(self.repo_root)]
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("- Status: approved", plan.read_text(encoding="utf-8"))
+
+    def test_spec_blocking_open_question_refuses_on_the_positional_spelling(self):
+        """E-07: the POSITIONAL spec spelling routes HERE, so it must be gated here too or the
+        spelling itself is the bypass. Caught as a real bypass during validation."""
+        spec = self.create_spec(
+            "20260830-0001-01-sq0001-gate-probe.spec.md",
+            "sq0001",
+            "gatespec",
+            "reviewed",
+        )
+        spec.write_text(
+            spec.read_text(encoding="utf-8") + self.BLOCKING_OQ, encoding="utf-8"
+        )
+        before = spec.read_text(encoding="utf-8")
+        rc = cli.main(
+            [
+                "specs",
+                "set",
+                "approved",
+                "sq0001",
+                "--by-human",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertEqual(spec.read_text(encoding="utf-8"), before)
+
+        rc_override = cli.main(
+            [
+                "specs",
+                "set",
+                "approved",
+                "sq0001",
+                "--by-human",
+                "--allow-open-questions",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc_override, 0)
+        text = spec.read_text(encoding="utf-8")
+        self.assertIn("- Status: approved", text)
+        self.assertIn("--allow-open-questions", text)
+
+    def test_refusal_message_names_its_cause(self):
+        """A refusal that does not say WHY sends the operator hunting; assert the cause is quoted."""
+        self.create_reviewed_plan("rj0005", "gatemsg", self.REJECT_RECORD)
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                ["set", "approved", "rj0005", "--yes", "--dir", str(self.repo_root)]
+            )
+        self.assertEqual(rc, 1)
+        out = buf.getvalue()
+        self.assertIn("REJECT - NEEDS REPLAN", out)
+        self.assertIn("NO override", out)
+
+    def test_agent_mode_emits_the_invalid_transition_rule(self):
+        self.create_reviewed_plan("rj0006", "gatejson", self.REJECT_RECORD)
+        buf = io.StringIO()
+        with patch("sys.stdout", buf):
+            rc = cli.main(
+                [
+                    "set",
+                    "approved",
+                    "rj0006",
+                    "--yes",
+                    "--agent",
+                    "--dir",
+                    str(self.repo_root),
+                ]
+            )
+        self.assertEqual(rc, 1)
+        payload = "\n".join(
+            line for line in buf.getvalue().splitlines() if line.strip()
+        )
+        self.assertIn("status.invalid_transition", payload)
+
+
 if __name__ == "__main__":
     unittest.main()

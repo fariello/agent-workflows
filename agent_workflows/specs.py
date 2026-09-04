@@ -548,6 +548,36 @@ def run_set(args) -> int:
             )
             return 1
 
+    # apprvguard Order 01 (d7bnhc) E-07: THE SECOND APPROVAL SURFACE. This function is a FORK of
+    # `status_set`'s approval path, reached by the `aw specs set <path> --status approved` spelling
+    # while the positional `aw specs set approved <selector>` spelling routes to
+    # `status_set.run_set_command` (the dual dispatch is documented at the bottom of this module). A
+    # gate installed in only one of them is bypassed by choosing the other spelling, so the SAME
+    # shared predicate is consumed here rather than a second copy of the logic.
+    #
+    # Today the VERDICT half is inert for specs and that is deliberate, not an oversight (OQ-02,
+    # resolved by the maintainer): `review_findings` keys review artifacts by `Plan-Id`, so no spec
+    # verdict exists to read, and no spec in this repository records one in prose either (measured).
+    # The call is written to consume the whole predicate anyway, so the verdict half ACTIVATES BY
+    # ITSELF if a spec-review artifact type is ever added - the alternative, a specs-only
+    # open-question check, would have to be found and rewired by whoever adds that type.
+    if new == "approved":
+        from agent_workflows import plan_readiness as _readiness
+
+        refusals = _readiness.approval_refusals(
+            _repo_root_of(path),
+            path,
+            text,
+            allow_open_questions=bool(getattr(args, "allow_open_questions", False)),
+        )
+        if refusals:
+            sys.stderr.write(
+                "aw specs set: refusing to approve {0} (file unchanged):\n".format(path)
+            )
+            for reason in refusals:
+                sys.stderr.write(f"  {reason}\n")
+            return 1
+
     # gate handling
     out = lines
     if new == "deferred":
@@ -578,8 +608,19 @@ def run_set(args) -> int:
     date = getattr(args, "date", None) or _today()
     msg = args.message
     _sidecar_append(_repo_root_of(path), "\n".join(out), f"{new}: {msg}")
+    # apprvguard d7bnhc E-06/E-07: the same auditable override record as `status_set` writes, in this
+    # module's own actor-parenthesis shape, so an overridden approval is visible in the ARTIFACT on
+    # both approval surfaces rather than only in a shell history. Recorded only on `approved`, the one
+    # transition where the flag could have had an effect.
+    _attestations = []
+    if getattr(args, "by_human", False):
+        _attestations.append("--by-human")
+    if getattr(args, "allow_open_questions", False) and new == "approved":
+        _attestations.append("--allow-open-questions")
     actor = (
-        "(aw specs, --by-human)" if getattr(args, "by_human", False) else "(aw specs)"
+        "(aw specs, " + ", ".join(_attestations) + ")"
+        if _attestations
+        else "(aw specs)"
     )
     out = _append_history(out, f"- {date} {new} {actor}: {msg}")
 

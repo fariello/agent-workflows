@@ -448,6 +448,375 @@ class RealPlanIntegrationTests(unittest.TestCase):
                 self.assertFalse(result, f"{p.name}: no-go must never auto-approve")
 
 
+# --------------------------------------------------------------------------------------------------
+# Set apprvguard, Order 01 (plan d7bnhc): the APPROVAL gate.
+#
+# These are the cases the approval gate ADDS. The cases above belong to the auto-approve gate (plan
+# 97df1z) and are deliberately NOT re-asserted here: duplicating a case doubles the maintenance
+# surface and invites the two copies to drift apart in opposite directions. Already present and
+# therefore not re-added: the section-bounding fix, the newest-first ordering fix, the old-behavior
+# characterization, blocking-question refusal and its resolved counterpart, and the `NO-GO` /
+# `CONDITIONAL-GO` refusals.
+# --------------------------------------------------------------------------------------------------
+
+# A successor plan in the exact shape of the real `6lu3rq`: its newest record is a `to-review` entry
+# that NARRATES the RETIRED predecessor's rejection. A naive "newest entry contains REJECT" gate
+# refuses this, which would block precisely the plan that correctly replaced the rejected one.
+SUCCESSOR_NARRATING_REJECT = (
+    "- 2026-08-30 to-review (opencode/test): SUPERSEDES `kaygwo`, which was "
+    "REJECT - NEEDS REPLAN twice, inheriting only the residue its own review left standing."
+)
+# The genuine article: a REVIEW record stating its OWN rejection.
+REJECT_VERDICT = (
+    "- 2026-08-30 /plan-review pass 2 (opencode/test): REJECT - NEEDS REPLAN reaffirmed; "
+    "PR-301..PR-307."
+)
+# A POSITIVE verdict whose rationale NARRATES a readiness transition, so the record contains the
+# word `NO-GO` while saying the opposite. Measured: 6 real records in this repository take this shape.
+APPROVE_NARRATING_NO_GO = (
+    "- 2026-09-04 reviewed (opencode/test): APPROVE WITH REVISIONS APPLIED; PR-024..PR-030 all "
+    "FIXED. The spec gate is satisfied and readiness moves NO-GO -> GO - PENDING HUMAN APPROVAL."
+)
+
+
+class VerdictVocabularyTests(unittest.TestCase):
+    """E-02 / V-02: ONE encoding of the two closed vocabularies, with longest-match ordering."""
+
+    def test_verdict_keys_are_exactly_the_documented_four(self):
+        self.assertEqual(
+            sorted(PR.VERDICTS),
+            [
+                "APPROVE",
+                "APPROVE WITH REVISIONS APPLIED",
+                "REJECT - NEEDS REPLAN",
+                "REVIEWED - OPEN QUESTIONS",
+            ],
+        )
+
+    def test_polarities_match_the_workflow_vocabulary(self):
+        self.assertEqual(PR.VERDICTS["APPROVE"], PR.POSITIVE)
+        self.assertEqual(PR.VERDICTS["APPROVE WITH REVISIONS APPLIED"], PR.POSITIVE)
+        self.assertEqual(PR.VERDICTS["REVIEWED - OPEN QUESTIONS"], PR.NEUTRAL)
+        self.assertEqual(PR.VERDICTS["REJECT - NEEDS REPLAN"], PR.NEGATIVE)
+
+    def test_longest_match_wins_so_the_approve_prefix_cannot_shadow(self):
+        """THE ordering bug this vocabulary is derived (not hand-written) to prevent."""
+        token, polarity = PR.classify_verdict("APPROVE WITH REVISIONS APPLIED; PR-001.")
+        self.assertEqual(token, "APPROVE WITH REVISIONS APPLIED")
+        self.assertEqual(polarity, PR.POSITIVE)
+
+    def test_readiness_vocabulary_including_the_undocumented_token(self):
+        self.assertEqual(PR.READINESS_TOKENS["NO-GO"], PR.NEGATIVE)
+        # `CONDITIONAL-GO` is in NEITHER documented vocabulary (F-4) but the shipped gate has always
+        # treated it as not-ready; kept negative for backward compatibility.
+        self.assertEqual(PR.READINESS_TOKENS["CONDITIONAL-GO"], PR.NEGATIVE)
+        self.assertEqual(
+            PR.READINESS_TOKENS["GO - PENDING HUMAN APPROVAL"], PR.POSITIVE
+        )
+
+    def test_spacing_variation_does_not_change_classification(self):
+        self.assertEqual(
+            PR.classify_verdict("REVIEWED  -  OPEN   QUESTIONS; PR-1.")[0],
+            "REVIEWED - OPEN QUESTIONS",
+        )
+
+    def test_no_verdict_token_yields_no_classification(self):
+        self.assertEqual(
+            PR.classify_verdict("plan-review round 1 complete."), (None, None)
+        )
+
+    def test_there_is_only_one_encoding_of_the_vocabulary(self):
+        """V-02's anti-fork requirement: the replaced private regexes must be GONE, not shadowed."""
+        for dead in (
+            "_VERDICT_APPROVE_RE",
+            "_VERDICT_NEGATIVE_RE",
+            "_NEGATIVE_READINESS_RE",
+        ):
+            self.assertFalse(
+                hasattr(PR, dead),
+                f"{dead} survived: two independent encodings of one vocabulary",
+            )
+
+
+class ReviewEntryDiscriminatorTests(unittest.TestCase):
+    """E-03 / V-03: a verdict may be read ONLY from a record that is itself a review record."""
+
+    def test_review_records_are_recognized_across_the_real_middles(self):
+        for mid in (
+            "reviewed",
+            "/plan-review",
+            "/plan-review pass 2",
+            "/plan-review RE-REVIEW",
+            "reviewed /plan-review",
+            "re-reviewed /plan-review",
+            "/plan-review-long",
+        ):
+            entry = f"- 2026-09-04 {mid} (opencode/test): APPROVE."
+            self.assertTrue(PR.is_review_history_entry(entry), mid)
+
+    def test_non_review_records_are_not_review_records(self):
+        for mid in ("to-review", "draft", "approved", "executed", "superseded"):
+            entry = f"- 2026-09-04 {mid} (aw set): status set to {mid}."
+            self.assertFalse(PR.is_review_history_entry(entry), mid)
+
+    def test_unparseable_record_is_not_a_review_record(self):
+        self.assertFalse(PR.is_review_history_entry("- not a record at all"))
+
+    def test_successor_narrating_a_predecessors_reject_is_not_refused(self):
+        """THE central case (F-5). The newest record is `to-review` and merely QUOTES a REJECT."""
+        text = _plan(history=SUCCESSOR_NARRATING_REJECT + "\n" + APPROVE_PLAIN)
+        polarity, entry = PR.newest_verdict(text)
+        self.assertNotEqual(polarity, PR.NEGATIVE)
+        # It skipped BACKWARDS past the narration to the real review record.
+        self.assertIn("/plan-review", entry)
+
+    def test_newest_review_record_stating_reject_is_negative(self):
+        polarity, entry = PR.newest_verdict(_plan(history=REJECT_VERDICT))
+        self.assertEqual(polarity, PR.NEGATIVE)
+        self.assertIn("REJECT", entry)
+
+    def test_older_reject_superseded_by_a_newer_approve_is_not_refused(self):
+        text = _plan(history=APPROVE_REVISIONS + "\n" + REJECT_VERDICT)
+        polarity, _ = PR.newest_verdict(text)
+        self.assertEqual(polarity, PR.POSITIVE)
+
+    def test_positive_verdict_narrating_a_no_go_readiness_is_not_refused(self):
+        """The measured false-refusal risk (D2): 6 real records say APPROVE and also say NO-GO."""
+        polarity, _ = PR.newest_verdict(_plan(history=APPROVE_NARRATING_NO_GO))
+        self.assertEqual(polarity, PR.POSITIVE)
+        # And the STRICTER auto-approve predicate deliberately still declines it, which is the
+        # documented asymmetry between the two gates rather than an inconsistency.
+        self.assertFalse(PR.history_verdict_approves(APPROVE_NARRATING_NO_GO))
+
+    def test_no_go_alone_with_no_verdict_token_is_negative(self):
+        hist = "- 2026-09-04 reviewed (opencode/test): readiness NO-GO; spec is unapproved."
+        polarity, _ = PR.newest_verdict(_plan(history=hist))
+        self.assertEqual(polarity, PR.NEGATIVE)
+
+    def test_open_questions_verdict_is_neutral_not_negative(self):
+        polarity, _ = PR.newest_verdict(_plan(history=OPEN_QUESTIONS_VERDICT))
+        self.assertEqual(polarity, PR.NEUTRAL)
+
+    def test_no_history_and_no_review_record_yield_no_verdict(self):
+        self.assertEqual(PR.newest_verdict("# IPD: bare\n\n## Goal\n"), (None, ""))
+        polarity, entry = PR.newest_verdict(
+            _plan(history="- 2026-09-04 draft (aw set): created.")
+        )
+        self.assertIsNone(polarity)
+        self.assertEqual(entry, "")
+
+    def test_verdict_is_read_from_the_message_not_the_actor_or_middle(self):
+        """An actor string containing a verdict word must not be mistaken for the verdict."""
+        hist = (
+            "- 2026-09-04 reviewed (bot-approve-9000): REJECT - NEEDS REPLAN; unsound."
+        )
+        polarity, _ = PR.newest_verdict(_plan(history=hist))
+        self.assertEqual(polarity, PR.NEGATIVE)
+
+
+class FieldVersusProseOrderingTests(unittest.TestCase):
+    """E-03 / V-03: the three-way order must MATCH `is_plan_review_approved` on the same inputs."""
+
+    def _refusals(self, text: str) -> list:
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        p = d / "plan.ipd.md"
+        p.write_text(text, encoding="utf-8")
+        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
+        return PR.approval_refusals(d, p, text)
+
+    def test_valid_field_is_authoritative_and_beats_prose(self):
+        """`Readiness: no-go` refuses even though the prose verdict says APPROVE."""
+        text = _plan(readiness="no-go", history=APPROVE_REVISIONS)
+        refusals = self._refusals(text)
+        self.assertTrue(refusals)
+        self.assertIn("no-go", refusals[0])
+        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
+
+    def test_valid_positive_field_beats_a_negative_prose_verdict(self):
+        text = _plan(readiness="go-pending-approval", history=REJECT_VERDICT)
+        self.assertEqual(self._refusals(text), [])
+        self.assertTrue(PR.is_plan_review_approved(self._write(text)))
+
+    def test_absent_field_falls_back_to_prose(self):
+        text = _plan(history=REJECT_VERDICT)
+        refusals = self._refusals(text)
+        self.assertTrue(refusals)
+        self.assertIn("newest review record", refusals[0])
+        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
+
+    def test_out_of_vocab_field_refuses_outright_with_no_prose_fallback(self):
+        """Absence means 'no signal'; a bad value means 'the signal is corrupt'. Not the same."""
+        text = _plan(readiness="bogus", history=APPROVE_REVISIONS)
+        refusals = self._refusals(text)
+        self.assertTrue(refusals)
+        self.assertIn("not one of", refusals[0])
+        # It did NOT fall back to the approving prose, which would have cleared it.
+        self.assertNotIn("newest review record", " ".join(refusals))
+        self.assertFalse(PR.is_plan_review_approved(self._write(text)))
+
+    def _write(self, text: str) -> Path:
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        p = d / "plan.ipd.md"
+        p.write_text(text, encoding="utf-8")
+        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
+        return p
+
+
+class ApprovalRefusalsTests(unittest.TestCase):
+    """E-04 / V-04: the composed predicate and its deliberate override ASYMMETRY."""
+
+    def _write(self, text: str) -> Path:
+        import tempfile
+
+        d = Path(tempfile.mkdtemp())
+        p = d / "plan.ipd.md"
+        p.write_text(text, encoding="utf-8")
+        self.addCleanup(lambda: (p.unlink(missing_ok=True), d.rmdir()))
+        return p
+
+    def test_verdict_refusal_survives_allow_open_questions(self):
+        """THE asymmetry: the override clears questions, NEVER a verdict."""
+        text = _plan(history=REJECT_VERDICT)
+        p = self._write(text)
+        refusals = PR.approval_refusals(p.parent, p, text, allow_open_questions=True)
+        self.assertTrue(refusals)
+        self.assertIn("NO override", refusals[0])
+
+    def test_blocking_question_refusal_names_the_question_id(self):
+        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ)
+        p = self._write(text)
+        refusals = PR.approval_refusals(p.parent, p, text)
+        self.assertTrue(refusals)
+        self.assertIn("OQ-01", refusals[0])
+
+    def test_blocking_question_refusal_is_cleared_by_the_override(self):
+        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_OPEN_OQ)
+        p = self._write(text)
+        self.assertEqual(
+            PR.approval_refusals(p.parent, p, text, allow_open_questions=True), []
+        )
+
+    def test_resolved_blocking_question_needs_no_override(self):
+        text = _plan(history=APPROVE_REVISIONS, open_questions=BLOCKING_RESOLVED_OQ)
+        p = self._write(text)
+        self.assertEqual(PR.approval_refusals(p.parent, p, text), [])
+
+    def test_clean_plan_with_no_review_is_permitted(self):
+        """Absent review is SILENT, not blocking: gating on absence would block author-then-approve."""
+        text = _plan(history="- 2026-09-04 draft (aw set): created.")
+        p = self._write(text)
+        self.assertEqual(PR.approval_refusals(p.parent, p, text), [])
+
+    def test_both_halves_are_reported_together_not_just_the_first(self):
+        text = _plan(history=REJECT_VERDICT, open_questions=BLOCKING_OPEN_OQ)
+        p = self._write(text)
+        refusals = PR.approval_refusals(p.parent, p, text)
+        self.assertEqual(len(refusals), 2)
+
+    def test_unreadable_path_yields_no_refusals(self):
+        """A crashing gate is a disabled gate; one that refuses everything is worse than none."""
+        self.assertEqual(
+            PR.approval_refusals(Path("/nonexistent"), Path("/nonexistent/p.ipd.md")),
+            [],
+        )
+
+    def test_it_calls_the_shipped_typed_gate_rather_than_forking_the_severity_rule(
+        self,
+    ):
+        """V-04's anti-fork requirement, asserted mechanically rather than by eyeball."""
+        import unittest.mock as mock
+
+        text = _plan(history=APPROVE_REVISIONS)
+        p = self._write(text)
+        with mock.patch(
+            "agent_workflows.review_findings.plan_gating_blocks", return_value=()
+        ) as spy:
+            PR.approval_refusals(p.parent, p, text)
+        self.assertEqual(spy.call_count, 1)
+        self.assertEqual(spy.call_args[0][1], "tst001")
+
+    def test_a_typed_gating_finding_refuses_and_has_no_override(self):
+        import unittest.mock as mock
+
+        from agent_workflows.review_findings import GatingBlock
+
+        block = GatingBlock(
+            plan_id6="tst001",
+            finding_id="PR-001",
+            severity="BLOCKER",
+            decision="open",
+            kind="finding",
+            review_path="r.review.md",
+            detail="",
+        )
+        text = _plan(history=APPROVE_REVISIONS)
+        p = self._write(text)
+        with mock.patch(
+            "agent_workflows.review_findings.plan_gating_blocks", return_value=(block,)
+        ):
+            refusals = PR.approval_refusals(
+                p.parent, p, text, allow_open_questions=True
+            )
+        self.assertTrue(refusals)
+        self.assertIn("PR-001", refusals[0])
+
+
+class ApprovalGateRealCorpusTests(unittest.TestCase):
+    """V-03/V-04's REAL-PLAN rows: a fixture-only suite can pass while the gate misjudges reality."""
+
+    def _find(self, id6: str) -> Path:
+        for name in ("pending", "executed", "superseded", "not-executed", "reusable"):
+            directory = REPO_ROOT / ".aw" / "records" / "plans" / name
+            if not directory.is_dir():
+                continue
+            for candidate in directory.glob(f"*-{id6}-*.ipd.md"):
+                return candidate
+        self.skipTest(f"plan {id6} not present in any disposition")
+
+    def test_the_three_item_13_successors_are_not_refused(self):
+        """Their `REJECT` mention belongs to a RETIRED predecessor (F-5). Resolved by id6, since
+        two of the three have since moved from pending/ to executed/."""
+        for id6 in ("6lu3rq", "m73aet", "wlxkoz"):
+            path = self._find(id6)
+            polarity, _ = PR.newest_verdict(path.read_text(encoding="utf-8"))
+            self.assertNotEqual(polarity, PR.NEGATIVE, f"{id6} falsely refused")
+
+    def test_no_pending_plan_is_refused_on_a_verdict_today(self):
+        """A gate that refuses live, legitimately-reviewed plans is a lockout, not a safeguard."""
+        pending = sorted(PENDING_DIR.glob("*.ipd.md"))
+        self.assertGreater(len(pending), 0)
+        refused = [
+            p.name
+            for p in pending
+            if PR.newest_verdict(p.read_text(encoding="utf-8"))[0] == PR.NEGATIVE
+        ]
+        self.assertEqual(refused, [], "pending plans falsely refused on their verdict")
+
+    def test_the_incident_plans_are_refused(self):
+        """The five plans a blanket approval swept up on 2026-08-30 must all now refuse.
+
+        They were retired to `superseded/` afterwards, which is where they are resolved from. If this
+        ever passes vacuously because they were deleted, the skip below says so rather than lying.
+        """
+        checked = 0
+        for id6 in ("bmh754", "a54m79", "kaygwo", "k7o7el", "7f7782"):
+            directory = REPO_ROOT / ".aw" / "records" / "plans" / "superseded"
+            matches = list(directory.glob(f"*-{id6}-*.ipd.md"))
+            if not matches:
+                continue
+            polarity, entry = PR.newest_verdict(matches[0].read_text(encoding="utf-8"))
+            self.assertEqual(polarity, PR.NEGATIVE, f"{id6} would have been approvable")
+            self.assertIn("REJECT", entry)
+            checked += 1
+        if checked == 0:
+            self.skipTest("none of the five incident plans remain in superseded/")
+        self.assertGreaterEqual(checked, 1)
+
+
 class NoWideningTests(unittest.TestCase):
     """The predicate answers ONLY 'is this review-clear'; status gating stays with the caller."""
 

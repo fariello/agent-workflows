@@ -28,6 +28,7 @@ from pathlib import Path
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
 from agent_workflows import backlog as _backlog_mod
+from agent_workflows import ipd_schema as _ipd_schema
 from agent_workflows import plans as _plans_mod
 from agent_workflows import selectors as _sel
 from agent_workflows.result_types import Change
@@ -446,12 +447,38 @@ def normalize_target_status(raw_status: str, record_type: str) -> str:
     return norm
 
 
+def _repo_root_of(artifact_path: Path) -> Path:
+    """Walk up from an artifact to its repo root, falling back to cwd.
+
+    The FALLBACK ONLY, for a direct caller of `validate_transition_allowed` that does not pass the
+    already-resolved root. Same marker set and same shape as `specs._repo_root_of`, kept local rather
+    than imported so this module gains no dependency on the specs verb for one path walk.
+    """
+    p = artifact_path.resolve()
+    for anc in [p] + list(p.parents):
+        if (
+            (anc / ".aw").is_dir()
+            or (anc / ".agents").is_dir()
+            or (anc / ".git").exists()
+        ):
+            return anc
+    return Path.cwd()
+
+
 def validate_transition_allowed(
     rec: ArtifactRecord,
     target_status: str,
     args: argparse.Namespace,
+    repo_root: Path | None = None,
 ) -> tuple[bool, str | None]:
-    """Validate that the target status is valid and permitted for the record."""
+    """Validate that the target status is valid and permitted for the record.
+
+    ``repo_root`` is OPTIONAL and defaults to walking up from ``rec.path``, so every existing caller
+    keeps working unchanged. It exists for the apprvguard d7bnhc approval gate below, which must
+    locate the typed review artifacts under ``.aw/records/reviews/``; the caller in
+    ``run_set_command`` already holds the resolved root and passes it, and the walk-up is only the
+    fallback for a direct caller that does not.
+    """
     norm_status = normalize_target_status(target_status, rec.record_type)
     valid_statuses = TYPE_STATUSES.get(rec.record_type, set())
     if norm_status not in valid_statuses:
@@ -487,6 +514,51 @@ def validate_transition_allowed(
                         f"Transition {old_status} -> {norm_status} requires --by-human attestation",
                     )
 
+    # apprvguard Order 01 (d7bnhc): THE APPROVAL GATE. Until this existed, reaching `approved` - the
+    # state that LICENSES EXECUTION - required only that the status token be spelled correctly. On
+    # 2026-08-30 a blanket "I APPROVE all the reviewed IPDs" therefore swept FIVE plans whose own
+    # newest review said `REJECT - NEEDS REPLAN` into `approved`, and only an unrelated pre-execution
+    # gate firing for an unrelated reason stopped them from rebuilding shipped subsystems.
+    #
+    # Keyed on `ipd_schema.READY_TO_EXECUTE`, DERIVED and never re-listed: both `approved` and
+    # `auto-approved` license execution, so a gate keyed on the literal `approved` would leave the
+    # automated tier ungated AT THE SETTER (d7bnhc D3). `--full-auto` does check a predicate before
+    # calling `aw set auto-approved`, but that guard lives in the CALLER, and a caller-side check is
+    # exactly what a DIFFERENT caller skips - which is this gate's whole thesis.
+    #
+    # The pre-flight loop in `run_set_command` calls this for EVERY matched record before any write,
+    # so a batch containing one rejected plan approves NONE of them, rather than partially applying.
+    #
+    # SPECS ARE GATED HERE TOO, and leaving them out was a real bypass caught in validation: the
+    # POSITIONAL `aw specs set approved <selector>` spelling routes to THIS function while the
+    # `--status` spelling routes to the forked `specs.run_set` (E-07), so gating only plans here left
+    # the positional spec spelling approving a spec over a blocking open question that the other
+    # spelling refused. `READY_TO_EXECUTE` is a PLAN vocabulary (`auto-approved` is not a spec
+    # status), so the two types are tested separately rather than by one union that would imply a
+    # spec can be `auto-approved`.
+    _gated_approval = (
+        rec.record_type == "plans" and norm_status in _ipd_schema.READY_TO_EXECUTE
+    ) or (rec.record_type == "specs" and norm_status == "approved")
+    if _gated_approval:
+        from agent_workflows import plan_readiness as _readiness
+
+        refusals = _readiness.approval_refusals(
+            repo_root if repo_root is not None else _repo_root_of(rec.path),
+            rec.path,
+            rec.raw_text,
+            allow_open_questions=bool(getattr(args, "allow_open_questions", False)),
+        )
+        if refusals:
+            return (
+                False,
+                "refusing to set {0} for {1} {2}: ".format(
+                    norm_status,
+                    "plan" if rec.record_type == "plans" else "spec",
+                    rec.id6 or rec.path.name,
+                )
+                + "; ".join(refusals),
+            )
+
     if rec.record_type == "backlog" and norm_status == "blocked":
         gk = getattr(args, "gate_kind", None)
         gr = getattr(args, "gate_ref", None)
@@ -513,6 +585,16 @@ def apply_status_change(
     actor = getattr(args, "actor", None) or "aw set"
     if getattr(args, "by_human", False):
         actor = f"{actor}, --by-human"
+    # apprvguard d7bnhc E-06: an OVERRIDDEN approval must be auditable in the ARTIFACT, not only in
+    # someone's shell history. Folded into the actor string, following the `--by-human` precedent
+    # directly above, so it is machine-greppable rather than buried in free-text prose. Recorded only
+    # where it could have had an effect (a plan reaching a ready-to-execute status), so an
+    # inconsequential flag on an unrelated transition does not litter history with a false claim.
+    if getattr(args, "allow_open_questions", False) and (
+        (rec.record_type == "plans" and norm_status in _ipd_schema.READY_TO_EXECUTE)
+        or (rec.record_type == "specs" and norm_status == "approved")
+    ):
+        actor = f"{actor}, --allow-open-questions"
 
     text = rec.path.read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -1211,7 +1293,7 @@ def run_set_command(
 
     ctx = select_output(args)
     for rec in matched_records:
-        ok, err_msg = validate_transition_allowed(rec, target_status, args)
+        ok, err_msg = validate_transition_allowed(rec, target_status, args, repo_root)
         if not ok:
             if ctx.is_agent or ctx.is_json:
                 res = CommandResult(
