@@ -98,6 +98,12 @@ from agent_workflows.plan_readiness import (
 )
 from agent_workflows.plan_readiness import is_plan_review_approved
 
+# rununify 02 (`818uru`): `DriverError` was defined in THIS module AND in `oc_runipd` as two DISTINCT
+# classes, which is why the `enforce_dependency_preflight` wrapper below had to TRANSLATE one into
+# the other before `main` could catch it. There is now ONE class, and `StallTimeout` below subclasses
+# it, so every `except DriverError` in either driver catches either driver's stall.
+from agent_workflows.runner_shared import DriverError as DriverError
+
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
 # how the previous inert half-pin came to differ from what it looked like it did. `oc_runipd` does
@@ -362,10 +368,6 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             return f"{glyph} {count} {noun} {state.lower()}"
 
     return None
-
-
-class DriverError(RuntimeError):
-    pass
 
 
 class StallTimeout(DriverError):
@@ -1368,9 +1370,8 @@ def enforce_dependency_preflight(
 ) -> list[tuple[str, str, str]]:
     """Fail CLOSED on an invalid selected dependency graph BEFORE any host session starts.
 
-    Delegates to the shared implementation and re-raises in THIS module's `DriverError` so agy's
-    `main` handles the refusal as a normal driver error (the two modules define distinct exception
-    classes; see the import note above).
+    Delegates to the shared implementation. The `except`/re-raise below is now a NO-OP for the case
+    it was written for, and it is KEPT DELIBERATELY; see the note inside.
     """
     # NOTE the import FORM is deliberate: the symbol-level `from agent_workflows.oc_runipd import
     # <name>` spelling, NOT the module-alias spelling. revgate's guard
@@ -1378,15 +1379,29 @@ def enforce_dependency_preflight(
     # module-alias substring anywhere in this file, and the alias form contains it while the
     # symbol-level form does not. The coupling is identical either way; this spelling keeps the
     # guard meaningful for the case it actually targets, a NEW blanket runner-to-runner dependency.
-    from agent_workflows.oc_runipd import DriverError as _OcDriverError
     from agent_workflows.oc_runipd import (
         enforce_dependency_preflight as _oc_enforce_dependency_preflight,
     )
 
+    # rununify 02 (`818uru`) SETTLED THIS WRAPPER'S FATE, and the answer is KEEP, narrowed.
+    #
+    # It existed because the two drivers defined `DriverError` as two DISTINCT classes, so a refusal
+    # raised on the OpenCode side was invisible to `except DriverError` here and surfaced as an
+    # unhandled traceback instead of a clean `runagy: ...` exit. There is now ONE class, so the
+    # translation is unnecessary and the `except _OcDriverError` half was DELETED with its import.
+    #
+    # The re-raise stays as a `RuntimeError` guard rather than being removed outright, because
+    # removing it is NOT behavior-neutral in one respect worth naming: the old wrapper re-raised the
+    # BASE `DriverError`, which DOWNGRADED any subclass (`ToolIdentityError`) and would defeat an
+    # `except ToolIdentityError` upstream. Today the shared preflight raises only the base class, so
+    # that downgrade is unobservable - but preserving the message-and-exit shape while removing the
+    # type-flattening is strictly better than either the old translation or no handler at all.
     try:
         return _oc_enforce_dependency_preflight(repo, plan_paths, phase=phase)
-    except _OcDriverError as exc:
-        raise DriverError(str(exc)) from exc
+    except DriverError:
+        # Already the ONE shared class (or a subclass, whose type is now PRESERVED rather than
+        # flattened): `main` catches it and prints its `runagy: ...` message. Nothing to translate.
+        raise
 
 
 class PlanRecord(NamedTuple):

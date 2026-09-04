@@ -86,6 +86,13 @@ from agent_workflows.render_stream import (
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
+# rununify 02 (`818uru`): `DriverError` was defined in THIS module AND in `agy_runipd` as two
+# DISTINCT classes, so an error raised here could NOT be caught by `except DriverError` there -
+# `agy_runipd` carried a hand-written wrapper whose only job was to translate one into the other.
+# There is now ONE class. `StallTimeout` and `ToolIdentityError` below still subclass it, so every
+# `except DriverError` in either driver catches either driver's stall.
+from agent_workflows.runner_shared import DriverError as DriverError
+
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
 # They are now the public `selectors` readers, bound to this module's historical private names
@@ -210,10 +217,6 @@ def should_color(stream: TextIO | None = None) -> bool:
         return bool(target.isatty())
     except (AttributeError, ValueError):
         return False
-
-
-class DriverError(RuntimeError):
-    pass
 
 
 class StallTimeout(DriverError):

@@ -643,14 +643,31 @@ class PreflightFailClosedTests(unittest.TestCase):
                 "no run directory (hence no session log/prompt) may exist after a refusal",
             )
 
-    def test_agy_preflight_raises_its_own_driver_error_type(self):
-        """agy's `main` catches `agy_runipd.DriverError`; a leaked oc error would traceback."""
+    def test_agy_preflight_raises_a_driver_error_agy_main_can_catch(self):
+        """agy's `main` catches `agy_runipd.DriverError`; a leaked oc error would traceback.
+
+        THIS ASSERTION WAS DELIBERATELY INVERTED by rununify Order 02 (`818uru` E-03), and the
+        inversion is the POINT rather than a weakening. This test previously asserted
+        `assertIsNot(agy_runipd.DriverError, oc_runipd.DriverError)`, pinning the two-distinct-classes
+        state that `818uru` F-3 identified as a LATENT BUG: because the classes differed, a refusal
+        raised by the shared (oc-owned) preflight was invisible to `except DriverError` here, and
+        `agy_runipd` carried a hand-written wrapper whose only job was to translate one into the
+        other. There is now ONE `DriverError` in the package.
+
+        The property this test actually exists to protect is UNCHANGED and now holds more strongly:
+        the refusal is still raised, and it is still catchable as `agy_runipd.DriverError` by agy's
+        `main` - now by class identity rather than by a translation step that could be forgotten.
+        """
         with tempfile.TemporaryDirectory() as t:
             repo, pending = self._repo(Path(t))
             path = _write_plan(pending, "aaaaaa", deps="executed:zzzzzz")
-            self.assertIsNot(agy_runipd.DriverError, oc_runipd.DriverError)
+            self.assertIs(agy_runipd.DriverError, oc_runipd.DriverError)
             with self.assertRaises(agy_runipd.DriverError):
                 agy_runipd.enforce_dependency_preflight(repo, [path])
+            # And the half that made the old wrapper necessary: an error raised on the OC side is
+            # now caught by an `except` naming AGY's class, which was previously impossible.
+            with self.assertRaises(agy_runipd.DriverError):
+                raise oc_runipd.DriverError("raised from the opencode side")
 
 
 def _StartArgs(repo: str, selectors: list[str]) -> argparse.Namespace:
