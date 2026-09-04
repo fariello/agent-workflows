@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime as dt
 import hashlib
 import json
 import os
@@ -28,7 +27,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
+from typing import Any, Callable, Iterable, NamedTuple, Sequence
 
 # stallfp kaga7s: `Heartbeat` was a byte-identical INLINE COPY here, so a display fix in
 # `render_stream` silently did not reach `aw agy run`. It is now imported, like `Statusline`,
@@ -98,11 +97,52 @@ from agent_workflows.plan_readiness import (
 )
 from agent_workflows.plan_readiness import is_plan_review_approved
 
-# rununify 02 (`818uru`): `DriverError` was defined in THIS module AND in `oc_runipd` as two DISTINCT
-# classes, which is why the `enforce_dependency_preflight` wrapper below had to TRANSLATE one into
-# the other before `main` could catch it. There is now ONE class, and `StallTimeout` below subclasses
-# it, so every `except DriverError` in either driver catches either driver's stall.
-from agent_workflows.runner_shared import DriverError as DriverError
+# rununify 02 (`818uru`): the symbols below were defined in THIS module AND in `oc_runipd` with
+# bodies PROVEN AST-identical, so each had two definitions and a fix to one silently missed the other.
+# They now have exactly ONE definition, in `runner_shared`, and are re-exported here so every call
+# site and test in this module keeps working unchanged. NOTE this is a genuine LAYERING improvement
+# and not just de-duplication: these names no longer reach this module THROUGH `oc_runipd` (see the
+# 40-name import block below, which remains and is tracked as backlog `cnwy8g`), they come from a
+# module that imports neither runner.
+#
+# `DriverError` is the reason this seam went first: it was defined as two DISTINCT classes, which is
+# why the `enforce_dependency_preflight` wrapper below had to TRANSLATE one into the other before
+# `main` could catch it. There is now ONE class, and `StallTimeout` below subclasses it, so every
+# `except DriverError` in either driver catches either driver's stall.
+#
+# The `as <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip
+# the ones this module does not itself call; `ruff` removed 6 such re-exports here on a previous
+# change's first attempt and only a symmetry test caught it.
+from agent_workflows.runner_shared import (
+    ID6_RE as ID6_RE,
+)
+from agent_workflows.runner_shared import (
+    SCHEMA_VERSION as SCHEMA_VERSION,
+)
+from agent_workflows.runner_shared import (
+    DriverError as DriverError,
+)
+from agent_workflows.runner_shared import (
+    _ORDER_RE as _ORDER_RE,
+)
+from agent_workflows.runner_shared import (
+    _SET_RE as _SET_RE,
+)
+from agent_workflows.runner_shared import (
+    new_run_id as new_run_id,
+)
+from agent_workflows.runner_shared import (
+    resolve_run_dir as resolve_run_dir,
+)
+from agent_workflows.runner_shared import (
+    should_color as should_color,
+)
+from agent_workflows.runner_shared import (
+    state_root as state_root,
+)
+from agent_workflows.runner_shared import (
+    utc_now as utc_now,
+)
 
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
@@ -197,7 +237,6 @@ from agent_workflows.oc_runipd import (
     run_order_rationale as run_order_rationale,
 )
 
-SCHEMA_VERSION = 1
 DEFAULT_MODEL = "gemini-3.7-flash-high"
 DEFAULT_TIMEOUT = "240m"
 DEFAULT_STALL_TIMEOUT: float = 600.0
@@ -225,7 +264,6 @@ TERMINAL_STATES = {
 }
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
-ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 10.0
@@ -245,8 +283,6 @@ DEPENDENCY_BLOCK_RECOVERY_HINT = (
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
-_SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
-_ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. See the
 # identical note in `oc_runipd`. The canonical field NAME comes from
 # `ipd_schema.META_ITEM_DEPENDENCIES` and its GRAMMAR from `ipd_schema.parse_item_dependencies`; the
@@ -265,19 +301,6 @@ OUTPUT_MODES = ("clean", "quiet", "raw")
 # inline copies, which is the same defect `Heartbeat` had: a change to the shared palette or
 # to the status colors silently did not reach `aw agy run`. `should_color` (the TTY color
 # decision) deliberately stays local to the caller, per the extraction's OQ-01.
-
-
-def should_color(stream: TextIO | None = None) -> bool:
-    """Decide whether to emit ANSI color for ``stream`` (default stdout)."""
-    target: TextIO = stream if stream is not None else sys.stdout
-    if os.environ.get("FORCE_COLOR"):
-        return True
-    if os.environ.get("NO_COLOR"):
-        return False
-    try:
-        return bool(target.isatty())
-    except (AttributeError, ValueError):
-        return False
 
 
 # `Palette`, `_strip_ansi` and `_one_line` are IMPORTED from `render_stream` above. They were
@@ -440,10 +463,6 @@ class StallWatchdog:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
-
-
-def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def run_checked(
@@ -1865,34 +1884,6 @@ def resolve_agy(explicit_path: str | None) -> str:
     raise DriverError(
         "Cannot find 'agy' on PATH. Install Antigravity CLI or pass --agy PATH."
     )
-
-
-def state_root(repo: Path) -> Path:
-    return repo / ".aw" / "records" / "runs"
-
-
-def new_run_id() -> str:
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"run-{stamp}-{os.getpid()}"
-
-
-def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
-    looks_like_path = (
-        os.sep in run_id
-        or (os.altsep and os.altsep in run_id)
-        or run_id.startswith("~")
-    )
-    if looks_like_path:
-        candidate = Path(run_id).expanduser()
-        for run_dir in (candidate, Path.cwd() / candidate):
-            if run_dir.is_dir() and (run_dir / "state.json").is_file():
-                return run_dir.resolve()
-        raise DriverError(f"Run not found: {run_id}")
-    repo = Path(repo_arg).expanduser().resolve()
-    run_dir = state_root(repo) / run_id
-    if run_dir.is_dir():
-        return run_dir
-    raise DriverError(f"Run not found: {run_id}")
 
 
 DEFAULT_RUNBOOK_TEXT = """# IPD Autonomous Execution Runbook

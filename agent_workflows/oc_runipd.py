@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime as dt
 import hashlib
 import json
 import os
@@ -28,7 +27,7 @@ import threading
 import time
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, TextIO
+from typing import Any, Callable, NamedTuple
 
 # The interactive streaming render layer (Palette/render_event/Heartbeat and the
 # coupled ANSI/status helpers) lives in the shared ``render_stream`` module so it is
@@ -86,12 +85,52 @@ from agent_workflows.render_stream import (
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
-# rununify 02 (`818uru`): `DriverError` was defined in THIS module AND in `agy_runipd` as two
-# DISTINCT classes, so an error raised here could NOT be caught by `except DriverError` there -
-# `agy_runipd` carried a hand-written wrapper whose only job was to translate one into the other.
-# There is now ONE class. `StallTimeout` and `ToolIdentityError` below still subclass it, so every
-# `except DriverError` in either driver catches either driver's stall.
-from agent_workflows.runner_shared import DriverError as DriverError
+# rununify 02 (`818uru`): the symbols below were defined in THIS module AND in `agy_runipd` with
+# bodies PROVEN AST-identical, so each had two definitions and a fix to one silently missed the other.
+# They now have exactly ONE definition, in `runner_shared`, and are re-exported here so every call
+# site and test in this module keeps working unchanged. `runner_shared` imports NEITHER runner, so
+# there is no cycle. Do NOT reintroduce a local copy of any of them; `tests/test_runner_shared.py`
+# fails if you do, in both directions.
+#
+# `DriverError` is the reason this seam went first: it was defined as two DISTINCT classes, so an
+# error raised here could NOT be caught by `except DriverError` in `agy_runipd`, which carried a
+# hand-written wrapper whose only job was to translate one into the other. There is now ONE class,
+# and `StallTimeout`/`ToolIdentityError` below still subclass it, so every `except DriverError` in
+# either driver catches either driver's stall.
+#
+# The `as <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip
+# the ones this module does not itself call. That is not cosmetic: `ruff` removed 6 such re-exports
+# from `agy_runipd` on a previous change's first attempt and only a symmetry test caught it.
+from agent_workflows.runner_shared import (
+    ID6_RE as ID6_RE,
+)
+from agent_workflows.runner_shared import (
+    SCHEMA_VERSION as SCHEMA_VERSION,
+)
+from agent_workflows.runner_shared import (
+    DriverError as DriverError,
+)
+from agent_workflows.runner_shared import (
+    _ORDER_RE as _ORDER_RE,
+)
+from agent_workflows.runner_shared import (
+    _SET_RE as _SET_RE,
+)
+from agent_workflows.runner_shared import (
+    new_run_id as new_run_id,
+)
+from agent_workflows.runner_shared import (
+    resolve_run_dir as resolve_run_dir,
+)
+from agent_workflows.runner_shared import (
+    should_color as should_color,
+)
+from agent_workflows.runner_shared import (
+    state_root as state_root,
+)
+from agent_workflows.runner_shared import (
+    utc_now as utc_now,
+)
 
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
 # `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
@@ -139,7 +178,6 @@ __all__ = [
 ]
 
 
-SCHEMA_VERSION = 1
 TERMINAL_STATES = {
     "executed",
     "reviewed",
@@ -161,7 +199,6 @@ TERMINAL_STATES = {
 }
 SUCCESS_STATES = {"executed", "reviewed", "approved"}
 EXECUTION_SUCCESS_STATES = {"executed", "substantially-complete"}
-ID6_RE = re.compile(r"^[a-z0-9]{6}$")
 # laneorphan-01 (`zwnjp3`) E-10: how long an OPTIONAL lane prompt waits before falling through to the
 # automatic content-based decision. Deliberately short: an unattended run must never block on shutdown.
 LANE_PROMPT_TIMEOUT: float = 10.0
@@ -187,8 +224,6 @@ DEPENDENCY_BLOCK_RECOVERY_HINT = (
 # Frontmatter and filename extraction regexes
 _ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
 _STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
-_SET_RE = re.compile(r"(?m)^-\s*Set:\s*(.+?)\s*$")
-_ORDER_RE = re.compile(r"(?m)^-\s*Order:\s*(\d+)\s*$")
 _KIND_RE = re.compile(r"(?m)^-\s*Kind:\s*(\S+)\s*$")
 # NOTE (lanetruth-03 / 8guhs0 E-01): there is deliberately NO dependency regex here. The runner
 # used to carry a private `_DEPS_RE` matching a LEGACY `Dependencies:`/`Depends-on:` field that no
@@ -204,19 +239,6 @@ _PLAN_FILENAME_RE = re.compile(
 
 # Terminal output verbosity for the streamed child-agent turn.
 OUTPUT_MODES = ("clean", "quiet", "raw")
-
-
-def should_color(stream: TextIO | None = None) -> bool:
-    """Decide whether to emit ANSI color for ``stream`` (default stdout)."""
-    target: TextIO = stream if stream is not None else sys.stdout
-    if os.environ.get("FORCE_COLOR"):
-        return True
-    if os.environ.get("NO_COLOR"):
-        return False
-    try:
-        return bool(target.isatty())
-    except (AttributeError, ValueError):
-        return False
 
 
 class StallTimeout(DriverError):
@@ -504,10 +526,6 @@ class StallWatchdog:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
-
-
-def utc_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
 
 
 def run_checked(
@@ -2766,15 +2784,6 @@ def action_for(kind: str | None, status: str) -> str:
     if (kind or "").lower() == "orchestrator" and norm not in ("to-review", "draft"):
         return "orchestrate"
     return determine_action(status or "approved")
-
-
-def new_run_id() -> str:
-    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"run-{stamp}-{os.getpid()}"
-
-
-def state_root(repo: Path) -> Path:
-    return repo / ".aw" / "records" / "runs"
 
 
 # Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
@@ -6336,25 +6345,6 @@ def print_status(run_dir: Path) -> None:
     state = load_state(run_dir)
     pal = Palette(should_color(sys.stdout))
     print(render_run_summary_table(state, run_dir, pal=pal, driver_label="opencode"))
-
-
-def resolve_run_dir(repo_arg: str, run_id: str) -> Path:
-    looks_like_path = (
-        os.sep in run_id
-        or (os.altsep and os.altsep in run_id)
-        or run_id.startswith("~")
-    )
-    if looks_like_path:
-        candidate = Path(run_id).expanduser()
-        for run_dir in (candidate, Path.cwd() / candidate):
-            if run_dir.is_dir() and (run_dir / "state.json").is_file():
-                return run_dir.resolve()
-        raise DriverError(f"Run not found: {run_id}")
-    repo = Path(repo_arg).expanduser().resolve()
-    run_dir = state_root(repo) / run_id
-    if run_dir.is_dir():
-        return run_dir
-    raise DriverError(f"Run not found: {run_id}")
 
 
 def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
