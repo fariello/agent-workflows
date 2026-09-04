@@ -520,14 +520,27 @@ class NestedAwLaunchSiteGuardTests(unittest.TestCase):
                 )
 
     def test_stdin_devnull_is_not_regressed(self):
-        """The g40w37 TTY guarantee must survive this change at every launch site."""
+        """The g40w37 TTY guarantee must survive this change at every launch site.
+
+        COUNTED ACROSS THE OWNER SET, not per driver file, since rununify Order 02 (`818uru` E-05).
+        `run_checked` carried one of each driver's launch sites and now has ONE definition in
+        `runner_shared`, so each driver's own file legitimately shows one fewer. The THRESHOLD IS
+        DELIBERATELY UNCHANGED at 3: lowering it would silently accept a future regression that
+        actually deleted a DEVNULL site, which is the opposite of what this guard is for. The
+        guarantee is intact (the same `subprocess.run` call still passes `stdin=subprocess.DEVNULL`);
+        only its address moved.
+        """
+        from agent_workflows import runner_shared
+
+        shared_sites = _module_source(runner_shared).count("stdin=subprocess.DEVNULL")
         for name, module in self.DRIVERS:
             src = _module_source(module)
             self.assertGreaterEqual(
-                src.count("stdin=subprocess.DEVNULL"),
+                src.count("stdin=subprocess.DEVNULL") + shared_sites,
                 3,
-                f"{name} must keep stdin=subprocess.DEVNULL at its subprocess launches "
-                "(ttywedge g40w37); the pin must not disturb it",
+                f"{name} (together with the shared `runner_shared` launch sites it "
+                "delegates to) must keep stdin=subprocess.DEVNULL at its subprocess "
+                "launches (ttywedge g40w37); the pin must not disturb it",
             )
 
     def test_both_drivers_share_one_definition_of_the_pin(self):

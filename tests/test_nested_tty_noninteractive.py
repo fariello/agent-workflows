@@ -190,7 +190,22 @@ class CallerDevnullTests(unittest.TestCase):
                 )
 
     def test_symmetry_across_both_drivers(self):
-        """A fix landed in one driver only must not pass."""
+        """A fix landed in one driver only must not pass.
+
+        COUNTED ACROSS THE OWNER SET since rununify Order 02 (`818uru` E-05): `run_checked` was one
+        of each driver's three nested-`aw` launchers and now has ONE definition in `runner_shared`,
+        which both drivers delegate to through a one-line wrapper. Each driver file therefore shows
+        two of its own sites plus the shared one.
+
+        THE THRESHOLD IS DELIBERATELY UNCHANGED at 3. Lowering it to 2 would have made this pass
+        while silently accepting a future change that actually removed a `stdin=` from a launch site,
+        which is exactly the regression this guard exists to catch. The symmetry assertion still
+        compares like with like, because the shared site is added to both sides.
+        """
+        shared = "agent_workflows/runner_shared.py"
+        shared_covered = sum(
+            1 for _lineno, kw, _first in self._nested_aw_calls(shared) if "stdin" in kw
+        )
         counts = {
             rel: sum(1 for lineno, kw, _ in self._nested_aw_calls(rel) if "stdin" in kw)
             for rel in DRIVERS
@@ -201,7 +216,12 @@ class CallerDevnullTests(unittest.TestCase):
             f"drivers disagree on stdin= coverage: {counts}",
         )
         for rel, n in counts.items():
-            self.assertGreaterEqual(n, 3, f"{rel} covers only {n} call sites")
+            self.assertGreaterEqual(
+                n + shared_covered,
+                3,
+                f"{rel} covers only {n} of its own call sites plus "
+                f"{shared_covered} shared; the total must not drop below 3",
+            )
 
     def test_guard_fails_on_an_injected_regression(self):
         """Proves the guard guards something, rather than merely passing today."""

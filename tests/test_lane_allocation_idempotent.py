@@ -707,14 +707,48 @@ class TestRecoveryPromptNamesTheLane(unittest.TestCase):
                 self.assertNotIn(handle.branch, normal)
 
     def test_no_acknowledgement_gate_or_refusal_path_was_added(self):
+        """No acknowledgement gate and no refusal path: a stalled prompt would wedge a lone run.
+
+        RETARGETED by rununify Order 02 (`818uru` E-07). `build_recovery_lane_notice` had
+        AST-IDENTICAL copies in both runners and now has ONE definition in `runner_shared`, so this
+        source scrape follows it to its new owner. The guarantee STRICTLY GROWS: it is checked once at
+        the owner, and both runners are additionally asserted not to re-introduce a local copy (a
+        re-fork would otherwise escape this check entirely, which is exactly how `agy_runipd` once
+        re-forked four `render_stream` symbols unnoticed).
+
+        Note the previous form was failing OPEN rather than closed: after the move its
+        `source.index("def build_recovery_lane_notice(")` raised `ValueError` before any assertion
+        ran, so it could not have detected a real regression either.
+        """
+        import ast
+
+        from agent_workflows import runner_shared as RS
+
+        source = Path(RS.__file__).read_text(encoding="utf-8")
+        node = next(
+            n
+            for n in ast.parse(source).body
+            if isinstance(n, ast.FunctionDef) and n.name == "build_recovery_lane_notice"
+        )
+        # Strip the docstring, which legitimately explains that NO acknowledgement gate exists.
+        body = "\n".join(
+            ast.unparse(stmt)
+            for stmt in node.body
+            if not (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant))
+        )
+        for banned in ("input(", "acknowledgement required", "refuse"):
+            self.assertNotIn(banned, body, RS.__name__)
+
+        # And neither runner may re-introduce a local definition, which would bypass the check above.
         for module in (OC, AGY):
-            source = Path(module.__file__).read_text(encoding="utf-8")
-            notice = source[source.index("def build_recovery_lane_notice(") :]
-            notice = notice[: notice.index("\ndef build_prompt(")]
-            # Strip the docstring, which legitimately explains that NO acknowledgement gate exists.
-            body = notice.split('"""', 2)[-1]
-            for banned in ("input(", "acknowledgement required", "refuse"):
-                self.assertNotIn(banned, body, module.__name__)
+            defined = {
+                n.name
+                for n in ast.parse(
+                    Path(module.__file__).read_text(encoding="utf-8")
+                ).body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            }
+            self.assertNotIn("build_recovery_lane_notice", defined, module.__name__)
 
     def test_snapshot_is_described_as_a_snapshot(self):
         repo = fixture_repo(self.tmp)

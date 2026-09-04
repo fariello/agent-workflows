@@ -135,6 +135,27 @@ from agent_workflows.runner_shared import (
     utc_now as utc_now,
 )
 from agent_workflows.runner_shared import (
+    _lane_records_from_state as _lane_records_from_state,
+)
+from agent_workflows.runner_shared import (
+    allocate_isolation_worktree as allocate_isolation_worktree,
+)
+from agent_workflows.runner_shared import (
+    build_recovery_lane_notice as build_recovery_lane_notice,
+)
+from agent_workflows.runner_shared import (
+    describe_lane as describe_lane,
+)
+from agent_workflows.runner_shared import (
+    format_lane_report as format_lane_report,
+)
+from agent_workflows.runner_shared import (
+    print_lane_interrupt_report as print_lane_interrupt_report,
+)
+from agent_workflows.runner_shared import (
+    teardown_isolation_worktree as teardown_isolation_worktree,
+)
+from agent_workflows.runner_shared import (
     append_jsonl as append_jsonl,
 )
 from agent_workflows.runner_shared import (
@@ -1544,34 +1565,6 @@ def signal_report_callback() -> Callable[[], None]:
 # `handle.branch`/`handle.path`; never reconstruct the name from the id6.
 
 
-def allocate_isolation_worktree(repo: Path, id6: str) -> Any:
-    """Allocate a per-lane git worktree for an execute-action child (reuses worktree_lease).
-
-    Returns a `worktree_lease.WorktreeHandle` whose branch is normally `aw/lane/<id6>` in
-    `.aw/worktrees/<id6>`, based at main HEAD, or raises `worktree_lease.WorktreeError` on a genuinely
-    failed `git worktree add` (still fail-closed).
-
-    laneorphan-01 (`zwnjp3`): allocation is now IDEMPOTENT for the same lane identity, so a run is
-    never wedged by its own interrupt debris. It may ADOPT an existing empty lane at the same base, or
-    return an ATTEMPT-SCOPED lane (`aw/lane/<id6>_attemptN` in `.aw/worktrees/<id6>_attemptN`) when the
-    existing lane holds work, is cut from a stale base, is foreign, or is owned by a LIVE process.
-    Read `handle.branch`, `handle.path`, and `handle.disposition` rather than assuming the name."""
-    from agent_workflows import worktree_lease
-
-    return worktree_lease.allocate_worktree(repo, id6, base_commit="HEAD")
-
-
-def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
-    """Remove a lane's worktree + branch (reuses worktree_lease.teardown_worktree).
-
-    DESTRUCTIVE: this deletes the lane BRANCH and force-removes the worktree, so it must only ever be
-    called on a lane that holds NO work. Callers on a non-success path must go through
-    `reclaim_lanes_on_interrupt`, which classifies first and preserves anything holding work."""
-    from agent_workflows import worktree_lease
-
-    worktree_lease.teardown_worktree(repo, handle, force=True)
-
-
 # --- laneorphan-01 (`zwnjp3`) E-05/E-06/E-09/E-10: lane reclamation on interrupt -------------------
 #
 # An interrupt must PRESERVE-AND-RECORD, never leak and never destroy. Before this, a CTRL-C left lane
@@ -1588,117 +1581,6 @@ def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
 # The asymmetry (reclaim only provably-empty lanes, preserve everything else) is a DATA-SAFETY
 # requirement, not a preference: `teardown_worktree(force=True)` deletes the lane branch, leaving its
 # commits unreferenced with an empty reflog, and `--force` erases uncommitted lane files from disk.
-
-
-def _lane_records_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
-    """Every lane THIS run allocated, read back from durable per-item state (E-04).
-
-    Reuses the existing `worktree`/`worktree_branch` (and `preserved_*`) fields rather than adding a
-    second store. Note `preserved_worktree`/`preserved_branch` were previously WRITTEN and never READ
-    anywhere in the package; this is the consumer that makes them meaningful."""
-    lanes: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for item in state.get("queue", []):
-        candidates: list[dict[str, Any]] = []
-        for attempt in item.get("attempts", []) or []:
-            if attempt.get("worktree"):
-                candidates.append(
-                    {
-                        "worktree": attempt.get("worktree"),
-                        "branch": attempt.get("worktree_branch"),
-                        "lane_id": attempt.get("worktree_lane_id") or item.get("id6"),
-                        "base_commit": attempt.get("worktree_base"),
-                        "disposition": attempt.get("worktree_disposition"),
-                    }
-                )
-        if item.get("preserved_worktree"):
-            candidates.append(
-                {
-                    "worktree": item.get("preserved_worktree"),
-                    "branch": item.get("preserved_branch"),
-                    "lane_id": item.get("preserved_lane_id") or item.get("id6"),
-                    "base_commit": item.get("preserved_base"),
-                    "disposition": item.get("preserved_disposition"),
-                }
-            )
-        for rec in candidates:
-            key = "{0}|{1}".format(rec.get("branch"), rec.get("worktree"))
-            if key in seen:
-                continue
-            seen.add(key)
-            rec["id6"] = item.get("id6")
-            rec["status"] = item.get("status")
-            lanes.append(rec)
-    return lanes
-
-
-def describe_lane(repo: Path, lane: dict[str, Any]) -> dict[str, Any]:
-    """The E-01 classifier's reading of one recorded lane, shaped for reporting (E-06).
-
-    The classifier is the SINGLE source of the reported facts; this adds no second git probe and no
-    new CLI verb (`aw doctor --lanes` and `aw recover` are owned by plan `2c122z`)."""
-    from agent_workflows import worktree_lease
-
-    lane_id = lane.get("lane_id") or lane.get("id6") or ""
-    base = lane.get("base_commit") or "HEAD"
-    st = worktree_lease.inspect_lane(repo, lane_id, base_commit=base)
-    return {
-        "id6": lane.get("id6"),
-        "lane_id": lane_id,
-        "branch": st.branch,
-        "worktree": str(st.worktree_path) if st.worktree_path else lane.get("worktree"),
-        "state": st.state,
-        "commits_ahead": st.commits_ahead,
-        "dirty": st.dirty,
-        "head": st.head,
-        "base_sha": st.base_sha,
-        "reclaimable": st.reclaimable,
-        "holds_work": st.holds_work,
-        "owner_live": st.owner_live,
-        # Whether ANOTHER live process owns it, which is the question reclamation must ask (a driver
-        # reclaiming its own lanes is itself the live owner of every one of them).
-        "owned_by_other_live_process": worktree_lease.lane_owned_by_other_live_process(
-            repo, lane_id
-        ),
-    }
-
-
-def format_lane_report(lanes: list[dict[str, Any]]) -> str:
-    """One actionable line per lane, so an operator can tell at a glance which lane matters (E-06).
-
-    The lane that holds work is the one to look at; an empty lane is noise. Reporting both without
-    distinguishing them is what forced a hand inspection of five lanes to find the one holding work."""
-    from agent_workflows import worktree_lease
-
-    if not lanes:
-        return "No lanes were allocated by this run."
-    lines: list[str] = []
-    for lane in lanes:
-        if lane["holds_work"]:
-            detail_bits = []
-            if lane["commits_ahead"]:
-                detail_bits.append(
-                    "{0} commit(s) beyond base".format(lane["commits_ahead"])
-                )
-            if lane["dirty"]:
-                detail_bits.append("uncommitted changes")
-            what = "HOLDS WORK ({0})".format(
-                ", ".join(detail_bits) if detail_bits else "work present"
-            )
-        elif lane["state"] == worktree_lease.LANE_ABSENT:
-            what = "already gone"
-        else:
-            what = "empty ({0}, nothing to recover)".format(lane["state"].lower())
-        lines.append(
-            "  {0} {1}: {2}\n      branch {3}\n      worktree {4}".format(
-                lane["id6"] or "-",
-                lane["lane_id"],
-                what,
-                lane["branch"],
-                lane["worktree"] or "(not registered)",
-            )
-        )
-    return "\n".join(lines)
 
 
 # E-10: set once a SECOND interrupt (or a forced kill path) is seen, after which the prompt is
@@ -1896,45 +1778,6 @@ def reclaim_lanes_on_interrupt(
                 },
             )
     return lanes
-
-
-def print_lane_interrupt_report(lanes: list[dict[str, Any]]) -> None:
-    """Print the E-06 report for the lanes a reclamation pass just handled."""
-    if not lanes:
-        return
-    pal = Palette(should_color(sys.stderr))
-    preserved = [lane for lane in lanes if lane.get("action") == "preserved"]
-    reclaimed = [lane for lane in lanes if lane.get("action") == "reclaimed"]
-    print(pal("\n--- Lane reclamation ---", "bold"), file=sys.stderr)
-    if preserved:
-        print(
-            pal(
-                "PRESERVED (holds work; inspect these, nothing was deleted):", "yellow"
-            ),
-            file=sys.stderr,
-        )
-        print(format_lane_report(preserved), file=sys.stderr)
-        for lane in preserved:
-            if lane.get("snapshot_commit"):
-                print(
-                    pal(
-                        "      uncommitted edits committed as an interrupted snapshot "
-                        "{0}".format(lane["snapshot_commit"][:12]),
-                        "cyan",
-                    ),
-                    file=sys.stderr,
-                )
-    if reclaimed:
-        print(
-            pal("Reclaimed (provably empty, nothing to recover):", "dim"),
-            file=sys.stderr,
-        )
-        for lane in reclaimed:
-            print(
-                "  {0} {1}".format(lane["id6"] or "-", lane["branch"]), file=sys.stderr
-            )
-    if not preserved and not reclaimed:
-        print("No lane needed reclamation.", file=sys.stderr)
 
 
 def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
@@ -3865,80 +3708,6 @@ def build_review_prompt(
     except ValueError:
         rel_path = str(plan_path)
     return f"/plan-review {rel_path}"
-
-
-def build_recovery_lane_notice(
-    item: dict[str, Any], state: dict[str, Any], recovery: bool
-) -> str:
-    """Tell a RESUMING agent, in the prompt, that it is continuing an interrupted attempt (E-11).
-
-    Enriches the EXISTING `recovery` branch of the prompt (the `Mode: RECOVERY/CONTINUATION` line)
-    with the lane facts E-04 now records, rather than adding a mechanism. A first attempt gets
-    nothing, so a normal prompt is unchanged. There is deliberately NO acknowledgement gate and NO
-    refusal path: a refusal would be one more way for an unattended run to stall. The point is that
-    the agent must establish current state itself instead of assuming a clean start.
-    """
-    if not recovery:
-        return ""
-    lane_branch = item.get("preserved_branch")
-    lane_path = item.get("preserved_worktree")
-    lane_base = item.get("preserved_base")
-    if not lane_branch:
-        for attempt in reversed(item.get("attempts", []) or []):
-            if attempt.get("worktree_branch"):
-                lane_branch = attempt.get("worktree_branch")
-                lane_path = attempt.get("worktree")
-                lane_base = attempt.get("worktree_base")
-                break
-    lines = [
-        "",
-        "",
-        "## You are continuing an INTERRUPTED attempt",
-        "",
-        "A previous attempt at this IPD was interrupted or killed before it finished. It is NOT a",
-        "clean start. Whatever that attempt did is already on disk or already committed, and it may",
-        "be half-applied. Establish the CURRENT state yourself before you edit anything: read the",
-        "plan's execution/validation state, inspect the git log and the working tree, and check",
-        "which E-items were actually performed. Do not assume the previous attempt did nothing, and",
-        "do not assume it finished what it started.",
-    ]
-    if lane_branch:
-        facts: list[str] = []
-        try:
-            from agent_workflows import worktree_lease
-
-            repo = Path(state.get("repo", "."))
-            lane_id = str(
-                item.get("preserved_lane_id")
-                or (item.get("attempts") or [{}])[-1].get("worktree_lane_id")
-                or item.get("id6")
-                or ""
-            )
-            st = worktree_lease.inspect_lane(
-                repo, lane_id, base_commit=lane_base or "HEAD"
-            )
-            if st.commits_ahead:
-                facts.append(f"it HOLDS {st.commits_ahead} commit(s) beyond its base")
-            if st.dirty:
-                facts.append("its tree has uncommitted changes")
-            if not facts and st.exists:
-                facts.append("it holds no commits and its tree is clean")
-            if not st.exists:
-                facts.append("it no longer exists")
-        except Exception:
-            facts.append("its current contents could not be read; inspect it yourself")
-        lines.extend(
-            [
-                "",
-                f"That attempt's lane branch is `{lane_branch}`"
-                + (f" at `{lane_path}`" if lane_path else "")
-                + ".",
-                "State of that lane: " + "; ".join(facts) + ".",
-                "A commit there whose message says INTERRUPTED SNAPSHOT is preserved uncommitted work",
-                "from the interrupted attempt, not reviewed or validated work.",
-            ]
-        )
-    return "\n".join(lines)
 
 
 def build_isolation_notice(lane_root: Path | None) -> str:
