@@ -40,3 +40,47 @@ to answer it inconsistently.
 |----|----------|--------|-------------------------|-------|------------|
 | D-1 | Escalate the `0soncw` conflict on this child, or once on the orchestrator? | ONCE on the orchestrator `3m0urk`, recorded as a finding here. | Raising a blocking OQ on all six children. Rejected: one cross-Set ordering decision answered in six places invites six inconsistent answers, and the orchestrator is the artifact that already owns Set-level sequencing (it carries CID-8 for `rununify`). | `3m0urk`'s existing CID-8 and its "STOP and re-review all runner scopes" clause; plan-review Step 2.4 ("fix it in the owning plan and cross-reference it from dependent plans") | yes |
 | D-2 | Is the missing `file:line` evidence (PR-002) a BLOCKER or a MEDIUM? | MEDIUM. The claims I spot-checked were true, so this is evidence discipline, not incorrectness. | BLOCKER. Rejected because no verified claim was found to be false, and blocking a Set on citation formatting when its substance holds would be disproportionate. | Spot-checks: `oc_models.resolve_config_path` exists; `aw oc run --help` genuinely lacks `--variant`; `cli.py` genuinely registers the `aw run` family | yes |
+
+## Round 2
+
+Opened 2026-09-04 at the maintainer's direction, to close round 1's PR-001 now that its stated
+danger no longer exists and the ordering it asked for is machine-enforced. A NEW ROUND rather than an
+edit to round 1: the gate reads only the CURRENT round, and rewriting a completed round would hide
+that the finding was ever open (`.aw/records/reviews/README.md`, "Rounds").
+
+NOTHING ABOUT THIS SET'S CODE CHANGED. What changed is the PREREQUISITE, and it changed in the
+direction that removes the hazard:
+
+1. `0soncw` NO LONGER RETIRES THE `aw run` NOUN. Round 1's BLOCKER rested on `0soncw` E-05 leaving
+   `aw run` as a deprecation stub returning a NONZERO exit, which would have shadowed the namespace
+   this Set populates. That was REVERSED by maintainer ruling 2026-08-31 (`0soncw` OQ-03): the
+   surface splits BY DIRECTION, `aw run` SURVIVES as the WRITING verb, and only the nine READ-ONLY
+   viewer leaves move to `aw runs`. `aw run as <profile>` was never among those nine.
+2. `0soncw` E-05 NOW NAMES THIS SET EXPLICITLY as the intended consumer of the surviving noun: "it is
+   the noun the `runprofile` Set then extends with `aw run as <profile>`", and it records the
+   conclusion this finding reached: "the ordering (`0soncw` first, then `runprofile`) was settled".
+3. `0soncw` IS NOW EXECUTABLE, which round 1 explicitly said it was not. Its OQ-03 was resolved
+   2026-08-31 and its OQ-01 on 2026-09-03; it carries `Status: approved`, `Item-Dependencies: none`,
+   and zero unresolved blocking questions (verified with `plan_readiness.has_unresolved_blocking_question`).
+   So round 1's clause "the prerequisite is not executable yet either" is STALE.
+4. THE ORDER IS NOW MACHINE-ENFORCED, not prose. Round 1 said "the fix is ORDERING, not redesign",
+   but nothing in this Set's metadata encoded it. Orchestrator `3m0urk` now carries
+   `- Item-Dependencies: executed:0soncw`, so the shipped pre-execution dependency preflight refuses
+   the Set until `0soncw` reaches `executed`. That is what actually discharges the finding: a
+   maintainer ruling in prose cannot stop a runner, and a declared edge can.
+
+WHAT IS NOT CLAIMED. This round re-verifies the SEQUENCING premise only. It does not re-review this
+plan's substance, and every other round-1 finding keeps the disposition round 1 gave it.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | B. Sequencing / G. Plan executability | `0soncw` E-05 (now `:118-128`): "Do NOT retire the `aw run` noun. REVERSED BY MAINTAINER RULING 2026-08-31 (see OQ-03)... it is the noun the `runprofile` Set then extends with `aw run as <profile>`... the ordering (`0soncw` first, then `runprofile`) was settled"; `0soncw` OQ-03 and OQ-01 both `- Status: resolved`; `0soncw` `- Status: approved` with `- Item-Dependencies: none`; `3m0urk` now carries `- Item-Dependencies: executed:0soncw` | CARRIED FORWARD FROM ROUND 1 AND NOW RESOLVED. The finding was correct when raised: this Set built its grammar on `aw run` while an approved plan was retiring that noun, and no plan in the Set mentioned it. Both halves of the hazard are now gone - `0soncw` was re-scoped to KEEP `aw run` as the writing verb and to name this Set as its consumer, and `0soncw`'s own blocking question is resolved so it is executable. The residual requirement, that `0soncw` land FIRST, is now a declared dependency edge rather than a sentence in an open question. | C:Low; U:Low; S:Low; F:Low; Overall:Low (recording an edge the maintainer had already decided; no code or scope change) | FIXED | Maintainer decision 2026-08-31 (order) plus 2026-09-04 (encode it). `3m0urk` now declares `- Item-Dependencies: executed:0soncw`, so the pre-execution preflight enforces the order for the whole Set. Round 1's recommended order was adopted unchanged; nothing in this plan's scope or design was altered. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Close PR-001 by editing round 1's row, or by appending this round? | APPEND round 2, leaving round 1 intact. | Editing round 1's `OPEN` to `FIXED` in place. Rejected: the reviews README states rounds are appended rather than edited precisely so a superseded finding stops gating WITHOUT erasing that it was raised; an in-place edit would make the record claim the BLOCKER never existed. | `.aw/records/reviews/README.md` ("Rounds": the LAST round is current, only current findings are live); `review_findings.current_findings()` semantics | yes |
+| D-2 | Put the enforcing edge on the orchestrator `3m0urk`, or on all six Set members? | ON THE ORCHESTRATOR ONLY. | An edge on each of the six children. Rejected: the children already chain to each other (`f2mrsw` -> `executed:0soncw` plus `p0l1to` -> `executed:f2mrsw` and onward), so one edge at Order 0 gates the Set's entry point, and six copies of one cross-Set fact invite six inconsistent answers - the same reasoning round 1's own D-1 used to escalate once rather than six times. | Round 1 D-1 on this Set; the per-child `Item-Dependencies` chain measured across Orders 1-5; `3m0urk` is Order 0 | yes |
