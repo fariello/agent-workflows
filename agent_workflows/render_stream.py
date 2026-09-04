@@ -274,6 +274,8 @@ ACTION_DISPLAY_MAP: dict[str, str] = {
     "graduat": "Graduat",
     "validate": "Validat",
     "validat": "Validat",
+    "orchestrate": "Orchest",
+    "orchest": "Orchest",
 }
 
 ARTIFACT_DISPLAY_MAP: dict[str, str] = {
@@ -291,7 +293,7 @@ ARTIFACT_DISPLAY_MAP: dict[str, str] = {
 def format_action_label(action: str | None) -> str:
     """Format the workflow action into a compact statusline column label (max 7 chars).
 
-    Supported: Review, Execute, Graduat (Graduate), Validat (Validate).
+    Supported: Review, Execute, Graduat (Graduate), Validat (Validate), Orchest (Orchestrate).
     """
     if not action:
         return "Review"
@@ -308,6 +310,27 @@ def format_artifact_kind_label(artifact_kind: str | None) -> str:
         return "IPD"
     key = artifact_kind.strip().lower()
     return ARTIFACT_DISPLAY_MAP.get(key, artifact_kind.strip()[:7].capitalize())
+
+
+def statusline_action_for_item(item: dict[str, Any]) -> str:
+    """Derive the statusline action label from a queue item (vaboqp).
+
+    A queued item's 'status' tracks execution state ('queued' -> 'running' -> 'executed'),
+    NOT plan readiness. The workflow action lives in 'action' ('execute', 'review',
+    'orchestrate'), with fallback to 'initial_status' or 'execute'.
+    """
+    act = item.get("action")
+    if act:
+        return str(act)
+    initial = item.get("initial_status")
+    if initial and initial in ("to-review", "draft"):
+        return "review"
+    if initial:
+        return "execute"
+    status = item.get("status")
+    if status in ("to-review", "draft"):
+        return "review"
+    return "execute"
 
 
 def format_statusline_lines(

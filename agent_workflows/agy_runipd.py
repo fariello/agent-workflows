@@ -46,6 +46,7 @@ from agent_workflows.render_stream import (
     Statusline,
     render_run_summary_table,
     install_exit_signal_handler,
+    statusline_action_for_item,
 )
 
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
@@ -2838,11 +2839,7 @@ def run_agy_turn(
             setid=item.get("setid", ""),
             id6=item.get("id6", ""),
             run_start_mono=run_start_mono,
-            action=(
-                "Review"
-                if item.get("status") == "to-review"
-                else ("Execute" if item.get("status") == "approved" else "Review")
-            ),
+            action=statusline_action_for_item(item),
             artifact_kind=item.get("kind", item.get("type", "ipd")),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)

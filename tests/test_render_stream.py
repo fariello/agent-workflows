@@ -313,6 +313,9 @@ class StatuslineUnitTests(unittest.TestCase):
             ("graduat", "Graduat"),
             ("Validate", "Validat"),
             ("validat", "Validat"),
+            ("orchestrate", "Orchest"),
+            ("Orchestrate", "Orchest"),
+            ("orchest", "Orchest"),
             (None, "Review"),
         ]:
             self.assertEqual(render_stream.format_action_label(raw), exp)
@@ -519,6 +522,14 @@ class SingleDefinitionTests(unittest.TestCase):
         self.assertIs(driver._ANSI_RESET, render_stream._ANSI_RESET)
         self.assertIs(driver._strip_ansi, render_stream._strip_ansi)
         self.assertIs(driver._one_line, render_stream._one_line)
+        self.assertIs(
+            driver.statusline_action_for_item,
+            render_stream.statusline_action_for_item,
+        )
+        self.assertIs(
+            agy_driver.statusline_action_for_item,
+            render_stream.statusline_action_for_item,
+        )
 
     def test_definitions_live_in_render_stream_module(self):
         for obj in (
@@ -531,6 +542,7 @@ class SingleDefinitionTests(unittest.TestCase):
             render_stream.Statusline,
             render_stream.render_event,
             render_stream.Heartbeat,
+            render_stream.statusline_action_for_item,
         ):
             module = inspect.getmodule(obj)
             assert module is not None
@@ -548,6 +560,7 @@ class SingleDefinitionTests(unittest.TestCase):
         self.assertNotIn("def render_event(", src)
         self.assertNotIn("def _one_line(", src)
         self.assertNotIn("def _strip_ansi(", src)
+        self.assertNotIn("def statusline_action_for_item(", src)
         # It must import them from the shared module instead.
         self.assertIn("from agent_workflows.render_stream import", src)
 
@@ -557,6 +570,7 @@ class SingleDefinitionTests(unittest.TestCase):
         # drivers, not just oc, or the duplicate can come back unnoticed.
         src = inspect.getsource(agy_driver)
         self.assertNotIn("class Heartbeat:", src)
+        self.assertNotIn("def statusline_action_for_item(", src)
         self.assertIn("from agent_workflows.render_stream import", src)
 
     def test_heartbeat_is_the_same_object_in_both_drivers(self):
@@ -574,6 +588,83 @@ class SingleDefinitionTests(unittest.TestCase):
             if "class Heartbeat:" in p.read_text(encoding="utf-8")
         )
         self.assertEqual(definers, ["render_stream.py"])
+
+
+class StatuslineActionDerivationTests(unittest.TestCase):
+    """vaboqp: Statusline action column must derive from item['action'], not item['status']."""
+
+    def test_statusline_action_for_item_resolves_explicit_actions(self):
+        self.assertEqual(
+            render_stream.statusline_action_for_item(
+                {"action": "execute", "status": "running"}
+            ),
+            "execute",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item(
+                {"action": "review", "status": "running"}
+            ),
+            "review",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item(
+                {"action": "orchestrate", "status": "queued"}
+            ),
+            "orchestrate",
+        )
+
+    def test_statusline_action_for_item_fallbacks(self):
+        self.assertEqual(
+            render_stream.statusline_action_for_item({"initial_status": "to-review"}),
+            "review",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item({"initial_status": "draft"}),
+            "review",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item({"initial_status": "approved"}),
+            "execute",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item({"status": "to-review"}),
+            "review",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item({}),
+            "execute",
+        )
+        self.assertEqual(
+            render_stream.statusline_action_for_item(
+                {"action": None, "initial_status": "approved"}
+            ),
+            "execute",
+        )
+
+    def test_queue_item_renders_execute_action_in_statusline(self):
+        item = {
+            "position": 1,
+            "id6": "prpipy",
+            "setid": "runorder",
+            "configured_file": ".aw/records/plans/pending/test.ipd.md",
+            "initial_status": "approved",
+            "action": "execute",
+            "status": "running",
+        }
+        pal = render_stream.Palette(False)
+        st = render_stream.Statusline(
+            pal=pal,
+            stream=io.StringIO(),
+            interval=0,
+            setid=item["setid"],
+            id6=item["id6"],
+            action=render_stream.statusline_action_for_item(item),
+            artifact_kind="ipd",
+        )
+        line = st.render_line()
+        self.assertIn("Execute", line)
+        self.assertIn("IPD", line)
+        self.assertNotIn("Review", line)
 
 
 if __name__ == "__main__":

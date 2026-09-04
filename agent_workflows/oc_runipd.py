@@ -81,6 +81,7 @@ from agent_workflows.render_stream import (
     render_event,
     render_run_summary_table,
     install_exit_signal_handler,
+    statusline_action_for_item,
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
@@ -112,6 +113,7 @@ __all__ = [
     "format_tokens",
     "render_event",
     "should_color",
+    "statusline_action_for_item",
     # fullauto 97df1z: re-exported from `plan_readiness` so external callers that imported these
     # from the driver keep working after the local duplicates were deleted.
     "extract_newest_history_entry",
@@ -4463,11 +4465,7 @@ def run_opencode(
             setid=item.get("setid", ""),
             id6=item.get("id6", ""),
             run_start_mono=run_start_mono,
-            action=(
-                "Review"
-                if item.get("status") == "to-review"
-                else ("Execute" if item.get("status") == "approved" else "Review")
-            ),
+            action=statusline_action_for_item(item),
             artifact_kind=item.get("kind", item.get("type", "ipd")),
         )
         watchdog = StallWatchdog(process, timeout=stall_timeout)
