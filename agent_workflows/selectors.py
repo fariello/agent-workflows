@@ -135,6 +135,36 @@ KNOWN_PRIMARY_TYPES = frozenset(
     }
 )
 
+# Record trees that are their OWN resolvable type but are NOT in `KNOWN_PRIMARY_TYPES`, so the
+# `other` CATCH-ALL must not claim them.
+#
+# WHY THIS SET EXISTS SEPARATELY, because the obvious "just add it to KNOWN_PRIMARY_TYPES" is wrong
+# and was measured to be wrong. `KNOWN_PRIMARY_TYPES` is ITERATED by `run_selection_policy`, whose
+# `SPEC_TYPE_BY_RESOLVER_TYPE` table must stay in bijection with it (enforced by
+# `tests/test_run_selection_policy.py::test_type_mapping_is_one_data_table_covering_the_resolver_vocabulary`),
+# so an entry there is a claim that the type is a spec 25kzda 2.2 selectable WORK ITEM. A `reviews`
+# record is not: it has no status lifecycle at all, which `artifact_naming.TYPE_FACET` records at
+# length as the reason `reviews` is deliberately absent from THAT map too.
+#
+# And `EXCLUDED_RECORD_DIRS` is equally wrong for it: that set means "not a record tree, never
+# enumerate" (`runs`, `scratch`, `__pycache__`), and it is consumed by
+# `status_set.detect_artifact_type` to return None. A review IS a real, resolvable record - `aw find
+# reviews <id6>` must keep working - it simply must not be swept into `other`.
+#
+# THE BUG THIS FIXES (measured 2026-09-04): with `reviews` in neither set, the `other` catch-all
+# claimed every `.review.md`, so a bare id6 matched TWICE (the plan as `plans`/id6, its own review as
+# `other`/substring) and `aw set approved <id6>` refused with "id6 collision ... a data bug to fix,
+# not overridable by --force". It was a resolver defect, not a data bug, and it hit ALL 28 reviewed
+# plans, i.e. every plan that had been through `/plan-review`.
+#
+# ADD A TREE HERE when it is a legitimately resolvable record type that has no status lifecycle and
+# therefore cannot join `KNOWN_PRIMARY_TYPES` without making `aw set` accept it.
+NON_PRIMARY_RECORD_DIRS = frozenset(
+    {
+        "reviews",
+    }
+)
+
 EXCLUDED_RECORD_DIRS = frozenset(
     {
         "runs",
@@ -145,6 +175,13 @@ EXCLUDED_RECORD_DIRS = frozenset(
         ".system_generated",
         "__pycache__",
     }
+)
+
+# Every directory the `other` catch-all must skip: the primary typed trees, the typed-but-not-primary
+# trees, and the non-record scratch dirs. `other` means "a record in the tree that no TYPE owns", so
+# a directory owned by any type belongs to that type and not to `other`.
+_OTHER_SWEEP_SKIP_DIRS = (
+    KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS
 )
 
 
@@ -175,11 +212,7 @@ def record_dirs(repo_root: Path, record_type: str) -> List[Path]:
             if not base.is_dir():
                 continue
             for child in base.iterdir():
-                if (
-                    child.is_dir()
-                    and child.name not in KNOWN_PRIMARY_TYPES
-                    and child.name not in EXCLUDED_RECORD_DIRS
-                ):
+                if child.is_dir() and child.name not in _OTHER_SWEEP_SKIP_DIRS:
                     _add(child)
             with contextlib.suppress(OSError):
                 if any(
@@ -331,9 +364,10 @@ def _iter_paths(repo_root: Path, record_type: str):
     """
     seen: set = set()
     if record_type == "other":
+        # Owned by a TYPE (primary or typed-but-not-primary, e.g. `reviews`) -> not `other`.
         known_dirs = {
             d.resolve()
-            for rt in KNOWN_PRIMARY_TYPES
+            for rt in KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS
             for d in record_dirs(repo_root, rt)
         }
         for base in (repo_root / ".aw" / "records", repo_root / ".agents"):

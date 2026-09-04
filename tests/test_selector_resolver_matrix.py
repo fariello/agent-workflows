@@ -200,5 +200,99 @@ class UnifiedResolveTests(unittest.TestCase):
         self.assertIsNone(r.rejected_kind)
 
 
+class OtherCatchAllDoesNotClaimTypedTreesTests(unittest.TestCase):
+    """A `reviews` record must not ALSO resolve as `other` (regression, measured 2026-09-04).
+
+    THE BUG: `reviews` was in neither `KNOWN_PRIMARY_TYPES` nor `EXCLUDED_RECORD_DIRS`, so the
+    `other` catch-all swept `.aw/records/reviews/`. A bare id6 then matched TWICE - the plan as
+    `plans`/id6 and its OWN review record as `other`/substring - and `aw set approved <id6>` refused
+    with "id6 collision ... a data bug to fix, not overridable by --force". It was a RESOLVER defect
+    rather than a data bug, and it broke bare-id6 `aw set` for every plan that had been reviewed
+    (all 28 at the time).
+
+    Why the obvious fixes are both wrong, pinned here so neither is "simplified" back in: adding
+    `reviews` to `KNOWN_PRIMARY_TYPES` breaks the bijection `run_selection_policy` asserts and claims
+    a review is a selectable work item, while adding it to `EXCLUDED_RECORD_DIRS` would make it
+    unresolvable and un-`find`-able. Hence the third set, `NON_PRIMARY_RECORD_DIRS`.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        recs = self.root / ".aw" / "records"
+        pend = recs / "plans" / "pending"
+        pend.mkdir(parents=True)
+        # A plan and ITS review record, sharing the id6 exactly as the real trees do.
+        self.plan = pend / "20260101-demo-01-aaa111-alpha.ipd.md"
+        self.plan.write_text(
+            "# IPD: alpha\n\n- Id: aaa111\n- Status: reviewed\n- Set: demo\n\n## Goal\n\nx\n",
+            encoding="utf-8",
+        )
+        reviews = recs / "reviews"
+        reviews.mkdir(parents=True)
+        self.review = reviews / "20260101-demo-01-aaa111-alpha.review.md"
+        self.review.write_text(
+            "# Review: alpha\n\n- Plan-Id: aaa111\n- Verdict: APPROVE\n\n## Round 1\n\nx\n",
+            encoding="utf-8",
+        )
+        # A genuinely UNOWNED tree, which `other` legitimately still owns.
+        misc = recs / "prompt-library"
+        misc.mkdir(parents=True)
+        self.misc = misc / "20260101-demo-01-ccc333-gamma.md"
+        self.misc.write_text("# gamma\n\n- Id: ccc333\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_reviews_is_not_swept_into_other(self) -> None:
+        r = selectors.resolve(self.root, "other", "aaa111")
+        self.assertEqual(
+            r.paths, [], "a reviews record must not resolve as the `other` catch-all"
+        )
+
+    def test_review_record_is_still_resolvable_as_its_own_type(self) -> None:
+        # The fix must not make reviews unreachable; `aw find reviews <id6>` depends on this.
+        r = selectors.resolve(self.root, "reviews", "aaa111")
+        self.assertEqual([p.resolve() for p in r.paths], [self.review.resolve()])
+
+    def test_other_still_owns_a_genuinely_unowned_tree(self) -> None:
+        # Proves the fix excluded only the TYPED tree, not the catch-all's real purpose.
+        r = selectors.resolve(self.root, "other", "ccc333")
+        self.assertEqual([p.resolve() for p in r.paths], [self.misc.resolve()])
+
+    def test_bare_id6_is_unambiguous_across_types(self) -> None:
+        # The end-to-end symptom: this is what `aw set approved <id6>` resolves, and a second match
+        # here is what produced the un-overridable "id6 collision" refusal.
+        recs = SS.inventory_all_artifacts(self.root)
+        matches = SS.match_selector("aaa111", recs, self.root)
+        self.assertEqual(
+            [m.record_type for m in matches],
+            ["plans"],
+            "a bare id6 must resolve to the PLAN alone, not also its review record",
+        )
+
+    def test_the_three_dir_sets_are_disjoint(self) -> None:
+        # Each set answers a different question (selectable work item / typed but status-less /
+        # not a record tree at all), so an entry appearing in two of them is a contradiction.
+        self.assertEqual(
+            selectors.KNOWN_PRIMARY_TYPES & selectors.NON_PRIMARY_RECORD_DIRS, set()
+        )
+        self.assertEqual(
+            selectors.KNOWN_PRIMARY_TYPES & selectors.EXCLUDED_RECORD_DIRS, set()
+        )
+        self.assertEqual(
+            selectors.NON_PRIMARY_RECORD_DIRS & selectors.EXCLUDED_RECORD_DIRS, set()
+        )
+
+    def test_reviews_has_no_status_lifecycle(self) -> None:
+        # WHY `reviews` cannot simply join KNOWN_PRIMARY_TYPES: `artifact_naming.TYPE_FACET` omits it
+        # deliberately because a review has no `- Status:` bullet, and `TYPE_FACET` is ITERATED by
+        # `status_set.detect_artifact_type`, so an entry would make `aw set` accept a review file.
+        from agent_workflows import artifact_naming as naming
+
+        self.assertNotIn("reviews", naming.TYPE_FACET)
+        self.assertIsNone(SS.canonical_type("reviews"))
+
+
 if __name__ == "__main__":
     unittest.main()
