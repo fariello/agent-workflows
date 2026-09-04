@@ -4130,6 +4130,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-03",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md",
+    "plan_id": "prpipy",
+    "set_id": "runorder",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4458,16 +4468,6 @@
     "plan_id": "uyeko5",
     "set_id": "runflags",
     "status": "to-review"
-  },
-  {
-    "date": "2026-09-03",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md",
-    "plan_id": "prpipy",
-    "set_id": "runorder",
-    "status": "approved"
   },
   {
     "date": "2026-09-03",

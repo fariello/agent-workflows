@@ -16,7 +16,7 @@ Showing the 40 most-recent of 203 Sets; the full manifest is INDEX.json.
 
 ## runorder
 
-- `prpipy` [pending] 01 pending/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md
+- `prpipy` [executed] 01 executed/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md
 
 ## rununify
 

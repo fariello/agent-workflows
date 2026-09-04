@@ -742,7 +742,21 @@ class OrderingAndCascadeTests(unittest.TestCase):
             "Set/Order said depend-first; the declared edge must reorder it",
         )
 
-    def test_set_order_still_breaks_ties_among_equally_ready_nodes(self):
+    def test_request_order_outranks_set_order_among_equally_ready_nodes(self):
+        """DELIBERATELY INVERTED by runorder `prpipy`; this is a CONTRACT CHANGE, not a broken test.
+
+        This assertion used to read `["aaaaaa", "bbbbbb"]` with the message "Order 1 precedes Order 2
+        on a tie", pinning 8guhs0's key `(depth, setid, order, id6, position)`. `prpipy` moved
+        `position` from LAST to immediately after `depth` on the maintainer's 2026-09-01 ruling,
+        because ranking it last recorded the operator's requested order and then discarded it (run
+        `run-20260901T042331Z-118022` inverted `aw oc run m73aet 6lu3rq` on Set id alone). So among
+        equally-ready nodes the REQUESTED order now decides and `Order` is the next tiebreaker down.
+        Inverted rather than deleted, following this repo's pin-then-deliberately-change convention.
+
+        What did NOT change, and is asserted separately above: a declared edge still outranks both
+        (`test_declared_edges_beat_set_order_when_the_two_disagree`), because `dependency_depth`
+        remains FIRST in the key.
+        """
         queue = [
             self._item("bbbbbb", setid="demo", order=2, position=1),
             self._item("aaaaaa", setid="demo", order=1, position=2),
@@ -753,7 +767,24 @@ class OrderingAndCascadeTests(unittest.TestCase):
             for i in sorted(queue, key=lambda it: oc_runipd.queue_sort_key(it, by_id))
         ]
         self.assertEqual(
-            ordered, ["aaaaaa", "bbbbbb"], "Order 1 precedes Order 2 on a tie"
+            ordered,
+            ["bbbbbb", "aaaaaa"],
+            "prpipy: the requested order (position) outranks Order on a tie",
+        )
+
+    def test_set_order_still_breaks_ties_when_the_request_order_ties(self):
+        """`Order` did not stop mattering; it dropped one rank. Equal positions -> Set, then Order."""
+        queue = [
+            self._item("bbbbbb", setid="demo", order=2, position=1),
+            self._item("aaaaaa", setid="demo", order=1, position=1),
+        ]
+        by_id = {i["id6"]: i for i in queue}
+        ordered = [
+            i["id6"]
+            for i in sorted(queue, key=lambda it: oc_runipd.queue_sort_key(it, by_id))
+        ]
+        self.assertEqual(
+            ordered, ["aaaaaa", "bbbbbb"], "Order 1 precedes Order 2 on a genuine tie"
         )
 
     def test_position_is_never_renumbered_by_ordering(self):

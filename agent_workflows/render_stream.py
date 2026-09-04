@@ -827,8 +827,7 @@ class Heartbeat:
         countdown = format_stall_countdown(self.stall_remaining(), self.progress_source)
         tail = f", stall {countdown}" if countdown else ""
         return (
-            f"    \u2026 {self.label}: no progress {idle_str} "
-            f"({el_str} elapsed{tail})"
+            f"    \u2026 {self.label}: no progress {idle_str} ({el_str} elapsed{tail})"
         )
 
     def _run(self) -> None:
@@ -884,6 +883,76 @@ def format_duration(seconds: float | None) -> str:
     return f"{days}d {rem_h}h {rem_m:02d}m {rem_s:02d}s"
 
 
+def format_run_order_announcement(
+    rationale: dict[str, Any],
+    pal: Palette | None = None,
+) -> list[str]:
+    """Render the run's execution order, warning distinctly when it diverges from what was requested.
+
+    runorder (prpipy) E-04. The ONE definition of this wording in the package: both host drivers call
+    it, so an improvement here reaches `aw oc run` and `aw agy run` together and cannot re-fork (the
+    `Heartbeat` divergence this module's docstring records is exactly that failure).
+
+    ``rationale`` is the JSON-safe dict produced by the runner's ``run_order_rationale``: ``requested``
+    and ``executed`` id6 lists, ``reordered``, per-item ``causes``, ``request_kind``, ``selectors``.
+
+    Two deliberate wording rules:
+
+    * The order is ALWAYS rendered, reordered or not, so the log is an audit trail rather than
+      something to reconstruct from event timestamps.
+    * "typed order" is used ONLY when ``request_kind == "typed"``, i.e. the selectors were literal
+      id6 tokens the operator actually typed in that sequence. An expansion (a setid, `all`,
+      `reviews`, a path) is called the "requested order" and names the selector it came from, because
+      claiming the operator typed a manifest-derived order would misinform in exactly the direction
+      that teaches people to ignore the warning.
+
+    Pure: builds and returns lines, prints nothing, and imports no runner.
+    """
+    if pal is None:
+        pal = Palette(False)
+    requested = list(rationale.get("requested") or [])
+    executed = list(rationale.get("executed") or [])
+    causes = dict(rationale.get("causes") or {})
+    reordered = bool(rationale.get("reordered"))
+    typed = str(rationale.get("request_kind") or "expanded") == "typed"
+    selectors = list(rationale.get("selectors") or [])
+
+    req_label = "typed order" if typed else "requested order"
+    lines: list[str] = []
+    seq = "  ".join(f"{idx:02d} {id6}" for idx, id6 in enumerate(executed, start=1))
+    lines.append(pal(f"Run order ({len(executed)} item(s)): {seq}", "bold"))
+    if not typed and selectors:
+        lines.append(
+            pal(
+                "  Requested order was expanded from selector "
+                f"{' '.join(selectors)} in manifest order, not typed item by item.",
+                "dim",
+            )
+        )
+
+    if not reordered:
+        lines.append(pal(f"  Matches the {req_label}; nothing was reordered.", "dim"))
+        return lines
+
+    req_seq = "  ".join(
+        f"{idx:02d} {id6}" for idx, id6 in enumerate(requested, start=1)
+    )
+    lines.append(
+        pal(
+            f"WARNING: the execution order DIFFERS from the {req_label}.",
+            "bold",
+            "yellow",
+        )
+    )
+    lines.append(pal(f"  {req_label}:  {req_seq}", "yellow"))
+    lines.append(pal(f"  execution order: {seq}", "yellow"))
+    for id6 in executed:
+        reason = causes.get(id6)
+        if reason:
+            lines.append(pal(f"  - {id6}: {reason}", "yellow"))
+    return lines
+
+
 def _parse_iso_timestamp(ts_str: str | None) -> float | None:
     """Parse ISO8601 or similar UTC timestamp string into a float epoch timestamp."""
     if not ts_str:
@@ -908,6 +977,18 @@ def render_run_summary_table(
 
     Includes run duration, spend, token breakdown (total, input, output, cache), progress bar,
     per-item status, duration, cost, tokens, verify outcome, and diagnostic notes for failures.
+
+    ROW ORDER IS EXECUTION ORDER (runorder prpipy E-05). This table used to iterate `state["queue"]`
+    in STORED order and print `position` under a `#` header, so `--prepare-only` previewed the frozen
+    IDENTITY sequence while the run dispatched in a different one; a careful operator preflighting the
+    measured bug would have been shown `01 m73aet, 02 6lu3rq` and still watched `6lu3rq` go first. The
+    fix belongs HERE rather than in one driver's `print_status`, because both hosts call this one
+    renderer, so a per-driver fix could drift. Both sequences are now shown and LABELLED: `Run` is the
+    order the run executes in, `Pos` is the frozen identity that outcome/prompt/session filenames key
+    on. The execution order is read from the runner-recorded `state["run_order"]["executed"]`, which
+    is deliberately how this stays a PURE renderer: it must not import a runner to reach
+    `queue_sort_key`, and a run directory frozen before that key existed simply falls back to stored
+    order rather than failing.
     """
     if pal is None:
         pal = Palette(True)
@@ -924,6 +1005,18 @@ def render_run_summary_table(
         vl, hl = "|", "-"
 
     queue = state.get("queue", [])
+    # runorder (prpipy) E-05: list rows in the order the run EXECUTES in. `state["run_order"]` is the
+    # runner's own recorded rationale, so no runner import is needed here; anything it does not name
+    # keeps its stored relative position, which makes a legacy/partial record degrade instead of drop
+    # rows. `queue` itself is NEVER mutated and no `position` is renumbered.
+    _exec_order = ((state.get("run_order") or {}).get("executed")) or []
+    if _exec_order:
+        _rank = {str(id6): idx for idx, id6 in enumerate(_exec_order)}
+        _fallback = len(_rank)
+        queue = sorted(
+            queue,
+            key=lambda it: (_rank.get(str(it.get("id6")), _fallback),),
+        )
     run_id = state.get("run_id", "run-unknown")
     created_ts = _parse_iso_timestamp(state.get("created_at"))
     updated_ts = _parse_iso_timestamp(state.get("updated_at"))
@@ -949,6 +1042,10 @@ def render_run_summary_table(
     completed_count = 0
 
     for idx, item in enumerate(queue):
+        # runorder (prpipy) E-05: `seq` is this row's place in the EXECUTION order (the list is
+        # already sorted above), `pos` is the item's FROZEN identity. They are separate columns
+        # because they answer different questions and conflating them is what hid the ordering bug.
+        seq = idx + 1
         pos = item.get("position", idx + 1)
         id6 = item.get("id6", "-")
         setid = item.get("setid", "-")
@@ -1025,6 +1122,7 @@ def render_run_summary_table(
 
         items_data.append(
             {
+                "seq": f"{seq:02d}",
                 "pos": f"{pos:02d}",
                 "id6": id6,
                 "setid": setid,
@@ -1115,8 +1213,11 @@ def render_run_summary_table(
         )
     )
 
+    # runorder (prpipy) E-05: `Run` is the execution sequence, `Pos` the frozen identity. The old
+    # single `#` column showed `position` and a reader inevitably read it as sequence.
     headers = [
-        "#",
+        "Run",
+        "Pos",
         "ID6",
         "Set",
         "Action",
@@ -1130,6 +1231,7 @@ def render_run_summary_table(
         "Tok cache",
     ]
     aligns = [
+        "right",
         "right",
         "left",
         "left",
@@ -1163,6 +1265,7 @@ def render_run_summary_table(
         )
 
         raw_row = [
+            it["seq"],
             it["pos"],
             it["id6"],
             it["setid"],
@@ -1177,6 +1280,7 @@ def render_run_summary_table(
             it["tok_cache_str"],
         ]
         styled_row = [
+            it["seq"],
             it["pos"],
             it["id6"],
             it["setid"],
@@ -1205,13 +1309,24 @@ def render_run_summary_table(
     tot_out_str = format_compact_tokens(tot_out)
     tot_cache_str = format_compact_tokens(tot_cache)
 
+    # runorder (prpipy) E-05: the boundary between the identity/status block (spanned by the totals
+    # label) and the six metric columns, derived from `headers` instead of hardcoded. It was the
+    # literal 6 in five places, which is exactly what makes adding the `Run` column risky; deriving it
+    # means the next column added cannot silently mis-span the totals row.
+    metrics_start = headers.index("Duration")
     total_label = f"Total ({completed_count}/{total_items} items run)"
-    col_widths[6] = max(col_widths[6], len(tot_dur_str))
-    col_widths[7] = max(col_widths[7], len(tot_cost_str))
-    col_widths[8] = max(col_widths[8], len(tot_tok_str))
-    col_widths[9] = max(col_widths[9], len(tot_in_str))
-    col_widths[10] = max(col_widths[10], len(tot_out_str))
-    col_widths[11] = max(col_widths[11], len(tot_cache_str))
+    for offset, tot_str in enumerate(
+        (
+            tot_dur_str,
+            tot_cost_str,
+            tot_tok_str,
+            tot_in_str,
+            tot_out_str,
+            tot_cache_str,
+        )
+    ):
+        idx_c = metrics_start + offset
+        col_widths[idx_c] = max(col_widths[idx_c], len(tot_str))
 
     b_title = f"AW RUN SUMMARY: {run_id} ({driver_label})"
     b_line1 = (
@@ -1231,27 +1346,31 @@ def render_run_summary_table(
     max_banner_w = max((len(t) for t in banner_plain), default=0) + 4
     if max_banner_w > base_table_width:
         diff = max_banner_w - base_table_width
-        col_widths[2] += diff
+        col_widths[headers.index("Set")] += diff
         base_table_width += diff
 
     total_table_width = base_table_width
-    left_span_w = sum(col_widths[:6]) + (5 * 3)
+    left_span_w = (
+        sum(col_widths[:metrics_start]) + ((metrics_start - 1) * 3)
+        if metrics_start
+        else 0
+    )
 
     top_border = tl + hl * (total_table_width - 2) + tr
     sep_banner_table = ml + tm.join(hl * (w + 2) for w in col_widths) + mr
     sep_headers_rows = ml + mm.join(hl * (w + 2) for w in col_widths) + mr
     sep_totals_border = (
         ml
-        + bm.join(hl * (w + 2) for w in col_widths[:6])
+        + bm.join(hl * (w + 2) for w in col_widths[:metrics_start])
         + mm
-        + mm.join(hl * (w + 2) for w in col_widths[6:])
+        + mm.join(hl * (w + 2) for w in col_widths[metrics_start:])
         + mr
     )
     bot_border = (
         bl
         + hl * (left_span_w + 2)
         + bm
-        + bm.join(hl * (w + 2) for w in col_widths[6:])
+        + bm.join(hl * (w + 2) for w in col_widths[metrics_start:])
         + br
     )
 
@@ -1302,26 +1421,29 @@ def render_run_summary_table(
     tot_lbl_txt = f"{c_bold}{total_label}{c_reset}" if color else total_label
     tot_lbl_cell = f" {tot_lbl_txt}{pad_tot_lbl} "
 
+    w_dur = col_widths[metrics_start]
+    w_cost = col_widths[metrics_start + 1]
     dur_cell_str = (
-        f" {' ' * (col_widths[6] - len(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
+        f" {' ' * (w_dur - len(tot_dur_str))}{c_cyan}{tot_dur_str}{c_reset} "
         if color
-        else f" {' ' * (col_widths[6] - len(tot_dur_str))}{tot_dur_str} "
+        else f" {' ' * (w_dur - len(tot_dur_str))}{tot_dur_str} "
     )
     cost_cell_str = (
-        f" {' ' * (col_widths[7] - len(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
+        f" {' ' * (w_cost - len(tot_cost_str))}{c_green}{tot_cost_str}{c_reset} "
         if color
-        else f" {' ' * (col_widths[7] - len(tot_cost_str))}{tot_cost_str} "
+        else f" {' ' * (w_cost - len(tot_cost_str))}{tot_cost_str} "
     )
 
     tot_cells = [
         tot_lbl_cell,
         dur_cell_str,
         cost_cell_str,
-        f" {' ' * (col_widths[8] - len(tot_tok_str))}{tot_tok_str} ",
-        f" {' ' * (col_widths[9] - len(tot_in_str))}{tot_in_str} ",
-        f" {' ' * (col_widths[10] - len(tot_out_str))}{tot_out_str} ",
-        f" {' ' * (col_widths[11] - len(tot_cache_str))}{tot_cache_str} ",
     ]
+    for offset, tot_str in enumerate(
+        (tot_tok_str, tot_in_str, tot_out_str, tot_cache_str), start=2
+    ):
+        width = col_widths[metrics_start + offset]
+        tot_cells.append(f" {' ' * (width - len(tot_str))}{tot_str} ")
     lines.append(sep_totals_border)
     lines.append(vl + vl.join(tot_cells) + vl)
     lines.append(bot_border)

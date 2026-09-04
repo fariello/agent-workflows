@@ -74,6 +74,7 @@ from agent_workflows.render_stream import (
     _strip_ansi,
     format_compact_tokens,
     format_progress_bar,
+    format_run_order_announcement,
     format_stall_countdown,
     format_statusline,
     format_statusline_lines,
@@ -3009,6 +3010,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "runbook_sha256": sha256_file(runbook_path),
         "selectors": list(args.selectors),
         "queue": queue,
+        # runorder (prpipy) E-04: the REQUESTED-vs-EXECUTED order comparison, frozen here beside the
+        # queue it describes. Durable on purpose: before this, the only way to discover that the run
+        # had reordered the operator's request was to diff `events.jsonl` timestamps against these
+        # positions after the fact. The queue itself keeps request order; `position` stays identity.
+        "run_order": run_order_rationale(queue, list(args.selectors)),
         "session_id": initial_session,
         "set_sessions": set_sessions,
         "session_turn_counts": {},
@@ -3039,6 +3045,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
     )
     write_report(run_dir, state)
+    # runorder (prpipy) E-04: announce the order the run will EXECUTE in, ALWAYS, and warn loudly
+    # when it diverges from what was requested. Here and not in `run_queue`, because this is where
+    # the queue is frozen, and because the announcement must precede the first child session so the
+    # operator sees it before any work happens rather than inferring it from timestamps afterwards.
+    announce_run_order(run_dir, state)
     return run_dir
 
 
@@ -3598,28 +3609,187 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
 def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tuple:
     """Deterministic ordering key for READY nodes (spec 25kzda 5.4 rules 4-5).
 
-    DECLARED EDGES WIN; Set/Order is only a TIEBREAKER among nodes that are already ready. Ordering
-    by dependency DEPTH first is what demotes Set/Order: a depth-0 node always precedes a node that
-    declares an in-queue prerequisite, whatever their Order numbers say. Set/Order can therefore no
-    longer act as evidence that a dependency is satisfied (rule 3), which is what it silently did
-    while `dependencies` was always `[]`.
+    DECLARED EDGES WIN, and that is why `dependency_depth` stays FIRST: a depth-0 node always
+    precedes a node that declares an in-queue prerequisite, whatever the request order or the Order
+    numbers say. So Set/Order/request-order can never act as evidence that a dependency is satisfied
+    (rule 3), which is what Set/Order silently did while `dependencies` was always `[]`.
+
+    `position` IS A PRIORITY (runorder prpipy; maintainer ruling 2026-09-01), ranked immediately
+    after dependency depth and therefore ABOVE Set, Order, and id6. It carries the order the
+    operator REQUESTED, so among equally-ready independent nodes the run executes them in the order
+    they were asked for. The previous key ranked `position` LAST, which recorded the request and then
+    discarded it: measured in run `run-20260901T042331Z-118022`, `aw oc run m73aet 6lu3rq` froze
+    `position 1 m73aet` / `position 2 6lu3rq` and then dispatched `6lu3rq` first, purely because
+    `"runmixed" < "runtrail"`, with nothing announcing the inversion.
+
+    HONEST LIMITS OF THIS KEY, both of which the pre-prpipy docstring got wrong:
+
+    * The sort is NO LONGER a function of artifact content alone. `position` comes from the
+      INVOCATION (`expand_selectors` -> `initialize_run`), so the same plans selected in a different
+      order legitimately execute in a different order. That is the intended contract, not drift.
+    * `position` is a priority AND STILL A FROZEN IDENTITY. Outcome/prompt/session filenames and this
+      run's decision ids all key on it, so it is assigned exactly once at queue-build time and is
+      never renumbered by sorting. Reading it here must not make it mutable.
+
+    `position` only equals the operator's TYPED order when the selectors were literal id6 tokens. A
+    setid, `all`, `reviews`, or a file-path selector expands to many positions whose order comes from
+    the MANIFEST, so callers that report ordering to a human must say "requested order" rather than
+    claim a typed one (see `run_order_rationale`).
 
     Spec 5.4 rule 4 also lists a TYPE RANK (`spec`, `backlog`, `ipd`, `prompt`) ahead of Set. It is
     deliberately NOT implemented: this runner's queue is homogeneous (IPDs only; there is no
     `--with-dependencies` closure and no non-plan item can enter), so a rank over types that cannot
     appear would be untestable dead code. Recorded rather than silently skipped.
-
-    `position` is LAST and is a stable identity, never a priority: outcome/prompt/session filenames
-    and this run's decision ids all key on it, so it is frozen at queue-build time and is used here
-    only to make the sort total.
     """
     return (
         dependency_depth(item["id6"], by_id),
+        item.get("position", 0),
         str(item.get("setid") or ""),
         item.get("order") if isinstance(item.get("order"), int) else 999,
         item["id6"],
-        item.get("position", 0),
     )
+
+
+def run_order_rationale(
+    queue: list[dict[str, Any]], selectors: Iterable[str] | None = None
+) -> dict[str, Any]:
+    """Compare the REQUESTED order with the order the run will EXECUTE in, and say why they differ.
+
+    runorder (prpipy) E-04. Ordering used to be silent: `position` recorded the request, the sort
+    discarded it, and the only way to discover an inversion was to diff `events.jsonl` timestamps
+    against `state.json` positions after the fact. This computes the comparison once, at queue build,
+    so the driver can print it and freeze it into durable run state.
+
+    Returns a JSON-safe dict (it is written verbatim into `state.json` and `events.jsonl`):
+
+    * ``requested``   - id6s in the order the queue was FROZEN in, i.e. `position` order.
+    * ``executed``    - the same id6s re-sorted by :func:`queue_sort_key`, i.e. dispatch order.
+    * ``reordered``   - True iff those two differ.
+    * ``causes``      - ``{id6: reason}`` for each item whose index MOVED. A reason begins with
+                        ``declared dependency:`` when a real `Item-Dependencies` edge forces the move
+                        (correct and expected) or ``tiebreak:`` when nothing but the comparator's
+                        lower-ranked fields decided it (the case that bit the maintainer). Telling
+                        those two apart is the operator-facing point, so a bare "reordered" is not
+                        enough.
+    * ``request_kind``- ``typed`` only when the selectors were LITERAL id6 tokens naming exactly this
+                        queue; otherwise ``expanded``, because a setid / `all` / `reviews` / path
+                        selector expands to many positions ordered by the MANIFEST, not by the
+                        operator's typing. Callers must not claim a typed order for an expansion.
+    * ``selectors``   - the raw selector tokens, so the message can name the expansion.
+
+    Pure: no I/O, no printing. The message TEXT lives in `render_stream`, not here.
+    """
+    sel_list = [str(s).strip() for s in (selectors or [])]
+    requested = [str(item.get("id6")) for item in queue]
+    by_id = {str(item.get("id6")): item for item in queue}
+    executed = [
+        str(item.get("id6"))
+        for item in sorted(queue, key=lambda it: queue_sort_key(it, by_id))
+    ]
+
+    req_index = {id6: idx for idx, id6 in enumerate(requested)}
+    exec_index = {id6: idx for idx, id6 in enumerate(executed)}
+
+    def _in_queue_edges(id6: str) -> list[tuple[str, str]]:
+        """(target_id6, declared token) for each edge of ``id6`` pointing at another QUEUE node."""
+        out: list[tuple[str, str]] = []
+        for dep in by_id.get(id6, {}).get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is None or getattr(edge, "target_type", None) != "ipd":
+                continue
+            # NOTE: `dependency_target_id6` takes the raw TOKEN, not the parsed edge (verified by
+            # signature); passing the edge silently returns None and would erase every cause.
+            target = dependency_target_id6(str(dep))
+            if target and target in by_id and target != id6:
+                out.append((target, str(dep)))
+        return out
+
+    causes: dict[str, str] = {}
+    for id6 in requested:
+        if req_index[id6] == exec_index[id6]:
+            continue
+        reason = ""
+        # Moved EARLIER because something requested before it declares it as a prerequisite.
+        for other in requested:
+            if req_index[other] >= req_index[id6]:
+                continue
+            for target, token in _in_queue_edges(other):
+                if target == id6:
+                    reason = (
+                        f"declared dependency: {other} declares `{token}`, "
+                        f"so {id6} must run first"
+                    )
+                    break
+            if reason:
+                break
+        # Moved LATER because it declares a prerequisite that was requested after it.
+        if not reason:
+            for target, token in _in_queue_edges(id6):
+                if req_index.get(target, -1) > req_index[id6]:
+                    reason = (
+                        f"declared dependency: {id6} declares `{token}`, "
+                        f"so it waits for {target}"
+                    )
+                    break
+        if not reason:
+            item = by_id.get(id6, {})
+            pos = item.get("position")
+            pos_txt = "unset" if not isinstance(pos, int) else str(pos)
+            order = item.get("order")
+            order_txt = "unset" if not isinstance(order, int) else str(order)
+            reason = (
+                "tiebreak: no declared dependency explains this move; ranked by "
+                f"requested position {pos_txt}, Set '{item.get('setid') or ''}', "
+                f"Order {order_txt}, id6"
+            )
+        causes[id6] = reason
+
+    literal = bool(sel_list) and all(ID6_RE.fullmatch(s.lower()) for s in sel_list)
+    typed = literal and [s.lower() for s in sel_list] == requested
+    return {
+        "requested": requested,
+        "executed": executed,
+        "reordered": requested != executed,
+        "causes": causes,
+        "request_kind": "typed" if typed else "expanded",
+        "selectors": sel_list,
+    }
+
+
+def announce_run_order(
+    run_dir: Path,
+    state: dict[str, Any],
+    *,
+    stream: Any = None,
+) -> dict[str, Any]:
+    """Print the execution order and append it to `events.jsonl`; return the rationale.
+
+    runorder (prpipy) E-04/E-07. ONE function so both host drivers announce identically and record
+    identically; the wording comes from the shared `render_stream` formatter, never from a driver.
+    The announcement is UNCONDITIONAL (the order must be auditable in the log even when nothing was
+    reordered) and the durable record is what makes it readable after the terminal scrollback is gone.
+    """
+    rationale = state.get("run_order") or run_order_rationale(
+        state.get("queue", []), state.get("selectors", [])
+    )
+    out = stream if stream is not None else sys.stdout
+    pal = Palette(should_color(out))
+    for line in format_run_order_announcement(rationale, pal=pal):
+        print(line, file=out)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "run-order",
+            "run_id": state.get("run_id"),
+            "requested": rationale["requested"],
+            "executed": rationale["executed"],
+            "reordered": rationale["reordered"],
+            "causes": rationale["causes"],
+            "request_kind": rationale["request_kind"],
+        },
+    )
+    return rationale
 
 
 def cascade_dependency_blocked(
