@@ -46,6 +46,13 @@ CONTRACT_FIELDS = (
     "emits_child_permission_events",
     "supports_process_tree_kill",
     "supports_os_sandbox",
+    # mjx7ne E-01: the runner-safety capabilities. Appended here because this tuple - not
+    # dataclass introspection - drives `test_every_contract_field_exists_and_defaults_false`
+    # and `test_to_dict_snapshots_the_contract`, so a field absent from it carries NO
+    # default-False or snapshot guarantee while the suite stays green.
+    "supports_commit_gateway",
+    "supports_deny_push",
+    "supports_fresh_verifier_session",
 )
 
 

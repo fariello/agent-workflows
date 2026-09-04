@@ -1065,6 +1065,39 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--irreversible", "--agent", "--json"),
         exit_contract=(0, 2),
     ),
+    # --- Host Family (hostcap-01 `mjx7ne` E-06) ---
+    #
+    # Read-only inspection over the PROBED host capability contract in `host_sandbox_profile`.
+    # Both leaves are reads: `mutation_gate="none"` because the namespace writes nothing at
+    # all and there is no `--apply`. (`host probe` does EXECUTE probes, one of which builds
+    # and removes a temporary jail, so it is repository-read-only rather than
+    # side-effect-free; the gate classifies REPOSITORY mutation, which is none.)
+    #
+    # `exit_contract=(0, 2)` deliberately EXCLUDES 1: a capability the host does not support
+    # is a legitimate ANSWER, not a finding against the command, and the refusal of an action
+    # that needs it is reported by `preflight_host_capabilities` at the point of use. Claiming
+    # exit 1 would also oblige a `domain_failure` conformance scenario these printers cannot
+    # produce.
+    CommandDeclaration(
+        command="host probe",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
+    CommandDeclaration(
+        command="host capabilities",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 2),
+    ),
     # --- Backlog Family ---
     CommandDeclaration(
         command="backlog new",

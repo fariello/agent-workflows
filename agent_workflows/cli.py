@@ -201,6 +201,30 @@ _DESCRIPTIONS = {
         "Tooling for the typed plan-review records under .aw/records/reviews. Subcommands "
         "report what a review recorded; the whole namespace is read-only and writes nothing."
     ),
+    # hostcap-01 (mjx7ne) E-06: read-only inspection over the probed host capability contract.
+    "host": (
+        "Inspect what an agent host can actually GUARANTEE, as decided by executed probes "
+        "rather than by configuration or version strings. 'host probe <host>' runs the "
+        "probes and reports what each one observed; 'host capabilities [host]' prints the "
+        "capability contract plus, per action class, whether that action would be allowed or "
+        "refused. Read-only with respect to the repository: writes nothing, so there is no "
+        "--apply."
+    ),
+    "host probe": (
+        "Execute the host capability probes and report what they OBSERVED, including the "
+        "recorded reason for every not-supported verdict. Two runner-safety capabilities "
+        "(commit gateway, push denial) are declared but never probed because the enforcement "
+        "they name does not exist here yet, so they always read not-supported and any action "
+        "requiring them is refused; that is fail-closed, not a host defect. Exit 0 whenever "
+        "the probes could run (a not-supported verdict is an ANSWER), 2 cannot-run/usage."
+    ),
+    "host capabilities": (
+        "Print the host capability contract and the per-action verdicts derived from it: for "
+        "each of the four action classes, whether this host satisfies its requirements, which "
+        "required capabilities are missing, and which spec-required capabilities the contract "
+        "cannot yet represent. With no host argument, reports every runner host. Read-only. "
+        "Exit 0 whenever it can run, 2 cannot-run/usage."
+    ),
     "reviews decisions": (
         "Audit the judgement calls reviewers made on their own authority instead of asking the "
         "maintainer, read from the review record's Decisions section. Use --irreversible for the "
@@ -2254,6 +2278,57 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_reviews_decisions.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
+    )
+
+    # hostcap-01 (mjx7ne) E-06: the `host` namespace. Read-only inspection over the PROBED
+    # capability contract in `host_sandbox_profile`; this verb brings the noun into existence.
+    p_host = sub.add_parser(
+        "host",
+        parents=[common],
+        help="Inspect what an agent host can actually guarantee (executed probes, not config).",
+        formatter_class=_AlphaHelpFormatter,
+        epilog=(
+            "EXAMPLES\n"
+            "  aw host capabilities                 # every runner host's contract + action verdicts\n"
+            "  aw host capabilities opencode        # one host\n"
+            "  aw host probe opencode               # run the probes and report what they observed\n"
+            "\n"
+            "SAFETY & DEFAULTS\n"
+            "  Read-only with respect to the repository: writes nothing, so there is no --apply.\n"
+            "  'probe' does EXECUTE probes (the sandbox probe builds and removes a temporary\n"
+            "  jail), so it is repository-read-only rather than side-effect-free.\n"
+            "  Two runner-safety capabilities (commit gateway, push denial) are declared but\n"
+            "  never probed, because the enforcement they name does not exist here yet. They\n"
+            "  always read not-supported, so actions requiring them are refused: fail-closed.\n"
+            "\n"
+            "OUTPUT & EXITS\n"
+            "  Exit codes: 0 whenever the report could be produced (a not-supported verdict is\n"
+            "  an ANSWER, not a failure), 2 cannot-run/usage error. There is no exit 1.\n"
+            "  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.\n"
+        ),
+    )
+    host_sub = p_host.add_subparsers(dest="host_command")
+    p_host_probe = host_sub.add_parser(
+        "probe",
+        parents=[common],
+        help="Execute the host capability probes and report what each one observed.",
+    )
+    p_host_probe.add_argument(
+        "host",
+        nargs="?",
+        default=None,
+        help="Host to probe (default: opencode).",
+    )
+    p_host_capabilities = host_sub.add_parser(
+        "capabilities",
+        parents=[common],
+        help="Print the capability contract and the per-action allowed/refused verdicts.",
+    )
+    p_host_capabilities.add_argument(
+        "host",
+        nargs="?",
+        default=None,
+        help="Host to report on (default: every runner host).",
     )
 
     p_context = sub.add_parser(
@@ -9619,6 +9694,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _show_family_help(
             parser, "reviews", "aw reviews decisions", term, context
         )
+    if args.command == "host":
+        host_cmd = getattr(args, "host_command", None)
+        if host_cmd in ("probe", "capabilities"):
+            from agent_workflows import host_cmd as _host_cmd
+
+            if host_cmd == "probe":
+                return _host_cmd.run_probe(args)
+            return _host_cmd.run_capabilities(args)
+        return _show_family_help(parser, "host", "aw host capabilities", term, context)
     if args.command == "context":
         return _run_context(args, term, context=context)
     if args.command == "path":

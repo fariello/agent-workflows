@@ -73,6 +73,36 @@ sandbox, granting hard mode and failing OPEN. Therefore `_probe_linux_sandbox()`
 actual jail in a subprocess and treats ANY nonzero exit, exception, or timeout as False,
 and the SAME probe backs both the capability report and the tests' skip decision so the
 two can never disagree.
+
+RUNNER-SAFETY CAPABILITIES AND THE ACTION PREFLIGHT (mjx7ne, spec 25kzda 5.2)
+============================================================================
+
+The contract above answers what the host can do to CONFINE a worker. It said nothing about
+the runner-safety guarantees a lifecycle ACTION depends on, and nothing compared what an
+action NEEDS against what a host PROVED. Three fields and a preflight close that:
+
+  * `supports_fresh_verifier_session` - PROBED by attempt. The probe runs the real
+    fresh-verifier contract twice and requires BOTH that distinct identities finalize AND
+    that a reused identity is REFUSED, because a contract that never refuses enforces no
+    separation while a caller believes verification was independent.
+  * `supports_commit_gateway`, `supports_deny_push` - DECLARED AND NEVER PROBED, with the
+    reason recorded in `probe_notes`. They name host ENFORCEMENT (spec 25kzda 5.2 guarantees
+    1 and 2) that does not exist in this repository, so there is nothing to attempt. They
+    default False and therefore FAIL CLOSED. Inferring support from the presence of the
+    driver-side `git_commit_helper.offer_commit` helper is FORBIDDEN: a helper the driver
+    chooses to call is not a boundary an agent cannot evade, and reporting it as one is the
+    same fail-OPEN inference the sandbox probes above exist to refuse.
+
+`check_action_capabilities` compares one of spec 25kzda 5.2's FOUR action classes against a
+descriptor, naming every missing capability plus the spec-required capabilities this contract
+cannot yet represent (recorded, not dropped: an unlisted requirement can never fail).
+`preflight_host_capabilities` turns an unmet requirement into the spec's verbatim
+`RUN-HOST-CAPABILITY` refusal with `failed` / `host_capability_unavailable`, no session
+started, dependents cascaded, and the RUN NOT aborted.
+
+HONEST LIMIT: nothing in the runners consults this preflight yet. It lands the vocabulary and
+the checker; wiring the call sites is deliberately deferred (mjx7ne OQ-01), so today this
+prevents nothing on its own.
 """
 
 from __future__ import annotations
@@ -97,6 +127,31 @@ __all__ = [
     "select_execution_profile",
     "run_discovery_then_execution",
     "landlock_bootstrap_source",
+    # mjx7ne: the runner-safety capabilities, their probes, and the action preflight.
+    "CAP_COMMIT_GATEWAY",
+    "CAP_DENY_PUSH",
+    "CAP_FRESH_VERIFIER_SESSION",
+    "RUNNER_SAFETY_CAPABILITIES",
+    "UNREPRESENTED_SPEC_CAPABILITIES",
+    "probe_runner_safety_capabilities",
+    "forced_runner_safety_verdicts",
+    "ACTION_READ_ONLY",
+    "ACTION_REVIEW",
+    "ACTION_MUTATE",
+    "ACTION_CONTRACTLESS_PROMPT",
+    "ACTION_CLASSES",
+    "ActionRequirement",
+    "ACTION_CAPABILITY_REQUIREMENTS",
+    "ActionCapabilityVerdict",
+    "UnknownActionError",
+    "check_action_capabilities",
+    "RUN_HOST_CAPABILITY",
+    "RUN_HOST_CAPABILITY_MESSAGE",
+    "OUTCOME_FAILED",
+    "REASON_HOST_CAPABILITY_UNAVAILABLE",
+    "format_host_capability_finding",
+    "HostCapabilityPreflight",
+    "preflight_host_capabilities",
 ]
 
 # The single platform this phase certifies (x03wgn Section 8 Phase 6.3: start on ONE).
@@ -138,6 +193,16 @@ class HostSandboxCapabilities:
     emits_child_permission_events: bool = False
     supports_process_tree_kill: bool = False
     supports_os_sandbox: bool = False
+
+    # mjx7ne E-01: the RUNNER-SAFETY guarantees a lifecycle action depends on (spec 25kzda
+    # 5.2 "Per-host capability descriptor"). Same fail-closed rule as the sandbox fields
+    # above: False unless something actually observed the behavior. Two of the three name
+    # host ENFORCEMENT that does not exist in this repository yet, so they are DECLARED and
+    # NOT PROBED (permanently not-supported, which fails closed) and say so in
+    # `probe_notes`; see `_declared_unenforced` for why a presence-based probe is forbidden.
+    supports_commit_gateway: bool = False
+    supports_deny_push: bool = False
+    supports_fresh_verifier_session: bool = False
 
     platform: str = ""
     # Which rung of the ladder was PROVEN by an executed probe: "landlock" | "bwrap" |
@@ -413,6 +478,240 @@ def _probe_userns() -> Tuple[bool, str]:
     )
 
 
+# ---------------------------------------------------------------------------
+# mjx7ne E-02 / E-03: the RUNNER-SAFETY capability probes and their test seam
+# ---------------------------------------------------------------------------
+
+# The three runner-safety capability names, in contract order. Used by the requirement map
+# and by `probe_runner_safety_capabilities`, so a field can never be gated by one and
+# forgotten by the other.
+CAP_COMMIT_GATEWAY = "supports_commit_gateway"
+CAP_DENY_PUSH = "supports_deny_push"
+CAP_FRESH_VERIFIER_SESSION = "supports_fresh_verifier_session"
+
+RUNNER_SAFETY_CAPABILITIES: Tuple[str, ...] = (
+    CAP_COMMIT_GATEWAY,
+    CAP_DENY_PUSH,
+    CAP_FRESH_VERIFIER_SESSION,
+)
+
+# Capabilities spec 25kzda 5.2 requires that THIS contract cannot yet represent at all.
+# Named as data so E-04's map can RECORD the gap instead of silently omitting it: a
+# requirement that is never listed is a requirement that can never fail, which is the
+# fail-OPEN direction. Each maps to the spec phrase it comes from.
+UNREPRESENTED_SPEC_CAPABILITIES: Dict[str, str] = {
+    "isolated_worktree": (
+        "allocate and confine mutation to an isolated Git worktree (spec 25kzda 5.2); this "
+        "contract has no field for it, so it cannot be gated here"
+    ),
+    "path_policy": (
+        "enforce filesystem/path policy and coordinator-owned path exclusions (spec 25kzda "
+        "5.2); the sandbox partition is a different, opt-in mechanism (`SandboxPlan`)"
+    ),
+    "argv_capture": (
+        "launch only captured argv-list tools and enforce a deny policy (spec 25kzda 5.2)"
+    ),
+    "timeout_cancel": (
+        "terminate or time out a worker without losing outcome evidence (spec 25kzda 5.2); "
+        "`supports_process_tree_kill` is necessary but not sufficient for it"
+    ),
+    "hook_preserving_commit": (
+        "preserve normal Git hook execution and reject hook-bypass arguments (spec 25kzda "
+        "5.2)"
+    ),
+    "complete_diff_capture": (
+        "capture exit/output/diff evidence with redaction and provenance (spec 25kzda 5.2)"
+    ),
+}
+
+# WHY THESE TWO ARE DECLARED AND NOT PROBED (OQ-03, maintainer ruling 2026-09-01, option
+# (a) "keep all three capabilities, honestly labelled"). `commit_gateway` and `deny_push`
+# name HOST ENFORCEMENT: spec 25kzda 5.2 guarantees 1 and 2 require that the agent CANNOT
+# commit except through the engine's gateway and that push-capable routes are denied. No
+# such enforcement exists in this package (measured: `rg -n 'commit_gateway|deny_push'
+# agent_workflows/` returned ZERO hits before this module declared the names). What DOES
+# exist is `git_commit_helper.offer_commit` / `aw commit`, a DRIVER-side path-scoped commit
+# helper the driver CHOOSES to call - a helper, not a boundary an agent cannot evade. So
+# there is nothing for a probe to ATTEMPT, and inferring support from that helper's mere
+# presence would be inspection-not-attempt: the fail-OPEN pattern this module's sandbox
+# probes exist to avoid (see the module docstring's measured counterexample). Declared with
+# a False default plus this note, they fail CLOSED: an action that requires them is refused
+# on every host until real enforcement lands.
+_DECLARED_UNENFORCED: Dict[str, str] = {
+    CAP_COMMIT_GATEWAY: (
+        "DECLARED, NOT PROBED: no commit-interception enforcement exists in this package "
+        "to attempt, so this capability is permanently not-supported (fail-closed). "
+        "`git_commit_helper.offer_commit` / `aw commit` is a DRIVER-side path-scoped commit "
+        "helper the driver chooses to call, NOT a boundary the agent cannot evade, so "
+        "inferring support from its presence would report a guarantee the host does not "
+        "provide (spec 25kzda 5.2 guarantee 2, classified Host-dependent)."
+    ),
+    CAP_DENY_PUSH: (
+        "DECLARED, NOT PROBED: no push-denial enforcement (tool/network/credential denial) "
+        "exists in this package to attempt, so this capability is permanently "
+        "not-supported (fail-closed). The driver not pushing is a driver behavior, not a "
+        "host-enforced denial (spec 25kzda 5.2 guarantee 1, classified Host-dependent)."
+    ),
+}
+
+
+def _probe_fresh_verifier_session() -> Tuple[bool, str]:
+    """ATTEMPT a real fresh-verifier run and prove the SAME-session case is REFUSED.
+
+    Held to the same standard as the sandbox rungs: "the module imports" or "the function
+    exists" proves nothing, because a fresh-verifier contract that accepts a reused session
+    identity enforces no separation at all while a caller believes execution and
+    verification were independent. So this probe runs the real
+    `agy_verifier.run_fresh_verifier` twice against a real validated verifier packet:
+
+      * with DISTINCT executor/verifier identities, which must be authoritative and able to
+        finalize; and
+      * with the SAME identity for both, which must RAISE
+        `SessionIdentityCollisionError`.
+
+    Both halves are required. Accepting only the positive half would report True for a
+    contract that never refuses, which is the fail-OPEN direction. Any exception, missing
+    symbol, or unexpected outcome yields not-supported.
+    """
+    try:
+        from agent_workflows import agy_verifier as _agy
+        from agent_workflows import verify_roles as _vr
+
+        packet = _vr.build_verifier_packet(
+            run_id="run-00000000",
+            workflow_id="host-capability-probe",
+            base_commit="0" * 40,
+            head_commit="1" * 40,
+            worktree_path="/nonexistent/host-capability-probe",
+            frozen_requirements={"probe": "fresh verifier session separation"},
+            declared_scope={"paths": ["<probe>"]},
+            actual_diff="",
+        )
+        executor, verifier = _agy.make_execution_and_verifier_doubles(
+            "host-capability-probe"
+        )
+        fresh = _agy.run_fresh_verifier(
+            packet,
+            execution_session=executor.identity,
+            verifier_session=verifier.identity,
+        )
+        if not (fresh.is_authoritative and fresh.can_finalize):
+            return (
+                False,
+                "fresh-verifier attempt did not produce an authoritative finalizable "
+                f"result (is_authoritative={fresh.is_authoritative!r}, "
+                f"can_finalize={fresh.can_finalize!r})",
+            )
+        collided = _agy.SessionIdentity(
+            session_id=verifier.identity.session_id,
+            role=verifier.identity.role,
+            label="probe-collision",
+        )
+        try:
+            _agy.run_fresh_verifier(
+                packet,
+                execution_session=collided,
+                verifier_session=collided,
+            )
+        except _agy.SessionIdentityCollisionError:
+            return (
+                True,
+                "fresh-verifier separation enforced: a distinct-identity run finalized and "
+                "a reused-identity run was REFUSED "
+                f"(executor={executor.identity.session_id!r}, "
+                f"verifier={verifier.identity.session_id!r})",
+            )
+        return (
+            False,
+            "fresh-verifier contract ACCEPTED a reused session identity, so execution and "
+            "verification are not actually separated (would fail OPEN)",
+        )
+    except Exception as exc:  # a probe never propagates; unknown => not supported
+        return False, f"fresh-verifier probe failed: {type(exc).__name__}: {exc}"
+
+
+# The runner-safety ladder: one entry per capability, `None` where the capability is
+# DECLARED AND NOT PROBED (see `_DECLARED_UNENFORCED`). Kept as data so a new capability
+# cannot be added to the dataclass and silently skipped by the prober.
+_RUNNER_SAFETY_PROBES: Dict[str, Optional[Callable[[], Tuple[bool, str]]]] = {
+    CAP_COMMIT_GATEWAY: None,
+    CAP_DENY_PUSH: None,
+    CAP_FRESH_VERIFIER_SESSION: _probe_fresh_verifier_session,
+}
+
+#: E-03 test seam: forced runner-safety verdicts, `{capability: (supported, note)}`.
+#:
+#: Mirrors the module's existing `_SANDBOX_PROBE_CACHE` style (a module-level global the
+#: tests save and restore) rather than inventing a second injection mechanism. It is a
+#: FORCED-VERDICT seam, not an assertion channel: `probe_runner_safety_capabilities`
+#: consults it INSTEAD of running the probe, and `detect_host_capabilities` never sets a
+#: field True except from a verdict this function returned. Because it is process-global,
+#: a test that sets it MUST restore it (use `forced_runner_safety_verdicts`).
+_FORCED_RUNNER_SAFETY: Optional[Dict[str, Tuple[bool, str]]] = None
+
+
+class forced_runner_safety_verdicts:
+    """Context manager forcing runner-safety verdicts, restoring the seam on exit.
+
+    Exists because the seam is a process-global (exactly like `_SANDBOX_PROBE_CACHE`): a
+    test that assigned it directly and then failed would leak its forced verdict into every
+    later test in the same process. Restoring in `__exit__` makes the leak impossible even
+    when the body raises.
+    """
+
+    def __init__(self, verdicts: Optional[Dict[str, Tuple[bool, str]]]) -> None:
+        self._verdicts = dict(verdicts) if verdicts is not None else None
+        self._saved: Any = None
+
+    def __enter__(self) -> Optional[Dict[str, Tuple[bool, str]]]:
+        global _FORCED_RUNNER_SAFETY
+        self._saved = _FORCED_RUNNER_SAFETY
+        _FORCED_RUNNER_SAFETY = self._verdicts
+        return _FORCED_RUNNER_SAFETY
+
+    def __exit__(self, *exc_info: Any) -> None:
+        global _FORCED_RUNNER_SAFETY
+        _FORCED_RUNNER_SAFETY = self._saved
+
+
+def probe_runner_safety_capabilities() -> Tuple[Dict[str, bool], Dict[str, str]]:
+    """Decide the three runner-safety capabilities, returning (verdicts, notes).
+
+    Deliberately NOT cached. The sandbox ladder is memoized because it spawns jail
+    subprocesses whose answer cannot change mid-process; these probes are in-process and
+    cheap, and a stale memo here would be a way for one turn's verdict to outlive the state
+    it was measured against. (Note the shipped `_SANDBOX_PROBE_CACHE` is a plain per-process
+    memo with NO staleness/TTL notion; the expiry model in `host_capability_registry` belongs
+    to a different concern and is deliberately not imported by implication.)
+
+    A capability with no probe reports not-supported with the reason recorded, never
+    supported-by-assumption.
+    """
+    verdicts: Dict[str, bool] = {}
+    notes: Dict[str, str] = {}
+    forced = _FORCED_RUNNER_SAFETY
+    for name in RUNNER_SAFETY_CAPABILITIES:
+        if forced is not None and name in forced:
+            ok, note = forced[name]
+            verdicts[name] = bool(ok)
+            notes[name] = f"FORCED VERDICT (test seam): {note}"
+            continue
+        probe = _RUNNER_SAFETY_PROBES.get(name)
+        if probe is None:
+            verdicts[name] = False
+            notes[name] = _DECLARED_UNENFORCED.get(
+                name, "declared but not probed; not supported (fail-closed)"
+            )
+            continue
+        try:
+            ok, note = probe()
+        except Exception as exc:  # a probe must never propagate; unknown => False
+            ok, note = False, f"probe raised {type(exc).__name__}: {exc}"
+        verdicts[name] = bool(ok)
+        notes[name] = note
+    return verdicts, notes
+
+
 # The ladder, strongest-first. Each entry is (mechanism, probe). A rung may only appear
 # here if its probe proves an actual DENIAL and `enter_sandbox` can enforce the full
 # partition for it; `userns` stays listed so its report explains why it is never proven.
@@ -488,14 +787,31 @@ def detect_host_capabilities(
     `_probe_linux_sandbox()` actually built a jail and observed the kernel refuse a write
     outside the allowed root. See the module docstring for the measured counterexample that
     makes this mandatory.
+
+    The three RUNNER-SAFETY capabilities (mjx7ne E-02) follow the same rule, and are decided
+    ONLY when the platform being asked about is the one this interpreter is running on: a
+    capability cannot be probed for a platform we are not on, and asserting one anyway is
+    exactly the fail-OPEN move this module exists to refuse. Two of the three are declared
+    and never probed because the enforcement they name does not exist here (see
+    `_DECLARED_UNENFORCED`), so they read not-supported on every host.
     """
     plat = (platform_name or sys.platform or "").lower()
     caps = HostSandboxCapabilities(platform=plat)
+    running_platform = (sys.platform or "").lower()
+
+    if plat == running_platform:
+        # Platform-independent runner-safety guarantees: decided by an executed attempt (or
+        # declared not-supported), never by host identity. Applied before the sandbox
+        # platform gate because these are NOT sandbox rungs.
+        verdicts, notes = probe_runner_safety_capabilities()
+        for name, supported in verdicts.items():
+            setattr(caps, name, supported)
+        caps.probe_notes.update(notes)
 
     if not plat.startswith(CERTIFIED_PLATFORM):
         caps.probe_notes["platform"] = (
             f"{plat!r} is not the certified platform ({CERTIFIED_PLATFORM!r}); "
-            "no capability asserted (fail-closed)"
+            "no sandbox capability asserted (fail-closed)"
         )
         return caps
 
@@ -503,7 +819,7 @@ def detect_host_capabilities(
     # (`start_new_session=True` + `os.killpg`), so it is proven on this platform.
     caps.supports_process_tree_kill = os.name == "posix"
 
-    if plat != (sys.platform or "").lower():
+    if plat != running_platform:
         # Asked about Linux from a non-Linux interpreter: we cannot execute a probe for a
         # platform we are not running on, so assert nothing.
         caps.probe_notes["platform"] = (
@@ -935,4 +1251,332 @@ def run_discovery_then_execution(
         discovery_result=discovery_result,
         execution_result=execution_result,
         reason="discovery validated; product writes authorized for the execution phase.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# mjx7ne E-04: the ACTION-to-capability requirement map, and its checker
+# ---------------------------------------------------------------------------
+
+# The FOUR action classes spec 25kzda 5.2 defines (its own table, "Each action packet
+# declares `required_host_capabilities`"). Deliberately the spec's four, not a convenient
+# two: an `execute`/`review` pair would have silently renamed the policy and made this
+# layer's vocabulary disagree with the packet field the spec specifies.
+ACTION_READ_ONLY = "read_only"  # read-only classification / skip / check
+ACTION_REVIEW = "review"  # plan/spec review or IPD authoring
+ACTION_MUTATE = "mutate"  # IPD or contract prompt mutation
+ACTION_CONTRACTLESS_PROMPT = "contractless_prompt"  # prompt with no run contract
+
+ACTION_CLASSES: Tuple[str, ...] = (
+    ACTION_READ_ONLY,
+    ACTION_REVIEW,
+    ACTION_MUTATE,
+    ACTION_CONTRACTLESS_PROMPT,
+)
+
+
+@dataclass(frozen=True)
+class ActionRequirement:
+    """What one action class requires, INCLUDING what this contract cannot express.
+
+    `unrepresented` is not documentation: it is the honest record that the spec requires a
+    guarantee this dataclass has no field for. Omitting it would make the action PASS
+    because the requirement was never listed, which is fail-OPEN. `check_action_capabilities`
+    therefore reports it as a distinct, non-blocking gap rather than silently dropping it.
+    """
+
+    action: str
+    #: Field names on `HostSandboxCapabilities` that MUST be True. Checkable here.
+    required: Tuple[str, ...]
+    #: Spec-required capability names this contract cannot yet represent (keys of
+    #: `UNREPRESENTED_SPEC_CAPABILITIES`). NOT checkable here; recorded so the gap is visible.
+    unrepresented: Tuple[str, ...]
+    #: The spec phrase this row is derived from, so a reader can check the derivation.
+    spec_basis: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "action": self.action,
+            "required": list(self.required),
+            "unrepresented": list(self.unrepresented),
+            "spec_basis": self.spec_basis,
+        }
+
+
+# THE POLICY, AS DATA (one place a reader can see it whole), derived row-by-row from spec
+# 25kzda 5.2's action table. Every `unrepresented` entry is a key of
+# `UNREPRESENTED_SPEC_CAPABILITIES`, checked by a test, so a typo cannot hide a requirement.
+ACTION_CAPABILITY_REQUIREMENTS: Dict[str, ActionRequirement] = {
+    ACTION_READ_ONLY: ActionRequirement(
+        action=ACTION_READ_ONLY,
+        required=(),
+        unrepresented=("complete_diff_capture",),
+        spec_basis=(
+            "spec 25kzda 5.2: 'Repository read and captured evidence only; no agent session "
+            "for a skip'. Nothing this contract represents is required, so a read-only "
+            "action is never refused by this gate."
+        ),
+    ),
+    ACTION_REVIEW: ActionRequirement(
+        action=ACTION_REVIEW,
+        required=(
+            CAP_COMMIT_GATEWAY,
+            CAP_DENY_PUSH,
+            CAP_FRESH_VERIFIER_SESSION,
+        ),
+        unrepresented=(
+            "isolated_worktree",
+            "path_policy",
+            "argv_capture",
+            "timeout_cancel",
+            "hook_preserving_commit",
+        ),
+        spec_basis=(
+            "spec 25kzda 5.2: 'Isolated worktree, path policy, argv capture, no-push "
+            "enforcement, commit gateway, hook-preserving commit, timeout/cancel, fresh "
+            "verifier'. Three of those eight are representable here; the other five are "
+            "recorded as unrepresented rather than dropped."
+        ),
+    ),
+    ACTION_MUTATE: ActionRequirement(
+        action=ACTION_MUTATE,
+        required=(
+            CAP_COMMIT_GATEWAY,
+            CAP_DENY_PUSH,
+            CAP_FRESH_VERIFIER_SESSION,
+        ),
+        unrepresented=(
+            "isolated_worktree",
+            "path_policy",
+            "argv_capture",
+            "timeout_cancel",
+            "hook_preserving_commit",
+            "complete_diff_capture",
+        ),
+        spec_basis=(
+            "spec 25kzda 5.2: 'All review capabilities plus required command/check execution "
+            "and complete diff capture'. Same representable three as review, plus diff "
+            "capture recorded as unrepresented."
+        ),
+    ),
+    ACTION_CONTRACTLESS_PROMPT: ActionRequirement(
+        action=ACTION_CONTRACTLESS_PROMPT,
+        required=(
+            CAP_COMMIT_GATEWAY,
+            CAP_DENY_PUSH,
+        ),
+        unrepresented=(
+            "isolated_worktree",
+            "path_policy",
+            "complete_diff_capture",
+        ),
+        spec_basis=(
+            "spec 25kzda 5.2: 'Read-only confinement unless the descriptor proves the "
+            "complete mutation boundary; never an automatic commit'. The mutation boundary "
+            "cannot be proven without the commit gateway and push denial, so both are "
+            "required; a fresh verifier is not (there is no contract to verify against)."
+        ),
+    ),
+}
+
+
+class UnknownActionError(ValueError):
+    """An action class outside the spec's four was named.
+
+    Raised rather than defaulted, because guessing which requirement set an unknown action
+    should get is how a mutating action silently receives the read-only policy.
+    """
+
+
+@dataclass(frozen=True)
+class ActionCapabilityVerdict:
+    """A definite verdict for one (host, action) pair, naming EVERY missing capability."""
+
+    host: str
+    action: str
+    satisfied: bool
+    #: Every required capability the host does not support, in contract order. All of them,
+    #: not the first: an operator fixing one at a time cannot tell how deep the hole is.
+    missing: Tuple[str, ...]
+    #: Spec-required capabilities this contract cannot represent for this action.
+    unrepresented: Tuple[str, ...]
+    #: `probe_notes` for each missing capability, so the refusal carries its evidence.
+    notes: Dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "host": self.host,
+            "action": self.action,
+            "satisfied": self.satisfied,
+            "missing": list(self.missing),
+            "unrepresented": list(self.unrepresented),
+            "notes": dict(self.notes),
+        }
+
+
+def check_action_capabilities(
+    action: str,
+    capabilities: HostSandboxCapabilities,
+    host: str = "",
+) -> ActionCapabilityVerdict:
+    """Compare what an ACTION needs against what the host actually proved.
+
+    Returns a definite verdict naming EVERY missing capability (never just the first) plus
+    the spec-required capabilities this contract cannot represent. Pure: it inspects the
+    descriptor it is given and runs no probe, so a caller decides once, at preflight, from a
+    snapshot it can also record.
+    """
+    requirement = ACTION_CAPABILITY_REQUIREMENTS.get(action)
+    if requirement is None:
+        raise UnknownActionError(
+            f"unknown action class {action!r}; expected one of {list(ACTION_CLASSES)!r}. "
+            "Refusing to guess a requirement set: defaulting an unknown action would let a "
+            "mutating action inherit the read-only policy."
+        )
+    missing = tuple(
+        name for name in requirement.required if not getattr(capabilities, name, False)
+    )
+    return ActionCapabilityVerdict(
+        host=host,
+        action=action,
+        satisfied=not missing,
+        missing=missing,
+        unrepresented=requirement.unrepresented,
+        notes={
+            name: capabilities.probe_notes.get(name, "no probe note recorded")
+            for name in missing
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# mjx7ne E-05: the `RUN-HOST-CAPABILITY` finding code and its fail-closed preflight
+# ---------------------------------------------------------------------------
+
+#: The spec's stable finding code (spec 25kzda 4.2). A CROSS-PLAN CONTRACT: sibling plan
+#: `7f7782`/`wlxkoz` consumes this exact string as one of the 13 deterministic `RUN-*`
+#: checks. Do not rename it.
+RUN_HOST_CAPABILITY = "RUN-HOST-CAPABILITY"
+
+#: The outcome and reason a refused item records (spec 25kzda 5.2 fail-closed rule, and the
+#: report schema at spec `:842`/`:972`).
+OUTCOME_FAILED = "failed"
+REASON_HOST_CAPABILITY_UNAVAILABLE = "host_capability_unavailable"
+
+#: The spec's VERBATIM message template (spec 25kzda `:534` and `:763`), including the
+#: `<item>` and the recovery command. Composed here as a template rather than by hand at
+#: each call site so the text cannot drift from the spec one message at a time.
+RUN_HOST_CAPABILITY_MESSAGE = (
+    "[RUN-HOST-CAPABILITY] Host {host} cannot enforce {capability} required by {item} "
+    "action {action}. No work started for this item. Choose a capable host or enable and "
+    "re-probe that capability, then run: aw {host} run {selector}"
+)
+
+
+def format_host_capability_finding(
+    host: str,
+    capability: str,
+    item: str,
+    action: str,
+    selector: Optional[str] = None,
+) -> str:
+    """Render the spec's verbatim `RUN-HOST-CAPABILITY` message.
+
+    `selector` defaults to `item`, which is what an operator would actually re-run; the
+    recovery command is part of the specified text, so a message without it is not
+    spec-conforming.
+    """
+    return RUN_HOST_CAPABILITY_MESSAGE.format(
+        host=host,
+        capability=capability,
+        item=item,
+        action=action,
+        selector=selector if selector is not None else item,
+    )
+
+
+@dataclass(frozen=True)
+class HostCapabilityPreflight:
+    """The item-local preflight decision: proceed, or refuse this ITEM (not the run).
+
+    ITEM-LOCAL IS THE WHOLE POINT (spec 25kzda 4.2 `RUN-HOST-CAPABILITY` action: "FAIL ITEM;
+    cascade dependents; continue independent items", and 5.2: "the engine starts no session
+    and performs no mutation for that item"). An abort and an item failure are different
+    behaviors, and the distinction is what lets independent items keep running, so this type
+    reports `aborts_run=False` explicitly rather than leaving a caller to infer it.
+    """
+
+    ok: bool
+    verdict: ActionCapabilityVerdict
+    finding_code: str = RUN_HOST_CAPABILITY
+    message: str = ""
+    outcome: str = ""
+    reason_code: str = ""
+    session_started: bool = False
+    mutated: bool = False
+    cascade_dependents: bool = False
+    aborts_run: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "verdict": self.verdict.to_dict(),
+            "finding_code": self.finding_code,
+            "message": self.message,
+            "outcome": self.outcome,
+            "reason_code": self.reason_code,
+            "session_started": self.session_started,
+            "mutated": self.mutated,
+            "cascade_dependents": self.cascade_dependents,
+            "aborts_run": self.aborts_run,
+        }
+
+
+def preflight_host_capabilities(
+    action: str,
+    capabilities: HostSandboxCapabilities,
+    host: str,
+    item: str,
+    selector: Optional[str] = None,
+) -> HostCapabilityPreflight:
+    """FAIL CLOSED before any session starts: refuse the ITEM when a requirement is unmet.
+
+    Returns (never raises for the unmet case, because a refusal is a recordable OUTCOME, not
+    a crash) a preflight carrying the spec's verbatim message, the `failed` /
+    `host_capability_unavailable` outcome, `session_started=False`, and
+    `cascade_dependents=True` with `aborts_run=False`.
+
+    An UNKNOWN action still raises `UnknownActionError`: that is a programming error in the
+    caller, not a host that lacks a capability, and silently treating it as a refusal would
+    hide the bug behind a plausible-looking outcome.
+    """
+    verdict = check_action_capabilities(action, capabilities, host=host)
+    if verdict.satisfied:
+        return HostCapabilityPreflight(
+            ok=True,
+            verdict=verdict,
+            message="",
+            outcome="",
+            reason_code="",
+        )
+    # Name EVERY missing capability in the message. The spec's `<capability>` slot is
+    # singular; a host missing three guarantees would otherwise need three runs to discover
+    # them, so the slot is filled with the comma-joined set and the singular case is
+    # byte-identical to the spec's example.
+    return HostCapabilityPreflight(
+        ok=False,
+        verdict=verdict,
+        message=format_host_capability_finding(
+            host=host,
+            capability=", ".join(verdict.missing),
+            item=item,
+            action=action,
+            selector=selector,
+        ),
+        outcome=OUTCOME_FAILED,
+        reason_code=REASON_HOST_CAPABILITY_UNAVAILABLE,
+        session_started=False,
+        mutated=False,
+        cascade_dependents=True,
+        aborts_run=False,
     )
