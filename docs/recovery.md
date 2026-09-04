@@ -7,7 +7,7 @@ back an update safely. The modules are `agent_workflows/run_recovery.py` and
 ## Resume an interrupted run
 
 ```
-aw run resume <run-id-or-path>
+aw runs resume <run-id-or-path>
 ```
 
 `resume` reconstructs the run state and reports the steps it can resume. It refuses to resume a
@@ -17,7 +17,7 @@ retry budget.
 
 ## Recover a corrupted ledger
 
-If `aw run verify-ledger` reports a broken chain from an interrupted write,
+If `aw runs verify-ledger` reports a broken chain from an interrupted write,
 `RunLedgerStore.recover` truncates the ledger to the last intact record. This preserves every
 verified record and drops only the torn tail. It never rewrites history.
 

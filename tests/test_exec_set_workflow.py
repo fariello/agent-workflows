@@ -153,18 +153,35 @@ class ExecSetCliSurfaceV02(unittest.TestCase):
         self.assertEqual(ipd_set_plan.run_execute_set(ns), 2)
 
     def test_help_advertises_only_real_commands(self):
-        # The exec-set body advertises aw run status|decisions|questions and execute-set --resume.
-        # Every one of those must be a real dispatch path (no help line names a nonexistent command).
+        # The exec-set body advertises the run INSPECTION verbs and execute-set --resume. Every one
+        # must be a real dispatch path (no help line names a nonexistent command).
+        #
+        # SPELLING UPDATED by runnamecollapse 0soncw: the run surface split by DIRECTION, so the three
+        # read-only verbs moved from `aw run <leaf>` to `aw runs <leaf>` and the old spellings are now
+        # rejected by normal argument parsing. Asserting the OLD spelling here would demand that the
+        # doc advertise commands that no longer dispatch, which is the exact defect this test exists to
+        # prevent. The assertion below is therefore checked against the live parser rather than only
+        # against a hard-coded string, so a future rename cannot leave the doc stale AND the test green.
         body = (
             REPO_ROOT / ".aw" / "system" / "workflows" / "exec-set" / "exec-set.md"
         ).read_text(encoding="utf-8")
         for advertised in (
-            "aw run status",
-            "aw run decisions",
-            "aw run questions",
+            "aw runs status",
+            "aw runs decisions",
+            "aw runs questions",
             "aw ipd execute-set --resume",
         ):
             self.assertIn(advertised, body)
+        # The retired spellings must NOT be advertised any more.
+        for retired in ("aw run status", "aw run decisions", "aw run questions"):
+            self.assertNotIn(retired, body)
+        # And the advertised leaves must really exist on the `runs` parser (not just in prose).
+        from agent_workflows.cli import _build_parser
+        from agent_workflows.command_surface import discover_parser_leaves
+
+        leaves = discover_parser_leaves(_build_parser())
+        for leaf in ("runs status", "runs decisions", "runs questions"):
+            self.assertIn(leaf, leaves)
         # --max-parallel was trimmed (not a wired flag) - it must NOT be advertised.
         self.assertNotIn("--max-parallel", body)
 

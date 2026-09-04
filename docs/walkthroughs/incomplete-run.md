@@ -13,7 +13,7 @@ implementation internals.
 1. Reconstruct a run's state from its ledger. Point the command at a run id or a ledger path:
 
    ```
-   aw run status <run-id-or-path>
+   aw runs status <run-id-or-path>
    ```
 
    The output reports each step and its state (pending, runnable, running, done, blocked).
@@ -21,7 +21,7 @@ implementation internals.
 2. Show the completion predicates to see exactly why the run is not complete:
 
    ```
-   aw run show <run-id-or-path>
+   aw runs show <run-id-or-path>
    ```
 
    Each predicate is listed with its state. A run is incomplete when any predicate is not met,
@@ -30,7 +30,7 @@ implementation internals.
 3. Inspect the evidence for the last recorded step:
 
    ```
-   aw run evidence <run-id-or-path>
+   aw runs evidence <run-id-or-path>
    ```
 
 ## Expected result

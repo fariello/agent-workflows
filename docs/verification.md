@@ -33,11 +33,11 @@ only when all predicates hold.
 ## Inspecting a verdict
 
 ```
-aw run show <run-id-or-path>
+aw runs show <run-id-or-path>
 aw run finalize <run-id-or-path>
 ```
 
-`aw run show` prints the completion predicates and their state. `aw run finalize` records
+`aw runs show` prints the completion predicates and their state. `aw run finalize` records
 terminal completion, and only the coordinator may do so.
 
 ## Responsibility boundary

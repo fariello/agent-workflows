@@ -10,7 +10,7 @@ Symptom: a run started but never reported complete.
 1. Reconstruct the state from the ledger:
 
    ```
-   aw run status <run-id-or-path>
+   aw runs status <run-id-or-path>
    ```
 
    This reports the reconstructed run and step state.
@@ -18,7 +18,7 @@ Symptom: a run started but never reported complete.
 2. See which steps are runnable and which are blocked:
 
    ```
-   aw run show <run-id-or-path>
+   aw runs show <run-id-or-path>
    ```
 
    The completion predicates show exactly which condition is not yet met (for example a
@@ -27,15 +27,15 @@ Symptom: a run started but never reported complete.
 3. Check the evidence for the last step:
 
    ```
-   aw run evidence <run-id-or-path>
+   aw runs evidence <run-id-or-path>
    ```
 
 ## A ledger that will not verify
 
-Symptom: `aw run verify-ledger` reports a broken chain or a sequence gap.
+Symptom: `aw runs verify-ledger` reports a broken chain or a sequence gap.
 
 ```
-aw run verify-ledger <run-id-or-path>
+aw runs verify-ledger <run-id-or-path>
 ```
 
 A broken link or a gap means a write was interrupted or the file was edited. Recovery truncates

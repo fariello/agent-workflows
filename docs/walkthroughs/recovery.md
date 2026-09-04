@@ -25,7 +25,7 @@ back rather than deleting them.
 Against a real run and repo, the same recovery is driven by:
 
 ```
-aw run resume <run-id-or-path>
+aw runs resume <run-id-or-path>
 ```
 
 `resume` refuses to resume a step whose side effect was interrupted, so it never silently

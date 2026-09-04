@@ -3794,6 +3794,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md",
+    "plan_id": "0soncw",
+    "set_id": "runnamecollapse",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
     "set_id": "runstale",
@@ -4168,16 +4178,6 @@
     "plan_id": "pprchd",
     "set_id": "awhistignore",
     "status": "not-executed"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260829-runnamecollapse-01-0soncw-collapse-run-inspection-under-aw-runs-and-retire-the-aw-run.ipd.md",
-    "plan_id": "0soncw",
-    "set_id": "runnamecollapse",
-    "status": "approved"
   },
   {
     "date": "2026-08-29",

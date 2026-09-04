@@ -28,13 +28,13 @@ fails closed (`EV-REDACTION-CONFLICT`) rather than passing on masked data. See
 Read-only inspection commands (they make no writes):
 
 ```
-aw run show <run-id-or-path>
-aw run evidence <run-id-or-path>
-aw run verify-ledger <run-id-or-path>
+aw runs show <run-id-or-path>
+aw runs evidence <run-id-or-path>
+aw runs verify-ledger <run-id-or-path>
 ```
 
-`aw run show` reports run state, steps, verifier decisions, and completion predicates.
-`aw run evidence` lists the captured envelopes and tool events. `aw run verify-ledger` verifies
+`aw runs show` reports run state, steps, verifier decisions, and completion predicates.
+`aw runs evidence` lists the captured envelopes and tool events. `aw runs verify-ledger` verifies
 the hash chain and evidence validity. Add `--agent` or `--json` for machine-readable output.
 
 ## Responsibility boundary

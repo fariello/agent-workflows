@@ -301,7 +301,9 @@ class CompleteQueryArtifactTests(_DynamicRepoFixture):
         self.assertIn("def456", got)
 
     def test_set_id_from_front_matter_not_resolver(self) -> None:
-        got = completion.complete_query(["aw", "run", "t"], 2, self.root)
+        # Target completion now lives on the READING noun (runnamecollapse 0soncw E-08); `aw run`'s
+        # own first slot is a writer LEAF, not a target. Asserted below.
+        got = completion.complete_query(["aw", "runs", "t"], 2, self.root)
         self.assertEqual(
             got, ["tabcomp"]
         )  # Set id derived from plan `- Set:` front matter
@@ -309,6 +311,36 @@ class CompleteQueryArtifactTests(_DynamicRepoFixture):
     def test_run_id_from_runs_dir(self) -> None:
         got = completion.complete_query(["aw", "runs", "run-"], 2, self.root)
         self.assertIn("run-20260829T000000Z-1", got)
+
+    def test_run_noun_completes_its_writer_leaves_not_targets(self) -> None:
+        """E-08 decision: the WRITING noun still completes, but completes its own real surface.
+
+        Before the split, `run` and `runs` were one completion surface, so `aw run <TAB>` offered run
+        ids and Set ids. After it, `aw run` takes only its four writer leaves in that slot, so
+        offering targets there would advertise a shape the parser rejects.
+        """
+        got = completion.complete_query(["aw", "run", ""], 2, self.root)
+        self.assertEqual(sorted(got), ["cancel", "finalize", "record", "start"])
+        # None of the retired viewer leaves may be offered under the old noun.
+        for retired in ("show", "status", "evidence", "verify-ledger", "list"):
+            self.assertNotIn(retired, got)
+        # And no target sneaks in.
+        self.assertNotIn("tabcomp", got)
+        self.assertNotIn("run-20260829T000000Z-1", got)
+
+    def test_run_writer_leaf_still_completes_targets_in_its_target_slot(self) -> None:
+        """`aw run start <TAB>` IS a target position, so the dynamic answer must still fire there."""
+        got = completion.complete_query(["aw", "run", "start", "t"], 3, self.root)
+        self.assertEqual(got, ["tabcomp"])
+
+    def test_runs_viewer_leaf_completes_targets_in_its_target_slot(self) -> None:
+        got = completion.complete_query(["aw", "runs", "show", "run-"], 3, self.root)
+        self.assertIn("run-20260829T000000Z-1", got)
+
+    def test_runs_completes_its_viewer_leaves_too(self) -> None:
+        """The nine moved leaves must be reachable by completion under their NEW noun."""
+        got = completion.complete_query(["aw", "runs", "st"], 2, self.root)
+        self.assertIn("status", got)
 
     def test_release_selector_id6_version_and_next(self) -> None:
         # IPD w0ln4q E-04: `aw releases show <selector>` completes DYNAMICALLY from the release

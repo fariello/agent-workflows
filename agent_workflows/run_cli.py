@@ -1,11 +1,22 @@
-"""`aw run` CLI handlers: show / evidence / verify-ledger.
+"""Run-family CLI handlers, split by DIRECTION across two nouns (runnamecollapse `0soncw`).
 
-awoptimize Order 04 (`yndh7k`) E-04.
+awoptimize Order 04 (`yndh7k`) E-04, Order 07 (`7yqm1v`) E-03.
 
-Inspection CLI layer over run ledger and evidence verification:
-  * `aw run show <target>`          - inspect run status, steps, verifier decisions, and completion.
-  * `aw run evidence <target>`      - list and validate captured evidence envelopes and tool events.
-  * `aw run verify-ledger <target>` - verify SHA-256 hash chaining and evidence validity.
+`aw runs` READS (this module's inspection handlers):
+  * `aw runs show <target>`          - inspect run status, steps, verifier decisions, and completion.
+  * `aw runs status <target>`        - reconstructed run + step state from the ledger.
+  * `aw runs next <target>`          - steps whose dependencies and gates are satisfied.
+  * `aw runs resume <target>`        - resumable steps; refuses on interrupted side effects.
+  * `aw runs evidence <target>`      - list and validate captured evidence envelopes and tool events.
+  * `aw runs verify-ledger <target>` - verify SHA-256 hash chaining and evidence validity.
+  * `aw runs decisions|questions <run-id>` - a Set run's durable projections.
+  * `aw runs [<target> ...]` / `aw runs list` - the driver-run viewer table (in `run_viewer`).
+
+`aw run` WRITES (the ledger transaction handlers, also here):
+  * `aw run start|record|cancel|finalize <target>`.
+
+`next` and `resume` sound like actions but only reconstruct state and report, which is why they are
+readers. `aw run` is NOT retired: it stays the writing/dispatch noun.
 
 Contract:
   * exit 0 = success / clean / complete;
@@ -51,12 +62,18 @@ EXIT_NOT_A_LEDGER: int = (
 
 
 def run_cli(args: argparse.Namespace) -> int:
-    """Dispatch `aw run <subcommand>`. Returns the process exit code."""
-    sub = getattr(args, "run_command", None)
-    if sub in ("list", "runs", "summary", "viewer"):
-        from agent_workflows import run_viewer
+    """Dispatch a run-family leaf from either noun. Returns the process exit code.
 
-        return run_viewer.run_viewer_cli(args)
+    runnamecollapse 0soncw: the surface is split by DIRECTION, so this one dispatcher serves both
+    parser groups and reads whichever dest was populated - `runs_command` for the nine read-only
+    leaves under `aw runs`, `run_command` for the four writers under `aw run`.
+
+    The `("list", "runs", "summary", "viewer")` viewer aliases that used to be handled here are GONE
+    (E-04). Only `list` was ever a registered parser leaf; `summary` and `viewer` were unreachable
+    dead branches. The viewer is now reached as bare `aw runs` or `aw runs list`, routed in `cli.py`,
+    so exactly one code path renders that table.
+    """
+    sub = getattr(args, "runs_command", None) or getattr(args, "run_command", None)
     if sub == "show":
         return _run_show(args)
     if sub == "evidence":
@@ -82,9 +99,10 @@ def run_cli(args: argparse.Namespace) -> int:
     if sub == "questions":
         return _run_questions(args)
     print(
-        "usage: aw run {show|evidence|verify-ledger|start|next|record|resume|cancel|status|"
-        "finalize|decisions|questions}"
-        " <run-id-or-path> [--agent|--json] [--dir <dir>]"
+        "usage: aw run {start|record|cancel|finalize} <run-id-or-path> "
+        "[--agent|--json] [--dir <dir>]\n"
+        "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
+        "<run-id-or-path> [--agent|--json] [--dir <dir>]"
     )
     return EXIT_INVALID_INVOCATION
 

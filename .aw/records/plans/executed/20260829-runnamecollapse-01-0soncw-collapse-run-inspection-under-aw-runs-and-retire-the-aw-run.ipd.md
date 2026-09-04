@@ -6,16 +6,19 @@
 - Scope: The CLI naming surface only: the `run` parser group in `agent_workflows/cli.py`, the dispatch in `agent_workflows/run_cli.py`, the `command_surface` declarations, the tests that invoke the verb, and the one workflow doc that cites it. No change to ledger semantics, storage, or the run viewer's rendering.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/run_cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, .aw/system/workflows/exec-set/exec-set.md, tests/test_run_recovery_cli.py, tests/test_run_evidence_completion.py, tests/test_run_viewer.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Set: runnamecollapse
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 0soncw
-- Approval: 2026-08-30, recorded via aw ipd set: status set to approved
 - From-Backlog: q5pdiy
 
 ## Workflow history
+- 2026-09-04 executed (aw oc run): aw oc run self-finalize: 0soncw verified (set runnamecollapse, attempt 1). [Scope reconciliation - out-of-scope docs/evidence.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/recovery.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/troubleshooting.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/verification.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/walkthroughs/evidence-inspection.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/walkthroughs/incomplete-run.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope docs/walkthroughs/recovery.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_exec_set_workflow.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_run_noun_split.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
+- 2026-09-04 executed (opencode its_direct/pt3-claude-opus-5-1m-us): EXECUTED all 8 E-items; all 8 V-items carry pasted evidence; `aw ipd lint --phase pre-transition` conforming. SPLIT DELIVERED AS RULED: nine read-only leaves moved to `aw runs` (`show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger`), four writers retained on `aw run` (`start`, `record`, `cancel`, `finalize`), duplicate `aw run list` deleted, old viewer spellings now rejected by normal argument parsing with no compatibility stub (per OQ-01). SUITE: my own pre-change baseline in this fresh lane was `tests=4136 failures=40` (NOT the plan's 4099/0 - 15 of those 40 are the machine-dependent `tests/test_run_viewer.py` set from backlog `agrlvw`, which fail in a lane with no local run records); after, `tests=4156 failures=32`, ZERO new failures, and the 8 red->green tests were proven ORDER-DEPENDENT flakes unrelated to this work (they pass at pre-change HEAD in isolation; three randomized post-change runs show a stable 32 with no new failures). Nothing in `tests/test_run_viewer.py` was fixed or adopted (its set is byte-identical, 15 before and after).
+  FOUR THINGS THE PLAN GOT WRONG, all reported rather than absorbed. (1) THE MECHANISM: the ruling's claim that `aw runs` 'needs NO subparsers' is FALSE - the nine viewers each take a required single `target` plus leaf-specific flags while the bare viewer takes `targets nargs="*"` plus thirteen filter flags, so `aw runs` must carry BOTH shapes, which is exactly the combination PR-001 proved argparse cannot express (re-verified on CPython 3.14). Implemented an explicit `_ViewerOrLeafSubParsersAction` + `_RunsArgumentParser` + `_RunsTargetsPlaceholderAction`, chosen over positional routing because only REAL subparsers are visible to `discover_parser_leaves`, a hard precondition for E-06 (D1). (2) V-06's COUNT: delivered 9 `command="runs` declarations, not 10 - a family ROOT cannot be declared as a leaf (doing so broke the pinned drift test), and no other root (`ipd`, `specs`, `backlog`) is declared either; the viewer's contract is carried by the real `runs list` leaf (D4). (3) THE DOC SURFACE: `exec-set.md` is NOT the only doc citing the verb - seven `docs/` files carried 21 citations, 19 naming moved leaves; fixed the moved ones, preserved both `aw run finalize` (D3). (4) A TEST hard-coded the old spelling (`test_help_advertises_only_real_commands`), so E-07 broke it; retargeted AND strengthened to check the live parser (D2).
+  THREE LATENT DEFECTS FOUND AND FIXED DURING EVIDENCE COLLECTION, each of which would have silently broken a surface: parser registration ORDER (a `targets` positional registered before the routing action swallowed the leaf name, so `aw runs show <t>` silently rendered the viewer); the placeholder action CLOBBERING resolved targets (`aw runs RUN1` reached the viewer with `targets=[]`, i.e. showing ALL runs); and `aw runs <TAB>` offering only targets, hiding every viewer leaf from completion. All three are now regression-tested. OUT-OF-SCOPE PATHS (2, both justified in the run's decisions register): `tests/test_exec_set_workflow.py` and seven `docs/*.md`.
 - 2026-09-03 approved (opencode its_direct/pt3-claude-opus-5-1m-us): STALENESS AMENDMENT ONLY at the maintainer's direction; status UNCHANGED (`approved`), scope UNCHANGED, no E/V item added or removed. Two defects fixed before this plan is executed, both of which would have sent an executor after a wrong number or a reversed design. (1) THE SUITE BASELINE WAS STALE BY ~42 PERCENT. Review recorded 2883 tests / 1 failed / 7 skipped; re-measured at HEAD `34cefa8b` the suite is `4092 passed, 3 skipped, 4 xfailed` with `--junitxml` attributes `tests=4099 failures=0 errors=0 skipped=7`. Recorded as new finding F-9 and propagated to the Required-tests baseline, V-08's required evidence, and execution-contract items 3 and 5. F-8's named pre-existing failure `test_run_viewer_cli_issues_flag` is now GREEN (`2 passed, 40 deselected`), and the plan is corrected to NOT read that as a fix: backlog `agrlvw` (open, high) measures 15 tests in `tests/test_run_viewer.py` reading gitignored live run data under `.aw/records/runs/`, so that file's pass/fail set is a property of the MACHINE, not of this plan. The invariant is therefore restated as "the failure SET is unchanged against your own pre-change measurement", never a fixed count and never "zero failures". (2) THREE PLACES STILL DESCRIBED THE REVERSED DESIGN. The Cohesion rationale still said the plan retires the `aw run` noun, contradicting both the title and E-05 after the 2026-08-31 ruling; execution-contract item 1 still called OQ-03 BLOCKING although the maintainer resolved it that same day; item 4 still spoke of a single whole-noun stub instead of nine per-leaf deprecation responses. All three corrected in place with the correction marked, so the record shows what changed rather than reading as if it were always right. `aw ipd lint` conforming after the edit. `aw check plans` reports 13 errors both before and after (verified by stash-and-recheck), so the pre-existing `check.lifecycle-transition-invalid` finding on this plan is untouched by this amendment and is not introduced by it.
 - 2026-08-31 approved (opencode/its_direct/pt3-claude-opus-5-1m-us): MAINTAINER RESOLVED OQ-03 AND OQ-02, and the plan is RE-SCOPED accordingly; this was the last blocking question, so the plan is now executable. RULING: TWO NOUNS SPLIT BY DIRECTION - `aw run` WRITES, `aw runs` READS. Close to the old option (c) but not identical: (c) parked the ledger leaves under a third noun `aw ledger`; the ruling keeps TWO words and leaves the writers under `aw run`. THE ARGPARSE BLOCKER DISSOLVES rather than being worked around: with only viewers under `aw runs`, that parser needs NO subparsers, so nothing competes with its `targets nargs="*"`, bare `aw runs <id>` keeps working, and the proven-unimplementable combination is simply never built. SPLIT decided from measured behavior, not names: MOVED (9 viewers) `show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger` (`next`/`resume` sound like actions but only reconstruct state and report); RETAINED (4 writers) `start`, `record`, `cancel`, `finalize`. EDITS APPLIED: title and Concern re-scoped (the plan no longer 'retires the aw run noun'); Goal corrected; E-03 narrowed from 'every subcommand' to the nine viewers with the argparse rationale kept as the record of why the original design failed; E-05 REVERSED from 'retire the noun to a stub' to 'leave a per-leaf deprecation response for the nine moved leaves while `aw run start ...` keeps working'; V-03, V-04 and the command_surface count corrected (10 under `runs`, not 13). WHY E-05'S REVERSAL MATTERS BEYOND TIDINESS: retiring the whole noun would have installed a failing stub over the exact namespace the approved `runprofile` Set builds on, so `aw run as gem` would have started exiting nonzero. That collision was found in this session's review of that Set, and the maintainer settled the order as `0soncw` FIRST then `runprofile`, which is now encoded as `executed:0soncw` on that Set's chain head.
 - 2026-08-30 approved (aw set): status set to approved
@@ -40,7 +43,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: characterize before moving anything
 
-- [ ] E-01 Add a characterization test that pins the CURRENT observable surface before any rename: for
+- [x] E-01 Add a characterization test that pins the CURRENT observable surface before any rename: for
       each of the twelve `run` leaves declared in `command_surface.py:759-880`
       (`show`, `evidence`, `verify-ledger`, `start`, `next`, `record`, `resume`, `cancel`, `status`,
       `finalize`, `decisions`, `questions`), assert the leaf parses and returns its documented exit
@@ -49,9 +52,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: a new test class fails if any leaf's parse or exit class changes, and passes at
     current HEAD unmodified.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add an adversarial duplicate-detection test asserting that no two distinct CLI invocations
+- [x] E-02 Add an adversarial duplicate-detection test asserting that no two distinct CLI invocations
       render the same output for the run family. Seed it with the known pair (`aw run list` vs
       `aw runs`) so it FAILS at current HEAD, proving the guard actually fires, and keep it as the
       standing regression once E-04 removes the duplicate. FLAKINESS CONSTRAINT (PR-003, measured):
@@ -65,11 +68,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: none
   - Expected outcome: the test fails at HEAD naming the duplicate pair, passes after E-04, and is
     stable across repeated runs (assert by running it twice in the same session).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: move the surface
 
-- [ ] E-03 Register the NINE READ-ONLY `run` subcommands under the `runs` parser group in `cli.py`,
+- [x] E-03 Register the NINE READ-ONLY `run` subcommands under the `runs` parser group in `cli.py`,
       keeping each leaf's arguments, help text, and epilog identical.
       CORRECTED BY MAINTAINER RULING 2026-08-31 (see OQ-03, now resolved): do NOT move "every"
       subcommand. The surface splits BY DIRECTION into two nouns - `aw run` WRITES, `aw runs` READS.
@@ -102,9 +105,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: every `aw runs <leaf> <target>` invocation behaves exactly as `aw run <leaf>
     <target>` did; bare `aw runs`/`aw runs <run-id>`/`aw runs <set-id>` still renders the viewer; and a
     target that collides with a leaf name is still reachable by the documented escape hatch.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Delete the duplicate `list` registration (`cli.py:1548`, verified) and drop `list`/`summary`/
+- [x] E-04 Delete the duplicate `list` registration (`cli.py:1548`, verified) and drop `list`/`summary`/
       `viewer` from the alias tuple in `run_cli.run_cli` (`run_cli.py:56`, verified - the plan's
       original `:49-52` was off), so exactly one spelling renders the viewer table. Note `summary` and
       `viewer` are NOT registered parser leaves (only `list` is), so removing them from the tuple is
@@ -113,9 +116,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03
   - Expected outcome: `aw run list` no longer exists as a distinct rendering path; E-02's duplicate
     test passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Do NOT retire the `aw run` noun. REVERSED BY MAINTAINER RULING 2026-08-31 (see OQ-03).
+- [x] E-05 Do NOT retire the `aw run` noun. REVERSED BY MAINTAINER RULING 2026-08-31 (see OQ-03).
       `aw run` SURVIVES as the WRITING verb, keeping `start`, `record`, `cancel` and `finalize`, and it
       is the noun the `runprofile` Set then extends with `aw run as <profile>`. For each of the NINE
       leaves MOVED to `aw runs` by E-03, remove its `aw run` parser registration entirely. RESOLVED BY
@@ -129,11 +132,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03, E-04
   - Expected outcome: `aw run show X` is rejected by normal argument parsing with a nonzero exit and no
     ledger work is performed; `aw run start ...` remains unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: keep the declared surface honest
 
-- [ ] E-06 Update `command_surface.py` so the declarations track reality: rename the twelve
+- [x] E-06 Update `command_surface.py` so the declarations track reality: rename the twelve
       `run <leaf>` declarations to `runs <leaf>` preserving each one's `command_class`,
       `human_recipe`, `mutation_gate`, and `exit_contract` verbatim, and ADD the missing top-level
       `runs` declaration. `aw runs` is currently undeclared entirely (`grep -n 'command="runs'
@@ -142,18 +145,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Depends on: E-03, E-05
   - Expected outcome: `tests/test_cli_conformance_matrix.py` passes and the declared set matches the
     parser leaves for this family.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Update the help/description text that names the old verb: the `"run"` and `"run <leaf>"`
+- [x] E-07 Update the help/description text that names the old verb: the `"run"` and `"run <leaf>"`
       entries in the `cli.py:99` help dictionary, the `run_cli.py` module docstring and its usage
       string, and the three citations in `.aw/system/workflows/exec-set/exec-set.md:47-49`
       (`aw run status|decisions|questions <run-id>`). Note: the copies of that doc under
       `.aw/worktrees/*/` are other agents' lane checkouts and MUST NOT be touched.
   - Depends on: E-03, E-05
   - Expected outcome: no user-facing help or workflow doc instructs a reader to run `aw run <leaf>`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Update the tests that invoke the verb to the new spelling: `tests/test_run_recovery_cli.py`
+- [x] E-08 Update the tests that invoke the verb to the new spelling: `tests/test_run_recovery_cli.py`
       (31 `"run"` invocations), `tests/test_run_evidence_completion.py` (12), `tests/test_run_viewer.py`
       (2), and the completion expectations in `tests/test_completion.py:269,297,381`. Retain at least
       one test asserting the E-05 normal-parser rejection and nonzero exit for a moved viewer leaf, so
@@ -169,7 +172,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
     new ones, with no reference to a live `aw run <leaf>` path; the completion decision is implemented and
     asserted. (Corrected 2026-09-03: this said "the SAME single pre-existing failure", which is no longer
     true - the set is machine-dependent and currently EMPTY here; see F-9 and backlog `agrlvw`.)
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -347,24 +350,105 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the characterization test run showing all twelve leaves asserted, plus
     the `git stash`-style demonstration that it passes at pre-change HEAD unmodified. List the twelve
     leaf names actually covered, so a missing leaf is visible.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: New file `tests/test_run_noun_split.py` (fixture-based, so its verdict is a
+    property of the CODE, not the machine - deliberately NOT added to `tests/test_run_viewer.py`,
+    which reads live gitignored run data per backlog `agrlvw`).
 
-- [ ] V-02 validates E-02
+    `python3 -m pytest tests/test_run_noun_split.py -o addopts="" -v` ->
+    ```
+    tests/test_run_noun_split.py::DuplicateRenderingGuardTests::test_guard_is_stable_across_repeated_runs PASSED [  6%]
+    tests/test_run_noun_split.py::DuplicateRenderingGuardTests::test_exactly_one_spelling_renders_the_viewer_table PASSED [ 12%]
+    tests/test_run_noun_split.py::DuplicateRenderingGuardTests::test_runs_list_is_a_declared_alias_of_the_bare_viewer PASSED [ 18%]
+    tests/test_run_noun_split.py::DuplicateRenderingGuardTests::test_no_two_spellings_render_identical_viewer_output PASSED [ 25%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_leaf_name_as_viewer_target_is_reachable_via_the_escape_hatch PASSED [ 31%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_viewer_leaves_parse_and_keep_their_exit_class_under_runs PASSED [ 37%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_writer_leaves_parse_and_keep_their_exit_class_under_run PASSED [ 43%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_runs_repair_verb_still_routes PASSED [ 50%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_leaf_specific_flags_still_bind PASSED [ 56%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_viewer_flags_bind_after_a_positional_target PASSED [ 62%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_bare_viewer_argv_shapes_all_render PASSED [ 68%]
+    tests/test_run_noun_split.py::LeafSurfaceCharacterizationTests::test_all_twelve_leaves_are_covered_by_this_characterization PASSED [ 75%]
+    tests/test_run_noun_split.py::MovedLeafRemovalTests::test_bare_run_help_advertises_only_the_writing_leaves PASSED [ 81%]
+    tests/test_run_noun_split.py::MovedLeafRemovalTests::test_the_writing_noun_still_works PASSED [ 87%]
+    tests/test_run_noun_split.py::MovedLeafRemovalTests::test_every_moved_leaf_is_rejected_under_the_old_noun PASSED [ 93%]
+    tests/test_run_noun_split.py::MovedLeafRemovalTests::test_rejection_performs_no_ledger_write PASSED [100%]
+    ============================== 16 passed in 1.96s ==============================
+    ```
+
+    THE TWELVE LEAVES COVERED, each with a PINNED EXIT CLASS on the fixture ledger
+    (`LeafSurfaceCharacterizationTests.EXPECTED_EXIT`), so a missing leaf is visible and is itself a
+    test failure (`test_all_twelve_leaves_are_covered_by_this_characterization` asserts the covered
+    set EQUALS the declared split): `show`=1, `status`=1, `next`=3, `resume`=0, `evidence`=0,
+    `verify-ledger`=1, `decisions`=2, `questions`=2, `start`=2, `record`=2, `cancel`=0, `finalize`=1.
+    Plus `list` (the 13th parser leaf), whose class is the VIEWER's (exit 0) rather than the
+    single-`target` leaf shape, asserted separately.
+
+    PRE-CHANGE DEMONSTRATION (the point of a characterization test). The file was written and run
+    FIRST against the pre-change spelling (`aw run <leaf>`), by copying it to
+    `tests/test_prechange_char_tmp.py` with only the noun rewritten. Result at pre-change HEAD:
+    `6 failed, 9 passed`. Every one of the 6 was an INTENDED post-split delta, not a defect in the
+    net: the 2 duplicate-guard tests (`run list`/`runs` collision still present), the 2 removal tests
+    (`aw run show` still worked), the leaf-name/escape-hatch test (`aw runs status` still routed to
+    the viewer), and the twelve-leaf coverage assertion (`list` was a `run` leaf, not a `runs` one).
+    The 9 that PASSED unmodified are the exit-class and flag-binding assertions, i.e. the actual
+    behaviour-preservation net, which passed identically before and after the move. The temp file was
+    then deleted; the surviving file asserts the post-split spelling.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste TWO runs of the duplicate-detection test: one at pre-change HEAD showing
     it FAIL and naming the `run list` / `runs` pair, and one after E-04 showing it pass. A guard that
     was never observed failing is not accepted as evidence. PLUS the STABILITY proof (PR-003): show the
     test uses a fixture ledger and/or masks volatile fields, and paste two consecutive passing runs.
     State explicitly which fields are normalized, citing the measured `runtime:`-only divergence
     (2 of 1031 lines) that makes a raw byte comparison flaky.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RUN 1, AT PRE-CHANGE HEAD, FAILING AND NAMING THE PAIR
+    (`python3 -m pytest tests/test_prechange_char_tmp.py -o addopts="" -q -k DuplicateRenderingGuard`):
+    ```
+    F.F                                                                      [100%]
+    _ DuplicateRenderingGuardTests.test_no_two_spellings_render_identical_viewer_output _
+    E               AssertionError: duplicate rendering: `aw runs` and `aw run list` produce identical output; one job must have one name
+    _ DuplicateRenderingGuardTests.test_exactly_one_spelling_renders_the_viewer_table _
+    E       AssertionError: Lists differ: [('runs',), ('run', 'list'), ('runs', 'list')] != [('runs',)]
+    E       First extra element 1:
+    E       ('run', 'list')
+    ```
+    So the guard was OBSERVED firing, and it named the exact historical pair.
 
-- [ ] V-03 validates E-03
+    RUN 2, AFTER E-04, PASSING, run TWICE consecutively for the stability proof
+    (`python3 -m pytest tests/test_run_noun_split.py -o addopts="" -q -k DuplicateRenderingGuard`):
+    ```
+    ....                                                                     [100%]
+    4 passed, 12 deselected in 0.65s
+    --- second consecutive run (stability) ---
+    ....                                                                     [100%]
+    4 passed, 12 deselected in 0.61s
+    ```
+
+    FLAKINESS CONSTRAINT SATISFIED TWO WAYS, as PR-003 requires. (1) FIXTURE, not live data: the test
+    class extends `_LedgerFixture`, a `tempfile.TemporaryDirectory` repo holding one synthetic ledger
+    and one `state.json` run dir with NO live pids, and every invocation passes `--dir <fixture>`.
+    (2) NORMALIZATION on top of that, in `_normalize()`, masking exactly: `runtime:`/`elapsed:`
+    values, absolute timestamps (`YYYY-MM-DDTHH:MM(:SS)Z`), `pid:` values, and bare duration tokens
+    (`6d 5h 56m 28s`). This is required because the measured divergence between the two spellings was
+    `runtime:`-only (2 of 1031 lines, `runtime: 31m 19s` vs `31m 21s`), i.e. a raw byte comparison of
+    live output would have failed intermittently for a reason unrelated to the duplication.
+    `test_guard_is_stable_across_repeated_runs` additionally asserts the normalized rendering is
+    identical across two calls in one process.
+
+    SCOPE NOTE on what the guard now watches: `("runs","list")` was REMOVED from the candidate set,
+    because it is an INTENTIONAL alias of the bare viewer (one renderer, one registration, one shared
+    flag parent) rather than the cross-noun duplicate this guard exists to catch. It is instead pinned
+    EQUAL by the new `test_runs_list_is_a_declared_alias_of_the_bare_viewer`, so it cannot silently
+    diverge either. The retired spellings (`run list`, `run runs`, `run summary`, `run viewer`) remain
+    in the candidate set and are asserted to be REJECTED rather than rendering.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: CORRECTED 2026-08-31 (OQ-03): for each of the NINE MOVED (read-only) leaves
     (`show`, `status`, `list`, `next`, `resume`, `decisions`, `questions`, `evidence`, `verify-ledger`),
     paste the exit code of `aw runs <leaf> <target>` alongside the pre-change exit code of
@@ -378,43 +462,292 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     `runs <set-id>`, and bare `runs`. Include the NEGATIVE case that proves the argparse trap was
     avoided: a target whose name equals a leaf name resolves per the documented rule, and the escape
     hatch (e.g. `aw runs -- status`) reaches the viewer.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EXIT CODES, NINE MOVED LEAVES, new spelling vs pre-change old spelling, same
+    fixture ledger (`/tmp/.../fx/.aw/records/runs/run-abcdef1234/ledger.jsonl`). Pre-change column
+    captured by stashing only the four source files and re-running:
+    ```
+    AFTER  (aw runs <leaf>)          BEFORE (aw run <leaf>)
+    aw runs show           -> rc=1   aw run show            -> rc=1
+    aw runs status         -> rc=1   aw run status          -> rc=1
+    aw runs next           -> rc=3   aw run next            -> rc=3
+    aw runs resume         -> rc=0   aw run resume          -> rc=0
+    aw runs decisions      -> rc=2   aw run decisions       -> rc=2
+    aw runs questions      -> rc=2   aw run questions       -> rc=2
+    aw runs evidence       -> rc=0   aw run evidence        -> rc=0
+    aw runs verify-ledger  -> rc=1   aw run verify-ledger   -> rc=1
+    ```
+    EQUAL for all eight ledger leaves. The ninth moved leaf, `list`, is the viewer and is covered by
+    the zero-diff rendering comparison below plus `test_runs_list_is_a_declared_alias_of_the_bare_viewer`.
 
-- [ ] V-04 validates E-04
+    FOUR RETAINED WRITERS still work UNCHANGED under `aw run` (pre-change run, same fixture):
+    `aw run start -> rc=2`, `aw run record -> rc=2`, `aw run cancel -> rc=0`, `aw run finalize -> rc=1`;
+    post-change they are asserted by `test_writer_leaves_parse_and_keep_their_exit_class_under_run`
+    (start=2, record=2, cancel=0, finalize=1) and by `test_the_writing_noun_still_works`
+    (`aw run cancel` prints `Cancelled run`). They were NOT moved: `discover_parser_leaves` reports
+    `['run cancel', 'run finalize', 'run record', 'run start']` under `run`.
+
+    PARSER LEAF INVENTORY after the split (from `command_surface.discover_parser_leaves`):
+    ```
+    ['run cancel', 'run finalize', 'run record', 'run start',
+     'runs decisions', 'runs evidence', 'runs list', 'runs next', 'runs questions',
+     'runs resume', 'runs show', 'runs status', 'runs verify-ledger']
+    ```
+
+    ON "CONFIRM `aw runs` HAS NO SUBPARSERS": THIS PART OF THE PLAN'S PREMISE IS FALSIFIED, and the
+    plan is wrong on the mechanism though right on the split. `aw runs` DOES have subparsers - nine of
+    them - and it must. The ruling's claim that "with only viewers under `aw runs`, that parser needs
+    NO subparsers" does not hold, because the nine viewers are NOT flag-compatible with the bare
+    viewer: each takes a REQUIRED single positional `target` plus leaf-specific flags
+    (`--workflow`/`--actor`/`--step`/`--state`/`--reason`), whereas the bare viewer takes
+    `targets nargs="*"` plus thirteen filter/format flags. So `aw runs` must carry BOTH shapes, which
+    is exactly the combination PR-001 proved plain argparse cannot express. I RE-VERIFIED PR-001 at
+    this HEAD on CPython 3.14: with `targets nargs="*"` plus a `show` subparser, `["RUN1"]`,
+    `["RUN1","RUN2"]` and `["show","RUN1"]` all raise
+    `argparse.ArgumentError: argument cmd: invalid choice: 'RUN1'`; only empty argv parses.
+
+    ROUTING MECHANISM ACTUALLY IMPLEMENTED (named, as required): a custom
+    `_ViewerOrLeafSubParsersAction(argparse._SubParsersAction)` in `cli.py`, paired with a
+    `_RunsArgumentParser(_AwArgumentParser)` that suppresses `_check_value` for that action, and a
+    `_RunsTargetsPlaceholderAction` for the `targets` positional. If the first positional exactly
+    matches a registered leaf name it delegates to that leaf's subparser (native help, native usage
+    errors, native flag validation); otherwise it hands the whole positional list to a sibling VIEWER
+    parser owning `targets` + the shared viewer-flag parent. Chosen over positional routing (the route
+    `aw runs repair` takes) because only a REAL subparser is visible to
+    `command_surface.discover_parser_leaves`, which is a hard precondition for E-06 not to register as
+    declaration/parser drift. Recorded with alternatives as DECISION 01-0soncw-D1.
+
+    TWO ORDERING/OVERWRITE DEFECTS FOUND BY THIS EVIDENCE PASS AND FIXED (both would have silently
+    broken a surface, and both are now regression-tested):
+      1. REGISTRATION ORDER IS LOAD-BEARING. With `targets` registered BEFORE the routing action,
+         argparse consumed positionals in registration order and the greedy `targets` swallowed the
+         leaf name, so `aw runs show <t>` reached the action as `['<t>']` and silently rendered the
+         VIEWER instead of dispatching `show`. The action is now registered first.
+      2. THE PLACEHOLDER MUST NOT CLOBBER. Because the routing action has `nargs=PARSER`, the
+         `targets` positional is always invoked afterwards with an empty list; assigning it blindly
+         erased the targets the viewer parser had just resolved, so `aw runs RUN1` reached the viewer
+         with `targets=[]` (i.e. "show ALL runs", silently ignoring the requested one).
+         `_RunsTargetsPlaceholderAction` now writes only when it has values or the dest is unset.
+
+    ALL FOUR ARGV SHAPES ROUTE CORRECTLY (parsed namespaces):
+    ```
+    ['runs', 'show', '/nope']                     cmd='show'      targets=[]               target='/nope'
+    ['runs', 'RUN1']                              cmd=None        targets=['RUN1']         target=None
+    ['runs']                                      cmd=None        targets=None             target=None
+    ['runs', 'RUN1', 'RUN2']                      cmd=None        targets=['RUN1','RUN2']  target=None
+    ['runs', 'list', 'X']                         cmd='list'      targets=['X']            target=None
+    ['runs', 'decisions', 'R', '--workflow', 'w'] cmd='decisions' targets=[]               target='R'   (--workflow bound)
+    ['runs', 'RUN1', '--dir', '/x', '--issues']   cmd=None        targets=['RUN1']         dir='/x' issues=True
+    ```
+    Set-id shape and flag-after-target binding are additionally asserted by
+    `test_bare_viewer_argv_shapes_all_render` (bare / run-id / set-id / multi) and
+    `test_viewer_flags_bind_after_a_positional_target`.
+
+    NEGATIVE CASE + ESCAPE HATCH (`test_leaf_name_as_viewer_target_is_reachable_via_the_escape_hatch`):
+    `aw runs status` (no target) routes to the LEAF and fails with the LEAF's usage
+    (`agent-workflows runs status: error: the following arguments are required: target`), which is the
+    documented ambiguity rule. `aw runs -- status` reaches the VIEWER. The hatch could NOT be
+    implemented inside the action, because argparse STRIPS `--` while splitting argv, so the token is
+    indistinguishable from a leaf name by then (measured: it reached the `status` leaf and demanded a
+    target); it is therefore handled pre-parse in `_dispatch`, next to the existing
+    `aw runs repair --help` interception. The PRE-EXISTING positionally-routed mutating verb still
+    works: `aw runs repair <id>` -> `nothing to repair` (`test_runs_repair_verb_still_routes`).
+
+    BARE-VIEWER RENDERING, before vs after, diffed against captures taken pre-change over the real
+    95-run records dir with volatile fields masked. Both `aw runs` and `aw run list` produced 1544
+    lines pre-change (confirming F-1's duplication). After masking `runtime:`/`elapsed:`/timestamps/
+    pids, the only residual differences were the cost/token counters of THIS VERY RUNNING TURN; the
+    changed row is `20260829-runnamecollapse-01-0soncw` (i.e. this turn's own live accounting, which
+    advanced between the two captures). With those live counters ALSO masked the diff is empty:
+    ```
+    === bare viewer before vs after, with LIVE COUNTERS also masked ===
+    ZERO DIFF (rendering identical; only this turn's own live cost/token counters moved)
+    === proof the drift is THIS run: which run ids changed? ===
+    20260829-runnamecollapse-01-0soncw
+    ```
+    `aw runs --last 3` behaves identically (same turn-local counter drift only), and post-change
+    `aw runs list` is byte-identical to bare `aw runs` (`ZERO DIFF`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the output of `aw run list` after the change (expect normal argument-parser
     rejection, not a table; `list` is one of the NINE moved leaves) and confirm exactly one spelling
     renders the viewer, by showing `grep -n` of the alias tuple in `run_cli.py` with
     `list`/`summary`/`viewer` gone.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw run list` after the change - normal argument-parser rejection, NOT a table:
+    ```
+    usage: agent-workflows run [-h] [--no-color] [--agent] [--json]
+                               {start,record,cancel,finalize} ...
+    agent-workflows run: error: argument run_command: invalid choice: 'list' (choose from 'start', 'record', 'cancel', 'finalize')
+    Next  aw run --help
+    ```
+    ALIAS TUPLE GONE. `grep -n '"list", "runs", "summary", "viewer"' agent_workflows/run_cli.py`
+    returns only line 71, which is the explanatory COMMENT recording the removal, not code:
+    ```
+    71:    The `("list", "runs", "summary", "viewer")` viewer aliases that used to be handled here are GONE
+    ```
+    The dispatch branch `if sub in ("list", "runs", "summary", "viewer"): return run_viewer.run_viewer_cli(args)`
+    no longer exists in `run_cli.run_cli`. As the plan requires this to be stated rather than
+    mis-reported: only `list` was ever a REGISTERED parser leaf; `summary` and `viewer` were
+    unreachable dead branches (verified pre-change: `aw run summary` was an argparse "invalid choice"),
+    so removing them is dead-branch cleanup, NOT the retirement of three commands.
 
-- [ ] V-05 validates E-05
+    EXACTLY ONE SPELLING RENDERS THE VIEWER. `grep -n 'run_viewer_cli' agent_workflows/cli.py
+    agent_workflows/run_cli.py`:
+    ```
+    agent_workflows/cli.py:9162:        return run_viewer.run_viewer_cli(args_ns)   # the `--` escape-hatch path
+    agent_workflows/cli.py:9373:        return run_viewer.run_viewer_cli(args)      # bare `aw runs` / `aw runs list`
+    ```
+    Zero call sites remain in `run_cli.py`. `test_exactly_one_spelling_renders_the_viewer_table`
+    asserts that of the five historical spellings only bare `aw runs` renders, and E-02's guard passes.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `aw run show <target>; echo rc=$?` showing normal argument-parser rejection
     and a NONZERO rc. Additionally show that no ledger write occurred: paste the target dir listing
     before and after, identical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `aw run show <fixture-ledger> --dir <fixture>; echo rc=$?`:
+    ```
+    rc=2
+    agent-workflows run: error: argument run_command: invalid choice: 'show' (choose from 'start', 'record', 'cancel', 'finalize')
+    Next  aw run --help
+    ```
+    NONZERO (2), and the rejection comes from NORMAL argument parsing - it is argparse's own
+    invalid-choice error, not a hand-written stub message and not a silent forward.
 
-- [ ] V-06 validates E-06
+    NO LEDGER WRITE. Directory listing plus `sha256sum` of the ledger captured immediately before and
+    after the rejected invocation; `diff` of the two captures:
+    ```
+    IDENTICAL - no write occurred
+    ```
+    Also covered by `test_rejection_performs_no_ledger_write` (compares ledger bytes AND the dir
+    listing across the rejected call) and, for all nine leaves, by
+    `test_every_moved_leaf_is_rejected_under_the_old_noun`, which asserts nonzero exit and the literal
+    `invalid choice` for each.
+
+    THE WRITING NOUN IS UNCHANGED: `aw run cancel <ledger>` -> rc=0, `Cancelled run run-abcdef1234`
+    (`test_the_writing_noun_still_works`). `aw run` is NOT retired, so the namespace the approved
+    `runprofile` Set extends with `aw run as <profile>` remains available.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste `python3 -m pytest tests/test_cli_conformance_matrix.py -q` green, plus
     `grep -c 'command="runs' agent_workflows/command_surface.py` showing the CORRECTED count of 10 (the
     NINE moved read-only leaves plus the bare viewer; not 13 - OQ-03's ruling keeps the four writing
     leaves under `aw run`, so their declarations stay `command="run ..."`). Also paste the count for
     `command="run` proving the four writers are still declared there. The original wording said 13 (twelve leaves plus the
     previously missing top-level `runs`) and `grep -c 'command="run '` showing 0.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_cli_conformance_matrix.py -o addopts="" -q` ->
+    ```
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_no_undeclared_parser_leaves
+    FAILED tests/test_cli_conformance_matrix.py::UndeclaredLeafGuardTests::test_every_declared_leaf_gets_a_full_scenario_row_set
+    2 failed, 9 passed in 119.37s (0:01:59)
+    ```
+    NOT GREEN, and this is the PRE-EXISTING failure the plan itself documents (the 42-undeclared-leaf
+    debt, explicitly out of scope). Both failures are present at the pre-change baseline and are
+    UNCHANGED by this work. Crucially the run-family contribution to that debt went DOWN, not up: the
+    undeclared-leaf set shrank from 65 to 63 because `run list` and `runs` both left it, and
+    `find_undeclared_leaves` now reports ZERO run-family entries (`[]`). The third, related test
+    `test_declared_absent_leaves_are_only_the_known_prompts_family` PASSES.
 
-- [ ] V-07 validates E-07
+    COUNTS. `grep -c 'command="runs' agent_workflows/command_surface.py` -> **9**;
+    `grep -c 'command="run ' agent_workflows/command_surface.py` -> **4**:
+    ```
+    command="runs list"        command="run start"
+    command="runs show"        command="run record"
+    command="runs evidence"    command="run cancel"
+    command="runs verify-ledger"  command="run finalize"
+    command="runs next"
+    command="runs resume"
+    command="runs status"
+    command="runs decisions"
+    command="runs questions"
+    ```
+    The `command="run ` count of 4 is EXACTLY as V-06 requires (the four writers still declared there).
+
+    THE `runs` COUNT IS 9, NOT THE 10 THIS V-ITEM PREDICTED, and the difference is substantive rather
+    than an oversight, so it is reported instead of massaged. V-06 expected "the NINE moved read-only
+    leaves plus the bare viewer", and E-06 asked for "the missing top-level `runs` declaration". I DID
+    add that root declaration first; it BROKE
+    `test_declared_absent_leaves_are_only_the_known_prompts_family` with
+    `declaration/parser drift changed: ['prompts set', 'runs']`. The mechanism: `discover_parser_leaves`
+    (`command_surface.py:1262-1280`) yields a path only for a parser with NO subparsers, so a family
+    ROOT is never a leaf, and `tests/conformance_matrix.py:346` files any declaration absent from the
+    leaf set as drift against a set pinned to `{"prompts set"}`. The convention confirms it: NO family
+    root is declared anywhere in the inventory - `aw ipd` (bare, renders the board), `aw specs` and
+    `aw backlog` are all bare-invokable roots and none has a declaration (`command="ipd"` does not
+    exist). So F-5's "aw runs is undeclared" is TRUE but is the normal state of a root, not a defect
+    peculiar to `runs`. RESOLUTION: the viewer's contract is carried by `runs list`, a REAL leaf that is
+    the bare viewer's exact alias (same renderer, same shared flag parent), carrying the full viewer
+    flag set; the root is left undeclared per convention, with a comment at the declaration site
+    recording why so a later reader does not "fix" it back. Recorded as DECISION 01-0soncw-D4.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `grep -rn 'aw run ' --include='*.md' .` filtered to TRACKED files
     (excluding `.aw/worktrees/`, `.aw/records/runs/`, `opencode-recovery/`, and other agents' lanes)
     showing zero live instructions to use `aw run <leaf>`; and `grep -n 'aw run' agent_workflows/run_cli.py`
     showing the docstring and usage string updated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `grep -rn 'aw run ' --include='*.md' .` over TRACKED files (excluding
+    `.aw/worktrees/`, `.aw/records/runs/`, `opencode-recovery/`, and the historical records trees
+    `.aw/records/{research,plans,backlog,specs,walkthroughs,reviews,comms}/`, which are immutable
+    history and must not be rewritten):
+    ```
+    ./docs/verification.md:37:aw run finalize <run-id-or-path>
+    ./docs/verification.md:40:`aw runs show` prints the completion predicates and their state. `aw run finalize` records
+    ```
+    ZERO live instructions to use `aw run <moved-leaf>`. The only two remaining `aw run ` hits both
+    name `finalize`, a WRITER that CORRECTLY stays under `aw run`; each was executed and confirmed to
+    dispatch.
 
-- [ ] V-08 validates E-08
+    `grep -n 'aw run' agent_workflows/run_cli.py` - module docstring and usage string updated: the
+    docstring now documents the split (`aw runs` READS: show/status/next/resume/evidence/
+    verify-ledger/decisions/questions/list; `aw run` WRITES: start/record/cancel/finalize, with the
+    note that `next`/`resume` only reconstruct state and report), and the fallback usage string is now
+    two lines:
+    ```
+    102:        "usage: aw run {start|record|cancel|finalize} <run-id-or-path> "
+    104:        "       aw runs {show|status|next|resume|evidence|verify-ledger|decisions|questions|list} "
+    ```
+    `cli.py`'s help dictionary was also corrected: the `"run"` entry now describes the writing verbs,
+    a NEW `"runs"` entry describes the reading surface, and the three `"run show"`/`"run evidence"`/
+    `"run verify-ledger"` keys became `"runs ..."`. The `run` parser's own help/description/epilog were
+    rewritten (it previously still advertised 'show'/'evidence'/'verify-ledger' as its own commands),
+    and `aw run --help` now prints only `{start,record,cancel,finalize}`. Asserted by
+    `test_bare_run_help_advertises_only_the_writing_leaves`.
+
+    TWO SCOPE FINDINGS, both reported rather than silently absorbed:
+      1. THE PLAN'S DOC CLAIM WAS WRONG. It states `exec-set.md` is "the only tracked workflow doc
+         citing `aw run <leaf>`". Measured: SEVEN files under `docs/` carried 21 such citations
+         (`docs/evidence.md` 6, `docs/troubleshooting.md` 5, `docs/walkthroughs/incomplete-run.md` 3,
+         `docs/recovery.md` 2, `docs/verification.md` 2, `docs/walkthroughs/evidence-inspection.md` 2,
+         `docs/walkthroughs/recovery.md` 1), 19 naming a MOVED leaf. Leaving them would have shipped
+         three step-by-step walkthroughs telling readers to run commands that now exit 2, and would
+         have made this V-item unsatisfiable. An anchored regex rewrote ONLY the moved-leaf spellings,
+         deliberately preserving both `aw run finalize` citations. `docs/` is outside Scope-Paths;
+         recorded as DECISION 01-0soncw-D3.
+      2. A TEST HARD-CODED THE OLD SPELLING. `tests/test_exec_set_workflow.py::ExecSetCliSurfaceV02::
+         test_help_advertises_only_real_commands` asserted `exec-set.md` CONTAINS `aw run status|
+         decisions|questions`, so the required E-07 edit broke it. Its stated purpose is that "every
+         command the shipped help text names actually dispatches", so asserting the stale spelling
+         would have inverted its meaning. Updated to the new spellings, PLUS strengthened: it now
+         asserts the retired spellings are ABSENT and that each advertised leaf really exists on the
+         live parser via `discover_parser_leaves`, so a future rename cannot leave the doc stale while
+         the test stays green. Outside Scope-Paths; recorded as DECISION 01-0soncw-D2.
+         `python3 -m pytest tests/test_exec_set_workflow.py -o addopts="" -q` -> `14 passed`.
+
+    Every rewritten command was verified to DISPATCH rather than be rejected:
+    ```
+    aw runs show           dispatches ok
+    aw runs status         dispatches ok
+    aw runs evidence       dispatches ok
+    aw runs verify-ledger  dispatches ok
+    aw runs resume         dispatches ok
+    aw run finalize        dispatches ok
+    ```
+    No `.aw/worktrees/*/` lane copy was touched.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the full default suite result with actual counts read from `--junitxml`
     (the `-q -n auto` addopts suppress the summary line). BASELINE RE-MEASURED 2026-09-03 AT HEAD
     `34cefa8b` (F-9): **4099 tests / 0 failed / 0 errors / 7 skipped**, reported by the bare run as
@@ -431,8 +764,83 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
     absorbing it. Also paste the specific test asserting the deprecation stub's message and exit code, and
     the completion-surface assertion showing the E-08 decision (retired noun still completes, or does not)
     is implemented and tested.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BASELINE RE-MEASURED MYSELF IMMEDIATELY BEFORE STARTING, as instructed, and the
+    number written in this plan is STALE AGAIN. At my starting HEAD `6c8ea51a` in this lane, bare
+    `python3 -m pytest --junitxml=<f>` reported `40 failed, 4089 passed, 3 skipped, 4 xfailed in 32.80s`
+    with `--junitxml` `testsuite` attributes **`tests=4136 failures=40 errors=0 skipped=7`**. The plan's
+    figure (4099 tests / 0 failed) does NOT reproduce here: this is a FRESH LANE WORKTREE with no
+    `.aw/records/runs/` data of its own, which is exactly the machine-dependent condition F-9 and
+    backlog `agrlvw` predict - 15 of the 40 failures are the `tests/test_run_viewer.py` set that reads
+    gitignored live run data. So the plan's "currently EMPTY on this machine" is a property of the MAIN
+    checkout, not of this lane.
+
+    AFTER, same command, same lane: `32 failed, 4117 passed, 3 skipped, 4 xfailed in 29.23s`, junitxml
+    **`tests=4156 failures=32 errors=0 skipped=7`** (+20 tests: 16 new in `tests/test_run_noun_split.py`
+    plus 4 new completion assertions).
+
+    FAILURE-SET COMPARISON, which is the honest invariant rather than a count:
+    ```
+    NEW FAILURES (my regressions) [0]:      <none>
+    NEWLY PASSING [8]:
+      - tests.test_awnaming_grammar_and_producers.* (7 tests)
+      - tests.test_rename_ledger.CliEmissionTests::test_applied_plan_rename_appends_one_record
+    ```
+    ZERO regressions. The 8 that went red->green are EXPLAINED, not absorbed: none of those tests
+    references the run surface at all (`grep -c 'aw run\|"run"\|"runs"'` -> 0 in both files), and they
+    PASS AT PRE-CHANGE HEAD when run in isolation (verified by stashing my four source files:
+    `25 passed`). They are ORDER-DEPENDENT flakes surfaced by `pytest-randomly`, which the repo enables
+    deliberately. Confirmed by three consecutive randomized full runs AFTER my change:
+    ```
+    run1: 32 failures; new-vs-baseline: NONE
+    run2: 32 failures; new-vs-baseline: NONE
+    run3: 32 failures; new-vs-baseline: NONE
+    UNION of new failures across 3 randomized runs: NONE
+    FLAKY (differ between runs): <none>
+    ```
+    So the post-change set is stable at 32 and is a strict subset of the pre-change set.
+
+    NOTHING IN `tests/test_run_viewer.py` WAS FIXED OR ADOPTED. Its failure set is byte-identical to my
+    own pre-change measurement: baseline 15, after 15, `newly failing: none`, `newly passing: none`. I
+    edited that file only to migrate 2 invocations to the new spelling (E-08) and did not touch the 15
+    live-data tests, which belong to backlog `agrlvw`.
+
+    IN-SCOPE FILES TOGETHER (`test_run_recovery_cli.py test_run_evidence_completion.py
+    test_run_viewer.py test_completion.py test_cli_conformance_matrix.py test_run_noun_split.py
+    test_exec_set_workflow.py`): `17 failed, 249 passed, 2 skipped`, and all 17 are the documented
+    pre-existing failures - 15 in `tests/test_run_viewer.py` (`agrlvw`) and 2 in
+    `tests/test_cli_conformance_matrix.py` (the undeclared-leaf debt). The four files whose spellings
+    were migrated are fully green on their own: `tests/test_run_recovery_cli.py` +
+    `tests/test_run_evidence_completion.py` -> `99 passed`; `tests/test_completion.py` ->
+    `84 passed, 2 skipped`; `tests/test_exec_set_workflow.py` -> `14 passed`.
+
+    E-05 REMOVAL COVERAGE (the plan asks for "the specific test asserting the deprecation stub's message
+    and exit code"; per OQ-01's 2026-09-03 resolution there is NO stub, so the covering test asserts
+    NORMAL-PARSER REJECTION instead): `MovedLeafRemovalTests::test_every_moved_leaf_is_rejected_under_the_old_noun`
+    asserts nonzero exit + literal `invalid choice` for all nine moved leaves;
+    `test_rejection_performs_no_ledger_write` asserts no durable effect.
+
+    COMPLETION-SURFACE DECISION IMPLEMENTED AND TESTED (E-08's explicitly-required choice). DECIDED:
+    the retired noun STILL COMPLETES, but completes its OWN real surface rather than targets it can no
+    longer accept. Before, `completion.py:675` treated `run` and `runs` as ONE surface
+    (`words[1] in ("run","runs")`), so `aw run <TAB>` offered Set ids and run ids - a shape `aw run` now
+    rejects. Measured before/after:
+    ```
+    BEFORE: aw run <TAB>  -> ['apprvguard', 'ctlroot', 'hostcap', ...]      (targets - WRONG now)
+    AFTER:  aw run <TAB>  -> ['cancel', 'finalize', 'record', 'start']      (its four writer leaves)
+    AFTER:  aw runs <TAB> -> ['apprvguard', ..., 'decisions', 'evidence', 'list', 'next', ...] (leaves + targets)
+    AFTER:  aw runs st<TAB> -> ['status']
+    AFTER:  aw run start <TAB>  -> targets   (a real target slot)
+    AFTER:  aw runs show <TAB>  -> targets   (a real target slot)
+    ```
+    A THIRD DEFECT WAS FOUND BY THE NEW TEST: `aw runs <TAB>` returned targets ONLY, hiding every
+    viewer leaf name (`aw runs status` was untab-completable). Since that first slot is ambiguous by
+    design, completion now offers BOTH leaf names and targets there. Asserted by four new tests in
+    `tests/test_completion.py`: `test_run_noun_completes_its_writer_leaves_not_targets` (also asserts no
+    retired leaf and no target leaks in), `test_run_writer_leaf_still_completes_targets_in_its_target_slot`,
+    `test_runs_viewer_leaf_completes_targets_in_its_target_slot`, `test_runs_completes_its_viewer_leaves_too`.
+    The pre-existing `test_set_id_from_front_matter_not_resolver` was retargeted from `aw run t` to
+    `aw runs t`, since target completion now belongs to the reading noun.
+  - Result: pass
 
 ## Approval and execution gate
 

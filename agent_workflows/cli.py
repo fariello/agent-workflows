@@ -97,20 +97,30 @@ _DESCRIPTIONS = {
         "git working-tree status, attention summaries, and per-repo install currency. "
         "Read-only diagnostics; --agent / --json emits machine-readable JSON."
     ),
+    # runnamecollapse 0soncw E-07: the run surface is split by DIRECTION. `aw run` WRITES,
+    # `aw runs` READS, so these help entries follow the leaves to their owning noun.
     "run": (
-        "Run ledger inspection and verification tooling: 'show' (inspect run state and completion "
-        "predicates), 'evidence' (inspect captured provenance envelopes and tool events), 'verify-ledger' "
-        "(verify hash chain integrity and evidence validity). Read-only; makes no writes."
+        "Run ledger transaction verbs (the WRITING half of the run surface): 'start' (take the "
+        "single-writer lease and move a runnable step to running), 'record' (append a step attempt "
+        "outcome), 'cancel' (record a terminal cancellation), 'finalize' (evaluate the completion "
+        "predicate and record terminal completion). To INSPECT a run, use 'aw runs'."
     ),
-    "run show": (
+    "runs": (
+        "Inspect driver execution runs and run ledgers (the READING half of the run surface): bare "
+        "'aw runs' renders the run table, and the leaves are 'show' (run state and completion "
+        "predicates), 'status', 'next', 'resume', 'evidence' (captured provenance envelopes and tool "
+        "events), 'verify-ledger' (hash chain integrity and evidence validity), 'decisions', "
+        "'questions', and 'list'. Read-only, except the opt-in 'repair' verb."
+    ),
+    "runs show": (
         "Inspect a workflow run's ledger, steps, verifier decisions, and completion predicate status. "
         "Read-only; makes no writes. Exit 0 complete, 1 incomplete, 2 corrupted or missing."
     ),
-    "run evidence": (
+    "runs evidence": (
         "List and validate all captured evidence envelopes, tool events, and artifact refs in a run ledger. "
         "Exit 0 all valid, 1 invalid/missing evidence, 2 corrupted or missing."
     ),
-    "run verify-ledger": (
+    "runs verify-ledger": (
         "Verify SHA-256 hash chaining, sequence continuity, schema conformance, and evidence validity "
         "across a run ledger. Exit 0 clean, 1 invalid evidence, 2 corrupted chain."
     ),
@@ -545,6 +555,99 @@ class _AwArgumentParser(argparse.ArgumentParser):
         print(f"{prog}: error: {message}", file=sys.stderr)
         print(f"Next  {hint_cmd} --help", file=sys.stderr)
         self.exit(2)
+
+
+class _ViewerOrLeafSubParsersAction(argparse._SubParsersAction):
+    """Route `aw runs`' first positional either to a LEAF subparser or to the bare VIEWER.
+
+    runnamecollapse 0soncw E-03. `aw runs` must carry BOTH shapes at once:
+
+      * `aw runs <leaf> <target> [leaf flags]` - nine read-only leaves, each with a REQUIRED single
+        positional and its own flags (`--workflow`, `--actor`, ...).
+      * `aw runs [<target> ...] [viewer flags]` - the bare viewer, `targets nargs="*"` plus twelve
+        filter/format flags (`--last`, `--issues`, ...).
+
+    Plain argparse CANNOT express that combination: a parser holding `targets nargs="*"` PLUS
+    `add_subparsers()` is accepted at construction but then rejects every non-empty argv, because the
+    greedy positional consumes the first token and the subparsers action reports it as an invalid
+    choice (measured on CPython 3.14: `["RUN1"]`, `["RUN1","RUN2"]` and `["show","RUN1"]` all exit 2;
+    only empty argv parses).
+
+    So the disambiguation is done HERE, explicitly, at the one point that sees the collected
+    positionals: if the first token exactly matches a registered leaf name, delegate to that leaf's
+    subparser (native help, native usage errors, native flag validation); otherwise hand the whole
+    list to the sibling VIEWER parser, which owns `targets` and the viewer flags.
+
+    WHY REAL SUBPARSERS rather than reading `argv[0]` in the handler (the route `aw runs repair`
+    takes, see `run_viewer.REPAIR_HELP`): only a real subparser is discoverable by
+    `command_surface.discover_parser_leaves`, which enumerates leaves from `_SubParsersAction.choices`
+    alone. A positionally-routed leaf is invisible to the normative command surface, so declaring it
+    in `COMMAND_INVENTORY` would register as declaration/parser DRIFT and fail
+    `tests/test_cli_conformance_matrix.py`. It also gets no argparse help, the documented cost that
+    forced the special case at `_dispatch`'s `aw runs repair --help` interception.
+
+    AMBIGUITY RULE, documented because set ids are free-form: a first positional equal to a leaf name
+    routes to the LEAF. A Set or run id colliding with a leaf name is therefore reachable only via the
+    `--` escape hatch (`aw runs -- status`). No collision exists in the repo today (zero of the
+    tracked set ids and run ids match a leaf name), but the rule is explicit and tested. NOTE the
+    hatch itself is NOT implemented here: argparse strips `--` while splitting argv, so this action
+    cannot tell an escaped token from a leaf name. It is handled pre-parse in `_dispatch`.
+    """
+
+    #: Set by `_build_parser` to the sibling parser owning `targets` + the viewer flags.
+    viewer_parser: Optional[argparse.ArgumentParser] = None
+
+    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore[override]
+        # `values` is a list for this action's `nargs=PARSER`, but normalize defensively: a bare
+        # string or None here must not become a list of characters or raise.
+        if values is None:
+            collected: list = []
+        elif isinstance(values, str):
+            collected = [values]
+        else:
+            collected = list(values)
+        if collected and collected[0] in self._name_parser_map:
+            # A real leaf: let argparse parse the remainder with the leaf's own parser.
+            setattr(namespace, "targets", [])
+            return super().__call__(parser, namespace, collected, option_string)
+        # The bare viewer: no leaf was named, so re-parse the positionals with the viewer parser.
+        setattr(namespace, self.dest, None)
+        viewer = type(self).viewer_parser
+        # pragma: no cover - a wiring bug; fail loud rather than silently drop the targets.
+        if viewer is None:
+            raise RuntimeError("viewer_parser was never wired for `aw runs`")
+        viewer.parse_args(collected, namespace)
+
+
+class _RunsTargetsPlaceholderAction(argparse.Action):
+    """`aw runs`' `targets` positional: documented in help, but never clobbers the routed value.
+
+    The routing action above has `nargs=PARSER`, so it consumes EVERY remaining positional and this
+    placeholder is always invoked with an empty list afterwards. Assigning that empty list blindly
+    erased the targets the viewer parser had just resolved (measured: `aw runs RUN1` reached the
+    viewer with `targets=[]`, i.e. "show all runs", silently ignoring the requested run).
+
+    So this keeps the positional visible in usage/help while writing only when it actually has
+    values, or when nothing has populated the dest yet.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        collected = list(values or [])
+        if collected or getattr(namespace, self.dest, None) is None:
+            setattr(namespace, self.dest, collected)
+
+
+class _RunsArgumentParser(_AwArgumentParser):
+    """`aw runs`' parser: suppresses choice validation for the viewer-or-leaf routing action.
+
+    argparse would otherwise reject a bare run id as an "invalid choice" before
+    `_ViewerOrLeafSubParsersAction` ever gets to decide that it is a viewer TARGET, not a leaf name.
+    """
+
+    def _check_value(self, action, value):  # type: ignore[override]
+        if isinstance(action, _ViewerOrLeafSubParsersAction):
+            return
+        super()._check_value(action, value)
 
 
 def _positive_int(value: str) -> int:
@@ -1422,29 +1525,62 @@ def _build_parser() -> argparse.ArgumentParser:
                 help="Write generated files (default: preview only).",
             )
 
-    # awoptimize Order 04 E-04: run ledger inspection CLI (show/evidence/verify-ledger).
-    # Thin CLI layer over run_evidence and run_ledger_store. Read-only: makes no writes.
-    # OWNERSHIP: Order 04 owns the `aw run` parser-group registration; Order 07 extends it.
+    # awoptimize Order 04 E-04: the run ledger CLI. Thin layer over run_evidence/run_ledger_store.
+    # OWNERSHIP: Order 04 owns the registration; Order 07 extended it.
+    #
+    # runnamecollapse 0soncw E-03/E-05: the surface is SPLIT BY DIRECTION across two nouns, per the
+    # maintainer's 2026-08-31 ruling. `aw run` WRITES; `aw runs` READS. Both groups are registered
+    # from the ONE leaf table below so a leaf cannot drift between its two nouns:
+    #
+    #   aw run  (writers) : start, record, cancel, finalize
+    #   aw runs (readers) : show, status, list, next, resume, decisions, questions, evidence,
+    #                       verify-ledger   (`next`/`resume` only reconstruct state and report, so
+    #                                        they are viewers despite sounding like actions)
+    #
+    # `aw run` is deliberately NOT retired: it stays the writing/dispatch noun, which is what the
+    # approved `runprofile` Set extends with `aw run as <profile>`.
     p_run = sub.add_parser(
         "run",
         parents=[common],
-        help="Run ledger inspection and verification tooling (show/evidence/verify-ledger).",
+        help="Run ledger WRITE verbs (start/record/cancel/finalize). Read with `aw runs`.",
         description=(
-            "Run ledger inspection and verification tooling. Read-only inspection commands: "
-            "'show' (inspect run state and completion predicates), 'evidence' (inspect captured "
-            "provenance envelopes and tool events), 'verify-ledger' (verify hash chain integrity "
-            "and evidence validity). Read-only; makes no writes by default."
+            "Run ledger transaction verbs: the WRITING half of the run surface. 'start' (take the "
+            "single-writer lease and move a runnable step to running), 'record' (append a step "
+            "attempt outcome), 'cancel' (record a terminal cancellation), 'finalize' (evaluate the "
+            "completion predicate and record terminal completion). To INSPECT a run, use `aw runs` "
+            "(show/status/next/resume/evidence/verify-ledger/decisions/questions)."
         ),
         formatter_class=_AlphaHelpFormatter,
         epilog=(
             "EXAMPLES\n"
-            "  aw run show <target>             # inspect run state and completion predicates\n"
-            "  aw run evidence <target>         # inspect captured evidence envelopes\n"
-            "  aw run verify-ledger <target>    # verify ledger hash chain and evidence validity\n"
+            "  aw run start <target> --step S-01      # take the lease and start a runnable step\n"
+            "  aw run record <target> --step S-01 --state performed\n"
+            "  aw run cancel <target> --reason ...    # record a terminal cancellation\n"
+            "  aw run finalize <target>               # complete the run (coordinator authority)\n"
+            "\n"
+            "READING A RUN LIVES UNDER `aw runs`\n"
+            "  aw runs show <target>                  # run state and completion predicates\n"
+            "  aw runs status <target>                # reconstructed run + step state\n"
+            "  aw runs verify-ledger <target>         # hash chain + evidence validity\n"
         ),
     )
     run_sub = p_run.add_subparsers(dest="run_command")
-    for _r_sub, _r_help, _r_desc in (
+    #: The nine READ-ONLY leaves that live under `aw runs` (0soncw E-03). Everything else in the leaf
+    #: table below stays under `aw run`.
+    _RUNS_VIEWER_LEAVES = frozenset(
+        {
+            "show",
+            "status",
+            "list",
+            "next",
+            "resume",
+            "decisions",
+            "questions",
+            "evidence",
+            "verify-ledger",
+        }
+    )
+    _run_leaf_specs = (
         (
             "show",
             "Inspect run state, steps, verifier decisions, and completion predicates (read-only).",
@@ -1523,10 +1659,11 @@ def _build_parser() -> argparse.ArgumentParser:
             "open-questions projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Read-only. "
             "Exit 0 found, 1 none open, 2 no such run projection.",
         ),
-    ):
-        _pr = run_sub.add_parser(
-            _r_sub, parents=[common], help=_r_help, description=_r_desc
-        )
+    )
+
+    def _register_run_leaf(group, name: str, help_text: str, desc: str) -> None:
+        """Register one run-family leaf on `group` (either the `run` or the `runs` subparsers)."""
+        _pr = group.add_parser(name, parents=[common], help=help_text, description=desc)
         _pr.add_argument(
             "target",
             help=(
@@ -1540,14 +1677,14 @@ def _build_parser() -> argparse.ArgumentParser:
             help="Repo root directory (default: current directory).",
         )
         # The projection inspectors need the workflow name that owns the run-artifacts subdir.
-        if _r_sub in ("decisions", "questions"):
+        if name in ("decisions", "questions"):
             _pr.add_argument(
                 "--workflow",
                 default="exec-set",
                 help="Workflow that owns the run-artifacts dir (default: exec-set).",
             )
 
-        if _r_sub in (
+        if name in (
             "start",
             "next",
             "record",
@@ -1561,47 +1698,45 @@ def _build_parser() -> argparse.ArgumentParser:
                 default=None,
                 help="Optional workflow JSON (id/steps/requirements); else derived from the ledger.",
             )
-        if _r_sub in ("start", "record", "cancel", "finalize"):
+        if name in ("start", "record", "cancel", "finalize"):
             _pr.add_argument(
                 "--actor",
                 default=None,
                 help="Authoring role (runtime/coordinator/executor/verifier/corrector/human).",
             )
-        if _r_sub in ("start", "record"):
+        if name in ("start", "record"):
             _pr.add_argument(
                 "--step", default=None, help="Step id (S-NN) to start or record."
             )
-        if _r_sub == "record":
+        if name == "record":
             _pr.add_argument(
                 "--state",
                 default=None,
                 help="Attempt outcome: performed | blocked | failed.",
             )
-        if _r_sub == "cancel":
+        if name == "cancel":
             _pr.add_argument(
                 "--reason",
                 default=None,
                 help="Cancellation reason (recorded in the ledger).",
             )
 
-    p_run_list = run_sub.add_parser(
-        "list",
-        parents=[common],
-        help="List and summarize driver execution runs and step outcomes (read-only).",
-        description="Inspect driver execution runs under .aw/records/runs/ and summarize the ending status of each step.",
-    )
-    p_run_list.add_argument(
-        "targets",
-        nargs="*",
-        default=None,
-        help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
-    )
-    p_run_list.add_argument(
+    # runnamecollapse 0soncw E-04: the duplicate `aw run list` registration is DELETED. It rendered
+    # the same viewer table as bare `aw runs` through the same renderer, so one job had two names.
+    # The viewer's flags now live on the shared `_runs_viewer_flags` parent below, so the bare viewer
+    # and the `aw runs list` leaf cannot drift apart the way `run list` and `runs` silently did.
+
+    # runnamecollapse 0soncw E-03: `aw runs` is the READING noun. It carries BOTH the bare viewer
+    # (`aw runs [<target> ...]` + filter/format flags) and the nine read-only leaves moved off
+    # `aw run`. The viewer's flags live on this shared parent so the bare form and the `aw runs list`
+    # leaf are registered from ONE definition and cannot drift apart.
+    _runs_viewer_flags = _AwArgumentParser(add_help=False)
+    _runs_viewer_flags.add_argument(
         "--dir",
         default=None,
         help="Target Git repository root (default: current directory).",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--last",
         "--latest",
         "-l",
@@ -1613,63 +1748,63 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="Show only the last N runs (default: 1).",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--active",
         action="store_true",
         help="Show only runs with active/running steps.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--failed",
         action="store_true",
         help="Show only runs with failed, partial, or blocked steps.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--set",
         help="Filter runs by Set ID.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--ipd",
         "--id6",
         dest="ipd",
         help="Filter runs by IPD id6.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--status",
         help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--since",
         help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--detail",
         "--long",
         action="store_true",
         dest="detail",
         help="Show detailed incomplete requirements and step summaries.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--short",
         "-s",
         action="store_true",
         dest="short",
         help="Show short table with status, item, action, and verified columns only.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--summary-only",
         "-S",
         action="store_true",
         dest="summary_only",
         help="Show only the aggregate summary breakdown tables (omits individual runs).",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--latest-only",
         "-L",
         action="store_true",
         dest="latest_only",
         help="Show only the latest state for each item across matched runs in one table.",
     )
-    p_run_list.add_argument(
+    _runs_viewer_flags.add_argument(
         "--issues",
         "-i",
         action="store_true",
@@ -1677,122 +1812,126 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show only the artifact location and status discrepancies table.",
     )
 
-    p_runs = sub.add_parser(
-        "runs",
-        parents=[common],
-        help="View driver execution runs and ending states of their steps.",
-        description=(
-            "Inspect driver execution runs under .aw/records/runs/ and display a unified "
-            "summary of the ending status of each IPD step in each run. Read-only, with ONE "
-            "exception: the `repair` verb (`aw runs repair <run-id>`) durably reconciles a run "
-            "abandoned without a terminal status, so a step a crashed driver left as `running` "
-            "stops being reported `abandoned?`. Run `aw runs repair --help` for that verb."
-        ),
-        formatter_class=_AlphaHelpFormatter,
-        epilog=(
-            "EXAMPLES\n"
-            "  aw runs                          # summary of all execution runs\n"
-            "  aw runs --last                   # summary of the most recent run\n"
-            "  aw runs --last 5                 # summary of the last 5 runs\n"
-            "  aw runs -l 5                     # summary of the last 5 runs\n"
-            "  aw runs -L                       # unified table of latest item states\n"
-            "  aw runs --since 1d               # summary of runs in the last day\n"
-            "  aw runs <run-id-or-path>         # summary of a specific run\n"
-            "  aw runs --set <setid>            # filter runs by Set ID\n"
-            "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
-            "  aw runs --detail                 # include incomplete items and step summaries\n"
-            "  aw runs --short                  # short table without cost/token columns\n"
-            "  aw runs --summary-only           # summary breakdown only\n"
-            "  aw runs --latest-only            # latest status per item in unified table\n"
-            "  aw runs repair <run-id>          # MUTATES: reconcile a crashed run's `running` step\n"
-            "  aw runs repair --help            # what repair decides, and what it refuses to do\n"
-        ),
+    _RUNS_EPILOG = (
+        "EXAMPLES\n"
+        "  aw runs                          # summary of all execution runs\n"
+        "  aw runs --last                   # summary of the most recent run\n"
+        "  aw runs --last 5                 # summary of the last 5 runs\n"
+        "  aw runs -l 5                     # summary of the last 5 runs\n"
+        "  aw runs -L                       # unified table of latest item states\n"
+        "  aw runs --since 1d               # summary of runs in the last day\n"
+        "  aw runs <run-id-or-path>         # summary of a specific run\n"
+        "  aw runs --set <setid>            # filter runs by Set ID\n"
+        "  aw runs --ipd <id6>              # filter runs by IPD id6\n"
+        "  aw runs --detail                 # include incomplete items and step summaries\n"
+        "  aw runs --short                  # short table without cost/token columns\n"
+        "  aw runs --summary-only           # summary breakdown only\n"
+        "  aw runs --latest-only            # latest status per item in unified table\n"
+        "\n"
+        "LEDGER INSPECTION LEAVES (read-only)\n"
+        "  aw runs show <target>            # run state, steps, and completion predicates\n"
+        "  aw runs status <target>          # reconstructed run + step state\n"
+        "  aw runs next <target>            # steps whose dependencies and gates are satisfied\n"
+        "  aw runs resume <target>          # resumable steps (refuses on interrupted side effects)\n"
+        "  aw runs evidence <target>        # captured evidence envelopes and tool events\n"
+        "  aw runs verify-ledger <target>   # hash chain integrity and evidence validity\n"
+        "  aw runs decisions <run-id>       # a Set run's recorded autonomous decisions\n"
+        "  aw runs questions <run-id>       # a Set run's unresolved deferred questions\n"
+        "  aw runs list [<target> ...]      # the viewer table (same as bare `aw runs`)\n"
+        "\n"
+        "  aw runs repair <run-id>          # MUTATES: reconcile a crashed run's `running` step\n"
+        "  aw runs repair --help            # what repair decides, and what it refuses to do\n"
+        "\n"
+        "WRITING A RUN LIVES UNDER `aw run` (start/record/cancel/finalize)\n"
+        "\n"
+        "A TARGET NAMED LIKE A LEAF\n"
+        "  A first positional equal to a leaf name routes to that LEAF. To view a run or Set whose id\n"
+        "  collides with a leaf name, force viewer interpretation with `--`:\n"
+        "  aw runs -- status                # `status` is a TARGET here, not the leaf\n"
     )
-    p_runs.add_argument(
+    _RUNS_DESCRIPTION = (
+        "Inspect driver execution runs under .aw/records/runs/ and display a unified "
+        "summary of the ending status of each IPD step in each run, and inspect run LEDGERS "
+        "(show/status/next/resume/evidence/verify-ledger/decisions/questions). This is the READING "
+        "half of the run surface; the writing verbs live under `aw run` "
+        "(start/record/cancel/finalize). Read-only, with ONE exception: the `repair` verb "
+        "(`aw runs repair <run-id>`) durably reconciles a run abandoned without a terminal status, "
+        "so a step a crashed driver left as `running` stops being reported `abandoned?`. "
+        "Run `aw runs repair --help` for that verb."
+    )
+
+    # The sibling VIEWER parser. It owns `targets` and, via the shared parent, every viewer flag.
+    # `_ViewerOrLeafSubParsersAction` delegates to it whenever the first positional is not a leaf
+    # name. It is not registered as a subcommand, so it never appears as a parser leaf.
+    _p_runs_viewer = _AwArgumentParser(
+        prog="aw runs",
+        parents=[common, _runs_viewer_flags],
+        add_help=False,
+        formatter_class=_AlphaHelpFormatter,
+        description=_RUNS_DESCRIPTION,
+        epilog=_RUNS_EPILOG,
+    )
+    _p_runs_viewer.add_argument(
         "targets",
         nargs="*",
         default=None,
         help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
     )
+
+    # `add_parser` builds the child from the subparsers action's own parser class, so the ONLY way to
+    # give `runs` (and only `runs`) the routing-aware parser is to swap that class for this one call.
+    # Restored immediately in `finally` so every other command keeps the standard parser.
+    _prev_parser_class = sub._parser_class
+    try:
+        sub._parser_class = _RunsArgumentParser
+        p_runs = sub.add_parser(
+            "runs",
+            parents=[common, _runs_viewer_flags],
+            help="Inspect driver execution runs and run ledgers (read-only). Write with `aw run`.",
+            description=_RUNS_DESCRIPTION,
+            formatter_class=_AlphaHelpFormatter,
+            epilog=_RUNS_EPILOG,
+        )
+    finally:
+        sub._parser_class = _prev_parser_class
+    # REGISTRATION ORDER IS LOAD-BEARING. The routing action must be registered BEFORE `targets`:
+    # argparse consumes positionals in registration order, so a `targets nargs="*"` declared first
+    # greedily swallows the leaf name and the action never sees it (measured: `runs show <t>` arrived
+    # at the action as `['<t>']`, silently rendering the viewer instead of dispatching `show`).
+    _ViewerOrLeafSubParsersAction.viewer_parser = _p_runs_viewer
+    runs_sub = p_runs.add_subparsers(
+        dest="runs_command",
+        action=_ViewerOrLeafSubParsersAction,
+        metavar="[<leaf>]",
+    )
     p_runs.add_argument(
-        "--dir",
+        "targets",
+        nargs="*",
         default=None,
-        help="Target Git repository root (default: current directory).",
+        action=_RunsTargetsPlaceholderAction,
+        help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
     )
-    p_runs.add_argument(
-        "--last",
-        "--latest",
-        "-l",
-        dest="last",
-        nargs="?",
-        const=1,
-        type=_positive_int,
+    for _leaf_name, _leaf_help, _leaf_desc in _run_leaf_specs:
+        if _leaf_name in _RUNS_VIEWER_LEAVES:
+            _register_run_leaf(runs_sub, _leaf_name, _leaf_help, _leaf_desc)
+        else:
+            _register_run_leaf(run_sub, _leaf_name, _leaf_help, _leaf_desc)
+    # `list` is the viewer table under its own name. It takes the viewer's positional/flag shape, not
+    # the single-`target` leaf shape, so it is registered directly rather than via _register_run_leaf.
+    _p_runs_list = runs_sub.add_parser(
+        "list",
+        parents=[common, _runs_viewer_flags],
+        help="List and summarize driver execution runs and step outcomes (read-only).",
+        description=(
+            "Inspect driver execution runs under .aw/records/runs/ and summarize the ending status "
+            "of each step. Identical to bare `aw runs`."
+        ),
+    )
+    _p_runs_list.add_argument(
+        "targets",
+        nargs="*",
         default=None,
-        metavar="N",
-        help="Show only the last N runs (default: 1).",
-    )
-    p_runs.add_argument(
-        "--active",
-        action="store_true",
-        help="Show only runs with active/running steps.",
-    )
-    p_runs.add_argument(
-        "--failed",
-        action="store_true",
-        help="Show only runs with failed, partial, or blocked steps.",
-    )
-    p_runs.add_argument(
-        "--set",
-        help="Filter runs by Set ID.",
-    )
-    p_runs.add_argument(
-        "--ipd",
-        "--id6",
-        dest="ipd",
-        help="Filter runs by IPD id6.",
-    )
-    p_runs.add_argument(
-        "--status",
-        help="Filter runs by step status (e.g. executed, partial, blocked, failed).",
-    )
-    p_runs.add_argument(
-        "--since",
-        help="Show runs created since date (YYYY-MM-DD), timestamp, or relative timespec (e.g. 1d, 12h, 1.5w, 1m, 1y).",
-    )
-    p_runs.add_argument(
-        "--detail",
-        "--long",
-        action="store_true",
-        dest="detail",
-        help="Show detailed incomplete requirements and step summaries.",
-    )
-    p_runs.add_argument(
-        "--short",
-        "-s",
-        action="store_true",
-        dest="short",
-        help="Show short table with status, item, action, and verified columns only.",
-    )
-    p_runs.add_argument(
-        "--summary-only",
-        "-S",
-        action="store_true",
-        dest="summary_only",
-        help="Show only the aggregate summary breakdown tables (omits individual runs).",
-    )
-    p_runs.add_argument(
-        "--latest-only",
-        "-L",
-        action="store_true",
-        dest="latest_only",
-        help="Show only the latest state for each item across matched runs in one table.",
-    )
-    p_runs.add_argument(
-        "--issues",
-        "-i",
-        action="store_true",
-        dest="issues",
-        help="Show only the artifact location and status discrepancies table.",
+        help="Zero or more run IDs, directory paths, or set IDs to inspect (default: all runs).",
     )
 
     p_research = sub.add_parser(
@@ -9011,6 +9150,24 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    # runnamecollapse 0soncw E-03: the `--` ESCAPE HATCH for a viewer target that collides with a leaf
+    # name (`aw runs -- status` means "view the run/Set called `status`", not "run the `status` leaf").
+    # It must be handled here, before `parse_args`, because argparse STRIPS `--` while splitting argv,
+    # so by the time the routing action runs the token is indistinguishable from a leaf name (measured:
+    # `runs -- status` reached the `status` leaf and failed demanding its required `target`).
+    # Set ids are free-form, so this is the documented way to reach a colliding one.
+    if len(argv_list) >= 2 and argv_list[0] == "runs" and "--" in argv_list[1:]:
+        _sep = argv_list.index("--", 1)
+        _forced = [tok for tok in argv_list[_sep + 1 :] if tok != "--"]
+        _rest = argv_list[1:_sep]
+        args_ns = parser.parse_args(["runs", *_rest])
+        # Whatever followed `--` is a TARGET, never a leaf name.
+        existing = [t for t in (getattr(args_ns, "targets", None) or []) if t]
+        setattr(args_ns, "targets", existing + _forced)
+        setattr(args_ns, "runs_command", None)
+        from agent_workflows import run_viewer
+
+        return run_viewer.run_viewer_cli(args_ns)
     # `aw runs repair --help` must describe the REPAIR verb, not the read-only inspector. `repair` is
     # routed from `aw runs`' first POSITIONAL token (run_viewer, ssk6nf E-04) so that every read path
     # stays side-effect free, which means argparse never learns it is a verb: it consumed `--help` and
@@ -9211,6 +9368,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
         return run_cli.run_cli(args)
     if args.command == "runs":
+        # runnamecollapse 0soncw E-03: `aw runs` carries two shapes. When the routing action matched a
+        # LEAF, `runs_command` names it and the ledger handlers own the turn; otherwise it is None and
+        # this is the bare viewer. `list` is the viewer under its own name.
+        runs_cmd = getattr(args, "runs_command", None)
+        if runs_cmd and runs_cmd != "list":
+            from agent_workflows import run_cli
+
+            return run_cli.run_cli(args)
         from agent_workflows import run_viewer
 
         return run_viewer.run_viewer_cli(args)

@@ -754,9 +754,48 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--json"),
         exit_contract=(0, 1, 2),
     ),
-    # --- Run Ledger Family ---
+    # --- Run Family ---
+    # runnamecollapse 0soncw E-06: the surface is split by DIRECTION, so the declarations follow the
+    # leaves. `aw run` WRITES (start/record/cancel/finalize); `aw runs` READS (the nine viewers plus
+    # the bare viewer table). `aw runs` itself was previously UNDECLARED while all twelve `run *`
+    # leaves were declared - i.e. the invested surface was the undeclared one - which is fixed here.
+    # NOTE on the BARE `aw runs` (which renders the viewer table): it is deliberately NOT declared.
+    # `COMMAND_INVENTORY` declares LEAVES, and `discover_parser_leaves` only reports parsers with no
+    # subparsers, so a family ROOT is never a leaf. Declaring it registered as declaration/parser
+    # DRIFT (`test_declared_absent_leaves_are_only_the_known_prompts_family`), exactly as it would for
+    # the other bare-invokable family roots (`aw ipd` renders the board, `aw specs`, `aw backlog`),
+    # none of which is declared either. The bare viewer's contract is carried by `runs list`, its
+    # identical alias, which IS a leaf.
     CommandDeclaration(
-        command="run show",
+        # The viewer table under its own name; identical to bare `aw runs` (same renderer, same
+        # shared flag parent). The cross-noun duplicate `aw run list` was DELETED (E-04).
+        command="runs list",
+        command_class="read",
+        human_recipe="table",
+        agent_record_kind="summary",
+        mutation_gate="none",
+        empty_error_renderer="shared_empty_result",
+        legacy_flags=(
+            "--dir",
+            "--last",
+            "--active",
+            "--failed",
+            "--set",
+            "--ipd",
+            "--status",
+            "--since",
+            "--detail",
+            "--short",
+            "--summary-only",
+            "--latest-only",
+            "--issues",
+            "--agent",
+            "--json",
+        ),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="runs show",
         command_class="read",
         human_recipe="detail",
         agent_record_kind="result",
@@ -766,7 +805,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
-        command="run evidence",
+        command="runs evidence",
         command_class="read",
         human_recipe="detail",
         agent_record_kind="result",
@@ -776,7 +815,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 1, 2),
     ),
     CommandDeclaration(
-        command="run verify-ledger",
+        command="runs verify-ledger",
         command_class="check",
         human_recipe="check",
         agent_record_kind="result",
@@ -796,7 +835,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 2, 3, 5, 6),
     ),
     CommandDeclaration(
-        command="run next",
+        command="runs next",
         command_class="read",
         human_recipe="list",
         agent_record_kind="result",
@@ -823,7 +862,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 2, 3, 5, 6),
     ),
     CommandDeclaration(
-        command="run resume",
+        command="runs resume",
         command_class="mutation",
         human_recipe="status",
         agent_record_kind="result",
@@ -843,7 +882,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         exit_contract=(0, 5, 6),
     ),
     CommandDeclaration(
-        command="run status",
+        command="runs status",
         command_class="read",
         human_recipe="status",
         agent_record_kind="result",
@@ -865,7 +904,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     CommandDeclaration(
         # execset Order 05 (2h7777): read-only inspection of a Set run's durable decisions
         # projection under .aw/workflow-artifacts/<workflow>/<run-id>/. Exit 0 found / 1 none / 2 missing.
-        command="run decisions",
+        command="runs decisions",
         command_class="read",
         human_recipe="status",
         agent_record_kind="result",
@@ -877,7 +916,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
     CommandDeclaration(
         # execset Order 05 (2h7777): read-only inspection of a Set run's unresolved-questions
         # projection. Exit 0 open / 1 none / 2 missing.
-        command="run questions",
+        command="runs questions",
         command_class="read",
         human_recipe="status",
         agent_record_kind="result",
