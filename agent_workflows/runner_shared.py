@@ -48,9 +48,9 @@ DESIGNATED peer it may import, NOT something it absorbs: `status_set.py` and `ip
 
 # ---- INJECTED DEPENDENCIES (the complete list) --------------------------------------------------
 
-Five symbols call something that stays behind. Each takes it as a keyword-only parameter; each runner
-wraps it at the original name and signature, so NO call site in either runner was rewritten. The
-parenthetical says why the dependency could not simply move too:
+EIGHT symbols call something they cannot reach from here. Each takes it as a keyword-only parameter;
+each runner wraps it at the original name and signature, so NO call site in either runner was
+rewritten. The parenthetical says why the dependency could not simply move too:
 
   * `run_checked(..., env_builder=)`         <- `pinned_child_env`   (opencode-only, host-specific)
   * `save_state(..., write_report=)`         <- `write_report`       (DIVERGED)
@@ -63,6 +63,20 @@ parenthetical says why the dependency could not simply move too:
   * `print_status(..., driver_label=)`       <- the host's own name  (the sole host-naming-only symbol
                                                  of the 34: the two bodies differed ONLY by the
                                                  literal 'opencode' vs 'antigravity')
+  * `git_head(..., run_checked=)`            <- `run_checked`        (see below)
+  * `git_status(..., run_checked=)`          <- `run_checked`        (see below)
+  * `git_common_dir(..., run_checked=)`      <- `run_checked`        (see below)
+
+THE LAST THREE ARE AN INTRA-SEAM DEPENDENCY the authoring analysis did not predict, and they are
+worth explaining because the obvious "fix" is a trap. Those three helpers' bodies CALL `run_checked`,
+which is itself moved here and which gained the `env_builder` parameter, so a naive lift raises
+`TypeError: run_checked() missing 1 required keyword-only argument`. The tempting repair is to
+rewrite them to use the shared `_run_git` sitting right above them - and that would be a BEHAVIOR
+CHANGE, not a cleanup: `git_head` would stop raising `DriverError` on failure and start returning an
+empty string, and `git_status` would stop passing `--short`. Both results flow straight into every
+run's outcome record (`starting_head`/`starting_status`/`ending_head`/`ending_status`), and no suite
+would have caught it. So the seam's OWN mechanism is applied uniformly instead: the dependency is
+injected, and each runner binds its own `run_checked` wrapper.
 
 TWO SYMBOLS THAT COULD NOT MOVE AT ALL, recorded here because a reader comparing this module against
 the plan's 34-symbol manifest will otherwise think they were forgotten:
@@ -192,7 +206,7 @@ def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def git_head(repo: Path) -> str:
+def git_head(repo: Path, *, run_checked: Callable[..., str]) -> str:
     return run_checked(["git", "rev-parse", "HEAD"], cwd=repo)
 
 
@@ -207,11 +221,11 @@ def git_branch(repo: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else "(detached)"
 
 
-def git_status(repo: Path) -> str:
+def git_status(repo: Path, *, run_checked: Callable[..., str]) -> str:
     return run_checked(["git", "status", "--short"], cwd=repo)
 
 
-def git_common_dir(repo: Path) -> Path:
+def git_common_dir(repo: Path, *, run_checked: Callable[..., str]) -> Path:
     raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
     path = Path(raw)
     return path if path.is_absolute() else (repo / path).resolve()

@@ -18,7 +18,6 @@ import json
 import os
 import re
 import select
-import shlex
 import shutil
 import subprocess
 import sys
@@ -35,7 +34,12 @@ from typing import Any, Callable, NamedTuple
 # here (see ``__all__`` below) so existing ``oc_runipd`` call sites and tests keep
 # referencing these names. ``should_color`` (the TTY color decision) stays local to the
 # caller per OQ-01.
-from agent_workflows import platform_lock, runner_shutdown, stall_progress
+from agent_workflows import (
+    platform_lock,
+    runner_shared,
+    runner_shutdown,
+    stall_progress,
+)
 
 # terseout `ntf6sx` E-04: the ONE concise-reporting contract, embedded in FULL in this driver's
 # execution and verifier prompts. A fresh worker session must not depend only on ambient host
@@ -130,6 +134,12 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     utc_now as utc_now,
+)
+from agent_workflows.runner_shared import (
+    _run_git as _run_git,
+)
+from agent_workflows.runner_shared import (
+    git_branch as git_branch,
 )
 
 # rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
@@ -384,6 +394,43 @@ def pinned_module_argv(args: Sequence[str]) -> list[str]:
     return argv
 
 
+def run_checked(
+    argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
+) -> str:
+    """Run ``argv``, returning stdout, raising `DriverError` on a nonzero exit.
+
+    rununify 02 (`818uru`) E-05: the IMPLEMENTATION is the single shared
+    `runner_shared.run_checked`; this is a one-line wrapper that binds THIS host's
+    `pinned_child_env`. It deliberately keeps the ORIGINAL name and signature, so all 13 call
+    sites in this module are untouched.
+
+    WHY A WRAPPER AND NOT A THREADED PARAMETER (maintainer ruling, `818uru` OQ-02): passing the
+    env-builder at every call site would have rewritten ~86 call sites across the two
+    highest-contention files in the repo, and would have broken the plan's own AST-fingerprint
+    proof on exactly its riskiest symbols. A registration seam was declined separately, because
+    process-global state makes behavior depend on import order. So the dependency is passed
+    EXPLICITLY, at exactly one visible site per runner, with no mutable module state.
+    """
+    return runner_shared.run_checked(argv, cwd, env, env_builder=pinned_child_env)
+
+
+# rununify 02 (`818uru`) E-05: three one-line wrappers over the shared git helpers. Their bodies call
+# `run_checked`, which is also shared and which takes the env-builder as a parameter, so they receive
+# THIS module's `run_checked` wrapper by injection. Do NOT "simplify" them onto the shared `_run_git`:
+# that would change `git_head` from raising `DriverError` to returning "" and drop `git_status`'s
+# `--short`, and both feed every run's outcome record. See the note in `runner_shared`.
+def git_head(repo: Path) -> str:
+    return runner_shared.git_head(repo, run_checked=run_checked)
+
+
+def git_status(repo: Path) -> str:
+    return runner_shared.git_status(repo, run_checked=run_checked)
+
+
+def git_common_dir(repo: Path) -> Path:
+    return runner_shared.git_common_dir(repo, run_checked=run_checked)
+
+
 _TOOL_IDENTITY_VERIFIED: dict[str, Any] = {}
 
 
@@ -526,34 +573,6 @@ class StallWatchdog:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
-
-
-def run_checked(
-    argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
-) -> str:
-    # lanetruth Order 01 (af7i6p) E-05: this function USED to build the PYTHONPATH prepend
-    # itself. That read as a pin but was MEASURABLY INERT, because the cwd entry precedes
-    # PYTHONPATH in sys.path, so a child launched from a lane still imported the lane's copy.
-    # It now delegates to the single shared definition (`pinned_child_env`), and callers pass
-    # module argv built by `pinned_module_argv`, which supplies the SUPPRESSING half that makes
-    # the selecting half actually bite. One definition of the pin, not two.
-    merged_env = pinned_child_env(env)
-    result = subprocess.run(
-        argv,
-        cwd=str(cwd) if cwd else None,
-        env=merged_env,
-        text=True,
-        # ttywedge Order 01 (g40w37): deny an inherited terminal (see driver_finalize).
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if result.returncode != 0:
-        details = (result.stderr.strip() + "\n" + result.stdout.strip()).strip()
-        raise DriverError(
-            f"Command failed ({result.returncode}): {shlex.join(argv)}\n{details}"
-        )
-    return result.stdout.strip()
 
 
 # fullauto Order 01 (97df1z), OQ-02: the automated-actor provenance for a `--full-auto` clear. This
@@ -2074,18 +2093,6 @@ def integrate_lane_branch(
     )
 
 
-def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
-    """Run a git command in ``repo``; return (returncode, stdout, stderr)."""
-    proc = subprocess.run(
-        ["git", *args],
-        cwd=str(repo),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return proc.returncode, proc.stdout, proc.stderr
-
-
 def make_integration_validation_runner(
     state: dict[str, Any], run_dir: Path, item: dict[str, Any]
 ) -> Any:
@@ -2102,31 +2109,6 @@ def make_integration_validation_runner(
         return True
 
     return _runner
-
-
-def git_common_dir(repo: Path) -> Path:
-    raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
-    path = Path(raw)
-    return path if path.is_absolute() else (repo / path).resolve()
-
-
-def git_head(repo: Path) -> str:
-    return run_checked(["git", "rev-parse", "HEAD"], cwd=repo)
-
-
-def git_branch(repo: Path) -> str:
-    result = subprocess.run(
-        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
-        cwd=repo,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    return result.stdout.strip() if result.returncode == 0 else "(detached)"
-
-
-def git_status(repo: Path) -> str:
-    return run_checked(["git", "status", "--short"], cwd=repo)
 
 
 def sha256_file(path: Path) -> str:

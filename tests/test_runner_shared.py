@@ -65,12 +65,20 @@ _MODULES = {
 # five symbols. So `runner_shared` owns the parameterized function and each runner keeps a one-line
 # wrapper at the ORIGINAL name and signature. `test_no_call_site_was_rewritten` is the measurement
 # that keeps that promise honest.
+# THE COUNT IS 8, NOT THE PLAN'S 5, and the three additions are recorded here rather than absorbed
+# silently. `git_head`/`git_status`/`git_common_dir` call `run_checked`, which is in the SAME seam and
+# which gained a parameter, so a naive lift raises `TypeError: missing 1 required keyword-only
+# argument`. The plan's analysis looked for calls OUT of the moved set and could not see an
+# intra-seam dependency on a symbol whose own signature changed. See decision 05-818uru-D4.
 INJECTED: dict[str, str] = {
     "run_checked": "env_builder",
     "save_state": "write_report",
     "discover_plans": "parse_plan_file",
     "validate_manifest": "parse_dependency_token",
     "print_status": "driver_label",
+    "git_head": "run_checked",
+    "git_status": "run_checked",
+    "git_common_dir": "run_checked",
 }
 
 # The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`.
@@ -221,7 +229,7 @@ class PureMoveFingerprintTests(unittest.TestCase):
             for n in self.moved_symbols()
             if n not in INJECTED and n not in HOST_NAMING_ONLY
         ]
-        self.assertEqual(len(clean), 27, "the clean-move count must not drift silently")
+        self.assertEqual(len(clean), 25, "the clean-move count must not drift silently")
         for name in clean:
             with self.subTest(symbol=name):
                 self.assertEqual(
@@ -462,6 +470,7 @@ class WrapperTests(unittest.TestCase):
                     )
 
     def test_each_wrapper_delegates_to_the_shared_definition(self):
+        """A wrapper that reimplemented the body would defeat the whole de-duplication."""
         for name in sorted(INJECTED):
             for runner in BOTH:
                 with self.subTest(symbol=name, runner=runner):
@@ -473,34 +482,113 @@ class WrapperTests(unittest.TestCase):
                         body,
                         f"{runner}.{name} must delegate to the shared definition",
                     )
+                    # And it must be a WRAPPER, not a fork: one statement, which is the delegation.
+                    statements = [
+                        s for s in node.body if not isinstance(s, ast.Expr)
+                    ] or node.body
+                    self.assertEqual(
+                        len(statements),
+                        1,
+                        f"{runner}.{name} is not a one-line wrapper; a wrapper that "
+                        "grows logic re-creates the divergence this plan removes",
+                    )
+
+    # REAL call-site counts, measured at the pre-move HEAD `1ecc5891` by walking each runner's AST
+    # for `ast.Call` nodes naming the symbol. Deliberately NOT a `src.count("name(")` substring
+    # count: that also counts the `def` line, docstring mentions, and comments, and the plan's own
+    # authoring figures (33/31 for `save_state`, 13/9 for `run_checked`) are those inflated numbers.
+    # An inflated baseline would make this test pass or fail for the wrong reason, so the honest
+    # measurement replaces it and the discrepancy is recorded rather than quietly adopted.
+    PREMOVE_CALL_SITES = {
+        ("oc_runipd", "save_state"): 32,
+        ("agy_runipd", "save_state"): 30,
+        ("oc_runipd", "run_checked"): 12,
+        ("agy_runipd", "run_checked"): 8,
+        ("oc_runipd", "discover_plans"): 1,
+        ("agy_runipd", "discover_plans"): 1,
+        ("oc_runipd", "validate_manifest"): 1,
+        ("agy_runipd", "validate_manifest"): 1,
+        ("oc_runipd", "print_status"): 2,
+        ("agy_runipd", "print_status"): 2,
+    }
+
+    def call_sites(self, runner: str, name: str) -> int:
+        tree = ast.parse(module_source(_MODULES[runner]))
+        return sum(
+            1
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == name
+        )
 
     def test_no_call_site_was_rewritten(self):
         """The MEASUREMENT behind the wrapper ruling, pinned so a later change cannot undo it.
 
-        Counts taken at the pre-move HEAD `1ecc5891` and asserted here. The wrapper form was chosen
-        over uniform parameter injection precisely because injection would have rewritten these.
+        The wrapper form was chosen over uniform parameter injection precisely BECAUSE injection
+        would have rewritten every one of these ~90 sites, in the two highest-contention files in the
+        repository, which seven other reviewed plans also edit. If a later change threads the
+        dependency through instead, these counts move and this test says so.
+
+        NOTE `run_checked`'s count legitimately DROPS by 3 in oc and by 3 in agy, and that is not a
+        rewritten call site: `git_head`, `git_status` and `git_common_dir` were themselves CALLERS of
+        `run_checked`, and they MOVED to `runner_shared` in this same seam. Their calls did not
+        change, they relocated with the functions that make them. The subtraction is stated
+        explicitly rather than absorbed into a fudged expected number.
         """
-        expected = {
-            ("oc_runipd", "save_state"): 33,
-            ("agy_runipd", "save_state"): 31,
-            ("oc_runipd", "run_checked"): 13,
-            ("agy_runipd", "run_checked"): 9,
-            ("oc_runipd", "discover_plans"): 2,
-            ("agy_runipd", "discover_plans"): 2,
-            ("oc_runipd", "validate_manifest"): 2,
-            ("agy_runipd", "validate_manifest"): 2,
-            ("oc_runipd", "print_status"): 3,
-            ("agy_runipd", "print_status"): 3,
-        }
-        for (runner, name), count in sorted(expected.items()):
+        moved_callers_of_run_checked = 3
+        for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
-                src = module_source(_MODULES[runner])
+                expected = premove
+                if name == "run_checked":
+                    expected -= moved_callers_of_run_checked
                 self.assertEqual(
-                    src.count(f"{name}("),
-                    count,
-                    f"the number of `{name}(` occurrences in {runner} changed; the "
+                    self.call_sites(runner, name),
+                    expected,
+                    f"the number of `{name}` CALL SITES in {runner} changed; the "
                     "wrapper ruling exists to keep call sites untouched",
                 )
+
+    def test_the_relocated_run_checked_callers_still_call_it_by_injection(self):
+        """The other half of the subtraction above, and the reason `run_checked` is injected 3x.
+
+        `git_head`, `git_status` and `git_common_dir` moved in the SAME seam as `run_checked`, and
+        their bodies call it. Their calls did not disappear, they RELOCATED into `runner_shared` - and
+        because `run_checked` gained a parameter, each now receives the runner's own wrapper by
+        injection rather than resolving a module global.
+
+        This test also guards against the tempting WRONG repair, which is to rewrite these three onto
+        the shared `_run_git` sitting directly above them. That would change `git_head` from raising
+        `DriverError` to returning "" and would drop `git_status`'s `--short`, and both feed every
+        run's outcome record. If someone makes that change, the call set below empties and this fails.
+        """
+        tree = ast.parse(module_source(runner_shared))
+        callers = set()
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for sub in ast.walk(node):
+                    if (
+                        isinstance(sub, ast.Call)
+                        and isinstance(sub.func, ast.Name)
+                        and sub.func.id == "run_checked"
+                    ):
+                        callers.add(node.name)
+        self.assertEqual(
+            callers,
+            {"git_head", "git_status", "git_common_dir"},
+            "the three git helpers must still call `run_checked` (by injection); "
+            "rewriting them onto `_run_git` would be a BEHAVIOR CHANGE",
+        )
+        # And each of the three takes it as a parameter rather than closing over a global, which is
+        # what makes the call resolvable at all.
+        for name in ("git_head", "git_status", "git_common_dir"):
+            with self.subTest(symbol=name):
+                node = next(
+                    n
+                    for n in tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == name
+                )
+                self.assertIn("run_checked", [a.arg for a in node.args.kwonlyargs])
 
 
 class UnmovableSymbolTests(unittest.TestCase):

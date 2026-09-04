@@ -19,7 +19,6 @@ import json
 import os
 import re
 import select
-import shlex
 import shutil
 import subprocess
 import sys
@@ -143,6 +142,12 @@ from agent_workflows.runner_shared import (
 from agent_workflows.runner_shared import (
     utc_now as utc_now,
 )
+from agent_workflows.runner_shared import (
+    _run_git as _run_git,
+)
+from agent_workflows.runner_shared import (
+    git_branch as git_branch,
+)
 
 # lanetruth Order 01 (af7i6p) E-02: import the SINGLE shared definition of the nested-`aw` pin
 # rather than duplicating it here. Both drivers must stay symmetric, and a second copy is exactly
@@ -157,7 +162,7 @@ from agent_workflows.oc_runipd import (
 
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
-from agent_workflows import runner_stop
+from agent_workflows import runner_shared, runner_stop
 
 # --- Cross-IPD dependency API (lanetruth-03 / 8guhs0): IMPORTED, never re-declared --------------
 #
@@ -468,27 +473,34 @@ class StallWatchdog:
 def run_checked(
     argv: list[str], cwd: Path | None = None, env: dict[str, str] | None = None
 ) -> str:
-    # lanetruth Order 01 (af7i6p) E-05: was an inert PYTHONPATH-only prepend (the cwd entry
-    # precedes PYTHONPATH in sys.path, so a child launched from a lane still imported the lane's
-    # copy). Now delegates to the ONE shared definition in `oc_runipd`, kept symmetric with that
-    # driver by construction rather than by a duplicated copy.
-    merged_env = pinned_child_env(env)
-    result = subprocess.run(
-        argv,
-        cwd=str(cwd) if cwd else None,
-        env=merged_env,
-        text=True,
-        # ttywedge Order 01 (g40w37): deny an inherited terminal (see driver_finalize).
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    if result.returncode != 0:
-        details = (result.stderr.strip() + "\n" + result.stdout.strip()).strip()
-        raise DriverError(
-            f"Command failed ({result.returncode}): {shlex.join(argv)}\n{details}"
-        )
-    return result.stdout.strip()
+    """Run ``argv``, returning stdout, raising `DriverError` on a nonzero exit.
+
+    rununify 02 (`818uru`) E-05: the IMPLEMENTATION is the single shared
+    `runner_shared.run_checked`; this is a one-line wrapper that binds `pinned_child_env`, which
+    this module already imports from `oc_runipd` (the pin has ONE definition by design; see the
+    lanetruth note on that import). It deliberately keeps the ORIGINAL name and signature, so all
+    9 call sites in this module are untouched.
+
+    WHY A WRAPPER AND NOT A THREADED PARAMETER: see the identical note on `oc_runipd.run_checked`.
+    """
+    return runner_shared.run_checked(argv, cwd, env, env_builder=pinned_child_env)
+
+
+# rununify 02 (`818uru`) E-05: three one-line wrappers over the shared git helpers. Their bodies call
+# `run_checked`, which is also shared and which takes the env-builder as a parameter, so they receive
+# THIS module's `run_checked` wrapper by injection. Do NOT "simplify" them onto the shared `_run_git`:
+# that would change `git_head` from raising `DriverError` to returning "" and drop `git_status`'s
+# `--short`, and both feed every run's outcome record. See the note in `runner_shared`.
+def git_head(repo: Path) -> str:
+    return runner_shared.git_head(repo, run_checked=run_checked)
+
+
+def git_status(repo: Path) -> str:
+    return runner_shared.git_status(repo, run_checked=run_checked)
+
+
+def git_common_dir(repo: Path) -> Path:
+    return runner_shared.git_common_dir(repo, run_checked=run_checked)
 
 
 # fullauto Order 01 (97df1z), OQ-02: the automated-actor provenance for a `--full-auto` clear (the
@@ -1109,18 +1121,6 @@ def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
     return None
 
 
-def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
-    """Run a git command in ``repo``; return (returncode, stdout, stderr)."""
-    proc = subprocess.run(
-        ["git", *args],
-        cwd=str(repo),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return proc.returncode, proc.stdout, proc.stderr
-
-
 def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     """Build a single `orchestrate_isolation.LaneOutcome` for a finalized lane branch.
 
@@ -1255,31 +1255,6 @@ def integrate_lane_branch(
         return True, "controlled non-ff merge integrated to main", "integrated"
     _run_git(repo, ["merge", "--abort"])
     return False, f"merge-back conflict: {(err2 or err).strip()}", "merge-conflict"
-
-
-def git_common_dir(repo: Path) -> Path:
-    raw = run_checked(["git", "rev-parse", "--git-common-dir"], cwd=repo)
-    path = Path(raw)
-    return path if path.is_absolute() else (repo / path).resolve()
-
-
-def git_head(repo: Path) -> str:
-    return run_checked(["git", "rev-parse", "HEAD"], cwd=repo)
-
-
-def git_branch(repo: Path) -> str:
-    result = subprocess.run(
-        ["git", "symbolic-ref", "--quiet", "--short", "HEAD"],
-        cwd=repo,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-    )
-    return result.stdout.strip() if result.returncode == 0 else "(detached)"
-
-
-def git_status(repo: Path) -> str:
-    return run_checked(["git", "status", "--short"], cwd=repo)
 
 
 def sha256_file(path: Path) -> str:
