@@ -142,6 +142,21 @@ from agent_workflows.runner_shared import (
     utc_now as utc_now,
 )
 from agent_workflows.runner_shared import (
+    _read_order as _read_order,
+)
+from agent_workflows.runner_shared import (
+    _read_set as _read_set,
+)
+from agent_workflows.runner_shared import (
+    describe_unresolved_plan_selector as describe_unresolved_plan_selector,
+)
+from agent_workflows.runner_shared import (
+    plan_bucket as plan_bucket,
+)
+from agent_workflows.runner_shared import (
+    resolve_plan_path as resolve_plan_path,
+)
+from agent_workflows.runner_shared import (
     _lane_records_from_state as _lane_records_from_state,
 )
 from agent_workflows.runner_shared import (
@@ -1153,22 +1168,6 @@ def run_lock(run_dir: Path):
         held.release()
 
 
-def _read_set(text: str) -> str | None:
-    m = _SET_RE.search(text)
-    if not m:
-        return None
-    raw = m.group(1).split("(")[0].strip()
-    if not raw:
-        return None
-    token = raw.split()[0].strip("\"'").strip()
-    return token if token else None
-
-
-def _read_order(text: str) -> int | None:
-    m = _ORDER_RE.search(text)
-    return int(m.group(1)) if m else None
-
-
 def enforce_dependency_preflight(
     repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
 ) -> list[tuple[str, str, str]]:
@@ -1278,28 +1277,25 @@ def parse_plan_file(path: Path, repo: Path) -> PlanRecord | None:
     )
 
 
+# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `discover_plans`, binding THIS
+# driver's `parse_plan_file`. That injection carries TWO dependencies at once, which is why it is the
+# subtlest one in the plan: `parse_plan_file` is class (c) DIVERGED, AND it is what CONSTRUCTS this
+# module's `PlanRecord` - and the two drivers' `PlanRecord` are DIFFERENT NamedTuples (oc's carries a
+# `kind` field agy's lacks). A shared `discover_plans` that built one type would hand the other
+# driver a record shape its code never expects: build oc's and agy gets a stray field; build agy's
+# and oc LOSES `kind`, which `action_for` reads to detect an orchestrator. Both failures are silent
+# and type-shaped rather than a crash. Injecting the PARSER keeps each driver's own record type.
 def discover_plans(repo: Path) -> dict[str, PlanRecord]:
     """Scan the repository for all IPD files, returning id6 -> PlanRecord."""
-    plans: dict[str, PlanRecord] = {}
-    search_dirs = [
-        repo / ".aw" / "records" / "plans",
-        repo / ".agents" / "plans",
-    ]
-    seen: set[Path] = set()
-    for sdir in search_dirs:
-        if not sdir.exists():
-            continue
-        for path in sdir.rglob("*.md"):
-            if path.name in {"README.md", "INDEX.md", "STATUS.md"}:
-                continue
-            resolved = path.resolve()
-            if resolved in seen:
-                continue
-            seen.add(resolved)
-            rec = parse_plan_file(resolved, repo)
-            if rec:
-                plans[rec.id6] = rec
-    return plans
+    return runner_shared.discover_plans(repo, parse_plan_file=parse_plan_file)
+
+
+# rununify 02 (`818uru`) E-08: one-line wrapper over the shared `validate_manifest`, binding
+# `parse_dependency_token` (opencode-owned; the token grammar has ONE definition by design).
+def validate_manifest(manifest: dict[str, Any]) -> None:
+    runner_shared.validate_manifest(
+        manifest, parse_dependency_token=parse_dependency_token
+    )
 
 
 def build_dynamic_manifest(
@@ -1328,103 +1324,6 @@ def build_dynamic_manifest(
         "plans": plans_dict,
         "sets": sorted_sets,
     }
-
-
-def validate_manifest(manifest: dict[str, Any]) -> None:
-    if manifest.get("schema_version") != SCHEMA_VERSION:
-        raise DriverError("Unsupported manifest schema_version")
-    plans = manifest.get("plans")
-    sets = manifest.get("sets")
-    if not isinstance(plans, dict) or not isinstance(sets, dict):
-        raise DriverError("Manifest must contain object-valued 'plans' and 'sets'")
-    for id6, plan in plans.items():
-        if not ID6_RE.fullmatch(id6):
-            raise DriverError(f"Invalid id6 in manifest: {id6}")
-        if not isinstance(plan, dict) or not plan.get("file") or not plan.get("set"):
-            raise DriverError(f"Plan {id6} requires file and set")
-        dependencies = plan.get("dependencies", [])
-        if not isinstance(dependencies, list):
-            raise DriverError(f"Plan {id6} dependencies must be a list")
-        # 8guhs0 E-01 (symmetric with oc_runipd): a dependency token is a SHARED-grammar typed edge
-        # (or a bare id6 in a legacy hand-written manifest, normalized to `executed:`). Only an
-        # IPD-typed target must name a plan in the manifest; `spec`/`backlog` targets are graph
-        # LEAVES (spec 25kzda 2.10), resolved against the repository rather than the queue.
-        malformed = [dep for dep in dependencies if parse_dependency_token(dep) is None]
-        if malformed:
-            raise DriverError(
-                f"Plan {id6} has malformed Item-Dependencies edges: {malformed}"
-            )
-        unknown = []
-        for dep in dependencies:
-            edge = parse_dependency_token(dep)
-            if edge.target_type == "ipd" and edge.id6 not in plans:
-                unknown.append(dep)
-        if unknown:
-            raise DriverError(f"Plan {id6} has unknown dependencies: {unknown}")
-    for setid, group in sets.items():
-        if not isinstance(group, dict) or not isinstance(group.get("order"), list):
-            raise DriverError(f"Set {setid} requires an order list")
-        unknown = [id6 for id6 in group["order"] if id6 not in plans]
-        if unknown:
-            raise DriverError(f"Set {setid} contains unknown plans: {unknown}")
-        wrong = [id6 for id6 in group["order"] if plans[id6]["set"] != setid]
-        if wrong:
-            raise DriverError(f"Set {setid} contains plans assigned elsewhere: {wrong}")
-
-
-def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
-    """Provide an informative, context-aware error message when a plan selector cannot be resolved."""
-    r = repo or Path(".")
-    try:
-        from agent_workflows import selectors
-
-        for rtype in selectors.KNOWN_PRIMARY_TYPES:
-            if rtype == "plans":
-                continue
-            res = selectors.resolve(r, rtype, sel_str)
-            if res.is_match:
-                rel_paths = []
-                for p in res.paths:
-                    try:
-                        rel_paths.append(str(p.resolve().relative_to(r.resolve())))
-                    except ValueError:
-                        rel_paths.append(str(p))
-                joined_paths = ", ".join(rel_paths)
-                type_label = {
-                    "backlog": "backlog item",
-                    "specs": "spec",
-                    "research": "research document",
-                    "releases": "release record",
-                    "walkthroughs": "walkthrough",
-                    "roadmaps": "roadmap document",
-                    "prompts": "prompt document",
-                    "comms": "comms message",
-                }.get(rtype, f"{rtype} record")
-                return (
-                    f"'{sel_str}' is a {type_label} ({joined_paths}), not an IPD plan."
-                )
-    except Exception:
-        pass
-
-    fc = Path(sel_str)
-    rfc = r / sel_str if not fc.is_absolute() else fc
-    if fc.is_file() or rfc.is_file():
-        target = fc if fc.is_file() else rfc
-        try:
-            rel_target = str(target.resolve().relative_to(r.resolve()))
-        except ValueError:
-            rel_target = str(target)
-        return (
-            f"File '{sel_str}' exists ({rel_target}) but is not a valid IPD plan "
-            "(missing front-matter or invalid format)."
-        )
-    if "/" in sel_str or "\\" in sel_str or sel_str.endswith(".md"):
-        return f"Plan file not found: '{sel_str}'"
-
-    if ID6_RE.fullmatch(sel_str):
-        return f"No IPD plan found with id6 '{sel_str}' under .aw/records/plans/."
-
-    return f"No IPD plan, Set, or file matching '{sel_str}' found under .aw/records/plans/."
 
 
 def expand_selectors(
@@ -1596,57 +1495,6 @@ def expand_selectors(
     if not expanded:
         raise DriverError("At least one id6 or Set selector is required")
     return expanded
-
-
-def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
-    from agent_workflows import selectors
-
-    if id6:
-        try:
-            matched = selectors.resolve_selectors(repo, "plans", [id6])
-            if len(matched) == 1 and matched[0].is_file():
-                return matched[0].resolve()
-        except Exception:
-            pass
-
-    if configured:
-        direct = (repo / configured).resolve()
-        if direct.is_file():
-            return direct
-    roots = [
-        repo / ".aw" / "records" / "plans",
-        repo / ".agents" / "plans",
-        repo,
-    ]
-    matches: list[Path] = []
-    for root in roots:
-        if root.exists():
-            matches.extend(
-                path for path in root.rglob(f"*-{id6}-*.ipd.md") if path.is_file()
-            )
-    unique = sorted(set(matches))
-    if len(unique) == 1:
-        return unique[0].resolve()
-    if not unique:
-        raise DriverError(f"Cannot locate IPD {id6}; configured path was {configured}")
-    raise DriverError(f"Ambiguous IPD {id6}: {', '.join(str(path) for path in unique)}")
-
-
-def plan_bucket(path: Path) -> str | None:
-    parts = path.parts
-    for bucket in (
-        "executed",
-        "active",
-        "pending",
-        "reviewed",
-        "approved",
-        "reusable",
-        "superseded",
-        "not-executed",
-    ):
-        if bucket in parts:
-            return bucket
-    return None
 
 
 def determine_action(status: str) -> str:

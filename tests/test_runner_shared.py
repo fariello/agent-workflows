@@ -156,14 +156,26 @@ def _substitute_injected_call(name: str, node: ast.AST) -> ast.AST:
     `run_checked` called `pinned_child_env(env)` and now calls `env_builder(env)`; `save_state`
     called `write_report(...)` and still does, through the parameter. Mapping the use back is the
     other half of the modulo, so the body comparison is over the WHOLE body and not just its head.
+
+    `discover_plans` additionally needs its TYPE ANNOTATIONS mapped back, and that substitution is
+    named here rather than waved at because it is the one place where a moved body's TEXT genuinely
+    had to change beyond adding a parameter. The shared module CANNOT name `PlanRecord`: the two
+    runners define different NamedTuples under that name, and importing either would be exactly the
+    "drag one host's type into shared code" error the module forbids. So `dict[str, PlanRecord]`
+    became `dict[str, Any]` in the signature and the local. The substitution below restores the
+    original spelling so the rest of the body is still compared EXACTLY; if anything else in the body
+    changed, this still fails.
     """
     back = {
         "run_checked": ("env_builder", "pinned_child_env"),
         "print_status": ("driver_label", '"opencode"'),
     }
+    src = ast.unparse(node)
+    if name == "discover_plans":
+        src = src.replace("dict[str, Any]", "dict[str, PlanRecord]")
+        return ast.parse(src).body[0]
     if name not in back:
         return node
-    src = ast.unparse(node)
     param, original = back[name]
     if name == "print_status":
         src = src.replace("driver_label=driver_label", "driver_label='opencode'")
@@ -277,10 +289,22 @@ class PureMoveFingerprintTests(unittest.TestCase):
 
 
 class SingleDefinitionTests(unittest.TestCase):
-    """Assertion (3): the runners no longer DEFINE what they now import."""
+    """Assertion (3): the runners no longer DEFINE what they now import.
 
-    def test_neither_runner_redefines_a_moved_symbol(self):
-        moved = [n for n in load_fixture()["symbols"] if n not in UNMOVABLE]
+    A WRAPPER IS NOT A RE-FORK, and this class has to tell them apart or it would forbid the very
+    mechanism the maintainer ruled. The 8 `INJECTED` symbols keep a runner-local `def` at the
+    original name whose ONLY statement delegates to `runner_shared`. That is a binding, not a second
+    implementation, and `WrapperTests` separately proves each one is a single delegating statement.
+    What must never exist is a runner-local definition with a BODY, which is what this class checks
+    for everything else.
+    """
+
+    def test_neither_runner_redefines_an_unwrapped_moved_symbol(self):
+        moved = [
+            n
+            for n in load_fixture()["symbols"]
+            if n not in UNMOVABLE and n not in INJECTED
+        ]
         violations = []
         for runner in BOTH:
             defined = top_level_definitions(_MODULES[runner])
@@ -296,13 +320,61 @@ class SingleDefinitionTests(unittest.TestCase):
             + "\n  ".join(violations),
         )
 
+    def test_every_wrapped_symbol_has_a_wrapper_and_not_a_second_body(self):
+        """The wrapped case, checked rather than exempted.
+
+        A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps, and would
+        re-create exactly the divergence this plan removes. So the bar is structural: the runner-local
+        `def` must contain a single statement, and that statement must name the shared function.
+        """
+        for name in sorted(INJECTED):
+            for runner in BOTH:
+                with self.subTest(symbol=name, runner=runner):
+                    node = next(
+                        (
+                            n
+                            for n in ast.parse(module_source(_MODULES[runner])).body
+                            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            and n.name == name
+                        ),
+                        None,
+                    )
+                    self.assertIsNotNone(
+                        node,
+                        f"{runner}.{name} must keep a wrapper at its original name",
+                    )
+                    assert node is not None
+                    statements = [
+                        s
+                        for s in node.body
+                        if not (
+                            isinstance(s, ast.Expr)
+                            and isinstance(s.value, ast.Constant)
+                        )
+                    ]
+                    self.assertEqual(
+                        len(statements),
+                        1,
+                        f"{runner}.{name} has {len(statements)} statements; a wrapper "
+                        "that grows logic is a re-fork with extra steps",
+                    )
+                    self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
+
     def test_exactly_one_definition_package_wide(self):
         """Repo-wide, not pairwise: a pairwise check passes while a third copy sits elsewhere.
 
         That is not hypothetical - it is exactly how `agy_runipd` re-forked four `render_stream`
         symbols while a one-sided guard stayed green (the orchestrator's F10).
+
+        Scoped to the UNWRAPPED symbols for the reason given in this class's docstring: a wrapped
+        symbol legitimately has a runner-local delegating `def`, whose single-statement shape is
+        proven by `test_every_wrapped_symbol_has_a_wrapper_and_not_a_second_body`.
         """
-        moved = [n for n in load_fixture()["symbols"] if n not in UNMOVABLE]
+        moved = [
+            n
+            for n in load_fixture()["symbols"]
+            if n not in UNMOVABLE and n not in INJECTED
+        ]
         pkg = pathlib.Path(runner_shared.__file__).parent
         counts: dict[str, list[str]] = {n: [] for n in moved}
         for path in sorted(pkg.glob("*.py")):

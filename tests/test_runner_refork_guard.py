@@ -38,7 +38,13 @@ import pathlib
 import unittest
 from typing import NamedTuple
 
-from agent_workflows import agy_runipd, oc_runipd, render_stream, selectors
+from agent_workflows import (
+    agy_runipd,
+    oc_runipd,
+    render_stream,
+    runner_shared,
+    selectors,
+)
 
 BOTH = ("oc_runipd", "agy_runipd")
 
@@ -98,12 +104,64 @@ REFORK_TABLE: tuple[Owned, ...] = (
     # keep the runners' permissive matching; see `selectors.read_front_matter_id`.
     Owned("read_front_matter_id", "selectors", BOTH, runner_name="_read_id"),
     Owned("read_front_matter_status", "selectors", BOTH, runner_name="_read_status"),
+    # --- runner_shared: the class (a) commons, extracted by `rununify` Order 02 ----------
+    # EXTENDED BY `818uru` E-08, which is why this table exists as data rather than as
+    # hand-written assertions: adding these 26 rows covers BOTH runners in BOTH directions
+    # automatically, and a future re-fork of ANY of them now fails a test.
+    #
+    # These 26 are the moved symbols that are CLEAN re-exports, so both halves of the
+    # contract apply unchanged: no runner-local definition, and the runner attribute IS the
+    # owner's object.
+    #
+    # DELIBERATELY ABSENT, and each absence is a decision rather than an oversight:
+    #   * The 8 WRAPPED symbols (`run_checked`, `save_state`, `discover_plans`,
+    #     `validate_manifest`, `print_status`, `git_head`, `git_status`, `git_common_dir`).
+    #     Each keeps a one-line runner-local `def` at its original name that binds a
+    #     host-specific or DIVERGED dependency, so it fails BOTH halves by construction: it
+    #     has a local definition, and the attribute is the wrapper rather than the shared
+    #     object. Their equivalent guarantee is enforced by
+    #     `tests/test_runner_shared.py::SingleDefinitionTests`, which proves each wrapper is a
+    #     single delegating statement and therefore a binding rather than a second body.
+    #   * `disable_lane_prompt`, which CANNOT move at all: it mutates a module-level
+    #     `_LANE_PROMPT_DISABLED` through `global`, and a shared `global` would write the
+    #     shared module's flag while each runner's DIVERGED `_lane_reclaim_prompt` kept
+    #     reading its own. Pinned in `UnmovableSymbolTests`.
+    Owned("DriverError", "runner_shared", BOTH),
+    Owned("SCHEMA_VERSION", "runner_shared", BOTH),
+    Owned("ID6_RE", "runner_shared", BOTH),
+    Owned("_SET_RE", "runner_shared", BOTH),
+    Owned("_ORDER_RE", "runner_shared", BOTH),
+    Owned("utc_now", "runner_shared", BOTH),
+    Owned("should_color", "runner_shared", BOTH),
+    Owned("new_run_id", "runner_shared", BOTH),
+    Owned("state_root", "runner_shared", BOTH),
+    Owned("resolve_run_dir", "runner_shared", BOTH),
+    Owned("_run_git", "runner_shared", BOTH),
+    Owned("git_branch", "runner_shared", BOTH),
+    Owned("load_json", "runner_shared", BOTH),
+    Owned("atomic_write_json", "runner_shared", BOTH),
+    Owned("append_jsonl", "runner_shared", BOTH),
+    Owned("sha256_file", "runner_shared", BOTH),
+    Owned("load_state", "runner_shared", BOTH),
+    Owned("_lane_records_from_state", "runner_shared", BOTH),
+    Owned("describe_lane", "runner_shared", BOTH),
+    Owned("format_lane_report", "runner_shared", BOTH),
+    Owned("print_lane_interrupt_report", "runner_shared", BOTH),
+    Owned("build_recovery_lane_notice", "runner_shared", BOTH),
+    Owned("allocate_isolation_worktree", "runner_shared", BOTH),
+    Owned("teardown_isolation_worktree", "runner_shared", BOTH),
+    Owned("_read_set", "runner_shared", BOTH),
+    Owned("_read_order", "runner_shared", BOTH),
+    Owned("resolve_plan_path", "runner_shared", BOTH),
+    Owned("plan_bucket", "runner_shared", BOTH),
+    Owned("describe_unresolved_plan_selector", "runner_shared", BOTH),
 )
 
 _MODULES = {
     "oc_runipd": oc_runipd,
     "agy_runipd": agy_runipd,
     "render_stream": render_stream,
+    "runner_shared": runner_shared,
     "selectors": selectors,
 }
 
