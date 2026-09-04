@@ -42,11 +42,37 @@ from typing import Any, Callable, Iterable, NamedTuple, Sequence, TextIO
 # introducing a partial `__all__` that would understate the rest of the public surface.
 from agent_workflows.render_stream import Heartbeat as Heartbeat
 from agent_workflows import platform_lock, runner_shutdown
+
+# rununify 01 (`2r306y`): the rest of the display layer this module used to RE-FORK. `Palette`,
+# `_strip_ansi`, `_one_line` and the four ANSI/status constants their bodies close over were
+# inline copies here, AST-identical to `render_stream`'s, for exactly the reason `Heartbeat`
+# above was: the guard that forbade these copies was written for `oc_runipd` only, so nothing
+# noticed when this module grew its own. The constants are imported alongside the functions on
+# purpose; keeping identical copies of just the constants would leave the same defect one layer
+# down (a change to the palette or the status colors would still not reach `aw agy run`).
+# `oc_runipd` imports the same seven names from the same owner (see its `__all__`), so the two
+# drivers now bind the SAME objects. The `as <same-name>` form marks the ones this module does
+# not call itself as an intentional re-export, so an autoformatter cannot strip them.
+# rununify 01 (`2r306y`): identical copies of these two readers lived here and in `oc_runipd`,
+# both AST-identical to `selectors`' readers. Both drivers now bind the SAME public `selectors`
+# functions under the private names their call sites use, so a fix reaches both. The aliases are
+# deliberately the PERMISSIVE readers, preserving the whitespace tolerance these copies had;
+# `selectors`' strict internal readers back `aw find` and are unchanged.
+from agent_workflows.selectors import read_front_matter_id as _read_id
+from agent_workflows.selectors import read_front_matter_status as _read_status
+
 from agent_workflows.render_stream import (
     Statusline,
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    Palette as Palette,
+    _strip_ansi as _strip_ansi,
+    _one_line as _one_line,
+    _ANSI_RESET as _ANSI_RESET,
+    _ANSI_CODES as _ANSI_CODES,
+    _ANSI_STRIP_RE as _ANSI_STRIP_RE,
+    _STATUS_COLOR as _STATUS_COLOR,
 )
 
 # runorder (prpipy) E-07: an intentional RE-EXPORT, in the `as <same-name>` form this module uses for
@@ -228,39 +254,11 @@ _PLAN_FILENAME_RE = re.compile(
 # Terminal output verbosity for the streamed child-agent turn.
 OUTPUT_MODES = ("clean", "quiet", "raw")
 
-# ANSI SGR codes.
-_ANSI_RESET = "\033[0m"
-_ANSI_CODES = {
-    "bold": "1",
-    "dim": "2",
-    "red": "31",
-    "green": "32",
-    "yellow": "33",
-    "blue": "34",
-    "magenta": "35",
-    "cyan": "36",
-    "gray": "90",
-}
-_ANSI_STRIP_RE = re.compile(r"\033\[[0-9;]*m")
-
-_STATUS_COLOR = {
-    "executed": "green",
-    "reviewed": "green",
-    "approved": "green",
-    "substantially-complete": "green",
-    "partial": "yellow",
-    "blocked": "yellow",
-    "dependency-blocked": "yellow",
-    "failed-safely": "red",
-    "not-attempted": "gray",
-    "interrupted": "yellow",
-    "running": "cyan",
-    "queued": "gray",
-    # driverfin-03 (7kbtkw): fail-closed integration outcomes (dirty-base refusal / merge conflict);
-    # rendered red because they leave the child NOT integrated and its set NOT finished.
-    "integration-blocked": "red",
-    "merge-conflict": "red",
-}
+# The ANSI SGR codes and the status->color map are IMPORTED from `render_stream` (see the
+# import block near the top of this module), not defined here. They used to be byte-identical
+# inline copies, which is the same defect `Heartbeat` had: a change to the shared palette or
+# to the status colors silently did not reach `aw agy run`. `should_color` (the TTY color
+# decision) deliberately stays local to the caller, per the extraction's OQ-01.
 
 
 def should_color(stream: TextIO | None = None) -> bool:
@@ -276,38 +274,11 @@ def should_color(stream: TextIO | None = None) -> bool:
         return False
 
 
-class Palette:
-    """Tiny colorizer: no-ops cleanly when color is disabled."""
-
-    def __init__(self, enabled: bool) -> None:
-        self.enabled = enabled
-
-    def __call__(self, text: str, *styles: str) -> str:
-        if not self.enabled or not styles:
-            return text
-        codes = ";".join(_ANSI_CODES[s] for s in styles if s in _ANSI_CODES)
-        if not codes:
-            return text
-        return f"\033[{codes}m{text}{_ANSI_RESET}"
-
-    def status(self, status: str) -> str:
-        return (
-            self(status, self_color)
-            if (self_color := _STATUS_COLOR.get(status))
-            else status
-        )
-
-
-def _strip_ansi(text: str) -> str:
-    return _ANSI_STRIP_RE.sub("", text)
-
-
-def _one_line(text: str, limit: int = 200) -> str:
-    """Collapse whitespace/newlines to a single line and clip to ``limit`` chars."""
-    collapsed = " ".join(text.split())
-    if len(collapsed) > limit:
-        return collapsed[: limit - 1] + "\u2026"
-    return collapsed
+# `Palette`, `_strip_ansi` and `_one_line` are IMPORTED from `render_stream` above. They were
+# inline copies here, AST-identical to the shared ones, which meant `agy_runipd.Palette` was a
+# DIFFERENT CLASS from `render_stream.Palette` even though the two read the same: passing one
+# where the other was expected type-checked as a mismatch, and any fix to the shared renderer
+# stopped at this module's border.
 
 
 def render_agy_event(raw_line: str, pal: Palette) -> str | None:
@@ -1374,16 +1345,6 @@ def run_lock(run_dir: Path):
     finally:
         lock.release()
         held.release()
-
-
-def _read_id(text: str) -> str | None:
-    m = _ID_RE.search(text)
-    return m.group(1) if m else None
-
-
-def _read_status(text: str) -> str | None:
-    m = _STATUS_RE.search(text)
-    return m.group(1) if m else None
 
 
 def _read_set(text: str) -> str | None:

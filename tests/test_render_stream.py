@@ -548,30 +548,16 @@ class SingleDefinitionTests(unittest.TestCase):
             assert module is not None
             self.assertEqual(module.__name__, "agent_workflows.render_stream")
 
-    def test_oc_runipd_source_has_no_inline_definitions(self):
-        # Source inspection: oc_runipd must not re-DEFINE the render layer inline.
-        src = inspect.getsource(driver)
-        self.assertNotIn("class Palette:", src)
-        self.assertNotIn("class StreamTracker:", src)
-        self.assertNotIn("class Statusline:", src)
-        self.assertNotIn("def format_tokens(", src)
-        self.assertNotIn("def format_statusline(", src)
-        self.assertNotIn("class Heartbeat:", src)
-        self.assertNotIn("def render_event(", src)
-        self.assertNotIn("def _one_line(", src)
-        self.assertNotIn("def _strip_ansi(", src)
-        self.assertNotIn("def statusline_action_for_item(", src)
-        # It must import them from the shared module instead.
-        self.assertIn("from agent_workflows.render_stream import", src)
-
-    def test_agy_runipd_has_no_inline_heartbeat_copy(self):
-        # stallfp kaga7s: agy carried a byte-identical INLINE `class Heartbeat:`, so a
-        # display fix in render_stream silently did NOT reach `aw agy run`. Guard both
-        # drivers, not just oc, or the duplicate can come back unnoticed.
-        src = inspect.getsource(agy_driver)
-        self.assertNotIn("class Heartbeat:", src)
-        self.assertNotIn("def statusline_action_for_item(", src)
-        self.assertIn("from agent_workflows.render_stream import", src)
+    # RETIRED by rununify 01 (`2r306y`): `test_oc_runipd_source_has_no_inline_definitions` and
+    # `test_agy_runipd_has_no_inline_heartbeat_copy` lived here and were ONE-SIDED, which is the
+    # root cause this Set addresses rather than the duplicates themselves: ten names were guarded
+    # against `oc_runipd` and only two against `agy_runipd`, so agy quietly re-forked `Palette`,
+    # `_strip_ansi`, `_one_line` and four ANSI constants with nothing failing. Both are now rows
+    # in the SYMMETRIC, AST-based, table-driven guard in `tests/test_runner_refork_guard.py`,
+    # which asserts over BOTH runners in both directions (no top-level definition, and the
+    # attribute IS the owner's object). Every name they asserted is in that table (verified
+    # mechanically, 0 dropped), so coverage strictly grew: 12 (runner, symbol) pairs became 28.
+    # Do NOT re-add a one-sided source-substring guard here; add a row to that table instead.
 
     def test_heartbeat_is_the_same_object_in_both_drivers(self):
         self.assertIs(agy_driver.Heartbeat, render_stream.Heartbeat)

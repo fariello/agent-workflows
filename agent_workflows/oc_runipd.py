@@ -86,6 +86,16 @@ from agent_workflows.render_stream import (
 )
 from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 
+# rununify 01 (`2r306y`): `_read_id`/`_read_status` were defined in THIS module AND in
+# `agy_runipd`, both AST-identical to `selectors`' own readers, so one owner had three copies.
+# They are now the public `selectors` readers, bound to this module's historical private names
+# because that is what every call site here already uses. `selectors` imports no runner, so
+# there is no cycle. NOTE the aliases are deliberately the PERMISSIVE readers: this module's
+# copies tolerated any whitespace after the `-` while `selectors`' internal readers require
+# exactly one space, and that strictness is a documented `aw find` matching contract.
+from agent_workflows.selectors import read_front_matter_id as _read_id
+from agent_workflows.selectors import read_front_matter_status as _read_status
+
 # The durable stop-request record and the cooperative-checkpoint poll (spec `c4gd2h` R7-R9/R11)
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
 from agent_workflows import runner_stop
@@ -2191,16 +2201,6 @@ def run_lock(run_dir: Path):
     finally:
         lock.release()
         held.release()
-
-
-def _read_id(text: str) -> str | None:
-    m = _ID_RE.search(text)
-    return m.group(1) if m else None
-
-
-def _read_status(text: str) -> str | None:
-    m = _STATUS_RE.search(text)
-    return m.group(1) if m else None
 
 
 def _read_set(text: str) -> str | None:

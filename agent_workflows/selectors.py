@@ -246,6 +246,54 @@ def _read_status(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+# --- Public front-matter readers (rununify 01, `2r306y`) --------------------------------------
+#
+# The PUBLIC, documented form of the two readers above, for callers OUTSIDE this module. Both
+# host runners used to carry their own private `_read_id`/`_read_status` copies; they now call
+# these, so there is ONE definition per reader and a fix reaches both drivers.
+#
+# THEY DELIBERATELY USE A LOOSER PATTERN THAN THIS MODULE'S OWN READERS, and that is the whole
+# design of this pair rather than an oversight. The runner copies were AST-IDENTICAL in body to
+# `_read_id`/`_read_status` but closed over `^-\s*Id:` (ANY whitespace after the dash) where
+# `_ID_RE`/`_STATUS_RE` above require EXACTLY ONE SPACE. So a literal swap to the strict readers
+# would have made both drivers stop recognizing a bullet written `-  Id: abc123` or with a tab.
+#
+# Widening `_ID_RE`/`_STATUS_RE` instead was NOT an option: the PARITY CONSTRAINT comment above
+# records that `_STATUS_RE`'s strictness is a MATCHING-BEHAVIOR CONTRACT for `aw find plans`,
+# deliberately disagreeing with `plans_index._META_RE` on 24 records. Harmonizing them is a
+# contract change, not a cleanup. Hence a separate permissive pattern here, leaving selector
+# matching byte-for-byte unchanged.
+#
+# The permissive spelling is also the one the WRITER uses: `status_set.py:132-133`, which is what
+# actually rewrites these bullets, matches on `^-\s*Id:`/`^-\s*Status:`, as do
+# `check_engine`/`backlog`/`research_index` (via `[ \t]*`). Tolerating the loose form on READ is
+# therefore consistent with the rest of the toolkit, and it fails safe: a missed `- Status:` read
+# silently degrades a runner to a directory-derived status (`oc_runipd.parse_plan_file`), which
+# is precisely the class of silent wrongness this Set exists to remove.
+_FRONT_MATTER_ID_RE = re.compile(r"(?m)^-\s*Id:\s*([0-9a-z]{6})\s*$")
+_FRONT_MATTER_STATUS_RE = re.compile(r"(?m)^-\s*Status:\s*(\S+)\s*$")
+
+
+def read_front_matter_id(text: str) -> str | None:
+    """Return the `- Id:` id6 from a record's front matter, or ``None``.
+
+    Tolerates any whitespace after the leading dash (see the note above). For SELECTOR
+    matching use the strict internal reader instead, so `aw find` behavior is unchanged.
+    """
+    m = _FRONT_MATTER_ID_RE.search(text)
+    return m.group(1) if m else None
+
+
+def read_front_matter_status(text: str) -> str | None:
+    """Return the single-token `- Status:` value from a record's front matter, or ``None``.
+
+    A multi-word status (e.g. ``EXECUTED (approved ...)``) yields ``None``, matching the
+    internal reader's `(\\S+)` contract; only the leading whitespace tolerance differs.
+    """
+    m = _FRONT_MATTER_STATUS_RE.search(text)
+    return m.group(1) if m else None
+
+
 def _read_setid(text: str) -> str | None:
     m = _SET_RE.search(text)
     if not m:
