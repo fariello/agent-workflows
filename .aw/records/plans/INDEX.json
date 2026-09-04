@@ -4267,7 +4267,7 @@
     "path": "pending/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md",
     "plan_id": "d7bnhc",
     "set_id": "apprvguard",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-31",
@@ -4437,7 +4437,7 @@
     "path": "pending/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md",
     "plan_id": "prpipy",
     "set_id": "runorder",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-03",
@@ -4447,7 +4447,7 @@
     "path": "pending/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md",
     "plan_id": "2r306y",
     "set_id": "rununify",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-09-03",
@@ -4457,7 +4457,7 @@
     "path": "pending/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md",
     "plan_id": "818uru",
     "set_id": "rununify",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",
