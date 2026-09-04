@@ -4,10 +4,10 @@
 - Kind: child
 - Concern: Workspace layout inspection needs a dedicated CLI verb (`aw layout`) and workspace health check in `aw check` per Spec kw5y2s.
 - Scope: Add `aw layout` command (supporting `--json`, `--schema`) to `agent_workflows/cli.py`, add layout consistency checking to `check_engine.py` / `doctor.py`, and author unit tests in `tests/test_cli_layout.py`.
-- Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, tests/test_cli_layout.py
-- Item-Dependencies: executed:hauwqh
-- Status: reviewed
-- Readiness: go-pending-approval
+- Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_cli_layout.py
+- Item-Dependencies: executed:hauwqh,executed:zvk796
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 5
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added eleven-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
@@ -35,11 +36,11 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: CLI Verb Implementation
 
-- [ ] E-01 Add `layout` subcommand to `agent_workflows/cli.py` supporting `--json`, `--schema`, and formatted human inspection.
+- [ ] E-01 Add the read-only `layout` command across `agent_workflows/cli.py` and `agent_workflows/command_surface.py`, supporting `--json`, `--schema`, agent output, and formatted human inspection.
   - Depends on: none
   - Expected outcome: `aw layout` command works in human and agent modes.
   - Execution state: pending
-  - Set-level prerequisite: `hauwqh` must be executed first; see `- Item-Dependencies:` in the metadata.
+  - Set-level prerequisites: `hauwqh` and `zvk796` must both be executed first; see `- Item-Dependencies:` in the metadata. `hauwqh` supplies emission behavior, while `zvk796` supplies the `reviews` noun required by V-03.
   - NAMING DECISION RESOLVED BY MAINTAINER (2026-09-03, OQ-01): Option (a) chosen. Add a new top-level
     read-only `aw layout` verb. It exposes the record-class vocabulary and JSON Schema, neither of which
     `aw context` models; `aw context` remains the inspector for resolved logical roots and `aw path <root>`
@@ -49,6 +50,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
   - Per the maintainer's OQ-2 ruling the emitted `layout.json` is GITIGNORED, so this command MUST work
     from the in-process model even when no emitted file exists (a fresh clone has none until an install
     runs). It must not require the file to be present.
+  - CLI output contract: route the handler through `select_output(args)`, `CommandResult`, and `get_renderer`; add a `CommandDeclaration` and the read-only `LIVE_SAFE_LEAVES` scenario. Validate human, `--agent`, `--json`, `--no-color`, and usage-error parity, including ANSI-free agent output and exit 0/1/2 behavior.
 
 ### Task group 2: Workspace Health Check
 
@@ -79,13 +81,14 @@ Execution-state rule: mark an E-* item complete only after performing the action
   - Must include the union-vocabulary CLI fence (plan-review PR-001): assert `aw check reviews` is
     accepted (net-new per the maintainer ruling) AND `aw check roadmaps` still is, so a future edit that
     silently drops a live type fails here as well as in `wpu5zu`'s model test.
+  - Must cover the command declaration and live conformance matrix scenario required for every new read-only CLI leaf; run the full conformance suite (`make test-all`) before finalizing this child.
 
 ## Project conventions discovered (Step 0)
 
 - `agent_workflows/cli.py`: main CLI surface.
 - `agent_workflows/check_engine.py`: consistency check engine.
 - `agent_workflows/doctor.py`: comprehensive read-only repository health inspector.
-- Controlling spec `kw5y2s` Section 6.2 is `- Status: approved`, carrying the maintainer's `aw layout` naming resolution (OQ-01) and gitignored layout.json handling.
+- Controlling spec `kw5y2s` Section 6.2 is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its `aw layout` naming resolution and gitignored layout.json handling remain unchanged.
 - `aw layout` is a read-only inspection verb; distinct from transactional `aw migrate-layout`.
 - Because `.aw/system/layout.json` is gitignored, `aw layout` must fall back to the in-process model if the file is absent on a fresh clone.
 - `check.system-layout-missing` and `check.system-layout-drift` rules distinguish (a) no workspace (clean/skip), (b) installed workspace with missing layout (defect), and (c) installed workspace with version/schema drift (defect).
@@ -114,7 +117,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 ## Scope check
 
 - Over-scope: none.
-- Under-scope: none. `tests/test_cli_layout.py` is newly created by E-03 and is in `Scope-Paths`.
+- Under-scope: none. `tests/test_cli_layout.py`, `agent_workflows/command_surface.py`, and `tests/conformance_matrix.py` are in `Scope-Paths` because every new read-only CLI leaf must declare and exercise the output contract.
 - Concurrent-scope collision (PR-010): `agent_workflows/cli.py` is declared by 13 pending plans. Re-measure immediately before execution.
 
 ## Required tests / validation
@@ -182,12 +185,12 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
 
 Execution contract:
 
 1. Human approval of this plan is required before execution. There are no unresolved blocking questions: OQ-01 is `Status: resolved` by the maintainer.
-2. Serial prerequisite: `hauwqh` (Order 04) MUST reach `executed` before starting this plan.
+2. Serial prerequisites: `hauwqh` (Order 04) AND `zvk796` (Order 02) MUST reach `executed` before starting this plan. The emitted-layout behavior comes from Order 04, while `aw check reviews` requires the new noun from Order 02.
 3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/cli.py` is declared by 13 pending plans. If concurrent edits are in flight, verify mergeability before editing.
 4. Read-only verb: `aw layout` must be strictly read-only, clearly distinguished from `aw migrate-layout`.
 5. Missing-file tolerance: `aw layout` must function from in-process defaults when `.aw/system/layout.json` does not exist on disk (fresh clone).

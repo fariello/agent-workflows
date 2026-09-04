@@ -6,8 +6,8 @@
 - Scope: Refactor `agent_workflows/record_producers.py` and `agent_workflows/project_schema.py` to source definitions from `agent_workflows/layout.py` while preserving existing exception types, class enums, and legacy migration path adapters. Author unit tests in `tests/test_record_producers.py`.
 - Scope-Paths: agent_workflows/record_producers.py, agent_workflows/project_schema.py, tests/test_record_producers.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 3
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-020, PR-022, PR-023 fixed (added test file to Scope-Paths, added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
@@ -70,7 +71,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/record_producers.py`: central record routing and write guard. Defines `RecordClass` (9 members + `records` root-level carve-out), `DurableStateClass` (5 members), `RuntimeStateClass` (6 members), `_RECORD_CLASS_SUBPATHS`, and `_LEGACY_RECORD_CLASS_SUBPATHS`.
 - `agent_workflows/project_schema.py`: canonical project schema vocabulary. `LogicalRoot` (4 members: system, config, state, records) and `RootClass` (6 members: system, config_project, config_local, state_durable, state_runtime, records).
-- Controlling spec `kw5y2s` Section 5.1 is `- Status: approved`. Item 4 explicitly forbids collapsing `RootClass` (6) into `LogicalRoot` (4).
+- Controlling spec `kw5y2s` is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its rule against collapsing `RootClass` (6) into `LogicalRoot` (4) remains unchanged.
 - `_RECORD_CLASS_SUBPATHS['records'] == ""` is the mandatory empty-subpath carve-out for the records root itself; naive mapping would produce invalid `records/records/` paths.
 - `_LEGACY_RECORD_CLASS_SUBPATHS` preserves `docs/specs`, `docs/research`, and `docs/walkthroughs` overrides for legacy `.agents/` migration reads.
 - Python 3.9 is the floor (`pyproject.toml:12`).
@@ -148,7 +149,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
 
 Execution contract:
 

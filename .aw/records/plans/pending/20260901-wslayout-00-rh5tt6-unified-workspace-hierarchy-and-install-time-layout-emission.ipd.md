@@ -6,8 +6,8 @@
 - Scope: Coordinate execution of the 5-plan child set wslayout implementing Spec kw5y2s across core modeling, internal module consolidation, install-time emission, and CLI surface.
 - Scope-Paths: agent_workflows/layout.py, agent_workflows/artifact_types.py, agent_workflows/selectors.py, agent_workflows/record_producers.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/check_engine.py, tests/
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 0
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019..PR-023 fixed across Set (all 5 children reviewed and brought to Status: reviewed with execution contracts and readiness; F-9 advisory resolved).
 - 2026-09-02 reviewed (aw set): plan-review round 2 (orchestrator): APPROVE WITH REVISIONS APPLIED; PR-010..PR-014 fixed; spec kw5y2s now approved so the round-1 external gate is cleared
@@ -63,7 +64,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | 02 | `zvk796` | Consolidate artifact_types.py and selectors.py into layout model | 01 |
 | 03 | `rodj06` | Consolidate record_producers.py and project_schema.py into layout model | 01 |
 | 04 | `hauwqh` | Install-time layout.json and schema emission in engine.py | 01 |
-| 05 | `30jug9` | Add aw layout CLI command and workspace health check rule | 04 |
+| 05 | `30jug9` | Add aw layout CLI command and workspace health check rule | 02 and 04 |
 
 ## Completion criteria (the whole Set is done only when)
 
@@ -100,14 +101,14 @@ These are the checks NO single child can perform, which is the orchestrator's re
 | Id | Finding | Evidence |
 | --- | --- | --- |
 | F-1 | **The decomposition is sound and survived two review rounds.** Pure new code first (Order 01), isolated refactor of legacy modules second (02 and 03), install emission third (04), user-facing surface last (05). Round 1's own REPLAN call was withdrawn on exactly this basis: the sequence was never the problem. | Round 1 review record, D-6. |
-| F-2 | **The external spec gate that made round 1 NO-GO IS NOW CLEARED.** Controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human` with the maintainer's verbatim attestation, and it carries both maintainer rulings. `ipd-lifecycle.md:16`'s precondition is therefore satisfied and readiness turns on ordinary plan approval alone. | `.aw/records/specs/20260901-kw5y2s-01-kw5y2s-...spec.md:4` and its workflow history; commit `6db54f8b`. |
-| F-3 | **Round 1's fixes are REAL, verified by re-reading the children rather than trusting the record.** `Item-Dependencies` now match the sequence table on all five children (`zvk796`/`rodj06`/`hauwqh` -> `executed:wpu5zu`, `30jug9` -> `executed:hauwqh`); `wpu5zu` E-01 carries the union vocabulary with the `records` carve-out and pinned exclusions; `rodj06` E-02 and `hauwqh` E-03 now CREATE the previously-missing test files; `tests/test_setup_repo_cli.py` is gone from scope. | `grep` of `- Item-Dependencies:` across the Set; `wpu5zu:39-59`; `rodj06:60,107-109`; `hauwqh:71-76,109-112`. |
+| F-2 | **The prior approval is superseded by a maintainer-directed terminology correction.** Controlling spec `kw5y2s` is now `to-review`; no child may execute until renewed human approval is recorded. | `.aw/records/specs/20260901-kw5y2s-01-kw5y2s-...spec.md:4,11`. |
+| F-3 | **Round 1's fixes are REAL, verified by re-reading the children rather than trusting the record.** `Item-Dependencies` now match the sequence table on all five children (`zvk796`/`rodj06`/`hauwqh` -> `executed:wpu5zu`, `30jug9` -> `executed:hauwqh,executed:zvk796`); `wpu5zu` E-01 carries the union vocabulary with the `records` carve-out and pinned exclusions; `rodj06` E-02 and `hauwqh` E-03 now CREATE the previously-missing test files; `tests/test_setup_repo_cli.py` is gone from scope. | `grep` of `- Item-Dependencies:` across the Set; `wpu5zu:39-59`; `rodj06:60,107-109`; `hauwqh:71-76,109-112`. |
 | F-4 | **The union vocabulary claim CHECKS OUT against live code.** Measured: `ARTIFACT_TYPES` = 10 members, `RecordClass` = 9, union = 12 names, which is exactly the eleven modeled record classes plus `records` held separately as the empty-subpath carve-out (`_RECORD_CLASS_SUBPATHS[RecordClass.RECORDS] == ""`). `EXCLUDED_RECORD_DIRS` is exactly the seven the plans pin. The aliases include `roadmap -> roadmaps` and `misc`/`others -> other` as `wpu5zu` E-01 requires. | Live import at HEAD `12159af5`; `record_producers.py:136`; `artifact_types.py:12-39`; `selectors.EXCLUDED_RECORD_DIRS`. |
 | F-5 | **Two premises the Set relies on are still true at round 2, so its work is not already done.** `aw layout` does not exist (invalid choice), and `aw check reviews` still errors (`outcome: error, exit 2`), which is the net-new behavior `30jug9` owns. | `python3 -m agent_workflows layout`; `aw check reviews --agent`. |
 | F-6 | **PR-009's tooling defect is unresolved and will fire during execution.** `check.lifecycle-transition-invalid` still reports on all six wslayout plans and on 3 unrelated ones (9 repo-wide), and backlog `tk1gqo` is still `open`. The executor must expect it and must NOT "fix" it by reordering histories. | `aw check plans --agent` at round 2; `.aw/records/backlog/open/20260901-historder-01-tk1gqo-...backlog.md:2`. |
 | F-7 | **REVIEW FINDING (round 2): the orchestrator had NO execution contract at all**, while its own children and comparable orchestrators in this repo carry one (compare `3m0urk`'s eight-clause contract). Added, including the scope fence, the honesty rule, path-scoped commits, and the lifecycle-transition-is-not-an-E-item rule. | Round 2 diff of this file; `3m0urk` gate section. |
 | F-9 | **RESOLVED (round 4): the five children are now reviewed and Status: reviewed.** The full Set was reviewed in batch; all child plans now carry execution contracts, verified citations, bare suite validation with baseline re-measurement, and `- Readiness: go-pending-approval`. | Round 4 review across the Set; all children `Status: reviewed`. |
-| F-8 | **REVIEW FINDING (round 2): live concurrent scope collisions on two of the Set's modules.** APPROVED plan `e32j35` (Set `findidx`) declares `agent_workflows/selectors.py`, which `zvk796` rewrites; REVIEWED plan `6knsrx` declares `agent_workflows/engine.py`, which `hauwqh` edits and which lands a stack of unmerged lane branches. Across pending plans `cli.py` is declared by 13 and `engine.py` by 3. | Measured `grep -l` over `.aw/records/plans/pending/*.ipd.md` with each plan's `- Status:`. |
+| F-8 | **Concurrent scope must be re-measured immediately before each child.** The named round-2 collision plans are now superseded, so execution must inspect current pending declarations rather than trust historical examples. | Current plan board and `aw attention`; round-2 measurement is historical only. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -138,7 +139,7 @@ These are the checks NO single child can perform, which is the orchestrator's re
 
 ## Spec / documentation sync
 
-- Aligned with spec `kw5y2s`, which is now `approved` (F-2). Its factual defects were corrected in place during round 1 (vocabulary tables, traversal exclusions, the non-existent `aw setup-repo`/`aw update` verbs) and the two maintainer rulings are encoded in its Sections 2.3, 3.2 and 3.2.1. Do NOT edit the spec further during execution: it is approved, and a plan-time edit to an approved spec would invalidate the attestation.
+- Aligned with spec `kw5y2s`, which is now `to-review` after the maintainer-directed installer terminology correction (F-2). Do NOT execute this Set until renewed human approval is recorded; then treat the approved spec as immutable during execution.
 - If execution discovers a further factual defect in the spec, do not silently diverge and do not edit it: record the discrepancy and report it, since only the maintainer may re-approve.
 - No user-facing documentation is named by this orchestrator. The user-visible surface (`aw layout` or its chosen alternative) is `30jug9`'s, and its own plan owns any docs and completion wiring that surface needs.
 
@@ -237,14 +238,14 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS NOW CLEARED (round 2, 2026-09-01). Round 1 reported readiness NO-GO solely because controlling spec `kw5y2s` was `draft` and `ipd-lifecycle.md:16` forbids executing against an unapproved spec. Measured at round 2: that spec is now `- Status: approved` (`.aw/records/specs/20260901-kw5y2s-01-kw5y2s-unified-workspace-hierarchy-spec-and-install-time-layout-emi.spec.md:4`), approved `--by-human` with the maintainer's verbatim attestation recorded in its workflow history, and it carries both maintainer rulings (UNION vocabulary, GITIGNORED emission). The remaining gate is ordinary human approval of these six plans.
+THE EXTERNAL SPEC GATE IS REOPENED. Controlling spec `kw5y2s` is `to-review` after the maintainer-directed correction of installer and layout-model API terminology. `ipd-lifecycle.md:16` therefore blocks every child until renewed human approval is recorded. The plans are likewise returned to `to-review` for this review round.
 
 Execution contract:
 
 1. Human approval of the plans is required. There are no unresolved BLOCKING questions: this orchestrator's three open questions are all `Status: resolved`, and the two remaining `open` questions (`zvk796` OQ-01 traversal exclusions, `30jug9` OQ-01 CLI naming) are non-blocking, assigned to the EXECUTOR, each with a stated safe default and a V-item that FAILS if the choice is made without being recorded.
-2. Execute children SERIALLY in the table order. The metadata now matches the table (`Item-Dependencies` written at round 1), so a scheduler and a human read the same sequence. Do not start Order 02, 03, or 04 before `wpu5zu` is `executed`, because they import `layout.py`.
+2. Execute children SERIALLY in the table order after the controlling spec is re-approved. Do not start Order 02, 03, or 04 before `wpu5zu` is `executed`, and do not start Order 05 before BOTH `zvk796` and `hauwqh` are `executed`: its `aw check reviews` proof needs the new noun from Order 02 and the emitted-layout behavior from Order 04.
 3. The orchestrator itself authors NO product code and touches only its own file. Product changes, tests, and commits belong to the children.
-4. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EACH CHILD, not once at Set start (round 2, PR-010). Measured at round 2 across pending plans: `cli.py` is declared by 13, `engine.py` by 3, `selectors.py`/`artifact_types.py`/`record_producers.py` by 3 each, `check_engine.py`/`project_schema.py` by 2 each. Two specific live conflicts: APPROVED plan `e32j35` (Set `findidx`) declares `agent_workflows/selectors.py`, which `zvk796` rewrites; and REVIEWED plan `6knsrx` (Set `wtisoland`) declares `agent_workflows/engine.py`, which `hauwqh` edits, and is itself the lander for a stack of unmerged lane branches. A child editing those files while such work is in flight is writing into a file about to receive a large merge.
+4. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EACH CHILD, not once at Set start. The previously named `e32j35` and `6knsrx` examples are superseded and no longer live conflicts; use the current pending-plan board to identify active overlaps, then verify mergeability before editing.
 5. Validation requires ACTUAL pasted commands, exit codes, and file contents. A clean structural lint is not evidence of behavior, and this Set has already been bitten by that: round 1 found the orchestrator's open-question section had never been PARSED by the linter (prose bullets instead of `### OQ-NN:` headings), so an earlier "lint conforming" was a false negative on that section.
 6. Commit only files the executing plan changed, path-scoped. Other agents and runs are ACTIVE in this shared checkout, so before every commit verify the staged set with `git diff --cached --name-only` and `git restore --staged` anything not yours. Never `git add -A`, bare `git add`, `git commit -a`, `--no-verify`, or push.
 7. Validate in the PRIMARY checkout, never a scratch worktree (`dh0uno`).

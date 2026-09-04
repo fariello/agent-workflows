@@ -6,8 +6,8 @@
 - Scope: Create `agent_workflows/layout.py` with dataclasses (`RecordClassDefinition`, `LayoutModel`), canonical layout constants, `build_default_layout()`, `to_json()`, and `to_schema()`. Add unit tests in `tests/test_layout.py`.
 - Scope-Paths: agent_workflows/layout.py, tests/test_layout.py
 - Item-Dependencies: none
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 1
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019..PR-023 fixed across Set (added structured readiness field; consumer interface confirmed against newly-reviewed children 02-05).
 - 2026-09-02 reviewed (aw set): plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-015..PR-018 fixed (incomplete consumer interface, other/3.9, undeclared jsonschema, missing execution contract)
@@ -42,8 +43,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
   - Expected outcome: `agent_workflows/layout.py` exists with complete typed layout definitions.
   - Execution state: pending
   - VOCABULARY IS THE UNION (maintainer ruling 2026-09-01, plan-review PR-001). The model MUST document
-    reality, not redefine it. The draft spec's table is WRONG and MUST NOT be copied verbatim: it omits
-    `roadmaps` and `records` and adds `reviews`/`backlog`/`other`. Measured truth at HEAD:
+    reality, not redefine it. The approved spec's corrected table now records this UNION; use it together with the measured source vocabularies below to keep the model and existing callers aligned. Measured truth at HEAD:
     `ARTIFACT_TYPES` = plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms,
     releases, other (`agent_workflows/artifact_types.py:12-23`); `RecordClass` = plans, specs, research,
     records, prompts, comms, walkthroughs, releases, reviews
@@ -74,13 +74,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
       `ARTIFACT_TYPES` minus `other` (`selectors.py`, measured). `zvk796` E-02 sources it from here, so
       the model must either expose it or expose a documented rule that derives it (for example a
       per-class `is_primary` flag). Do NOT let a consumer re-hardcode it.
-    * `other` IS NOT AN ORDINARY SUBPATH and is the second carve-out this model needs. `record_dirs`
-      computes it as the COMPLEMENT of `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS` over the records
-      root, plus a literal `other/` if present (`selectors.record_dirs`, the `if record_type == "other"`
-      branch). Measured: `record_dirs(repo, "other")` returns `['.aw/records/reviews',
-      '.aw/records/prompt-library']` on this tree, and NO `.aw/records/other/` directory exists. Model it
-      as a computed/complement class, never as `subpath: "other"`, or Order 02 will silently change
-      traversal.
+    * `other` IS NOT AN ORDINARY SUBPATH and is the second carve-out this model needs. `record_dirs` computes it as the complement of `KNOWN_PRIMARY_TYPES`, `NON_PRIMARY_RECORD_DIRS`, and `EXCLUDED_RECORD_DIRS` over the records root, plus a literal `other/` if present. `NON_PRIMARY_RECORD_DIRS` currently contains `reviews`, which must stay out of the `other` sweep to preserve review-id isolation. Measured: `record_dirs(repo, "other")` returns `[` + "`.aw/records/prompt-library`" + `]` on this tree, and no `.aw/records/other/` directory exists. Expose this non-primary classification or a documented derivation in the model, never a literal `other` subpath, so Order 02 cannot silently re-sweep reviews.
     * `durable_state_classes` and `runtime_state_classes` are named by the spec's `LayoutModel` and are
       consumed by `rodj06` E-01. Live values, to be reproduced exactly: durable = `install`, `history`,
       `actions`, `migrations`, `routing_receipts`; runtime = `transactions`, `locks`, `staging`,
@@ -123,9 +117,9 @@ Execution-state rule: mark an E-* item complete only after performing the action
     `zvk796`'s later widening is a visible, deliberate test change rather than a silent drift.
   - MUST assert the CONSUMER-INTERFACE surface E-01 now owes Orders 02 and 03 (round 2, PR-015), since
     those children import it and a missing piece surfaces there as an ImportError rather than here:
-    `KNOWN_PRIMARY_TYPES` (or its derivation rule) equals the live 9-member set; the durable and runtime
+    `KNOWN_PRIMARY_TYPES` and `NON_PRIMARY_RECORD_DIRS` (or their derivation rules) equal the live sets; the durable and runtime
     state-class vocabularies equal the live sets member-for-member; `other` is representable WITHOUT a
-    literal `other` subpath; and the legacy subpath map's three `docs/`-prefixed entries survive.
+    literal `other` subpath and excludes `reviews`; and the legacy subpath map's three `docs/`-prefixed entries survive.
   - MUST assert DETERMINISM concretely rather than by inspection: serialize twice in one process and
     assert byte equality, and assert a stable key order, since `hauwqh` E-01 relies on re-emission being
     a no-op for an unchanged version.
@@ -134,7 +128,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ## Project conventions discovered (Step 0)
 
-- Spec `kw5y2s` Section 4 (`:171-352`) defines the JSON schema and the concrete emitted document; Section 5 (`:353-392`) defines the Python dataclass shapes. The spec is now `approved`, so do not edit it; if a further factual defect is found, report it rather than diverging silently.
+- Spec `kw5y2s` is `to-review` after its maintainer-directed API terminology correction. Do not execute until it is re-approved; then treat its Sections 4 and 5 as authoritative and report any further factual defect rather than diverging silently.
 - The spec's Section 5 code block is a SHAPE, not copyable source: its `tuple[...]`/`dict[...]` field annotations are invalid at class-creation time on the declared 3.9 floor.
 - Python 3.9 is the floor (`pyproject.toml:12`). The house pattern for a 3.9-compatible typed module is `from __future__ import annotations` plus `typing` generics (`attention_contract.py:38,41`; `worktree_lease.py:24,32`; `artifact_core.py:21,30`).
 - Runtime dependencies are `["filelock>=3"]` only, and the `[test]` extra is `pytest`/`pytest-xdist`/`pytest-randomly` (`pyproject.toml:50,68`). D138 permits a justified dependency but the operative rule is DECLARE IT OR DO NOT IMPORT IT; `pyproject.toml`'s own `filelock` comment states "An accidental transitive install is not a dependency".
@@ -148,7 +142,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | --- | --- | --- |
 | F-1 | **The additive-first shape is correct and is why this plan survived round 1 nearly intact.** Creating `layout.py` standalone changes no existing code and allows full unit validation before any consumer is refactored. | Round 1 review record; this plan's `Scope-Paths` (two new files only). |
 | F-2 | **Round 1's vocabulary pinning is accurate, re-verified live at round 2.** `ARTIFACT_TYPES` has 10 members and `RecordClass` 9; their union is 12 names = the eleven modeled classes plus `records`. `_RECORD_CLASS_SUBPATHS['records'] == ''` confirms the carve-out. `EXCLUDED_RECORD_DIRS` is exactly the seven pinned. `_ALIASES` includes `roadmap -> roadmaps` and `misc`/`others -> other`. | Live import at HEAD `90434d47`. |
-| F-3 | **The controlling spec is now `approved`, so the round-1 execution gate is cleared** and readiness turns on ordinary plan approval. | `.aw/records/specs/20260901-kw5y2s-01-...spec.md:4`; commit `6db54f8b`. |
+| F-3 | **The controlling spec is now `to-review` after a maintainer-directed API terminology correction.** The execution gate is reopened until renewed human approval is recorded. | `.aw/records/specs/20260901-kw5y2s-01-...spec.md:4,11`. |
 | F-4 | **REVIEW FINDING (round 2): E-01's promised surface was incomplete for its own consumers.** `zvk796` E-02 sources `KNOWN_PRIMARY_TYPES` from `layout.py`, and `rodj06` E-01 sources the durable/runtime state classes, but E-01 named none of them. Measured: `KNOWN_PRIMARY_TYPES` is a distinct 9-member set (`ARTIFACT_TYPES` minus `other`), durable = 5 members, runtime = 6. A missing piece would surface in Order 02/03 as an ImportError, after this plan was already marked done. | `selectors.KNOWN_PRIMARY_TYPES`; `record_producers.DurableStateClass`/`RuntimeStateClass`; `zvk796:53`; `rodj06:36`. |
 | F-5 | **REVIEW FINDING (round 2): `other` needs a SECOND carve-out, and the plan named only the `records` one.** `record_dirs(repo, "other")` returns `['.aw/records/reviews', '.aw/records/prompt-library']` on this tree and no `.aw/records/other/` exists, because the branch computes the complement of `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS`. Modeling `other` as `subpath: "other"` would silently change traversal in Order 02. | `selectors.record_dirs` `if record_type == "other"` branch; measured output; `ls -d .aw/records/*/`. |
 | F-6 | **REVIEW FINDING (round 2): the spec snippet the plan implements is not 3.9-valid.** `requires-python = ">=3.9"` while the snippet annotates dataclass fields as `tuple[str, ...]`/`dict[str, str]`, which are evaluated at class creation and fail on 3.9 without `from __future__ import annotations`. | `pyproject.toml:12`; spec `:358-372`; house pattern in three comparable modules. |
@@ -228,7 +222,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is now `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied and this plan needs only ordinary human approval. This plan is `reviewed` and has no unresolved blocking questions.
+THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded. This plan is returned to `to-review`; after correction and re-review it still needs ordinary human plan approval.
 
 THIS IS ORDER 01, THE FOUNDATION: three of the four later children import what it creates. The dangerous failure is therefore NOT a bug in `layout.py` but an INCOMPLETE INTERFACE that looks finished: if the model omits `KNOWN_PRIMARY_TYPES`, the state-class vocabularies, the `other` complement rule, or the legacy subpath map, this plan validates green and Order 02 or 03 fails at import time or, worse, silently changes traversal (F-4, F-5). V-01's consumer-interface proof exists for exactly that and may not be waived.
 

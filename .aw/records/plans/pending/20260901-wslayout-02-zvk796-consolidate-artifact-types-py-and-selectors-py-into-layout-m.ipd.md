@@ -6,8 +6,8 @@
 - Scope: Refactor `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py` to import constants and helper logic from `agent_workflows/layout.py`.
 - Scope-Paths: agent_workflows/artifact_types.py, agent_workflows/selectors.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 2
 - Highest E allocated: 02
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-022, PR-023 fixed (added ten-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
@@ -52,7 +53,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 2: Refactor selectors.py
 
-- [ ] E-02 Update `agent_workflows/selectors.py` to source `KNOWN_PRIMARY_TYPES` and `EXCLUDED_RECORD_DIRS` from `agent_workflows/layout.py`.
+- [ ] E-02 Update `agent_workflows/selectors.py` to source `KNOWN_PRIMARY_TYPES`, `NON_PRIMARY_RECORD_DIRS`, and `EXCLUDED_RECORD_DIRS` from `agent_workflows/layout.py`.
   - Depends on: E-01
   - Expected outcome: `selectors.py` uses the canonical layout exclusions and types.
   - Execution state: pending
@@ -69,7 +70,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/artifact_types.py`: closed TYPE-noun vocabulary and verb routing.
 - `agent_workflows/selectors.py`: shared selector resolver.
-- Controlling spec `kw5y2s` Section 5.1 is `- Status: approved`, carrying the maintainer's UNION vocabulary ruling (11 record classes + `records` root carve-out) and GITIGNORED emission ruling.
+- Controlling spec `kw5y2s` is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the spec gate. Its UNION vocabulary and GITIGNORED rulings remain unchanged.
 - `KNOWN_PRIMARY_TYPES` is 9 members (`ARTIFACT_TYPES` minus `other`), sourced from `layout.py` (PR-015).
 - `NON_PRIMARY_RECORD_DIRS = frozenset({"reviews"})` exists in `selectors.py` to prevent `other` from capturing review records and colliding with plan id6 resolution; sourcing from `layout.py` must preserve this isolation.
 - `EXCLUDED_RECORD_DIRS` is pinned to the current 7 entries (`runs`, `scratch`, `tmp`, `temp`, `.git`, `.system_generated`, `__pycache__`) per maintainer ruling OQ-01.
@@ -84,7 +85,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | F-3 | **Traversal exclusions stay at seven per maintainer ruling OQ-01.** Sourcing exclusions from `layout.py` must not silently widen to include `node_modules`, `venv`, or `.venv`. | `selectors.py:168-178`; maintainer resolution on OQ-01. |
 | F-4 | **`reviews` becomes an accepted type token by derivation**, allowing `aw check reviews` to succeed (net-new behavior enabled by the union vocabulary). | `artifact_types.py:42-60`; `aw check reviews`. |
 | F-5 | **Resolver isolation for `NON_PRIMARY_RECORD_DIRS` (`reviews`) must be preserved** so that `_OTHER_SWEEP_SKIP_DIRS` continues to prevent `other` from capturing `.review.md` files. | `selectors.py:140-185`. |
-| F-6 | **Concurrent scope collision on `agent_workflows/selectors.py`.** APPROVED plan `e32j35` (Set `findidx`) also declares `selectors.py`. Re-measurement required immediately before execution. | `.aw/records/plans/pending/20260901-findidx-00-e32j35-...ipd.md`. |
+| F-6 | **Concurrent scope must be measured at execution time.** The prior `e32j35` example is superseded; inspect current pending declarations for `selectors.py` immediately before editing. | Current pending-plan board. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -99,7 +100,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - Over-scope: none. Both files are strictly internal refactors re-exporting canonical constants from `layout.py`.
 - Under-scope: none.
-- Concurrent-scope collision (PR-010): `agent_workflows/selectors.py` is declared by APPROVED plan `e32j35`. Re-measure immediately before execution.
+- Concurrent-scope collision: the prior `e32j35` example is superseded. Re-measure current pending declarations immediately before execution.
 
 ## Required tests / validation
 
@@ -156,13 +157,13 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
 
 Execution contract:
 
 1. Human approval of this plan is required before execution. There are no unresolved blocking questions: OQ-01 is `Status: resolved` by the maintainer.
 2. Serial prerequisite: `wpu5zu` (Order 01) MUST reach `executed` before starting this plan, as this plan imports `agent_workflows/layout.py`.
-3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/selectors.py` is declared by APPROVED plan `e32j35` (Set `findidx`). If concurrent edits are in flight, verify mergeability before editing.
+3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: the prior `e32j35` example is superseded, so inspect current pending declarations for `agent_workflows/selectors.py`. If concurrent edits are in flight, verify mergeability before editing.
 4. Non-narrowing invariant: `roadmaps` MUST survive in `ARTIFACT_TYPES` and `roadmap` in `_ALIASES` (PR-001).
 5. Exclusions invariant: Keep exactly the 7 current exclusions per maintainer ruling OQ-01.
 6. Validation requires ACTUAL pasted runner output; never claim a pass without running the commands.

@@ -6,8 +6,8 @@
 - Scope: Update `agent_workflows/engine.py` to write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during `engine.install_into_repo()` (the only emission site; `/aw setup-repo` inherits it transitively), gitignore them via the framework-owned `.aw/.gitignore`, and add integration test coverage in `tests/test_engine_install.py`.
 - Scope-Paths: agent_workflows/engine.py, .aw/.gitignore, tests/test_engine_install.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
-- Readiness: go-pending-approval
+- Status: to-review
+- Readiness: no-go
 - Set: wslayout
 - Order: 4
 - Highest E allocated: 03
@@ -16,6 +16,7 @@
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 
 - 2026-09-04 reviewed (antigravity): /aw plan-review-long: APPROVE WITH REVISIONS APPLIED; PR-019, PR-021, PR-022, PR-023 fixed (corrected engine function name to install_into_repo, added eleven-clause execution contract, structured findings evidence table, conventions, bare-suite validation with baseline re-measurement, and readiness).
 - 2026-09-01 draft (antigravity): created child plan.
@@ -86,7 +87,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - `agent_workflows/engine.py`: primary workspace installer (`engine.install_into_repo`, lines 5420-5560).
 - `.aw/.gitignore`: framework-owned ignore file; header specifies it lives inside the `.aw/` tree and the user's root `.gitignore` is never touched.
-- Controlling spec `kw5y2s` Section 6.1 is `- Status: approved`, carrying the maintainer's GITIGNORED emission ruling (OQ-02) and `engine.install_into_repo()` sole-emission ruling (OQ-03).
+- Controlling spec `kw5y2s` Section 6.1 is `to-review` after its maintainer-directed API terminology correction; do not execute until renewed human approval restores the gate. Its GITIGNORED emission ruling and `engine.install_into_repo()` sole-emission ruling remain unchanged.
 - Emitted files: `.aw/system/layout.json` and `.aw/system/layout.schema.json` mode `0o644`, with deterministic byte serialization (stable keys) so re-install is a no-op.
 - Python 3.9 is the floor (`pyproject.toml:12`).
 
@@ -98,7 +99,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 | F-2 | **The emitted layout artifacts are gitignored via `.aw/.gitignore`.** Avoids git churn and maintains parity with `ila6vl` manifest ruling; user's root `.gitignore` remains untouched. | `.aw/.gitignore:1-16`; maintainer ruling on OQ-02. |
 | F-3 | **`tests/test_engine_install.py` is newly created by this plan.** Asserts install-time generation, schema validity, and gitignore enforcement in a temporary repo. `tests/test_setup_repo_cli.py` was dropped because no such CLI surface exists. | E-03 / V-03 notes; file verified absent before execution. |
 | F-4 | **Deterministic serialization is required.** Re-running `install_into_repo` on an unchanged version must leave the emitted files byte-identical (no rewrites or timestamp drift). | E-01 / V-01 notes. |
-| F-5 | **Concurrent scope collision on `agent_workflows/engine.py`.** REVIEWED plan `6knsrx` (Set `wtisoland`) also declares `engine.py` and lands lane branches. Re-measurement required immediately before execution. | `.aw/records/plans/pending/20260901-wtisoland-00-6knsrx-...ipd.md`. |
+| F-5 | **Concurrent scope must be measured at execution time.** The prior `6knsrx` example is superseded; inspect current pending declarations for `engine.py` immediately before editing. | Current pending-plan board. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -114,7 +115,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 - Over-scope: none.
 - Under-scope: none. `tests/test_engine_install.py` is newly created by E-03 and is in `Scope-Paths`.
-- Concurrent-scope collision (PR-010): `agent_workflows/engine.py` is declared by REVIEWED plan `6knsrx`. Re-measure immediately before execution.
+- Concurrent-scope collision: the prior `6knsrx` example is superseded. Re-measure current pending declarations immediately before execution.
 
 ## Required tests / validation
 
@@ -176,13 +177,13 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
 - Size assessment: standard
 - Cohesion rationale: not required
 
-THE EXTERNAL SPEC GATE IS CLEARED (round 2): controlling spec `kw5y2s` is `- Status: approved`, approved `--by-human`, so `ipd-lifecycle.md:16` is satisfied.
+THE EXTERNAL SPEC GATE IS REOPENED: controlling spec `kw5y2s` is `to-review` after the maintainer-directed API terminology correction. `ipd-lifecycle.md:16` blocks execution until renewed human approval is recorded.
 
 Execution contract:
 
 1. Human approval of this plan is required before execution. There are no unresolved blocking questions.
 2. Serial prerequisite: `wpu5zu` (Order 01) MUST reach `executed` before starting this plan, as this plan imports `agent_workflows/layout.py`.
-3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: `agent_workflows/engine.py` is declared by REVIEWED plan `6knsrx` (Set `wtisoland`). If concurrent edits are in flight, verify mergeability before editing.
+3. RE-MEASURE CONCURRENT SCOPE COLLISIONS IMMEDIATELY BEFORE EXECUTION: the prior `6knsrx` example is superseded, so inspect current pending declarations for `agent_workflows/engine.py`. If concurrent edits are in flight, verify mergeability before editing.
 4. Emission site invariant: Wire emission solely into `engine.install_into_repo()`; do not add Python code to workflow bodies or non-existent verbs.
 5. Gitignore invariant: Add entries only to `.aw/.gitignore`; never modify the target user's root `.gitignore`.
 6. File mode and determinism: Write at mode `0o644` with stable key order.
