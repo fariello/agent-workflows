@@ -4160,6 +4160,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md",
+    "plan_id": "wpu5zu",
+    "set_id": "wslayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-03",
     "disposition": "executed",
     "kind": "child",
@@ -4413,16 +4423,6 @@
     "date": "2026-09-01",
     "disposition": "pending",
     "kind": "child",
-    "order": 1,
-    "path": "pending/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md",
-    "plan_id": "wpu5zu",
-    "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
     "order": 2,
     "path": "pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
     "plan_id": "zvk796",
@@ -4547,6 +4547,16 @@
     "path": "pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
     "plan_id": "ki6tom",
     "set_id": "runbypass",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-05",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md",
+    "plan_id": "kgpptv",
+    "set_id": "runprofile",
     "status": "to-review"
   },
   {

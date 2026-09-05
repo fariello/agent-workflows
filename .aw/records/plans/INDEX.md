@@ -4,6 +4,16 @@
 
 Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 
+## runprofile
+
+- `3m0urk` [pending] 00 pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md
+- `f2mrsw` [pending] 01 pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
+- `p0l1to` [pending] 02 pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
+- `3cm15q` [pending] 03 pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
+- `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
+- `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
+- `kgpptv` [pending] 06 pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md
+
 ## revsweep
 
 - `76gsmv` [pending] 01 pending/20260904-revsweep-01-76gsmv-document-the-reviews-selector-and-add-the-aw-host-review-ali.ipd.md
@@ -65,7 +75,7 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 ## wslayout
 
 - `rh5tt6` [pending] 00 pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md
-- `wpu5zu` [pending] 01 pending/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md
+- `wpu5zu` [executed] 01 executed/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md
 - `zvk796` [pending] 02 pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md
 - `rodj06` [pending] 03 pending/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md
 - `hauwqh` [pending] 04 pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md
@@ -185,10 +195,6 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 ## lanename
 
 - `j4v6ga` [executed] 01 executed/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
-
-## laneorphan
-
-- `zwnjp3` [executed] 01 executed/20260829-laneorphan-01-zwnjp3-lane-allocation-adopts-or-attempt-scopes-instead-of-hard-fai.ipd.md
 
 ## (singletons: no Set)
 
