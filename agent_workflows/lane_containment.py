@@ -33,13 +33,20 @@ that a worker which stays inside it does not lose its work.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, NamedTuple
+
+from agent_workflows import runner_shared
 
 # ---- where a worker's submissions live, inside the lane -------------------------------------------
 
@@ -681,3 +688,727 @@ def _collect_decisions(
         result="collected",
         source_sha256=digest,
     )
+
+
+# ==================================================================================================
+# lanectn Order 03 (`lhmrhx`): HOST PERMISSION POSTURE AND DRIVER-SIDE TURN BOUNDS (spec R4)
+# ==================================================================================================
+#
+# WHY THIS LIVES HERE AND NOT IN A DRIVER. Spec R2.6 requires one definition for every rule both
+# drivers consume, and plan `lhmrhx`'s review (finding PR-001) established that the agy side is NOT a
+# mechanical mirror of the oc side: that host has NO denial posture by design (R4.1), so a
+# "mirror this into the twin" instruction would have hidden an omitted seam. The bounds, the honest
+# per-host reporting, and the safe-failure recording are therefore HOST-NEUTRAL functions here, and
+# each driver keeps only a thin adapter for its own event shapes and its own argv.
+#
+# WHAT IS NOT UNIFORM, stated so no reader infers parity that does not exist (R4.1a):
+#
+#   OPENCODE     a real denial. `permission.external_directory` and `permission.question` are set to
+#                `deny` through the runner-supplied runtime config, so the host itself refuses.
+#   ANTIGRAVITY  NO denial posture exists, permanently and by design (R4.1, R4.1c). Auto-approve is
+#                the REQUIRED setting there, because the only alternative needs interactive
+#                permissions an unattended turn cannot answer and was measured to deadlock. On that
+#                host the host layer contributes NOTHING, and containment rests entirely on R1
+#                (the prompt names nothing outside the lane) and on the bounds below.
+
+#: OpenCode's runtime-config environment variable. Chosen over `OPENCODE_CONFIG` (a FILE path)
+#: because R4.1 forbids supplying the posture by editing repository configuration: inline content is
+#: owned by the runner process and vanishes with it, whereas a file would be a durable artifact
+#: somebody could later mistake for project config.
+OPENCODE_RUNTIME_CONFIG_ENV = "OPENCODE_CONFIG_CONTENT"
+
+#: The two permission classes R4.1 names for the opencode case, and the action requested for each.
+#:
+#: `external_directory` is the ask that produced the measured deadlock (a non-interactive
+#: `opencode run` with a nested-subagent external-directory ask has no answerer). `question` is the
+#: interactive-question class, equally unanswerable in an unattended turn. DENY rather than a broad
+#: allow, deliberately: an unexpected out-of-lane path is normally a lane-containment DEFECT, and a
+#: denial produces a repairable tool failure where a blanket allow could mutate the main checkout or
+#: a sibling lane.
+LANE_PERMISSION_POLICY: dict[str, str] = {
+    "external_directory": "deny",
+    "question": "deny",
+}
+
+#: How an operator-supplied value for `OPENCODE_CONFIG_CONTENT` was handled (R4.3). Recorded on the
+#: attempt so the choice is never silent.
+POLICY_SOURCE_RUNNER = "runner"  # no operator value was present
+POLICY_SOURCE_MERGED = "merged-with-operator"  # operator JSON parsed and merged
+POLICY_SOURCE_OVERRIDE = (
+    "override-unparseable-operator"  # operator value could not be honored
+)
+
+
+class PermissionPolicyRequest(NamedTuple):
+    """The policy the runner asked the host for, and HOW an operator value was handled.
+
+    `env_value` is what belongs in the child environment. `source` records which of the three R4.3
+    dispositions applied, and `operator_value` preserves the original so a loud override is
+    auditable rather than a silent discard.
+    """
+
+    env_value: str
+    source: str
+    policy: dict[str, str]
+    operator_value: str | None = None
+    note: str = ""
+
+
+def build_permission_policy_env(
+    operator_value: str | None,
+    policy: dict[str, str] | None = None,
+) -> PermissionPolicyRequest:
+    """The runtime-config value requesting `policy`, PRESERVING any operator-supplied value (R4.3).
+
+    R4.3 forbids a BLIND OVERWRITE, and the risk is real rather than hypothetical: the child
+    environment is built from a copy of the process environment, so assigning this key
+    unconditionally would silently discard whatever an operator had exported. Three dispositions,
+    each recorded on the returned request so the attempt record can carry it:
+
+    1. NO operator value  -> the runner's policy alone (`POLICY_SOURCE_RUNNER`).
+    2. Operator value that PARSES as a JSON object -> DEEP-ENOUGH MERGE
+       (`POLICY_SOURCE_MERGED`): every operator key survives, and the operator's own
+       `permission` entries survive too EXCEPT the two classes R4.1 requires be denied. The
+       runner's two keys win on conflict, because they are the requirement, and the conflict is
+       recorded in `note` so the override is visible.
+    3. Operator value that does NOT parse as a JSON object -> EXPLICIT LOUD OVERRIDE
+       (`POLICY_SOURCE_OVERRIDE`). It cannot be merged, and honoring it would hand the host a
+       broken config; the original is preserved on the request and the reason is in `note`.
+
+    Note what is deliberately NOT done: the operator value is never dropped without a record, and
+    the function never raises. An unusable operator value must not abort a turn (the same reasoning
+    as the R4.2 probe: the bounds below hold regardless of what the host decided).
+    """
+
+    requested = dict(policy if policy is not None else LANE_PERMISSION_POLICY)
+    if not operator_value or not operator_value.strip():
+        return PermissionPolicyRequest(
+            env_value=json.dumps({"permission": requested}, sort_keys=True),
+            source=POLICY_SOURCE_RUNNER,
+            policy=requested,
+            operator_value=None,
+            note="no operator value present; runner policy supplied alone",
+        )
+
+    try:
+        parsed = json.loads(operator_value)
+    except (ValueError, TypeError) as exc:
+        return PermissionPolicyRequest(
+            env_value=json.dumps({"permission": requested}, sort_keys=True),
+            source=POLICY_SOURCE_OVERRIDE,
+            policy=requested,
+            operator_value=operator_value,
+            note=(
+                "operator value OVERRIDDEN (not silently dropped): it is not parseable JSON "
+                f"({type(exc).__name__}: {exc}); the original is preserved in this record"
+            ),
+        )
+    if not isinstance(parsed, dict):
+        return PermissionPolicyRequest(
+            env_value=json.dumps({"permission": requested}, sort_keys=True),
+            source=POLICY_SOURCE_OVERRIDE,
+            policy=requested,
+            operator_value=operator_value,
+            note=(
+                "operator value OVERRIDDEN (not silently dropped): it parses as "
+                f"{type(parsed).__name__}, not a JSON object; the original is preserved here"
+            ),
+        )
+
+    merged = dict(parsed)
+    operator_permission = merged.get("permission")
+    permission: dict[str, Any] = (
+        dict(operator_permission) if isinstance(operator_permission, dict) else {}
+    )
+    clobbered = sorted(
+        key
+        for key, value in permission.items()
+        if key in requested and value != requested[key]
+    )
+    permission.update(requested)
+    merged["permission"] = permission
+    note = "operator value MERGED; every operator key preserved"
+    if clobbered:
+        note += (
+            "; the runner's required denials won on these operator keys "
+            f"(spec R4.1): {', '.join(clobbered)}"
+        )
+    if not isinstance(operator_permission, dict) and operator_permission is not None:
+        note += (
+            "; the operator's `permission` value was not an object "
+            f"({type(operator_permission).__name__}) and could not be merged into"
+        )
+    return PermissionPolicyRequest(
+        env_value=json.dumps(merged, sort_keys=True),
+        source=POLICY_SOURCE_MERGED,
+        policy=requested,
+        operator_value=operator_value,
+        note=note,
+    )
+
+
+#: The three capability tiers R4.1a distinguishes. `DENIED` is the only one that may be described as
+#: a denial; the other two must name the layers that DO apply instead.
+HOST_POSTURE_DENIED = "denied"
+HOST_POSTURE_NONE = "no-denial-posture"
+
+#: The layers carrying containment when the HOST layer contributes nothing (R4.1a). Named as data so
+#: the record and any rendered summary read from ONE list and cannot drift.
+CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL = (
+    "R1 prompt purity: the emitted prompt names no path outside the lane",
+    "R4.4 driver-side bounds: MAX_TURN_TIMEOUT (and PERMISSION_TIMEOUT when armed) "
+    "terminate the turn regardless of the host's permission decision",
+)
+
+
+class HostPostureRecord(NamedTuple):
+    """The per-host capability statement R4.1a requires on every attempt.
+
+    An artifact MUST NOT describe a host without a denial posture as "denied"; it must say
+    `no-denial-posture` and name the layers that do apply. `as_dict` is what goes on the attempt.
+    """
+
+    host: str
+    posture: str
+    reason: str
+    layers: tuple[str, ...]
+    requested: dict[str, str] | None = None
+    policy_source: str | None = None
+    policy_note: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "host": self.host,
+            "posture": self.posture,
+            "reason": self.reason,
+            "containment_layers": list(self.layers),
+        }
+        if self.requested is not None:
+            record["requested_policy"] = dict(self.requested)
+        if self.policy_source is not None:
+            record["policy_source"] = self.policy_source
+        if self.policy_note:
+            record["policy_note"] = self.policy_note
+        return record
+
+
+def opencode_posture_record(request: PermissionPolicyRequest) -> HostPostureRecord:
+    """The R4.1a capability statement for OPENCODE, which HAS a real denial posture."""
+
+    return HostPostureRecord(
+        host="opencode",
+        posture=HOST_POSTURE_DENIED,
+        reason=(
+            "the runner supplied `permission.external_directory=deny` and "
+            "`permission.question=deny` through the host's runtime config, so the host itself "
+            "refuses both request classes"
+        ),
+        layers=(
+            "R4.1 host denial: external-directory and interactive-question asks are denied",
+        )
+        + CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL,
+        requested=dict(request.policy),
+        policy_source=request.source,
+        policy_note=request.note,
+    )
+
+
+def antigravity_posture_record() -> HostPostureRecord:
+    """The R4.1a capability statement for ANTIGRAVITY, which has NO denial posture.
+
+    This is NOT an unclosed gap awaiting work (R4.1b, spec Non-goal 7): auto-approve is the REQUIRED
+    setting on that host, because running without `--dangerously-skip-permissions` needs interactive
+    permissions an unattended turn has no answerer for and was measured to fail or deadlock
+    repeatedly. So the honest record says `no-denial-posture` and names the layers that carry the
+    whole guarantee there.
+    """
+
+    return HostPostureRecord(
+        host="antigravity",
+        posture=HOST_POSTURE_NONE,
+        reason=(
+            "no denial posture exists on this host, by design and permanently (spec R4.1, R4.1c): "
+            "auto-approve is the required setting because the only alternative requires "
+            "interactive permissions an unattended turn cannot answer, and was measured to "
+            "deadlock. The host layer therefore contributes nothing to containment here"
+        ),
+        layers=CONTAINMENT_LAYERS_WITHOUT_HOST_DENIAL,
+    )
+
+
+#: R4.2 observation outcomes. `unverified` is a first-class result, not an error: an unobservable
+#: policy is RECORDED as unverified and the turn CONTINUES, because the bounds below hold regardless.
+POLICY_OBSERVED = "observed"
+POLICY_UNVERIFIED = "unverified"
+
+
+class PolicyObservation(NamedTuple):
+    """What the host says its EFFECTIVE policy is, or an explicit unverified marker (R4.2).
+
+    Recording nothing is what R4.2 forbids: host configuration precedence can place a managed source
+    ABOVE the runner's request, so a run that only SET the policy can believe it is protected when it
+    is not. Either the observed values or a marker naming the reason must reach the attempt.
+    """
+
+    result: str
+    effective: dict[str, Any] | None = None
+    host_version: str | None = None
+    reason: str = ""
+    conforms: bool | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        record: dict[str, Any] = {"result": self.result}
+        if self.effective is not None:
+            record["effective_policy"] = dict(self.effective)
+        if self.host_version is not None:
+            record["host_version"] = self.host_version
+        if self.reason:
+            record["reason"] = self.reason
+        if self.conforms is not None:
+            record["conforms_to_request"] = self.conforms
+        return record
+
+
+def evaluate_policy_observation(
+    raw_config: str | None,
+    requested: dict[str, str],
+    host_version: str | None = None,
+    failure_reason: str = "",
+) -> PolicyObservation:
+    """Decide R4.2's outcome from the host's OWN resolved configuration.
+
+    Pure, so the probe's I/O (which host, which subprocess, which flag) stays in the driver adapter
+    while the DECISION stays host-neutral and unit-testable. `raw_config` is the host's resolved
+    configuration as JSON text; `None` or unparseable text yields an `unverified` marker with the
+    reason rather than raising, because R4.2's observation is a DIAGNOSTIC and OQ-01 resolved that a
+    probe failure must never abort a turn.
+
+    `conforms` is the load-bearing field: it is False when the host reports an effective value that
+    DISAGREES with what the runner asked for, which is exactly the higher-precedence-override case
+    that motivates R4.2 at all.
+    """
+
+    if raw_config is None:
+        return PolicyObservation(
+            result=POLICY_UNVERIFIED,
+            host_version=host_version,
+            reason=failure_reason
+            or "the host's resolved configuration could not be read",
+        )
+    try:
+        parsed = json.loads(raw_config)
+    except (ValueError, TypeError) as exc:
+        return PolicyObservation(
+            result=POLICY_UNVERIFIED,
+            host_version=host_version,
+            reason=(
+                failure_reason
+                or f"the host's resolved configuration is not parseable JSON ({type(exc).__name__}: {exc})"
+            ),
+        )
+    if not isinstance(parsed, dict):
+        return PolicyObservation(
+            result=POLICY_UNVERIFIED,
+            host_version=host_version,
+            reason=f"the host's resolved configuration is a {type(parsed).__name__}, not an object",
+        )
+    permission = parsed.get("permission")
+    if not isinstance(permission, dict):
+        return PolicyObservation(
+            result=POLICY_UNVERIFIED,
+            host_version=host_version,
+            reason="the host's resolved configuration carries no `permission` object",
+        )
+    effective = {key: permission.get(key) for key in requested}
+    return PolicyObservation(
+        result=POLICY_OBSERVED,
+        effective=effective,
+        host_version=host_version,
+        conforms=all(effective.get(key) == value for key, value in requested.items()),
+        reason=""
+        if all(effective.get(key) == value for key, value in requested.items())
+        else (
+            "the host's EFFECTIVE policy disagrees with the runner's request, so a "
+            "higher-precedence configuration source overrode it"
+        ),
+    )
+
+
+# ---- R4.4: the two driver-side bounds that do not trust the host ----------------------------------
+#
+# ARMED FOR EVERY UNATTENDED TURN, isolated or not (R4.4a, maintainer ruling). That uniformity is a
+# deliberate exception to the conservatism asked for elsewhere, and it is safe because these are
+# driver-side SUPERVISION and change no instruction an agent ever reads: R1.3 protects the
+# NON-ISOLATED PROMPT TEXT, which stays byte-identical.
+#
+# NO CONFIG ENTRY AND NO CLI FLAG (R4.4c, maintainer KISS ruling). Both are in-code constants that
+# accept `0` to disable. Evidence behind the ruling: across 87 recorded runs `--stall-timeout`
+# appears with exactly ONE distinct value (its default) and `--timeout` in none, so no timeout has
+# ever been overridden in practice, while the parser already fails
+# `test_command_surface_declarations::test_zero_undeclared_parser_leaves` with undeclared leaves.
+
+#: Seconds to wait after a permission request is OBSERVED before terminating the turn.
+#:
+#: MEASURED FROM: the instant a permission request is observed on the child's stream, including a
+#: nested child-session request (the shape the measured deadlock actually took).
+#: RESET BY: observed progress, which clears the pending ask and disarms the bound. RESETTABLE.
+#:
+#: SHIPS AT `0`, MEANING DISABLED, and that is a REQUIREMENT rather than caution (R4.4b). Detection
+#: would be PATTERN MATCHING on the child's stdout, not a deterministic signal, and it is UNVERIFIED
+#: against a real ask: the last real run's stdout carried ZERO permission-typed events, and the
+#: evidence that motivated a plain-text pattern came from opencode's LOG FILE rather than stdout.
+#: Shipping it armed on an unproven detector is non-conforming, because a false positive kills a
+#: healthy turn. CONSEQUENCE, stated plainly: `MAX_TURN_TIMEOUT` is currently the ONLY bound covering
+#: a permission deadlock. Set this to 30 only together with a captured stream from a real provoked
+#: ask showing the line the detector matched.
+PERMISSION_TIMEOUT: float = 0.0
+
+#: Seconds from child-process start after which the turn is terminated no matter what.
+#:
+#: MEASURED FROM: child process start, ONCE.
+#: RESET BY: NOTHING. That is its entire reason for existing alongside the no-progress watchdog: a
+#: chatty-but-wedged turn keeps resetting a no-progress window forever and cannot reset this.
+#:
+#: DEFAULT 4 HOURS. Measured when it was chosen: across 263 recorded turns the longest was 2.46
+#: hours, so this is roughly 1.6x the observed worst case. Accepts `0` to disable.
+#:
+#: SCOPE IS ONE TURN, NOT ONE RUN. Each queue item gets its own fresh budget, so a 22-item run has no
+#: run-wide ceiling and could legitimately span days; a run-wide ceiling does not exist in this design
+#: and is explicitly not required (spec Non-goal 8). Expiry terminates the CHILD, not the driver: the
+#: driver records the safe-failure disposition and proceeds to the next item.
+#:
+#: ANTIGRAVITY OVERLAP, stated rather than discovered (R4.4d). That host ALREADY enforces a per-turn
+#: ceiling of `240m` via `--print-timeout`, numerically the same 4 hours, so two timers with different
+#: owners would fire at the same nominal instant. RESOLUTION: the driver bound is deliberately OFFSET
+#: to fire FIRST on that host (see `driver_bound_for_host`), so a termination is attributable to the
+#: driver, which records WHICH bound fired, rather than to an opaque host timeout. OpenCode has no
+#: host-enforced equivalent, so here the bound is genuinely new.
+MAX_TURN_TIMEOUT: float = 4 * 60 * 60.0
+
+#: Seconds by which the driver's own ceiling is pulled in AHEAD of a host-enforced one, so the two
+#: cannot fire at the same nominal instant and a post-mortem can attribute the kill (R4.4d).
+HOST_CEILING_OFFSET_SECONDS: float = 5 * 60.0
+
+#: Which bound fired, recorded on the safe-failure disposition so a post-mortem can tell a permission
+#: deadlock from an over-long turn from a silent stall (R4.4).
+BOUND_PERMISSION = "permission-timeout"
+BOUND_MAX_TURN = "max-turn-timeout"
+
+#: The disposition an expiry records. `failed-safely` is an EXISTING terminal state in both drivers'
+#: vocabulary, so a bound expiry stays visible to the reconcile/report machinery without new states.
+BOUND_EXPIRY_DISPOSITION = "failed-safely"
+
+
+def driver_bound_for_host(host_ceiling_seconds: float | None) -> float:
+    """`MAX_TURN_TIMEOUT`, pulled in ahead of a HOST-ENFORCED ceiling when one exists (R4.4d).
+
+    Returns the driver's own ceiling in seconds, or `0.0` when disabled. When the host enforces its
+    own per-turn ceiling at nominally the same instant (antigravity's `240m` `--print-timeout` versus
+    this bound's 4 hours), the driver's fires FIRST by `HOST_CEILING_OFFSET_SECONDS`, so the
+    termination is attributable to the driver, which names the bound, rather than to an opaque host
+    timeout. WHICH IS EXPECTED TO WIN: the driver's, by construction. The host timer remains the
+    backstop for the case where the driver's own supervision thread dies.
+    """
+
+    if MAX_TURN_TIMEOUT <= 0:
+        return 0.0
+    if not host_ceiling_seconds or host_ceiling_seconds <= 0:
+        return MAX_TURN_TIMEOUT
+    offset = max(0.0, host_ceiling_seconds - HOST_CEILING_OFFSET_SECONDS)
+    if offset <= 0:
+        return min(MAX_TURN_TIMEOUT, host_ceiling_seconds)
+    return min(MAX_TURN_TIMEOUT, offset)
+
+
+def bound_expiry_record(bound: str, timeout: float, at: str) -> dict[str, Any]:
+    """The safe-failure record for an expired bound, NAMING WHICH ONE FIRED (R4.4).
+
+    Naming the bound is the requirement, not a nicety: without it a post-mortem cannot distinguish a
+    permission deadlock from an over-long turn from a silent stall, and all three arrive as the same
+    terminated child.
+    """
+
+    return {
+        "bound": bound,
+        "timeout_seconds": timeout,
+        "disposition": BOUND_EXPIRY_DISPOSITION,
+        "at": at,
+        "scope": "one turn (not one run)",
+        "detail": (
+            f"the driver's {bound} bound expired after {timeout:.0f}s and terminated the child "
+            "through the one shared reaper; the driver continues with the next item"
+        ),
+    }
+
+
+def bound_expiry_reaper(
+    process: Any,
+    run_dir: Path,
+    item: dict[str, Any],
+    *,
+    reap: Callable[[Any, Path], Any] | None = None,
+) -> Callable[[str, float], None]:
+    """The `TurnBoundWatch` reap callback: RECORD WHICH BOUND FIRED, then reap. HOST-NEUTRAL.
+
+    Both drivers call THIS, rather than each keeping an identical adapter, because spec R2.6 requires
+    one definition for every rule both drivers consume and there is nothing host-specific in it: the
+    child process, the run directory, and the item are the same three things on either host.
+
+    ORDER IS LOAD-BEARING, not incidental. Reaping closes the child's stdout, which unblocks the
+    driver's read loop and lets the turn unwind; recording AFTER the reap could race that unwind and a
+    post-mortem would then see a terminated child with no reason attached, which is exactly the
+    "cannot say which timer killed it" outcome R4.4d exists to prevent. So the record is written first
+    and its failure is suppressed, because a bookkeeping error must not stop the child being reaped.
+
+    THE REAP IS THE ONE SHARED REAPER. `runner_shutdown.clean_shutdown` is the single reaper and the
+    single process-group escalation (spec `c4gd2h` R5 forbids a second): NOT a bare kill, NOT a local
+    `terminate_process`, and NOT a per-host copy. It is injectable ONLY so a test can observe the call
+    without spawning a real process; the default is the shared routine, and a caller that passes
+    something else is introducing the second reaper the spec forbids.
+    """
+
+    from agent_workflows import runner_shutdown
+
+    reaper = reap if reap is not None else runner_shutdown.clean_shutdown
+
+    def _expire(bound: str, timeout: float) -> None:
+        with contextlib.suppress(Exception):
+            record = bound_expiry_record(bound, timeout, runner_shared.utc_now())
+            item["turn_bound_expiry"] = record
+            runner_shared.append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": record["at"],
+                    "event": "turn-bound-expired",
+                    "id6": item.get("id6", ""),
+                    **record,
+                },
+            )
+        report = reaper(process, run_dir=run_dir)
+        render = getattr(report, "render", None)
+        if render is not None and not getattr(report, "all_satisfied", True):
+            print(render(), file=sys.stderr)
+
+    return _expire
+
+
+class TurnBoundWatch:
+    """Out-of-band supervisor enforcing `MAX_TURN_TIMEOUT` and, when armed, `PERMISSION_TIMEOUT`.
+
+    HOST-NEUTRAL BY CONSTRUCTION. It is handed a `reap` callable and an `is_alive` callable rather
+    than a process, so the ONE shared reaper (`runner_shutdown.clean_shutdown`, which spec `c4gd2h`
+    R5 makes the only reaper) stays in the driver adapter and this class introduces no second
+    termination path. Both drivers construct it identically; neither owns a private copy.
+
+    WHY A THREAD AND NOT AN IN-LOOP CHECK, which is the same measured reason every other watch in
+    this codebase is out of band: the driver's read loop blocks in `for line in process.stdout`, so a
+    ceiling on a SILENT child could never be noticed from the main thread. A wedged turn is exactly
+    the case these bounds exist for.
+
+    THE TWO BOUNDS DIFFER IN RESET SEMANTICS, and that difference is the whole design:
+
+      * `MAX_TURN_TIMEOUT` is measured from `__enter__` (child start) ONCE and NOTHING resets it.
+      * `PERMISSION_TIMEOUT` is measured from `note_permission_request()` and IS reset by
+        `note_progress()`, which clears the pending ask.
+
+    HONEST LIMIT: this bounds the turn, it does not contain the worker. A terminated child may
+    already have written outside its lane. Containment is R1 (the prompt names nothing outside the
+    lane) plus, on a host that has one, the R4.1 denial.
+    """
+
+    def __init__(
+        self,
+        *,
+        reap: Callable[[str, float], None],
+        is_alive: Callable[[], bool] | None = None,
+        max_turn_timeout: float | None = None,
+        permission_timeout: float | None = None,
+        check_interval: float = 1.0,
+    ) -> None:
+        self.max_turn_timeout = (
+            MAX_TURN_TIMEOUT if max_turn_timeout is None else float(max_turn_timeout)
+        )
+        self.permission_timeout = (
+            PERMISSION_TIMEOUT
+            if permission_timeout is None
+            else float(permission_timeout)
+        )
+        if self.max_turn_timeout < 0:
+            self.max_turn_timeout = 0.0
+        if self.permission_timeout < 0:
+            self.permission_timeout = 0.0
+        self._reap = reap
+        self._is_alive = is_alive
+        # Never sleep past the nearer bound, or a short injected timeout (as tests use) would be
+        # reported late. Mirrors `StallWatchdog`'s own timeout/4 clamp.
+        candidates = [
+            t for t in (self.max_turn_timeout, self.permission_timeout) if t > 0
+        ]
+        nearest = min(candidates) if candidates else 0.0
+        self.check_interval = (
+            max(0.005, min(check_interval, nearest / 4.0))
+            if nearest
+            else check_interval
+        )
+        self._started: float | None = None
+        self._permission_pending_since: float | None = None
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.fired: str | None = None
+        self.fired_timeout: float = 0.0
+
+    @property
+    def enabled(self) -> bool:
+        """True when at least one bound is armed. `0` disables a bound (R4.4c)."""
+
+        return self.max_turn_timeout > 0 or self.permission_timeout > 0
+
+    def note_permission_request(self) -> None:
+        """Arm `PERMISSION_TIMEOUT` from THIS instant (a permission request was observed).
+
+        Idempotent while an ask is already pending, so a repeated observation does not extend the
+        window: the bound measures from the FIRST observed ask, which is when waiting began.
+        """
+
+        if self.permission_timeout <= 0:
+            return
+        with self._lock:
+            if self._permission_pending_since is None:
+                self._permission_pending_since = time.monotonic()
+
+    def note_progress(self) -> None:
+        """Clear a pending permission ask, DISARMING `PERMISSION_TIMEOUT` (it is RESETTABLE).
+
+        Deliberately does NOT touch `MAX_TURN_TIMEOUT`: nothing resets that one, which is why it
+        catches the chatty-but-wedged turn a no-progress window never can.
+        """
+
+        with self._lock:
+            self._permission_pending_since = None
+
+    def _expired(self, now: float) -> tuple[str, float] | None:
+        if self._started is not None and self.max_turn_timeout > 0:
+            if now - self._started >= self.max_turn_timeout:
+                return BOUND_MAX_TURN, self.max_turn_timeout
+        with self._lock:
+            pending = self._permission_pending_since
+        if pending is not None and self.permission_timeout > 0:
+            if now - pending >= self.permission_timeout:
+                return BOUND_PERMISSION, self.permission_timeout
+        return None
+
+    def _run(self) -> None:
+        while not self._stop.wait(self.check_interval):
+            if self._is_alive is not None and not self._is_alive():
+                return
+            expiry = self._expired(time.monotonic())
+            if expiry is None:
+                continue
+            self.fired, self.fired_timeout = expiry
+            # Through the caller-supplied reaper, which is the ONE shared `clean_shutdown` (spec
+            # `c4gd2h` R5): never a bare kill, never a second reaper.
+            try:
+                self._reap(self.fired, self.fired_timeout)
+            except (
+                Exception
+            ):  # pragma: no cover - a reaper failure must not kill the thread
+                pass
+            return
+
+    def __enter__(self) -> "TurnBoundWatch":
+        self._started = time.monotonic()
+        if self.enabled:
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1.0)
+
+
+def record_host_posture(
+    run_dir: Path,
+    item: dict[str, Any],
+    attempt_no: int,
+    posture: HostPostureRecord,
+    observation: PolicyObservation | None = None,
+) -> dict[str, Any]:
+    """Write the per-host capability statement and the policy observation ONTO THE ATTEMPT (R4.1a).
+
+    HOST-NEUTRAL, and that is a requirement rather than tidiness (spec R2.6, plan finding PR-001).
+    Both drivers call THIS function with their own `posture`, so the record SHAPE cannot drift between
+    hosts and an artifact reader is never misled by a per-host layout. The posture VALUE itself comes
+    from `opencode_posture_record` / `antigravity_posture_record` rather than being assembled at each
+    call site, because R4.1a forbids describing a host without a denial posture as "denied" and a call
+    site can get that wording wrong where a shared constructor cannot.
+
+    `observation` is OPTIONAL on purpose: a host with no denial posture has no policy to observe, so
+    passing `None` there is correct rather than a missing field. On a host that DOES deny, R4.2
+    requires either the observed values or an explicit unverified marker, and omitting it would leave
+    a run silently believing it is protected.
+
+    Recorded on the ATTEMPT (falling back to the item when the attempt is not yet present) AND emitted
+    as an event, so the statement survives in durable state and in the chronological log.
+    """
+
+    record = posture.as_dict()
+    if observation is not None:
+        record["policy_observation"] = observation.as_dict()
+    for attempt in item.get("attempts") or []:
+        if attempt.get("number") == attempt_no:
+            attempt["host_posture"] = record
+            break
+    else:
+        item["host_posture"] = record
+    with contextlib.suppress(Exception):
+        runner_shared.append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": runner_shared.utc_now(),
+                "event": "host-permission-posture",
+                "id6": item.get("id6", ""),
+                "attempt": attempt_no,
+                **record,
+            },
+        )
+    return record
+
+
+#: Suffix multipliers for a host-enforced duration string. Antigravity's `--print-timeout` is written
+#: as `"240m"`, so a bare-seconds parse would read it as 240 SECONDS and pull the driver's ceiling in
+#: to nothing, killing every turn after four minutes. Parsing it correctly is what makes R4.4d's
+#: deliberate offset land at the intended instant.
+_DURATION_SUFFIXES = {"s": 1.0, "m": 60.0, "h": 3600.0}
+
+
+def parse_host_ceiling_seconds(value: Any) -> float | None:
+    """Seconds from a host ceiling written as `"240m"` / `"90s"` / `"4h"` / a bare number.
+
+    Returns `None` for anything unrecognized, and NEVER raises: an unparseable host ceiling must not
+    abort a turn, it must simply mean "no known host ceiling", which leaves the driver bound at its
+    own default rather than at some value derived from a misread string. Fail-safe in the direction of
+    the LONGER bound, deliberately: guessing short would kill healthy turns, which is the same
+    reasoning R4.4b applies to the permission detector.
+    """
+
+    if value is None:
+        return None
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value) if value > 0 else None
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower()
+    if not text:
+        return None
+    multiplier = 1.0
+    if text[-1] in _DURATION_SUFFIXES:
+        multiplier = _DURATION_SUFFIXES[text[-1]]
+        text = text[:-1]
+    try:
+        seconds = float(text) * multiplier
+    except ValueError:
+        return None
+    return seconds if seconds > 0 else None

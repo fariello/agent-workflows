@@ -4898,6 +4898,80 @@ def _record_forced_stop(
     return record
 
 
+# lanectn Order 03 (`lhmrhx`) E-02, spec R4.2: the HOST-SPECIFIC half of policy observation.
+#
+# The DECISION is host-neutral (`lane_containment.evaluate_policy_observation`); only the I/O is here,
+# because the probe command, its flag, and its output shape are opencode's, not a shared rule.
+#
+# `opencode debug config` prints the host's OWN RESOLVED configuration after every precedence layer
+# has been merged, which is precisely what R4.2 asks be observed rather than assumed: it reflects a
+# managed or higher-precedence source that overrode the runner's request. Measured on 1.18.27 at
+# roughly 1.4s, so this is a bounded per-turn cost, not a per-call one.
+_POLICY_PROBE_TIMEOUT_SECONDS = 30.0
+
+
+def observe_opencode_policy(
+    opencode: str,
+    child_env: dict[str, str],
+    requested: dict[str, str],
+) -> lane_containment.PolicyObservation:
+    """Ask the host what its EFFECTIVE permission policy is, under the SAME env the child will get.
+
+    NEVER RAISES, and that is a requirement rather than defensiveness (spec R4.2, plan OQ-01): the
+    observation is a DIAGNOSTIC, not a precondition. If the probe cannot run we return an
+    `unverified` marker naming the reason and the turn continues, because the R4.4 bounds hold
+    regardless of what the host decided. Letting a probe failure propagate would abort turns that
+    were otherwise fine, which is strictly worse than the unknown it was trying to remove. What is
+    NOT acceptable is recording nothing, because then a run silently believes it is protected.
+
+    The probe runs with the CHILD's environment, so it observes the same precedence stack the child
+    will, rather than the driver's.
+    """
+
+    version: str | None = None
+    try:
+        version_proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [opencode, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=_POLICY_PROBE_TIMEOUT_SECONDS,
+            env=child_env,
+        )
+        if version_proc.returncode == 0:
+            version = version_proc.stdout.strip().splitlines()[-1].strip() or None
+    except Exception:
+        version = None
+
+    try:
+        proc = subprocess.run(  # noqa: S603 - fixed argv, no shell
+            [opencode, "debug", "config"],
+            capture_output=True,
+            text=True,
+            timeout=_POLICY_PROBE_TIMEOUT_SECONDS,
+            env=child_env,
+        )
+    except Exception as exc:
+        return lane_containment.evaluate_policy_observation(
+            None,
+            requested,
+            host_version=version,
+            failure_reason=f"the policy probe could not run ({type(exc).__name__}: {exc})",
+        )
+    if proc.returncode != 0:
+        return lane_containment.evaluate_policy_observation(
+            None,
+            requested,
+            host_version=version,
+            failure_reason=(
+                f"`opencode debug config` exited {proc.returncode}: "
+                f"{(proc.stderr or proc.stdout or '').strip()[:200]}"
+            ),
+        )
+    return lane_containment.evaluate_policy_observation(
+        proc.stdout, requested, host_version=version
+    )
+
+
 def run_opencode(
     state: dict[str, Any],
     run_dir: Path,
@@ -5040,6 +5114,56 @@ def run_opencode(
         child_env[ipd_lifecycle.EXECUTION_ROLE_ENV] = ipd_lifecycle.ROLE_WORKER
     else:
         child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
+
+    # lanectn Order 03 (`lhmrhx`) E-01/E-02/E-03, spec R4.1/R4.2/R4.3/R4.6: ask THIS host for the
+    # strongest permission posture it actually supports, then OBSERVE what took effect.
+    #
+    # Extends the ONE child-env construction above rather than forking a second one, which the plan
+    # requires for the same reason the role selector does: two constructions drift.
+    #
+    # OPENCODE HAS A REAL DENIAL (unlike antigravity, R4.1a): `permission.external_directory=deny`
+    # and `permission.question=deny` are supplied through the host's own runtime-config env var, so
+    # the HOST refuses. Never by editing repository configuration (R4.1 forbids it): inline content
+    # is owned by this process and vanishes with it, where a file would be a durable artifact
+    # somebody could later mistake for project config.
+    #
+    # ORDERING IS SPEC-NORMATIVE, NOT STYLISTIC (R4.6). This denial MUST NOT precede the lane-relative
+    # prompt work (child `cqx5v7`), because the host currently PERMITS out-of-lane writes (measured:
+    # run `run-20260901T042331Z-118022` recorded zero permission events and both workers wrote all
+    # five out-of-lane paths). Denying paths the prompt still NAMED would have converted a working
+    # runner into a hard failure. `cqx5v7` is in `executed/`, so the prompt no longer names them.
+    #
+    # ISOLATED TURNS ONLY, deliberately narrower than the bounds below. R4.1 scopes the posture to an
+    # unattended ISOLATED turn, and a non-isolated turn legitimately works in the main checkout, where
+    # an external-directory denial would refuse its ordinary work.
+    #
+    # R4.3: an operator value is MERGED or LOUDLY OVERRIDDEN, never silently dropped. The risk is real
+    # rather than hypothetical: `pinned_child_env` copies the process environment, so a blind
+    # assignment here would discard whatever an operator had exported, with no warning.
+    if work_dir:
+        policy_request = lane_containment.build_permission_policy_env(
+            child_env.get(lane_containment.OPENCODE_RUNTIME_CONFIG_ENV)
+        )
+        child_env[lane_containment.OPENCODE_RUNTIME_CONFIG_ENV] = (
+            policy_request.env_value
+        )
+        posture = lane_containment.opencode_posture_record(policy_request)
+        # R4.2: OBSERVE, do not assume the request won. Host configuration precedence can place a
+        # managed source ABOVE the runner's, so a run that only SET the policy can believe it is
+        # protected when it is not. OQ-01 resolved that an unobservable policy is recorded
+        # `unverified` and the turn CONTINUES: the probe is a DIAGNOSTIC, and the R4.4 bounds below
+        # hold regardless of what the host decided, so letting a probe failure propagate would abort
+        # turns that were otherwise fine.
+        observation = observe_opencode_policy(
+            opencode, child_env, policy_request.policy
+        )
+        # The RECORDING is host-neutral (`lane_containment.record_host_posture`), so the record shape
+        # is identical on both hosts and only the posture VALUE differs. See the agy twin for the
+        # sanctioned asymmetry: that host passes no observation because it has no policy to observe.
+        lane_containment.record_host_posture(
+            run_dir, item, attempt_no, posture, observation
+        )
+
     popen_kwargs["env"] = child_env
 
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
@@ -5175,17 +5299,45 @@ def run_opencode(
                 prior_completed_label=checkpoint_observer.last_checkpoint_label,
             )
 
+        # lanectn Order 03 (`lhmrhx`) E-04, spec R4.4/R4.4a/R4.4b/R4.4c/R4.4d: the two driver-side
+        # bounds that do not trust the host. See `lane_containment.PERMISSION_TIMEOUT` /
+        # `MAX_TURN_TIMEOUT` for each one's measured-from instant and reset semantics, which are the
+        # two facts an identifier cannot carry, and for the one-turn (not one-run) scope.
+        #
+        # ARMED FOR EVERY UNATTENDED TURN, ISOLATED OR NOT (R4.4a): constructed here, outside any
+        # `work_dir` branch, on purpose. R1.3 protects the non-isolated turn's PROMPT TEXT, which
+        # stays byte-identical; this is driver-side SUPERVISION and changes no instruction an agent
+        # reads. OpenCode has NO host-enforced per-turn ceiling (contrast antigravity's 240m
+        # `--print-timeout`, R4.4d), so `None` is passed and the driver bound is genuinely new here.
+        turn_bounds = lane_containment.TurnBoundWatch(
+            reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
+            is_alive=lambda: process.poll() is None,
+            max_turn_timeout=lane_containment.driver_bound_for_host(None),
+        )
+
         try:
             # The poller shares the turn's scope, so its thread cannot outlive the turn or
             # leak across attempts. `force_watch` (runstop m0z0ti) joins the same scope so a
             # level-4 force stop is armed for exactly the turn's lifetime, no longer, and
-            # `escalation_watch` (runstop 71vjbn) joins it for the same reason.
-            with statusline, watchdog, poller, force_watch, escalation_watch:
+            # `escalation_watch` (runstop 71vjbn) joins it for the same reason. `turn_bounds`
+            # (lanectn lhmrhx) joins it too: `__enter__` is what starts `MAX_TURN_TIMEOUT`'s clock,
+            # so entering here means it measures from child start.
+            with (
+                statusline,
+                watchdog,
+                poller,
+                force_watch,
+                escalation_watch,
+                turn_bounds,
+            ):
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
                     statusline.touch("stdout")
                     watchdog.touch()
+                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
+                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
+                    turn_bounds.note_progress()
                     # Learn our PARENT session id from the stream; it is the key the observer
                     # needs to attribute a subagent's log lines to THIS turn.
                     if observer.parent_session_id is None:

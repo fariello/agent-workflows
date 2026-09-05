@@ -2586,6 +2586,36 @@ def run_agy_turn(
         child_env.pop(ipd_lifecycle.EXECUTION_ROLE_ENV, None)
     popen_kwargs["env"] = child_env
 
+    # lanectn Order 03 (`lhmrhx`) E-06, spec R4.1a/R4.1b/R4.1c: the SANCTIONED ASYMMETRY with the oc
+    # twin, recorded rather than left to be inferred from an absence.
+    #
+    # NO PERMISSION POLICY DOCUMENT IS SUPPLIED HERE, AND THAT IS NOT AN OMISSION. This host has NO
+    # DENIAL POSTURE, permanently and by design (R4.1): `--dangerously-skip-permissions` is appended
+    # above and its option DEFAULTS TO TRUE, because the only alternative
+    # (`--no-dangerously-skip-permissions`) requires INTERACTIVE permissions an unattended turn has no
+    # answerer for, and running without it was measured to fail or deadlock repeatedly. That is a
+    # DECIDED CONSTRAINT this spec adopts (R4.1c), not a defect it tolerates, and R4.1b puts closing
+    # it out of scope. Do NOT "harden" it: `tests/test_lane_permission_posture.py` PINS the default
+    # and will fail if it is flipped (E-05), a guard running in the OPPOSITE direction from every
+    # other check in this Set.
+    #
+    # CONSEQUENCE, which is why R4.1a requires it be RECORDED and not glossed: on this host the host
+    # layer contributes NOTHING to containment, so the guarantee rests ENTIRELY on R1 (the prompt
+    # names nothing outside the lane) and R4.4 (the driver bounds below). Those are load-bearing here
+    # rather than defence-in-depth. No artifact may describe this host as "denied"; the shared
+    # constructor emits `no-denial-posture` and names the layers that DO apply, so a call site cannot
+    # get the wording wrong.
+    if work_dir:
+        lane_containment.record_host_posture(
+            run_dir,
+            item,
+            attempt_no,
+            lane_containment.antigravity_posture_record(),
+            # NO observation argument, and its absence is MEANINGFUL rather than an oversight: there
+            # is no denial policy on this host to observe, so R4.2 has nothing to verify here. The
+            # oc twin passes one because it does.
+        )
+
     stall_timeout = options.get("stall_timeout", DEFAULT_STALL_TIMEOUT)
 
     queue = state.get("queue", [])
@@ -2687,15 +2717,44 @@ def run_agy_turn(
                 prior_completed_label=checkpoint_observer.last_checkpoint_label,
             )
 
+        # lanectn Order 03 (`lhmrhx`) E-04/E-06, spec R4.4/R4.4a/R4.4d: the SAME host-neutral bounds
+        # the oc twin arms, wired here rather than reimplemented (spec R2.6 forbids a second copy).
+        # Armed for EVERY unattended turn, isolated or not (R4.4a).
+        #
+        # R4.4d, THE OVERLAP THIS HOST HAS AND THE OC HOST DOES NOT. Antigravity ALREADY enforces a
+        # per-turn ceiling: `DEFAULT_TIMEOUT` is "240m" and is passed to the child as
+        # `--print-timeout`, so the HOST kills the turn at nominally 4 hours - numerically identical
+        # to `MAX_TURN_TIMEOUT`'s default. Two timers with the same value and different owners is
+        # precisely the duplication that leaves a post-mortem unable to say which one killed a turn.
+        # RESOLUTION, spec option (ii): the DRIVER bound is deliberately OFFSET to fire FIRST (see
+        # `lane_containment.driver_bound_for_host`), so a termination is attributable to the driver,
+        # which RECORDS WHICH BOUND FIRED, rather than to an opaque host timeout. WHICH IS EXPECTED
+        # TO WIN: the driver's. The host's `--print-timeout` remains the BACKSTOP for the case where
+        # the driver's own supervision thread dies.
+        turn_bounds = lane_containment.TurnBoundWatch(
+            reap=lane_containment.bound_expiry_reaper(process, run_dir, item),
+            is_alive=lambda: process.poll() is None,
+            max_turn_timeout=lane_containment.driver_bound_for_host(
+                # PARSED, not passed raw: `--print-timeout` is written `"240m"`, so reading it as bare
+                # seconds would pull the driver ceiling to 4 MINUTES and kill every turn.
+                lane_containment.parse_host_ceiling_seconds(timeout)
+            ),
+        )
+
         try:
             # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
             # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
-            with statusline, watchdog, force_watch, escalation_watch:
+            # `turn_bounds` (lanectn lhmrhx) joins it too: `__enter__` starts `MAX_TURN_TIMEOUT`'s
+            # clock, so entering here means it measures from child start.
+            with statusline, watchdog, force_watch, escalation_watch, turn_bounds:
                 for raw_line in process.stdout:
                     log.write(raw_line)
                     log.flush()
                     statusline.touch("stdout")
                     watchdog.touch()
+                    # lanectn lhmrhx E-04: progress DISARMS the permission bound (resettable);
+                    # `MAX_TURN_TIMEOUT` is deliberately NOT reset. See `TurnBoundWatch`.
+                    turn_bounds.note_progress()
                     # runstop gq6m2u: the IN-TURN cooperative checkpoint (spec `c4gd2h` R7); the
                     # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
                     # requested level, and acting on a level belongs to the later phases.
