@@ -229,6 +229,209 @@ class TestBoundedRetry(unittest.TestCase):
 
 
 # ==================================================================================================
+# runcodes Order 3 (`sq61qd`): spec 25kzda 2.1's 0..10 inclusive retry-budget range
+# ==================================================================================================
+
+
+class TestRetryBudgetRangeValidation(unittest.TestCase):
+    """The retry budget's legal range is enforced at every entry point that accepts one.
+
+    Falsifiable by construction: these assert the BOUNDARIES (-1, 0, 10, 11), not a middle value,
+    because an off-by-one is the only bug this validation can realistically ship and a middle value
+    passes against one. They also assert the ERROR TYPE, since a bad `limit` (a caller error) must be
+    distinguishable from `RetryLimitExceededError` (a step exhausting its budget at runtime).
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.store = _seed_store(self.tmp, ["R-01"])
+        self.engine = _engine(self.store)
+        # Drive S-01 to a failed attempt so it is retryable (a non-retryable step would raise
+        # NoRetryableStateError first and mask which check actually fired).
+        self.engine.release_step("S-01")
+        self.engine.start_step("S-01")
+        self.engine.record_step_attempt("S-01", state="failed", actor="executor")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    # ---- the shared validator, called with the value ALONE ----------------------------------------
+
+    def test_validator_is_callable_with_the_value_alone(self) -> None:
+        """The bound lives in ONE validator taking just the value (no engine, no step id).
+
+        This is what makes it reachable from the `--retry-budget` flag layer (`uyeko5` E-04), which
+        validates an operator value at parse time when no engine or step exists.
+
+        Uses an arbitrary in-range value, deliberately NOT the default, so this test says nothing
+        about what the default happens to be.
+        """
+        self.assertEqual(run_recovery.validate_retry_budget(5), 5)
+
+    def test_validator_rejects_below_lower_bound(self) -> None:
+        """-1 is refused, and the message names the offending value and the legal range."""
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError) as ctx:
+            run_recovery.validate_retry_budget(-1)
+        msg = str(ctx.exception)
+        self.assertIn("-1", msg)
+        self.assertIn(
+            f"{run_recovery.MIN_RETRY_LIMIT}..{run_recovery.MAX_RETRY_LIMIT}", msg
+        )
+
+    def test_validator_rejects_above_upper_bound(self) -> None:
+        """11 (one past the inclusive upper bound) is refused: the boundary, not a middle value."""
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError) as ctx:
+            run_recovery.validate_retry_budget(run_recovery.MAX_RETRY_LIMIT + 1)
+        self.assertIn(str(run_recovery.MAX_RETRY_LIMIT + 1), str(ctx.exception))
+
+    def test_validator_rejects_an_effectively_unbounded_budget(self) -> None:
+        """A huge budget is refused: an unbounded correction loop is what the bound exists to stop."""
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.validate_retry_budget(10_000)
+
+    def test_validator_accepts_both_inclusive_boundaries(self) -> None:
+        """0 and 10 are LEGAL (the range is inclusive at both ends)."""
+        self.assertEqual(
+            run_recovery.validate_retry_budget(run_recovery.MIN_RETRY_LIMIT),
+            run_recovery.MIN_RETRY_LIMIT,
+        )
+        self.assertEqual(
+            run_recovery.validate_retry_budget(run_recovery.MAX_RETRY_LIMIT),
+            run_recovery.MAX_RETRY_LIMIT,
+        )
+
+    def test_validator_rejects_bool_and_non_int(self) -> None:
+        """`bool` is a subclass of `int`, so `True` must not silently mean a budget of 1."""
+        for bad in (True, False, 2.0, "3", None):
+            with self.subTest(bad=bad):
+                with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+                    run_recovery.validate_retry_budget(bad)
+
+    def test_invalid_budget_error_is_not_a_retry_limit_exceeded_error(self) -> None:
+        """A caller error must NOT be catchable as normal budget escalation, and vice versa.
+
+        Asserted rather than assumed: `assertRaises(Exception)` would pass against exactly the
+        conflation this distinction forbids.
+        """
+        self.assertTrue(
+            issubclass(run_recovery.InvalidRetryBudgetError, run_recovery.RecoveryError)
+        )
+        self.assertFalse(
+            issubclass(
+                run_recovery.InvalidRetryBudgetError,
+                run_recovery.RetryLimitExceededError,
+            )
+        )
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.validate_retry_budget(-1)
+        try:
+            run_recovery.validate_retry_budget(-1)
+        except (
+            run_recovery.RetryLimitExceededError
+        ) as exc:  # pragma: no cover - must not happen
+            self.fail(f"out-of-range budget was caught as budget exhaustion: {exc!r}")
+        except run_recovery.InvalidRetryBudgetError:
+            pass
+
+    # ---- plan_retry routes through the same validator ---------------------------------------------
+
+    def test_plan_retry_rejects_below_lower_bound(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.plan_retry(self.engine, "S-01", "transient", limit=-1)
+
+    def test_plan_retry_rejects_above_upper_bound(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.plan_retry(
+                self.engine,
+                "S-01",
+                "transient",
+                limit=run_recovery.MAX_RETRY_LIMIT + 1,
+            )
+
+    def test_plan_retry_rejects_bool_budget(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.plan_retry(self.engine, "S-01", "transient", limit=True)
+
+    def test_plan_retry_accepts_upper_boundary(self) -> None:
+        plan = run_recovery.plan_retry(
+            self.engine, "S-01", "transient", limit=run_recovery.MAX_RETRY_LIMIT
+        )
+        self.assertEqual(plan.limit, run_recovery.MAX_RETRY_LIMIT)
+        self.assertFalse(plan.duplicate)
+
+    def test_an_out_of_range_budget_appends_nothing(self) -> None:
+        """A refused budget is refused BEFORE any ledger append (fail closed, no side effect)."""
+        before = len(self.store.read_records())
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.plan_retry(self.engine, "S-01", "transient", limit=-1)
+        self.assertEqual(len(self.store.read_records()), before)
+
+    # ---- retry_budget_remaining routes through the same validator ---------------------------------
+
+    def test_retry_budget_remaining_rejects_below_lower_bound(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.retry_budget_remaining(self.engine, "S-01", limit=-1)
+
+    def test_retry_budget_remaining_rejects_above_upper_bound(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.retry_budget_remaining(
+                self.engine, "S-01", limit=run_recovery.MAX_RETRY_LIMIT + 1
+            )
+
+    def test_retry_budget_remaining_rejects_bool_budget(self) -> None:
+        with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+            run_recovery.retry_budget_remaining(self.engine, "S-01", limit=True)
+
+    def test_retry_budget_remaining_accepts_upper_boundary(self) -> None:
+        self.assertEqual(
+            run_recovery.retry_budget_remaining(
+                self.engine, "S-01", limit=run_recovery.MAX_RETRY_LIMIT
+            ),
+            run_recovery.MAX_RETRY_LIMIT,
+        )
+
+    def test_retry_budget_remaining_clamp_still_never_negative(self) -> None:
+        """The independent `max(0, ...)` clamp survives: a consumed budget never reports negative."""
+        limit = run_recovery.MIN_RETRY_LIMIT + 1
+        run_recovery.plan_retry(
+            self.engine, "S-01", "transient", limit=limit, idempotency_key="k1"
+        )
+        self.assertEqual(
+            run_recovery.retry_budget_remaining(self.engine, "S-01", limit=limit), 0
+        )
+
+    # ---- 0 means NO RETRIES, behaviorally ---------------------------------------------------------
+
+    def test_zero_budget_means_no_retries_not_the_default(self) -> None:
+        """`limit=0` is accepted AND means zero retries, not a silently substituted default.
+
+        "Accepted" alone would also pass against an implementation that treated the falsy 0 as unset
+        and swapped in DEFAULT_RETRY_LIMIT, so the BEHAVIOR is what is asserted here.
+        """
+        zero = run_recovery.MIN_RETRY_LIMIT
+        self.assertEqual(
+            run_recovery.retry_budget_remaining(self.engine, "S-01", limit=zero), 0
+        )
+        with self.assertRaises(run_recovery.RetryLimitExceededError) as ctx:
+            run_recovery.plan_retry(self.engine, "S-01", "transient", limit=zero)
+        self.assertEqual(ctx.exception.limit, zero)
+        # No retry was recorded: the FIRST retry was refused, not merely a later one.
+        self.assertEqual(run_recovery.count_retries(self.engine, "S-01"), 0)
+
+    def test_the_default_budget_is_itself_in_range(self) -> None:
+        """The shipped default must satisfy the bound it ships beside.
+
+        Derived from the constant rather than hard-coding 2, matching the existing tests in this
+        module, so aligning the default cannot silently invalidate this assertion.
+        """
+        self.assertEqual(
+            run_recovery.validate_retry_budget(run_recovery.DEFAULT_RETRY_LIMIT),
+            run_recovery.DEFAULT_RETRY_LIMIT,
+        )
+
+
+# ==================================================================================================
 # E-02: resume / cancel / crash recovery
 # ==================================================================================================
 

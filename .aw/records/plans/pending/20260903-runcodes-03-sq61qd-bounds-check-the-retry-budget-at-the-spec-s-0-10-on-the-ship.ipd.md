@@ -34,7 +34,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: validate the range at the boundary where the value enters
 
-- [ ] E-01 Add the spec's 0..10 inclusive range validation to the two shipped entry points in `agent_workflows/run_recovery.py`: `plan_retry` (`:213`, `limit` at `:219`) and `retry_budget_remaining` (`:355`). Reject below 0 and above 10 with a clear message naming the offending value and the legal range. RE-READ BOTH SIGNATURES BEFORE EDITING and locate them BY SYMBOL: the parent plan's citations for these same symbols had already drifted ~15 lines once (parent PR-003), so a line number here is orientation, not an address.
+- [x] E-01 Add the spec's 0..10 inclusive range validation to the two shipped entry points in `agent_workflows/run_recovery.py`: `plan_retry` (`:213`, `limit` at `:219`) and `retry_budget_remaining` (`:355`). Reject below 0 and above 10 with a clear message naming the offending value and the legal range. RE-READ BOTH SIGNATURES BEFORE EDITING and locate them BY SYMBOL: the parent plan's citations for these same symbols had already drifted ~15 lines once (parent PR-003), so a line number here is orientation, not an address.
   PUT THE CHECK IN ONE SHARED, PUBLICLY CALLABLE VALIDATOR AND CALL IT FROM BOTH (added at review, PR-001). Do NOT inline the same comparison in two function bodies. Two reasons, both measured. (1) `runflags-01` (`uyeko5`) E-04 is written to CALL this plan's validation rather than re-check the range, and its `--retry-budget` flag validates a CLI value BEFORE any engine or step exists, so a check buried inside `plan_retry(engine, step_id, ...)` is unreachable from there and that plan would be forced into the duplicate bound its own fence forbids. (2) Two copies of one bound is how an off-by-one gets fixed in one place only. Give it a name and a signature that takes JUST the value (for example `validate_retry_budget(limit: int) -> int`), so the flag layer, the helpers, and the tests all exercise the same code.
   FOLLOW THE MODULE'S OWN REFUSAL CONVENTION rather than inventing one: `run_recovery.py` already defines typed errors and raises them, all descending from one base (`RecoveryError:72`, then `RetryLimitExceededError:76` with its message composed at `:84`, `UnknownOutcomeError:89`, `NoRetryableStateError:100`). A `ValueError` would be inconsistent with a module whose every other refusal is a named domain error, so add a typed error under `RecoveryError` (or reuse the closest existing one) and say which you chose and why. Do NOT reuse `RetryLimitExceededError`: it means "this step consumed its budget", a runtime condition, whereas an out-of-range `limit` is a CALLER error, and collapsing the two would make a programming mistake indistinguishable from normal escalation in every `except` clause.
   DO NOT CHANGE `DEFAULT_RETRY_LIMIT`. It is `2` at `:62`, deliberately aligned to spec 2.1 by maintainer ruling 2026-08-31, with the reasoning recorded in a comment at `:47-61`. Do not "restore" 3. Note `0` is a LEGAL budget meaning no retries, so the validation must accept it rather than treating falsy as unset.
@@ -43,15 +43,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT IMPLEMENT THE RESUME-INVARIANCE RULE (revised at review; OQ-01 resolved). An earlier version said to assert it "if cheap". It is not this plan's: `runflags-01` (`uyeko5`) E-06 explicitly owns "the frozen value cannot change on resume" for `--retry-budget`, and enforcing it requires the run state and resume parser this module cannot reach. Leave it out entirely rather than half-asserting it here.
   - Depends on: none
   - Expected outcome: ONE shared validator, callable with just the value, called by both helpers; `-1` and `11` refused with a message naming the value and the 0..10 range; `0` and `10` accepted; a `bool` and a non-int refused; `DEFAULT_RETRY_LIMIT` still `2` and its comment intact; the refusal is a new typed error under `RecoveryError`, distinct from `RetryLimitExceededError`, with the choice stated; `retry_budget_remaining`'s existing clamp untouched.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Extend the SHIPPED `tests/test_run_recovery_cli.py` with boundary cases, additively. Required: `-1` refused, `11` refused, `0` accepted, `10` accepted - the BOUNDARIES, not a middle value, because a middle-value test passes against an off-by-one and an off-by-one is the only bug this plan can realistically ship. Cover BOTH entry points, since validating one and not the other leaves the hole this plan exists to close, plus the shared validator directly.
+- [x] E-02 Extend the SHIPPED `tests/test_run_recovery_cli.py` with boundary cases, additively. Required: `-1` refused, `11` refused, `0` accepted, `10` accepted - the BOUNDARIES, not a middle value, because a middle-value test passes against an off-by-one and an off-by-one is the only bug this plan can realistically ship. Cover BOTH entry points, since validating one and not the other leaves the hole this plan exists to close, plus the shared validator directly.
   ASSERT `0` MEANS NO RETRIES, NOT MERELY THAT IT PARSES (added at review, PR-004). F-4 says `0` is legal and the plan only ever checks that it is ACCEPTED, which a `limit=0` implementation that silently substituted the default would also satisfy. Assert the BEHAVIOR: with `limit=0`, `retry_budget_remaining` is `0` and `plan_retry` refuses with `RetryLimitExceededError` on the FIRST retry. That is what "0 retries" means, and it is the one accepted-boundary case with observable semantics.
   ASSERT THE TYPED-ERROR CHOICE, NOT JUST THAT SOMETHING RAISED. The out-of-range refusal must be caught as the NEW error type and must NOT be catchable as `RetryLimitExceededError`, since E-01 requires those be distinguishable; a bare `assertRaises(Exception)` would pass against the conflation E-01 forbids.
   DO NOT create a new test module, and do NOT weaken, remove, or alter any existing assertion. PRESERVE a property the shipped file already has: two of its tests DERIVE their expectations from `DEFAULT_RETRY_LIMIT` rather than hard-coding a number (`:151`, `:159-161`, `:221-227`, added 2026-08-31 in `8a99c7ca`), so no new test may hard-code `2` either.
   - Depends on: E-01
   - Expected outcome: the four boundary cases pass for both helpers and for the shared validator; `limit=0` is shown to mean no retries behaviorally; the refusal is asserted as the new typed error and shown NOT to be a `RetryLimitExceededError`; a bool/non-int is refused; no existing assertion changed; no test hard-codes the default.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -129,20 +129,216 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the shared validator's signature and body, and the two amended helper bodies showing they CALL it rather than repeating the comparison. Prove it is callable with the value ALONE (no engine, no step id), since that is what makes it reachable from `uyeko5`'s flag layer (F-8) - paste an invocation that passes only a number.
     Paste the refusal messages for `-1` and `11` naming the value and the legal range, and acceptance for `0` and `10`. Paste the `bool` refusal (`limit=True`) and a non-int refusal. Paste `DEFAULT_RETRY_LIMIT` still `2` AND its comment at `:47-61` still present. Paste `retry_budget_remaining`'s `max(0, ...)` clamp still present.
     State which error type you raised and why it matches the module's convention, and show it descends from `RecoveryError` and is NOT `RetryLimitExceededError` (a `ValueError`, or reusing the budget-exhausted error, in a module whose every refusal is a distinct typed domain error needs a justification). Confirm BOTH entry points route through the one validator, not one.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED at HEAD `b2ad8358872da2591af5bf0705be731bf0238a08`, primary lane checkout `aw/lane/sq61qd`.
 
-- [ ] V-02 validates E-02
+    THE SHARED VALIDATOR (`agent_workflows/run_recovery.py:136-157`), taking ONLY the value, no engine and no step id:
+
+    ```python
+    def validate_retry_budget(limit: Any) -> int:
+        """Return `limit` if it is a legal retry budget; otherwise raise `InvalidRetryBudgetError`.
+        ... (docstring records: single definition of the bound; callable by the future --retry-budget
+        flag (uyeko5 E-04) at parse time when no RunEngine or step exists; do NOT re-inline it;
+        bool refused though bool is an int; 0 IS LEGAL and means "no retries") ...
+        """
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise InvalidRetryBudgetError(limit)
+        if limit < MIN_RETRY_LIMIT or limit > MAX_RETRY_LIMIT:
+            raise InvalidRetryBudgetError(limit)
+        return limit
+    ```
+
+    THE BOUND EXISTS IN EXACTLY ONE PLACE, not two. `grep -n 'MIN_RETRY_LIMIT\|MAX_RETRY_LIMIT' agent_workflows/run_recovery.py`:
+
+    ```text
+    72:MIN_RETRY_LIMIT: int = 0
+    73:MAX_RETRY_LIMIT: int = 10
+    129:            f"{MIN_RETRY_LIMIT}..{MAX_RETRY_LIMIT} (spec 25kzda 2.1)"
+    155:    if limit < MIN_RETRY_LIMIT or limit > MAX_RETRY_LIMIT:
+    ```
+
+    Line 155 is the ONLY comparison (72/73 are the constants, 129 is the message), so there is no second copy of the bound to drift.
+
+    BOTH ENTRY POINTS CALL IT, neither repeats the comparison. `grep -n 'validate_retry_budget(limit)' agent_workflows/run_recovery.py` -> `295:` and `425:`, one in each helper:
+
+    ```python
+    # plan_retry, agent_workflows/run_recovery.py:295 (first statement, BEFORE any ledger read)
+        validate_retry_budget(limit)
+        snapshot = engine.reconstruct_state()
+
+    # retry_budget_remaining, agent_workflows/run_recovery.py:425
+        validate_retry_budget(limit)
+        used = count_retries(engine, step_id)
+        return max(0, limit - used)
+    ```
+
+    CALLABLE WITH THE VALUE ALONE, which is what makes it reachable from `uyeko5`'s flag layer (F-8). Live invocation passing only a number, no engine, no step id:
+
+    ```text
+    $ python3 -c "from agent_workflows import run_recovery as r; print(r.validate_retry_budget(5))"
+    5
+    ```
+
+    REFUSALS AND ACCEPTANCES, live:
+
+    ```text
+    validator callable with the VALUE ALONE (no engine, no step_id):
+      validate_retry_budget(5) -> 5
+      validate_retry_budget(0) -> 0
+      validate_retry_budget(10) -> 10
+      refused -1 -> invalid retry budget -1: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused 11 -> invalid retry budget 11: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused 10000 -> invalid retry budget 10000: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused True -> invalid retry budget True: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused 2.5 -> invalid retry budget 2.5: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused 'x' -> invalid retry budget 'x': must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+      refused None -> invalid retry budget None: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+    ```
+
+    Each message names the offending value (`-1`, `11`, `True`) AND the legal range (`0..10`), as required. `0` and `10` are accepted (inclusive at both ends); the `bool` and non-int cases are refused (F-9).
+
+    THE ERROR TYPE, and why. I added `InvalidRetryBudgetError(RecoveryError)` at `:113-131`. It matches the module's convention because every refusal in `run_recovery.py` is a named domain error descending from one base (`RecoveryError:72`, `RetryLimitExceededError:90`, `UnknownOutcomeError:103`, `NoRetryableStateError:110`); a `ValueError` would be the only stdlib refusal in the module. I did NOT reuse `RetryLimitExceededError`, and its docstring records why: that error means "this step consumed its budget", a normal runtime escalation, whereas an out-of-range `limit` is a CALLER error, and conflating them would make a programming mistake indistinguishable from ordinary escalation in every `except` clause. Live proof of the hierarchy:
+
+    ```text
+    InvalidRetryBudgetError.__mro__ = ['InvalidRetryBudgetError', 'RecoveryError', 'Exception', 'BaseException']
+    descends from RecoveryError: True
+    is NOT RetryLimitExceededError: True
+    ```
+
+    `DEFAULT_RETRY_LIMIT` STILL `2` AND ITS COMMENT INTACT (`:47-64`). Live: `DEFAULT_RETRY_LIMIT = 2 (unchanged, in range)`. The comment's spec quote, the 2026-08-31 ruling, the dormancy note, and the whole "WHY 2 IS THE RIGHT NUMBER" paragraph are all present and unedited; the ONLY change to it is the permitted forward-reference update, which now names the validator instead of pointing at unwritten work:
+
+    ```text
+    -# NOT a range check: spec 2.1's 0..10 bound is enforced separately (see the runcodes Set); this
+    -# constant is only the DEFAULT when no budget is frozen by the CLI or repository policy.
+    +# NOT a range check: spec 2.1's 0..10 bound is enforced separately by `validate_retry_budget()`
+    +# below (runcodes Order 3, `sq61qd`); this constant is only the DEFAULT when no budget is frozen by
+    +# the CLI or repository policy.
+    ```
+
+    `git diff -U0 agent_workflows/run_recovery.py | grep '^-[^-]'` returns exactly three deleted lines: the two comment lines above plus `retry_budget_remaining`'s one-line docstring (replaced by a longer one). No code line was deleted.
+
+    THE CLAMP IS UNTOUCHED. `grep -n 'max(0, limit - used)'` -> `427:    return max(0, limit - used)`, still present, still the return expression, and `retry_budget_remaining`'s new docstring states the clamp is INDEPENDENT of the range check ("guarantees the RETURN is never negative once retries have been consumed, which the range check does not address") so a later reader does not delete it as redundant.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the boundary cases passing for BOTH entry points AND the validator, with counts. Paste the `limit=0` behavioral case: `retry_budget_remaining` returning 0 and `plan_retry` refusing on the first retry, since "accepted" alone would pass against an implementation that substituted the default. Paste the assertion that the out-of-range error is the new type and is NOT caught as `RetryLimitExceededError`.
     Paste `git diff tests/test_run_recovery_cli.py` proving every pre-existing assertion is untouched. Paste evidence no new test hard-codes `2` (show the derivation from `DEFAULT_RETRY_LIMIT`).
     PROVE THE TESTS ARE NOT VACUOUS, TWICE. (a) Widen the bound to 0..11 in the implementation, paste the `11` case FAILING, then revert: a boundary test never observed failing does not establish the boundary. (b) Remove the bool guard, paste the `limit=True` case FAILING, then revert: `bool` passing as `int` is silent by construction (F-9), so that guard needs its own falsification.
     Then paste the bare full-suite summary with the HEAD, compared against your own pre-change baseline, measured in the primary checkout.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED at HEAD `b2ad8358872da2591af5bf0705be731bf0238a08`, measured in this lane's checkout (`aw/lane/sq61qd`), which is a full non-detached checkout, so the `test_run_viewer.py` phantom-regression trap (backlog `dh0uno`) does not apply: those 15 failures are in my PRE-change baseline too and are byte-identical after.
+
+    THE BOUNDARY CASES PASS FOR BOTH ENTRY POINTS AND THE VALIDATOR, with counts. `python3 -m pytest -o addopts="" -v tests/test_run_recovery_cli.py -k RetryBudgetRange`:
+
+    ```text
+    collected 74 items / 55 deselected / 19 selected
+
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_rejects_above_upper_bound PASSED [  5%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_an_out_of_range_budget_appends_nothing PASSED [ 10%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_rejects_bool_budget PASSED [ 15%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_rejects_above_upper_bound PASSED [ 21%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_zero_budget_means_no_retries_not_the_default PASSED [ 26%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_clamp_still_never_negative PASSED [ 31%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_an_effectively_unbounded_budget PASSED [ 36%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_above_upper_bound PASSED [ 42%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_invalid_budget_error_is_not_a_retry_limit_exceeded_error PASSED [ 47%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_the_default_budget_is_itself_in_range PASSED [ 52%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_rejects_bool_budget PASSED [ 57%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_is_callable_with_the_value_alone PASSED [ 63%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_below_lower_bound PASSED [ 68%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_bool_and_non_int PASSED [ 73%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_rejects_below_lower_bound PASSED [ 78%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_rejects_below_lower_bound PASSED [ 84%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_accepts_upper_boundary PASSED [ 89%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_accepts_both_inclusive_boundaries PASSED [ 94%]
+    tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_accepts_upper_boundary PASSED [100%]
+
+    ====================== 19 passed, 55 deselected in 0.63s =======================
+    ```
+
+    All four boundaries are covered at all three surfaces: `-1` (`test_validator_rejects_below_lower_bound`, `test_plan_retry_rejects_below_lower_bound`, `test_retry_budget_remaining_rejects_below_lower_bound`), `11` (the three `..._above_upper_bound`), `0` (`test_validator_accepts_both_inclusive_boundaries` plus the behavioral case below), `10` (`test_validator_accepts_both_inclusive_boundaries`, `test_plan_retry_accepts_upper_boundary`, `test_retry_budget_remaining_accepts_upper_boundary`). Whole file: `74 passed` (55 shipped + 19 added).
+
+    THE `limit=0` BEHAVIORAL CASE, not merely "accepted" (`test_zero_budget_means_no_retries_not_the_default`): it asserts `retry_budget_remaining(..., limit=0) == 0`, that `plan_retry(..., limit=0)` raises `RetryLimitExceededError` on the FIRST retry with `ctx.exception.limit == 0`, and that `count_retries(...) == 0` afterwards, so no retry was recorded. An implementation that treated the falsy `0` as unset and substituted `DEFAULT_RETRY_LIMIT` would fail all three, which is the point of asserting behavior rather than acceptance.
+
+    THE TYPED-ERROR ASSERTION (`test_invalid_budget_error_is_not_a_retry_limit_exceeded_error`): asserts `issubclass(InvalidRetryBudgetError, RecoveryError)` is True, `issubclass(InvalidRetryBudgetError, RetryLimitExceededError)` is False, and additionally executes `validate_retry_budget(-1)` inside a `try` whose FIRST `except` is `RetryLimitExceededError` and calls `self.fail(...)` if it ever catches, so the conflation would be caught at runtime and not only by the subclass check. No `assertRaises(Exception)` anywhere.
+
+    EVERY PRE-EXISTING ASSERTION UNTOUCHED. `git diff --numstat tests/test_run_recovery_cli.py`:
+
+    ```text
+    198	0	tests/test_run_recovery_cli.py
+    ```
+
+    Zero deleted lines: the change is a PURE INSERTION of one new test class between `TestBoundedRetry` and the E-02 section. Confirmed independently by `git diff -U0 tests/test_run_recovery_cli.py | grep -c '^-[^-]'` -> `0`. No existing assertion was weakened, removed, or altered, and no new test module was created.
+
+    NO NEW TEST HARD-CODES `2`. `git diff -U0 ... | grep '^+' | grep -E '\b(limit|budget)\b.*[^_A-Za-z0-9]2\b'` returns nothing, while the same added block references the constants 18 times (`MIN_RETRY_LIMIT` / `MAX_RETRY_LIMIT` / `DEFAULT_RETRY_LIMIT`). The upper-bound tests DERIVE `11` as `run_recovery.MAX_RETRY_LIMIT + 1` rather than writing it, `test_the_default_budget_is_itself_in_range` passes `DEFAULT_RETRY_LIMIT` through the validator rather than asserting it equals a literal, and `test_validator_is_callable_with_the_value_alone` deliberately uses `5` (an arbitrary in-range value that is NOT the default) so it says nothing about the default's value. This preserves the property `8a99c7ca` established at `:151`, `:159-161`, `:221-227`.
+
+    SABOTAGE (a): WIDEN THE BOUND TO 0..11, the `11` case must FAIL. Changed `:155` to `limit > MAX_RETRY_LIMIT + 1`:
+
+    ```text
+    === SABOTAGE (a): bound widened to 0..11 ===
+    ___ TestRetryBudgetRangeValidation.test_validator_rejects_above_upper_bound ____
+        def test_validator_rejects_above_upper_bound(self) -> None:
+            """11 (one past the inclusive upper bound) is refused: the boundary, not a middle value."""
+    >       with self.assertRaises(run_recovery.InvalidRetryBudgetError) as ctx:
+    E       AssertionError: InvalidRetryBudgetError not raised
+
+    _ TestRetryBudgetRangeValidation.test_retry_budget_remaining_rejects_above_upper_bound _
+        def test_retry_budget_remaining_rejects_above_upper_bound(self) -> None:
+    >       with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+    E       AssertionError: InvalidRetryBudgetError not raised
+
+    =========================== short test summary info ============================
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_rejects_above_upper_bound
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_above_upper_bound
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_rejects_above_upper_bound
+    3 failed, 16 passed, 55 deselected in 0.67s
+    ```
+
+    An off-by-one of exactly one is detected at ALL THREE surfaces, which is what a boundary test is for. REVERTED and re-verified: `19 passed, 55 deselected`.
+
+    SABOTAGE (b): REMOVE THE BOOL GUARD, the `limit=True` case must FAIL. Changed `:153` to `if not isinstance(limit, int):`:
+
+    ```text
+    === SABOTAGE (b): bool guard removed ===
+    ____ TestRetryBudgetRangeValidation.test_validator_rejects_bool_and_non_int ____
+        def test_validator_rejects_bool_and_non_int(self) -> None:
+            """`bool` is a subclass of `int`, so `True` must not silently mean a budget of 1."""
+            for bad in (True, False, 2.0, "3", None):
+                with self.subTest(bad=bad):
+    >               with self.assertRaises(run_recovery.InvalidRetryBudgetError):
+    E               AssertionError: InvalidRetryBudgetError not raised
+
+    =========================== short test summary info ============================
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_retry_budget_remaining_rejects_bool_budget
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_plan_retry_rejects_bool_budget
+    FAILED tests/test_run_recovery_cli.py::TestRetryBudgetRangeValidation::test_validator_rejects_bool_and_non_int
+    3 failed, 16 passed, 55 deselected in 0.77s
+    ```
+
+    The guard has its own falsification at all three surfaces, as required, since `bool`-passing-as-`int` is silent by construction (F-9). REVERTED; `grep -n` confirms `:153` is back to `if not isinstance(limit, int) or isinstance(limit, bool):` and `:155` to `limit > MAX_RETRY_LIMIT`, and the file passes `74 passed`.
+
+    BARE FULL SUITE, at HEAD `b2ad8358872da2591af5bf0705be731bf0238a08`, run as `python3 -m pytest` with no added flags (no `-n0`, no second `-q`, no `-p no:randomly`).
+
+    PRE-CHANGE BASELINE, my own, same HEAD, before any edit:
+
+    ```text
+    31 failed, 4462 passed, 3 skipped, 4 xfailed in 33.54s
+    ```
+
+    AFTER:
+
+    ```text
+    31 failed, 4481 passed, 3 skipped, 4 xfailed in 34.47s
+    ```
+
+    Same 31 failures, `+19` passed = exactly the 19 tests this plan adds. Stronger than the counts, the failure SETS are identical: `diff` of the sorted `FAILED` lines before and after is EMPTY (`IDENTICAL FAILURE SET: zero regressions, zero new failures`). All 31 are pre-existing and untouched by this change (`test_run_viewer.py`, `test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_ipd_lifecycle_cli.py`, `test_novalnomerge_integration.py`, `test_worker_role_refusal.py`), none of which imports `run_recovery`'s budget surface.
+
+    `aw check plans` NO-WORSENING against my own fresh baseline, as instructed (NOT a pass claim; it is red on pre-existing findings owned by other Sets, chiefly the `wslayout` plans): baseline `errors 11   warnings 0`, after `errors 11   warnings 0`. Unchanged.
+
+    `aw sanitize --agent` clean: `{"outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 

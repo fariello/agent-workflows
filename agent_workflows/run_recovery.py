@@ -14,6 +14,10 @@ deterministic recovery behaviours:
     idempotent action already recorded is not duplicated). The retry BUDGET is read back from the
     ledger, so a retry cannot convert failure into success by mere repetition: once the configured
     limit is exhausted the planner ESCALATES (raises `RetryLimitExceededError`) instead of looping.
+    The budget's own legal RANGE is spec 25kzda 2.1's inclusive 0..10, enforced by the shared
+    `validate_retry_budget()` (raising `InvalidRetryBudgetError`) at every entry point that accepts a
+    budget, so a bounded retry is actually bounded: a negative budget cannot make every step instantly
+    exhausted, and a huge one cannot license an effectively unbounded correction loop.
     Because a retry follows a repository/plan change, prior evidence bound to the retried step is
     marked INVALIDATED so a stale green result cannot be reused.
 
@@ -57,9 +61,16 @@ from agent_workflows import run_ledger_schema as schema
 # defect rather than a transient fault, so a third attempt mostly buys another paid turn and delays
 # escalation. Lower budget = cheaper and escalates sooner.
 #
-# NOT a range check: spec 2.1's 0..10 bound is enforced separately (see the runcodes Set); this
-# constant is only the DEFAULT when no budget is frozen by the CLI or repository policy.
+# NOT a range check: spec 2.1's 0..10 bound is enforced separately by `validate_retry_budget()`
+# below (runcodes Order 3, `sq61qd`); this constant is only the DEFAULT when no budget is frozen by
+# the CLI or repository policy.
 DEFAULT_RETRY_LIMIT: int = 2
+
+# Spec 25kzda 2.1's legal frozen range for the correction budget: 0 through 10 INCLUSIVE. `0` is a
+# LEGAL budget meaning "no retries" (so a falsy check must not treat it as unset), and the upper
+# bound exists because an effectively unbounded budget defeats the point of a bounded retry.
+MIN_RETRY_LIMIT: int = 0
+MAX_RETRY_LIMIT: int = 10
 
 # The unknown-outcome sentinel: a side effect was interrupted mid-flight and its result is unknown.
 # This is NOT a run_state value; it is a recovery-layer classification requiring reconciliation.
@@ -99,6 +110,51 @@ class UnknownOutcomeError(RecoveryError):
 
 class NoRetryableStateError(RecoveryError):
     """Raised when a retry is planned for a step that is not in a retryable (failed/blocked) state."""
+
+
+class InvalidRetryBudgetError(RecoveryError):
+    """Raised when a retry budget is outside spec 25kzda 2.1's legal 0..10 inclusive range.
+
+    DISTINCT FROM `RetryLimitExceededError` on purpose. That error means "this step consumed its
+    budget", a normal runtime escalation a caller may legitimately catch and act on. This one means
+    the CALLER passed an illegal budget: a programming or configuration error, never something to
+    escalate a step over. Collapsing the two would make a bad `limit` indistinguishable from ordinary
+    budget exhaustion in every `except` clause.
+    """
+
+    def __init__(self, limit: Any) -> None:
+        self.limit = limit
+        super().__init__(
+            f"invalid retry budget {limit!r}: must be an int in the inclusive range "
+            f"{MIN_RETRY_LIMIT}..{MAX_RETRY_LIMIT} (spec 25kzda 2.1)"
+        )
+
+
+# ---- retry-budget range validation ----------------------------------------------------------------
+
+
+def validate_retry_budget(limit: Any) -> int:
+    """Return `limit` if it is a legal retry budget; otherwise raise `InvalidRetryBudgetError`.
+
+    Enforces spec 25kzda 2.1's inclusive 0..10 range. This is the SINGLE definition of that bound.
+
+    It deliberately takes ONLY the value, with no engine and no step id, so every layer that accepts
+    a budget can call the SAME check: the shipped helpers `plan_retry` and `retry_budget_remaining`,
+    and the future `--retry-budget` CLI flag (`runflags-01` / `uyeko5` E-04), which must validate an
+    operator-supplied value at PARSE time, when no `RunEngine` or step exists. Do NOT "simplify" this
+    back into two inlined comparisons inside the helper bodies: that would make the bound unreachable
+    from the flag layer and would put one bound in two places, where an off-by-one gets fixed in one.
+
+    A `bool` is REFUSED even though `bool` is a subclass of `int` in Python, so `limit=True` cannot
+    silently mean `1` (same exclusion as `run_ledger_schema._type_ok`).
+
+    `0` IS LEGAL and means "no retries"; it must not be treated as unset.
+    """
+    if not isinstance(limit, int) or isinstance(limit, bool):
+        raise InvalidRetryBudgetError(limit)
+    if limit < MIN_RETRY_LIMIT or limit > MAX_RETRY_LIMIT:
+        raise InvalidRetryBudgetError(limit)
+    return limit
 
 
 # ---- result structures ----------------------------------------------------------------------------
@@ -232,7 +288,11 @@ def plan_retry(
          (returns `duplicate=True`) so a replayed deterministic action is not duplicated.
       5. Evidence bound to the retried step is INVALIDATED (a change precedes a retry), so a stale
          green result cannot be reused across the retry boundary.
+      6. `limit` MUST be in spec 25kzda 2.1's inclusive 0..10 range, checked via the shared
+         `validate_retry_budget()` (raises `InvalidRetryBudgetError`) BEFORE any ledger read, so an
+         illegal budget is refused rather than producing an instantly-exhausted or unbounded budget.
     """
+    validate_retry_budget(limit)
     snapshot = engine.reconstruct_state()
     step = snapshot.steps.get(step_id)
     if step is None:
@@ -355,7 +415,14 @@ def correction_required(
 def retry_budget_remaining(
     engine: run_engine.RunEngine, step_id: str, *, limit: int = DEFAULT_RETRY_LIMIT
 ) -> int:
-    """Return how many retries remain in the budget for a step (never negative)."""
+    """Return how many retries remain in the budget for a step (never negative).
+
+    `limit` is validated against spec 25kzda 2.1's inclusive 0..10 range by the shared
+    `validate_retry_budget()` (raises `InvalidRetryBudgetError`). The `max(0, ...)` clamp below is
+    INDEPENDENT of that check and stays: it guarantees the RETURN is never negative once retries have
+    been consumed, which the range check does not address.
+    """
+    validate_retry_budget(limit)
     used = count_retries(engine, step_id)
     return max(0, limit - used)
 
