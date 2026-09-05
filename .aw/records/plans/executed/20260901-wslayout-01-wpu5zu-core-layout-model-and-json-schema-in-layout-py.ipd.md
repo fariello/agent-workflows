@@ -6,17 +6,17 @@
 - Scope: Create `agent_workflows/layout.py` with dataclasses (`RecordClassDefinition`, `LayoutModel`), canonical layout constants, `build_default_layout()`, `to_json()`, and `to_schema()`. Add unit tests in `tests/test_layout.py`.
 - Scope-Paths: agent_workflows/layout.py, tests/test_layout.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 1
 - Highest E allocated: 02
 - Author: antigravity
 - Id: wpu5zu
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 executed (aw oc run): aw oc run self-finalize: wpu5zu verified (set wslayout, attempt 1).
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6 (child wpu5zu alone): APPROVE WITH REVISIONS APPLIED; PR-031..PR-035 all FIXED. PR-031 HIGH: round 2's Python 3.9 rationale was FALSE and taught the executor a wrong language fact. Measured on python3.9 (3.9.25): the spec's exact tuple[str,...]/dict[str,str] dataclass field annotations create, instantiate and type-resolve cleanly with NO __future__ import; what actually breaks on 3.9 is PEP 604 (str|None), which the snippet does not use. The __future__ + typing instruction STANDS on the correct ground (universal house pattern, 132/132 modules) and 3.9 is genuinely CI-enforced across the matrix. PR-032 HIGH: the exclusion-parity assertion was FLAKY as specified in BOTH E-02 and V-01: EXCLUDED_RECORD_DIRS is a frozenset and tuple(...)==tuple(...) compares hash order (three seeds, three orderings measured), so it could fail a correct model while pytest-randomly is deliberately enabled; now a set comparison per the house precedent. PR-033 HIGH: the plan owned normalize_type but never mentioned the 'all' expansion token (a real special case feeding every 'aw <verb> all'), and demanded NO negative-path evidence, while the two live helpers it replaces DISAGREE on errors (normalize_type raises ValueError, record_dirs returns []). PR-034 MEDIUM: right-sizing was never assessed, only inherited from a count-based lint; assessed and recorded as a single cohesive deliverable with a stated trigger for splitting to_schema(). PR-035 MEDIUM: CI installs only pytest+pytest-xdist and never the [test] extra, so an undeclared jsonschema import is a CERTAIN CI failure (and it is absent on python3.9, a matrix version), which also makes the declare-it route insufficient on its own. Also removed a self-contradicting leftover sentence and the stale 'six diagnostics' count (16 repo-wide, 3 on this plan). Three decisions recorded (D-23..D-25).
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
