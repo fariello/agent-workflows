@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/runner_profiles.py, tests/test_runner_profiles.py
 - Item-Dependencies: executed:0soncw
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: runprofile
 - Order: 1
 - Highest E allocated: 04

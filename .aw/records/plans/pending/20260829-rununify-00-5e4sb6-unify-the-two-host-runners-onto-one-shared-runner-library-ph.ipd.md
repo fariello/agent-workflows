@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending, .aw/records/research, tests
 - Item-Dependencies: none
 - Status: approved
+- Readiness: go
 - Set: rununify
 - Order: 0
 - Highest E allocated: 03

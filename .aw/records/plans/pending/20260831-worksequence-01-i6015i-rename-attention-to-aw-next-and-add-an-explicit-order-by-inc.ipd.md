@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, docs/, README.md, tests/test_attention.py, tests/test_next_ordering.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: worksequence
 - Order: 1
 - Highest E allocated: 10

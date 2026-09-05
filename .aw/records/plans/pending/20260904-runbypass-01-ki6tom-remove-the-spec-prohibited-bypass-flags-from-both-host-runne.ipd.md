@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
 - Status: to-review
+- Readiness: no-go
 - Set: runbypass
 - Order: 1
 - Highest E allocated: 05

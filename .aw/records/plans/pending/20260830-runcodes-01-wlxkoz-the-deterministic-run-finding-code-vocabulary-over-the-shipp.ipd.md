@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_run_evidence_completion.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: runcodes
 - Order: 1
 - Highest E allocated: 03

@@ -10,6 +10,7 @@
 - From-Backlog: vqv9im
 - Blocks-Release: next
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: lanectn
 - Order: 0
 - Highest E allocated: 03

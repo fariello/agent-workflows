@@ -7,6 +7,7 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_resumedupe.py
 - Item-Dependencies: none
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: resumedupe
 - Order: 1
 - Highest E allocated: 06

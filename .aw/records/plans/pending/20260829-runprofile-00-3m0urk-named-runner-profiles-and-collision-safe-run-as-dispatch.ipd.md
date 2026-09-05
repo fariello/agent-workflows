@@ -7,6 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:0soncw
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: runprofile
 - Order: 0
 - Highest E allocated: 02

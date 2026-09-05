@@ -9,6 +9,7 @@
 - From-Spec: 7ckptx
 - Blocks-Release: next
 - Status: reviewed
+- Readiness: go-pending-approval
 - Set: lanectn
 - Order: 2
 - Highest E allocated: 05
