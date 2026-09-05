@@ -306,6 +306,28 @@ class StallTimeout(DriverError):
     """Raised when the child agent produces no JSONL events for stall_timeout seconds."""
 
 
+class EmptyStatusSelection(DriverError):
+    """A STATUS selector (`reviews`/`review`/`to-review`) matched nothing, which is a SUCCESS.
+
+    revsweep 76gsmv E-04, implementing spec `25kzda` 2.4a property 3: "an empty `reviews` result
+    is a success, not an error ... it reports that plainly and exits 0 ... the one deliberate
+    exception to the Section 2.3 rule that zero matches exit 2. A misspelled id6 still exits 2;
+    only the status selectors are exempt."
+
+    WHY A SUBCLASS RATHER THAN A RETURN VALUE. `expand_selectors` is called from deep inside
+    `initialize_run`, BEFORE the run directory is created. Returning an empty list would let
+    `initialize_run` proceed to mkdir a run directory and freeze an empty queue, so the "start no
+    run" half of the requirement would be lost. Raising through the existing `DriverError` channel
+    reaches `main` with nothing created, and subclassing keeps every OTHER `except DriverError` in
+    the package (including the preflight-refusal translation in `agy_runipd`) catching it exactly
+    as before; only `main`'s own handler, which is ordered ahead of the generic one, treats it as
+    exit 0.
+
+    DEFINED PER RUNNER ON PURPOSE, matching `StallTimeout` above, which is likewise defined in both
+    drivers. Each `main` catches its own, so there is no cross-runner raise to translate, and this
+    keeps the change inside the plan's scope fence rather than editing `runner_shared`."""
+
+
 class ToolIdentityError(DriverError):
     """Raised when a nested ``aw`` would run code OTHER than the runner's own installation.
 
@@ -2278,7 +2300,12 @@ def expand_selectors(
                     seen.add(id6)
 
         if not expanded:
-            raise DriverError("No items in 'to-review' state found in repository")
+            # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message stays the same string
+            # it always was, so any log-scraper still matches; only the TYPE changed, which is what
+            # lets `main` exit 0 for the status selectors WITHOUT relaxing `DriverError` generally.
+            raise EmptyStatusSelection(
+                "No items in 'to-review' state found in repository"
+            )
         return expanded
 
     if len(selectors_list) == 1 and selectors_list[0].lower() == "all":
@@ -2431,6 +2458,73 @@ def action_for(kind: str | None, status: str) -> str:
     return determine_action(status or "approved")
 
 
+# revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares. `review` is IMPLEMENTED
+# here; `plan` and `execute` are REGISTERED so the flag's grammar matches the spec, and then REFUSED
+# honestly, because their legality tables (2.6: `plan` only for an approved spec or open backlog
+# item, `execute` only for approved/auto-approved/reusable IPDs) need per-type dispatch this Set has
+# not built. Accepting them silently would be the worse failure: the operator would believe an action
+# was constrained when nothing constrained it.
+ACTION_CHOICES = ("review", "plan", "execute")
+ACTION_IMPLEMENTED = frozenset(("review",))
+
+
+def enforce_requested_action(
+    requested: str | None,
+    items: list[tuple[str, str, str]],
+) -> None:
+    """FAIL CLOSED when `--action <a>` is illegal for any selected item. Raises `DriverError`.
+
+    `items` is [(id6, status, derived_action)], derived by `action_for` exactly as the queue builder
+    derives it, so this cannot disagree with what would actually run.
+
+    THIS IS THE SAFETY CONTENT OF `--action`, NOT PLUMBING (revsweep 76gsmv F-9). `action_for`
+    returns `execute` for BOTH `approved` AND `reviewed`, the queue builder calls it unconditionally,
+    and under `--full-auto` a `reviewed` plan carrying an approving `- Readiness:` is cleared to
+    `auto-approved` and EXECUTED. So `aw oc review <approved-id6>` with the flag merely accepted and
+    ignored would EXECUTE that plan while the operator typed the word "review". Spec 25kzda 2.6
+    forbids exactly that: `--action` "cannot force a status transition, execute an unapproved item,
+    or turn a non-runnable record into a runnable one", and 2.1 permits it only when "the requested
+    action is legal from every item's current status".
+
+    REFUSED BEFORE THE QUEUE IS FROZEN, matching the fail-closed dependency preflight: the caller
+    invokes this from `initialize_run` ahead of the run directory's creation, so a refused run leaves
+    no host session, no run directory, and no durable state to reconcile.
+
+    An `orchestrate` item satisfies `--action review` NEVER: an orchestrator past review is not
+    agent-executed, so asking to review it is asking for something the driver cannot do at that
+    status, and silently including it would put a non-review turn in a review-spelled run.
+    """
+    if requested is None:
+        return
+    action = str(requested).lower().strip()
+    if action not in ACTION_CHOICES:
+        raise DriverError(
+            f"Unknown --action {action!r}; expected one of: {', '.join(ACTION_CHOICES)}"
+        )
+    if action not in ACTION_IMPLEMENTED:
+        raise DriverError(
+            f"--action {action} is not implemented yet. Only --action review is available; "
+            f"{action}'s per-type legality table (spec 25kzda 2.6) needs the per-type dispatch "
+            "this runner does not have. No run was started. To review instead, run: "
+            "aw oc review <selector>"
+        )
+    illegal = [
+        (id6, status, derived) for id6, status, derived in items if derived != action
+    ]
+    if illegal:
+        detail = ", ".join(
+            f"{id6} (status {status!r} -> action {derived!r})"
+            for id6, status, derived in illegal
+        )
+        raise DriverError(
+            f"--action review is illegal for {len(illegal)} selected item(s): {detail}. "
+            "Review is the next legal action only for a to-review or draft plan; an approved or "
+            "reviewed plan would EXECUTE, which is not what 'review' asks for. No run was started "
+            "and no session launched. To sweep only what actually awaits review, run: "
+            "aw oc review"
+        )
+
+
 # Dependency findings that ABORT the whole run rather than failing one component. Spec 25kzda 2.10
 # maps `check.ipd-dependency-ambiguous` to the `fatal` identity/type-ambiguity class, and 5.4 rule 1
 # says "identity/type ambiguity aborts the run"; every other dependency finding fails only the
@@ -2565,6 +2659,30 @@ def initialize_run(args: argparse.Namespace) -> Path:
             continue
     enforce_dependency_preflight(repo, selected_plan_paths)
 
+    # revsweep 76gsmv E-03: `--action` legality, checked HERE for the same reason the dependency
+    # preflight above is: before the run directory exists and before any session, so a refusal
+    # leaves nothing to reconcile. It must also precede the `--full-auto` auto-approval below, which
+    # would otherwise CLEAR a `reviewed` plan to `auto-approved` on the way to executing it inside a
+    # command the operator spelled "review" (F-9). The derived action uses the same `action_for` the
+    # queue builder uses, read from the same manifest+plan-file status, so the two cannot disagree.
+    requested_action = getattr(args, "action", None)
+    if requested_action is not None:
+        preflight_items: list[tuple[str, str, str]] = []
+        for id6 in queue_ids:
+            plan_info = manifest["plans"].get(id6, {})
+            st = plan_info.get("status")
+            if not st:
+                try:
+                    rec_probe = parse_plan_file(
+                        resolve_plan_path(repo, plan_info.get("file", ""), id6), repo
+                    )
+                    st = rec_probe.status if rec_probe else None
+                except Exception:
+                    st = None
+            st = st or "approved"
+            preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))
+        enforce_requested_action(requested_action, preflight_items)
+
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
     if run_dir.exists():
@@ -2690,6 +2808,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
+            # revsweep 76gsmv E-03: frozen with the rest of the policy so `aw runs show` and a
+            # resume can both see the run was constrained to one action.
+            "action": requested_action,
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -5991,6 +6112,12 @@ SELECTOR TYPES:
   - id6:      6-character unique ID (e.g. 'pr2nd0', '5ahblp')
   - setid:    IPD Set identifier (e.g. 'ipdrunner', 'execset')
   - filename: Path or filename of an IPD file (e.g. '.aw/records/plans/pending/...ipd.md')
+  - reviews:  Every IPD whose next legal action is review, swept in one shared session.
+              Spelled 'reviews', 'review', or 'to-review'. Selects IPDs only; specs and
+              backlog items are not reachable by any selector yet. Matching nothing is a
+              success and exits 0, because a repository with nothing awaiting review is
+              the healthy state. 'aw oc review' is the spelled form of this sweep.
+  - all:      Every actionable pending IPD in the repository
 
 AUTOMATIC STATUS ROUTING:
   - to-review: Runs OpenCode with `/plan-review <plan_path>` to review and improve the plan.
@@ -5998,6 +6125,10 @@ AUTOMATIC STATUS ROUTING:
   - approved:  Executes the plan step-by-step according to the execution runbook.
 """,
         epilog="""EXAMPLES:
+  # Review EVERYTHING awaiting review, in one shared session (the review sweep).
+  # Spelled 'reviews', 'review', or 'to-review'; 'aw oc review' is the same command:
+  runipd reviews
+
   # Review a single pending plan:
   runipd 20260824-ipdrunner-01-pr2nd0-harden.ipd.md
 
@@ -6028,7 +6159,9 @@ AUTOMATIC STATUS ROUTING:
     start.add_argument(
         "selectors",
         nargs="+",
-        help="One or more target selectors: id6 (e.g. 5ahblp), setid (e.g. execset), or plan filenames/paths",
+        help="One or more target selectors: id6 (e.g. 5ahblp), setid (e.g. execset), plan "
+        "filenames/paths, 'reviews' (alias 'review'/'to-review'; every IPD whose next legal "
+        "action is review, IPDs only), or 'all'",
     )
     start.add_argument(
         "--repo",
@@ -6077,6 +6210,19 @@ AUTOMATIC STATUS ROUTING:
         "--prepare-only",
         action="store_true",
         help="Create and display the durable queue without launching OpenCode",
+    )
+    # revsweep 76gsmv E-03: the flag `aw oc review` expands to (spec 25kzda 2.1). It NARROWS, never
+    # widens: `--action review` refuses any selected item whose next legal action is not review,
+    # BEFORE the queue is frozen, so the word "review" can never execute a plan. `plan`/`execute` are
+    # registered for grammar parity and refuse honestly rather than being silently accepted.
+    start.add_argument(
+        "--action",
+        choices=ACTION_CHOICES,
+        default=None,
+        help="Require a specific action for every selected item. Only 'review' is implemented: it "
+        "refuses the run if any selected plan's next legal action is not review, so it can never "
+        "execute a plan. 'plan' and 'execute' are accepted by the grammar and refused as not yet "
+        "implemented. This is what 'aw oc review' expands to.",
     )
     start.add_argument(
         "--stall-timeout",
@@ -6449,6 +6595,15 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 143 if is_sigterm else 130
+    except EmptyStatusSelection:
+        # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY
+        # state, so it reports plainly on stdout and exits 0. Ordered BEFORE the generic
+        # `except DriverError` because it is a subclass; a misspelled id6 raises the plain
+        # `DriverError` below and still exits 2. Nothing was created: this raises out of
+        # `expand_selectors`, which runs before the run directory is made, so there is no summary
+        # table to render and no state to reconcile.
+        print("Nothing awaiting review; no run started.")
+        return 0
     except DriverError as exc:
         if run_dir and (run_dir / "state.json").is_file():
             try:
