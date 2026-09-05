@@ -560,5 +560,52 @@ class QueueBuildAnnouncementTests(unittest.TestCase):
                     self.assertTrue(order_events[0]["reordered"])
 
 
+class ExecutionIndexAndCountingTests(unittest.TestCase):
+    """The second thing running is counted as the second thing running (02/N), not by requested position."""
+
+    def test_execution_index_reflects_actual_execution_order(self):
+        # Measured revsweep scenario: 4 items where eyh1fu was requested 3rd but runs 2nd
+        state = {
+            "queue": [
+                _item("76gsmv", position=1),
+                _item("6ypimw", position=2),
+                _item("eyh1fu", position=3),
+                _item("5slbpi", position=4),
+            ],
+            "run_order": {
+                "requested": ["76gsmv", "6ypimw", "eyh1fu", "5slbpi"],
+                "executed": ["76gsmv", "eyh1fu", "6ypimw", "5slbpi"],
+                "reordered": True,
+            },
+        }
+        item_eyh1fu = state["queue"][2]
+        item_6ypimw = state["queue"][1]
+
+        self.assertEqual(render_stream.execution_index(item_eyh1fu, state), 2)
+        self.assertEqual(render_stream.execution_index(item_6ypimw, state), 3)
+        self.assertEqual(render_stream.execution_index(state["queue"][0], state), 1)
+        self.assertEqual(render_stream.execution_index(state["queue"][3], state), 4)
+
+    def test_execution_index_falls_back_to_position_when_no_run_order(self):
+        state = {
+            "queue": [
+                _item("itemA", position=2),
+            ],
+        }
+        self.assertEqual(render_stream.execution_index(state["queue"][0], state), 2)
+
+    def test_execution_index_falls_back_when_id_not_in_executed(self):
+        state = {
+            "queue": [_item("itemX", position=5)],
+            "run_order": {"executed": ["other1", "other2"]},
+        }
+        self.assertEqual(render_stream.execution_index(state["queue"][0], state), 5)
+
+    def test_drivers_reexport_execution_index(self):
+        for name, mod in _DRIVERS:
+            with self.subTest(driver=name):
+                self.assertIs(mod.execution_index, render_stream.execution_index)
+
+
 if __name__ == "__main__":
     unittest.main()

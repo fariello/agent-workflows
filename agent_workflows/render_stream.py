@@ -953,6 +953,27 @@ def format_run_order_announcement(
     return lines
 
 
+def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
+    """The 1-based index of an item in the run's execution sequence.
+
+    runorder (prpipy) sequence alignment. `item['position']` is the item's
+    frozen queue identity (used for session/outcome/prompt filenames and tiebreaking),
+    which equals the execution order only when nothing was reordered. When dependencies
+    or operators cause the execution order to diverge from requested position, the
+    execution sequence index (1..total) must reflect the order in which items actually
+    run, matching `state["run_order"]["executed"]` and the run order announcement.
+
+    Returns the 1-based execution index if found in `state["run_order"]["executed"]`,
+    otherwise falls back to `item.get("position", 1)`.
+    """
+    executed = (state.get("run_order") or {}).get("executed")
+    id6 = str(item.get("id6") or "")
+    if executed and id6 in executed:
+        return executed.index(id6) + 1
+    pos = item.get("position")
+    return int(pos) if isinstance(pos, int) and pos > 0 else 1
+
+
 def _parse_iso_timestamp(ts_str: str | None) -> float | None:
     """Parse ISO8601 or similar UTC timestamp string into a float epoch timestamp."""
     if not ts_str:

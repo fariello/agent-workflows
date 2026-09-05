@@ -254,6 +254,97 @@ class ReadinessReaderTests(unittest.TestCase):
             )
 
 
+class GateRefRenderingTests(unittest.TestCase):
+    """The gate suffix must honor `--long`, and the header fold must actually replace it.
+
+    TWO REGRESSIONS THIS PINS, both display-only:
+      1. The gate ref ignored `--long`, so a row showing a 30-char compact identity carried a
+         110-char repo-relative path for its gate -- the one column the flag did not govern.
+      2. The blocked-section fold hoisted a shared ref into the header but never suppressed the
+         per-row suffix, so folding ADDED a line instead of removing the repetition.
+    """
+
+    def _colored(self, items):
+        return _strip(
+            attention.render_board(items, [], show_all=True, term=T.Term(color=True))
+        )
+
+    def _gated(self, ref, *, n=1, kind="artifact"):
+        return [
+            attention.Item(
+                f"aaa11{i}",
+                f".aw/records/backlog/blocked/2026090{i}-set-01-aaa11{i}-x.backlog.md",
+                "backlog",
+                "blocked",
+                "blocked",
+                {"kind": kind, "ref": ref},
+                "2026-09-01",
+            )
+            for i in range(n)
+        ]
+
+    _DEEP = ".aw/records/plans/pending/20260903-runflags-01-uyeko5-wire-the-spec.ipd.md"
+
+    def test_deep_path_ref_is_compacted_by_default(self):
+        out = self._colored(self._gated(self._DEEP))
+        self.assertIn("[gate artifact: 20260903-runflags-01-uyeko5]", out)
+        self.assertNotIn(
+            self._DEEP, out, "the raw deep path must not appear by default"
+        )
+
+    def test_long_restores_the_full_ref(self):
+        out = _strip(
+            attention.render_board(
+                self._gated(self._DEEP),
+                [],
+                show_all=True,
+                term=T.Term(color=True),
+                long=True,
+            )
+        )
+        self.assertIn(f"[gate artifact: {self._DEEP}]", out)
+
+    def test_non_path_ref_is_never_compacted(self):
+        # `TODO.md` has no directory separator: a stem would render a bare `TODO`, naming no file.
+        out = self._colored(self._gated("TODO.md"))
+        self.assertIn("[gate artifact: TODO.md]", out)
+
+    def test_typed_non_path_refs_survive_verbatim(self):
+        for kind, ref in (("issue", "GH-1234"), ("date", "2026-12-01")):
+            out = self._colored(self._gated(ref, kind=kind))
+            self.assertIn(f"[gate {kind}: {ref}]", out)
+
+    def test_shared_ref_folds_into_header_and_leaves_rows(self):
+        out = self._colored(self._gated("TODO.md", n=2))
+        self.assertIn("TODO.md", out, "the shared ref must be stated once")
+        self.assertNotIn(
+            "[gate artifact:",
+            out,
+            "a folded ref must be REMOVED from every row, not merely echoed in the header",
+        )
+
+    def test_distinct_refs_are_not_folded_and_stay_on_rows(self):
+        items = self._gated("TODO.md") + self._gated(self._DEEP)
+        out = self._colored(items)
+        self.assertIn("[gate artifact: TODO.md]", out)
+        self.assertIn("[gate artifact: 20260903-runflags-01-uyeko5]", out)
+
+    def test_mixed_gated_and_ungated_group_is_not_folded(self):
+        # Hoisting into a header covering ungated rows would attribute a gate to items lacking one.
+        items = self._gated("TODO.md") + [
+            _item(".aw/records/backlog/open/plain.backlog.md")
+        ]
+        out = self._colored(items)
+        self.assertIn("[gate artifact: TODO.md]", out)
+
+    def test_uncolored_machine_form_keeps_the_full_ref(self):
+        # The uncolored view is the stable agent/grep shape; compaction must not reach it.
+        out = attention.render_board(
+            self._gated(self._DEEP), [], show_all=True, term=T.Term(color=False)
+        )
+        self.assertIn(f"[gate artifact: {self._DEEP}]", out)
+
+
 class QuestionCountJsonTests(unittest.TestCase):
     """oqs/rqs/readiness must be in `--format json`, not TTY-only, so agents and --check see them."""
 

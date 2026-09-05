@@ -993,6 +993,53 @@ def _identity_stem(path: str) -> str:
     return _FACET_STRIP_RE.sub("", base)
 
 
+def _shared_gate_ref(items: Sequence["Item"], *, long: bool) -> str:
+    """The ONE gate ref shared by every gated item in ``items``, or '' when there is no single one.
+
+    THE FOLD DECISION, in one place, because the section header and the item rows must agree: the
+    header hoists this ref only when it is shared, and each row suppresses its own gate suffix only
+    when the header hoisted it. Deriving that twice is how the two drifted before, with the header
+    folding while every row still repeated the ref, so the hoist added a line instead of removing
+    noise.
+
+    Returns '' when the group has no gate, only ONE gated item, several distinct refs, or a mix of
+    gated and ungated items. Two of those bear explaining. A SINGLE item is not folded because the
+    hoist trades one row suffix for one header line and saves nothing, while moving the ref away from
+    the row it describes. The MIXED case is excluded because hoisting a ref into a header that also
+    covers ungated rows would attribute a gate to items that do not have one.
+    """
+    gated = [it for it in items if it.gate]
+    if len(gated) < 2 or len(gated) != len(items):
+        return ""
+    refs = {
+        _gate_ref_display(A.escape_detail((it.gate or {}).get("ref", "")), long=long)
+        for it in gated
+    }
+    refs.discard("")
+    return next(iter(refs)) if len(refs) == 1 else ""
+
+
+def _gate_ref_display(ref: str, *, long: bool) -> str:
+    """A gate ref shortened for the compact board, or returned verbatim.
+
+    The board's identity column already honors `--long` (compact `_identity_stem` by default, full
+    path with `--long`), and the gate ref did NOT: it always printed the raw `Gate-Ref:` value, so a
+    row showing a 30-char compact identity carried a 110-char repo-relative path for its gate. This
+    applies the SAME rule to the ref so one flag governs both.
+
+    ONLY a ref that is actually a path inside the records tree is compacted, which is why this is not
+    just `_identity_stem`. A gate ref is a TYPED reference whose kind may be `todo`, `issue`, `date`,
+    `decision`, or `external`, so most refs are not paths at all: `TODO.md` must stay `TODO.md` (a
+    stem would render it as a bare `TODO`, naming a file that does not exist) and an issue reference
+    or a date must survive byte-for-byte. The test is a directory separator, so only a genuinely
+    nested path is shortened.
+    """
+    text = (ref or "").strip()
+    if long or "/" not in text.replace("\\", "/"):
+        return text
+    return _identity_stem(text)
+
+
 def _common_dir_prefix(paths: List[str]) -> str:
     """The common directory prefix (posix, trailing '/') shared by all paths, or '' if none.
     awdoctor Order 01: folded into a colored section header so per-item lines can be bare names."""
@@ -1035,10 +1082,18 @@ def _render_item_row(
     colored: bool,
     long: bool,
     details: bool = False,
+    gate_in_header: bool = False,
 ) -> str:
     """Render ONE board row for an item, in the compact columnar human form (colored) or the
     stable machine form (uncolored). Extracted so the release-blockers section renders items
-    identically to the active/ready/blocked sections, not as raw paths."""
+    identically to the active/ready/blocked sections, not as raw paths.
+
+    ``gate_in_header`` is True only when the caller ALREADY hoisted this group's single shared gate
+    ref into the section header, in which case repeating it on every row is the noise the hoist
+    exists to remove. It is passed explicitly rather than re-derived from ``cls`` because the two
+    conditions are different: the hoist requires the whole group to share ONE ref, so a blocked group
+    with several distinct refs is not folded and each row must still name its own gate.
+    """
     status_word = it.native_status
     if colored:
         code = _STATUS_COLOR_256.get(it.native_status, _CLASS_COLOR_256.get(cls, 244))
@@ -1058,11 +1113,12 @@ def _render_item_row(
             type_txt = term.color256(type_word, _TREE_COLOR_256, bold=True)
             type_prefix = type_txt + (" " * max(0, 10 - len(type_word))) + "  "
         inline_gate = ""
-        if it.gate and cls != A.BLOCKED:
+        if it.gate and not gate_in_header:
             g = it.gate
-            inline_gate = (
-                f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
+            ref_txt = _gate_ref_display(
+                A.escape_detail(g.get("ref", "")), long=bool(long)
             )
+            inline_gate = f"  [gate {g.get('kind')}: {ref_txt}]"
         prio = ""
         if it.priority:
             pcode = {"high": 196, "medium": 214, "low": 244}.get(it.priority, 244)
@@ -1121,6 +1177,7 @@ def _render_table_row(
     long: bool,
     details: bool = False,
     repo_root: Optional[Path] = None,
+    gate_in_header: bool = False,
 ) -> str:
     st_raw = it.native_status[:8]
     if colored:
@@ -1211,10 +1268,11 @@ def _render_table_row(
     rq_col = f"{rq_left_pad}{rq_styled}  "
 
     inline_gate = ""
-    if it.gate:
-        inline_gate = (
-            f"  [gate {it.gate.get('kind')}: {A.escape_detail(it.gate.get('ref', ''))}]"
+    if it.gate and not gate_in_header:
+        ref_txt = _gate_ref_display(
+            A.escape_detail(it.gate.get("ref", "")), long=bool(long)
         )
+        inline_gate = f"  [gate {it.gate.get('kind')}: {ref_txt}]"
 
     row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{rq_col}{ident}{inline_gate}"
     if details and it.detail_text:
@@ -1283,6 +1341,13 @@ def render_table(
         return (type_word, is_blocking, prio_rank, name, it.path)
 
     visible.sort(key=_sort_key)
+    # The table is ONE flat list, not per-class sections, so there is no section header to hoist a
+    # shared gate ref into. When every visible row is gated by the SAME ref, say it once above the
+    # table and drop it from the rows; otherwise each row keeps its own (now `--long`-aware) ref.
+    shared_gate = _shared_gate_ref(visible, long=long)
+    if shared_gate:
+        note = f"all {len(visible)} gated by {shared_gate}"
+        lines.append(term.color256(note, 244) if colored else note)
     header = (
         "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID"
     )
@@ -1297,6 +1362,7 @@ def render_table(
                 long=long,
                 details=details,
                 repo_root=repo_root,
+                gate_in_header=bool(shared_gate),
             )
         )
 
@@ -1355,15 +1421,11 @@ def render_board(
         # Section header. In the colored human view, fold a shared gate artifact into the
         # header (e.g. "blocked (2) in TODO.md") instead of repeating it on every line.
         header_extra = ""
+        shared_gate = ""
         if colored and cls == A.BLOCKED:
-            artifacts = {
-                A.escape_detail((it.gate or {}).get("ref", ""))
-                for it in group
-                if it.gate
-            }
-            artifacts.discard("")
-            if len(artifacts) == 1:
-                header_extra = f" in {next(iter(artifacts))}"
+            shared_gate = _shared_gate_ref(group, long=long)
+            if shared_gate:
+                header_extra = f" in {shared_gate}"
 
         if cls in (A.DONE, A.PARKED) and not show_all:
             if not colored:
@@ -1382,7 +1444,15 @@ def render_board(
 
         for it in group:
             lines.append(
-                _render_item_row(it, cls, term, colored, long, details=details)
+                _render_item_row(
+                    it,
+                    cls,
+                    term,
+                    colored,
+                    long,
+                    details=details,
+                    gate_in_header=bool(shared_gate),
+                )
             )
     if colored and legend:
         lines.append(
@@ -1555,6 +1625,19 @@ def run(args) -> int:
             ]
 
     status_filters = parse_status_filters(getattr(args, "status", None))
+    has_terminal_status = any(
+        s
+        in (
+            "done",
+            "parked",
+            "superseded",
+            "not-executed",
+            "implemented",
+            "shipped",
+            "abandoned",
+        )
+        for s in status_filters
+    )
     if status_filters:
         items = [it for it in items if matches_status(it, status_filters)]
 
@@ -1575,6 +1658,10 @@ def run(args) -> int:
     open_questions_filter = getattr(args, "open_questions", False)
     if open_questions_filter:
         items = [it for it in items if (getattr(it, "oqs", 0) or 0) > 0]
+        if not (
+            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
+        ):
+            items = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
 
     if (
         any(
@@ -1684,24 +1771,8 @@ def run(args) -> int:
         term = T.Term(stream=sys.stdout, color=color)
         colored = bool(getattr(term, "color", False))
         long = getattr(args, "long", False)
-        has_terminal_status = any(
-            s
-            in (
-                "done",
-                "parked",
-                "superseded",
-                "not-executed",
-                "implemented",
-                "shipped",
-                "abandoned",
-            )
-            for s in status_filters
-        )
         show_all = (
-            getattr(args, "all", False)
-            or bool(selectors_arg)
-            or has_terminal_status
-            or bool(open_questions_filter)
+            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
         )
         details = getattr(args, "details", False)
 

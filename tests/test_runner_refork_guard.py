@@ -95,6 +95,7 @@ REFORK_TABLE: tuple[Owned, ...] = (
     Owned("format_statusline", "render_stream", ("oc_runipd",)),
     Owned("render_event", "render_stream", ("oc_runipd",)),
     Owned("statusline_action_for_item", "render_stream", BOTH),
+    Owned("execution_index", "render_stream", BOTH),
     Owned("_one_line", "render_stream", BOTH),
     Owned("_strip_ansi", "render_stream", BOTH),
     # --- selectors: the record front-matter readers --------------------------------------

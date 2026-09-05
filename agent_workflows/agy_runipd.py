@@ -63,6 +63,7 @@ from agent_workflows.render_stream import (
     render_run_summary_table,
     install_exit_signal_handler,
     statusline_action_for_item,
+    execution_index as execution_index,
     Palette as Palette,
     _strip_ansi as _strip_ansi,
     _one_line as _one_line,
@@ -2360,8 +2361,9 @@ def run_agy_turn(
 
     queue = state.get("queue", [])
     total_items = len(queue) or 1
-    # When working on item at 1-based position P, number of completed items is P - 1 (e.g. 0 of 2 done).
-    current_idx = max(0, item.get("position", 1) - 1)
+    # When working on item at 1-based execution sequence S, number of completed items is S - 1 (e.g. 0 of 2 done).
+    seq = execution_index(item, state)
+    current_idx = max(0, seq - 1)
 
     is_tty = bool(getattr(sys.stdout, "isatty", None) and sys.stdout.isatty())
 
@@ -2700,9 +2702,10 @@ def execute_item(
     total = len(state["queue"])
     mode_note = " (recovery)" if recovery else ""
     action_str = f"action={action}"
+    seq = execution_index(item, state)
     banner = (
         pal("\u25b6 ", "cyan")
-        + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold", "cyan")
+        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold", "cyan")
         + pal(
             f"  set={item['setid']}  {action_str}  attempt {attempt_no}{mode_note}",
             "dim",
@@ -2748,7 +2751,7 @@ def execute_item(
             )
             print(
                 pal(
-                    f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} begin refused "
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} begin refused "
                     f"(no execution authority); not launching. {begin_msg}",
                     "red",
                 ),
@@ -2820,7 +2823,7 @@ def execute_item(
                 )
                 print(
                     pal(
-                        f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} worktree "
+                        f"\u2717 IPD {seq:02d}/{total} {item['id6']} worktree "
                         f"allocation failed; not launching. {exc}",
                         "red",
                     ),
@@ -2880,7 +2883,7 @@ def execute_item(
         save_state(run_dir, state)
         print(
             pal(
-                f"\u25a0 IPD {item['position']:02d}/{total} {item['id6']} INTERRUPTED IMMEDIATELY "
+                f"\u25a0 IPD {seq:02d}/{total} {item['id6']} INTERRUPTED IMMEDIATELY "
                 f"(level {record['level']}, {record['level_name']}); outcome is "
                 f"{record['disposition']} (certainty {record['certainty']}) after "
                 f"{record['events_observed']} observed event(s); requested by "
@@ -2907,7 +2910,7 @@ def execute_item(
         save_state(run_dir, state)
         print(
             pal(
-                f"\u25a0 IPD {item['position']:02d}/{total} {item['id6']} stopped at a safe "
+                f"\u25a0 IPD {seq:02d}/{total} {item['id6']} stopped at a safe "
                 f"checkpoint (level {record['level']}, {record['level_name']}, certainty "
                 f"{record['certainty']}) after event "
                 f"{record['last_completed_event_index']} "
@@ -2949,7 +2952,7 @@ def execute_item(
         )
         print(
             pal(
-                f"\u2717 IPD {item['position']:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
+                f"\u2717 IPD {seq:02d}/{total} {item['id6']} stalled (no output for {int(stall_sec) if stall_sec else 0}s); turn terminated",
                 "red",
             ),
             file=sys.stderr,
@@ -3343,7 +3346,7 @@ def execute_item(
     )
     finish = (
         pal(f"{glyph} ", glyph_color)
-        + pal(f"IPD {item['position']:02d}/{total} {item['id6']}", "bold")
+        + pal(f"IPD {seq:02d}/{total} {item['id6']}", "bold")
         + pal(f" ({action})", "dim")
         + " -> "
         + pal(disposition, glyph_color)

@@ -1256,7 +1256,22 @@ class AttentionFilteringTests(unittest.TestCase):
                 "- Status: resolved\n",
                 encoding="utf-8",
             )
+            executed_dir = root / ".aw" / "records" / "plans" / "executed"
+            executed_dir.mkdir(parents=True)
+            p3 = executed_dir / "20260901-test-03-cccccc-executed-with-oq.ipd.md"
+            p3.write_text(
+                "# IPD: executed with oq\n"
+                "- Status: executed\n"
+                "- Set: test\n"
+                "- Order: 03\n"
+                "- Id: cccccc\n\n"
+                "## Open questions\n\n"
+                "### OQ-01: Still open in old plan\n"
+                "- Status: open\n",
+                encoding="utf-8",
+            )
 
+            # Without --all: excludes archived (e.g. executed or superseded)
             args = argparse.Namespace(
                 dir=str(root),
                 format="json",
@@ -1280,6 +1295,32 @@ class AttentionFilteringTests(unittest.TestCase):
             data = json.loads(buf.getvalue())
             self.assertEqual(len(data["items"]), 1)
             self.assertEqual(data["items"][0]["id"], "aaaaaa")
+
+            # With --all: includes archived items with open questions
+            args_all = argparse.Namespace(
+                dir=str(root),
+                format="json",
+                check=False,
+                selectors=[],
+                types=[],
+                status=[],
+                priority=[],
+                blocking=[],
+                readiness=[],
+                open_questions=True,
+                no_color=True,
+                all=True,
+                long=False,
+                details=False,
+            )
+            buf_all = io.StringIO()
+            with mock.patch("sys.stdout", buf_all):
+                rc_all = att.run(args_all)
+            self.assertEqual(rc_all, 0)
+            data_all = json.loads(buf_all.getvalue())
+            self.assertEqual(len(data_all["items"]), 2)
+            ids = {it["id"] for it in data_all["items"]}
+            self.assertEqual(ids, {"aaaaaa", "cccccc"})
 
 
 if __name__ == "__main__":

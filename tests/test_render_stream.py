@@ -530,6 +530,14 @@ class SingleDefinitionTests(unittest.TestCase):
             agy_driver.statusline_action_for_item,
             render_stream.statusline_action_for_item,
         )
+        self.assertIs(
+            driver.execution_index,
+            render_stream.execution_index,
+        )
+        self.assertIs(
+            agy_driver.execution_index,
+            render_stream.execution_index,
+        )
 
     def test_definitions_live_in_render_stream_module(self):
         for obj in (
@@ -543,6 +551,7 @@ class SingleDefinitionTests(unittest.TestCase):
             render_stream.render_event,
             render_stream.Heartbeat,
             render_stream.statusline_action_for_item,
+            render_stream.execution_index,
         ):
             module = inspect.getmodule(obj)
             assert module is not None
