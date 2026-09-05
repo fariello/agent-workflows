@@ -33,6 +33,84 @@ class VocabTests(unittest.TestCase):
             at.expand_types("comms", supported=("plans",))
 
 
+class DerivedVocabularyTests(unittest.TestCase):
+    """The vocabulary is DERIVED from `layout.py` (spec `kw5y2s`, Set `wslayout` Order 02, `zvk796`).
+
+    These pin the two properties the consolidation had to hold: it may not NARROW the live tuple,
+    and the one widening it does make (`reviews`) is deliberate rather than accidental.
+    """
+
+    def test_derivation_does_not_narrow_the_pre_consolidation_vocabulary(self) -> None:
+        # NON-NEGOTIABLE (plan-review PR-001): dropping `roadmaps` would break
+        # `run_rename_roadmaps` / `run_group_roadmaps` and orphan the on-disk roadmap records, so
+        # every pre-consolidation type and alias must survive the move to the layout model.
+        for t in (
+            "plans",
+            "specs",
+            "prompts",
+            "research",
+            "backlog",
+            "walkthroughs",
+            "roadmaps",
+            "comms",
+            "releases",
+            "other",
+        ):
+            self.assertIn(t, at.ARTIFACT_TYPES)
+        for alias, target in (
+            ("plan", "plans"),
+            ("spec", "specs"),
+            ("prompt", "prompts"),
+            ("walkthrough", "walkthroughs"),
+            ("roadmap", "roadmaps"),
+            ("comm", "comms"),
+            ("research", "research"),
+            ("backlog", "backlog"),
+            ("release", "releases"),
+            ("other", "other"),
+            ("others", "other"),
+            ("misc", "other"),
+        ):
+            self.assertEqual(at.normalize_type(alias), target)
+
+    def test_reviews_is_now_an_accepted_type_noun(self) -> None:
+        # THE ONE DELIBERATE WIDENING (maintainer UNION ruling, spec Section 3.2). `reviews` was
+        # already a `record_producers.RecordClass` member while absent from `ARTIFACT_TYPES`, so the
+        # derivation RECONCILES two live vocabularies. Before Order 02, `aw check reviews` exited 2
+        # with "unknown artifact type 'reviews'".
+        self.assertIn("reviews", at.ARTIFACT_TYPES)
+        self.assertTrue(at.is_type_token("reviews"))
+        self.assertEqual(at.normalize_type("reviews"), "reviews")
+        self.assertEqual(at.normalize_type("review"), "reviews")
+
+    def test_reviews_has_no_backend_and_no_status_lifecycle(self) -> None:
+        # Accepting the NOUN must not make it a mutable work item: a review record has no status to
+        # set, so it stays out of `TYPE_BACKENDS` and out of `selectors.KNOWN_PRIMARY_TYPES`.
+        from agent_workflows import selectors
+
+        self.assertNotIn("reviews", at.TYPE_BACKENDS)
+        self.assertNotIn("reviews", selectors.KNOWN_PRIMARY_TYPES)
+        self.assertIn("reviews", selectors.NON_PRIMARY_RECORD_DIRS)
+
+    def test_records_root_alias_is_still_not_a_type_noun(self) -> None:
+        # `records` is a legitimate `RecordClass` member but has never been a CLI type noun;
+        # accepting it would silently widen the command surface.
+        self.assertNotIn("records", at.ARTIFACT_TYPES)
+        self.assertFalse(at.is_type_token("records"))
+        with self.assertRaises(ValueError):
+            at.normalize_type("records")
+
+    def test_all_expansion_token_survives_the_derivation(self) -> None:
+        # Every `aw <verb> all` invocation depends on this passing through unchanged.
+        self.assertEqual(at.normalize_type("all"), "all")
+        self.assertTrue(at.is_type_token("all"))
+        self.assertNotIn("all", at.ARTIFACT_TYPES)
+
+    def test_falsy_tokens_are_not_type_tokens(self) -> None:
+        for token in (None, "", "   "):
+            self.assertFalse(at.is_type_token(token))
+
+
 class BackendMapTests(unittest.TestCase):
     def test_lookup(self) -> None:
         self.assertEqual(at.TYPE_BACKENDS["plans"]["rename"], "plans_refs.run_mv")

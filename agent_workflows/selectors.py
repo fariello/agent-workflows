@@ -40,6 +40,7 @@ from typing import List, NamedTuple, Optional
 
 from agent_workflows import artifact_core as _core
 from agent_workflows import artifact_naming as _naming
+from agent_workflows import layout as _layout
 from agent_workflows import record_producers as _rp
 
 _SKIP_NAMES = {"README.md", "INDEX.md", "STATUS.md"}
@@ -121,19 +122,22 @@ _STATUS_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
 _SET_RE = re.compile(r"(?m)^- Set:\s*(.+?)\s*$")
 
 
-KNOWN_PRIMARY_TYPES = frozenset(
-    {
-        "plans",
-        "specs",
-        "prompts",
-        "research",
-        "backlog",
-        "walkthroughs",
-        "roadmaps",
-        "comms",
-        "releases",
-    }
-)
+# ----------------------------------------------------------------------------------------------
+# The three directory vocabularies, DERIVED from the canonical layout model (spec `kw5y2s`, Set
+# `wslayout` Order 02). `agent_workflows/layout.py` is the single source of truth for what record
+# classes exist and which of them carry a status lifecycle; these names, their `frozenset` types and
+# their membership are unchanged, so every importer and every parity test keeps working.
+#
+# THEY ARE STILL THREE SEPARATE SETS ON PURPOSE. Sourcing them from one model does NOT merge them:
+# each answers a different question, and the long comments below record measured outages that
+# collapsing them caused. `layout.py` preserves the distinction via `is_primary` / `is_complement` /
+# `is_root_alias` plus `TRAVERSAL_EXCLUSIONS`, so the derivation is a MOVE of the definition, not a
+# redefinition of the behavior.
+# ----------------------------------------------------------------------------------------------
+
+_LAYOUT = _layout.build_default_layout()
+
+KNOWN_PRIMARY_TYPES = frozenset(_LAYOUT.primary_types())
 
 # Record trees that are their OWN resolvable type but are NOT in `KNOWN_PRIMARY_TYPES`, so the
 # `other` CATCH-ALL must not claim them.
@@ -157,29 +161,32 @@ KNOWN_PRIMARY_TYPES = frozenset(
 # not overridable by --force". It was a resolver defect, not a data bug, and it hit ALL 28 reviewed
 # plans, i.e. every plan that had been through `/plan-review`.
 #
-# ADD A TREE HERE when it is a legitimately resolvable record type that has no status lifecycle and
+# ADD A TREE HERE by marking the record class `is_primary=False` WITH a nonempty `subpath` in
+# `layout.py`, when it is a legitimately resolvable record type that has no status lifecycle and
 # therefore cannot join `KNOWN_PRIMARY_TYPES` without making `aw set` accept it.
-NON_PRIMARY_RECORD_DIRS = frozenset(
-    {
-        "reviews",
-    }
-)
+NON_PRIMARY_RECORD_DIRS = frozenset(_LAYOUT.non_primary_record_dirs())
 
-EXCLUDED_RECORD_DIRS = frozenset(
-    {
-        "runs",
-        "scratch",
-        "tmp",
-        "temp",
-        ".git",
-        ".system_generated",
-        "__pycache__",
-    }
-)
+# Directories that are NOT record trees and must never be enumerated. PINNED to the current seven by
+# `layout.TRAVERSAL_EXCLUSIONS`: the `kw5y2s` draft also listed `node_modules`, `venv` and `.venv`,
+# and adding them is a deliberate, separately validated behavior change (its own evidence and
+# regression coverage), NOT a side effect of sourcing from the model. Maintainer ruling OQ-01,
+# 2026-09-03.
+EXCLUDED_RECORD_DIRS = frozenset(_LAYOUT.traversal_exclusions)
 
 # Every directory the `other` catch-all must skip: the primary typed trees, the typed-but-not-primary
 # trees, and the non-record scratch dirs. `other` means "a record in the tree that no TYPE owns", so
 # a directory owned by any type belongs to that type and not to `other`.
+#
+# THIS DERIVED UNION IS WHAT ACTUALLY GATES THE SWEEP (`record_dirs` line ~215, `_iter_paths`), not
+# the three sets individually, so it MUST STAY COMPUTED from whatever those three become. Do not
+# hardcode it, and do not bypass it with a fourth direct membership test: either would let the union
+# drift from its inputs silently. `layout.other_sweep_skip_dirs()` computes the same union from the
+# same three inputs, and `tests/test_layout.py` asserts the two agree, so a drop is caught.
+#
+# CONCRETELY, the member at risk is `reviews`: when it was in NEITHER the primary types nor the
+# exclusions, a bare id6 matched TWICE (the plan as `plans`/id6, its own review record as
+# `other`/substring) and `aw set approved <id6>` refused with "id6 collision ... a data bug to fix,
+# not overridable by --force" for ALL 28 reviewed plans, until `d802e917` added the third set.
 _OTHER_SWEEP_SKIP_DIRS = (
     KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS
 )

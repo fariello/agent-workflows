@@ -1,62 +1,58 @@
 """Closed TYPE-noun vocabulary + verb->backend routing for the noun-verb command surface
 (spec 20260818-1525-01, awcmdsurf Set). This module imports NONE of the backend modules at load
 time: TYPE_BACKENDS stores DOTTED-NAME STRINGS resolved lazily at dispatch, so it never reintroduces
-the import cycles the map exists to avoid."""
+the import cycles the map exists to avoid.
+
+THE VOCABULARY IS NO LONGER DEFINED HERE (spec `kw5y2s`, Set `wslayout` Order 02). `ARTIFACT_TYPES`,
+`_ALIASES`, `is_type_token()` and `normalize_type()` are DERIVED from the canonical layout model in
+`agent_workflows/layout.py`, which is the single source of truth for what record classes an AW
+workspace has. The names, signatures and exception types here are unchanged, so every existing
+importer keeps working; only the DEFINITION moved.
+
+WHY IMPORTING `layout` IS SAFE FROM THIS MODULE, given the whole point of the lazy `TYPE_BACKENDS`
+strings above is to avoid import cycles: `layout` is STDLIB-ONLY and imports no `agent_workflows`
+module at all, so it is a leaf. It is not a backend and cannot become one.
+
+ONE DELIBERATE BEHAVIOR CHANGE, per the maintainer's UNION ruling (2026-09-01, spec Section 3.2):
+`reviews` is now an ACCEPTED type noun, because it is a real record tree that `RecordClass` already
+carries. It was previously rejected (`aw check reviews` exited 2 with "unknown artifact type"). It is
+deliberately NOT a `TYPE_BACKENDS` key and has no status lifecycle, so it stays out of
+`selectors.KNOWN_PRIMARY_TYPES` and out of `aw set`. See `tests/test_awcmdsurf_vocab_and_parsers.py`.
+"""
 
 from __future__ import annotations
 
 import importlib
 from typing import Callable, Dict, List, Optional, Sequence
 
-# The closed set of artifact TYPE nouns (canonical plural forms).
-ARTIFACT_TYPES = (
-    "plans",
-    "specs",
-    "prompts",
-    "research",
-    "backlog",
-    "walkthroughs",
-    "roadmaps",
-    "comms",
-    "releases",
-    "other",
-)
+from agent_workflows import layout as _layout
 
-# Singular / short aliases -> canonical plural.
-_ALIASES = {
-    "plan": "plans",
-    "spec": "specs",
-    "prompt": "prompts",
-    "walkthrough": "walkthroughs",
-    "roadmap": "roadmaps",
-    "comm": "comms",
-    "research": "research",
-    "backlog": "backlog",
-    "release": "releases",
-    "other": "other",
-    "others": "other",
-    "misc": "other",
-}
+# The canonical layout model. Built ONCE at import: `LayoutModel` is a frozen dataclass over
+# immutable vocabularies, so a module-level instance is safe to share and costs one construction.
+_LAYOUT = _layout.build_default_layout()
+
+# The closed set of artifact TYPE nouns (canonical plural forms), in canonical order. ORDER IS
+# LOAD-BEARING: `expand_types` returns types in this order and the CLI's "valid types: ..." error
+# lists them in it. Derived from the layout model; includes `reviews` per the union ruling.
+ARTIFACT_TYPES = _LAYOUT.artifact_types()
+
+# Singular / short aliases -> canonical plural (includes the identity entries `research`, `backlog`,
+# `other` that the live map carried, plus `others`/`misc` for `other`).
+_ALIASES = _LAYOUT.alias_map()
 
 
 def is_type_token(token: Optional[str]) -> bool:
-    """Return True if `token` is a known artifact type (plural), alias (singular), or 'all'."""
-    if not token:
-        return False
-    return token == "all" or token in ARTIFACT_TYPES or token in _ALIASES
+    """Return True if `token` is a known artifact type (plural), alias (singular), or 'all'.
+
+    Falsy input (None, "") is False, never an error.
+    """
+    return _LAYOUT.is_known_type(token)
 
 
 def normalize_type(token: str) -> str:
     """Return the canonical plural type for `token` (a plural, a known singular alias, or `all`).
     Raises ValueError listing the valid set for an unknown token."""
-    if token == "all":
-        return "all"
-    if token in ARTIFACT_TYPES:
-        return token
-    if token in _ALIASES:
-        return _ALIASES[token]
-    valid = ", ".join(ARTIFACT_TYPES) + ", all"
-    raise ValueError(f"unknown artifact type {token!r}; valid types: {valid}")
+    return _LAYOUT.normalize_type(token)
 
 
 def expand_types(token: str, supported: Sequence[str]) -> List[str]:

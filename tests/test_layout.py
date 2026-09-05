@@ -67,8 +67,35 @@ class LayoutModelDefaultsTests(unittest.TestCase):
     def test_artifact_types_reproduce_the_live_tuple_in_order(self) -> None:
         # ORDER MATTERS: `expand_types` returns types in ARTIFACT_TYPES order and the CLI error
         # message lists them in that order.
+        #
+        # ASSERTED AGAINST A LITERAL, NOT AGAINST `AT.ARTIFACT_TYPES` (updated by Order 02, `zvk796`).
+        # Before Order 02 this compared the model to the module, which was a real fence because the
+        # module defined its own tuple. Order 02 made the module DERIVE its tuple from this model, so
+        # that comparison is now a tautology in the `include_reviews=True` direction and could not
+        # catch a narrowing at all. The pre-consolidation 10, in order, are therefore spelled out
+        # here: this is exactly the sequence `normalize_type`'s "valid types: ..." message still
+        # lists, so a silent reordering or a dropped `roadmaps` fails HERE.
         self.assertEqual(
-            self.model.artifact_types(include_reviews=False), AT.ARTIFACT_TYPES
+            self.model.artifact_types(include_reviews=False),
+            (
+                "plans",
+                "specs",
+                "prompts",
+                "research",
+                "backlog",
+                "walkthroughs",
+                "roadmaps",
+                "comms",
+                "releases",
+                "other",
+            ),
+        )
+        # And the UNION view is what the live module now exposes: the same 10 plus `reviews`, with
+        # the relative order of the original 10 untouched.
+        self.assertEqual(self.model.artifact_types(), AT.ARTIFACT_TYPES)
+        self.assertEqual(
+            tuple(t for t in AT.ARTIFACT_TYPES if t != "reviews"),
+            self.model.artifact_types(include_reviews=False),
         )
 
     def test_reviews_is_a_type_noun_only_in_the_union_view(self) -> None:
@@ -160,10 +187,19 @@ class ConsumerInterfaceTests(unittest.TestCase):
             set(self.model.primary_types()), set(selectors.KNOWN_PRIMARY_TYPES)
         )
         self.assertEqual(len(self.model.primary_types()), 9)
-        # And it is exactly ARTIFACT_TYPES minus `other`, which is how the live set is derived.
+        # AND IT IS `ARTIFACT_TYPES` MINUS THE TWO NON-PRIMARY MEMBERS, which is the relationship
+        # Order 02 (`zvk796`) made explicit. Before Order 02 the live tuple had exactly one
+        # non-primary member (`other`), so "minus other" described it; the union ruling added
+        # `reviews`, a real tree with NO status lifecycle, so the primary set is now the tuple minus
+        # BOTH. `reviews` must stay out: `KNOWN_PRIMARY_TYPES` is iterated by `run_selection_policy`,
+        # whose `SPEC_TYPE_BY_RESOLVER_TYPE` bijection would break, and membership would make
+        # `aw set` accept a record that has no status to set.
         self.assertEqual(
-            set(self.model.primary_types()), set(AT.ARTIFACT_TYPES) - {"other"}
+            set(self.model.primary_types()),
+            set(AT.ARTIFACT_TYPES) - {"other", "reviews"},
         )
+        self.assertNotIn("reviews", self.model.primary_types())
+        self.assertNotIn("other", self.model.primary_types())
 
     def test_non_primary_record_dirs_equal_the_live_set(self) -> None:
         self.assertEqual(
