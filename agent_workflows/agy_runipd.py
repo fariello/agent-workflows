@@ -1653,6 +1653,13 @@ def initialize_run(args: argparse.Namespace) -> Path:
         else:
             runbook_path = None
 
+    # runflags-01 (`uyeko5`) E-03/E-04/E-05, symmetric with `oc_runipd`: refuse an unhonorable flag
+    # BEFORE resolution, delegating every decision (the shared table's unimplemented list, `zub5f1`'s
+    # admission precondition, `sq61qd`'s 0..10 bound). No runner-local flag policy.
+    runner_shared.refuse_unimplemented_run_flags(args)
+    runner_shared.evaluate_unverifiable_admission(args)
+    runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
     # 8guhs0 E-02 (symmetric with oc_runipd): FAIL CLOSED on an invalid dependency graph BEFORE any
@@ -1691,6 +1698,20 @@ def initialize_run(args: argparse.Namespace) -> Path:
             preflight_items.append((id6, st, determine_action(st)))
         enforce_requested_action(requested_action, preflight_items)
 
+    # runflags-01 (`uyeko5`) E-02: the SAME call site the opencode driver has, from the SAME shared
+    # function, so `6lu3rq`'s mixed-type gate is reachable on BOTH hosts. Not optional symmetry: a gate
+    # wired into one runner only is how `--full-auto` came to mean opt-in on one host and opt-out on
+    # the other. The oc twin carries the full note, including the honest limit that no real invocation
+    # can produce a mixed selection until `--type` exists.
+    mixed_verdict = runner_shared.enforce_mixed_type_gate(
+        repo,
+        selected_plan_paths,
+        allow_mixed=bool(getattr(args, "allow_mixed", False)),
+        interactive=runner_shared.is_interactive_run(args),
+        host="agy",
+        selector=" ".join(str(s) for s in args.selectors),
+    )
+
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
     if run_dir.exists():
@@ -1712,7 +1733,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
     initial_session = getattr(args, "session", None)
     set_sessions: dict[str, str] = {}
     queue: list[dict[str, Any]] = []
-    full_auto = getattr(args, "full_auto", True)
+    # runflags-01 (`uyeko5`) E-07: `False`, matching the opencode host. This was `True`, and it is the
+    # SECOND of three sites: changing only the parser default would have left the old opt-OUT behavior
+    # live for any caller that builds a Namespace without the attribute, while `--help` claimed
+    # otherwise.
+    full_auto = getattr(args, "full_auto", False)
     for position, id6 in enumerate(queue_ids, start=1):
         plan = manifest["plans"][id6]
         setid = plan["set"]
@@ -1805,6 +1830,10 @@ def initialize_run(args: argparse.Namespace) -> Path:
             # revsweep 76gsmv E-03: frozen with the rest of the policy so `aw runs show` and a
             # resume can both see the run was constrained to one action.
             "action": requested_action,
+            # runflags-01 (`uyeko5`) E-06: spec 2.1's policy flags frozen at queue build, from the
+            # SAME shared function the opencode driver uses, so the frozen option SET is identical on
+            # both hosts by construction rather than by two lists that agree today.
+            **runner_shared.freeze_run_policy_flags(args),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -1815,6 +1844,19 @@ def initialize_run(args: argparse.Namespace) -> Path:
     append_jsonl(
         run_dir / "events.jsonl",
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+    )
+    # runflags-01 (`uyeko5`) E-02: spec 2.5 bullet 4's four facts in the run ledger, from the record
+    # `run_selection_policy` returned. Same shape as the opencode driver's.
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "mixed-type-gate",
+            "gate_applied": mixed_verdict.gate_applied,
+            "proceed": mixed_verdict.proceed,
+            "reason": mixed_verdict.reason,
+            **mixed_verdict.record.as_dict(),
+        },
     )
     write_report(run_dir, state)
     # runorder (prpipy) E-07: the SAME announcement the OpenCode driver emits, from the SAME shared
@@ -3488,7 +3530,20 @@ def execute_item(
             file=sys.stderr,
         )
 
-    full_auto = state.get("options", {}).get("full_auto", True)
+    # runflags-01 (`uyeko5`) E-07: `False`, matching the opencode host. THE THIRD AND LAST of the three
+    # sites, and the only one that could change how an ALREADY-FROZEN run resumes, since a state
+    # written before the `full_auto` option existed reaches this fallback instead of a frozen value.
+    #
+    # MEASURED RATHER THAN ASSUMED, because the assumption was wrong. Of the 100 run states on disk in
+    # this repository, 14 carry NO `full_auto` key and 7 of those still hold resumable items - so
+    # keyless states are real, not hypothetical. But ALL 14 are OPENCODE runs (identified by their
+    # `opencode`/`agent`/`auto` option keys), whose fallback was ALREADY `False` and is untouched by
+    # this change. Zero antigravity runs are affected, so no in-flight run flips policy mid-resume.
+    #
+    # And for a keyless state that did reach here, `False` is the correct direction regardless: failing
+    # CLOSED means the run asks for approval it might not have needed, never that it auto-approves a
+    # plan the operator never authorized.
+    full_auto = state.get("options", {}).get("full_auto", False)
     auto_approved = False
     if is_review and disposition in ("reviewed", "approved") and full_auto:
         plan_curr = resolve_plan_path(
@@ -4232,18 +4287,13 @@ AUTOMATIC STATUS ROUTING:
         default=DEFAULT_STALL_TIMEOUT,
         help=f"Timeout in seconds with no output from child agent before terminating (default: {DEFAULT_STALL_TIMEOUT}; 0 to disable)",
     )
-    start.add_argument(
-        "--full-auto",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help=(
-            "Clear a plan that is already 'Status: reviewed' to 'auto-approved' and execute it "
-            "immediately. The decision reads the plan's structured '- Readiness:' field "
-            "(go|go-pending-approval clears; no-go, an unrecognized value, or an absent field with "
-            "no approving review verdict does not). This records an AUTOMATED clear, NOT human "
-            "approval: no --by-human attestation is asserted"
-        ),
-    )
+    # runflags-01 (`uyeko5`) E-01..E-07: spec `25kzda` 2.1's EIGHT policy flags, from the SHARED table.
+    # E-07 (maintainer ruling 2026-09-04) NORMALIZES `--full-auto` to default `False` here: this host
+    # declared `default=True`, so `aw agy run <selector>` auto-cleared a `reviewed` plan with an
+    # approving `- Readiness:` and executed it with NO flag passed, while the opencode host required
+    # opting IN. Two hosts disagreeing about whether execution is opt-in or opt-out is the divergence
+    # the `rununify` Set exists to remove, and this one defaulted to the LESS safe direction.
+    runner_shared.register_run_policy_flags(start)
     start.add_argument(
         "--max-items-per-session",
         type=int,
@@ -4284,15 +4334,10 @@ AUTOMATIC STATUS ROUTING:
         default=None,
         help="Override timeout in seconds with no output from child agent",
     )
-    resume.add_argument(
-        "--full-auto",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help=(
-            "Override full-auto mode (clear reviewed plans whose structured '- Readiness:' is "
-            "go/go-pending-approval to 'auto-approved' and execute them; not human approval)"
-        ),
-    )
+    # runflags-01 (`uyeko5`) E-06: the same eight flags on `resume`, all `default=None` (the shipped
+    # `--full-auto` pattern), so an OMITTED flag cannot clobber the frozen value. The opencode twin
+    # carries the full note.
+    runner_shared.register_run_policy_flags(resume, resume=True)
     resume.add_argument(
         "--max-items-per-session",
         type=int,
@@ -4474,9 +4519,14 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "resume":
-            if getattr(args, "full_auto", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["full_auto"] = args.full_auto
+            # runflags-01 (`uyeko5`) E-06, symmetric with `oc_runipd`: refuse the flag spec `:131`
+            # freezes (`--retry-budget`) before any state is loaded, then apply the flags the operator
+            # actually PASSED while leaving the omitted ones frozen. The shared helper SUBSUMES the
+            # hand-written `--full-auto` block that was here, preserving its shipped
+            # overwrite-when-passed behavior exactly.
+            runner_shared.refuse_frozen_flags_on_resume(args)
+            state = load_state(run_dir)
+            if runner_shared.apply_run_policy_flags_on_resume(state, args):
                 save_state(run_dir, state)
             if getattr(args, "stall_timeout", None) is not None:
                 state = load_state(run_dir)

@@ -95,6 +95,21 @@ the plan's 34-symbol manifest will otherwise think they were forgotten:
 
 Conventions follow `host_runner.py`: a docstring stating what the module owns and its design posture,
 banner comments per section, and no import of a caller.
+
+# ---- SPEC 2.1's RUN FLAG SURFACE (runflags-01, `uyeko5`) ----------------------------------------
+
+A SECOND thing now lives here, and it is not one of the 34 moved symbols: the spec `25kzda` 2.1 POLICY
+FLAG SURFACE (`RUN_POLICY_FLAGS` and the `register_*`/`freeze_*`/`resolve_*` helpers below). It
+belongs in this module and not in either runner for exactly the reason the module exists: registering
+eight flags twice is how two parsers diverge, and the shipped `--full-auto` had ALREADY diverged
+(default `False` on opencode, `True` on antigravity) before anything shared existed to stop it.
+
+It is admitted under a DIFFERENT rule from the 34, stated so the admission rule above is not read as
+having been bent: the 34 are PROVEN-IDENTICAL EXISTING bodies moved without edit, fingerprint-pinned
+by `tests/test_runner_shared.py`. This block is NEW code that never existed in either runner, so it
+has no pre-move fingerprint to match and is deliberately absent from that fixture. What replaces the
+fingerprint as its guard is `tests/test_run_flag_surface.py`, which drives every assertion from
+`RUN_POLICY_FLAGS` as DATA and therefore fails when the spec grows a flag the code lacks.
 """
 
 from __future__ import annotations
@@ -110,7 +125,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, TextIO
+from typing import Any, Callable, NamedTuple, TextIO
 
 from agent_workflows.render_stream import Palette, render_run_summary_table
 
@@ -785,3 +800,511 @@ def validate_manifest(
         wrong = [id6 for id6 in group["order"] if plans[id6]["set"] != setid]
         if wrong:
             raise DriverError(f"Set {setid} contains plans assigned elsewhere: {wrong}")
+
+
+# ==================================================================================================
+# SPEC 25kzda 2.1: THE RUN POLICY FLAG SURFACE (runflags-01, `uyeko5`)
+# ==================================================================================================
+#
+# WHAT THIS SECTION FIXES. Spec `25kzda` 2.1 declares `aw <host> run`'s invocation surface as a closed
+# flag list. Measured at HEAD `bd91909e`, SEVEN of its eight policy flags were unreachable from either
+# runner's command line: only `--full-auto` was registered. Two of the seven (`--allow-mixed`,
+# `--unattended`) had WORKING policy behind them with no flag to reach it, which is worse than a
+# missing feature - `run_selection_policy.decide` had ZERO callers anywhere in the package, so the
+# entire mixed-type gate executed plan `6lu3rq` built and tested was DEAD CODE.
+#
+# THE ONE PRINCIPLE HERE: THIS MODULE CREATES NO POLICY. Where a predicate already ships it is CALLED
+# (`run_selection_policy.decide`, `run_evidence.aggregate_run_exit`, `run_recovery.validate_retry_budget`);
+# where none ships, the flag is registered and REFUSES HONESTLY rather than silently accepting. A flag
+# that parses and silently does nothing is strictly WORSE than no flag, because the operator believes
+# a policy was applied when it was not, which is a correctness failure and not a UX one.
+#
+# WHY THE FLAG LIST IS DATA AND NOT EIGHT `add_argument` CALLS. The recurring failure this section
+# exists to end is not "a flag is missing", it is "the documented contract and the shipped command
+# drifted and nothing noticed". A hand-written registration per flag reproduces that: the ninth flag
+# the spec grows is added to the spec, not to two parsers, and no test fails. Driving registration
+# AND the contract test from ONE table makes the drift a test failure instead of an archaeology
+# project.
+
+
+class RunPolicyFlag(NamedTuple):
+    """One row of spec 25kzda 2.1's policy flag list.
+
+    Fields:
+      * ``flag``        - the exact operator-facing spelling (what the spec declares).
+      * ``dest``        - the argparse destination, hence the run-state option key.
+      * ``kind``        - ``"bool"`` (a `BooleanOptionalAction`, matching shipped `--full-auto`) or
+                          ``"int"``.
+      * ``implemented`` - whether the flag's BEHAVIOR ships. False means registered-and-refusing:
+                          the flag parses, appears in `--help`, and REFUSES with `not yet
+                          implemented`. Carried as data so the contract test can assert the refusal
+                          rather than trusting the help text.
+      * ``owner``       - the artifact that owns the behavior, named in the refusal so an operator
+                          who hits it can find the work item rather than filing a duplicate.
+      * ``help``        - the `--help` text. Where the shipped semantics DIVERGE from the spec (an
+                          unimplemented flag, or `--retry-budget`'s missing repository-policy tier),
+                          the divergence is stated HERE, because an operator reads `--help` and never
+                          reads an IPD.
+      * ``freeze``      - whether the value is frozen into run state at queue build.
+      * ``resume_rule`` - ``"refuse"`` (spec `:131` freezes the value, so passing it with `resume` is
+                          an error) or ``"none-default"`` (re-declared with ``default=None`` so an
+                          OMITTED flag cannot clobber the frozen value; the shipped `--full-auto`
+                          pattern).
+    """
+
+    flag: str
+    dest: str
+    kind: str
+    implemented: bool
+    owner: str
+    help: str
+    freeze: bool = True
+    resume_rule: str = "none-default"
+
+
+#: The `resume` re-declaration rules, named rather than spelled inline at each comparison.
+RESUME_REFUSE = "refuse"
+RESUME_NONE_DEFAULT = "none-default"
+
+#: Spec 25kzda 2.1's EIGHT policy flags, in the order the spec's grammar block lists them.
+#:
+#: `--allow-drafts` is deliberately ABSENT. It is a spec 2.1 flag (added to the spec 2026-09-04, after
+#: this surface was designed) but its gate is spec 2.5a and is owned by `revsweep-02` (`6ypimw`),
+#: which registers it alongside the pure `--allow-drafts` policy it also writes. Registering it here
+#: as a refusal would collide with that plan on the same parser lines for no gain: it is not one of
+#: the eight this surface owns, and `tests/test_run_flag_surface.py` records the exclusion so a reader
+#: comparing this table against spec 2.1 does not think it was forgotten.
+RUN_POLICY_FLAGS: tuple = (
+    RunPolicyFlag(
+        flag="--allow-mixed",
+        dest="allow_mixed",
+        kind="bool",
+        implemented=True,
+        owner="run_selection_policy.decide",
+        help=(
+            "Acknowledge that the selection spans MORE THAN ONE work-item type, unattended. "
+            "Acknowledges type mixing ONLY: every status, approval, prompt-verifiability, scope, "
+            "and safety gate still applies"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--unattended",
+        dest="unattended",
+        kind="bool",
+        implemented=True,
+        owner="run_selection_policy.decide",
+        help=(
+            "Declare that NO interactive answer channel is available, so a gate that would prompt "
+            "refuses instead of waiting. Implied by --full-auto"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--full-auto",
+        dest="full_auto",
+        kind="bool",
+        implemented=True,
+        owner="plan_readiness.is_plan_review_approved",
+        help=(
+            "Clear a plan that is already 'Status: reviewed' to 'auto-approved' and execute it "
+            "immediately. The decision reads the plan's structured '- Readiness:' field "
+            "(go|go-pending-approval clears; no-go, an unrecognized value, or an absent field with "
+            "no approving review verdict does not). This records an AUTOMATED clear, NOT human "
+            "approval: no --by-human attestation is asserted. Implies --unattended"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--allow-unverifiable",
+        dest="allow_unverifiable",
+        kind="bool",
+        implemented=True,
+        owner="run_evidence.aggregate_run_exit",
+        help=(
+            "Admit contractless prompts (a prompt with no parseable run contract), whose "
+            "verification stays 'unavailable'. This is the ADMISSION --unverifiable-ok requires; it "
+            "does not by itself make such an item aggregate-neutral"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--unverifiable-ok",
+        dest="unverifiable_ok",
+        kind="bool",
+        implemented=True,
+        owner="run_evidence.aggregate_run_exit",
+        help=(
+            "Treat an acknowledged, completed contractless prompt as NEUTRAL for the aggregate exit "
+            "code, without relabeling it verified. LEGAL ONLY with --allow-unverifiable (or the "
+            "interactive `run unverifiable` confirmation); passed alone it is refused"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--follow-generated",
+        dest="follow_generated",
+        kind="bool",
+        implemented=False,
+        owner="backlog x8diyb (rundepflags-01)",
+        help=(
+            "NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the behavior). Would add newly "
+            "generated IPDs to THIS frozen run as child queue entries instead of reporting them as "
+            "generated next actions"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--with-dependencies",
+        dest="with_dependencies",
+        kind="bool",
+        implemented=False,
+        owner="backlog x8diyb (rundepflags-01)",
+        help=(
+            "NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the behavior). Would expand the "
+            "selection to the transitive declared dependency closure BEFORE the queue is frozen, "
+            "subjecting any newly introduced type to the mixed-type gate"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--retry-budget",
+        dest="retry_budget",
+        kind="int",
+        implemented=True,
+        owner="run_recovery.validate_retry_budget",
+        help=(
+            "Automatic correction attempts after the initial attempt, an integer 0..10 inclusive "
+            "(0 means no retries). The CLI value overrides the default of 2. NOTE: spec 2.1's "
+            "MIDDLE precedence tier (repository policy) is NOT IMPLEMENTED - no repository-policy "
+            "home exists yet (backlog dh3us4) - so precedence today is CLI over default. Cannot be "
+            "changed on --resume: the frozen value stands"
+        ),
+        resume_rule=RESUME_REFUSE,
+    ),
+)
+
+#: `{flag: RunPolicyFlag}`, for a caller that has a spelling and wants the row.
+RUN_POLICY_FLAGS_BY_FLAG: dict = {row.flag: row for row in RUN_POLICY_FLAGS}
+
+#: `{dest: RunPolicyFlag}`, for a caller reading an `argparse.Namespace` or a frozen options dict.
+RUN_POLICY_FLAGS_BY_DEST: dict = {row.dest: row for row in RUN_POLICY_FLAGS}
+
+#: Spec 2.1's default retry budget. NOT a second definition of the value: it is read FROM
+#: `run_recovery.DEFAULT_RETRY_LIMIT` at call time (see `resolve_retry_budget`), and this name exists
+#: only so a reader of this section knows where the number lives.
+RETRY_BUDGET_OWNER = "run_recovery.DEFAULT_RETRY_LIMIT"
+
+
+class RunFlagRefusal(DriverError):
+    """A run flag was passed that cannot be honored, with WHY and WHO owns the missing half.
+
+    A `DriverError` subclass and not a new exception hierarchy, because both runners' `main` already
+    catches `DriverError`, prints it, and exits 2 without touching durable state. That is exactly the
+    behavior a refused flag needs: fail before any run directory, session, or lease exists.
+    """
+
+
+def register_run_policy_flags(
+    parser: Any,
+    *,
+    resume: bool = False,
+    skip: Any = (),
+) -> None:
+    """Register spec 2.1's policy flags on ONE parser, from :data:`RUN_POLICY_FLAGS` as data.
+
+    ``resume=False`` is the `run`/`start` parser: each flag carries its real default (``False`` for a
+    bool, ``None`` for `--retry-budget`, meaning "not supplied" so the default tier can apply).
+
+    ``resume=True`` is the `resume` parser, and every flag is re-declared with ``default=None``. That
+    is the SHIPPED `--full-auto` pattern and it exists so an OMITTED flag cannot clobber a frozen
+    value: `resume` cannot distinguish "the operator passed `--no-allow-mixed`" from "the operator
+    passed nothing" if the default is `False`. A flag whose ``resume_rule`` is :data:`RESUME_REFUSE`
+    is still REGISTERED on `resume`, deliberately: refusing it needs argparse to accept it first, so
+    that `aw oc run resume <id> --retry-budget 5` fails with the spec's reason rather than argparse's
+    `unrecognized arguments`, which would tell the operator the flag does not exist.
+
+    ``skip`` names dests this caller registers itself. It exists for `--full-auto`, whose long help
+    text and BooleanOptionalAction both runners already declare; passing it through here would be a
+    second registration and argparse would raise. Every skipped dest must still BE in the table, so
+    the contract test can prove it is registered by SOMEONE.
+    """
+
+    import argparse as _argparse
+
+    skipped = set(skip)
+    unknown = skipped - set(RUN_POLICY_FLAGS_BY_DEST)
+    if unknown:
+        raise ValueError(
+            "register_run_policy_flags(skip=...) names dests that are not spec 2.1 flags: "
+            f"{sorted(unknown)}"
+        )
+    for row in RUN_POLICY_FLAGS:
+        if row.dest in skipped:
+            continue
+        if row.kind == "bool":
+            parser.add_argument(
+                row.flag,
+                dest=row.dest,
+                action=_argparse.BooleanOptionalAction,
+                default=None if resume else False,
+                help=row.help,
+            )
+        elif row.kind == "int":
+            parser.add_argument(
+                row.flag,
+                dest=row.dest,
+                type=int,
+                default=None,
+                metavar="N",
+                help=row.help,
+            )
+        else:  # pragma: no cover - the table is closed; a new kind is a programming error
+            raise ValueError(
+                f"unknown run policy flag kind {row.kind!r} for {row.flag}"
+            )
+
+
+def resolve_retry_budget(cli_value: Any) -> int:
+    """Spec 2.1's retry-budget precedence, and the ONE place the range bound is reached.
+
+    Precedence per spec 2.1 is CLI > repository policy > default 2. The MIDDLE TIER IS NOT
+    IMPLEMENTED and is not faked here: no repository-policy home exists (backlog `dh3us4` tracks it),
+    so this resolves CLI-over-default and the gap is stated in `--retry-budget`'s own `--help` rather
+    than left for an operator to discover.
+
+    The 0..10 bound is `run_recovery.validate_retry_budget`'s, CALLED and never re-checked here:
+    executed plan `sq61qd` made that the single definition of the bound precisely so the flag layer
+    could reach it at PARSE time, when no `RunEngine` and no step exist. A second comparison here is
+    the off-by-one that gets fixed in one place.
+    """
+
+    from agent_workflows import run_recovery
+
+    if cli_value is None:
+        return run_recovery.DEFAULT_RETRY_LIMIT
+    try:
+        return run_recovery.validate_retry_budget(cli_value)
+    except run_recovery.InvalidRetryBudgetError as exc:
+        raise RunFlagRefusal(f"--retry-budget: {exc}") from exc
+
+
+def refuse_unimplemented_run_flags(args: Any) -> None:
+    """REFUSE any flag whose behavior does not ship (`implemented=False`), before anything happens.
+
+    Called from `initialize_run` before the run directory exists, so a refusal leaves nothing durable
+    behind - the same "No work started" property the mixed-type refusal has, for the same reason.
+
+    This is the honest end state for `--follow-generated` and `--with-dependencies`, whose behavior
+    nobody has built. The alternative that must never be chosen is accepting them as silent no-ops:
+    an operator who passes `--with-dependencies` and gets no closure expansion has been told a
+    falsehood about what the run enforced.
+    """
+
+    for row in RUN_POLICY_FLAGS:
+        if row.implemented:
+            continue
+        if getattr(args, row.dest, None):
+            raise RunFlagRefusal(
+                f"{row.flag} is not yet implemented: {row.owner} owns the behavior. "
+                f"The flag is registered so it fails HERE, loudly, rather than parsing and "
+                f"silently doing nothing"
+            )
+
+
+def refuse_frozen_flags_on_resume(args: Any) -> None:
+    """REFUSE a flag spec 2.1 freezes when it is passed with `resume` (spec `25kzda` :131).
+
+    SCOPED DELIBERATELY, and the scope is the interesting part. Spec `:129` says `--resume` is
+    mutually exclusive with "flags that would change the frozen queue or policy", but the SHIPPED
+    `--full-auto` on resume does not refuse - it OVERWRITES the frozen option and saves it. So the
+    blanket reading and the shipped behavior disagree, and only ONE flag is unambiguous: `:131` says
+    of `--retry-budget` that "the frozen value cannot change on resume". That one is refused here.
+    Converting `--full-auto`'s shipped override into a refusal would be a behavior change to a
+    shipped flag, which belongs to whoever reconciles `:129` with `:131`, not to a plan whose fence is
+    flag registration.
+    """
+
+    for row in RUN_POLICY_FLAGS:
+        if row.resume_rule != RESUME_REFUSE:
+            continue
+        if getattr(args, row.dest, None) is not None:
+            raise RunFlagRefusal(
+                f"{row.flag} cannot be changed on --resume: spec 25kzda 2.1 freezes it at queue "
+                f"build ('the frozen value cannot change on resume'). Resume the run without it, "
+                f"or start a new run"
+            )
+
+
+def freeze_run_policy_flags(args: Any) -> dict:
+    """The spec 2.1 flag values to FREEZE into run state at queue build, as `{dest: value}`.
+
+    Frozen because spec 2.1 makes resume use "the original host, queue, and options": a policy read
+    from `args` on every resume would silently change meaning between the first turn and the last.
+
+    Two values are NORMALIZED here rather than at their read sites, so no consumer has to remember:
+
+      * `--full-auto` IMPLIES `--unattended` (spec `:134`), and implying nothing else. Implemented
+        explicitly instead of being left to chance, because "unattended" is what makes a gate refuse
+        rather than prompt, and a `--full-auto` run has no one to prompt by construction.
+      * `--retry-budget` is resolved to its EFFECTIVE integer through
+        :func:`resolve_retry_budget`, so the frozen state holds the value that will actually be used
+        (never a bare `None` that a later reader has to re-resolve, and re-resolve differently).
+    """
+
+    frozen: dict = {}
+    for row in RUN_POLICY_FLAGS:
+        if not row.freeze:
+            continue
+        if row.dest == "retry_budget":
+            frozen[row.dest] = resolve_retry_budget(getattr(args, row.dest, None))
+        else:
+            frozen[row.dest] = bool(getattr(args, row.dest, False) or False)
+    if frozen.get("full_auto"):
+        frozen["unattended"] = True
+    return frozen
+
+
+def is_interactive_run(args: Any = None, *, stream: TextIO | None = None) -> bool:
+    """Whether a gate may PROMPT: a real TTY on stdin and stderr, and no `--unattended`.
+
+    Both halves are load-bearing. `--unattended` (and `--full-auto`, which implies it) is the
+    operator DECLARING there is nobody to answer, and it wins over a TTY that happens to exist -
+    an unattended run launched from a terminal must still refuse rather than block forever. And with
+    no `--unattended`, the TTY test is still required, because these runs are non-interactive by
+    design; `_lane_reclaim_prompt` in both runners already establishes exactly this precedent (no
+    TTY means no prompt and no waiting, EVER).
+    """
+
+    if args is not None and getattr(args, "unattended", False):
+        return False
+    if args is not None and getattr(args, "full_auto", False):
+        return False
+    stdin = sys.stdin
+    err = stream if stream is not None else sys.stderr
+    for target in (stdin, err):
+        if target is None:
+            return False
+        if not (getattr(target, "isatty", None) and target.isatty()):
+            return False
+    return True
+
+
+def enforce_mixed_type_gate(
+    repo: Path,
+    plan_paths: Any,
+    *,
+    allow_mixed: bool,
+    interactive: bool,
+    host: str,
+    selector: str,
+    response: Any = None,
+) -> Any:
+    """CALL executed plan `6lu3rq`'s mixed-type gate, and act on its verdict (spec 25kzda 2.5).
+
+    THE DEFECT THIS FIXES IS NOT A MISSING FLAG, IT IS A GATE NOBODY CALLED. `6lu3rq` built the whole
+    gate - the exact-phrase confirmation, the counts preview, the verbatim `RUN-MIXED-TYPES` refusal -
+    and `run_selection_policy` was imported by NO module in the package while `decide` had ZERO call
+    sites. A fully tested, importable, completely unreachable gate is indistinguishable from no gate
+    at all from the operator's seat, and a green suite proved nothing about it.
+
+    So this function is a CALL SITE and not a second gate. It classifies, it calls `decide`, it prints
+    what `decide` composed, and it raises on refusal. It composes no message and re-derives no
+    counts: a second copy of the refusal text is the fork this repository keeps paying for.
+
+    AN HONEST LIMIT, stated here because a reader will otherwise take this call site as proof of more
+    than it delivers: NO REAL `aw <host> run` INVOCATION CAN YET PRODUCE A MIXED SELECTION. Discovery
+    walks only the two plans trees and returns plan records (`discover_plans`), the manifest is
+    compiled from those alone, selectors resolve against that IPD-only manifest, and NEITHER runner
+    registers `--type` (spec 2.2/2.3 work, explicitly out of `uyeko5`'s scope). So `decide` is now
+    reached on every run and its gate correctly does not APPLY, because the classification is
+    single-type. The wiring is proven correct; a live mixed selection being gated is NOT proven, and
+    must not be reported as if it were.
+
+    Returns the `Verdict` so the caller can record spec 2.5 bullet 4's four facts in the run ledger.
+    """
+
+    from agent_workflows import run_selection_policy
+
+    classification = run_selection_policy.classify_paths(repo, list(plan_paths))
+    verdict = run_selection_policy.decide(
+        classification,
+        interactive=interactive,
+        allow_mixed=allow_mixed,
+        response=response,
+        host=host,
+        selector=selector,
+    )
+    if verdict.gate_applied and verdict.message is None:
+        # Gate applied and PASSED: the operator authorized a genuinely mixed selection, so show them
+        # the preview they authorized rather than letting it pass silently.
+        print(verdict.record.action_preview, file=sys.stderr)
+    if not verdict.proceed:
+        # The refusal TEXT is `run_selection_policy`'s, verbatim from the spec, never recomposed here.
+        raise DriverError(verdict.message or verdict.reason)
+    return verdict
+
+
+def evaluate_unverifiable_admission(args: Any) -> Any:
+    """Check `--unverifiable-ok`'s precondition by CALLING `zub5f1`'s predicate (spec 2.1 `:136`).
+
+    Spec 2.1: `--unverifiable-ok` is legal ONLY when contractless prompts were explicitly admitted by
+    `--allow-unverifiable` or the interactive `run unverifiable` confirmation. The rule is already
+    implemented and tested in `run_evidence.aggregate_run_exit`, which returns the refusal as DATA
+    (`RunAggregation.refusals` names the missing precondition and `unverifiable_ok_applied` is False),
+    so this function ASKS IT and never re-decides.
+
+    That indirection is the whole point rather than an affectation. Executed plan `zub5f1` took the
+    admission as a PARAMETER precisely because these flags did not exist; the flags now exist, and
+    binding them to that parameter closes the seam. Writing an `if unverifiable_ok and not
+    allow_unverifiable` here instead would put one aggregate rule in two places, and two
+    implementations of one rule is worse than one missing flag.
+
+    Called with an EMPTY item list on purpose: the precondition is a property of the INVOCATION, so it
+    is answerable before any item has run, which is where an operator wants to learn their command was
+    malformed. `aggregate_run_exit` is pure, so asking it costs nothing.
+
+    Returns the `RunAggregation`. Raises :class:`RunFlagRefusal` when the flag was passed without its
+    admission, carrying the predicate's OWN message.
+    """
+
+    from agent_workflows import run_evidence
+
+    aggregation = run_evidence.aggregate_run_exit(
+        [],
+        unverifiable_ok=bool(getattr(args, "unverifiable_ok", False)),
+        unverifiable_admitted=bool(getattr(args, "allow_unverifiable", False)),
+    )
+    for refusal in aggregation.refusals:
+        if refusal.name == run_evidence.REFUSAL_UNVERIFIABLE_OK_UNADMITTED:
+            raise RunFlagRefusal(f"--unverifiable-ok: {refusal.details}")
+    return aggregation
+
+
+def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
+    """Apply the spec 2.1 policy flags an operator PASSED with `resume`; ignore the omitted ones.
+
+    Returns True when anything changed, so the caller can decide whether to save.
+
+    THE RULE IS THE SHIPPED `--full-auto` ONE, applied uniformly rather than to one flag: a value of
+    `None` means the flag was ABSENT, so the frozen value stands; any other value was explicitly typed
+    and OVERWRITES it. That is what `default=None` on the `resume` parser buys, and it is why the
+    default matters: with `default=False` this function could not tell `--no-allow-mixed` from silence
+    and would clobber frozen policy on every resume.
+
+    Two things this deliberately does NOT do:
+
+    * It does not touch a flag whose ``resume_rule`` is :data:`RESUME_REFUSE`. `--retry-budget` is
+      refused earlier by :func:`refuse_frozen_flags_on_resume`, so reaching here with a value set
+      would mean that refusal was skipped; ignoring it is the fail-safe direction.
+    * It does not re-apply `--full-auto`'s implication of `--unattended`. On a resume the operator is
+      adjusting one policy on an already-frozen run, and silently flipping a SECOND frozen option they
+      did not name is the kind of hidden write the freeze exists to prevent. The implication is applied
+      once, at queue build, by :func:`freeze_run_policy_flags`.
+    """
+
+    options = state.setdefault("options", {})
+    changed = False
+    for row in RUN_POLICY_FLAGS:
+        if row.resume_rule == RESUME_REFUSE:
+            continue
+        value = getattr(args, row.dest, None)
+        if value is None:
+            continue
+        if options.get(row.dest) != value:
+            options[row.dest] = value
+            changed = True
+    return changed
