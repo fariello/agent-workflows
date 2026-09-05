@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 
 ## runprofile
 
@@ -13,6 +13,10 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 - `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
 - `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
 - `kgpptv` [pending] 06 pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md
+
+## skilldigest
+
+- `8fhjjc` [pending] 01 pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md
 
 ## revsweep
 
@@ -191,10 +195,6 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 ## gatestale
 
 - `rygds7` [executed] 01 executed/20260829-gatestale-01-rygds7-a-terminal-plans-leaked-begin-receipt-must-not-drive-the-com.ipd.md
-
-## lanename
-
-- `j4v6ga` [executed] 01 executed/20260829-lanename-01-j4v6ga-finish-the-local-untracked-lane-rename-in-agent-facing-prose.ipd.md
 
 ## (singletons: no Set)
 
