@@ -4210,6 +4210,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-04",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 3,
+    "path": "executed/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md",
+    "plan_id": "eyh1fu",
+    "set_id": "revsweep",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4506,16 +4516,6 @@
     "order": 2,
     "path": "pending/20260904-revsweep-02-6ypimw-one-shared-needs-review-predicate-and-the-draft-admission-ga.ipd.md",
     "plan_id": "6ypimw",
-    "set_id": "revsweep",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-04",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md",
-    "plan_id": "eyh1fu",
     "set_id": "revsweep",
     "status": "approved"
   },
