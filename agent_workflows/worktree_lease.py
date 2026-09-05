@@ -40,6 +40,37 @@ WORKTREES_SUBDIR = ".aw/worktrees"
 # `git worktree remove` and is still readable for a branch-only leftover.
 OWNERS_SUBDIR = WORKTREES_SUBDIR + "/.owners"
 
+# The SUBJECT-LINE PREFIX of the preservation commit `snapshot_lane_dirty_work` writes (resumedupe
+# `txc9l1` E-02). It lives here, in the module that WRITES the message, because a constant defined
+# anywhere else would be a second spelling that can drift from the writer; the phrasing was already
+# hardcoded a second time as prompt prose in the drivers, and a classifier keying on a third copy
+# would have made four places to drift.
+#
+# THE DEPENDENCY DIRECTION PERMITS ONLY THIS HOME. This module imports neither runner and no other
+# package module, while both drivers and `runner_shared` already import it, so defining the constant
+# in a driver and importing it back here would create a cycle.
+#
+# MATCH IT AGAINST A COMMIT'S SUBJECT LINE ONLY, never as a substring of the full body: the message
+# body below legitimately says "This is a preservation snapshot, NOT validated or reviewed work", so
+# a body-wide substring search would classify a REAL commit that merely quotes or replies to the
+# phrase as a snapshot, and a real commit misread as a snapshot is the failure that makes a resumed
+# turn redo finished work. Use `commit_subject_is_interrupted_snapshot`.
+INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = "WIP INTERRUPTED SNAPSHOT (not finished work):"
+
+
+def commit_subject_is_interrupted_snapshot(subject: str) -> bool:
+    """True when ``subject`` is the SUBJECT LINE of a driver-written preservation snapshot.
+
+    The completeness signal a resumed turn needs (resumedupe `txc9l1`): a snapshot means a previous
+    attempt's work was committed MID-EDIT to keep it from being lost, explicitly "NOT validated or
+    reviewed work", so redoing it IS correct. A non-snapshot commit is finished work that should be
+    verified and continued rather than re-executed.
+
+    Deliberately subject-scoped and prefix-anchored (see the constant's comment): pass ONE line, not a
+    whole message. A caller holding a full message must split it and pass the first line.
+    """
+    return subject.strip().startswith(INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX)
+
 
 class WorktreeError(Exception):
     """Raised when a git worktree create/teardown fails."""
@@ -74,6 +105,30 @@ def lane_branch_name(lane_id: str) -> str:
     classifier and for tests that need the CANONICAL (unscoped) name.
     """
     return "aw/lane/{0}".format(_lane_dirname(lane_id))
+
+
+def lane_id_from_branch(branch: str) -> Optional[str]:
+    """The lane id to INSPECT for a recorded lane BRANCH name, or None if not a lane branch.
+
+    The exact inverse of `lane_branch_name` for inspection purposes, and it is NOT the forbidden
+    "reconstruct a name from an id6": it consumes a branch name that was RECORDED at allocation, so
+    it designates the lane that actually exists rather than guessing one.
+
+    MEASURED HAZARD IT EXISTS TO CLOSE (resumedupe `txc9l1`): `WorktreeHandle.displaced_from` holds a
+    BRANCH name (`aw/lane/ntf6sx`), and passing it to `inspect_lane` as a lane id runs the sanitizer
+    over it again, yielding branch `aw/lane/aw_lane_ntf6sx`, which does not exist and classifies
+    ABSENT. A caller would then silently conclude the lane holds nothing.
+
+    Round-tripping is exact because `_lane_dirname` is idempotent on an already-sanitized name: lane
+    `abc123:attempt2` -> branch `aw/lane/abc123_attempt2` -> `abc123_attempt2`, whose own branch name
+    is that same `aw/lane/abc123_attempt2`. The colon is not recovered, and it does not need to be:
+    only the branch identity matters for inspection.
+    """
+    prefix = "aw/lane/"
+    if not branch or not branch.startswith(prefix):
+        return None
+    rest = branch[len(prefix) :]
+    return rest or None
 
 
 # ---- lane classification (laneorphan-01 `zwnjp3` E-01) -------------------------------------------
@@ -696,8 +751,11 @@ def snapshot_lane_dirty_work(
                 handle.lane_id, err.strip()
             )
         )
+    # The subject line is built from the SHARED prefix constant (E-02), so the classifier that reads
+    # this message back cannot drift from the writer that produced it.
     message = (
-        "WIP INTERRUPTED SNAPSHOT (not finished work): lane {0}\n\n"
+        INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX
+        + " lane {0}\n\n"
         "Recorded by the driver when the run was interrupted, so the lane's uncommitted edits\n"
         "could not be lost. This is a preservation snapshot, NOT validated or reviewed work.\n"
         "Inspect, amend, or discard it deliberately.\n".format(handle.lane_id)

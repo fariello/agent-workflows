@@ -3601,6 +3601,439 @@ def build_review_prompt(
     return f"/plan-review {rel_path}"
 
 
+# ---- recovery routing: verify-and-continue vs fresh execution ------------------------------------
+#
+# resumedupe (`txc9l1`). A resumed turn used to be told, in prose, that it was continuing an
+# interrupted attempt and that its predecessor's lane already held commits, and then decide for itself
+# what to do. That was MEASURED INSUFFICIENT: after `build_recovery_lane_notice` shipped those exact
+# facts, a resumed turn still re-implemented work a prior attempt had already committed. The
+# reviewable proof is item `zhr6mc`, whose two sibling commits share the subject
+# `feat(runner): close a backlog item when the run executes its last carrier` on INDEPENDENT parents
+# (`42b38acf` on `bcbbfb07`, `8a9b8f32` on `144f3347`), 2118 vs 2260 insertions over the same four
+# files; only the second was merged and the first was retired as provably superseded. Item `bmh754`
+# repeats the shape. That is one full turn's work performed twice.
+#
+# So the judgment MOVES TO THE DRIVER, which already holds every fact required and needs no new
+# observation machinery: `worktree_lease.inspect_lane` is non-mutating by contract and already reports
+# `commits_ahead`, `dirty`, the lane's own base sha and one of five `LANE_STATES`, and the prior
+# attempt's lane identity is already recorded durably. Informing an agent is necessary but not
+# sufficient; reading the lane is decidable.
+#
+# WHICH LANE TO READ IS THE WHOLE CORRECTNESS QUESTION, and reading the obvious one ships a feature
+# that changes nothing while its tests pass. ALLOCATION NEVER REUSES A LANE HOLDING WORK:
+# `allocate_worktree` classifies such a lane `HOLDS-WORK` and ATTEMPT-SCOPES alongside it, leaving it
+# byte-identical, so a resumed turn runs in a BRAND-NEW `aw/lane/<id6>_attemptN` at ZERO commits while
+# the work sits on the lane it was displaced from. Measured: after one real commit on lane `ntf6sx`, a
+# second `allocate_worktree(repo, 'ntf6sx')` returned `ntf6sx:attempt2` with
+# `displaced_from=aw/lane/ntf6sx`, and `inspect_lane` reported the NEW lane `EMPTY commits_ahead=0`
+# against the OLD one's `HOLDS-WORK commits_ahead=1`. A classifier keyed on the turn's OWN lane would
+# therefore answer `fresh-execution` on EVERY resume. Hence this classifies the PRIOR attempt's lane,
+# resolved from durable state, and `tests/test_resumedupe.py` asserts the inspected lane id is the
+# prior one so that regression fails loudly instead of silently disabling the feature.
+
+DISPOSITION_FRESH_EXECUTION = "fresh-execution"
+DISPOSITION_VERIFY_AND_CONTINUE = "verify-and-continue"
+DISPOSITION_UNDETERMINED = "undetermined"
+
+RECOVERY_DISPOSITIONS: tuple[str, ...] = (
+    DISPOSITION_FRESH_EXECUTION,
+    DISPOSITION_VERIFY_AND_CONTINUE,
+    DISPOSITION_UNDETERMINED,
+)
+
+
+class RecoveryDisposition(NamedTuple):
+    """The driver's routing decision for one recovery turn, plus the facts it was decided from.
+
+    Carries its INPUTS, not merely its verdict, because a wrong routing decision is invisible after
+    the fact otherwise; that diagnosability gap is why the original duplication took three runs to
+    notice. `inspected_lane_id` is the load-bearing field for a reader: it says WHICH lane the
+    decision was based on, which is the one thing a silently-inert regression would get wrong.
+    """
+
+    disposition: str  # one of RECOVERY_DISPOSITIONS
+    reason: str
+    inspected_lane_id: str | None
+    inspected_branch: str | None
+    inspected_worktree: str | None
+    lane_state: str | None
+    commits_ahead: int
+    dirty: bool
+    snapshot_only: bool
+    real_commits: tuple[
+        tuple[str, str], ...
+    ] = ()  # (sha, subject) of NON-snapshot commits
+
+    @property
+    def verify_and_continue(self) -> bool:
+        return self.disposition == DISPOSITION_VERIFY_AND_CONTINUE
+
+
+def resolve_prior_lane(
+    item: dict[str, Any],
+) -> tuple[str | None, str | None, str | None]:
+    """The PRIOR attempt's lane identity from DURABLE state: (lane_id, base_commit, branch).
+
+    Reads the record, and NEVER reconstructs a branch name from the id6: `lane_branch_name`'s
+    docstring forbids exactly that, because allocation may have attempt-scoped the name, so a
+    reconstructed name can silently designate a different lane than the one that holds the work.
+
+    Order, most to least authoritative:
+      1. `preserved_lane_id`/`preserved_base`, written when a lane is preserved for precisely this
+         purpose (a later turn finding a preserved lane).
+      2. the newest `attempts[]` entry carrying `worktree_lane_id`, for an attempt interrupted before
+         it reached the preservation path.
+      3. the newest attempt's `worktree_displaced_from`, which names the lane a fresh allocation was
+         displaced from.
+
+    Returns (None, None, None) when nothing is recorded, which is the honest first-attempt answer and
+    routes to fresh execution.
+    """
+    lane_id = item.get("preserved_lane_id")
+    if lane_id:
+        return (
+            str(lane_id),
+            item.get("preserved_base"),
+            item.get("preserved_branch"),
+        )
+    for attempt in reversed(item.get("attempts", []) or []):
+        if attempt.get("worktree_lane_id"):
+            return (
+                str(attempt["worktree_lane_id"]),
+                attempt.get("worktree_base"),
+                attempt.get("worktree_branch"),
+            )
+    for attempt in reversed(item.get("attempts", []) or []):
+        displaced = attempt.get("worktree_displaced_from")
+        if displaced:
+            # `displaced_from` records a BRANCH name, not a lane id, so it MUST be converted.
+            # Measured: passing `aw/lane/ntf6sx` to `inspect_lane` as a lane id re-sanitizes it into
+            # branch `aw/lane/aw_lane_ntf6sx`, which does not exist and classifies ABSENT - i.e. the
+            # work would be silently invisible. `lane_id_from_branch` is the exact inverse.
+            from agent_workflows import worktree_lease
+
+            lane = worktree_lease.lane_id_from_branch(str(displaced))
+            if lane:
+                return lane, attempt.get("worktree_base"), str(displaced)
+    return None, None, None
+
+
+def _lane_commit_subjects(
+    repo: Path, base_sha: str, head_sha: str
+) -> list[tuple[str, str]]:
+    """(sha, subject) for each commit on a lane beyond its base, newest first. Read-only."""
+    rc, out, _err = _run_git(
+        repo, ["log", "--format=%H%x1f%s", f"{base_sha}..{head_sha}"]
+    )
+    if rc != 0:
+        return []
+    commits: list[tuple[str, str]] = []
+    for line in out.splitlines():
+        if "\x1f" not in line:
+            continue
+        sha, subject = line.split("\x1f", 1)
+        commits.append((sha.strip(), subject.strip()))
+    return commits
+
+
+def classify_recovery_disposition(
+    repo: Path, item: dict[str, Any], state: dict[str, Any]
+) -> RecoveryDisposition:
+    """Route a recovery turn from FACTS, not from the agent's judgment (E-01).
+
+    PURE with respect to the repository: it runs read-only git commands through `inspect_lane` and
+    `git log` only. It does NOT mutate state, does NOT write git, and specifically does NOT ADOPT,
+    check out, merge, or tidy the displaced lane, which may hold another attempt's preserved work that
+    the shipped rules require be left byte-identical.
+
+    `verify-and-continue` only when the PRIOR lane holds at least one commit that is NOT an interrupted
+    snapshot. `fresh-execution` when no prior lane is recorded, or it is absent, empty, or holds only
+    snapshots. `undetermined` when a recorded lane cannot be read at all.
+    """
+    from agent_workflows import worktree_lease
+
+    lane_id, lane_base, _lane_branch = resolve_prior_lane(item)
+    if not lane_id:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason="no prior lane is recorded for this item; nothing to verify",
+            inspected_lane_id=None,
+            inspected_branch=None,
+            inspected_worktree=None,
+            lane_state=None,
+            commits_ahead=0,
+            dirty=False,
+            snapshot_only=False,
+        )
+
+    try:
+        st = worktree_lease.inspect_lane(repo, lane_id, base_commit=lane_base or "HEAD")
+    # DELIBERATELY BROAD, and narrower would be a correctness bug here. This routing decision must
+    # never itself break a run: `inspect_lane` shells out to git, so it can raise OSError, a
+    # subprocess error, or anything a future probe introduces, and ANY such failure has exactly one
+    # correct answer - `undetermined`, dispatched as a fresh execution (E-03). Enumerating types would
+    # convert a new failure mode into a crashed run instead of a slightly wasteful one.
+    except Exception as exc:  # noqa: BLE001
+        # E-03: an unreadable lane is UNDETERMINED, and `_route_recovery` turns that into a FRESH
+        # EXECUTION dispatch. See its comment for why this direction is deliberate.
+        return RecoveryDisposition(
+            disposition=DISPOSITION_UNDETERMINED,
+            reason=f"recorded prior lane {lane_id!r} could not be read: {exc}",
+            inspected_lane_id=lane_id,
+            inspected_branch=None,
+            inspected_worktree=None,
+            lane_state=None,
+            commits_ahead=0,
+            dirty=False,
+            snapshot_only=False,
+        )
+
+    common = {
+        "inspected_lane_id": lane_id,
+        "inspected_branch": st.branch,
+        "inspected_worktree": str(st.worktree_path) if st.worktree_path else None,
+        "lane_state": st.state,
+        "commits_ahead": st.commits_ahead,
+        "dirty": st.dirty,
+    }
+
+    if not st.exists:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason=f"prior lane {lane_id!r} no longer exists ({st.state})",
+            snapshot_only=False,
+            **common,
+        )
+    if st.commits_ahead == 0:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason=(
+                f"prior lane {lane_id!r} holds no commits beyond its base ({st.state}); "
+                "there is no committed work to verify"
+            ),
+            snapshot_only=False,
+            **common,
+        )
+
+    if not st.head or not st.base_sha:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_UNDETERMINED,
+            reason=(
+                f"prior lane {lane_id!r} reports {st.commits_ahead} commit(s) but its "
+                "head/base could not be resolved, so its contents cannot be classified"
+            ),
+            snapshot_only=False,
+            **common,
+        )
+
+    commits = _lane_commit_subjects(repo, st.base_sha, st.head)
+    if not commits:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_UNDETERMINED,
+            reason=(
+                f"prior lane {lane_id!r} reports {st.commits_ahead} commit(s) but none "
+                "could be listed, so its contents cannot be classified"
+            ),
+            snapshot_only=False,
+            **common,
+        )
+    # E-02's SUBJECT-ONLY rule: a snapshot means work was preserved mid-edit and redoing it is
+    # correct, so only NON-snapshot commits count as finished work worth verifying. Matching the
+    # phrase anywhere in the body would misread a real commit that quotes it.
+    real = tuple(
+        (sha, subject)
+        for sha, subject in commits
+        if not worktree_lease.commit_subject_is_interrupted_snapshot(subject)
+    )
+    if not real:
+        return RecoveryDisposition(
+            disposition=DISPOSITION_FRESH_EXECUTION,
+            reason=(
+                f"prior lane {lane_id!r} holds only {len(commits)} interrupted-snapshot "
+                "commit(s), which are preserved mid-edit work and NOT finished work"
+            ),
+            snapshot_only=True,
+            real_commits=(),
+            **common,
+        )
+    return RecoveryDisposition(
+        disposition=DISPOSITION_VERIFY_AND_CONTINUE,
+        reason=(
+            f"prior lane {lane_id!r} already holds {len(real)} non-snapshot commit(s); "
+            "verify and complete that work instead of re-executing the plan"
+        ),
+        snapshot_only=False,
+        real_commits=real,
+        **common,
+    )
+
+
+def build_verify_and_continue_notice(repo: Path, decision: RecoveryDisposition) -> str:
+    """The prompt block asking a resumed turn to VERIFY AND COMPLETE prior work (E-04).
+
+    A VARIANT of the recovery branch, not a second prompt mechanism, and it keeps that branch's
+    deliberate constraints: NO acknowledgement gate and NO refusal path, because a refusal is one more
+    way for an unattended run to stall.
+
+    IT MUST SAY THE WORK IS ON A DIFFERENT BRANCH THAN THE AGENT'S CWD, because it is: the turn runs
+    in a fresh attempt-scoped lane while the prior work sits on the displaced branch. So the branch is
+    named, reading it is invited, and committing onto it is forbidden - that lane may be another
+    attempt's preserved work and the shipped rule is to leave it byte-identical.
+    """
+    if not decision.verify_and_continue:
+        return ""
+    branch = decision.inspected_branch or "(unknown)"
+    lines = [
+        "",
+        "",
+        "## A PRIOR ATTEMPT ALREADY COMMITTED WORK FOR THIS PLAN: verify and continue it",
+        "",
+        "Do NOT implement this plan from scratch. A previous attempt at this same IPD already",
+        f"committed work, and the driver has READ that work: {decision.reason}.",
+        "",
+        f"THAT WORK IS ON A DIFFERENT BRANCH THAN YOUR WORKING DIRECTORY. It is on `{branch}`,",
+        "which is NOT the lane you are running in. Your own lane is where you must produce your",
+        "commits; that other branch is READ-ONLY for you.",
+        "",
+        f"Commits already on `{branch}` (newest first):",
+    ]
+    for sha, subject in decision.real_commits:
+        lines.append(f"  - {sha} {subject}")
+    if decision.dirty:
+        lines.append("")
+        lines.append(
+            "That lane ALSO has uncommitted changes in its working tree; a commit there whose"
+        )
+        lines.append(
+            "subject says INTERRUPTED SNAPSHOT is preserved mid-edit work, not finished work."
+        )
+    diffstat = ""
+    base_ref = ""
+    newest_sha = ""
+    if decision.real_commits:
+        # `real_commits` is newest-first, so the OLDEST real commit's parent is the base of this
+        # work. Note this deliberately spans any snapshot commits interleaved with real ones, which
+        # is what an agent needs to see: the whole delta the prior attempt produced.
+        base_ref = f"{decision.real_commits[-1][0]}~1"
+        newest_sha = decision.real_commits[0][0]
+        rc, out, _err = _run_git(repo, ["diff", "--stat", base_ref, newest_sha])
+        if rc == 0 and out.strip():
+            diffstat = out.strip()
+    if diffstat:
+        diff_cmd = f"git diff --stat {base_ref} {newest_sha}"
+        lines.extend(
+            [
+                "",
+                f"Diffstat of that work against its base (`{diff_cmd}`):",
+                "",
+            ]
+        )
+        lines.extend("    " + line for line in diffstat.splitlines())
+    lines.extend(
+        [
+            "",
+            "WHAT TO DO, in this order:",
+            "",
+            f"1. READ that work first. `git log {branch}` and `git diff` against that ref show you",
+            "   exactly what exists. Read it before you write anything.",
+            "2. Judge it against the plan: which `E-*` items does it actually perform, which `V-*`",
+            "   items does it evidence, and what is still missing or wrong.",
+            "3. BRING FORWARD what is still correct INTO YOUR OWN LANE, then finish the remainder",
+            "   there. Re-authoring work that is already correct produces a duplicate sibling commit",
+            "   and is the exact waste this routing exists to prevent.",
+            f"4. Do NOT `git checkout`, merge, cherry-pick onto, rebase, or commit to `{branch}`, and",
+            "   do not amend or delete anything on it. It may hold another attempt's preserved work",
+            "   and must be left byte-identical. Read it; never write it.",
+            "5. If you conclude the work is ALREADY COMPLETE, you still may not simply assert that:",
+            "   fill each `V-*` item's `Observed evidence:` with the prior work's ACTUAL output (run",
+            "   the tests yourself and paste what they print). A finalize gate checks the checklists",
+            "   and their evidence, not your conclusion.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def route_recovery_turn(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+) -> RecoveryDisposition | None:
+    """Decide how a recovery turn is dispatched and RECORD the decision durably (E-03, E-05).
+
+    Returns None for a first attempt, so first-attempt behavior is untouched.
+
+    E-03, THE FAIL-TOWARD-DOING-THE-WORK CHOICE, AND IT IS DELIBERATELY THE OPPOSITE OF A LIFECYCLE
+    GATE. An `undetermined` reading is dispatched as a FRESH EXECUTION, never as a skip. Do not "fix"
+    this into a refusal: the lifecycle gates fail CLOSED because their failure mode is falsely claiming
+    work is done, whereas the failure mode HERE is leaving a plan UNIMPLEMENTED while reporting a turn
+    was spent, which is strictly worse than paying for a duplicate turn. Wasted spend is recoverable;
+    a silently skipped implementation is what a human discovers much later.
+
+    CALL THIS BEFORE THE TURN'S OWN LANE IS ALLOCATED. Allocation writes `worktree_lane_id` onto the
+    CURRENT attempt, and `resolve_prior_lane` would then resolve that fresh, always-empty lane as the
+    "prior" one and answer `fresh-execution` on every resume - the inert-feature regression. Classify
+    once, early, and reuse the returned decision for any later prompt rebuild rather than recomputing.
+    """
+    if not recovery:
+        return None
+    repo = Path(state["repo"])
+    decision = classify_recovery_disposition(repo, item, state)
+    effective = (
+        DISPOSITION_FRESH_EXECUTION
+        if decision.disposition == DISPOSITION_UNDETERMINED
+        else decision.disposition
+    )
+    # E-05: record the verdict AND its inputs, so an operator can see WHY a turn was routed as it was
+    # without re-deriving it. `inspected_lane_id` is what tells a future reader which lane the decision
+    # was based on, which is the one fact a silently-inert regression would get wrong.
+    record = {
+        "disposition": decision.disposition,
+        "dispatched_as": effective,
+        "reason": decision.reason,
+        "inspected_lane_id": decision.inspected_lane_id,
+        "inspected_branch": decision.inspected_branch,
+        "inspected_worktree": decision.inspected_worktree,
+        "lane_state": decision.lane_state,
+        "commits_ahead": decision.commits_ahead,
+        "dirty": decision.dirty,
+        "snapshot_only": decision.snapshot_only,
+        "real_commits": [
+            {"sha": sha, "subject": subject} for sha, subject in decision.real_commits
+        ],
+        "at": utc_now(),
+    }
+    item["recovery_routing"] = record
+    save_state(run_dir, state)
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "recovery-routed",
+            "id6": item.get("id6"),
+            **{k: v for k, v in record.items() if k != "at"},
+        },
+    )
+    pal = Palette(should_color(sys.stdout))
+    if decision.verify_and_continue:
+        print(
+            pal(
+                f"  \u21ba recovery routed VERIFY-AND-CONTINUE: {decision.reason}",
+                "cyan",
+            )
+        )
+    elif decision.disposition == DISPOSITION_UNDETERMINED:
+        print(
+            pal(
+                f"  ! recovery routing undetermined; dispatching a FRESH EXECUTION "
+                f"(never a skip): {decision.reason}",
+                "yellow",
+            ),
+            file=sys.stderr,
+        )
+    return decision
+
+
 def build_isolation_notice(lane_root: Path | None) -> str:
     """The WORK HERE block for an isolated turn, or "" for a main-checkout turn.
 
@@ -3646,6 +4079,7 @@ def build_prompt(
     plan_path: Path,
     recovery: bool,
     lane_root: Path | None = None,
+    routing: RecoveryDisposition | None = None,
 ) -> str:
     setid = item["setid"]
     decisions = run_dir / "decisions-and-questions.md"
@@ -3654,10 +4088,19 @@ def build_prompt(
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    # resumedupe (`txc9l1`) E-04: when the driver has ALREADY READ the prior attempt's lane and found
+    # finished work there, ADD the verify-and-continue block. The existing recovery notice is kept
+    # rather than replaced: it carries the interrupt facts, and this adds the routing instruction. A
+    # `fresh-execution` recovery prompt and every first-attempt prompt are therefore unchanged.
+    verify_notice = (
+        build_verify_and_continue_notice(Path(state["repo"]), routing)
+        if routing is not None and recovery
+        else ""
+    )
     isolation_notice = build_isolation_notice(lane_root)
     return f"""# OpenCode IPD Driver Turn
 
-Mode: {mode}{lane_notice}{isolation_notice}
+Mode: {mode}{lane_notice}{verify_notice}{isolation_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -4600,10 +5043,18 @@ def execute_item(
     attempt_no = len(item.get("attempts", [])) + 1
 
     is_review = item.get("action") == "review"
+    # resumedupe (`txc9l1`) E-01/E-03/E-05: classify the PRIOR attempt's lane BEFORE this turn's own
+    # attempt record and lane exist. Ordering is load-bearing: allocation records
+    # `worktree_lane_id` on the CURRENT attempt, and resolving that fresh, always-empty lane as the
+    # "prior" one would answer `fresh-execution` on every resume (the inert-feature regression). The
+    # decision is computed ONCE here and threaded into every prompt build below.
+    routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
     if is_review:
         prompt = build_review_prompt(item, state, run_dir, plan_path, repo)
     else:
-        prompt = build_prompt(item, state, run_dir, plan_path, recovery)
+        prompt = build_prompt(
+            item, state, run_dir, plan_path, recovery, routing=routing
+        )
 
     prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
     attempt = {
@@ -4721,6 +5172,12 @@ def execute_item(
                 attempt["worktree_disposition"] = getattr(
                     wt_handle, "disposition", "created"
                 )
+                # resumedupe (`txc9l1`): persist the DISPLACED lane too. It was already emitted as an
+                # event but never written to durable per-item state, so `resolve_prior_lane`'s last
+                # fallback had nothing to read when an attempt died before the preservation path ran.
+                attempt["worktree_displaced_from"] = getattr(
+                    wt_handle, "displaced_from", None
+                )
                 save_state(run_dir, state)
                 append_jsonl(
                     run_dir / "events.jsonl",
@@ -4794,7 +5251,15 @@ def execute_item(
         except DriverError:
             lane_plan_path = plan_path
         prompt = build_prompt(
-            item, state, run_dir, lane_plan_path, recovery, lane_root=lane_root
+            item,
+            state,
+            run_dir,
+            lane_plan_path,
+            recovery,
+            lane_root=lane_root,
+            # REUSE the decision classified before allocation; recomputing it here would read the
+            # lane THIS turn just allocated (empty by construction) and lose the routing.
+            routing=routing,
         )
         prompt_path = write_prompt(run_dir, item, prompt, attempt_no)
         attempt["prompt"] = str(prompt_path)

@@ -628,6 +628,23 @@ class WrapperTests(unittest.TestCase):
         ("agy_runipd", "print_status"): 2,
     }
 
+    # CALL SITES ADDED BY LATER, UNRELATED WORK, enumerated one entry at a time with the plan that
+    # added each. This exists because the baseline above answers "was an EXISTING call site
+    # REWRITTEN", which is the wrapper ruling's actual claim, while a bare equality ALSO fails
+    # whenever a new function legitimately calls a wrapped symbol for the first time. Those are
+    # different events and must not share one verdict: conflating them would make the honest response
+    # to adding a feature be to edit the pre-move baseline, which would destroy the measurement.
+    #
+    # THE RULE FOR ADDING AN ENTRY: it is for a NEW caller only. If a count moves and you cannot name
+    # the new call site, the wrapper ruling has been undone and the correct action is to fix the code,
+    # NOT to add a number here.
+    ADDED_CALL_SITES = {
+        # resumedupe (`txc9l1`) E-05: `route_recovery_turn` persists the routing decision, so the
+        # verdict survives the process that made it. One new `save_state(run_dir, state)` in
+        # `oc_runipd`; the Antigravity twin DELEGATES to it and therefore adds none of its own.
+        ("oc_runipd", "save_state"): 1,
+    }
+
     def call_sites(self, runner: str, name: str) -> int:
         tree = ast.parse(module_source(_MODULES[runner]))
         return sum(
@@ -658,6 +675,7 @@ class WrapperTests(unittest.TestCase):
                 expected = premove
                 if name == "run_checked":
                     expected -= moved_callers_of_run_checked
+                expected += self.ADDED_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,
