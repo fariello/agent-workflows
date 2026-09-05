@@ -1358,6 +1358,26 @@
   },
   {
     "consumed_by": [],
+    "created": "20260905",
+    "date": "20260905",
+    "id6": "sx0cqv",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260905-host-skill-runtime-discovery-and-authoring-00-sx0cqv-host-skill-runtime-discovery-and-authoring.research-prompt.md",
+    "priority": "high",
+    "set_id": "host-skill-runtime-discovery-and-authoring",
+    "status": "todo",
+    "summary": "What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable",
+    "topic": [
+      "skills",
+      "hosts",
+      "discovery"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260713",
     "date": "20260713",
     "id6": "t5xyw0",
@@ -1390,6 +1410,26 @@
       "attention-registry",
       "spec-review",
       "external-review"
+    ]
+  },
+  {
+    "consumed_by": [],
+    "created": "20260905",
+    "date": "20260905",
+    "id6": "ti73qs",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260905-skill-authoring-best-practice-00-ti73qs-skill-authoring-best-practice.research-prompt.md",
+    "priority": "medium",
+    "set_id": "skill-authoring-best-practice",
+    "status": "todo",
+    "summary": "How to author and generate SKILL.md routers that agents reliably select and execute, for a pointer-based toolkit with 45 workflows",
+    "topic": [
+      "skills",
+      "authoring",
+      "prompt-design"
     ]
   },
   {

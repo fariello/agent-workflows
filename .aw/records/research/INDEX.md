@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 72 hot docs (archive excluded).
+Showing the most-recent 40 of 74 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -19,16 +19,20 @@ Showing the most-recent 40 of 72 hot docs (archive excluded).
 - `27rjro` 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
 - `3nlmug` 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
 - `q65sz3` 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
+- `sx0cqv` 20260905-host-skill-runtime-discovery-and-authoring-00-sx0cqv-host-skill-runtime-discovery-and-authoring.research-prompt.md - What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable
 - `5ek188` 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
 - `nilw5h` 20260830-privrecs-00-nilw5h-private-records-repo-trackedness.research-prompt.md - Originating prompt: when aw records live in a separate PRIVATE repo, which currently-untracked artifacts should become tracked by default, and which stay untracked for reasons a private repo does not dissolve.
 - `tvnq50` 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
 - `ig9bai` 20260829-runverify-00-ig9bai-deterministic-run-and-verify-design.gpt56.reference-research.md - Externally-authored design spec for a deterministic aw <host> run pipeline: selector resolution, per-type dispatch, per-type verification checklists, and the rule that agent prose and exit status are never completion authority.
 - `x0spmh` 20260829-sessalloc-00-x0spmh-agent-runner-session-allocation.gpt56.research-report.md - GPT-5.6 evidence-based session-allocation policy for aw oc run: fresh session per isolated execute turn, workspace-bound sessions, and context-pack compilation as the real cost lever
+- `ti73qs` 20260905-skill-authoring-best-practice-00-ti73qs-skill-authoring-best-practice.research-prompt.md - How to author and generate SKILL.md routers that agents reliably select and execute, for a pointer-based toolkit with 45 workflows
 - `x03wgn` 20260828-wtiso-00-x03wgn-worktree-isolation-state-model.gpt56.research-report.md - GPT-5.6 architecture for isolating concurrent agent lanes with a driver-owned control plane and out-of-repo machine state
 
 ## Most recent
 
 - `27rjro` [todo] 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
+- `sx0cqv` [todo] 20260905-host-skill-runtime-discovery-and-authoring-00-sx0cqv-host-skill-runtime-discovery-and-authoring.research-prompt.md - What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable
+- `ti73qs` [todo] 20260905-skill-authoring-best-practice-00-ti73qs-skill-authoring-best-practice.research-prompt.md - How to author and generate SKILL.md routers that agents reliably select and execute, for a pointer-based toolkit with 45 workflows
 - `tvnq50` [todo] 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
 - `8sq8ls` [todo] 20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md - Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session
 - `q65sz3` [todo] 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
@@ -66,5 +70,3 @@ Showing the most-recent 40 of 72 hot docs (archive excluded).
 - `bv6n38` [reference] reference/202608/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
 - `b1msgn` [reference] reference/202608/20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
 - `fc2n5j` [reference] reference/202608/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
-- `krgxp6` [reference] reference/202608/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
-- `tgmqnb` [reference] reference/202608/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
