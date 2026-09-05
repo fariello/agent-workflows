@@ -1746,3 +1746,512 @@ def validate_finding_table() -> EvidenceValidationResult:
                 "spec 4.1: every recovery message ends with a command",
             )
     return EvidenceValidationResult(len(findings) == 0, tuple(findings))
+
+
+# ==================================================================================================
+# runcodes Order 2 (`zub5f1`) E-01 / E-02: `--unverifiable-ok` aggregate neutrality
+# ==================================================================================================
+#
+# WHAT THIS IS. Spec `25kzda` 2.1 and 4.10 specify `--unverifiable-ok`, a flag that makes an
+# unverifiable item NEUTRAL in the AGGREGATE exit-code calculation while leaving the item's own
+# outcome and verification label UNTOUCHED. This block is that aggregation rule, as a PURE function
+# over already-decided per-item results: no ledger, no subprocess, no run directory, no live run.
+# Purity is the point, not a style preference - the whole rule is then testable in isolation, and
+# the two defects it can realistically ship (see below) are both provable by a unit test.
+#
+# THE FLAG IS DOUBLY CONSTRAINED AND BOTH CONSTRAINTS ARE THE POINT.
+#   1. It may change ONLY the aggregate. Spec 4.10's `PROMPT-UNVERIFIABLE` row fixes the item at
+#      `outcome: ran`, `verification: unavailable` REGARDLESS of the flag, so an implementation that
+#      relabeled the item under the flag would satisfy a naive aggregate test while breaking the
+#      actual contract. :func:`aggregate_run_exit` therefore never authors an item's outcome or
+#      label; it reads them and passes them through unchanged (see `ItemAggregation.item`).
+#   2. It is LEGAL ONLY after contractless prompts were admitted (spec 2.1: "legal only when
+#      contractless prompts were explicitly admitted by `--allow-unverifiable` or the interactive
+#      `run unverifiable` confirmation"). Honoring it standalone would be the fail-OPEN reading of
+#      the same words, so a standalone invocation is REFUSED and falls back to the DEFAULT
+#      (non-neutral) aggregate.
+#
+# WHY A THREE-VALUED CONTRIBUTION AND NOT AN INTEGER SUM. Spec 4.10 phrases the default as "exit
+# contribution 1 ... or neutral", which invites summing integers. That design cannot express the
+# rule: a VERIFIED item also contributes 0, and spec 5.6 grants exit 0 only when "every other
+# actionable item is verified and every other skip is benign". So "every other item verified plus
+# one neutral" (exit 0) and "one neutral plus one non-verified skip" (NOT exit 0) have the same
+# integer sum and must produce different exits. Contributions are therefore the three named values
+# :data:`CONTRIBUTION_SUCCESS` / :data:`CONTRIBUTION_NEUTRAL` / :data:`CONTRIBUTION_FAILURE`, and
+# integers appear in exactly ONE place: :data:`_CLASSIFICATION_EXITS`, the mapping onto spec 5.6's
+# exit table.
+#
+# WHICH EXIT TABLE. Spec 5.6's RUN table (0/1/2/3/4/130), NOT `run_cli.py`'s constants. This package
+# ships TWO exit tables that DISAGREE at the same numbers: `run_cli.EXIT_BLOCKED` is 3 and
+# `run_cli.EXIT_INVALID_EVIDENCE` is 4, whereas spec 5.6's 3 is "human input required" and its 4 is
+# the six run-wide classes. `run_cli`'s table governs the READ-ONLY inspection commands
+# (`aw runs show|evidence|verify-ledger`); this predicate implements the RUN aggregate. Reconciling
+# the two tables is a separate concern that no plan currently owns; naming the one in force is the
+# cheap correct move for the next reader.
+#
+# THE PER-ITEM VOCABULARY IS NOT DEFINED HERE, AND IS NOT YET BUILT ANYWHERE. Spec 5.6's `ran`
+# outcome and 4.10's `unavailable` / `verification_unavailable` labels grep to ZERO in this package
+# (measured): `run_state.ALL_STATES` is the step/run state machine (`pending`..`complete`, no `ran`)
+# and `run_ledger_schema.LANE_OUTCOMES` is `performed|blocked|failed|deferred|unknown_outcome|
+# skipped`. That vocabulary belongs to the runner surface, which this plan explicitly excludes. So
+# an :class:`AggregatedItem` carries its outcome and verification label as OPAQUE pass-through
+# strings and keys neutrality off the explicit :attr:`AggregatedItem.unverifiable` flag, never off a
+# string this module invents.
+#
+# NO CONSUMER YET, STATED PLAINLY. Neither `--unverifiable-ok` nor its precondition
+# `--allow-unverifiable` (nor the interactive `run unverifiable` confirmation) exists as a CLI
+# surface: all three grep to zero outside a prose comment at `run_selection_policy.py:168`. When
+# they are built (owned by `runflags-01` / `uyeko5`) they bind to this function's
+# ``unverifiable_ok`` and ``unverifiable_admitted`` PARAMETERS. Until then NO operator can reach
+# this rule; it lands tested and importable and nothing consults it yet.
+
+
+# ---- per-item aggregate contribution (three-valued; see the note above) ---------------------------
+
+#: The item helps the run reach exit 0: it is deterministically verified, or a benign skip.
+CONTRIBUTION_SUCCESS = "success"
+#: The item neither helps nor blocks exit 0. DISTINCT FROM SUCCESS: a run of one neutral item plus
+#: one non-verified item is NOT exit 0, because spec 5.6 requires every OTHER actionable item to be
+#: verified. Collapsing neutral into success is the defect this value exists to prevent.
+CONTRIBUTION_NEUTRAL = "neutral"
+#: The item blocks exit 0.
+CONTRIBUTION_FAILURE = "failure"
+
+CONTRIBUTIONS: Tuple[str, ...] = (
+    CONTRIBUTION_SUCCESS,
+    CONTRIBUTION_NEUTRAL,
+    CONTRIBUTION_FAILURE,
+)
+
+
+# ---- aggregate classifications, and the ONE place integers appear --------------------------------
+
+#: Every actionable item verified; remaining items benign skips; any contractless `ran`/`unavailable`
+#: item was made aggregate-neutral by frozen `--unverifiable-ok` (spec 5.6 exit 0).
+AGGREGATE_ALL_CLEAR = "all_clear"
+#: At least one item failed, ended `dependency_not_met`, or ended `ran`/`unavailable` without the
+#: flag; no run-wide integrity failure (spec 5.6 exit 1).
+AGGREGATE_ITEM_FAILURE = "item_failure"
+#: Invalid invocation, selector, or unknown type (spec 5.6 exit 2). A REFUSED `--unverifiable-ok`
+#: is NOT reported here: see :func:`aggregate_run_exit`'s refusal note.
+AGGREGATE_INVALID_INVOCATION = "invalid_invocation"
+#: Human input or explicit acknowledgement is required (spec 5.6 exit 3).
+AGGREGATE_NEEDS_INPUT = "needs_input"
+#: One of spec 4.1's six enumerated run-wide classes (spec 5.6 exit 4).
+AGGREGATE_RUN_WIDE = "run_wide"
+#: User interruption (spec 5.6 exit 130).
+AGGREGATE_INTERRUPTED = "interrupted"
+
+#: THE ONLY PLACE INTEGERS APPEAR. Spec `25kzda` 5.6's run exit table, transcribed. Deliberately
+#: NOT `run_cli.py`'s inspection-command constants, which mean different things at 3 and 4.
+_CLASSIFICATION_EXITS: Dict[str, int] = {
+    AGGREGATE_ALL_CLEAR: 0,
+    AGGREGATE_ITEM_FAILURE: 1,
+    AGGREGATE_INVALID_INVOCATION: 2,
+    AGGREGATE_NEEDS_INPUT: 3,
+    AGGREGATE_RUN_WIDE: 4,
+    AGGREGATE_INTERRUPTED: 130,
+}
+
+#: Priority order, HIGHEST FIRST. Spec 5.6 says a default-contributing unverifiable item yields
+#: "exit 1 unless a higher-priority exit applies", and spec's non-maskable list keeps a human gate
+#: and a run-wide class outranking a neutralized item. Encoding the precedence as DATA is what makes
+#: that rule checkable rather than an emergent property of `if` ordering.
+_CLASSIFICATION_PRIORITY: Tuple[str, ...] = (
+    AGGREGATE_INTERRUPTED,
+    AGGREGATE_RUN_WIDE,
+    AGGREGATE_NEEDS_INPUT,
+    AGGREGATE_INVALID_INVOCATION,
+    AGGREGATE_ITEM_FAILURE,
+    AGGREGATE_ALL_CLEAR,
+)
+
+
+# ---- the six classes `--unverifiable-ok` may NEVER mask (spec 25kzda `:938`) ----------------------
+#
+# CARRIED AS DATA, NOT PROSE. Spec 5.6 closes the unverifiable rule with an EXHAUSTIVE list of what
+# the flag cannot mask. A prose-only guard ("other items still fail") does not cover a human gate
+# (exit 3) or a run-wide class (exit 4) being OUTRANKED rather than merely non-neutral, so the list
+# is enumerable and a test asserts against it. Each entry names the shipped representation the
+# aggregate recognizes, or records honestly that there is none yet.
+
+
+class NonMaskableClass(NamedTuple):
+    """One row of spec `25kzda` `:938`: a class `--unverifiable-ok` may never mask.
+
+    Fields:
+      * ``name``        - the class, in the spec's own words.
+      * ``aggregate``   - the aggregate classification an item of this class forces. A class whose
+                          classification outranks :data:`AGGREGATE_ITEM_FAILURE` is one the flag
+                          cannot mask BY OUTRANKING, which is stricter than merely not neutralizing.
+      * ``represented`` - True when this tree ships a way to signal the class to the aggregate.
+      * ``signal``      - how a caller signals it (an :class:`AggregatedItem` field plus value, or a
+                          run-wide argument), or the missing machinery when ``represented`` is False.
+    """
+
+    name: str
+    aggregate: str
+    represented: bool
+    signal: str
+
+
+NON_MASKABLE_CLASSES: Tuple[NonMaskableClass, ...] = (
+    NonMaskableClass(
+        name="a failed prompt process",
+        aggregate=AGGREGATE_ITEM_FAILURE,
+        represented=True,
+        signal="AggregatedItem(contribution_hint=CONTRIBUTION_FAILURE) i.e. outcome `failed`",
+    ),
+    NonMaskableClass(
+        name="scope/containment failure",
+        aggregate=AGGREGATE_ITEM_FAILURE,
+        represented=True,
+        signal="AggregatedItem(contribution_hint=CONTRIBUTION_FAILURE); decided upstream by "
+        "ipd_lifecycle._reconcile_scope / check_engine.check_scope_drift (RUN-SCOPE-DELTA)",
+    ),
+    NonMaskableClass(
+        name="host-capability refusal",
+        aggregate=AGGREGATE_ITEM_FAILURE,
+        represented=True,
+        signal="AggregatedItem(contribution_hint=CONTRIBUTION_FAILURE); decided upstream by "
+        "host_sandbox_profile.preflight_host_capabilities (RUN-HOST-CAPABILITY)",
+    ),
+    NonMaskableClass(
+        name="dependency-not-met item",
+        aggregate=AGGREGATE_ITEM_FAILURE,
+        represented=True,
+        signal="AggregatedItem(dependency_not_met=True)",
+    ),
+    NonMaskableClass(
+        name="human gate",
+        aggregate=AGGREGATE_NEEDS_INPUT,
+        represented=True,
+        signal="AggregatedItem(needs_input=True), matching run_gates.GATE_STATUS_NEEDS_INPUT",
+    ),
+    NonMaskableClass(
+        name="run-wide abort class",
+        aggregate=AGGREGATE_RUN_WIDE,
+        represented=True,
+        signal="aggregate_run_exit(run_wide_abort_class=<one of ABORT_CLASSES>)",
+    ),
+)
+
+
+# ---- the aggregation inputs and result -----------------------------------------------------------
+
+
+class AggregatedItem(NamedTuple):
+    """One already-decided per-item result, as INPUT to the aggregate.
+
+    THIS TYPE DECIDES NOTHING ABOUT THE ITEM. Its ``outcome`` and ``verification`` are OPAQUE
+    pass-through strings this module never authors, compares against a vocabulary of its own, or
+    rewrites (see the block note: spec 5.6's `ran` and 4.10's `unavailable` are not built anywhere
+    in this package yet, and minting them here is outside this plan's fence). Neutrality is keyed
+    off :attr:`unverifiable`, an explicit boolean the caller sets, so the aggregate never has to
+    guess a label's meaning.
+
+    Fields:
+      * ``item_id``            - opaque identifier, for reporting only.
+      * ``outcome``            - the item's own final outcome, PASSED THROUGH UNCHANGED.
+      * ``verification``       - the item's own verification label, PASSED THROUGH UNCHANGED.
+      * ``unverifiable``       - True for an explicitly acknowledged contractless prompt that ran to
+                                transport completion (spec 4.10 `PROMPT-UNVERIFIABLE`). This, and
+                                only this, is what `--unverifiable-ok` may neutralize.
+      * ``verified``           - True when every required deterministic predicate passed. Only a
+                                verified item (or a benign skip) can help a run reach exit 0.
+      * ``benign_skip``        - True for a skip that spec 5.6 counts as benign (a non-runnable type,
+                                a terminal/standing status). A NON-benign skip is not verified and
+                                therefore blocks exit 0.
+      * ``dependency_not_met`` - True for spec `:938`'s dependency-not-met class.
+      * ``needs_input``        - True when a human gate stopped the item (spec `:938`).
+      * ``contribution_hint``  - an explicit contribution for a class with no dedicated field
+                                (notably a plain failure). ``None`` means "derive it".
+    """
+
+    item_id: str
+    outcome: str = ""
+    verification: str = ""
+    unverifiable: bool = False
+    verified: bool = False
+    benign_skip: bool = False
+    dependency_not_met: bool = False
+    needs_input: bool = False
+    contribution_hint: Optional[str] = None
+
+
+class ItemAggregation(NamedTuple):
+    """How ONE item contributed, alongside the item it contributed for.
+
+    ``item`` is the input :class:`AggregatedItem`, carried through BY IDENTITY. That is the
+    machine-checkable form of spec 4.10's constraint: the aggregate cannot have relabeled an item
+    whose record it merely re-exposes.
+    """
+
+    item: AggregatedItem
+    contribution: str
+    reason: str
+
+
+class RunAggregation(NamedTuple):
+    """The aggregate verdict: a classification, its spec-5.6 exit code, and why.
+
+    Fields:
+      * ``classification``   - one of the ``AGGREGATE_*`` values.
+      * ``exit_code``        - spec 5.6's code for that classification. THE ONLY INTEGER HERE.
+      * ``items``            - per-item contributions, in input order, each carrying its untouched
+                               source item.
+      * ``reasons``          - stable explanation strings, the shape this module already uses for a
+                               negative verdict (:attr:`CompletionEvaluation.reasons`).
+      * ``refusals``         - illegal-invocation refusals as DATA, in the module's existing
+                               :class:`CompletionPredicate` shape. Non-empty means a requested
+                               policy was NOT applied.
+      * ``unverifiable_ok_applied`` - whether neutrality was ACTUALLY applied. False whenever the
+                               flag was refused, so a caller cannot mistake a refusal for a grant.
+    """
+
+    classification: str
+    exit_code: int
+    items: Tuple[ItemAggregation, ...]
+    reasons: Tuple[str, ...]
+    refusals: Tuple[CompletionPredicate, ...]
+    unverifiable_ok_applied: bool
+
+
+#: The refusal predicate name for a standalone `--unverifiable-ok` (E-02).
+REFUSAL_UNVERIFIABLE_OK_UNADMITTED = "unverifiable_ok_requires_admission"
+
+
+def non_maskable_classes() -> Tuple[str, ...]:
+    """Spec `25kzda` `:938`'s classes that `--unverifiable-ok` may never mask, in spec order."""
+    return tuple(row.name for row in NON_MASKABLE_CLASSES)
+
+
+def classify_item_contribution(
+    item: AggregatedItem,
+    *,
+    unverifiable_ok: bool = False,
+) -> ItemAggregation:
+    """Classify ONE item's aggregate contribution as :data:`CONTRIBUTIONS`, three-valued.
+
+    PURE: data in, data out. The item's ``outcome`` and ``verification`` are read and carried, never
+    written - the returned :class:`ItemAggregation` holds the SAME :class:`AggregatedItem`, so
+    ``result.item is item``.
+
+    ``unverifiable_ok`` here is the ALREADY-VALIDATED policy: :func:`aggregate_run_exit` owns the
+    admission precondition and passes False when it refused, so this function cannot be the place a
+    standalone flag leaks through.
+    """
+    if item.needs_input:
+        return ItemAggregation(
+            item, CONTRIBUTION_FAILURE, "human gate stopped the item"
+        )
+    if item.dependency_not_met:
+        return ItemAggregation(item, CONTRIBUTION_FAILURE, "dependency not met")
+    if item.contribution_hint is not None:
+        if item.contribution_hint not in CONTRIBUTIONS:
+            return ItemAggregation(
+                item,
+                CONTRIBUTION_FAILURE,
+                f"unknown contribution hint {item.contribution_hint!r}",
+            )
+        # A caller may not hint an unverifiable item into neutrality or success: that decision
+        # belongs to the flag, checked below, and nowhere else.
+        if item.unverifiable and item.contribution_hint != CONTRIBUTION_FAILURE:
+            return ItemAggregation(
+                item,
+                CONTRIBUTION_FAILURE,
+                "an unverifiable item's contribution is decided by --unverifiable-ok, not by a hint",
+            )
+        return ItemAggregation(
+            item, item.contribution_hint, f"explicit hint {item.contribution_hint}"
+        )
+    if item.unverifiable:
+        # SPEC 4.10 / 5.6, THE WHOLE POINT OF THIS MODULE BLOCK. The item's own outcome and
+        # verification label are identical on both branches; only the contribution differs.
+        if unverifiable_ok:
+            return ItemAggregation(
+                item,
+                CONTRIBUTION_NEUTRAL,
+                "unverifiable, made aggregate-neutral by frozen --unverifiable-ok",
+            )
+        return ItemAggregation(
+            item,
+            CONTRIBUTION_FAILURE,
+            "unverifiable and --unverifiable-ok was not frozen",
+        )
+    if item.verified:
+        return ItemAggregation(item, CONTRIBUTION_SUCCESS, "deterministically verified")
+    if item.benign_skip:
+        return ItemAggregation(item, CONTRIBUTION_SUCCESS, "benign skip")
+    return ItemAggregation(
+        item, CONTRIBUTION_FAILURE, "neither verified nor a benign skip"
+    )
+
+
+def aggregate_run_exit(
+    items: Sequence[AggregatedItem],
+    *,
+    unverifiable_ok: bool = False,
+    unverifiable_admitted: bool = False,
+    invalid_invocation: Optional[str] = None,
+    run_wide_abort_class: Optional[str] = None,
+    interrupted: bool = False,
+) -> RunAggregation:
+    """The aggregate exit classification for a run, as a PURE function (spec `25kzda` 5.6).
+
+    Pure means exactly what it says: no ledger, no run directory, no subprocess, no clock, no
+    filesystem. It takes already-decided per-item results and returns a value, which is why the
+    whole `--unverifiable-ok` rule is provable by a unit test with no live run.
+
+    THE PRECONDITION (E-02, spec 2.1). ``unverifiable_ok`` is legal ONLY when contractless prompts
+    were explicitly admitted. ``unverifiable_admitted`` is that admission. Passing
+    ``unverifiable_ok=True`` with ``unverifiable_admitted=False`` is REFUSED: the returned
+    :attr:`RunAggregation.refusals` names the missing precondition, :attr:`unverifiable_ok_applied`
+    is False, and the aggregate is the DEFAULT one in which an unverifiable item contributes
+    :data:`CONTRIBUTION_FAILURE`. It is NOT reported as an invalid invocation (exit 2), because
+    downgrading a fail-closed refusal into "your command line was malformed" would lose the actual
+    verdict about the items; and it is emphatically NOT honored, because silently granting
+    neutrality to an unadmitted flag is the fail-OPEN reading spec 2.1 forbids.
+
+    REFUSAL IS RETURNED AS DATA, NEVER RAISED. This module reports every negative verdict as a
+    value (:class:`CompletionPredicate` plus accumulated ``reasons``; compare
+    ``EV-REDACTION-CONFLICT``, which reports "verification could not conclude" as a finding). It
+    contains zero ``raise`` statements and defines no exception class, and a raise would also defeat
+    purity in practice, since a caller could not evaluate the aggregate in order to inspect it.
+
+    THE FLAG'S LIMITS (spec `:936`, `:938`). Neutrality is narrow. It never suppresses another
+    item's failure, and it never outranks a higher-priority exit: a human gate still yields exit 3
+    and a run-wide abort class still yields exit 4. Those limits are carried as data in
+    :data:`NON_MASKABLE_CLASSES` and :data:`_CLASSIFICATION_PRIORITY`.
+
+    NEITHER FLAG EXISTS AS A CLI SURFACE YET (`--unverifiable-ok`, `--allow-unverifiable`, and the
+    interactive `run unverifiable` confirmation all grep to zero). They arrive here as parameters;
+    `runflags-01` (`uyeko5`) owns building them and binding them to these two arguments.
+    """
+    reasons: List[str] = []
+    refusals: List[CompletionPredicate] = []
+
+    # ---- E-02: the admission precondition, checked BEFORE the flag can affect anything ----------
+    effective_unverifiable_ok = bool(unverifiable_ok)
+    if unverifiable_ok and not unverifiable_admitted:
+        effective_unverifiable_ok = False
+        refusals.append(
+            CompletionPredicate(
+                REFUSAL_UNVERIFIABLE_OK_UNADMITTED,
+                False,
+                "--unverifiable-ok is legal only when contractless prompts were explicitly "
+                "admitted by --allow-unverifiable or the interactive `run unverifiable` "
+                "confirmation; that admission is absent, so aggregate neutrality was NOT applied "
+                "and the default aggregate stands",
+            )
+        )
+        reasons.append(
+            "refused --unverifiable-ok: missing precondition (contractless prompts were not "
+            "explicitly admitted)"
+        )
+
+    item_results = tuple(
+        classify_item_contribution(item, unverifiable_ok=effective_unverifiable_ok)
+        for item in items
+    )
+
+    candidates: List[str] = []
+    if interrupted:
+        candidates.append(AGGREGATE_INTERRUPTED)
+        reasons.append("run was interrupted")
+    if run_wide_abort_class is not None:
+        candidates.append(AGGREGATE_RUN_WIDE)
+        if run_wide_abort_class in ABORT_CLASSES:
+            reasons.append(f"run-wide abort class: {run_wide_abort_class}")
+        else:
+            # Spec 4.1's set is EXHAUSTIVE, so an unknown class is still run-wide (never silently
+            # downgraded) but is reported as unrecognized rather than laundered into a known one.
+            reasons.append(
+                f"run-wide abort class {run_wide_abort_class!r} is not one of spec 4.1's six "
+                "enumerated classes"
+            )
+    if any(result.item.needs_input for result in item_results):
+        candidates.append(AGGREGATE_NEEDS_INPUT)
+        reasons.append("a human gate requires input")
+    if invalid_invocation is not None:
+        candidates.append(AGGREGATE_INVALID_INVOCATION)
+        reasons.append(f"invalid invocation: {invalid_invocation}")
+    # A human-gated item ALSO contributes failure (it is certainly not success), and that is
+    # deliberate: it is _CLASSIFICATION_PRIORITY, not an `if` here, that makes exit 3 outrank exit 1.
+    # Keeping the precedence in one data table is what lets a test assert it directly.
+    if any(result.contribution == CONTRIBUTION_FAILURE for result in item_results):
+        candidates.append(AGGREGATE_ITEM_FAILURE)
+        for result in item_results:
+            if result.contribution == CONTRIBUTION_FAILURE:
+                reasons.append(f"{result.item.item_id}: {result.reason}")
+    if not candidates:
+        candidates.append(AGGREGATE_ALL_CLEAR)
+
+    classification = next(c for c in _CLASSIFICATION_PRIORITY if c in candidates)
+    return RunAggregation(
+        classification=classification,
+        exit_code=_CLASSIFICATION_EXITS[classification],
+        items=item_results,
+        reasons=tuple(reasons),
+        refusals=tuple(refusals),
+        unverifiable_ok_applied=effective_unverifiable_ok,
+    )
+
+
+def validate_non_maskable_table() -> EvidenceValidationResult:
+    """Self-check :data:`NON_MASKABLE_CLASSES` (structure only; a test asserts the spec text).
+
+    Enforced so a later edit cannot quietly weaken the list:
+      * exactly six classes, spec `:938` being exhaustive, each named once;
+      * every ``aggregate`` is a known classification that maps to an exit code;
+      * no row's aggregate is :data:`AGGREGATE_ALL_CLEAR`, since a class that could yield exit 0
+        would BE masked;
+      * every row says how it is signalled, whether or not it is represented.
+    """
+    findings: List[EvidenceFinding] = []
+    if len(NON_MASKABLE_CLASSES) != 6:
+        findings.append(
+            EvidenceFinding(
+                "NM-COUNT",
+                "NON_MASKABLE_CLASSES",
+                f"spec 25kzda :938 enumerates 6 classes, table has {len(NON_MASKABLE_CLASSES)}",
+                "non-maskable class table size does not match the spec",
+            )
+        )
+    seen: Set[str] = set()
+    for row in NON_MASKABLE_CLASSES:
+        if row.name in seen:
+            findings.append(
+                EvidenceFinding(
+                    "NM-DUPLICATE", row.name, "duplicate class", "duplicate class"
+                )
+            )
+        seen.add(row.name)
+        if row.aggregate not in _CLASSIFICATION_EXITS:
+            findings.append(
+                EvidenceFinding(
+                    "NM-AGGREGATE",
+                    row.name,
+                    f"unknown aggregate classification {row.aggregate!r}",
+                    "unknown aggregate classification",
+                )
+            )
+        elif row.aggregate == AGGREGATE_ALL_CLEAR:
+            findings.append(
+                EvidenceFinding(
+                    "NM-AGGREGATE",
+                    row.name,
+                    "a non-maskable class may not classify as all-clear",
+                    "a class that can yield exit 0 would be masked",
+                )
+            )
+        if not row.signal:
+            findings.append(
+                EvidenceFinding(
+                    "NM-SIGNAL",
+                    row.name,
+                    "row does not say how the class is signalled",
+                    "every class must name its signal or its missing machinery",
+                )
+            )
+    return EvidenceValidationResult(len(findings) == 0, tuple(findings))

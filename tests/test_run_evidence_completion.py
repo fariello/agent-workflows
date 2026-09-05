@@ -1340,5 +1340,413 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
             self.assertNotIn(code, evaluation.predicates)
 
 
+# ==================================================================================================
+# runcodes Order 2 (`zub5f1`) E-03 / V-03: `--unverifiable-ok` aggregate neutrality
+# ==================================================================================================
+#
+# TWO CASES HERE ARE LOAD-BEARING AND EACH CATCHES A DEFECT THE OTHER CANNOT SEE:
+#   1. LABEL INVARIANCE. Spec 4.10's `PROMPT-UNVERIFIABLE` row fixes the item at `ran`/`unavailable`
+#      regardless of the flag, so an implementation that RELABELED the item under the flag would
+#      pass every aggregate-only assertion while breaking the actual contract.
+#   2. NEUTRAL IS NOT SUCCESS. Spec 5.6 (`:944`) grants exit 0 only when every OTHER actionable item
+#      is verified, so an integer-sum implementation (neutral contributing the same 0 a verified item
+#      contributes) is invisible to every other case in this class and visible only to the
+#      not-all-verified case.
+# V-03 requires both to be OBSERVED FAILING against a deliberately broken implementation, since an
+# invariant never seen to fail is not established.
+
+
+def _unverifiable_item(item_id: str = "prompt-1") -> "evidence.AggregatedItem":
+    """A contractless prompt that ran to transport completion (spec 4.10 `PROMPT-UNVERIFIABLE`).
+
+    The outcome/verification strings are the SPEC's words, passed in by the caller exactly as a
+    runner would: the predicate under test must never author or rewrite them.
+    """
+    return evidence.AggregatedItem(
+        item_id=item_id,
+        outcome="ran",
+        verification="unavailable",
+        unverifiable=True,
+    )
+
+
+def _verified_item(item_id: str = "ipd-1") -> "evidence.AggregatedItem":
+    return evidence.AggregatedItem(
+        item_id=item_id, outcome="verified", verification="passed", verified=True
+    )
+
+
+class TestUnverifiableOkAggregateNeutrality(unittest.TestCase):
+    """E-01 / E-02 / V-01 / V-02 / V-03: the aggregate rule, its precondition, and its limits."""
+
+    # ---- E-01: purity, three-valued contributions, and the spec 5.6 exit table -------------------
+
+    def test_predicate_is_pure_no_live_run_no_filesystem_no_subprocess(self) -> None:
+        """E-01's purity: the whole rule evaluates with no run directory, ledger, or subprocess."""
+        with patch(
+            "subprocess.run", side_effect=AssertionError("no subprocess allowed")
+        ):
+            with patch.object(
+                Path, "exists", side_effect=AssertionError("no fs allowed")
+            ):
+                result = evidence.aggregate_run_exit([_verified_item()])
+        self.assertEqual(result.classification, evidence.AGGREGATE_ALL_CLEAR)
+        self.assertEqual(result.exit_code, 0)
+
+    def test_unverifiable_item_contributes_failure_by_default(self) -> None:
+        result = evidence.aggregate_run_exit([_unverifiable_item()])
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertEqual(result.classification, evidence.AGGREGATE_ITEM_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+        self.assertFalse(result.unverifiable_ok_applied)
+
+    def test_unverifiable_item_is_neutral_under_the_flag(self) -> None:
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item()],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_NEUTRAL)
+        self.assertEqual(result.classification, evidence.AGGREGATE_ALL_CLEAR)
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(result.unverifiable_ok_applied)
+
+    def test_neutral_is_a_distinct_value_from_success(self) -> None:
+        """Three-valued, not an integer sum: `neutral` must not BE `success` (F-4 / PR-003)."""
+        self.assertNotEqual(
+            evidence.CONTRIBUTION_NEUTRAL, evidence.CONTRIBUTION_SUCCESS
+        )
+        self.assertEqual(
+            set(evidence.CONTRIBUTIONS),
+            {
+                evidence.CONTRIBUTION_SUCCESS,
+                evidence.CONTRIBUTION_NEUTRAL,
+                evidence.CONTRIBUTION_FAILURE,
+            },
+        )
+        neutral = evidence.aggregate_run_exit(
+            [_unverifiable_item()], unverifiable_ok=True, unverifiable_admitted=True
+        ).items[0]
+        success = evidence.aggregate_run_exit([_verified_item()]).items[0]
+        self.assertNotEqual(neutral.contribution, success.contribution)
+
+    def test_neutral_plus_a_non_verified_skip_is_not_exit_zero(self) -> None:
+        """THE CASE AN INTEGER-SUM DESIGN FAILS (spec `:944`, PR-003).
+
+        Spec 5.6 grants exit 0 only when every OTHER actionable item is verified and every other
+        skip is BENIGN. A non-benign skip is neither, so the run must not exit 0 even though the
+        unverifiable item was neutralized. If neutral and success shared a contribution value, this
+        run would be indistinguishable from "one neutral plus one verified" and would wrongly
+        exit 0.
+        """
+        non_verified_skip = evidence.AggregatedItem(
+            item_id="ipd-2",
+            outcome="skipped",
+            verification="none",
+            verified=False,
+            benign_skip=False,
+        )
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item(), non_verified_skip],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_NEUTRAL)
+        self.assertEqual(result.items[1].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.classification, evidence.AGGREGATE_ITEM_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+        # And the contrast case: a neutral item plus a VERIFIED item does reach exit 0, so the
+        # assertion above is discriminating rather than just pessimistic.
+        clear = evidence.aggregate_run_exit(
+            [_unverifiable_item(), _verified_item()],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(clear.exit_code, 0)
+
+    def test_a_benign_skip_does_reach_exit_zero_under_the_flag(self) -> None:
+        benign = evidence.AggregatedItem(
+            item_id="research-1",
+            outcome="skipped",
+            verification="none",
+            benign_skip=True,
+        )
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item(), benign],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(result.exit_code, 0)
+
+    def test_neutrality_is_not_blanket_suppression_of_other_failures(self) -> None:
+        failed = evidence.AggregatedItem(
+            item_id="ipd-3",
+            outcome="failed",
+            verification="failed",
+            contribution_hint=evidence.CONTRIBUTION_FAILURE,
+        )
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item(), failed],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(result.classification, evidence.AGGREGATE_ITEM_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+
+    def test_exit_table_is_spec_5_6_not_the_run_cli_inspection_table(self) -> None:
+        """The two shipped tables DISAGREE at 3 and 4; prove which one is in force (PR-001)."""
+        from agent_workflows import run_cli
+
+        self.assertEqual(
+            {
+                evidence.AGGREGATE_ALL_CLEAR: 0,
+                evidence.AGGREGATE_ITEM_FAILURE: 1,
+                evidence.AGGREGATE_INVALID_INVOCATION: 2,
+                evidence.AGGREGATE_NEEDS_INPUT: 3,
+                evidence.AGGREGATE_RUN_WIDE: 4,
+                evidence.AGGREGATE_INTERRUPTED: 130,
+            },
+            dict(evidence._CLASSIFICATION_EXITS),
+        )
+        # `run_cli`'s 3 is "blocked" and its 4 is "invalid evidence": different meanings at the same
+        # numbers. This asserts the divergence is real, so a future reconciliation cannot silently
+        # make this test vacuous.
+        self.assertEqual(run_cli.EXIT_BLOCKED, 3)
+        self.assertEqual(run_cli.EXIT_INVALID_EVIDENCE, 4)
+        self.assertEqual(
+            evidence._CLASSIFICATION_EXITS[evidence.AGGREGATE_NEEDS_INPUT], 3
+        )
+        self.assertEqual(evidence._CLASSIFICATION_EXITS[evidence.AGGREGATE_RUN_WIDE], 4)
+
+    def test_predicate_does_not_author_the_item_vocabulary(self) -> None:
+        """F-8: the outcome/verification labels are pass-through; this module mints no vocabulary."""
+        item = evidence.AggregatedItem(
+            item_id="p", outcome="totally-made-up", verification="also-made-up"
+        )
+        result = evidence.aggregate_run_exit([item])
+        # Carried by IDENTITY, which is the machine-checkable form of "never rewritten".
+        self.assertIs(result.items[0].item, item)
+        self.assertEqual(result.items[0].item.outcome, "totally-made-up")
+        source = Path(evidence.__file__).read_text(encoding="utf-8")
+        block = source[source.index("runcodes Order 2 (`zub5f1`)") :]
+        for minted in ('"ran"', "'ran'", '"unavailable"', "'unavailable'"):
+            with self.subTest(minted=minted):
+                self.assertNotIn(
+                    minted + " ==",
+                    block,
+                    "neutrality must key off the explicit flag, not a minted label",
+                )
+
+    # ---- the six non-maskable classes (spec `:938`) and higher-priority exits (`:936`) ------------
+
+    def test_non_maskable_class_table_is_self_consistent_and_six_long(self) -> None:
+        result = evidence.validate_non_maskable_table()
+        self.assertTrue(result.ok, msg=str(result.findings))
+        self.assertEqual(len(evidence.NON_MASKABLE_CLASSES), 6)
+
+    def test_non_maskable_classes_match_the_spec_text(self) -> None:
+        """Parse spec `:938`'s own bytes, so a reworded spec or a dropped class fails here."""
+        if not _SPEC_PATH.exists():  # pragma: no cover - installed-package layout
+            self.skipTest("spec 25kzda not present")
+        text = _SPEC_PATH.read_text(encoding="utf-8")
+        line = next(
+            ln
+            for ln in text.split("\n")
+            if ln.startswith("- `--unverifiable-ok` cannot mask")
+        )
+        for row in evidence.NON_MASKABLE_CLASSES:
+            with self.subTest(cls=row.name):
+                # Spec prose and the table use the same nouns; compare on the distinguishing word so
+                # this survives the spec's own comma/hyphen styling.
+                keyword = {
+                    "a failed prompt process": "failed prompt process",
+                    "scope/containment failure": "scope/containment failure",
+                    "host-capability refusal": "host-capability refusal",
+                    "dependency-not-met item": "dependency-not-met item",
+                    "human gate": "human gate",
+                    "run-wide abort class": "run-wide abort class",
+                }[row.name]
+                self.assertIn(keyword, line)
+
+    def test_flag_does_not_neutralize_a_dependency_not_met_item(self) -> None:
+        item = evidence.AggregatedItem(
+            item_id="ipd-4",
+            outcome="skipped",
+            verification="none",
+            dependency_not_met=True,
+        )
+        result = evidence.aggregate_run_exit(
+            [item], unverifiable_ok=True, unverifiable_admitted=True
+        )
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+
+    def test_flag_does_not_neutralize_a_human_gate_and_exit_3_outranks_exit_1(
+        self,
+    ) -> None:
+        """Spec `:936`: a higher-priority exit still wins over a neutralized item."""
+        from agent_workflows import run_gates
+
+        gated = evidence.AggregatedItem(
+            item_id="spec-1",
+            outcome=run_gates.GATE_STATUS_NEEDS_INPUT,
+            verification="none",
+            needs_input=True,
+        )
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item(), gated],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+        )
+        self.assertEqual(result.classification, evidence.AGGREGATE_NEEDS_INPUT)
+        self.assertEqual(result.exit_code, 3)
+
+    def test_run_wide_abort_class_outranks_everything_but_interruption(self) -> None:
+        for abort_class in evidence.ABORT_CLASSES:
+            with self.subTest(abort_class=abort_class):
+                result = evidence.aggregate_run_exit(
+                    [_unverifiable_item()],
+                    unverifiable_ok=True,
+                    unverifiable_admitted=True,
+                    run_wide_abort_class=abort_class,
+                )
+                self.assertEqual(result.classification, evidence.AGGREGATE_RUN_WIDE)
+                self.assertEqual(result.exit_code, 4)
+        interrupted = evidence.aggregate_run_exit(
+            [_unverifiable_item()],
+            unverifiable_ok=True,
+            unverifiable_admitted=True,
+            run_wide_abort_class=evidence.ABORT_CLASSES[0],
+            interrupted=True,
+        )
+        self.assertEqual(interrupted.exit_code, 130)
+
+    def test_an_unverifiable_item_cannot_be_hinted_into_neutrality(self) -> None:
+        """A caller must not bypass the flag by hinting; the flag is the only door."""
+        sneaky = evidence.AggregatedItem(
+            item_id="prompt-2",
+            outcome="ran",
+            verification="unavailable",
+            unverifiable=True,
+            contribution_hint=evidence.CONTRIBUTION_NEUTRAL,
+        )
+        result = evidence.aggregate_run_exit([sneaky])
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+
+    # ---- E-02 / V-02: the admission precondition -------------------------------------------------
+
+    def test_standalone_flag_is_refused_and_yields_the_default_aggregate(self) -> None:
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item()], unverifiable_ok=True, unverifiable_admitted=False
+        )
+        self.assertEqual(len(result.refusals), 1)
+        refusal = result.refusals[0]
+        self.assertEqual(refusal.name, evidence.REFUSAL_UNVERIFIABLE_OK_UNADMITTED)
+        self.assertFalse(refusal.satisfied)
+        self.assertIn("--allow-unverifiable", refusal.details)
+        self.assertIn("run unverifiable", refusal.details)
+        self.assertFalse(result.unverifiable_ok_applied)
+        # THE REFUSAL MUST NOT SILENTLY BECOME NEUTRALITY: the DEFAULT aggregate stands.
+        self.assertEqual(result.items[0].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertEqual(result.classification, evidence.AGGREGATE_ITEM_FAILURE)
+        self.assertEqual(result.exit_code, 1)
+
+    def test_refusal_is_not_downgraded_to_invalid_invocation(self) -> None:
+        """Exit 2 would lose the item verdict; the refusal is data alongside the real aggregate."""
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item()], unverifiable_ok=True, unverifiable_admitted=False
+        )
+        self.assertNotEqual(
+            result.classification, evidence.AGGREGATE_INVALID_INVOCATION
+        )
+        self.assertNotEqual(result.exit_code, 2)
+
+    def test_refusal_is_returned_as_data_and_the_module_still_never_raises(
+        self,
+    ) -> None:
+        source = Path(evidence.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("\nraise ", source)
+        self.assertNotIn("    raise ", source)
+        self.assertIsInstance(
+            evidence.aggregate_run_exit(
+                [_unverifiable_item()],
+                unverifiable_ok=True,
+                unverifiable_admitted=False,
+            ).refusals[0],
+            evidence.CompletionPredicate,
+        )
+
+    def test_admitted_flag_is_honored(self) -> None:
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item()], unverifiable_ok=True, unverifiable_admitted=True
+        )
+        self.assertEqual(result.refusals, ())
+        self.assertTrue(result.unverifiable_ok_applied)
+        self.assertEqual(result.exit_code, 0)
+
+    def test_admission_alone_changes_nothing(self) -> None:
+        """Admitting contractless prompts is not itself a grant of aggregate neutrality."""
+        result = evidence.aggregate_run_exit(
+            [_unverifiable_item()], unverifiable_ok=False, unverifiable_admitted=True
+        )
+        self.assertFalse(result.unverifiable_ok_applied)
+        self.assertEqual(result.exit_code, 1)
+
+    def test_no_cli_flag_was_added_by_this_plan(self) -> None:
+        """The predicate is the deliverable; the CLI surface belongs to `runflags-01` (`uyeko5`)."""
+        package_dir = Path(evidence.__file__).resolve().parent
+        for flag in ("--unverifiable-ok", "--allow-unverifiable"):
+            with self.subTest(flag=flag):
+                hits = [
+                    py.name
+                    for py in sorted(package_dir.glob("*.py"))
+                    if f'"{flag}"' in py.read_text(encoding="utf-8")
+                    or f"'{flag}'" in py.read_text(encoding="utf-8")
+                ]
+                self.assertEqual(
+                    hits,
+                    [],
+                    f"{flag} appears as a registered CLI string in {hits}",
+                )
+
+    # ---- V-03's load-bearing invariant -----------------------------------------------------------
+
+    def test_item_outcome_and_verification_label_are_identical_with_the_flag_off_and_on(
+        self,
+    ) -> None:
+        """THE LOAD-BEARING CASE (spec 4.10 `PROMPT-UNVERIFIABLE`).
+
+        The SAME unverifiable item, aggregated with the flag off and on: the item's own outcome and
+        verification label must be BYTE-IDENTICAL, and only the aggregate may differ. A test that
+        checked only the aggregate would pass even if the implementation relabeled the item, which
+        is exactly the defect spec 4.10 forbids.
+        """
+        item = _unverifiable_item()
+        off = evidence.aggregate_run_exit([item])
+        on = evidence.aggregate_run_exit(
+            [item], unverifiable_ok=True, unverifiable_admitted=True
+        )
+
+        self.assertEqual(off.items[0].item.outcome, on.items[0].item.outcome)
+        self.assertEqual(off.items[0].item.verification, on.items[0].item.verification)
+        self.assertEqual(off.items[0].item.outcome, "ran")
+        self.assertEqual(on.items[0].item.outcome, "ran")
+        self.assertEqual(off.items[0].item.verification, "unavailable")
+        self.assertEqual(on.items[0].item.verification, "unavailable")
+        # The source item itself is untouched, and the record exposed is the same object.
+        self.assertEqual(item.outcome, "ran")
+        self.assertEqual(item.verification, "unavailable")
+        self.assertIs(off.items[0].item, item)
+        self.assertIs(on.items[0].item, item)
+
+        # ONLY the aggregate differs.
+        self.assertEqual(off.items[0].contribution, evidence.CONTRIBUTION_FAILURE)
+        self.assertEqual(on.items[0].contribution, evidence.CONTRIBUTION_NEUTRAL)
+        self.assertEqual(off.exit_code, 1)
+        self.assertEqual(on.exit_code, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
