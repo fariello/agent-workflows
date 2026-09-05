@@ -6,17 +6,17 @@
 - Scope: Have the DRIVER classify the PRIOR attempt's (displaced) lane before dispatching a recovery turn, and route a prior lane that already holds the plan's work to a verify-and-continue turn instead of a fresh execution turn. Consumes the shipped `worktree_lease.inspect_lane` classification and the shipped INTERRUPTED SNAPSHOT convention as the completeness signal. Does NOT remove or weaken the existing recovery prompt notice, does NOT add an acknowledgement gate, does NOT adopt or mutate the displaced lane, and does NOT change first-attempt behavior.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_resumedupe.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: resumedupe
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: txc9l1
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Backlog: k1nity
 
 ## Workflow history
+- 2026-09-05 executed (aw oc run): aw oc run self-finalize: txc9l1 verified (set resumedupe, attempt 1). [Scope reconciliation - out-of-scope tests/test_runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-05 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 performed, V-01..V-06 pass with pasted evidence. Implementation commit `a57e4b67`. The driver now CLASSIFIES the prior attempt's (displaced) lane before dispatching a recovery turn and routes a lane already holding non-snapshot commits to a verify-and-continue prompt carrying that lane's branch, real shas and diffstat. TWO PLAN CITATIONS WERE STALE and are recorded as DECISION 31-txc9l1-D1: `build_recovery_lane_notice` no longer lives in either driver (rununify Order 02 `818uru` moved it to `runner_shared.py`, where a STRICT pre-move AST fingerprint pins it; MEASURED by editing one string and watching `test_every_clean_symbol_is_a_STRICT_fingerprint_match` fail), so the new routing was added as separately-named functions in `oc_runipd` with four delegating wrappers in `agy_runipd`, following the shipped `build_isolation_notice` pattern, rather than re-capturing the fixture that makes the rununify move proof falsifiable. E-02's constant still landed in `worktree_lease.py` as the plan's D-1 ruled. ONE ADDITIONAL DEFECT FOUND AND FIXED while implementing: `displaced_from` records a BRANCH name, and passing it to `inspect_lane` as a lane id re-sanitizes into `aw/lane/aw_lane_<id>`, which does not exist and classifies ABSENT, so the plan's third fallback would have silently hidden the work; `worktree_lease.lane_id_from_branch` is the exact inverse and is pinned by four tests. Nine sabotages were applied and measured; one (`%s`->`%B`) initially ESCAPED, so two cases were added and it then failed. Baseline re-measured at execution time: `31 failed, 4481 passed` before, `31 failed, 4514 passed` after, failure sets byte-identical by `diff` (+33 = exactly the new tests). One out-of-scope edit, `tests/test_runner_shared.py` (DECISION 31-txc9l1-D2).
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER (wrong lane classified, would have shipped inert) through PR-006 all fixed
