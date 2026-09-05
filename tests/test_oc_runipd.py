@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# PEP 563 postponed annotations. REQUIRED, not stylistic: this module annotates with PEP 604
+# unions (`str | None`), which on CPython 3.9 - the declared floor in pyproject.toml - are
+# EVALUATED at function-definition time and raise `TypeError: unsupported operand type(s) for |`.
+# Without this import the module fails to IMPORT on 3.9, taking `test_agy_runipd_cli` down with it
+# (it imports `_CONFORMING_PLAN` from here), which is 24 collection errors in the 3.9 CI job.
+from __future__ import annotations
+
 import io
 import json
 import os

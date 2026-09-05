@@ -40,6 +40,7 @@ from __future__ import annotations
 import ast
 import json
 import pathlib
+import re
 import unittest
 from typing import Any
 
@@ -111,6 +112,45 @@ def top_level_definitions(module) -> dict[str, int]:
     return found
 
 
+def _normalize_dump(dumped: str) -> str:
+    """Make an ``ast.dump`` string comparable ACROSS CPython versions.
+
+    WHY THIS EXISTS. `ast.dump` is not stable across releases: on CPython <= 3.13 an
+    `arguments` node renders an empty `posonlyargs=[]` field, and on 3.14 that empty field is
+    omitted. The committed fixture was captured on 3.14, so every symbol whose signature has no
+    positional-only parameters fingerprinted differently on 3.9-3.13 and this harness failed on
+    5 of the 6 Python versions the `tests` workflow matrixes over - 28 subtest failures that say
+    nothing about whether the move was pure.
+
+    Normalizing here rather than re-capturing the fixture is deliberate: re-capturing on 3.12
+    would just move the breakage to 3.14, and the fixture is supposed to be a record of the
+    PRE-MOVE source at HEAD `1ecc5891`, not of the interpreter that read it.
+
+    This erases ONLY EMPTY list fields, i.e. the fields 3.14 omits and earlier versions spell out
+    (`posonlyargs=[]`, `args=[]`, `kwonlyargs=[]`, `kw_defaults=[]`, `defaults=[]`, and the same
+    for `decorator_list`/`bases`/`keywords`). A field that actually HAS contents renders as
+    `name=[...]` with something inside and is left untouched, so the harness still fails if a
+    moved body's arguments, decorators, or bases really change. Removing an empty field cannot
+    make two different signatures compare equal: absent and empty mean the same thing here, which
+    is exactly why 3.14 stopped printing them.
+
+    Implemented as a REGEX over whole `name=[]` fields rather than plain string replacement.
+    Substring replacement is unsafe here because field names nest as substrings of one another
+    (`args` inside `posonlyargs` and `kwonlyargs`; `kw_defaults` inside `defaults`), so a naive
+    `.replace("args=[], ", "")` corrupts `kwonlyargs=[], ` into `kwonly` and produces garbage that
+    matches nothing. The word boundary is what makes this correct.
+    """
+
+    # Drop every `<field>=[]` entry, then repair the separators. `\b` prevents matching the tail of
+    # a longer field name.
+    out = re.sub(r"\b\w+=\[\](, )?", "", dumped)
+    # Collapse any separator damage left where an empty field sat between two kept fields.
+    out = re.sub(r"\(, +", "(", out)
+    out = re.sub(r", +\)", ")", out)
+    out = re.sub(r", *,", ",", out)
+    return out
+
+
 def fingerprint_of(module, name: str) -> str | None:
     """The post-move fingerprint of ``name`` as defined in ``module``, or None if absent."""
     for node in ast.parse(module_source(module)).body:
@@ -118,7 +158,9 @@ def fingerprint_of(module, name: str) -> str | None:
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
             and node.name == name
         ):
-            return ast.dump(ast.parse(ast.unparse(node)), include_attributes=False)
+            return _normalize_dump(
+                ast.dump(ast.parse(ast.unparse(node)), include_attributes=False)
+            )
     return None
 
 
@@ -246,7 +288,7 @@ class PureMoveFingerprintTests(unittest.TestCase):
             with self.subTest(symbol=name):
                 self.assertEqual(
                     fingerprint_of(runner_shared, name),
-                    expected[name],
+                    _normalize_dump(expected[name]),
                     f"`{name}` was NOT a pure move: its body differs from the pre-move "
                     f"capture at {data['captured_at_head']}",
                 )
@@ -273,10 +315,12 @@ class PureMoveFingerprintTests(unittest.TestCase):
                 stripped = _strip_injected_parameter(name, node)
                 restored = _substitute_injected_call(name, stripped)
                 self.assertEqual(
-                    ast.dump(
-                        ast.parse(ast.unparse(restored)), include_attributes=False
+                    _normalize_dump(
+                        ast.dump(
+                            ast.parse(ast.unparse(restored)), include_attributes=False
+                        )
                     ),
-                    expected[name],
+                    _normalize_dump(expected[name]),
                     f"`{name}` differs from its pre-move capture by MORE than the "
                     f"injected `{INJECTED[name]}` parameter",
                 )

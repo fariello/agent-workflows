@@ -14,6 +14,12 @@ consecutive lanes were lost to 600s stalls.
 The fix must hold in BOTH drivers, so a symmetry test asserts a one-driver-only fix cannot pass.
 """
 
+# PEP 563 postponed annotations. REQUIRED, not stylistic: `_base_state` annotates a PEP 604 union
+# (`str | None`), which CPython 3.9 - the declared floor in pyproject.toml - evaluates at
+# definition time and rejects with `TypeError: unsupported operand type(s) for |`. Without this
+# import the module fails to IMPORT on 3.9 (12 collection errors in that CI job).
+from __future__ import annotations
+
 import ast
 import inspect
 import tempfile
