@@ -123,6 +123,38 @@ def _close_process_streams(process: subprocess.Popen) -> None:
                 stream.close()
 
 
+def signal_process(process: subprocess.Popen, sig: int) -> bool:
+    """Send a signal to a process and its process group if available."""
+    if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
+        try:
+            pgid = os.getpgid(process.pid)
+            if pgid != os.getpgrp():
+                os.killpg(pgid, sig)
+                return True
+        except (ProcessLookupError, OSError):
+            pass
+    try:
+        process.send_signal(sig)
+        return True
+    except (ProcessLookupError, OSError):
+        return False
+
+
+def pause_live_children() -> list[subprocess.Popen]:
+    """Send SIGSTOP to all currently running child processes and their process groups."""
+    paused: list[subprocess.Popen] = []
+    for p in live_children():
+        if signal_process(p, signal.SIGSTOP):
+            paused.append(p)
+    return paused
+
+
+def resume_live_children(processes: Sequence[subprocess.Popen]) -> None:
+    """Send SIGCONT to unpause previously stopped child processes."""
+    for p in processes:
+        signal_process(p, signal.SIGCONT)
+
+
 def terminate_process(
     process: subprocess.Popen,
     *,
@@ -150,26 +182,11 @@ def terminate_process(
         _close_process_streams(process)
         return
 
-    def _signal(sig: int) -> bool:
-        if hasattr(os, "killpg") and hasattr(os, "getpgid") and hasattr(os, "getpgrp"):
-            try:
-                pgid = os.getpgid(process.pid)
-                if pgid != os.getpgrp():
-                    os.killpg(pgid, sig)
-                    return True
-            except (ProcessLookupError, OSError):
-                pass
-        try:
-            process.send_signal(sig)
-            return True
-        except (ProcessLookupError, OSError):
-            return False
-
     for sig, grace in (
         (signal.SIGINT, sigint_wait),
         (signal.SIGTERM, sigterm_wait),
     ):
-        if not _signal(sig):
+        if not signal_process(process, sig):
             break
         try:
             process.wait(timeout=grace)
@@ -178,7 +195,7 @@ def terminate_process(
         except subprocess.TimeoutExpired:
             continue
 
-    _signal(getattr(signal, "SIGKILL", signal.SIGTERM))
+    signal_process(process, getattr(signal, "SIGKILL", signal.SIGTERM))
     with contextlib.suppress(Exception):
         process.wait(timeout=sigterm_wait)
     _close_process_streams(process)

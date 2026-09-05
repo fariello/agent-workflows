@@ -170,6 +170,13 @@ __all__ = [
     "render_trigger_support",
     "reset_signal_ladder",
     "signal_presses",
+    "INTERRUPT_ACTION_CLEANUP",
+    "INTERRUPT_ACTION_TERMINATE_NO_CLEANUP",
+    "INTERRUPT_ACTION_RESUME",
+    "pause_live_children",
+    "resume_live_children",
+    "prompt_interrupt_action",
+    "handle_interactive_interrupt",
     "run_liveness",
     "LIVENESS_LIVE",
     "LIVENESS_FINISHED",
@@ -1765,6 +1772,108 @@ def signal_presses() -> int:
     return _SIGINT_PRESSES
 
 
+INTERRUPT_ACTION_CLEANUP = 1
+INTERRUPT_ACTION_TERMINATE_NO_CLEANUP = 2
+INTERRUPT_ACTION_RESUME = 3
+
+
+def pause_live_children() -> list[Any]:
+    """Send SIGSTOP to all currently running child processes and their process groups."""
+    from agent_workflows import runner_shutdown
+
+    return runner_shutdown.pause_live_children()
+
+
+def resume_live_children(processes: Sequence[Any]) -> None:
+    """Send SIGCONT to unpause previously stopped child processes."""
+    from agent_workflows import runner_shutdown
+
+    runner_shutdown.resume_live_children(processes)
+
+
+def prompt_interrupt_action(
+    stdin: TextIO | None = None,
+    stream: TextIO | None = None,
+) -> int:
+    """Prompt the user interactively on Ctrl-C.
+
+    1. Clean up and terminate.
+    2. Just terminate with no clean up.
+    3. Resume.
+    """
+    in_stream = stdin if stdin is not None else sys.stdin
+    out_stream = stream if stream is not None else sys.stderr
+
+    prompt_text = (
+        "\nStopped on Ctrl-C. Choose an action:\n\n"
+        "1. Clean up and terminate.\n"
+        "2. Just terminate with no clean up.\n"
+        "3. Resume.\n\n"
+        "Choice [1-3]: "
+    )
+    out_stream.write(prompt_text)
+    out_stream.flush()
+
+    while True:
+        try:
+            line = in_stream.readline()
+            if not line:
+                out_stream.write("\n(EOF received; cleaning up and terminating)\n")
+                out_stream.flush()
+                return INTERRUPT_ACTION_CLEANUP
+            choice = line.strip()
+            if choice == "1":
+                return INTERRUPT_ACTION_CLEANUP
+            if choice == "2":
+                return INTERRUPT_ACTION_TERMINATE_NO_CLEANUP
+            if choice == "3":
+                return INTERRUPT_ACTION_RESUME
+            out_stream.write("Please enter 1, 2, or 3: ")
+            out_stream.flush()
+        except KeyboardInterrupt:
+            out_stream.write("\n(Repeated Ctrl-C; cleaning up and terminating)\n")
+            out_stream.flush()
+            return INTERRUPT_ACTION_CLEANUP
+        except Exception:
+            return INTERRUPT_ACTION_CLEANUP
+
+
+def handle_interactive_interrupt(
+    run_dir: Path | str | None = None,
+    requester: str = "",
+    stdin: TextIO | None = None,
+    stream: TextIO | None = None,
+) -> int:
+    """Handle interactive SIGINT: pause children and statusline, prompt user, and resolve choice."""
+    from agent_workflows import render_stream, runner_shutdown
+
+    paused_children = pause_live_children()
+    render_stream.pause_active_statusline()
+
+    try:
+        action = prompt_interrupt_action(stdin=stdin, stream=stream)
+    except Exception:
+        action = INTERRUPT_ACTION_CLEANUP
+
+    if action == INTERRUPT_ACTION_RESUME:
+        resume_live_children(paused_children)
+        render_stream.resume_active_statusline()
+        out = stream if stream is not None else sys.stderr
+        out.write("\nResuming...\n")
+        out.flush()
+        return INTERRUPT_ACTION_RESUME
+
+    resume_live_children(paused_children)
+    render_stream.pause_active_statusline()
+    for p in paused_children:
+        with contextlib.suppress(Exception):
+            runner_shutdown.clean_shutdown(
+                p, run_dir=Path(run_dir) if run_dir else None
+            )
+
+    return action
+
+
 def install_stop_signal_handlers(
     run_dir: Path | str,
     *,
@@ -1823,6 +1932,25 @@ def install_stop_signal_handlers(
     def _sigint(signum: int, frame: Any) -> None:  # noqa: ARG001 - signal handler signature
         global _SIGINT_PRESSES
         _SIGINT_PRESSES += 1
+
+        is_interactive = (
+            getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()
+        ) or os.environ.get("AW_FORCE_INTERACTIVE_INTERRUPT") == "1"
+
+        if is_interactive:
+            action = handle_interactive_interrupt(
+                run_dir=_HANDLER_RUN_DIR or run_dir,
+                requester=requester,
+                stream=stream,
+            )
+            if action == INTERRUPT_ACTION_RESUME:
+                return
+            if action == INTERRUPT_ACTION_TERMINATE_NO_CLEANUP:
+                _record(LEVEL_NOW_FORCE)
+                raise KeyboardInterrupt("just-terminate-no-cleanup")
+            _record(LEVEL_NOW_FORCE)
+            raise KeyboardInterrupt("clean-up-and-terminate")
+
         index = min(_SIGINT_PRESSES, len(SIGINT_LADDER)) - 1
         level = SIGINT_LADDER[index]
         _record(level)

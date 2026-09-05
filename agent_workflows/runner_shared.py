@@ -607,6 +607,164 @@ def teardown_isolation_worktree(repo: Path, handle: Any) -> None:
     worktree_lease.teardown_worktree(repo, handle, force=True)
 
 
+def reconcile_item_on_interrupt(
+    repo: Path,
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    attempt: dict[str, Any],
+    attempt_no: int,
+    work_dir: str | None,
+    msg: str,
+    *,
+    save_state_fn: Callable[[Path, dict[str, Any]], None],
+    seq: int = 1,
+    total: int = 1,
+) -> None:
+    """Handle per-item state reconciliation when KeyboardInterrupt is raised during execute_item.
+
+    If msg == "just-terminate-no-cleanup":
+        Leaves worktrees and lanes untouched on disk, records item status as interrupted.
+    If msg == "clean-up-and-terminate" (or default interrupt cleanup):
+        If NO files were changed:
+            Tears down empty worktree, removes lane branch, unlinks begin receipt,
+            resets item status to queued, and removes uncompleted attempt so next time
+            aw run runs it executes as if it never ran before.
+        If files WERE changed:
+            Snapshots dirty work onto lane branch, marks item interrupted with certainty: known,
+            so it can be resumed or re-run without refusal.
+    """
+    from agent_workflows import ipd_lifecycle, runner_stop, worktree_lease
+
+    now = utc_now()
+    if "just-terminate-no-cleanup" in msg:
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "just-terminate-no-cleanup"
+        item["status"] = "interrupted"
+        item["recovery_next"] = True
+        save_state_fn(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": now,
+                "event": "ipd-interrupted",
+                "subevent": "no-cleanup",
+                "id6": item["id6"],
+            },
+        )
+        return
+
+    # Option 1: Clean up and terminate
+    lane_id = attempt.get("worktree_lane_id", item["id6"])
+    base_commit = attempt.get("worktree_base", "")
+    lane_rec = {
+        "id6": item["id6"],
+        "lane_id": lane_id,
+        "base_commit": base_commit,
+        "worktree": work_dir,
+    }
+    lane = describe_lane(repo, lane_rec) if work_dir else None
+
+    # Check whether files were changed:
+    if lane is not None:
+        holds_work = bool(lane["holds_work"])
+    else:
+        status_out = _run_git(repo, ["status", "--porcelain"])
+        holds_work = bool(status_out.strip())
+
+    if not holds_work:
+        # NO files were changed: clean up completely so it can be resumed or re-run fresh
+        if work_dir and lane is not None:
+            handle = worktree_lease.WorktreeHandle(
+                lane_id=lane["lane_id"],
+                path=Path(lane["worktree"]) if lane["worktree"] else Path(work_dir),
+                branch=lane["branch"],
+                base_commit=lane["base_sha"] or "",
+            )
+            with contextlib.suppress(Exception):
+                worktree_lease.teardown_worktree(repo, handle, force=True)
+
+        # Unlink begin receipt if present
+        rcpt = ipd_lifecycle.receipt_path_for(repo, item["id6"])
+        with contextlib.suppress(OSError):
+            if rcpt.is_file():
+                rcpt.unlink()
+
+        # Reset item to queued as if it never ran
+        item["status"] = "queued"
+        item.pop("recovery_next", None)
+        item.pop("stopped", None)
+        item.pop("requires_reconciliation", None)
+        item.pop("last_outcome", None)
+        item.pop("verification_status", None)
+
+        # Remove the unfinished attempt
+        attempts = item.get("attempts", [])
+        if attempts and attempts[-1].get("attempt") == attempt_no:
+            attempts.pop()
+
+        save_state_fn(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {"at": now, "event": "ipd-cleaned-up-no-changes", "id6": item["id6"]},
+        )
+        print(
+            f"  (IPD {seq:02d}/{total} {item['id6']} had no files changed; cleaned up so it can run fresh)",
+            file=sys.stderr,
+        )
+    else:
+        # Files WERE changed: snapshot dirty work and preserve on lane branch
+        snapshot = None
+        branch_name = ""
+        if work_dir and lane is not None:
+            branch_name = lane["branch"]
+            handle = worktree_lease.WorktreeHandle(
+                lane_id=lane["lane_id"],
+                path=Path(lane["worktree"]) if lane["worktree"] else Path(work_dir),
+                branch=lane["branch"],
+                base_commit=lane["base_sha"] or "",
+            )
+            if lane["dirty"]:
+                with contextlib.suppress(Exception):
+                    snapshot = worktree_lease.snapshot_lane_dirty_work(
+                        repo, handle, note="Reason: clean-up-and-terminate."
+                    )
+
+        attempt["interrupted_at"] = now
+        attempt["ended_at"] = now
+        attempt["interrupt_reason"] = "clean-up-and-terminate"
+        if snapshot:
+            attempt["snapshot_commit"] = snapshot
+        item["status"] = "interrupted"
+        item["recovery_next"] = True
+        item["stopped"] = {
+            "at": now,
+            "level": 4,
+            "level_name": "now-force",
+            "certainty": runner_stop.CERTAINTY_KNOWN,
+            "disposition": "interrupted",
+            "requester": "Ctrl-C",
+        }
+        item.pop("requires_reconciliation", None)
+        save_state_fn(run_dir, state)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": now,
+                "event": "ipd-interrupted",
+                "subevent": "work-preserved",
+                "id6": item["id6"],
+                "branch": branch_name,
+            },
+        )
+        branch_info = f" on {branch_name}" if branch_name else ""
+        print(
+            f"  (IPD {seq:02d}/{total} {item['id6']} has changes preserved{branch_info}; ready to resume or re-run)",
+            file=sys.stderr,
+        )
+
+
 # ---- plans / selectors ---------------------------------------------------------------------------
 
 

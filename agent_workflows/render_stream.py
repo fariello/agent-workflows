@@ -641,6 +641,7 @@ class Statusline:
         self._lock = threading.Lock()
         self._is_tty = bool(getattr(stream, "isatty", None) and stream.isatty())
         self._has_drawn = False
+        self._paused = False
 
     def touch(self, source: str | None = None) -> None:
         with self._lock:
@@ -713,9 +714,11 @@ class Statusline:
             return f"{top}\n{l1}\n{l2}\n{bot}"
 
     def redraw(self) -> None:
-        if not self._is_tty:
+        if not self._is_tty or self._paused:
             return
         with self._lock:
+            if self._paused:
+                return
             top, l1, l2, bot = self._render_lines_unlocked()
             if self._has_drawn:
                 self.stream.write(
@@ -727,6 +730,18 @@ class Statusline:
                 )
             self.stream.flush()
             self._has_drawn = True
+
+    def pause(self) -> None:
+        """Temporarily pause redrawing and clear the active statusline."""
+        with self._lock:
+            self._paused = True
+            self.clear()
+
+    def resume(self) -> None:
+        """Unpause redrawing and redraw the statusline."""
+        with self._lock:
+            self._paused = False
+            self.redraw()
 
     def clear(self) -> None:
         if not self._is_tty or not self._has_drawn:
@@ -754,6 +769,8 @@ class Statusline:
             self.redraw()
 
     def __enter__(self) -> Statusline:
+        global _ACTIVE_STATUSLINE
+        _ACTIVE_STATUSLINE = self
         if self._is_tty and self.interval > 0:
             self.redraw()
             self._thread = threading.Thread(target=self._run, daemon=True)
@@ -761,10 +778,28 @@ class Statusline:
         return self
 
     def __exit__(self, *exc: object) -> None:
+        global _ACTIVE_STATUSLINE
+        if _ACTIVE_STATUSLINE is self:
+            _ACTIVE_STATUSLINE = None
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1.0)
         self.clear()
+
+
+_ACTIVE_STATUSLINE: Statusline | None = None
+
+
+def pause_active_statusline() -> None:
+    """Pause any active statusline so prompts or critical messages aren't overwritten."""
+    if _ACTIVE_STATUSLINE is not None:
+        _ACTIVE_STATUSLINE.pause()
+
+
+def resume_active_statusline() -> None:
+    """Resume any active statusline after a prompt completes."""
+    if _ACTIVE_STATUSLINE is not None:
+        _ACTIVE_STATUSLINE.resume()
 
 
 class Heartbeat:

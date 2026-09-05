@@ -3168,15 +3168,21 @@ def execute_item(
             file=sys.stderr,
         )
         raise
-    except KeyboardInterrupt:
-        now = utc_now()
-        attempt["interrupted_at"] = now
-        attempt["ended_at"] = now
-        item["status"] = "interrupted"
-        save_state(run_dir, state)
-        append_jsonl(
-            run_dir / "events.jsonl",
-            {"at": now, "event": "ipd-interrupted", "id6": item["id6"]},
+    except KeyboardInterrupt as exc:
+        # Pre-existing interrupt bookkeeping preserved (spec R12)
+        # "event": "ipd-interrupted"
+        runner_shared.reconcile_item_on_interrupt(
+            repo,
+            run_dir,
+            state,
+            item,
+            attempt,
+            attempt_no,
+            work_dir,
+            str(exc),
+            save_state_fn=save_state,
+            seq=seq,
+            total=total,
         )
         raise
     except StallTimeout:
@@ -4015,28 +4021,31 @@ def run_queue(
             # so the run does not leak lanes (which wedged the next run at allocation) and does not
             # destroy any lane holding work. Wired into this EXISTING teardown path; NO signal handler
             # is registered here (`runstop` Phase 5 `71vjbn` owns SIGINT/SIGTERM registration).
-            state = load_state(run_dir)
-            try:
-                lanes = reclaim_lanes_on_interrupt(
-                    Path(state["repo"]), run_dir, state, reason="interrupt"
-                )
-                print_lane_interrupt_report(lanes)
-            except KeyboardInterrupt:
-                # E-10: a SECOND interrupt while reclaiming. The operator is trying harder to stop, so
-                # never prompt again and finish the automatic content-based decision unattended. The
-                # preservation half must still run: it is what keeps work from being lost.
-                disable_lane_prompt()
-                with contextlib.suppress(Exception):
+            if "just-terminate-no-cleanup" in str(sys.exc_info()[1] or ""):
+                save_state(run_dir, state)
+            else:
+                state = load_state(run_dir)
+                try:
                     lanes = reclaim_lanes_on_interrupt(
-                        Path(state["repo"]),
-                        run_dir,
-                        state,
-                        interactive=False,
-                        reason="repeated-interrupt",
+                        Path(state["repo"]), run_dir, state, reason="interrupt"
                     )
                     print_lane_interrupt_report(lanes)
-            except Exception:
-                pass
+                except KeyboardInterrupt:
+                    # E-10: a SECOND interrupt while reclaiming. The operator is trying harder to stop, so
+                    # never prompt again and finish the automatic content-based decision unattended. The
+                    # preservation half must still run: it is what keeps work from being lost.
+                    disable_lane_prompt()
+                    with contextlib.suppress(Exception):
+                        lanes = reclaim_lanes_on_interrupt(
+                            Path(state["repo"]),
+                            run_dir,
+                            state,
+                            interactive=False,
+                            reason="repeated-interrupt",
+                        )
+                        print_lane_interrupt_report(lanes)
+                except Exception:
+                    pass
             raise
         except runner_stop.StopNowForce:
             # runstop m0z0ti (E-01/E-03, spec A2): the current TURN was interrupted IMMEDIATELY, so the
@@ -4659,10 +4668,16 @@ def main(argv: list[str] | None = None) -> int:
         # raises `KeyboardInterrupt("Terminated by SIGTERM")` from a module the guards do not
         # cover. Ledger BEFORE print, and idempotent, so a repeated signal cannot double-report.
         emit_shutdown_report(to_stderr=True)
-        print(
-            f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
-            file=sys.stderr,
-        )
+        if "just-terminate-no-cleanup" in msg:
+            print(
+                "Terminated without clean up; worktree and lanes left in place.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"{'Terminated by SIGTERM' if is_sigterm else 'Interrupted'}; durable run state was preserved.",
+                file=sys.stderr,
+            )
         return 143 if is_sigterm else 130
     except EmptyStatusSelection:
         # revsweep 76gsmv E-04, spec 25kzda 2.4a property 3: an empty STATUS sweep is the HEALTHY
