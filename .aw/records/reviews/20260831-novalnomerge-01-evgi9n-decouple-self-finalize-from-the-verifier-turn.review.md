@@ -1,6 +1,7 @@
 # Review: Decouple self-finalize from the verifier turn and earn integration with a driver-run suite
 
-- Plan-Id: evgi9n
+- Subject-Id: evgi9n
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

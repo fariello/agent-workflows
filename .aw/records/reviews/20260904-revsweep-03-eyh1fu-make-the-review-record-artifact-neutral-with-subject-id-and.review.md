@@ -1,6 +1,7 @@
 # Review: make the review record artifact-neutral with Subject-Id and Subject-Type
 
-- Plan-Id: eyh1fu
+- Subject-Id: eyh1fu
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

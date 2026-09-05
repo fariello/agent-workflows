@@ -1,6 +1,7 @@
 # Review: Extend the shipped sandbox capability contract with the runner-safety guarantees and a fail-closed action preflight
 
-- Plan-Id: mjx7ne
+- Subject-Id: mjx7ne
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-30
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

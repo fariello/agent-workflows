@@ -1,6 +1,7 @@
 # Review: Per-host permission posture and driver-side turn bounds
 
-- Plan-Id: lhmrhx
+- Subject-Id: lhmrhx
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

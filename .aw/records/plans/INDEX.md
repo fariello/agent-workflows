@@ -18,7 +18,7 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 
 - `76gsmv` [executed] 01 executed/20260904-revsweep-01-76gsmv-document-the-reviews-selector-and-add-the-aw-host-review-ali.ipd.md
 - `6ypimw` [pending] 02 pending/20260904-revsweep-02-6ypimw-one-shared-needs-review-predicate-and-the-draft-admission-ga.ipd.md
-- `eyh1fu` [pending] 03 pending/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md
+- `eyh1fu` [executed] 03 executed/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md
 - `5slbpi` [pending] 04 pending/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md
 - `wpomxa` [pending] 05 pending/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md
 

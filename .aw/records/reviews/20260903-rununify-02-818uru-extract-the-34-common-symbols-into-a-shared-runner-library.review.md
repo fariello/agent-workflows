@@ -1,6 +1,7 @@
 # Review: Extract the 34 common symbols into a shared runner library, pure move
 
-- Plan-Id: 818uru
+- Subject-Id: 818uru
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-03
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

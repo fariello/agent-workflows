@@ -1,6 +1,7 @@
 # Review: Unified Workspace Hierarchy and Install-Time Layout Emission (Set wslayout, 6 plans)
 
-- Plan-Id: rh5tt6
+- Subject-Id: rh5tt6
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

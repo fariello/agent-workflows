@@ -556,11 +556,16 @@ def run_set(args) -> int:
     # shared predicate is consumed here rather than a second copy of the logic.
     #
     # Today the VERDICT half is inert for specs and that is deliberate, not an oversight (OQ-02,
-    # resolved by the maintainer): `review_findings` keys review artifacts by `Plan-Id`, so no spec
-    # verdict exists to read, and no spec in this repository records one in prose either (measured).
+    # resolved by the maintainer). ITS REASON WAS RE-GROUNDED BY revsweep `eyh1fu`, which made the
+    # review record artifact-neutral (`- Subject-Id:` plus `- Subject-Type: <ipd|spec>`), so the
+    # original reason - that review artifacts were KEYED BY `Plan-Id` and therefore could not describe
+    # a spec at all - no longer holds. The half is still inert for a DIFFERENT and still-true reason:
+    # nothing PRODUCES a spec review yet. There is no spec-review workflow (`5slbpi` owns it), and no
+    # spec in this repository records a verdict in prose either (measured). So the record can now
+    # DESCRIBE a spec review while no spec review exists to read.
     # The call is written to consume the whole predicate anyway, so the verdict half ACTIVATES BY
-    # ITSELF if a spec-review artifact type is ever added - the alternative, a specs-only
-    # open-question check, would have to be found and rewired by whoever adds that type.
+    # ITSELF once a spec review is actually filed - the alternative, a specs-only
+    # open-question check, would have to be found and rewired by whoever adds that producer.
     if new == "approved":
         from agent_workflows import plan_readiness as _readiness
 

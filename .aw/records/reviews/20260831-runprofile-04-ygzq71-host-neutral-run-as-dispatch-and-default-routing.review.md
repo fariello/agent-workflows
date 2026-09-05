@@ -1,6 +1,7 @@
 # Review: Host-neutral run-as dispatch and default runner routing
 
-- Plan-Id: ygzq71
+- Subject-Id: ygzq71
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

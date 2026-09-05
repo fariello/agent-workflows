@@ -1,6 +1,7 @@
 # Review: Land the six verified wtiso lane branches (stack conflict resolution and receipt re-issue)
 
-- Plan-Id: 6knsrx
+- Subject-Id: 6knsrx
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-30
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

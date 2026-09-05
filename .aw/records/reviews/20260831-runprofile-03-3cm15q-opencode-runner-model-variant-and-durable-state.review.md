@@ -1,6 +1,7 @@
 # Review: OpenCode runner model/variant/profile and durable-state integration
 
-- Plan-Id: 3cm15q
+- Subject-Id: 3cm15q
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

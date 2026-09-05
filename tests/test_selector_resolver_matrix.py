@@ -232,7 +232,8 @@ class OtherCatchAllDoesNotClaimTypedTreesTests(unittest.TestCase):
         reviews.mkdir(parents=True)
         self.review = reviews / "20260101-demo-01-aaa111-alpha.review.md"
         self.review.write_text(
-            "# Review: alpha\n\n- Plan-Id: aaa111\n- Verdict: APPROVE\n\n## Round 1\n\nx\n",
+            "# Review: alpha\n\n- Subject-Id: aaa111\n- Subject-Type: ipd\n"
+            "- Verdict: APPROVE\n\n## Round 1\n\nx\n",
             encoding="utf-8",
         )
         # A genuinely UNOWNED tree, which `other` legitimately still owns.

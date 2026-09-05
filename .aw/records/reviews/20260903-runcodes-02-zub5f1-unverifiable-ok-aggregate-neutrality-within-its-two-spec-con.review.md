@@ -1,6 +1,7 @@
 # Review: unverifiable-ok aggregate neutrality within its two spec constraints
 
-- Plan-Id: zub5f1
+- Subject-Id: zub5f1
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

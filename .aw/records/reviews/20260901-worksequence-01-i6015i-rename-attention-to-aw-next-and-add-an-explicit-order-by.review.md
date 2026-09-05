@@ -1,6 +1,7 @@
 # Review: Rename attention to aw next and add an explicit --order-by including dependency depth
 
-- Plan-Id: i6015i
+- Subject-Id: i6015i
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED

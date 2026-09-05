@@ -1,6 +1,7 @@
 # Review: The deterministic run finding-code vocabulary over the shipped evidence and recovery layer
 
-- Plan-Id: wlxkoz
+- Subject-Id: wlxkoz
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

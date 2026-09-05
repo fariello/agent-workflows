@@ -1,6 +1,7 @@
 # Review: Route a resumed turn whose lane already holds its work to verify-and-continue
 
-- Plan-Id: txc9l1
+- Subject-Id: txc9l1
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED

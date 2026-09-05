@@ -1,6 +1,7 @@
 # Review: Shared containment predicates and their fail-loud discipline
 
-- Plan-Id: 604wra
+- Subject-Id: 604wra
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

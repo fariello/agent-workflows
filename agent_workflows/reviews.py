@@ -54,12 +54,13 @@ def classify_reversible(value: str) -> str:
 class DecisionRow(NamedTuple):
     """One recorded decision, joined to the review and round it came from.
 
-    Carries enough context to be actionable on its own line of output: which plan was being reviewed,
-    which round recorded it, and where the file is, so a maintainer can go read the surrounding
-    findings without a second lookup.
+    Carries enough context to be actionable on its own line of output: which artifact was being
+    reviewed, which round recorded it, and where the file is, so a maintainer can go read the
+    surrounding findings without a second lookup.
     """
 
-    plan_id: str
+    subject_id: str
+    subject_type: str
     review_path: Path
     round_number: int
     is_current_round: bool
@@ -95,7 +96,8 @@ class DecisionRow(NamedTuple):
             except ValueError:
                 pass
         return {
-            "plan_id": self.plan_id,
+            "subject_id": self.subject_id,
+            "subject_type": self.subject_type,
             "review": path,
             "round": self.round_number,
             "current_round": self.is_current_round,
@@ -119,8 +121,8 @@ def collect_decisions(
     """Gather every recorded decision, plus any parse diagnostics.
 
     Returns ``(rows, diagnostics)`` where ``rows`` is a list of :class:`DecisionRow` sorted by
-    ``(plan_id, review path, round, decision id)`` for deterministic output, and ``diagnostics`` is a
-    list of ``(path, Diagnostic)`` pairs.
+    ``(subject_id, review path, round, decision id)`` for deterministic output, and ``diagnostics`` is
+    a list of ``(path, Diagnostic)`` pairs.
 
     ALL ROUNDS ARE INCLUDED BY DEFAULT, unlike the gating rules, which read the current round only.
     That difference is deliberate and is the point of an audit trail: a gate asks "does this plan
@@ -155,7 +157,8 @@ def collect_decisions(
             for dec in rnd.decisions:
                 rows.append(
                     DecisionRow(
-                        plan_id=doc.plan_id,
+                        subject_id=doc.subject_id,
+                        subject_type=doc.subject_type,
                         review_path=path,
                         round_number=rnd.number,
                         is_current_round=is_cur,
@@ -169,7 +172,7 @@ def collect_decisions(
                     )
                 )
 
-    rows.sort(key=lambda r: (r.plan_id, str(r.review_path), r.round_number, r.id))
+    rows.sort(key=lambda r: (r.subject_id, str(r.review_path), r.round_number, r.id))
     return rows, diags
 
 
@@ -180,10 +183,12 @@ def _resolve_selector_paths(repo_root: Path, selector: str) -> tuple:
     nothing, so the caller never has to invent one.
 
     WHICH SELECTOR KINDS ACTUALLY WORK, stated honestly because one of them cannot (E-04/F-13). The
-    shared resolver's `id6` rule matches a `- Id:` front-matter bullet, but a review artifact carries
-    `- Plan-Id:` instead (Order 01 chose that name so the field says whose id6 it is). So an id6
+    shared resolver's `id6` rule matches a `- Id:` front-matter bullet, but a review artifact names its
+    subject with `- Subject-Id:` instead (the field says whose id6 it is; `eyh1fu` made it
+    artifact-neutral, and the conclusion here is unchanged because `selectors._FRONT_MATTER_ID_RE`
+    anchors on `^-\\s*Id:` and matches neither spelling). So an id6
     selector does NOT match a review's front matter. It still resolves, via the `stem`/`substring`
-    rules, because the artifact-naming grammar embeds the reviewed plan's id6 in the FILENAME. The
+    rules, because the artifact-naming grammar embeds the reviewed artifact's id6 in the FILENAME. The
     practical consequence for a caller: `aw reviews decisions c621h9` works, and it works by filename,
     not by front matter. `path` and `setid`-shaped filename matches work the same way. We do NOT
     promise an exact-front-matter `id6` match the artifact cannot support.
@@ -218,7 +223,7 @@ def _resolve_selector_paths(repo_root: Path, selector: str) -> tuple:
     return (
         [],
         "no review record matches `{0}` (reviews are matched by FILENAME, which embeds the "
-        "reviewed plan's id6; the front matter carries `Plan-Id:` rather than `Id:`)".format(
+        "reviewed artifact's id6; the front matter carries `Subject-Id:` rather than `Id:`)".format(
             tok
         ),
     )
@@ -260,11 +265,15 @@ def run_decisions(args) -> int:
 
     n_irrev = sum(1 for r in rows if r.reversible == "no")
     n_unknown = sum(1 for r in rows if r.reversible == "unknown")
-    plans = sorted({r.plan_id for r in rows if r.plan_id})
+    # `subjects`, not `plans`: after `eyh1fu` a record's subject may be a spec, so a key named
+    # `plans` would ASSERT a type the data no longer guarantees. Renamed rather than left, because a
+    # misdescribing field name is the same defect in an output payload that `- Plan-Id:` was in the
+    # record. No documented contract or consumer reads it (measured: zero hits outside this module).
+    subjects = sorted({r.subject_id for r in rows if r.subject_id})
 
     if rows:
-        summary = "{0} recorded decision(s) across {1} reviewed plan(s)".format(
-            len(rows), len(plans)
+        summary = "{0} recorded decision(s) across {1} reviewed artifact(s)".format(
+            len(rows), len(subjects)
         )
         if n_irrev:
             summary += "; {0} marked irreversible".format(n_irrev)
@@ -301,7 +310,7 @@ def run_decisions(args) -> int:
                         "total": len(rows),
                         "irreversible": n_irrev,
                         "unknown_reversible": n_unknown,
-                        "plans": len(plans),
+                        "subjects": len(subjects),
                     },
                     status="clean",
                 )
@@ -319,7 +328,7 @@ def run_decisions(args) -> int:
                 "total": len(rows),
                 "irreversible": n_irrev,
                 "unknown_reversible": n_unknown,
-                "plans": plans,
+                "subjects": subjects,
                 "selector": selector or None,
                 "filtered_irreversible": only_irreversible,
             },
@@ -346,7 +355,7 @@ def run_decisions(args) -> int:
         ]
         out.write(
             "{0}\t{1}\tround {2}\t{3}\t{4}\n".format(
-                r.plan_id or "?", r.id, r.round_number, mark, r.question
+                r.subject_id or "?", r.id, r.round_number, mark, r.question
             )
         )
         out.write("\tchose: {0}\n".format(r.chosen))

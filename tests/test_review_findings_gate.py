@@ -134,7 +134,8 @@ def _review(repo: Path, *, id6: str = "aaa111", rounds=None) -> Path:
         rounds = [rf.Round(1, (_finding(),), ())]
     return rf.write_review(
         repo / ".aw" / "records" / "reviews" / f"20260829-demo-01-{id6}-gate.review.md",
-        plan_id=id6,
+        subject_id=id6,
+        subject_type="ipd",
         reviewed_at="2026-08-29",
         reviewer="test",
         verdict="REVIEWED - OPEN QUESTIONS",
@@ -245,6 +246,84 @@ class RuleReachTests(_RepoCase):
                     ],
                     [],
                 )
+
+
+class SubjectFieldIndexTests(_RepoCase):
+    """revsweep `eyh1fu` E-05: the SECOND consumer of the record's subject field, whose failure mode is
+    SILENCE on an `error`-severity gate.
+
+    `_review_index` keys review files by the subject id6 and backs four call sites, two of which
+    implement THIS rule. Had the field been renamed to `- Subject-Id:` without repointing the index,
+    the index would come back EMPTY, `check_review_finding_unescalated` would take its "nothing
+    reviewed: every plan is the (a) absent case" early return, and an unfixed HIGH would gate NOTHING.
+    A green `aw check` is therefore NOT evidence here: the regression looks exactly like compliance,
+    so these tests are POSITIVE (the gate must still FIRE) rather than clean-run assertions.
+    """
+
+    def test_index_is_keyed_on_the_neutral_subject_id(self):
+        _plan(self.repo)
+        review = _review(self.repo)
+        index = ce._review_index(self.repo)
+        self.assertEqual(index, {"aaa111": [review]})
+
+    def test_escalation_gate_still_fires_after_the_subject_rename(self):
+        """THE LOAD-BEARING TEST: an unescalated gating finding is still REPORTED."""
+        plan = _plan(self.repo)
+        _review(self.repo)
+        drift = ce.check_review_finding_unescalated(self.repo)
+        self.assertEqual(
+            _rules(drift), [RULE], "the gate must still fire, not fall silent"
+        )
+        self.assertEqual(drift[0].location, str(plan))
+        self.assertIn("F-1", drift[0].detail)
+
+    def test_the_fail_open_empty_index_path_is_not_entered(self):
+        """Distinguishes "gate passed" from "gate saw nothing", which are indistinguishable in output.
+
+        A record carrying the OLD field name yields an EMPTY index (no compatibility reader exists, by
+        design), and the sweep then reports nothing at all. That is precisely the silent fail-open this
+        item exists to rule out, so it is asserted here as the CONTRAST to the passing case above.
+        """
+        _plan(self.repo)
+        stale = (
+            self.repo
+            / ".aw"
+            / "records"
+            / "reviews"
+            / "20260829-demo-01-aaa111-gate.review.md"
+        )
+        stale.write_text(
+            _review(self.repo)
+            .read_text(encoding="utf-8")
+            .replace("- Subject-Id: aaa111", "- Plan-Id: aaa111"),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            ce._review_index(self.repo),
+            {},
+            "a record carrying the retired field must NOT be indexed (no dual-field reader)",
+        )
+        self.assertEqual(
+            _rules(ce.check_review_finding_unescalated(self.repo)),
+            [],
+            "and the consequence is SILENCE, which is why the migration must be complete",
+        )
+
+    def test_no_review_record_in_the_tree_carries_the_retired_field(self):
+        """The corpus-level invariant that keeps the contrast case above hypothetical.
+
+        Measured over the REAL repository rather than a fixture: a single unmigrated record would make
+        its plan's gating findings invisible, and (via `plan_gating_blocks` case (b)) a MALFORMED one
+        would block that plan's approval with no override.
+        """
+        repo_root = Path(__file__).resolve().parent.parent
+        offenders = []
+        for path in rf.iter_review_files(repo_root):
+            text = path.read_text(encoding="utf-8")
+            doc = rf.parse_review_file(path)
+            if "\n- Plan-Id:" in text or not doc.subject_id or not doc.subject_type:
+                offenders.append(path.name)
+        self.assertEqual(offenders, [])
 
 
 class RuleRegistrationTests(unittest.TestCase):
@@ -377,7 +456,7 @@ class FailureModeTests(_RepoCase):
             / "20260829-demo-01-aaa111-gate.review.md"
         )
         bad.write_text(
-            "# review\n\n- Plan-Id: aaa111\n- Reviewed-At: 2026-08-29\n"
+            "# review\n\n- Subject-Id: aaa111\n- Subject-Type: ipd\n- Reviewed-At: 2026-08-29\n"
             "- Reviewer: test\n- Verdict: v\n\nthis file has no rounds at all\n",
             encoding="utf-8",
         )

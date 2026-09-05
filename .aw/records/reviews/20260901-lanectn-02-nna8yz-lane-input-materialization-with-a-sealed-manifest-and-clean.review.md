@@ -1,6 +1,7 @@
 # Review: Lane input materialization with a sealed manifest and clean-base guard
 
-- Plan-Id: nna8yz
+- Subject-Id: nna8yz
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

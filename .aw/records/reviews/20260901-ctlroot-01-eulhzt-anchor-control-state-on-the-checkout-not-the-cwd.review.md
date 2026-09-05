@@ -1,6 +1,7 @@
 # Review: Anchor control state on the checkout, not the cwd (close dh0uno and retire wtiso)
 
-- Plan-Id: eulhzt
+- Subject-Id: eulhzt
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-03
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED

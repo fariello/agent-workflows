@@ -1,6 +1,7 @@
 # Review: Bounded missing-input repair without original-checkout access
 
-- Plan-Id: y5od1h
+- Subject-Id: y5od1h
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

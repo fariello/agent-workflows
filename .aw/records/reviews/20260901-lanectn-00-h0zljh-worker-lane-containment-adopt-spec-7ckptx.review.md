@@ -1,6 +1,7 @@
 # Review: Worker lane containment: adopt spec 7ckptx
 
-- Plan-Id: h0zljh
+- Subject-Id: h0zljh
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

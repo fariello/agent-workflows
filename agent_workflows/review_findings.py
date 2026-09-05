@@ -14,15 +14,22 @@ it parses and writes it. It deliberately gates nothing and blocks nothing: enfor
 EMIT the `## Decisions` section is Order 04 (`c621h9`). Landing the format on its own keeps it
 verifiable in isolation.
 
-LAYOUT. One file per reviewed plan, FLAT under ``.aw/records/reviews/``::
+LAYOUT. One file per reviewed artifact, FLAT under ``.aw/records/reviews/``::
 
     .aw/records/reviews/YYYYMMDD-<setid>-NN-<id6>-<slug>.review.md
 
-``<id6>`` is the REVIEWED PLAN's id6, not a fresh one (OQ-01, resolved during authoring). That is
+``<id6>`` is the REVIEWED ARTIFACT's id6, not a fresh one (OQ-01, resolved during authoring). That is
 the stable cross-tree join key the repo already uses for ``From-Backlog``, ``From-Spec``, and
-``Item-Dependencies``, and it keeps working across a plan rename. The tree is FLAT on purpose: a
+``Item-Dependencies``, and it keeps working across a rename. The tree is FLAT on purpose: a
 review does NOT move when its plan moves ``pending/`` -> ``executed/``, so ``aw ipd finalize`` stays
 a single-file transaction rather than acquiring a second path to keep in sync.
+
+THE SUBJECT IS ARTIFACT-NEUTRAL (revsweep ``eyh1fu``, spec ``6m4kow`` R-01..R-05). A record names what
+it reviewed with the pair ``- Subject-Id: <id6>`` plus ``- Subject-Type: <ipd|spec>``, both REQUIRED.
+The former plan-bound ``- Plan-Id:`` is REPLACED, not carried alongside: this repository is pre-release
+and two fields meaning one thing is the duplicate mechanism that produces divergence. The filename
+grammar needed no change, because it was already neutral (see :func:`build_review_name`); only the
+front-matter field and the checker's resolution were plan-bound.
 
 ROUNDS. Plans are demonstrably re-reviewed (the corpus carries far more ``/plan-review`` history
 lines than distinct reviewed plans), so one file holds repeated ``## Round <N>`` sections and
@@ -55,6 +62,14 @@ SEVERITIES: Tuple[str, ...] = ("low", "medium", "high", "blocker")
 
 #: What the reviewer decided to DO about a finding.
 DECISIONS: Tuple[str, ...] = ("fixed", "deferred", "open", "replan")
+
+#: The artifact types a review record may name as its SUBJECT (revsweep `eyh1fu`, spec `6m4kow`
+#: R-01/R-02). A CLOSED vocabulary, declared exactly once here in the same shape as
+#: :data:`SEVERITIES` and :data:`DECISIONS`, so a new reviewable type is added by amending this
+#: tuple AND the checker's per-type resolution together, never by writing a novel value into a
+#: record. An unrecognized value is a PARSE ERROR (:data:`D_UNKNOWN_SUBJECT_TYPE`), never a default:
+#: see :func:`parse_review_text`.
+SUBJECT_TYPES: Tuple[str, ...] = ("ipd", "spec")
 
 #: Severity rank for threshold comparison (higher = more severe).
 _SEVERITY_RANK: Dict[str, int] = {s: i for i, s in enumerate(SEVERITIES)}
@@ -104,6 +119,13 @@ D_MALFORMED_ROW = "REV-P001"
 D_UNKNOWN_SEVERITY = "REV-P002"
 D_UNKNOWN_DECISION = "REV-P003"
 D_MISSING_META = "REV-M101"
+#: `- Subject-Type:` carries a value outside the closed :data:`SUBJECT_TYPES` vocabulary.
+#:
+#: A separate code from :data:`D_MISSING_META` (which covers an ABSENT required field) because the two
+#: are different authoring mistakes: an absent type is an incomplete record, an unknown one is a type
+#: this build does not know how to resolve. Both are diagnostics rather than silent defaults, since a
+#: defaulted type would send resolution at the wrong tree and make a real subject read as dangling.
+D_UNKNOWN_SUBJECT_TYPE = "REV-M102"
 D_NO_ROUNDS = "REV-R001"
 D_DUPLICATE_ROUND = "REV-R002"
 D_UNREADABLE = "REV-P004"
@@ -182,9 +204,19 @@ class Round(NamedTuple):
 
 
 class ReviewDocument(NamedTuple):
-    """A parsed `.review.md`: metadata, every round in file order, and any diagnostics."""
+    """A parsed `.review.md`: metadata, every round in file order, and any diagnostics.
 
-    plan_id: str
+    ``subject_id`` and ``subject_type`` are the ARTIFACT-NEUTRAL subject pair: which artifact was
+    reviewed, and what type it is (a member of :data:`SUBJECT_TYPES`). They replace the former
+    plan-bound ``plan_id`` outright; there is deliberately no compatibility alias, because a reader
+    that accepts either spelling would let a half-migrated corpus pass.
+
+    ``subject_type`` is preserved VERBATIM (lowercased) when unrecognized, exactly as
+    :attr:`Finding.severity` is, so a caller can see the bad value while the parser reports it.
+    """
+
+    subject_id: str
+    subject_type: str
     reviewed_at: str
     reviewer: str
     verdict: str
@@ -226,19 +258,21 @@ class ReviewDocument(NamedTuple):
 
 
 def build_review_name(
-    *, date: str, set_id: str, order: int, plan_id6: str, slug: str
+    *, date: str, set_id: str, order: int, subject_id6: str, slug: str
 ) -> str:
-    """Build the clustered review filename for a plan.
+    """Build the clustered review filename for a reviewed artifact.
 
     Delegates to the single naming authority (:func:`artifact_naming.build_clustered_name`) rather
     than formatting a name here, so a review name cannot drift from the grammar every other artifact
-    obeys. ``plan_id6`` is the REVIEWED PLAN's id6 (the join key), not a fresh identifier.
+    obeys. ``subject_id6`` is the REVIEWED ARTIFACT's id6 (the join key), not a fresh identifier; it
+    may name a plan or a spec, since the grammar is artifact-neutral and the type is recorded in the
+    front matter's ``- Subject-Type:``, not in the filename.
     """
     return _naming.build_clustered_name(
         date=date,
         set_id=set_id,
         order=order,
-        id6=plan_id6,
+        id6=subject_id6,
         slug=slug,
         artifact_type=REVIEW_FACET,
     )
@@ -340,17 +374,29 @@ def _table(columns: Sequence[str], rows: Sequence[Sequence[str]]) -> List[str]:
 
 def render_review(
     *,
-    plan_id: str,
+    subject_id: str,
+    subject_type: str,
     reviewed_at: str,
     reviewer: str,
     verdict: str,
     rounds: Sequence[Round],
 ) -> str:
-    """Render a complete `.review.md` body. Pure: builds a string, touches no disk."""
+    """Render a complete `.review.md` body. Pure: builds a string, touches no disk.
+
+    Both subject fields are REQUIRED and both are written on every record: ``- Subject-Id:`` names the
+    reviewed artifact and ``- Subject-Type:`` names its type (a member of :data:`SUBJECT_TYPES`).
+    An out-of-vocabulary ``subject_type`` is written as given rather than corrected here, because this
+    function is pure and the parser is the one authority that judges it (and reports
+    :data:`D_UNKNOWN_SUBJECT_TYPE`); silently rewriting it would hide the author's mistake.
+
+    The H1 names the SUBJECT TYPE rather than hardcoding "Plan", so a spec review does not render a
+    heading that misdescribes what was reviewed.
+    """
     lines: List[str] = [
-        f"# Plan review findings: {plan_id}",
+        f"# Review findings: {subject_type} {subject_id}",
         "",
-        f"- Plan-Id: {plan_id}",
+        f"- Subject-Id: {subject_id}",
+        f"- Subject-Type: {subject_type}",
         f"- Reviewed-At: {reviewed_at}",
         f"- Reviewer: {reviewer}",
         f"- Verdict: {verdict}",
@@ -626,18 +672,33 @@ def parse_review_text(text: str, path: Optional[Path] = None) -> ReviewDocument:
 
     _flush()
 
-    for field in ("plan-id", "reviewed-at", "reviewer", "verdict"):
+    for field in ("subject-id", "subject-type", "reviewed-at", "reviewer", "verdict"):
         if not meta.get(field):
             diagnostics.append(
                 Diagnostic(0, D_MISSING_META, f"missing required `- {field}:` metadata")
             )
+
+    # FAIL CLOSED on the subject TYPE, deliberately: an absent or unknown type is a diagnostic, NEVER
+    # a default of `ipd`. Defaulting would make resolution silently pick the plans tree, so a record
+    # that lost its type in a migration would still pass while a genuine spec subject read as
+    # dangling - the whole failure mode this field exists to prevent.
+    subject_type = (meta.get("subject-type") or "").strip().lower()
+    if subject_type and subject_type not in SUBJECT_TYPES:
+        diagnostics.append(
+            Diagnostic(
+                0,
+                D_UNKNOWN_SUBJECT_TYPE,
+                f"subject type {subject_type!r} is not one of {'|'.join(SUBJECT_TYPES)}",
+            )
+        )
     if not rounds:
         diagnostics.append(
             Diagnostic(0, D_NO_ROUNDS, "no `## Round <N>` section found")
         )
 
     return ReviewDocument(
-        plan_id=meta.get("plan-id", ""),
+        subject_id=meta.get("subject-id", ""),
+        subject_type=subject_type,
         reviewed_at=meta.get("reviewed-at", ""),
         reviewer=meta.get("reviewer", ""),
         verdict=meta.get("verdict", ""),
@@ -654,7 +715,8 @@ def parse_review_file(path) -> ReviewDocument:
         text = p.read_text(encoding="utf-8")
     except OSError as exc:
         return ReviewDocument(
-            plan_id="",
+            subject_id="",
+            subject_type="",
             reviewed_at="",
             reviewer="",
             verdict="",
@@ -709,7 +771,7 @@ def is_gating(severity: str, threshold: str) -> bool:
 
 
 # --------------------------------------------------------------------------------------
-# The shared "does this plan's review block its dependents?" predicate (Order 03 / 7nkcgp).
+# The shared "does this artifact's review block its dependents?" predicate (Order 03 / 7nkcgp).
 #
 # WHY IT LIVES HERE AND NOT IN A RUNNER. Order 03 must apply one identical rule on FOUR
 # authority surfaces: `oc_runipd.dependency_status`, `agy_runipd.dependency_status`,
@@ -729,7 +791,7 @@ def is_gating(severity: str, threshold: str) -> bool:
 
 
 class GatingBlock(NamedTuple):
-    """Why a plan's review blocks its dependents: enough to name the ROOT CAUSE to an operator.
+    """Why an artifact's review blocks its dependents: enough to name the ROOT CAUSE to an operator.
 
     ``kind`` is ``"finding"`` (a real unresolved gating row) or ``"malformed"`` (a review artifact
     that exists but cannot be parsed, so its findings cannot be checked). ``finding_id`` and
@@ -760,7 +822,15 @@ def plan_gating_blocks(
 ) -> Tuple[GatingBlock, ...]:
     """Every recorded reason ``plan_id6``'s review blocks its dependents, in deterministic order.
 
-    An EMPTY tuple means "nothing recorded blocks dependents", which is the answer for a plan with
+    THE PREDICATE IS ARTIFACT-NEUTRAL DESPITE ITS PLAN-ONLY NAME, and the mismatch is deliberate
+    rather than an oversight. Since revsweep ``eyh1fu`` the record names its subject with
+    ``- Subject-Id:``/``- Subject-Type:``, so this function answers the question for ANY reviewable
+    artifact: it matches the id6 against whatever the record declares as its subject and never
+    consults the type. The ``plan``-flavoured NAME and the ``plan_id6`` PARAMETER are left for
+    ``wpomxa`` (`revsweep-05`), which owns the rename and depends on ``executed:eyh1fu``; renaming
+    them here would collide with that plan and reach into four modules this one never touches.
+
+    An EMPTY tuple means "nothing recorded blocks dependents", which is the answer for an artifact with
     no review artifact at all. The three failure modes deliberately MIRROR Order 02's
     ``check_engine.evaluate_review_finding_escalation`` so the cascade and the escalation gate cannot
     disagree about what counts as blocking:
@@ -802,7 +872,10 @@ def plan_gating_blocks(
         return ()
     for path in review_paths:
         doc = parse_review_file(path)
-        if (doc.plan_id or "").strip() != wanted:
+        # Matches the record's ARTIFACT-NEUTRAL subject id. The id6 alone identifies the artifact
+        # (ids are unique across trees), so this predicate needs no `Subject-Type` filter and keeps
+        # working unchanged for a spec-subject record.
+        if (doc.subject_id or "").strip() != wanted:
             continue
         if doc.diagnostics:
             # (b) present but unparseable -> block, and say which codes so the operator can repair it.
@@ -842,6 +915,9 @@ def plan_blocks_dependents(
     repo_root, plan_id6: str, threshold: Optional[str] = None
 ) -> bool:
     """True iff ``plan_id6`` carries a recorded reason NOT to satisfy an ``executed:`` edge.
+
+    ARTIFACT-NEUTRAL despite the plan-only name, for the reason its delegate records: the subject field
+    it reads through is neutral since revsweep ``eyh1fu``, and the rename belongs to ``wpomxa``.
 
     The boolean convenience over :func:`plan_gating_blocks` for a caller that needs only the verdict.
     A caller that must TELL THE OPERATOR WHY should use :func:`plan_gating_blocks` instead; a block

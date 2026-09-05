@@ -1,6 +1,7 @@
-# Plan review findings: wpomxa
+# Review findings: ipd wpomxa
 
-- Plan-Id: wpomxa
+- Subject-Id: wpomxa
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

@@ -1,6 +1,7 @@
 # Review: One cross-platform file lock via filelock, replacing every raw fcntl call site
 
-- Plan-Id: y6mfgo
+- Subject-Id: y6mfgo
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

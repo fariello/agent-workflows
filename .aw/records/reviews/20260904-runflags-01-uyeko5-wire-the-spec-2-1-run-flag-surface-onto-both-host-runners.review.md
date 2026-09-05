@@ -1,6 +1,7 @@
 # Review: Wire the spec 2.1 run flag surface onto both host runners
 
-- Plan-Id: uyeko5
+- Subject-Id: uyeko5
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

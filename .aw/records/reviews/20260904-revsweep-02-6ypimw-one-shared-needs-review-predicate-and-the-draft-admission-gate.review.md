@@ -1,6 +1,7 @@
 # Review: one shared needs-review predicate and the draft admission gate
 
-- Plan-Id: 6ypimw
+- Subject-Id: 6ypimw
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
