@@ -6,7 +6,7 @@
 - Summary: two lanes from run-20260905 remain unintegrated: cqx5v7 needs conflict resolution in both runners, i6015i never did its work and needs re-running
 
 ## Workflow history
-- 2026-09-05 created (aw backlog): two lanes from run-20260905 remain unintegrated: cqx5v7 needs conflict resolution in both runners, i6015i never did its work and needs re-running
+- 2026-09-05 set (aw backlog): HALF DONE: cqx5v7 RECOVERED and merged to main 2026-09-05 in 87df6485. Its conflict was one hunk in each runner at the same insertion point in build_prompt, between txc9l1's verify_notice and cqx5v7's out-of-lane scrub; both are independent additive features so BOTH were kept, with the scrub ordered FIRST because it mutates lane_notice and running it before verify_notice preserves the containment intent. Resolution was validated in an isolated scratch worktree before main was touched. Suite 4732 passed (up from 4687); the two lanes' own tests pass together (78 passed across test_lane_prompt_purity, test_lane_submission_collection, test_resumedupe), which is the real proof the coexistence works. Lane and branch removed after verifying zero unmerged commits and zero dirty files. REMAINING SCOPE: i6015i only. It performed 0 of 10 E-items, holds zero commits, and has 11 dirty files including an untracked tests/test_next_ordering.py, so its approved status is honest and it needs RE-RUNNING rather than merging. Its lane and worktree are still preserved and MUST NOT be torn down, since they hold the only copy of that untracked test file.
 
 TWO REMAINING ITEMS from `run-20260905T050043Z-639569`, recorded because five of the seven lanes
 were recovered on 2026-09-05 and these two were deliberately left. They are DIFFERENT problems and
