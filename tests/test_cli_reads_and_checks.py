@@ -134,13 +134,51 @@ class CliReadsAndChecksTests(unittest.TestCase):
         self.assertEqual(rec["cmd"], "check")
         schema.assert_valid_agent_record(rec)
 
-    def test_find_plans_agent_mode(self):
+    def test_find_plans_agent_mode_emits_bare_paths_not_a_record(self):
+        """`aw find --agent` is a DISCOVERY verb: bare repo-relative paths, NOT an agent record.
+
+        This test previously demanded an `aw.agent/v1` record and became wrong when `findpaths-01`
+        (`v8xdz4`) deliberately carved `find` out of the record contract: path discovery under
+        `--agent` emits newline-delimited repo-relative paths because wrapping a path list in a JSON
+        envelope costs tokens for no benefit. `docs/cli-output-contract.md:233-237` states that
+        exemption explicitly, and `cli.py`'s `if getattr(args, "paths", False) or (ctx.is_agent and
+        all_paths)` branch implements it AHEAD of the record branch.
+
+        So the assertion is inverted rather than deleted: callers wanting the metadata dictionary use
+        `--json`, which is asserted below. Deleting the case outright would leave the carve-out
+        unpinned and let a future change silently re-wrap `find --agent` in an envelope.
+        """
         proc = _run_aw("find", "plans", "--agent")
+        self.assertEqual(proc.returncode, 0)
+        lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+        self.assertTrue(lines, "find --agent emitted nothing")
+        # Bare paths, not JSON: no line may parse as an agent record.
+        self.assertFalse(
+            proc.stdout.lstrip().startswith("{"),
+            f"find --agent must not emit a JSON envelope, got {lines[0]!r}",
+        )
+        for ln in lines:
+            self.assertTrue(
+                ln.startswith(".aw/") or ln.startswith(".agents/"),
+                f"expected a bare repo-relative path, got {ln!r}",
+            )
+
+    def test_find_plans_json_mode_still_emits_the_structured_record(self):
+        """The metadata dictionary remains available under `--json` (the documented escape hatch).
+
+        `--json` emits the FULL structured representation (`command`/`exit_code`/`data`), which is a
+        different shape from `--agent`'s compact record (`cmd`/`exit`), so this asserts the full-form
+        keys rather than running `assert_valid_agent_record`. That distinction is the point of the
+        carve-out above: `find --agent` gives paths, `find --json` gives metadata.
+        """
+        proc = _run_aw("find", "plans", "--json")
         self.assertEqual(proc.returncode, 0)
         rec = json.loads(proc.stdout.strip())
         self.assertEqual(rec["schema"], "aw.agent/v1")
-        self.assertEqual(rec["cmd"], "find")
-        schema.assert_valid_agent_record(rec)
+        self.assertEqual(rec["command"], "find")
+        self.assertEqual(rec["exit_code"], 0)
+        self.assertIn("paths", rec["data"])
+        self.assertIn("matches", rec["data"])
 
     def test_specs_check_agent_mode_replaces_tsv(self):
         """`aw specs check --agent` must emit aw.agent/v1 record, NEVER raw TSV."""

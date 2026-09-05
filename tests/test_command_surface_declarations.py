@@ -135,6 +135,13 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
                 "index",
                 "ipd board",
                 "research find",
+                # runnamecollapse (`0soncw`) split the run surface by direction and introduced
+                # `runs list` (the viewer table, identical to bare `aw runs`) as a READ/query leaf
+                # declaring `shared_empty_result`, but this allowlist was not extended with it, so
+                # the classification rule demanded `renderer_boundary` for a verb whose whole job is
+                # listing. It belongs with `find`/`search`/`index`/`ipd board`: a selector-driven
+                # listing whose empty result is a normal outcome rather than an error.
+                "runs list",
             }:
                 self.assertEqual(
                     decl.empty_error_renderer,
