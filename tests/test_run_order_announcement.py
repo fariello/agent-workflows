@@ -606,6 +606,133 @@ class ExecutionIndexAndCountingTests(unittest.TestCase):
             with self.subTest(driver=name):
                 self.assertIs(mod.execution_index, render_stream.execution_index)
 
+    def test_drivers_reexport_dispatch_order_helpers(self):
+        for name, mod in _DRIVERS:
+            with self.subTest(driver=name):
+                self.assertIs(
+                    mod.simulate_dispatch_order, oc_runipd.simulate_dispatch_order
+                )
+                self.assertIs(
+                    mod.update_execution_order, oc_runipd.update_execution_order
+                )
+
+    def test_fourth_file_running_first_gets_first_execution_index(self):
+        """When the runner runs the 4th file in the list first, it displays 01/04, not 04/04."""
+        queue = [
+            _item("item11", position=1),
+            _item("item22", position=2),
+            _item("item33", position=3),
+            _item("item44", position=4),
+        ]
+        state = {
+            "queue": queue,
+            "run_order": oc_runipd.run_order_rationale(queue),
+        }
+        # Suppose item44 is selected to run first (e.g. items 1-3 had unmet runtime prerequisites)
+        item44 = queue[3]
+        oc_runipd.update_execution_order(state, item44)
+
+        # Numerator must be 1 (01/04), not 4 (04/04)
+        seq = render_stream.execution_index(item44, state)
+        self.assertEqual(seq, 1)
+        # Statusline current_idx is max(0, seq - 1) = 0, formatting as "0/4" done
+        current_idx = max(0, seq - 1)
+        self.assertEqual(current_idx, 0)
+        self.assertIn("0/4", render_stream.format_progress_bar(current_idx, len(queue)))
+
+    def test_wslayout_orchestrator_defers_so_first_child_gets_first_execution_index(
+        self,
+    ):
+        """In a Set with an orchestrator (like wslayout), the orchestrator waits for children;
+        the 1st child runs first with execution index 1 (01/06), not 3 (03/06)."""
+        queue = [
+            {
+                "id6": "rh5tt6",
+                "setid": "wslayout",
+                "order": 0,
+                "position": 1,
+                "status": "queued",
+                "action": "orchestrate",
+                "dependencies": [],
+            },
+            {
+                "id6": "5e4sb6",
+                "setid": "wslayout",
+                "order": 0,
+                "position": 2,
+                "status": "queued",
+                "action": "orchestrate",
+                "dependencies": [],
+            },
+            _item("wpu5zu", setid="wslayout", order=1, position=3),
+            _item("zvk796", setid="wslayout", order=2, position=4),
+            _item("rodj06", setid="wslayout", order=3, position=5),
+            _item("hauwqh", setid="wslayout", order=4, position=6),
+        ]
+        rationale = oc_runipd.run_order_rationale(queue)
+        state = {
+            "queue": queue,
+            "run_order": rationale,
+        }
+        # The predicted executed order must have wpu5zu 1st and orchestrators at the end
+        self.assertEqual(rationale["executed"][0], "wpu5zu")
+        self.assertIn("rh5tt6", rationale["executed"][4:])
+        self.assertIn("5e4sb6", rationale["executed"][4:])
+
+        wpu5zu = queue[2]
+        seq = render_stream.execution_index(wpu5zu, state)
+        self.assertEqual(seq, 1, "first child must run as 01/06, not 03/06")
+        current_idx = max(0, seq - 1)
+        self.assertEqual(current_idx, 0)
+        self.assertIn("0/6", render_stream.format_progress_bar(current_idx, len(queue)))
+
+    def test_resumed_or_later_item_after_32_items_gets_33rd_execution_index(self):
+        """When the 1st file in the original list runs after 32 items have processed,
+        it displays 33/34, not 01/34."""
+        queue = []
+        for i in range(1, 35):
+            id6 = f"it{i:04d}"
+            status = "executed" if i > 2 else "queued"
+            queue.append(_item(id6, position=i, status=status))
+
+        # 32 items (it0003 through it0034) are already executed
+        prev_executed = [f"it{i:04d}" for i in range(3, 35)] + ["it0001", "it0002"]
+        state = {
+            "queue": queue,
+            "run_order": {
+                "requested": [it["id6"] for it in queue],
+                "executed": prev_executed,
+            },
+        }
+
+        # it0001 runs as the 33rd item
+        it0001 = queue[0]
+        oc_runipd.update_execution_order(state, it0001)
+
+        seq = render_stream.execution_index(it0001, state)
+        self.assertEqual(
+            seq, 33, "item running after 32 processed items must get seq 33"
+        )
+        current_idx = max(0, seq - 1)
+        self.assertEqual(current_idx, 32)
+        bar = render_stream.format_progress_bar(current_idx, len(queue))
+        self.assertIn("32/34", bar)
+
+    def test_execution_index_fallback_counts_completed_items_when_run_order_missing(
+        self,
+    ):
+        """When run_order is missing but 32 items have executed, fallback returns 33."""
+        queue = []
+        for i in range(1, 35):
+            id6 = f"it{i:04d}"
+            status = "executed" if i > 2 else "queued"
+            queue.append(_item(id6, position=i, status=status))
+
+        state = {"queue": queue}
+        it0001 = queue[0]
+        seq = render_stream.execution_index(it0001, state)
+        self.assertEqual(seq, 33)
+
 
 if __name__ == "__main__":
     unittest.main()

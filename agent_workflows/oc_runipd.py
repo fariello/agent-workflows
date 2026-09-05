@@ -3003,6 +3003,17 @@ def dependency_status_detailed(
         unsatisfied.append(dep)
         reasons[dep] = reason
 
+    if item.get("action") == "orchestrate":
+        all_done, unfinished = _set_children_all_executed(
+            state, str(item.get("setid") or ""), item["id6"]
+        )
+        if not all_done:
+            for child_id in unfinished:
+                _block(
+                    f"executed:{child_id}",
+                    f"orchestrator waits for child {child_id} of set '{item.get('setid')}' to execute",
+                )
+
     for dep in item.get("dependencies", []):
         dep = str(dep)
         # 8guhs0: parse the typed token FIRST, so the id6 and the queue key both come from the
@@ -3256,6 +3267,16 @@ def dependency_depth(id6: str, by_id: dict[str, dict[str, Any]]) -> int:
             if edge is None or edge.target_type != "ipd" or edge.id6 not in by_id:
                 continue
             best = max(best, 1 + _depth(edge.id6, seen | {node}))
+        if entry.get("action") == "orchestrate":
+            setid = entry.get("setid")
+            for other_id, other in by_id.items():
+                if (
+                    other_id != node
+                    and other.get("setid") == setid
+                    and other.get("action") != "orchestrate"
+                    and other_id not in seen
+                ):
+                    best = max(best, 1 + _depth(other_id, seen | {node}))
         return best
 
     return _depth(id6, frozenset())
@@ -3305,6 +3326,140 @@ def queue_sort_key(item: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> tu
     )
 
 
+def simulate_dispatch_order(
+    queue: list[dict[str, Any]], initial_completed: Iterable[str] | None = None
+) -> list[str]:
+    """Simulate the order in which items in `queue` will actually be dispatched by `run_queue`.
+
+    Accounts for:
+    - In-queue declared dependencies: a dependent waits until all its in-queue prerequisites have run.
+    - Orchestrator deferral: an orchestrator plan (action == 'orchestrate') waits until all child
+      plans in its Set have completed.
+    - Tiebreaking: among ready items, ordered by `queue_sort_key`.
+    """
+    if not queue:
+        return []
+
+    by_id = {str(item.get("id6")): item for item in queue}
+
+    set_children: dict[str, set[str]] = {}
+    for item in queue:
+        id6 = str(item.get("id6"))
+        setid = str(item.get("setid") or "")
+        if item.get("action") != "orchestrate":
+            set_children.setdefault(setid, set()).add(id6)
+
+    in_queue_deps: dict[str, set[str]] = {}
+    for item in queue:
+        id6 = str(item.get("id6"))
+        deps: set[str] = set()
+        for dep in item.get("dependencies", []) or []:
+            edge = parse_dependency_token(str(dep))
+            if edge is not None and getattr(edge, "target_type", None) == "ipd":
+                target = dependency_target_id6(str(dep))
+                if target and target in by_id and target != id6:
+                    deps.add(target)
+        in_queue_deps[id6] = deps
+
+    remaining = list(queue)
+    completed: set[str] = set(initial_completed or ())
+    executed: list[str] = []
+
+    while remaining:
+        ready: list[dict[str, Any]] = []
+        for item in remaining:
+            id6 = str(item.get("id6"))
+            if not in_queue_deps.get(id6, set()).issubset(completed):
+                continue
+            if item.get("action") == "orchestrate":
+                setid = str(item.get("setid") or "")
+                children = set_children.get(setid, set())
+                if not children.issubset(completed):
+                    continue
+            ready.append(item)
+
+        if ready:
+            chosen = min(ready, key=lambda it: queue_sort_key(it, by_id))
+        else:
+            chosen = min(remaining, key=lambda it: queue_sort_key(it, by_id))
+
+        chosen_id = str(chosen.get("id6"))
+        remaining.remove(chosen)
+        completed.add(chosen_id)
+        executed.append(chosen_id)
+
+    return executed
+
+
+def update_execution_order(
+    state: dict[str, Any], runnable: dict[str, Any]
+) -> list[str]:
+    """Dynamically update `state["run_order"]["executed"]` to reflect actual dispatch order.
+
+    Ensures that:
+    1. Items that have already run/been dispatched form the prefix in their dispatch order.
+    2. The current `runnable` item is placed next at index `len(already_dispatched)`.
+    3. Remaining items in the queue follow in their simulated dispatch order.
+    """
+    run_order = state.setdefault("run_order", {})
+    prev_executed: list[str] = list(run_order.get("executed") or [])
+    dispatched: list[str] = list(run_order.get("dispatched") or [])
+    dispatched_set = set(dispatched)
+
+    queue = state.get("queue") or []
+
+    # If dispatched list wasn't tracked yet, reconstruct from queue terminal/attempted states:
+    if not dispatched:
+        terminal_dispositions = {
+            "executed",
+            "reviewed",
+            "approved",
+            "substantially-complete",
+            "partial",
+            "blocked",
+            "failed-safely",
+            "integration-blocked",
+            "merge-conflict",
+        }
+        for id6 in prev_executed:
+            for it in queue:
+                if str(it.get("id6")) == id6 and (
+                    it.get("status") in terminal_dispositions or it.get("attempts")
+                ):
+                    if id6 not in dispatched_set:
+                        dispatched.append(id6)
+                        dispatched_set.add(id6)
+        for it in queue:
+            id6 = str(it.get("id6"))
+            if (
+                it.get("status") in terminal_dispositions or it.get("attempts")
+            ) and id6 not in dispatched_set:
+                dispatched.append(id6)
+                dispatched_set.add(id6)
+
+    runnable_id6 = str(runnable.get("id6"))
+    if runnable_id6 not in dispatched_set:
+        dispatched.append(runnable_id6)
+        dispatched_set.add(runnable_id6)
+
+    run_order["dispatched"] = dispatched
+
+    # Remaining items that have not been dispatched yet
+    remaining = [it for it in queue if str(it.get("id6")) not in dispatched_set]
+    predicted_remaining = simulate_dispatch_order(
+        remaining, initial_completed=dispatched_set
+    )
+
+    new_executed = list(dispatched) + [
+        id6 for id6 in predicted_remaining if id6 not in dispatched_set
+    ]
+    run_order["executed"] = new_executed
+    if "requested" in run_order:
+        run_order["reordered"] = run_order["requested"] != new_executed
+
+    return new_executed
+
+
 def run_order_rationale(
     queue: list[dict[str, Any]], selectors: Iterable[str] | None = None
 ) -> dict[str, Any]:
@@ -3337,10 +3492,7 @@ def run_order_rationale(
     sel_list = [str(s).strip() for s in (selectors or [])]
     requested = [str(item.get("id6")) for item in queue]
     by_id = {str(item.get("id6")): item for item in queue}
-    executed = [
-        str(item.get("id6"))
-        for item in sorted(queue, key=lambda it: queue_sort_key(it, by_id))
-    ]
+    executed = simulate_dispatch_order(queue)
 
     req_index = {id6: idx for idx, id6 in enumerate(requested)}
     exec_index = {id6: idx for idx, id6 in enumerate(executed)}
@@ -3386,6 +3538,27 @@ def run_order_rationale(
                         f"so it waits for {target}"
                     )
                     break
+        # Moved because of orchestrator deferral
+        if not reason:
+            item = by_id.get(id6, {})
+            if item.get("action") == "orchestrate":
+                reason = (
+                    f"orchestrator: waits for children of set '{item.get('setid')}' "
+                    f"to execute first"
+                )
+            else:
+                for other in requested:
+                    if req_index[other] >= req_index[id6]:
+                        continue
+                    other_item = by_id.get(other, {})
+                    if other_item.get("action") == "orchestrate" and other_item.get(
+                        "setid"
+                    ) == item.get("setid"):
+                        reason = (
+                            f"orchestrator child: {other} is the orchestrator for set "
+                            f"'{other_item.get('setid')}', so {id6} executes first"
+                        )
+                        break
         # Moved because DEPENDENCY DEPTH differs from the item it swapped with. The two loops above
         # only see a DIRECT edge between the mover and something requested before/after it, which
         # misses the commonest real case: `dependency_depth` is the FIRST element of
@@ -5707,6 +5880,7 @@ def run_queue(
             save_state(run_dir, state)
             break
         recovery = bool(runnable.pop("recovery_next", False))
+        update_execution_order(state, runnable)
         # Orchestrators are not agent-executed: finalize iff every child in the set
         # reached `executed`, else leave blocked (no agent turn). See queue-builder note.
         if runnable.get("action") == "orchestrate":

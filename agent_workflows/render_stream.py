@@ -970,6 +970,30 @@ def execution_index(item: dict[str, Any], state: dict[str, Any]) -> int:
     id6 = str(item.get("id6") or "")
     if executed and id6 in executed:
         return executed.index(id6) + 1
+
+    queue = state.get("queue") or []
+    completed = 0
+    for it in queue:
+        if str(it.get("id6")) != id6 and (
+            it.get("status")
+            in {
+                "executed",
+                "reviewed",
+                "approved",
+                "substantially-complete",
+                "partial",
+                "blocked",
+                "failed-safely",
+                "integration-blocked",
+                "merge-conflict",
+            }
+            or (it.get("attempts") and it.get("status") != "queued")
+        ):
+            completed += 1
+
+    if completed > 0:
+        return completed + 1
+
     pos = item.get("position")
     return int(pos) if isinstance(pos, int) and pos > 0 else 1
 

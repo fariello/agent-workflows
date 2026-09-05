@@ -291,6 +291,8 @@ from agent_workflows.oc_runipd import (
     # inherited the reordering with no warning. Binding the same two objects closes that.
     announce_run_order as announce_run_order,
     run_order_rationale as run_order_rationale,
+    simulate_dispatch_order as simulate_dispatch_order,
+    update_execution_order as update_execution_order,
 )
 
 DEFAULT_MODEL = "gemini-3.7-flash-high"
@@ -3692,6 +3694,7 @@ def run_queue(
             break
 
         recovery = bool(runnable.pop("recovery_next", False))
+        update_execution_order(state, runnable)
         # runstop 1qxuke: the set now in flight, recorded BEFORE the turn so a stop requested during
         # it is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
