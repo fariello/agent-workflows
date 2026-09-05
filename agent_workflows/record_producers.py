@@ -5,6 +5,21 @@ modules, provides the central write guard, and implements the backend-neutral re
 state class router specified by
 ``.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md``
 Sections 4.3, 4.4, 6, 8, 11.2, 11.3, & 13.
+
+THE CLASS VOCABULARY IS NO LONGER DEFINED HERE (spec `kw5y2s` Section 5.1 item 2, Set `wslayout`
+Order 03). ``RecordClass``, ``DurableStateClass``, ``RuntimeStateClass`` and the four subpath maps
+are DERIVED from the canonical layout model in ``agent_workflows/layout.py``, which is the single
+source of truth for what record and state classes an AW workspace has. Order 02 did the same for
+``artifact_types.py`` and ``selectors.py``, so the four modules now agree by construction instead of
+by three hand-maintained copies that could drift.
+
+WHY IMPORTING ``layout`` IS SAFE FROM THIS MODULE: ``layout`` is STDLIB-ONLY and imports nothing
+from ``agent_workflows``, so it cannot participate in an import cycle with ``project_context`` or
+``project_schema`` below.
+
+WHAT IS PRESERVED VERBATIM, because each is a measured contract rather than an implementation
+detail: every exception type in this module, the write guard, ``PRODUCER_INVENTORY``, the
+``records`` EMPTY-subpath carve-out, and the DECOUPLED legacy ``.agents/`` read map.
 """
 
 from __future__ import annotations
@@ -12,14 +27,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
+from agent_workflows import layout as _layout
 from agent_workflows.project_context import resolve_project_context
 from agent_workflows.project_schema import (
     LogicalRoot,
     RecordsBackend,
     RootClass,
 )
+
+# The canonical layout model. Built ONCE at import: `LayoutModel` is a frozen dataclass over
+# immutable vocabularies, so a module-level instance is safe to share and costs one construction.
+_LAYOUT = _layout.build_default_layout()
 
 
 class RecordProducerError(Exception):
@@ -82,92 +102,109 @@ class DuplicateAuthorityError(RecordProducerError):
     pass
 
 
-class RecordClass(str, Enum):
-    """Closed set of canonical record classes (spec Section 4.1 & 6)."""
+def _derive_str_enum(name: str, values: Iterable[str], doc: str) -> Any:
+    """Build a ``str``-mixin ``Enum`` named `name` whose members are `values`, in that order.
 
-    PLANS = "plans"
-    SPECS = "specs"
-    RESEARCH = "research"
-    RECORDS = "records"
-    PROMPTS = "prompts"
-    COMMS = "comms"
-    WALKTHROUGHS = "walkthroughs"
-    RELEASES = "releases"
-    # revgate Order 01 (15zvu6) E-09: typed plan-review findings artifacts (`*.review.md`). A records
-    # class so the `check.review-dangling` scan discovers the tree through THIS one authority rather
-    # than a second hardcoded `.aw/records/reviews` path string. Reviews are net-new, so there is
-    # deliberately no `_LEGACY_RECORD_CLASS_SUBPATHS` override (no legacy `.agents/` tree exists to
-    # read; the legacy map inherits the final subpath via its `**` spread, which is correct-by-absence).
-    REVIEWS = "reviews"
-    # NOTE: run-artifacts (assess/verify/release-review/advise run records) are NOT a records class.
-    # They live at the top-level `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (sibling of records),
-    # written by the workflows directly and gitignored - NOT resolved via resolve_record_path. The
-    # former RUNS/WORKFLOW_ARTIFACTS members were unused and resolved under the records root by
-    # mistake; removed in IPD awretrofit Order 07 (spec 20260817-2124-01, plan-review PR-002).
+    THE MEMBER ATTRIBUTE NAME IS THE UPPER-CASED VALUE, which is exactly the convention the
+    hand-written enums this replaces already followed (``PLANS = "plans"``,
+    ``ROUTING_RECEIPTS = "routing_receipts"``), so every existing ``RecordClass.PLANS`` /
+    ``DurableStateClass.ROUTING_RECEIPTS`` attribute access keeps resolving unchanged.
+
+    ``__module__`` is set explicitly because the functional ``Enum`` API otherwise records the
+    frame it was CALLED from, which would break pickling of a member.
+    """
+    enum_cls = Enum(name, [(value.upper(), value) for value in values], type=str)
+    enum_cls.__module__ = __name__
+    enum_cls.__doc__ = doc
+    return enum_cls
 
 
-class DurableStateClass(str, Enum):
-    """Closed set of durable state classes (spec Section 4.1)."""
+# The canonical record classes, DERIVED from the layout model (spec `kw5y2s` Section 5.1 item 2).
+#
+# TWELVE MEMBERS: the nine this module defined by hand through Order 02, plus the three the UNION
+# ruling adds (`backlog`, `roadmaps`, `other`; spec Section 3.2 and Section 5.1 item 2). The nine
+# pre-existing members and their values are unchanged, so no caller of `RecordClass.<MEMBER>` moves.
+#
+# `records` IS ONE OF THE TWELVE, not a thirteenth: it is the records ROOT ITSELF and its carve-out
+# lives in its SUBPATH VALUE (the empty string below), never in its membership. Dropping the member
+# would break every existing `RecordClass.RECORDS` caller; giving it `subpath="records"` would
+# produce a nonsensical `records/records/` path (spec Section 3.2.1).
+#
+# `reviews` was ALREADY a member before this consolidation (revgate Order 01, `15zvu6` E-09): typed
+# plan-review findings artifacts (`*.review.md`), so the `check.review-dangling` scan discovers the
+# tree through THIS one authority rather than a second hardcoded `.aw/records/reviews` path string.
+#
+# NOTE: run-artifacts (assess/verify/release-review/advise run records) are NOT a records class.
+# They live at the top-level `.aw/workflow-artifacts/<workflow>/<RUN_ID>/` (sibling of records),
+# written by the workflows directly and gitignored - NOT resolved via resolve_record_path. The
+# former RUNS/WORKFLOW_ARTIFACTS members were unused and resolved under the records root by
+# mistake; removed in IPD awretrofit Order 07 (spec 20260817-2124-01, plan-review PR-002).
+RecordClass = _derive_str_enum(
+    "RecordClass",
+    _LAYOUT.record_classes,
+    "Closed set of canonical record classes (spec Section 4.1 & 6), derived from `layout.py`.",
+)
 
-    INSTALL = "install"
-    HISTORY = "history"
-    ACTIONS = "actions"
-    MIGRATIONS = "migrations"
-    ROUTING_RECEIPTS = "routing_receipts"
+DurableStateClass = _derive_str_enum(
+    "DurableStateClass",
+    _LAYOUT.durable_state_classes,
+    "Closed set of durable state classes (spec Section 4.1), derived from `layout.py`.",
+)
 
-
-class RuntimeStateClass(str, Enum):
-    """Closed set of runtime state classes (spec Section 4.1)."""
-
-    TRANSACTIONS = "transactions"
-    LOCKS = "locks"
-    STAGING = "staging"
-    BACKUPS = "backups"
-    CACHE = "cache"
-    TMP = "tmp"
+RuntimeStateClass = _derive_str_enum(
+    "RuntimeStateClass",
+    _LAYOUT.runtime_state_classes,
+    "Closed set of runtime state classes (spec Section 4.1), derived from `layout.py`.",
+)
 
 
 # FINAL `.aw/records/` subpaths (IPD awretrofit Order 07, spec 20260817-2124-01): the durable doc
 # types are FLATTENED out of `docs/` (specs/research/walkthroughs sit directly under `.aw/records/`).
-_RECORD_CLASS_SUBPATHS: Dict[str, str] = {
-    RecordClass.PLANS.value: "plans",
-    RecordClass.SPECS.value: "specs",
-    RecordClass.RESEARCH.value: "research",
-    RecordClass.RECORDS.value: "",
-    RecordClass.PROMPTS.value: "prompts",
-    RecordClass.COMMS.value: "comms",
-    RecordClass.WALKTHROUGHS.value: "walkthroughs",
-    RecordClass.RELEASES.value: "releases",
-    RecordClass.REVIEWS.value: "reviews",
-}
+# Now SOURCED from the layout model, which preserves the `records` -> "" carve-out exactly.
+#
+# THIS MAP IS A FAITHFUL MIRROR OF `layout.record_subpaths()` WITH NO LOCAL OVERRIDE, which is the
+# whole point of the consolidation: there is one authority, and reading it here cannot drift from it.
+#
+# IT THEREFORE DOES NOT COVER EVERY `RecordClass` MEMBER, and that gap is deliberate. `other` is a
+# COMPUTED COMPLEMENT, not a directory: `selectors.record_dirs` derives it as everything under the
+# records root that no other class owns, and `.aw/records/other/` does not exist. The model omits it
+# from `record_subpaths()` for exactly that reason, and inventing a literal `other` entry here would
+# both contradict the model and (once a consumer joined it) manufacture a directory the sweep does
+# not use. Resolve a class subpath through `_record_class_subpath()` below, NOT by indexing this map
+# directly, so both carve-outs stay correct. See DECISION 3-rodj06-D1.
+_RECORD_CLASS_SUBPATHS: Dict[str, str] = dict(_LAYOUT.record_subpaths())
 
 # LEGACY `.agents/` read-only subpaths (plan-review PR-001): the legacy tree keeps its `docs/` nesting
 # (`.agents/docs/specs`, ...). This map is DECOUPLED from the final map above so flattening the final
 # `.aw/records/` layout does NOT break legacy migration reads (`resolve_record_read_paths`). Only the
 # doc-family classes differ from their final subpath; the rest reuse the final subpath.
-_LEGACY_RECORD_CLASS_SUBPATHS: Dict[str, str] = {
-    **_RECORD_CLASS_SUBPATHS,
-    RecordClass.SPECS.value: "docs/specs",
-    RecordClass.RESEARCH.value: "docs/research",
-    RecordClass.WALKTHROUGHS.value: "docs/walkthroughs",
-}
+#
+# THE DECOUPLING IS PRESERVED BY THE MODEL, not re-derived here: `legacy_record_subpaths()` starts
+# from the final subpaths and applies `LEGACY_RECORD_SUBPATH_OVERRIDES`, which carries exactly the
+# three `docs/`-prefixed doc-family entries this map has always had. A class with NO override (every
+# net-new one, and `reviews`) inherits its final subpath, which is the same correct-by-absence
+# behavior the hand-written `**` spread provided; hand-adding a legacy entry for a tree that never
+# had a legacy `.agents/` counterpart would invent a path.
+_LEGACY_RECORD_CLASS_SUBPATHS: Dict[str, str] = dict(_LAYOUT.legacy_record_subpaths())
 
-_DURABLE_STATE_SUBPATHS: Dict[str, str] = {
-    DurableStateClass.INSTALL.value: "install.json",
-    DurableStateClass.HISTORY.value: "history",
-    DurableStateClass.ACTIONS.value: "actions",
-    DurableStateClass.MIGRATIONS.value: "migrations",
-    DurableStateClass.ROUTING_RECEIPTS.value: "routing_receipts",
-}
 
-_RUNTIME_STATE_SUBPATHS: Dict[str, str] = {
-    RuntimeStateClass.TRANSACTIONS.value: "transactions",
-    RuntimeStateClass.LOCKS.value: "locks",
-    RuntimeStateClass.STAGING.value: "staging",
-    RuntimeStateClass.BACKUPS.value: "backups",
-    RuntimeStateClass.CACHE.value: "cache",
-    RuntimeStateClass.TMP.value: "tmp",
-}
+def _record_class_subpath(record_class: str) -> str:
+    """Records-root-relative subpath for `record_class`, honoring BOTH carve-outs.
+
+    Prefer this over indexing `_RECORD_CLASS_SUBPATHS`, which intentionally has no key for the
+    `other` complement (see the note above). Returns the EMPTY string for `records` (the root
+    alias) and for `other` (the complement), both of which denote the records root itself rather
+    than a child directory.
+    """
+    return _LAYOUT.get_record_subpath(record_class)
+
+
+# Durable state subpaths, relative to the DURABLE STATE root (`.aw/state/durable`), not the records
+# root. `install` is a FILE (`install.json`, the install receipt) rather than a directory; the model
+# records that live value verbatim instead of idealizing it to `install/`.
+_DURABLE_STATE_SUBPATHS: Dict[str, str] = dict(_LAYOUT.durable_state_classes)
+
+_RUNTIME_STATE_SUBPATHS: Dict[str, str] = dict(_LAYOUT.runtime_state_classes)
 
 
 @dataclass(frozen=True)
@@ -424,7 +461,9 @@ def resolve_record_path(
 
     if is_record:
         base_root = Path(ctx.physical_classes[RootClass.RECORDS.value])
-        class_rel = _RECORD_CLASS_SUBPATHS[record_class]
+        # Through the carve-out-safe accessor, NOT a direct map index: `other` has no key in
+        # `_RECORD_CLASS_SUBPATHS` (it is a computed complement), and `records` must stay "".
+        class_rel = _record_class_subpath(record_class)
     elif is_durable:
         base_root = Path(ctx.physical_classes[RootClass.STATE_DURABLE.value])
         class_rel = _DURABLE_STATE_SUBPATHS[record_class]

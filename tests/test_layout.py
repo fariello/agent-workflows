@@ -152,16 +152,32 @@ class LayoutModelDefaultsTests(unittest.TestCase):
         self.assertEqual(modeled["walkthroughs"], "docs/walkthroughs")
         for name, sub in RP._LEGACY_RECORD_CLASS_SUBPATHS.items():
             self.assertEqual(modeled.get(name), sub)
-        # A SUPERSET, not an equal map, and the delta is exactly the union's net-new classes. They
-        # inherit their FINAL subpath by absence of an override, which is the correct-by-absence
-        # behavior the live `**` spread already provides; there is no legacy `.agents/` tree for
-        # them to read, so hand-adding a legacy entry would invent a path.
+        # ASSERTED AGAINST A LITERAL, NOT AGAINST `RP._LEGACY_RECORD_CLASS_SUBPATHS` (updated by
+        # Order 03, `rodj06`), for the same reason the artifact-types parity assertion above was
+        # converted by Order 02. Before Order 03, `record_producers` defined its own legacy map and
+        # comparing the two was a real fence with a measured delta of `{"backlog", "roadmaps"}`.
+        # Order 03 made that module DERIVE its map from THIS model, so a set-difference against it
+        # is now identically empty and could not catch a narrowing at all.
+        #
+        # The DOC-FAMILY OVERRIDES are what actually matter and they are pinned literally above and
+        # here: only `specs`, `research` and `walkthroughs` may differ from their final subpath, and
+        # every other class must inherit its final subpath (correct-by-absence). That is the property
+        # `resolve_record_read_paths` depends on, so a hand-added `docs/`-prefixed entry for a tree
+        # that never had a legacy `.agents/` counterpart fails HERE.
         self.assertEqual(
-            set(modeled) - set(RP._LEGACY_RECORD_CLASS_SUBPATHS),
-            {"backlog", "roadmaps"},
+            {
+                name
+                for name, sub in modeled.items()
+                if sub != self.model.get_record_subpath(name)
+            },
+            {"specs", "research", "walkthroughs"},
         )
         self.assertEqual(modeled["backlog"], self.model.get_record_subpath("backlog"))
         self.assertEqual(modeled["roadmaps"], self.model.get_record_subpath("roadmaps"))
+        self.assertEqual(modeled["reviews"], self.model.get_record_subpath("reviews"))
+        # And the legacy map still covers every class the final map does, so a migration read can
+        # never fall through to a KeyError for a class that routes fine going forward.
+        self.assertEqual(set(modeled), set(self.model.record_subpaths()))
 
     def test_lifecycle_subdirs_match_the_live_status_dirs(self) -> None:
         from agent_workflows import backlog as BL

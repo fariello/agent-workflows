@@ -4,6 +4,12 @@ This module OWNS the machine-checkable schema and vocabulary defined by the spec
 ``.agents/docs/specs/20260810-1447-01-physical-aw-hierarchy-placement-and-migration.spec.md``.
 All storage, resolver, CLI, and test modules import canonical types and constants from THIS module.
 
+THE TWO ROOT VOCABULARIES ARE VERIFIED AGAINST THE LAYOUT MODEL (spec `kw5y2s` Section 5.1 item 4,
+Set `wslayout` Order 03). ``LogicalRoot`` and ``RootClass`` remain STRONGLY TYPED, hand-written
+enums, and the alignment is enforced by an import-time assertion against
+``agent_workflows/layout.py`` rather than by generating the members. See the note on ``RootClass``
+for why generating them would be the wrong move here.
+
 Stdlib-only (Python 3.9+).
 """
 
@@ -13,6 +19,8 @@ import json
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+from agent_workflows import layout as _layout
 
 
 class DeliveryMode(str, Enum):
@@ -43,7 +51,10 @@ class DurabilityState(str, Enum):
 
 
 class LogicalRoot(str, Enum):
-    """The four logical roots of an AW-enabled project (spec Section 4)."""
+    """The four logical roots of an AW-enabled project (spec Section 4).
+
+    Aligned with ``layout.LOGICAL_ROOTS`` and verified at import; see ``_assert_layout_alignment``.
+    """
 
     SYSTEM = "system"
     CONFIG = "config"
@@ -52,7 +63,18 @@ class LogicalRoot(str, Enum):
 
 
 class RootClass(str, Enum):
-    """The six physical classes of an AW-enabled project (spec Section 4.1)."""
+    """The six PHYSICAL PLACEMENT classes of an AW-enabled project (spec Section 4.1).
+
+    SIX MEMBERS, NOT FOUR, and the difference from ``LogicalRoot`` above is load-bearing rather
+    than redundant (spec Section 5.1 item 4 forbids collapsing one into the other). The two enums
+    answer DIFFERENT QUESTIONS: ``LogicalRoot`` answers "which logical root does this belong to?",
+    while this enum answers "which independently PLACEABLE unit is it?". ``config`` and ``state``
+    each split in two because the halves have OPPOSITE git policies that
+    ``validate_placement_combination`` enforces below: ``config_local`` and ``state_runtime`` MUST
+    NOT be tracked in any git repository, while ``config_project`` and ``state_durable`` normally
+    are. Collapsing this enum to four would erase the distinction that keeps machine-local config
+    and runtime scratch out of a commit.
+    """
 
     SYSTEM = "system"
     CONFIG_PROJECT = "config_project"
@@ -60,6 +82,53 @@ class RootClass(str, Enum):
     STATE_DURABLE = "state_durable"
     STATE_RUNTIME = "state_runtime"
     RECORDS = "records"
+
+
+def _assert_layout_alignment() -> None:
+    """Fail LOUDLY AT IMPORT if the two root vocabularies drift from the canonical layout model.
+
+    WHY THIS IS AN ASSERTION AND NOT A DERIVATION, which is the opposite of the choice Order 03
+    made for ``record_producers.RecordClass``: spec Section 5.1 item 4 requires these two to
+    "remain strongly typed enums", and the requirement here is ALIGNMENT, not growth. The record
+    classes genuinely had to GAIN members (the union ruling), so generating them from the model was
+    the only way to keep one authority. These two are FIXED at four and six, are referenced by
+    static attribute all over the toolkit (``RootClass.STATE_DURABLE`` and friends), and their whole
+    risk is SILENT DRIFT rather than duplication. A literal enum plus a hard import-time check keeps
+    the members statically navigable while making drift impossible to ship.
+
+    Raises ``RuntimeError`` rather than using ``assert``, because ``assert`` is stripped under
+    ``python -O`` and this invariant must hold in every runtime mode.
+    """
+    logical = {r.value for r in LogicalRoot}
+    modeled_logical = set(_layout.LOGICAL_ROOTS)
+    if logical != modeled_logical:
+        raise RuntimeError(
+            "LogicalRoot drifted from layout.LOGICAL_ROOTS: "
+            "only here={0}, only in model={1}".format(
+                sorted(logical - modeled_logical), sorted(modeled_logical - logical)
+            )
+        )
+
+    classes = {c.value for c in RootClass}
+    modeled_classes = set(_layout.ROOT_CLASSES)
+    if classes != modeled_classes:
+        raise RuntimeError(
+            "RootClass drifted from layout.ROOT_CLASSES: "
+            "only here={0}, only in model={1}".format(
+                sorted(classes - modeled_classes), sorted(modeled_classes - classes)
+            )
+        )
+
+    # THE NON-COLLAPSE INVARIANT ITSELF (spec Section 5.1 item 4), checked rather than assumed: a
+    # future edit that "simplifies" either enum into the other must not start up.
+    if len(logical) != 4 or len(classes) != 6 or logical == classes:
+        raise RuntimeError(
+            "the logical roots (4) and physical placement classes (6) must stay distinct; "
+            "got {0} logical and {1} physical".format(len(logical), len(classes))
+        )
+
+
+_assert_layout_alignment()
 
 
 class Placement(str, Enum):
