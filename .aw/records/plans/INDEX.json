@@ -4174,6 +4174,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md",
+    "plan_id": "eulhzt",
+    "set_id": "ctlroot",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md",
     "plan_id": "v8xdz4",
     "set_id": "findpaths",
@@ -4377,16 +4387,6 @@
     "path": "pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md",
     "plan_id": "i6015i",
     "set_id": "worksequence",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md",
-    "plan_id": "eulhzt",
-    "set_id": "ctlroot",
     "status": "approved"
   },
   {
