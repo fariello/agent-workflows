@@ -4220,6 +4220,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
+    "plan_id": "zvk796",
+    "set_id": "wslayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-03",
     "disposition": "executed",
     "kind": "child",
@@ -4466,16 +4476,6 @@
     "order": 0,
     "path": "pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
     "plan_id": "rh5tt6",
-    "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
-    "plan_id": "zvk796",
     "set_id": "wslayout",
     "status": "approved"
   },
