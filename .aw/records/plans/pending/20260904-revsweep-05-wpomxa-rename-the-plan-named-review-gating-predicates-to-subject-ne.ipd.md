@@ -6,17 +6,19 @@
 - Scope: Rename `plan_gating_blocks` to a subject-neutral name, DELETE the zero-caller wrapper `plan_blocks_dependents` (maintainer ruling, OQ-01), and update every call site and docstring. BEHAVIOR-PRESERVING: no signature semantics, no call order, no threshold logic, and no message text changes. The deletion is not a behavior change either, because the deleted function has no caller to lose it; that claim is re-verified before the delete rather than assumed. EXCLUDES every part of the record's subject fields, its migration, and the checker's type-directed resolution (`eyh1fu` owns all of it and is this plan's hard prerequisite), excludes any change to what the predicates DECIDE, and excludes renaming the `GatingBlock` type or the `Subject-Id`/`Subject-Type` fields themselves.
 - Scope-Paths: agent_workflows/review_findings.py, agent_workflows/check_engine.py, agent_workflows/plan_readiness.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_set_plan.py, tests/test_plan_readiness.py, tests/test_review_findings_cascade.py
 - Item-Dependencies: executed:eyh1fu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: revsweep
 - Order: 5
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: wpomxa
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Spec: 6m4kow
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): OQ-01 RESOLVED by the maintainer, asked interactively: DELETE `plan_blocks_dependents` rather than rename it. Propagated through every dependent statement rather than only the question, because the plan had told the executor the opposite in three places: E-02 now deletes it (and requires RE-VERIFYING the zero-caller fact immediately before deleting, since three other pending plans are editing the modules where a new caller would most likely appear), E-03 notes one of the two docstrings disappears with it, the Scope line now says BEHAVIOR-PRESERVING rather than PURE RENAME, the scope fence's `Do NOT delete` clause became `DO DELETE`, and E-01's baseline covers only the surviving predicate since a deleted function has no behavior to preserve. Also refreshed six stale `both predicates` references. THE MEASUREMENT BEHIND THE RULING, re-verified at review: one line (`return bool(plan_gating_blocks(...))`, `review_findings.py:850`), zero callers anywhere, no direct test, no `__all__` entry, and a docstring that steers callers to the tuple-returning version. ONE CORRECTION recorded so a bad measurement is not trusted twice: an interim note in this conversation claimed tests referenced it; they do not. `aw ipd lint` conforming at `--phase review-finalize` after the edits.
 
 - 2026-09-05 reviewed (aw set): plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-001 (HIGH, three string-reference sites a symbol rename cannot find), PR-002 (MEDIUM, GatingBlock.plan_id6 position), PR-003 (positive verification) all FIXED; D-1, D-2 recorded reversible.
