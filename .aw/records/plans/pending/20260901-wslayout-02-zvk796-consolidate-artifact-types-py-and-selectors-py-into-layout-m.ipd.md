@@ -39,10 +39,20 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: Refactor artifact_types.py
 
-- [ ] E-01 Update `agent_workflows/artifact_types.py` to derive `ARTIFACT_TYPES`, `_ALIASES`, `is_type_token()`, and `normalize_type()` directly from `agent_workflows/layout.py`, preserving all function signatures and exception types.
+- [x] E-01 Update `agent_workflows/artifact_types.py` to derive `ARTIFACT_TYPES`, `_ALIASES`, `is_type_token()`, and `normalize_type()` directly from `agent_workflows/layout.py`, preserving all function signatures and exception types.
   - Depends on: none
   - Expected outcome: `artifact_types.py` re-exports the layout model definitions seamlessly.
-  - Execution state: pending
+  - Execution state: performed
+  - Executed 2026-09-05: added `from agent_workflows import layout as _layout` plus a module-level
+    `_LAYOUT = _layout.build_default_layout()`, then replaced the four hardcoded definitions with
+    `ARTIFACT_TYPES = _LAYOUT.artifact_types()`, `_ALIASES = _LAYOUT.alias_map()`,
+    `is_type_token -> _LAYOUT.is_known_type(token)` and `normalize_type -> _LAYOUT.normalize_type(token)`.
+    Signatures, the `ValueError` type and the "valid types: ..." message are unchanged (the message is
+    produced by `layout.normalize_type`, which lists `artifact_types(include_reviews=False)` + `all`,
+    i.e. the same 10 in the same order). `expand_types` and `TYPE_BACKENDS` were left untouched.
+    Importing `layout` cannot cycle: it is stdlib-only and imports no `agent_workflows` module.
+  - Verified non-narrowing: all 10 pre-existing types survive in order, `roadmaps` present,
+    `normalize_type('roadmap') == 'roadmaps'`; `reviews` is the one added member (see V-01).
   - Set-level prerequisite: `wpu5zu` must be executed first; see `- Item-Dependencies:` in the metadata.
   - NON-NEGOTIABLE (plan-review PR-001, maintainer ruling 2026-09-01): `roadmaps` MUST survive in
     `ARTIFACT_TYPES`, and `roadmap` MUST survive in `_ALIASES`. The draft spec's table omits them; the
@@ -56,10 +66,23 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 2: Refactor selectors.py
 
-- [ ] E-02 Update `agent_workflows/selectors.py` to source `KNOWN_PRIMARY_TYPES`, `NON_PRIMARY_RECORD_DIRS`, and `EXCLUDED_RECORD_DIRS` from `agent_workflows/layout.py`.
+- [x] E-02 Update `agent_workflows/selectors.py` to source `KNOWN_PRIMARY_TYPES`, `NON_PRIMARY_RECORD_DIRS`, and `EXCLUDED_RECORD_DIRS` from `agent_workflows/layout.py`.
   - Depends on: E-01
   - Expected outcome: `selectors.py` uses the canonical layout exclusions and types.
-  - Execution state: pending
+  - Execution state: performed
+  - Executed 2026-09-05: added `from agent_workflows import layout as _layout` and a module-level
+    `_LAYOUT`, then replaced the three hardcoded frozensets with
+    `KNOWN_PRIMARY_TYPES = frozenset(_LAYOUT.primary_types())`,
+    `NON_PRIMARY_RECORD_DIRS = frozenset(_LAYOUT.non_primary_record_dirs())` and
+    `EXCLUDED_RECORD_DIRS = frozenset(_LAYOUT.traversal_exclusions)`. All three remain `frozenset`,
+    so the parity tests that compare them as sets are unaffected.
+  - THE DERIVED UNION WAS KEPT DERIVED (PR-101): `_OTHER_SWEEP_SKIP_DIRS` is still computed as
+    `KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS` from whatever those three
+    become; it was NOT hardcoded and no fourth direct membership test was added. Measured: the union
+    still contains `reviews`, `resolve(other, '2r306y')` returns `[]`, and a bare id6 matches exactly
+    `['plans']` (see V-02), so the `d802e917` outage is not re-opened.
+  - Exclusions kept at exactly the 7 per OQ-01: `layout.TRAVERSAL_EXCLUSIONS` is already pinned to
+    those 7, so no widening occurred and the `wpu5zu` parity test needed no change.
   - TRAVERSAL EXCLUSIONS ARE A BEHAVIOR DECISION, NOT A PURE MOVE (plan-review PR-005). Today
     `EXCLUDED_RECORD_DIRS` = `.git`, `.system_generated`, `__pycache__`, `runs`, `scratch`, `temp`, `tmp`
     (7 entries). The draft spec additionally lists `node_modules`, `venv`, `.venv` (`kw5y2s:88-90`).
@@ -148,7 +171,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `python3 -m pytest tests/test_awcmdsurf_vocab_and_parsers.py` passes cleanly, with the ACTUAL runner output pasted (file verified to exist at review time).
   - PLUS the no-narrowing proof (PR-001), pasted:
     `python3 -c "from agent_workflows import artifact_types as AT; print(sorted(AT.ARTIFACT_TYPES)); print('roadmaps:', 'roadmaps' in AT.ARTIFACT_TYPES, '| roadmap alias:', AT.normalize_type('roadmap'))"`
@@ -159,10 +182,35 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
   - PLUS the BARE FULL SUITE (PR-006), because "100% backward compatibility" cannot be proven by two
     narrow files: run `python3 -m pytest` (bare; addopts already supply `-q -n auto --dist=worksteal -m 'not slow'`)
     and paste the `N passed` summary line, with zero regressions against the pre-change baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FOUR REQUIRED ITEMS VERIFIED AND PASTED BELOW (2026-09-05, lane worktree `aw/lane/zvk796`, starting HEAD `646be41f`): the narrow file passes 14/14, the no-narrowing proof shows all 10 pre-existing types with `roadmaps` present and `normalize_type('roadmap') == 'roadmaps'`, `aw check reviews` now CONFORMS over 40 records (exit 0) where pristine HEAD exited 2, and the bare full suite shows ZERO regressions (31 failed / 4720 passed vs a 31 failed / 4714 passed baseline).
+    - `python3 -m pytest tests/test_awcmdsurf_vocab_and_parsers.py`:
+      `..............                                                           [100%]`
+      `14 passed in 2.01s`
+      (12 pre-existing + the 6 net-new `DerivedVocabularyTests` cases minus none; file grew from 8 to 14 tests)
+    - No-narrowing proof:
+      `ARTIFACT_TYPES = ('plans', 'specs', 'prompts', 'research', 'backlog', 'walkthroughs', 'roadmaps', 'comms', 'releases', 'reviews', 'other')`
+      `roadmaps: True | roadmap alias: roadmaps`
+      `all 10 pre-existing preserved? True`
+      `order preserved (minus reviews)? True`
+      So the tuple did not narrow; `reviews` is the single added member, per the union ruling.
+    - Intended net-new surface, `aw check reviews` (run through the LANE's package, since the
+      installed `aw` shim resolves to the main checkout's editable install):
+      `AW check  reviews                                                           0 ms`
+      `✓ CONFORMS  40 reviews checked`
+      `Evidence  checked  40   errors  0   warnings  0`
+      exit 0, where pristine HEAD gave
+      `✗ ERROR  unknown artifact type 'reviews'; valid types: ...` and exit 2.
+    - BARE FULL SUITE: baseline on unmodified HEAD `646be41f` was
+      `31 failed, 4714 passed, 3 skipped, 4 xfailed in 36.84s`; after the change
+      `31 failed, 4720 passed, 3 skipped, 4 xfailed in 34.05s`.
+      Set-differencing the two FAILED lists gives ZERO new failures and zero fixed, i.e. the same 31
+      pre-existing failures (`test_run_viewer.py` 14, `test_oc_runipd.py` 7, `test_agy_runipd_cli.py` 6,
+      `test_ipd_lifecycle_cli.py` 2, `test_novalnomerge_integration.py` 1, `test_worker_role_refusal.py` 1),
+      all unrelated to this vocabulary work (runner/worktree/receipt tests). The +6 passed are exactly
+      the new `DerivedVocabularyTests` cases.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: `python3 -m pytest tests/test_selector_resolver_matrix.py` passes cleanly, with the ACTUAL runner output pasted (file verified to exist at review time).
   - PLUS the exact exclusion set (PR-005), pasted:
     `python3 -c "from agent_workflows import selectors as S; print(tuple(S.EXCLUDED_RECORD_DIRS))"`
@@ -180,8 +228,29 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     returning exactly `['plans']`. A second match here is the 28-plan `aw set` outage regressing
     (`d802e917`), and `tests/test_selector_resolver_matrix.py` already pins it - so run that file too
     and paste its result.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL REQUIRED ITEMS VERIFIED AND PASTED BELOW (2026-09-05, same lane and HEAD): the selector matrix passes 20/20, `EXCLUDED_RECORD_DIRS` is the UNCHANGED 7 (OQ-01 honored, no `wpu5zu` parity-test change needed), the derived union still contains `reviews` and still equals the three inputs, a review record resolves to `[]` for `other`, and a bare id6 matches exactly `['plans']` so the 28-plan `aw set` outage does not regress.
+    - `python3 -m pytest tests/test_selector_resolver_matrix.py`:
+      `....................                                                     [100%]`
+      `20 passed in 1.72s`
+    - Exact exclusion set (the UNCHANGED 7, so OQ-01 is honored and the `wpu5zu` parity test needed
+      no change; printed order is frozenset iteration order, membership is what matters):
+      `('scratch', '.system_generated', '.git', '__pycache__', 'temp', 'runs', 'tmp')`
+    - The DERIVED union, with `reviews` present:
+      `['.git', '.system_generated', '__pycache__', 'backlog', 'comms', 'plans', 'prompts', 'releases', 'research', 'reviews', 'roadmaps', 'runs', 'scratch', 'specs', 'temp', 'tmp', 'walkthroughs']`
+      and it still EQUALS `KNOWN_PRIMARY_TYPES | NON_PRIMARY_RECORD_DIRS | EXCLUDED_RECORD_DIRS`:
+      `True`
+    - A review record must not resolve as `other`:
+      `S.resolve(Path('.'),'other','2r306y').paths` -> `[]`
+    - The single-match check (the 28-plan `aw set` outage does NOT regress):
+      `[m.record_type for m in SS.match_selector('2r306y', r, Path('.'))]` -> `['plans']`
+  - ALSO verified no new diagnostic class or count (plan's `aw check --agent` requirement). Rule
+    classes are IDENTICAL pristine-HEAD vs post-change, and so is the total:
+    `check.from-backlog-dangling`, `check.from-backlog-gate-mismatch`, `check.lifecycle-transition-invalid`,
+    `check.name-nonconformant`, `check.scope-drift`, `check.setid-collision` (six classes both ways);
+    `PRISTINE total findings: 35` vs `MINE total findings: 35`. `reviews` is deliberately absent from
+    `check_engine.SUPPORTED`, so widening the type NOUN did not enlarge what `aw check all` scans.
+    `aw sanitize --agent` -> `{"outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 
