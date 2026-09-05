@@ -1,12 +1,14 @@
 - Id: 1f9m2j
-- Status: open
+- Status: blocked
 - Set: runviewdisc
 - Priority: medium
 - Work-Kind: bug
 - Summary: the aw runs discrepancy table reports resolved-since-the-run items as defects, because it compares a frozen historical record against present-day truth
+- Gate-Kind: artifact
+- Gate-Ref: rnl3b7
 
 ## Workflow history
-- 2026-09-05 created (aw backlog): the aw runs discrepancy table reports resolved-since-the-run items as defects, because it compares a frozen historical record against present-day truth
+- 2026-09-05 set (aw backlog): BLOCKED on rnl3b7 after a design attempt was ABANDONED as unsound (2026-09-05, maintainer ruling: do not fix this if the fix must fabricate an OK the data does not support). THE FLAW: the proposed classifier would have inferred 'resolved' from lifecycle DIRECTION alone (run says integration-blocked, artifact says executed in executed/ -> benign). That inference is not grounded in anything run_viewer can observe. Verified it reads exactly two things: actual_file.parent.name (run_viewer.py:438) and a '- Status:' regex (:444-445), with ZERO references to finalize journals, receipts, git history, or commits anywhere in the module (grep count 0). So a legitimately finalized-and-integrated plan and a hand-edited '- Status: executed' plus git mv are BYTE-IDENTICAL to the audit. Classifying the pair as 'resolved' would print a green OK for the exact bypass the ipd-executed-transition-gate hook exists to catch, which is strictly worse than the current false positives. Note the direct irony: rnl3b7 criticizes that hook for being unable to distinguish a legitimate merge from a hand-edit, and this fix would have made the same undecidable call and answered it optimistically. WHAT A GROUNDED FIX NEEDS (any one): the in-tree 'lifecycle(<id6>): finalize' commit read from git history; or the finalize transaction journal, which is gitignored and therefore unavailable across trees (the same blocker rnl3b7 names); or a durable in-record note that integration happened after the run. Until the viewer can READ such evidence, 'resolved' is a guess and the four rows should stay as-is: noisy but TRUTHFUL, since the run record and disk genuinely do differ and the viewer cannot say why. The scaffolded plan l6ukz1 was deleted rather than left as a misleading pending artifact.
 
 THE DEFECT. `run_viewer.render` (the "Artifact & Status Discrepancies" table, title at
 `agent_workflows/run_viewer.py:1346`) compares each queue item's FROZEN run-record status against
