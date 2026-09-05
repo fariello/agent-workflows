@@ -37,20 +37,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the code vocabulary, mapped rather than invented
 
-- [ ] E-01 Add the 13 `RUN-*` codes to `run_evidence.py` as a DATA table (code, message template, recovery command, failure action), transcribing the message and action text VERBATIM from spec `25kzda` 4.2. Do not compose your own wording: each row of the spec's table fixes the exact operator-facing string and the failure action (`ABORT RUN`, `FAIL ITEM`, `RETRY`, `SKIP ITEM`, `SKIP DEPENDENCY-NOT-MET`, `NEEDS INPUT`), and the action semantics are load-bearing because `ABORT RUN` is an EXHAUSTIVE six-class set per spec 4.1 and no other finding may abort the queue. Keep it data, not branching logic, so the whole policy is readable in one place. MEASURED: all 13 codes grep to ZERO in the package. CORRECTED AT REVIEW (PR-002): an earlier draft told you to "follow that module's existing convention" for the parallel `EV-*` codes, which CONTRADICTS the data requirement above. There is NO `EV-*` data table: those codes are docstring prose (`run_evidence.py:540-545`) plus bare string literals inside branching logic (`:561`, `:575`, `:589`, `:602`, `:614`, `:624`, `:637`, `:650`), i.e. exactly the shape this item forbids. THE DATA REQUIREMENT WINS: build the table `EV-*` should have had, deliberately introducing the convention rather than copying the existing one. Do NOT refactor the shipped `EV-*` codes into it (out of scope); just do not cite them as the model.
+- [x] E-01 Add the 13 `RUN-*` codes to `run_evidence.py` as a DATA table (code, message template, recovery command, failure action), transcribing the message and action text VERBATIM from spec `25kzda` 4.2. Do not compose your own wording: each row of the spec's table fixes the exact operator-facing string and the failure action (`ABORT RUN`, `FAIL ITEM`, `RETRY`, `SKIP ITEM`, `SKIP DEPENDENCY-NOT-MET`, `NEEDS INPUT`), and the action semantics are load-bearing because `ABORT RUN` is an EXHAUSTIVE six-class set per spec 4.1 and no other finding may abort the queue. Keep it data, not branching logic, so the whole policy is readable in one place. MEASURED: all 13 codes grep to ZERO in the package. CORRECTED AT REVIEW (PR-002): an earlier draft told you to "follow that module's existing convention" for the parallel `EV-*` codes, which CONTRADICTS the data requirement above. There is NO `EV-*` data table: those codes are docstring prose (`run_evidence.py:540-545`) plus bare string literals inside branching logic (`:561`, `:575`, `:589`, `:602`, `:614`, `:624`, `:637`, `:650`), i.e. exactly the shape this item forbids. THE DATA REQUIREMENT WINS: build the table `EV-*` should have had, deliberately introducing the convention rather than copying the existing one. Do NOT refactor the shipped `EV-*` codes into it (out of scope); just do not cite them as the model.
   - Depends on: none
   - Expected outcome: all 13 codes exist as data with the spec's verbatim message templates, recovery commands, and failure actions; the table is a single readable structure; a test can enumerate it and compare against the spec; nothing about the shipped `EV-*` codes changes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Bind each `RUN-*` code to the SHIPPED predicate that already decides it, and mark explicitly the ones whose machinery does not exist yet. This discharges the retired plan's blocking OQ-03, which required exactly this mapping before any code was written; the measured mapping is in this plan's Findings table (F3) and MUST be re-verified rather than trusted, because HEAD moves hourly here. The three states each code can be in: BOUND (a shipped predicate decides it, so the code is a name over existing logic); UNBOUND-BY-DEPENDENCY (the predicate needs machinery another plan owns, for example the commit trailers of `runtrail-01` (`m73aet`) or the host capability contract of `hostcap-01` (`mjx7ne`)); and UNBOUND-UNBUILT (nothing decides it yet). Record the state per code IN THE TABLE. Do NOT implement a missing predicate here: an unbound code that honestly reports itself unbound is safe, whereas a code silently wired to a predicate that does not answer its question is a fail-OPEN checker.
+- [x] E-02 Bind each `RUN-*` code to the SHIPPED predicate that already decides it, and mark explicitly the ones whose machinery does not exist yet. This discharges the retired plan's blocking OQ-03, which required exactly this mapping before any code was written; the measured mapping is in this plan's Findings table (F3) and MUST be re-verified rather than trusted, because HEAD moves hourly here. The three states each code can be in: BOUND (a shipped predicate decides it, so the code is a name over existing logic); UNBOUND-BY-DEPENDENCY (the predicate needs machinery another plan owns, for example the commit trailers of `runtrail-01` (`m73aet`) or the host capability contract of `hostcap-01` (`mjx7ne`)); and UNBOUND-UNBUILT (nothing decides it yet). Record the state per code IN THE TABLE. Do NOT implement a missing predicate here: an unbound code that honestly reports itself unbound is safe, whereas a code silently wired to a predicate that does not answer its question is a fail-OPEN checker.
   - Depends on: E-01
   - Expected outcome: every one of the 13 codes carries its state and, when BOUND, the shipped predicate it delegates to; no code is bound to a predicate that does not answer its question; the UNBOUND ones name the plan or the missing machinery they wait on; a reader can see at a glance how much of the checker actually decides anything.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Extend the SHIPPED `tests/test_run_evidence_completion.py` rather than creating a new one. The retired plan proposed `tests/test_deterministic_checker.py`, which its review rejected because this module plus `tests/test_run_viewer.py` already cover these surfaces. NARROWED BY THE SPLIT (2026-09-04): this item no longer touches `tests/test_run_recovery_cli.py`, which now belongs to Order 3 (`sq61qd`), and it no longer covers `--unverifiable-ok` (Order 2, `zub5f1`) or the retry boundaries (Order 3). Cases MUST include: the 13 codes enumerated and each message asserted against the SPEC TEXT (so rewording fails the test); and every code's recorded state matching a live re-measurement (so the mapping cannot silently rot). Do NOT weaken, remove, or alter any existing assertion.
+- [x] E-03 Extend the SHIPPED `tests/test_run_evidence_completion.py` rather than creating a new one. The retired plan proposed `tests/test_deterministic_checker.py`, which its review rejected because this module plus `tests/test_run_viewer.py` already cover these surfaces. NARROWED BY THE SPLIT (2026-09-04): this item no longer touches `tests/test_run_recovery_cli.py`, which now belongs to Order 3 (`sq61qd`), and it no longer covers `--unverifiable-ok` (Order 2, `zub5f1`) or the retry boundaries (Order 3). Cases MUST include: the 13 codes enumerated and each message asserted against the SPEC TEXT (so rewording fails the test); and every code's recorded state matching a live re-measurement (so the mapping cannot silently rot). Do NOT weaken, remove, or alter any existing assertion.
   - Depends on: E-01, E-02
   - Expected outcome: all cases pass; the message assertions fail if any message is reworded; the mapping test fails if a code's state stops matching reality; existing assertions in the shipped file pass unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -160,20 +160,210 @@ MOVED OUT BY THE 2026-09-04 SPLIT: `--unverifiable-ok` aggregate neutrality is O
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the 13-row table. Paste a diff or side-by-side of each message against spec 4.2's corresponding row, proving VERBATIM transcription including the recovery command. Paste each row's failure action beside the spec's action column, and paste evidence that no code outside spec 4.1's six abort classes is marked `ABORT RUN` (F4). Paste evidence the shipped `EV-*` codes are unchanged.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS at HEAD `f461ad86` (measured in the PRIMARY lane checkout). All 13 codes exist as one data table (`run_evidence.RUN_FINDING_CODES`), and message AND action are byte-identical to spec 4.2, verified by PARSING THE SPEC FILE rather than by comparing against a hardcoded copy.
 
-- [ ] V-02 validates E-02
+    THE 13-ROW TABLE (printed from the shipped module):
+
+    ```text
+    RUN-FROZEN-IDENTITY        | abort=conditional | BOUND                  | preds=4
+    RUN-STRUCTURE-PREFLIGHT    | abort=conditional | BOUND                  | preds=3
+    RUN-BASELINE-OWNERSHIP     | abort=always      | BOUND                  | preds=3
+    RUN-LEDGER-INTEGRITY       | abort=always      | BOUND                  | preds=3
+    RUN-HOST-CAPABILITY        | abort=never       | BOUND                  | preds=3
+    RUN-HOST-ATTEMPT           | abort=never       | BOUND                  | preds=4
+    RUN-FRESH-VERIFIER         | abort=never       | BOUND                  | preds=3
+    RUN-SCOPE-DELTA            | abort=never       | BOUND                  | preds=3
+    RUN-COMMIT-CONTENTS        | abort=conditional | UNBOUND-BY-DEPENDENCY  | preds=0
+    RUN-COMMIT-GATEWAY         | abort=conditional | UNBOUND-BY-DEPENDENCY  | preds=0
+    RUN-NO-PUSH                | abort=conditional | UNBOUND-UNBUILT        | preds=0
+    RUN-CHECK-FRESHNESS        | abort=never       | BOUND                  | preds=5
+    RUN-CROSS-TREE             | abort=conditional | BOUND                  | preds=4
+    ```
+
+    VERBATIM TRANSCRIPTION, message AND action, per code, compared against spec 4.2's parsed rows (recovery command included, since it is part of the message string):
+
+    ```text
+    RUN-FROZEN-IDENTITY        message_verbatim=True  action_verbatim=True
+    RUN-STRUCTURE-PREFLIGHT    message_verbatim=True  action_verbatim=True
+    RUN-BASELINE-OWNERSHIP     message_verbatim=True  action_verbatim=True
+    RUN-LEDGER-INTEGRITY       message_verbatim=True  action_verbatim=True
+    RUN-HOST-CAPABILITY        message_verbatim=True  action_verbatim=True
+    RUN-HOST-ATTEMPT           message_verbatim=True  action_verbatim=True
+    RUN-FRESH-VERIFIER         message_verbatim=True  action_verbatim=True
+    RUN-SCOPE-DELTA            message_verbatim=True  action_verbatim=True
+    RUN-COMMIT-CONTENTS        message_verbatim=True  action_verbatim=True
+    RUN-COMMIT-GATEWAY         message_verbatim=True  action_verbatim=True
+    RUN-NO-PUSH                message_verbatim=True  action_verbatim=True
+    RUN-CHECK-FRESHNESS        message_verbatim=True  action_verbatim=True
+    RUN-CROSS-TREE             message_verbatim=True  action_verbatim=True
+
+    ALL 13 VERBATIM (message and action): True
+    spec rows parsed: 13
+    ```
+
+    This is asserted permanently, not just measured once, by `test_every_message_is_verbatim_from_the_spec`, `test_every_failure_action_is_verbatim_from_the_spec`, `test_inspects_and_pass_criterion_are_verbatim_from_the_spec`, and `test_every_message_carries_the_specs_recovery_command`, all of which read the spec file at test time. `test_spec_defines_exactly_thirteen_run_codes` guards the guard: if the spec's own table stops having 13 rows, that fails first.
+
+    F4 (NO CODE ABORTS OUTSIDE SPEC 4.1's SIX CLASSES). `ABORT_CLASSES` is asserted EQUAL to spec 4.1's six-row table, parsed from the spec file (`test_abort_class_set_is_verbatim_from_spec_4_1`). Exactly TWO codes are unconditional aborts, `RUN-BASELINE-OWNERSHIP` and `RUN-LEDGER-INTEGRITY`, which is asserted as an exact list; the other 8 aborting codes are `conditional` and each names the 4.1 class that licenses it; 5 never abort and are required to name no class. `test_abort_tristate_agrees_with_the_specs_action_text` DERIVES the expected tri-state from the spec's own action string, so the tri-state cannot disagree with the text it indexes, and `test_conditional_abort_is_not_reported_as_unconditional` pins the specific harm F4 names. `validate_finding_table()` additionally rejects any abort class not in the exhaustive set, any aborting row naming no class, and any never-aborting row naming one; it returns `ok=True` with zero findings.
+
+    SHIPPED `EV-*` CODES UNCHANGED. The diff is ADDITIVE ONLY (`git diff --numstat` for the commit: `649 0` and `329 0`, i.e. ZERO deletions in either file), so no `EV-*` literal or docstring line was touched. Behaviorally confirmed too: `validate_evidence({"kind": "not-a-real-kind"})` still returns exactly `["EV-FABRICATED-TEXT"]` (`test_no_shipped_ev_code_was_renamed_into_the_new_table`), and that test also asserts no `RUN-*` row was named `EV-*`. Per PR-002/F9 the `EV-*` codes were deliberately NOT refactored into the new table (out of scope); they are cited only as BINDINGS.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the per-code state (BOUND / UNBOUND-BY-DEPENDENCY / UNBOUND-UNBUILT) with, for each BOUND code, the shipped predicate and a live demonstration that the predicate actually decides that code's question. Paste your OWN re-measurement of F3's mapping at the HEAD you worked at, and state explicitly any binding that changed since F3 was recorded. Paste evidence no code is bound to a predicate that does not answer its question.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS at HEAD `f461ad86`. E-02's instruction to re-verify rather than trust was the right call: **F3 HAD DRIFTED IN THREE PLACES**, because both plans it was waiting on have EXECUTED since it was written at HEAD `738980ec`. Measured partition is now **10 BOUND / 2 UNBOUND-BY-DEPENDENCY / 1 UNBOUND-UNBUILT**; F3 recorded 9 / 2 / 2. Recorded per decision D2 in the run register.
 
-- [ ] V-03 validates E-03
+    PER-CODE STATE AND PREDICATES, printed from the shipped table, with every predicate symbol RESOLVED at this HEAD (the anti-rot check; `UNRESOLVED: []` is the whole point):
+
+    ```text
+    OK   RUN-FROZEN-IDENTITY      run_freeze.freeze_requirements
+    OK   RUN-FROZEN-IDENTITY      run_freeze.diff_requirements
+    OK   RUN-FROZEN-IDENTITY      run_freeze.refuse_drop_or_redefine
+    OK   RUN-FROZEN-IDENTITY      run_evidence.validate_evidence[EV-HASH-MISMATCH]
+    OK   RUN-STRUCTURE-PREFLIGHT  ipd_lint.lint_text
+    OK   RUN-STRUCTURE-PREFLIGHT  ipd_lint.lint_file
+    OK   RUN-STRUCTURE-PREFLIGHT  check_engine.check_type
+    OK   RUN-BASELINE-OWNERSHIP   worktree_lease.LeaseTable.claim
+    OK   RUN-BASELINE-OWNERSHIP   worktree_lease.assert_worker_scope
+    OK   RUN-BASELINE-OWNERSHIP   run_evidence.dirty_within
+    OK   RUN-LEDGER-INTEGRITY     run_ledger_store.RunLedgerStore.verify_chain
+    OK   RUN-LEDGER-INTEGRITY     run_ledger_store.BrokenChainError
+    OK   RUN-LEDGER-INTEGRITY     run_evidence.validate_ledger_evidence
+    OK   RUN-HOST-CAPABILITY      host_sandbox_profile.preflight_host_capabilities
+    OK   RUN-HOST-CAPABILITY      host_sandbox_profile.format_host_capability_finding
+    OK   RUN-HOST-CAPABILITY      host_sandbox_profile.check_action_capabilities
+    OK   RUN-HOST-ATTEMPT         run_evidence.capture_command
+    OK   RUN-HOST-ATTEMPT         run_evidence.validate_evidence[EV-FAILED-EXIT]
+    OK   RUN-HOST-ATTEMPT         run_evidence.validate_evidence[EV-MISSING-OUTPUT]
+    OK   RUN-HOST-ATTEMPT         run_evidence.validate_evidence[EV-COMMAND-MISMATCH]
+    OK   RUN-FRESH-VERIFIER       agy_verifier.assert_distinct_sessions
+    OK   RUN-FRESH-VERIFIER       agy_verifier.run_fresh_verifier
+    OK   RUN-FRESH-VERIFIER       run_evidence.validate_evidence[EV-EXECUTOR-VERIFIER]
+    OK   RUN-SCOPE-DELTA          ipd_lifecycle._frozen_scope_paths
+    OK   RUN-SCOPE-DELTA          ipd_lifecycle._reconcile_scope
+    OK   RUN-SCOPE-DELTA          check_engine.check_scope_drift
+    OK   RUN-CHECK-FRESHNESS      run_evidence.validate_evidence[EV-STALE-HEAD]
+    OK   RUN-CHECK-FRESHNESS      run_evidence.validate_evidence[EV-WRONG-CWD]
+    OK   RUN-CHECK-FRESHNESS      run_evidence.validate_evidence[EV-WRONG-WORKTREE]
+    OK   RUN-CHECK-FRESHNESS      run_evidence.validate_evidence[EV-TRUNCATED-OUTPUT]
+    OK   RUN-CHECK-FRESHNESS      run_evidence.get_git_head
+    OK   RUN-CROSS-TREE           check_engine.check_types
+    OK   RUN-CROSS-TREE           check_engine.check_refs
+    OK   RUN-CROSS-TREE           check_engine.check_release_gate_consistency
+    OK   RUN-CROSS-TREE           check_engine.check_ipd_dependencies
+
+    UNRESOLVED: []
+    ```
+
+    All 35 recorded predicates resolve. This is asserted permanently by `test_every_bound_codes_predicate_actually_resolves`, which fails if any is renamed or removed, because a rotted binding is indistinguishable at runtime from a check that never ran.
+
+    THE THREE DIVERGENCES FROM F3, each measured rather than inferred:
+
+    1. **`RUN-HOST-CAPABILITY`: UNBOUND-BY-DEPENDENCY -> BOUND.** F3 said it waited on `hostcap-01` (`mjx7ne`). `mjx7ne` is now in `.aw/records/plans/executed/` and shipped `host_sandbox_profile.py:1459` (`RUN_HOST_CAPABILITY`), `:1469` (the message template), `:1476` (`format_host_capability_finding`), `:1535` (`preflight_host_capabilities`). LIVE DEMONSTRATION that the predicate answers this code's question: calling `format_host_capability_finding(host="<host>", capability="<capability>", item="<item>", action="<action>", selector="<selector>")` returns a string EQUAL to spec 4.2's `RUN-HOST-CAPABILITY` row, verified by execution (`EQUAL: True`) and pinned by `test_host_capability_binding_agrees_with_the_shipped_implementation`, which also asserts this plan's template equals the shipped one so the two cannot drift apart.
+    2. **`RUN-BASELINE-OWNERSHIP`: UNBOUND-UNBUILT -> BOUND.** F3 said it needed "the path-lease overlap check" and that nothing implemented one. It ships: `worktree_lease.py:758` `LeaseTable`, whose `claim` (`:778`) raises `LeaseConflictError` when a path is "already owned by lane <other>", which is exactly this code's question ("no concurrently leased path overlaps this action's mutation scope"). The module was added by `m2wwns` (`b43ca056`) and its own docstring states it supplies the per-path exclusive lease that previously did NOT exist in the tree. The pre-existing-dirty-path half is decided by `run_evidence.dirty_within:223`. NOTE FOR THE MAINTAINER: backlog `d07nz2` asserts this code is one of TWO ownerless codes; that is now half wrong. I did not edit that item (outside my fence).
+    3. **`RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY`: still UNBOUND, but waiting on something DIFFERENT.** F3 said they waited on `runtrail-01` (`m73aet`). `m73aet` has EXECUTED and the trailers exist (`git_commit_helper.py:48-49` `TRAILER_KEY_RUN`/`TRAILER_KEY_ITEM`, `:226` `run_item_trailers`) - but ONLY AS WRITERS. Nothing reads a trailer back, and nothing proves a commit's tree diff equals the item-owned delta (searched by symbol and by string; zero hits). `m73aet`'s OWN executed receipt states "`RUN-COMMIT-GATEWAY` remains wholly unbuilt" and "nothing in the tree PASSES trailers yet". So the `waiting_on` text was corrected to name the missing READ-BACK predicate and the missing gateway RECEIPT rather than the now-executed plan.
+
+    NO CODE IS BOUND TO A PREDICATE THAT DOES NOT ANSWER ITS QUESTION. The two candidates for that error were considered and REJECTED, which is the substance of this item:
+    * `RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY` could have been bound to the shipped trailer WRITER, but writing a trailer is not proving a commit's contents; and `offer_commit` is a helper the driver CHOOSES to call, not a boundary an agent cannot evade (`host_sandbox_profile` declares `supports_commit_gateway` False and NEVER PROBES it for precisely this reason).
+    * `RUN-NO-PUSH` could have been bound to `check_engine.check_push_authorization`, and this would have been the worst error available: that function's own docstring says it is "LOCAL feedback only", that its env acknowledgement "is NOT independent authorization (the agent can set it)", and that it "NEVER claims to be that boundary". Binding a push-PREVENTION check to bypassable local feedback is the fail-open pattern already rejected once for the host capabilities. It stays UNBOUND-UNBUILT, owner backlog `d07nz2`.
+    Structurally enforced as well: `validate_finding_table()` refuses a BOUND row with no predicate and an unbound row that CLAIMS one, and `test_unbound_codes_claim_no_predicate_and_name_what_they_wait_on` asserts each unbound row names its missing machinery.
+
+    THE VOCABULARY DECIDES NO COMPLETION, so no second completion authority was created: `test_vocabulary_decides_no_completion` asserts none of the 13 codes appears in `evaluate_completion`'s predicate set while a clean run still evaluates complete.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste both shipped test modules passing with counts, and the BARE `python3 -m pytest` summary line with the `git rev-parse HEAD` it was measured at plus your own before-baseline at that HEAD, measured in the PRIMARY checkout (not a scratch worktree; see Required tests). Paste `git diff` of both test files proving no existing assertion was weakened, removed, or altered. Paste proof the new tests are NOT VACUOUS: reword one message in the implementation and show the assertion FAILING. Paste the no-worsening comparison for `aw check plans` (both counts measured, not remembered).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. NOTE ON THE REQUIREMENT'S WORDING: it asks for "both shipped test modules", which is residue from before the 2026-09-04 split; `tests/test_run_recovery_cli.py` now belongs to Order 3 (`sq61qd`) and E-03 as narrowed touches ONE test module. Evidence is for that one, and the other was deliberately NOT touched (it is outside this plan's fence).
+
+    THE MODULE PASSING, with counts:
+
+    ```text
+    $ python3 -m pytest tests/test_run_evidence_completion.py -o addopts="" -q
+    .................................................................        [100%]
+    65 passed in 1.13s
+
+    $ python3 -m pytest tests/test_run_evidence_completion.py -o addopts="" -q -k TestRunFindingCodeVocabulary
+    .....................                                                    [100%]
+    21 passed, 44 deselected in 0.17s
+    ```
+
+    44 pre-existing tests + 21 new = 65. (`-o addopts=""` is used ONLY for these narrowed per-module counts, exactly as the plan's "Required tests" section permits; the suite figure below is BARE.)
+
+    BARE SUITE, with my OWN before-baseline measured at the same HEAD, in the PRIMARY lane checkout (not a scratch worktree):
+
+    ```text
+    BEFORE (my changes stashed), git rev-parse HEAD = 97d5ddf4da0fb47e9a8d8d286f313c7762e0054a
+    $ python3 -m pytest
+    31 failed, 4419 passed, 3 skipped, 4 xfailed in 33.36s
+
+    AFTER (changes applied), same HEAD 97d5ddf4
+    $ python3 -m pytest
+    31 failed, 4440 passed, 3 skipped, 4 xfailed in 38.27s
+
+    AFTER (at the committed HEAD f461ad86e574258958d1c30109affa55d0056936)
+    $ python3 -m pytest
+    31 failed, 4440 passed, 3 skipped, 4 xfailed in 31.20s
+    ```
+
+    ZERO NEW FAILURES, proved by set comparison rather than by comparing counts (identical counts could still hide a swap). Sorted `FAILED`/`ERROR` lines before and after, then `comm`:
+
+    ```text
+    AFTER count: 31
+    BEFORE count: 31
+    === NEW failures introduced by my change:
+    (end)
+    === failures FIXED:
+    (end)
+    ```
+
+    The 31 failures are PRE-EXISTING and owned elsewhere (`test_run_viewer.py`, `test_oc_runipd.py`, `test_agy_runipd_cli.py`, `test_worker_role_refusal.py`); I do not claim the suite is green.
+
+    NO EXISTING ASSERTION WEAKENED, REMOVED, OR ALTERED, proved structurally rather than by reading: the commit's `git diff --numstat` is `649 0` and `329 0`, i.e. ZERO deleted lines in either file, and the test file's diff is a SINGLE hunk `@@ -1011,5 +1011,334 @@` appended at end-of-file. A weakened assertion would require a deletion, and there are none.
+
+    NOT VACUOUS - FOUR mutations, each shown FAILING and then reverted (one was required; three more were run because each new test class deserves its own falsification):
+
+    ```text
+    SABOTAGE 1: reworded RUN-LEDGER-INTEGRITY message (invalid or missing -> broken or absent)
+    E  AssertionError: ... != ...
+       - [RUN-LEDGER-INTEGRITY] Run <run-id> has broken or absent ledger evidence at <record>. ...
+       + [RUN-LEDGER-INTEGRITY] Run <run-id> has invalid or missing ledger evidence at <record>. ...
+       : RUN-LEDGER-INTEGRITY message is not a verbatim transcription of spec 4.2
+    FAILED ...::test_every_message_is_verbatim_from_the_spec
+    FAILED ...::test_unrendered_message_equals_the_spec_template
+    2 failed, 63 passed
+
+    SABOTAGE 2: RUN-FROZEN-IDENTITY conditional abort -> ABORT_ALWAYS   (the exact harm F4 names)
+    FAILED ...::test_conditional_abort_is_not_reported_as_unconditional
+    FAILED ...::test_abort_tristate_agrees_with_the_specs_action_text
+    2 failed, 63 passed
+
+    SABOTAGE 3: RUN-NO-PUSH falsely BOUND to the local bypassable pre-push hook   (fail-OPEN binding)
+    E  AssertionError: False is not true : table invariants violated: (EvidenceFinding(code='RC-BINDING',
+       where='RUN-NO-PUSH', message='BOUND code also declares waiting_on', reason='a BOUND code waits on nothing'),)
+    FAILED ...::test_measured_binding_partition_is_recorded
+    FAILED ...::test_table_self_validation_passes
+    2 failed, 63 passed
+
+    SABOTAGE 4: RUN-BASELINE-OWNERSHIP predicate renamed to a symbol that does not exist   (rotted binding)
+    E  AssertionError: unexpectedly None : worktree_lease.LeaseTable.acquire no longer resolves; the binding has rotted
+    FAILED ...::test_every_bound_codes_predicate_actually_resolves
+    1 failed, 64 passed
+    ```
+
+    After restoring: `65 passed in 1.16s`.
+
+    `aw check plans` NO-WORSENING, both counts measured in this session at the same HEAD, not remembered:
+
+    ```text
+    BEFORE (my changes stashed): findings: 12   (all check.lifecycle-transition-invalid)
+    AFTER  (changes applied):    findings: 12   (identical rule/location set)
+    ```
+
+    I do NOT claim it passes; it is RED at 12 findings before AND after. NOTE: the plan's prose says 901 findings at HEAD `7e5ba287`; the measured figure at MY HEAD is 12, so I report my own measurement, as the honesty rule requires. Eleven belong to the `wslayout` Set; the twelfth is on THIS plan's own file and is PRE-EXISTING (present in the BEFORE run with my changes stashed), arising from its 2026-09-01 approval reversion in its own `Workflow history`.
+
+    `aw sanitize --agent`: `{"outcome":"clean", "exit":0, "findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 
