@@ -1011,5 +1011,334 @@ class TestAdversarialSuite(unittest.TestCase):
         self.assertEqual(history[5]["exit_code"], 0)
 
 
+# ==================================================================================================
+# runcodes Order 1 (`wlxkoz`) E-03 / V-03: the `RUN-*` finding-code vocabulary
+# ==================================================================================================
+
+
+_SPEC_PATH = (
+    Path(__file__).resolve().parents[1]
+    / ".aw"
+    / "records"
+    / "specs"
+    / "20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md"
+)
+
+
+def _parse_spec_run_code_table() -> Dict[str, Dict[str, str]]:
+    """Parse spec `25kzda` 4.2's table straight out of the SPEC FILE.
+
+    THE POINT OF PARSING RATHER THAN HARDCODING: the only defect this vocabulary can realistically
+    ship is a transcription error, and an expectation copied from the implementation cannot detect
+    one. These tests therefore compare the module against the spec's own bytes, so REWORDING either
+    side fails. Returns ``{code: {"message": ..., "action": ...}}`` with the surrounding backticks
+    stripped, since the backticks are Markdown, not part of the operator-facing string.
+    """
+    rows: Dict[str, Dict[str, str]] = {}
+    for line in _SPEC_PATH.read_text(encoding="utf-8").split("\n"):
+        stripped = line.strip()
+        if not stripped.startswith("| `RUN-"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split(" | ")]
+        if len(cells) != 5:
+            continue
+        code = cells[0].strip("`")
+        rows[code] = {
+            "inspects": cells[1],
+            "pass_criterion": cells[2],
+            "message": cells[3].strip("`"),
+            "action": cells[4],
+        }
+    return rows
+
+
+def _parse_spec_abort_classes() -> List[str]:
+    """Parse spec 4.1's EXHAUSTIVE six-row abort-class table out of the spec file."""
+    text = _SPEC_PATH.read_text(encoding="utf-8")
+    start = text.index("#### Exhaustive `ABORT RUN` set")
+    end = text.index("#### Failed-item containment transaction", start)
+    classes: List[str] = []
+    for line in text[start:end].split("\n"):
+        stripped = line.strip()
+        if not stripped.startswith("|") or stripped.startswith("| ---"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split(" | ")]
+        if len(cells) != 2 or cells[0] == "Abort class":
+            continue
+        classes.append(cells[0])
+    return classes
+
+
+class TestRunFindingCodeVocabulary(unittest.TestCase):
+    """E-01 / E-02 / V-01 / V-02: the 13 `RUN-*` codes, their verbatim text, and their bindings."""
+
+    def setUp(self) -> None:
+        if not _SPEC_PATH.exists():  # pragma: no cover - installed-package layout
+            self.skipTest(f"spec 25kzda not present at {_SPEC_PATH}")
+        self.spec_rows = _parse_spec_run_code_table()
+
+    # ---- E-01: the codes exist as data, transcribed verbatim -------------------------------------
+
+    def test_spec_defines_exactly_thirteen_run_codes(self) -> None:
+        """Guard the guard: if the SPEC's own table stops having 13 rows, every other case is moot."""
+        self.assertEqual(
+            len(self.spec_rows),
+            13,
+            f"spec 4.2 should define 13 RUN-* codes, parsed {sorted(self.spec_rows)}",
+        )
+
+    def test_table_enumerates_exactly_the_specs_thirteen_codes(self) -> None:
+        self.assertEqual(len(evidence.RUN_FINDING_CODES), 13)
+        self.assertEqual(
+            sorted(evidence.run_finding_codes()),
+            sorted(self.spec_rows),
+        )
+
+    def test_every_message_is_verbatim_from_the_spec(self) -> None:
+        """A reworded message FAILS here (V-03's non-vacuity requirement)."""
+        for code, spec_row in sorted(self.spec_rows.items()):
+            with self.subTest(code=code):
+                self.assertEqual(
+                    evidence.RUN_FINDING_CODES_BY_CODE[code].message,
+                    spec_row["message"],
+                    f"{code} message is not a verbatim transcription of spec 4.2",
+                )
+
+    def test_every_message_carries_the_specs_recovery_command(self) -> None:
+        """Spec 4.1: 'Every recovery message ends with a command'."""
+        for code, spec_row in sorted(self.spec_rows.items()):
+            with self.subTest(code=code):
+                recovery = spec_row["message"].rsplit(": ", 1)[-1]
+                self.assertTrue(
+                    recovery.startswith("aw "),
+                    f"{code} spec message does not end in an `aw` command: {recovery!r}",
+                )
+                self.assertTrue(
+                    evidence.RUN_FINDING_CODES_BY_CODE[code].message.endswith(recovery),
+                    f"{code} dropped or altered the spec's recovery command",
+                )
+
+    def test_every_failure_action_is_verbatim_from_the_spec(self) -> None:
+        for code, spec_row in sorted(self.spec_rows.items()):
+            with self.subTest(code=code):
+                self.assertEqual(
+                    evidence.RUN_FINDING_CODES_BY_CODE[code].action,
+                    spec_row["action"],
+                    f"{code} failure action is not verbatim from spec 4.2",
+                )
+
+    def test_inspects_and_pass_criterion_are_verbatim_from_the_spec(self) -> None:
+        for code, spec_row in sorted(self.spec_rows.items()):
+            with self.subTest(code=code):
+                row = evidence.RUN_FINDING_CODES_BY_CODE[code]
+                self.assertEqual(row.inspects, spec_row["inspects"])
+                self.assertEqual(row.pass_criterion, spec_row["pass_criterion"])
+
+    def test_placeholder_substitution_preserves_the_rest_of_the_message(self) -> None:
+        rendered = evidence.spec_message_for(
+            "RUN-LEDGER-INTEGRITY", run_id="run-abcdef1234", record="seq=7"
+        )
+        self.assertIn("run-abcdef1234", rendered)
+        self.assertIn("seq=7", rendered)
+        self.assertNotIn("<run-id>", rendered)
+        self.assertNotIn("<record>", rendered)
+        # The recovery command survives substitution.
+        self.assertTrue(rendered.endswith("aw runs verify run-abcdef1234"))
+
+    def test_unrendered_message_equals_the_spec_template(self) -> None:
+        for code in evidence.run_finding_codes():
+            with self.subTest(code=code):
+                self.assertEqual(
+                    evidence.spec_message_for(code), self.spec_rows[code]["message"]
+                )
+
+    def test_unknown_code_raises_rather_than_returning_a_plausible_string(self) -> None:
+        with self.assertRaises(KeyError):
+            evidence.spec_message_for("RUN-NOT-A-REAL-CODE")
+
+    # ---- spec 4.1: the abort set is EXHAUSTIVE ---------------------------------------------------
+
+    def test_abort_class_set_is_verbatim_from_spec_4_1(self) -> None:
+        self.assertEqual(list(evidence.ABORT_CLASSES), _parse_spec_abort_classes())
+        self.assertEqual(len(evidence.ABORT_CLASSES), 6)
+
+    def test_no_code_aborts_outside_the_six_enumerated_classes(self) -> None:
+        """Spec 4.1: 'No other finding may abort the whole queue'."""
+        for row in evidence.RUN_FINDING_CODES:
+            with self.subTest(code=row.code):
+                for cls in row.abort_classes:
+                    self.assertIn(cls, evidence.ABORT_CLASSES)
+                if row.abort == evidence.ABORT_NEVER:
+                    self.assertEqual(row.abort_classes, ())
+                    self.assertFalse(evidence.may_abort_run(row.code))
+                else:
+                    self.assertTrue(row.abort_classes)
+                    self.assertTrue(evidence.may_abort_run(row.code))
+
+    def test_abort_tristate_agrees_with_the_specs_action_text(self) -> None:
+        """The tri-state is an INDEX over the verbatim action, so it must be derivable from it."""
+        for code, spec_row in sorted(self.spec_rows.items()):
+            with self.subTest(code=code):
+                action = spec_row["action"]
+                row = evidence.RUN_FINDING_CODES_BY_CODE[code]
+                if "ABORT RUN" not in action:
+                    expected = evidence.ABORT_NEVER
+                elif action.strip() == "ABORT RUN":
+                    expected = evidence.ABORT_ALWAYS
+                else:
+                    expected = evidence.ABORT_CONDITIONAL
+                self.assertEqual(row.abort, expected, f"{code}: action was {action!r}")
+
+    def test_conditional_abort_is_not_reported_as_unconditional(self) -> None:
+        """The specific harm F4 names: an item-local fault must not license aborting the queue."""
+        conditional = [
+            r.code
+            for r in evidence.RUN_FINDING_CODES
+            if r.abort == evidence.ABORT_CONDITIONAL
+        ]
+        self.assertTrue(conditional)
+        for code in conditional:
+            with self.subTest(code=code):
+                # `may_abort_run` is True, but the caller is told WHICH class is required.
+                self.assertTrue(evidence.may_abort_run(code))
+                self.assertTrue(evidence.abort_classes_for(code))
+                self.assertNotEqual(
+                    evidence.RUN_FINDING_CODES_BY_CODE[code].abort,
+                    evidence.ABORT_ALWAYS,
+                )
+        always = [
+            r.code
+            for r in evidence.RUN_FINDING_CODES
+            if r.abort == evidence.ABORT_ALWAYS
+        ]
+        self.assertEqual(
+            sorted(always), ["RUN-BASELINE-OWNERSHIP", "RUN-LEDGER-INTEGRITY"]
+        )
+
+    # ---- E-02: the bindings, re-measured rather than trusted -------------------------------------
+
+    def test_table_self_validation_passes(self) -> None:
+        result = evidence.validate_finding_table()
+        self.assertTrue(result.ok, f"table invariants violated: {result.findings}")
+        self.assertEqual(result.findings, ())
+
+    def test_every_code_records_a_known_binding_state(self) -> None:
+        for row in evidence.RUN_FINDING_CODES:
+            with self.subTest(code=row.code):
+                self.assertIn(row.binding, evidence.BINDING_STATES)
+
+    def test_every_bound_codes_predicate_actually_resolves(self) -> None:
+        """The anti-rot check: if a shipped predicate is renamed or removed, this FAILS.
+
+        A code whose recorded predicate no longer exists is a mapping that has silently rotted, which
+        is indistinguishable at runtime from a check that never ran.
+        """
+        import importlib
+        import re as _re
+
+        for row in evidence.RUN_FINDING_CODES:
+            if row.binding != evidence.BOUND:
+                continue
+            for dotted in row.predicates:
+                with self.subTest(code=row.code, predicate=dotted):
+                    base = _re.sub(r"\[.*\]$", "", dotted)
+                    module_name, _, attr_path = base.partition(".")
+                    module = importlib.import_module(f"agent_workflows.{module_name}")
+                    obj: Any = module
+                    for part in attr_path.split("."):
+                        obj = getattr(obj, part, None)
+                        self.assertIsNotNone(
+                            obj, f"{dotted} no longer resolves; the binding has rotted"
+                        )
+
+    def test_unbound_codes_claim_no_predicate_and_name_what_they_wait_on(self) -> None:
+        unbound = evidence.unbound_run_finding_codes()
+        self.assertTrue(unbound, "at least one code is honestly unbound")
+        for code in unbound:
+            with self.subTest(code=code):
+                row = evidence.RUN_FINDING_CODES_BY_CODE[code]
+                self.assertEqual(row.predicates, ())
+                self.assertTrue(row.waiting_on.strip())
+
+    def test_measured_binding_partition_is_recorded(self) -> None:
+        """The measured 2026-09-05 partition, pinned so a silent change is visible in review.
+
+        Not a claim that these bindings are eternal: it is a claim that CHANGING one is a deliberate,
+        reviewed act rather than a drive-by edit. `wlxkoz` finding F3 recorded 9/2/2 at an earlier
+        HEAD; re-measurement after `mjx7ne`, `m73aet`, and `m2wwns` executed gives 10/2/1.
+        """
+        self.assertEqual(
+            sorted(evidence.bound_run_finding_codes()),
+            [
+                "RUN-BASELINE-OWNERSHIP",
+                "RUN-CHECK-FRESHNESS",
+                "RUN-CROSS-TREE",
+                "RUN-FRESH-VERIFIER",
+                "RUN-FROZEN-IDENTITY",
+                "RUN-HOST-ATTEMPT",
+                "RUN-HOST-CAPABILITY",
+                "RUN-LEDGER-INTEGRITY",
+                "RUN-SCOPE-DELTA",
+                "RUN-STRUCTURE-PREFLIGHT",
+            ],
+        )
+        by_dependency = [
+            r.code
+            for r in evidence.RUN_FINDING_CODES
+            if r.binding == evidence.UNBOUND_BY_DEPENDENCY
+        ]
+        unbuilt = [
+            r.code
+            for r in evidence.RUN_FINDING_CODES
+            if r.binding == evidence.UNBOUND_UNBUILT
+        ]
+        self.assertEqual(
+            sorted(by_dependency), ["RUN-COMMIT-CONTENTS", "RUN-COMMIT-GATEWAY"]
+        )
+        self.assertEqual(unbuilt, ["RUN-NO-PUSH"])
+
+    def test_host_capability_binding_agrees_with_the_shipped_implementation(
+        self,
+    ) -> None:
+        """`RUN-HOST-CAPABILITY` is BOUND only because `mjx7ne` shipped it; prove it still does."""
+        from agent_workflows import host_sandbox_profile as hsp
+
+        self.assertEqual(hsp.RUN_HOST_CAPABILITY, "RUN-HOST-CAPABILITY")
+        rendered = hsp.format_host_capability_finding(
+            host="<host>",
+            capability="<capability>",
+            item="<item>",
+            action="<action>",
+            selector="<selector>",
+        )
+        self.assertEqual(rendered, self.spec_rows["RUN-HOST-CAPABILITY"]["message"])
+        # And the vocabulary's own template agrees with that shipped one, so the two cannot drift.
+        self.assertEqual(
+            evidence.spec_message_for("RUN-HOST-CAPABILITY"),
+            rendered,
+        )
+
+    def test_no_shipped_ev_code_was_renamed_into_the_new_table(self) -> None:
+        """`wlxkoz` must not disturb the shipped `EV-*` taxonomy it merely cites as bindings."""
+        result = evidence.validate_evidence({"kind": "not-a-real-kind"})
+        self.assertFalse(result.ok)
+        self.assertEqual(
+            [f.code for f in result.findings],
+            ["EV-FABRICATED-TEXT"],
+        )
+        for row in evidence.RUN_FINDING_CODES:
+            with self.subTest(code=row.code):
+                self.assertFalse(row.code.startswith("EV-"))
+
+    def test_vocabulary_decides_no_completion(self) -> None:
+        """The vocabulary is a NAMING layer: it must not become a second completion authority."""
+        records = _sample_run_records()
+        self.assertTrue(evidence.is_complete(records))
+        # Nothing in the vocabulary participates in that verdict.
+        evaluation = evidence.evaluate_completion(records)
+        for code in evidence.run_finding_codes():
+            self.assertNotIn(code, evaluation.predicates)
+
+
 if __name__ == "__main__":
     unittest.main()

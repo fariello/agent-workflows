@@ -1097,3 +1097,652 @@ def is_complete(
         check_filesystem=check_filesystem,
     )
     return evaluation.is_complete
+
+
+# ==================================================================================================
+# runcodes Order 1 (`wlxkoz`) E-01 / E-02: the deterministic `RUN-*` finding-code vocabulary
+# ==================================================================================================
+#
+# WHAT THIS IS, AND WHAT IT DELIBERATELY IS NOT.
+#
+# Spec `25kzda` 4.2 fixes 13 stable `RUN-*` finding codes as the deterministic checker's PUBLIC
+# vocabulary: each row pins an exact operator-facing message (ending in a recovery command) and a
+# failure ACTION. This block is that vocabulary and NOTHING else. It is a NAMING layer over
+# predicates that already ship elsewhere in this package; it is NOT a second completion authority.
+# `evaluate_completion` / `is_complete` above remain the single completion predicate, and
+# `aw ipd finalize` remains the only terminal-transition authority (`verify_roles` reserves terminal
+# authority to the coordinator). Nothing here decides completion, and nothing here may claim to.
+#
+# WHY DATA RATHER THAN BRANCHING LOGIC. The whole policy - 13 codes, their verbatim text, their
+# recovery commands, their abort semantics, and how much of the checker actually decides anything -
+# has to be readable in ONE place and enumerable by a test. The parallel shipped `EV-*` taxonomy
+# (see `validate_evidence`'s docstring at the class list, plus the bare string literals inside its
+# conditionals) is the counterexample: those codes are docstring prose plus inline literals, so no
+# test can enumerate them and a reworded message drifts silently. This block deliberately
+# INTRODUCES the convention `EV-*` should have had. It does NOT refactor `EV-*` into it (out of
+# scope for `wlxkoz`), and the `EV-*` codes are referenced here only as BINDINGS, never renamed.
+#
+# NO CONSUMER YET, STATED PLAINLY. Wiring these codes into `oc_runipd.py` / `agy_runipd.py` is
+# deliberately deferred (`wlxkoz` OQ-01), so no live run emits any of these codes today. This
+# vocabulary lands tested and importable and nothing consults it yet.
+
+
+class RunFindingCode(NamedTuple):
+    """One row of spec `25kzda` 4.2: a stable code, its verbatim text, and its binding.
+
+    Fields:
+      * ``code``            - the stable public finding code (spec 4.2 column 1).
+      * ``inspects``        - what the check inspects (spec 4.2 column 2), for operator context.
+      * ``pass_criterion``  - the pass criterion (spec 4.2 column 3).
+      * ``message``         - the VERBATIM operator-facing message template (spec 4.2 column 4),
+                              including the trailing recovery command. ``<...>`` placeholders are
+                              replaced with quoted concrete values by the caller. Transcribed from
+                              the spec, never composed here: a reworded message is a defect, and
+                              :func:`spec_message_for` plus the test suite exist to catch one.
+      * ``action``          - the VERBATIM failure action (spec 4.2 column 5).
+      * ``abort``           - derived tri-state over ``action``: one of :data:`ABORT_ALWAYS`,
+                              :data:`ABORT_CONDITIONAL`, :data:`ABORT_NEVER`. See the abort note
+                              below; this is an INDEX over the verbatim string, not a new policy.
+      * ``abort_classes``   - for an aborting row, the spec-4.1 abort class names that license it.
+                              Every entry MUST be a member of :data:`ABORT_CLASSES` (4.1 is
+                              EXHAUSTIVE), which :func:`validate_finding_table` enforces.
+      * ``binding``         - one of :data:`BOUND`, :data:`UNBOUND_BY_DEPENDENCY`,
+                              :data:`UNBOUND_UNBUILT` (E-02).
+      * ``predicates``      - for a BOUND row, the shipped symbols that actually decide it, as
+                              ``module.symbol`` strings. Recorded as data so a test can prove each
+                              one still resolves, which is what stops the mapping rotting silently.
+      * ``waiting_on``      - for an UNBOUND row, the missing machinery (and its owner, when one
+                              exists). Empty for a BOUND row.
+    """
+
+    code: str
+    inspects: str
+    pass_criterion: str
+    message: str
+    action: str
+    abort: str
+    abort_classes: Tuple[str, ...]
+    binding: str
+    predicates: Tuple[str, ...]
+    waiting_on: str
+
+
+# ---- abort semantics (spec 25kzda 4.1) -----------------------------------------------------------
+#
+# THE ACTION IS AS LOAD-BEARING AS THE MESSAGE. Spec 4.1 enumerates SIX abort classes and closes
+# with "No other finding may abort the whole queue". So transcribing a message while inventing its
+# action would silently license aborting a whole queue on an item-local fault - and item-local
+# failure is exactly what lets independent items keep running. Two of the 13 codes abort
+# UNCONDITIONALLY; eight abort ONLY under a named 4.1 class; three never abort. Collapsing that
+# distinction into a single boolean is the error this tri-state exists to prevent.
+
+ABORT_ALWAYS = "always"
+ABORT_CONDITIONAL = "conditional"
+ABORT_NEVER = "never"
+
+#: Spec 4.1's EXHAUSTIVE abort-class set, verbatim. Nothing outside this set may abort the queue.
+ABORT_CLASSES: Tuple[str, ...] = (
+    "Corrupt run ledger",
+    "Ownership or lease conflict",
+    "Unknown or non-idempotent external outcome",
+    "Push attempt",
+    "Hook-bypass attempt",
+    "Identity or type ambiguity",
+)
+
+
+# ---- binding states (E-02) -----------------------------------------------------------------------
+#
+# WHY A CODE RECORDS ITS OWN BINDING STATE. An unbound code that HONESTLY REPORTS ITSELF UNBOUND is
+# safe: a reader and a caller can both see that nothing decides it yet. A code silently wired to a
+# predicate that does not answer its question is a fail-OPEN checker - it passes because nothing was
+# checked. The second is the failure this three-state field exists to make impossible, so a binding
+# is recorded only where a shipped predicate genuinely answers THAT code's question.
+
+#: A shipped predicate decides this code; the code is a stable NAME over existing logic.
+BOUND = "BOUND"
+#: The deciding predicate needs machinery another plan or item owns. Named, not invented.
+UNBOUND_BY_DEPENDENCY = "UNBOUND-BY-DEPENDENCY"
+#: Nothing in the tree decides this yet, and no plan owns it.
+UNBOUND_UNBUILT = "UNBOUND-UNBUILT"
+
+BINDING_STATES: Tuple[str, ...] = (BOUND, UNBOUND_BY_DEPENDENCY, UNBOUND_UNBUILT)
+
+
+# ---- the 13 codes -------------------------------------------------------------------------------
+#
+# BINDINGS RE-MEASURED 2026-09-05 (E-02 requires re-verification, not trust). Three of `wlxkoz`
+# finding F3's bindings had changed since F3 was recorded at HEAD `738980ec`, because both plans it
+# was waiting on have since EXECUTED:
+#
+#   * `RUN-HOST-CAPABILITY` is now BOUND, not UNBOUND-BY-DEPENDENCY: `hostcap-01` (`mjx7ne`)
+#     executed and shipped `host_sandbox_profile.preflight_host_capabilities` plus that code's
+#     verbatim message.
+#   * `RUN-BASELINE-OWNERSHIP` is now BOUND, not UNBOUND-UNBUILT: the per-path lease overlap check
+#     F3 said nobody had built ships as `worktree_lease.LeaseTable.claim` (`m2wwns`), and
+#     `dirty_within` decides the pre-existing-dirty-path half.
+#   * `RUN-COMMIT-CONTENTS` / `RUN-COMMIT-GATEWAY` stay UNBOUND, but WAITING ON SOMETHING ELSE.
+#     `runtrail-01` (`m73aet`) executed and the `AW-Run:`/`AW-Item:` trailers exist - but only as
+#     WRITERS. Nothing reads a trailer back, and `m73aet`'s own executed receipt states
+#     "`RUN-COMMIT-GATEWAY` remains wholly unbuilt" and "nothing in the tree PASSES trailers yet".
+#     Writing a trailer is not proving a commit's tree diff equals the item-owned delta, so binding
+#     these two now would be exactly the fail-open error described above.
+#
+# Net: 10 BOUND, 2 UNBOUND-BY-DEPENDENCY, 1 UNBOUND-UNBUILT (F3 recorded 9 / 2 / 2).
+
+RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
+    RunFindingCode(
+        code="RUN-FROZEN-IDENTITY",
+        inspects=(
+            "Canonical path, stable ID, type, content digest, and action packet digest at each "
+            "step boundary"
+        ),
+        pass_criterion=(
+            "Current item is the same frozen identity; any content change is explained by a "
+            "completed prior step and followed by a new freeze event"
+        ),
+        message=(
+            "[RUN-FROZEN-IDENTITY] <item> changed outside its recorded step. Contain the item "
+            "and inspect identity/ownership with: aw runs show <run-id>"
+        ),
+        action=(
+            "FAIL ITEM after containment; ABORT RUN only for identity/type ambiguity or "
+            "ownership conflict"
+        ),
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Identity or type ambiguity", "Ownership or lease conflict"),
+        binding=BOUND,
+        predicates=(
+            "run_freeze.freeze_requirements",
+            "run_freeze.diff_requirements",
+            "run_freeze.refuse_drop_or_redefine",
+            "run_evidence.validate_evidence[EV-HASH-MISMATCH]",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-STRUCTURE-PREFLIGHT",
+        inspects="Type parser and type-specific structural checker",
+        pass_criterion=(
+            "File has one known type, one legal status when applicable, and valid required "
+            "metadata"
+        ),
+        message=(
+            "[RUN-STRUCTURE-PREFLIGHT] <item> violates <finding-code>: <detail>. Repair it, run "
+            "aw check <type> <selector>, then: aw <host> run --resume <run-id>"
+        ),
+        action="FAIL ITEM; ABORT RUN if identity/type is ambiguous",
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Identity or type ambiguity",),
+        binding=BOUND,
+        predicates=(
+            "ipd_lint.lint_text",
+            "ipd_lint.lint_file",
+            "check_engine.check_type",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-BASELINE-OWNERSHIP",
+        inspects=(
+            "Starting HEAD/index/worktree snapshot, pre-existing dirty paths, active path leases"
+        ),
+        pass_criterion=(
+            "No pre-existing or concurrently leased path overlaps this action's mutation scope"
+        ),
+        message=(
+            "[RUN-BASELINE-OWNERSHIP] <paths> already contain unowned changes or an active "
+            "lease. Resolve the owner or wait, then: aw <host> run --resume <run-id>"
+        ),
+        action="ABORT RUN",
+        abort=ABORT_ALWAYS,
+        abort_classes=("Ownership or lease conflict",),
+        binding=BOUND,
+        predicates=(
+            "worktree_lease.LeaseTable.claim",
+            "worktree_lease.assert_worker_scope",
+            "run_evidence.dirty_within",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-LEDGER-INTEGRITY",
+        inspects=(
+            "Append-only event sequence, schema, record hashes, parent links, packet/evidence "
+            "digests"
+        ),
+        pass_criterion=(
+            "Ledger is parseable, monotonic, hash-valid, and all referenced evidence exists"
+        ),
+        message=(
+            "[RUN-LEDGER-INTEGRITY] Run <run-id> has invalid or missing ledger evidence at "
+            "<record>. Inspect it with: aw runs verify <run-id>"
+        ),
+        action="ABORT RUN",
+        abort=ABORT_ALWAYS,
+        abort_classes=("Corrupt run ledger",),
+        binding=BOUND,
+        predicates=(
+            "run_ledger_store.RunLedgerStore.verify_chain",
+            "run_ledger_store.BrokenChainError",
+            "run_evidence.validate_ledger_evidence",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-HOST-CAPABILITY",
+        inspects=(
+            "Current descriptor for exact host/version/mode, capability evidence, expiry, and "
+            "action requirements"
+        ),
+        pass_criterion=(
+            "Every required host-dependent guarantee is positively supported by current evidence "
+            "at the required assurance"
+        ),
+        message=(
+            "[RUN-HOST-CAPABILITY] Host <host> cannot enforce <capability> required by <item> "
+            "action <action>. No work started for this item. Choose a capable host or enable and "
+            "re-probe that capability, then run: aw <host> run <selector>"
+        ),
+        action="FAIL ITEM; cascade dependents; continue independent items",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "host_sandbox_profile.preflight_host_capabilities",
+            "host_sandbox_profile.format_host_capability_finding",
+            "host_sandbox_profile.check_action_capabilities",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-HOST-ATTEMPT",
+        inspects=(
+            "Captured argv-list launch event, timeout/cancel state, exit code, stdout/stderr "
+            "hashes, terminal envelope"
+        ),
+        pass_criterion=(
+            "Host process was launched by the engine, did not time out, exited 0, and returned a "
+            "valid evidence-linked envelope"
+        ),
+        message=(
+            "[RUN-HOST-ATTEMPT] <item> has no valid completed host attempt: <detail>. Inspect "
+            "evidence, then retry with: aw <host> run --resume <run-id>"
+        ),
+        action=(
+            "RETRY for spawn/nonzero failures; FAIL ITEM for timeout, cancellation, or exhausted "
+            "budget"
+        ),
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "run_evidence.capture_command",
+            "run_evidence.validate_evidence[EV-FAILED-EXIT]",
+            "run_evidence.validate_evidence[EV-MISSING-OUTPUT]",
+            "run_evidence.validate_evidence[EV-COMMAND-MISMATCH]",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-FRESH-VERIFIER",
+        inspects="Verifier session ID, parentage, packet digest, verifier findings envelope",
+        pass_criterion=(
+            "Verifier used a fresh session with no executor-session inheritance and addressed the "
+            "frozen predicates"
+        ),
+        message=(
+            "[RUN-FRESH-VERIFIER] <item> has no valid independent verification attempt. Retry "
+            "verification with: aw <host> run --resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "agy_verifier.assert_distinct_sessions",
+            "agy_verifier.run_fresh_verifier",
+            "run_evidence.validate_evidence[EV-EXECUTOR-VERIFIER]",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-SCOPE-DELTA",
+        inspects=(
+            "`git diff` and untracked paths from the step baseline through the candidate terminal "
+            "commit"
+        ),
+        pass_criterion=(
+            "Every action-owned changed path matches the frozen scope; pre-existing and other-run "
+            "paths are excluded"
+        ),
+        message=(
+            "[RUN-SCOPE-DELTA] <item> changed out-of-scope paths: <paths>. The changes were "
+            "quarantined and restored to baseline. Revise and re-review the scope, then start: "
+            "aw <host> run <selector>"
+        ),
+        action=(
+            "FAIL ITEM after containment; cascade dependents; continue independent items"
+        ),
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "ipd_lifecycle._frozen_scope_paths",
+            "ipd_lifecycle._reconcile_scope",
+            "check_engine.check_scope_drift",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-COMMIT-CONTENTS",
+        inspects=(
+            "Run-owned commits identified by immutable run/item trailers, commit parents, trees, "
+            "and action-owned delta"
+        ),
+        pass_criterion=(
+            "A required commit exists; its path union equals the action-owned delta; it contains "
+            "no unrelated or pre-existing changes; commit parentage is reconciled"
+        ),
+        message=(
+            "[RUN-COMMIT-CONTENTS] Commit <sha> does not contain exactly the paths owned by "
+            "<item>: <detail>. The item was quarantined. Correct its work in a new attempt with: "
+            "aw <host> run <selector>"
+        ),
+        action=(
+            "FAIL ITEM after containment; ABORT RUN only if ownership/parentage is ambiguous"
+        ),
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Ownership or lease conflict",),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "a trailer READ-BACK predicate. `runtrail-01` (`m73aet`) executed and "
+            "`git_commit_helper.run_item_trailers` WRITES `AW-Run:`/`AW-Item:`, but nothing reads "
+            "a trailer back or proves a commit's tree diff equals the item-owned delta; "
+            "`m73aet`'s own executed receipt records that nothing in the tree passes trailers yet"
+        ),
+    ),
+    RunFindingCode(
+        code="RUN-COMMIT-GATEWAY",
+        inspects="Captured commit-gateway event and argv",
+        pass_criterion=(
+            "The engine, not the agent, invoked `git commit ... -- <explicit paths>` as an argv "
+            "list; no `-a`, broad add, shell string, or `--no-verify` occurred"
+        ),
+        message=(
+            "[RUN-COMMIT-GATEWAY] <item> lacks a valid path-scoped, hook-respecting commit "
+            "receipt. The item was quarantined. Retry through a capable host with: aw <host> run "
+            "<selector>"
+        ),
+        action="FAIL ITEM after containment; ABORT RUN for a hook-bypass attempt",
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Hook-bypass attempt",),
+        binding=UNBOUND_BY_DEPENDENCY,
+        predicates=(),
+        waiting_on=(
+            "a captured commit-gateway RECEIPT. `git_commit_helper.offer_commit` is a helper the "
+            "driver CHOOSES to call, not a boundary an agent cannot evade, and "
+            "`host_sandbox_profile` declares `supports_commit_gateway` False-by-default and NEVER "
+            "PROBED for exactly that reason; `m73aet`'s executed receipt states this code "
+            "'remains wholly unbuilt'"
+        ),
+    ),
+    RunFindingCode(
+        code="RUN-NO-PUSH",
+        inspects=(
+            "Enforced tool policy, network policy receipt, all captured process events, "
+            "starting/ending remote config and remote-tracking refs"
+        ),
+        pass_criterion=(
+            "Capability preflight proved push denial; no push event or unexplained remote-state "
+            "change exists"
+        ),
+        message=(
+            "[RUN-NO-PUSH] Host <host> could not prove push prevention for <item>. No work may "
+            "start without that capability. Choose a capable host and run: aw <host> run "
+            "<selector>"
+        ),
+        action="FAIL ITEM if refused at preflight; ABORT RUN if a push was attempted",
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Push attempt",),
+        binding=UNBOUND_UNBUILT,
+        predicates=(),
+        waiting_on=(
+            "host push-denial ENFORCEMENT (backlog `d07nz2`). `host_sandbox_profile` declares "
+            "`supports_deny_push` False and NEVER probes it, because no such enforcement exists "
+            "in this package; `check_engine.check_push_authorization` is LOCAL, bypassable "
+            "pre-push FEEDBACK that explicitly disclaims being an authority boundary, so binding "
+            "this code to it would be a fail-open inference"
+        ),
+    ),
+    RunFindingCode(
+        code="RUN-CHECK-FRESHNESS",
+        inspects=(
+            "Check command end times, final product-change time, checked HEAD/worktree digest, "
+            "captured outputs"
+        ),
+        pass_criterion=(
+            "Every required check ran after the last relevant change against the exact candidate "
+            "state; exit was 0 and required output was nonempty"
+        ),
+        message=(
+            "[RUN-CHECK-FRESHNESS] Check <recipe> is missing, stale, or failed for <item>. Run "
+            "the registered check through the runner, then: aw <host> run --resume <run-id>"
+        ),
+        action="RETRY, then FAIL ITEM",
+        abort=ABORT_NEVER,
+        abort_classes=(),
+        binding=BOUND,
+        predicates=(
+            "run_evidence.validate_evidence[EV-STALE-HEAD]",
+            "run_evidence.validate_evidence[EV-WRONG-CWD]",
+            "run_evidence.validate_evidence[EV-WRONG-WORKTREE]",
+            "run_evidence.validate_evidence[EV-TRUNCATED-OUTPUT]",
+            "run_evidence.get_git_head",
+        ),
+        waiting_on="",
+    ),
+    RunFindingCode(
+        code="RUN-CROSS-TREE",
+        inspects="Full deterministic repository checker",
+        pass_criterion=(
+            "All reference, release-gate, dependency, status/location, naming, and index "
+            "invariants pass"
+        ),
+        message=(
+            "[RUN-CROSS-TREE] Repository invariant <finding-code> failed after <item>: <detail>. "
+            "Contain the item, repair it, run aw check all, then: aw <host> run --resume <run-id>"
+        ),
+        action=(
+            "FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict"
+        ),
+        abort=ABORT_CONDITIONAL,
+        abort_classes=("Identity or type ambiguity", "Ownership or lease conflict"),
+        binding=BOUND,
+        predicates=(
+            "check_engine.check_types",
+            "check_engine.check_refs",
+            "check_engine.check_release_gate_consistency",
+            "check_engine.check_ipd_dependencies",
+        ),
+        waiting_on="",
+    ),
+)
+
+#: Code -> row, for O(1) lookup by callers that hold only a code string.
+RUN_FINDING_CODES_BY_CODE: Dict[str, RunFindingCode] = {
+    row.code: row for row in RUN_FINDING_CODES
+}
+
+
+def run_finding_codes() -> Tuple[str, ...]:
+    """The 13 stable finding codes of spec `25kzda` 4.2, in spec order."""
+    return tuple(row.code for row in RUN_FINDING_CODES)
+
+
+def spec_message_for(code: str, **placeholders: Any) -> str:
+    """Render a code's VERBATIM spec message, optionally substituting ``<...>`` placeholders.
+
+    With no placeholders the spec template is returned unchanged, which is what a test asserts
+    against the spec text. Each ``placeholders`` key names a bare placeholder token (``item``,
+    ``run_id`` for ``<run-id>``, ``finding_code`` for ``<finding-code>``, and so on): underscores
+    map to hyphens, so ``run_id="r1"`` replaces ``<run-id>``. An UNKNOWN code raises `KeyError`
+    rather than returning a plausible-looking string, because a typo'd code must not silently
+    produce a message no operator can act on.
+    """
+    row = RUN_FINDING_CODES_BY_CODE[code]
+    message = row.message
+    for key, value in placeholders.items():
+        message = message.replace("<" + key.replace("_", "-") + ">", str(value))
+    return message
+
+
+def may_abort_run(code: str) -> bool:
+    """True when this finding may EVER abort the whole queue (always or conditionally).
+
+    Deliberately reports "may", not "does": spec 4.1 licenses eight of the 13 codes to abort only
+    under a named abort class, so a caller deciding to abort must also establish that class. Use
+    :func:`abort_classes_for` for it. Reading a conditional row as an unconditional abort would let
+    an item-local fault stop a whole queue, which spec 4.1's closing rule forbids.
+    """
+    return RUN_FINDING_CODES_BY_CODE[code].abort in (ABORT_ALWAYS, ABORT_CONDITIONAL)
+
+
+def abort_classes_for(code: str) -> Tuple[str, ...]:
+    """The spec-4.1 abort classes that license aborting on this finding (empty when it never may)."""
+    return RUN_FINDING_CODES_BY_CODE[code].abort_classes
+
+
+def bound_run_finding_codes() -> Tuple[str, ...]:
+    """The codes a shipped predicate actually decides today."""
+    return tuple(row.code for row in RUN_FINDING_CODES if row.binding == BOUND)
+
+
+def unbound_run_finding_codes() -> Tuple[str, ...]:
+    """The codes that exist as NAMES with no predicate behind them yet.
+
+    An honest caller reporting one of these must say the check did not run. Treating an unbound code
+    as a passing check is the fail-open reading this vocabulary is built to prevent.
+    """
+    return tuple(row.code for row in RUN_FINDING_CODES if row.binding != BOUND)
+
+
+def validate_finding_table() -> EvidenceValidationResult:
+    """Self-check the table's internal invariants (not the spec text; a test asserts that).
+
+    Enforced here so a later edit cannot quietly break a structural rule:
+      * exactly 13 codes, each unique, each named ``RUN-*``;
+      * every ``binding`` is a known state, and BOUND rows carry at least one predicate while
+        unbound rows carry none and name what they wait on;
+      * every ``abort`` is a known tri-state, every ``abort_classes`` entry is one of spec 4.1's
+        SIX classes (4.1 is exhaustive), an aborting row names at least one class, and a
+        never-aborting row names none;
+      * every message begins with its own ``[CODE]`` prefix and ends in a recovery command
+        (spec 4.1: "Every recovery message ends with a command").
+    """
+    findings: List[EvidenceFinding] = []
+
+    def _fail(code: str, where: str, message: str, reason: str) -> None:
+        findings.append(EvidenceFinding(code, where, message, reason))
+
+    if len(RUN_FINDING_CODES) != 13:
+        _fail(
+            "RC-COUNT",
+            "RUN_FINDING_CODES",
+            f"spec 25kzda 4.2 defines 13 codes, table has {len(RUN_FINDING_CODES)}",
+            "finding-code table size does not match the spec",
+        )
+    seen: Set[str] = set()
+    for row in RUN_FINDING_CODES:
+        where = row.code
+        if row.code in seen:
+            _fail(
+                "RC-DUPLICATE", where, f"duplicate code {row.code!r}", "duplicate code"
+            )
+        seen.add(row.code)
+        if not row.code.startswith("RUN-"):
+            _fail(
+                "RC-NAME", where, f"{row.code!r} is not a RUN-* code", "bad code name"
+            )
+        if row.binding not in BINDING_STATES:
+            _fail(
+                "RC-BINDING",
+                where,
+                f"unknown binding state {row.binding!r}",
+                "unknown binding state",
+            )
+        if row.binding == BOUND:
+            if not row.predicates:
+                _fail(
+                    "RC-BINDING",
+                    where,
+                    "BOUND code names no deciding predicate",
+                    "a BOUND code must name the shipped predicate that decides it",
+                )
+            if row.waiting_on:
+                _fail(
+                    "RC-BINDING",
+                    where,
+                    "BOUND code also declares waiting_on",
+                    "a BOUND code waits on nothing",
+                )
+        else:
+            if row.predicates:
+                _fail(
+                    "RC-BINDING",
+                    where,
+                    "unbound code names predicates",
+                    "an unbound code must not claim a deciding predicate",
+                )
+            if not row.waiting_on:
+                _fail(
+                    "RC-BINDING",
+                    where,
+                    "unbound code does not say what it waits on",
+                    "an unbound code must name the missing machinery",
+                )
+        if row.abort not in (ABORT_ALWAYS, ABORT_CONDITIONAL, ABORT_NEVER):
+            _fail(
+                "RC-ABORT",
+                where,
+                f"unknown abort state {row.abort!r}",
+                "bad abort state",
+            )
+        for cls in row.abort_classes:
+            if cls not in ABORT_CLASSES:
+                _fail(
+                    "RC-ABORT-CLASS",
+                    where,
+                    f"{cls!r} is not one of spec 4.1's six abort classes",
+                    "spec 4.1's abort-class set is exhaustive",
+                )
+        if row.abort == ABORT_NEVER and row.abort_classes:
+            _fail(
+                "RC-ABORT-CLASS",
+                where,
+                "a never-aborting code names abort classes",
+                "only an aborting code may name an abort class",
+            )
+        if row.abort != ABORT_NEVER and not row.abort_classes:
+            _fail(
+                "RC-ABORT-CLASS",
+                where,
+                "an aborting code names no spec 4.1 abort class",
+                "an abort must cite one of the six enumerated classes",
+            )
+        if not row.message.startswith("[" + row.code + "]"):
+            _fail(
+                "RC-MESSAGE",
+                where,
+                "message does not begin with its own [CODE] prefix",
+                "operator-facing message must carry its code",
+            )
+        if ": aw " not in row.message:
+            _fail(
+                "RC-RECOVERY",
+                where,
+                "message does not end in a recovery command",
+                "spec 4.1: every recovery message ends with a command",
+            )
+    return EvidenceValidationResult(len(findings) == 0, tuple(findings))
