@@ -41,10 +41,10 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: Layout Model Module
 
-- [ ] E-01 Create `agent_workflows/layout.py` defining frozen dataclasses (`RecordClassDefinition`, `LayoutModel`), `build_default_layout()`, `to_dict()`, `to_json(framework_version)`, `to_schema()`, and helper lookup methods (`get_record_subpath()`, `is_known_type()`, `normalize_type()`).
+- [x] E-01 Create `agent_workflows/layout.py` defining frozen dataclasses (`RecordClassDefinition`, `LayoutModel`), `build_default_layout()`, `to_dict()`, `to_json(framework_version)`, `to_schema()`, and helper lookup methods (`get_record_subpath()`, `is_known_type()`, `normalize_type()`).
   - Depends on: none
   - Expected outcome: `agent_workflows/layout.py` exists with complete typed layout definitions.
-  - Execution state: pending
+  - Execution state: performed
   - VOCABULARY IS THE UNION (maintainer ruling 2026-09-01, plan-review PR-001). The model MUST document
     reality, not redefine it. The approved spec's corrected table now records this UNION; use it together with the measured source vocabularies below to keep the model and existing callers aligned. Measured truth at HEAD:
     `ARTIFACT_TYPES` = plans, specs, prompts, research, backlog, walkthroughs, roadmaps, comms,
@@ -117,10 +117,10 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 2: Unit Testing & Schema Conformance
 
-- [ ] E-02 Author unit tests in `tests/test_layout.py` (NEW FILE; it does not exist today) verifying model defaults, JSON serialization determinism, type normalization, alias resolution, and JSON schema validation.
+- [x] E-02 Author unit tests in `tests/test_layout.py` (NEW FILE; it does not exist today) verifying model defaults, JSON serialization determinism, type normalization, alias resolution, and JSON schema validation.
   - Depends on: E-01
   - Expected outcome: `pytest tests/test_layout.py` passes cleanly.
-  - Execution state: pending
+  - Execution state: performed
   - DO NOT INTRODUCE A `jsonschema` DEPENDENCY (round 2, PR-017). It is importable on a maintainer
     machine (4.26.0) but is declared NOWHERE: `pyproject.toml:50` declares runtime `["filelock>=3"]` and
     the `[test]` extra is `pytest`/`pytest-xdist`/`pytest-randomly`. No module under `agent_workflows/`
@@ -229,7 +229,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: `agent_workflows/layout.py` defines `LayoutModel`, `RecordClassDefinition`, `build_default_layout()`, `to_json()`, and `to_schema()`.
   - PLUS the union-vocabulary proof (PR-001), pasted, not asserted. Run and paste the output of a
     differential check that the model reproduces the live vocabulary with NOTHING dropped, e.g.:
@@ -274,10 +274,89 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     valid-type list and is handled by `artifact_types.expand_types`/`is_type_token` but is NOT a record
     class and is mentioned NOWHERE in this plan. If the model omits it, confirm Order 02 keeps handling it
     outside the model, since a silent loss of `all` would break every `aw <verb> all` invocation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `layout.py` created; union proof `missing_from_model: []` / `roadmaps_present: True` / `excl_equal: True`; consumer surface measured equal to the live 9-member primary set, the `reviews` non-primary set, the derived sweep union, and the 5/6 state vocabularies; both carve-outs represented without a literal subpath; 3.9 import run on 3.9.25; negative paths raise `ValueError` per the live contract; `all` preserved as a non-class token. Full detail below.
+    SURFACE. `agent_workflows/layout.py` created (additive; no existing module touched). Defines
+    `RecordClassDefinition` and `LayoutModel` (both `@dataclass(frozen=True)`), `build_default_layout()`,
+    `to_dict()`, `to_json()`, `to_schema()`, `to_schema_json()`, plus `get_record_subpath()`,
+    `get_record_class()`, `resolve_class_name()`, `is_known_type()`, `normalize_type()`, `expand_type()`,
+    `artifact_types()`, `alias_map()`, `primary_types()`, `non_primary_record_dirs()`,
+    `other_sweep_skip_dirs()`, `record_subpaths()`, `legacy_record_subpaths()`.
 
-- [ ] V-02 validates E-02
+    UNION-VOCABULARY PROOF (the prescribed command, run verbatim, SET comparison):
+    ```
+    missing_from_model: []
+    roadmaps_present: True
+    excl_equal: True
+    ```
+
+    CONSUMER-INTERFACE PROOF:
+    ```
+    primary_equal: True 9
+    nonprimary_equal: True ('reviews',)
+    sweep_union_equal: True
+    durable: True ['actions', 'history', 'install', 'migrations', 'routing_receipts']
+    runtime: True ['backups', 'cache', 'locks', 'staging', 'tmp', 'transactions']
+    other literal subpath?: '' is_complement True
+    other in record_subpaths: False
+    legacy: {'specs': 'docs/specs', 'research': 'docs/research', 'walkthroughs': 'docs/walkthroughs'}
+    records carve-out subpath: '' is_root_alias True
+    ```
+    REPRESENTATIONS CHOSEN, since Order 02 must consume exactly these. `KNOWN_PRIMARY_TYPES` is a
+    DERIVED RULE, not a literal set: `LayoutModel.primary_types()` returns every class with
+    `is_primary=True` that is neither the root alias nor the complement, measured equal to the live
+    9-member `selectors.KNOWN_PRIMARY_TYPES` and to `ARTIFACT_TYPES - {other}`. `other` is represented by
+    `is_complement=True` with an EMPTY subpath and is absent from `record_subpaths()`, so no literal
+    `other` subpath exists; `non_primary_record_dirs()` returns `('reviews',)` and
+    `other_sweep_skip_dirs()` exposes the DERIVED union (measured equal to `selectors._OTHER_SWEEP_SKIP_DIRS`),
+    so Order 02 sources the union rather than recomputing it. The legacy map is a strict SUPERSET of
+    `_LEGACY_RECORD_CLASS_SUBPATHS` by exactly `{backlog, roadmaps}`, which inherit their FINAL subpath by
+    absence of an override (correct-by-absence, matching the live `**` spread); all three `docs/`-prefixed
+    entries survive.
+
+    PYTHON 3.9 PROOF. Import block is `from __future__ import annotations` + `typing` generics (house
+    pattern). ACTUAL 3.9 run, not a stylistic argument:
+    ```
+    $ python3.9 -c "import sys; sys.path.insert(0,'.'); from agent_workflows import layout; m=layout.build_default_layout(); print('3.9 OK', sys.version.split()[0], len(m.record_classes)); print('json ok', len(m.to_json('1.2.3'))); print('normalize roadmap ->', m.normalize_type('roadmap'))"
+    3.9 OK 3.9.25 12
+    json ok 3422
+    normalize roadmap -> roadmaps
+    ```
+
+    NEGATIVE-PATH PROOF, matched PER HELPER to the live behavior:
+    ```
+    normalize_type('nosuchtype') -> ValueError: unknown artifact type 'nosuchtype'; valid types: plans, specs, prompts...
+    is_known_type('nosuchtype') -> False
+    normalize_type('') -> ValueError: unknown artifact type ''; valid types: ...
+    is_known_type('') -> False
+    normalize_type(None) -> ValueError: unknown artifact type None; valid types: ...
+    is_known_type(None) -> False
+    get_record_subpath(nosuchtype) -> ValueError: unknown artifact type 'nosuchtype'; ...
+    get_record_subpath(records) -> ''
+    get_record_subpath(other) -> ''
+    normalize_type(all) -> all
+    LIVE normalize_type(nosuchtype): ValueError: unknown artifact type 'nosuchtype'; ...
+    LIVE record_dirs unknown -> []
+    expand all == True
+    ```
+    CONTRACT STATED: `LayoutModel.normalize_type` RAISES `ValueError` (advertising `all`) for unknown,
+    `''` and `None`, exactly as `artifact_types.normalize_type` does. The returns-`[]` degradation stays
+    with `selectors.record_dirs`, which keeps its own documented contract; the two are deliberately NOT
+    unified (recorded as DECISION 03-wpu5zu-D2).
+    THE `all` TOKEN IS REPRESENTED, as a documented NON-CLASS token: `layout.EXPANSION_TOKEN_ALL == "all"`,
+    `normalize_type("all") -> "all"`, `is_known_type("all") -> True`, `expand_type("all", ...)` measured
+    equal to `AT.expand_types("all", ...)`, and `"all" not in record_classes`.
+    THE `records` CARVE-OUT NEEDED A SECOND HELPER (DECISION 03-wpu5zu-D3): `records` is a real record
+    class but never an `ARTIFACT_TYPES` member, so `normalize_type("records")` RAISES and
+    `is_known_type("records")` is False (parity with the live `AT.is_type_token('records') == False`),
+    while `resolve_class_name("records") -> "records"` serves the routing question. It is also omitted
+    from the EMITTED `record_classes` (11 emitted, not 12) so nothing derives `records/records/`.
+    TWO SPEC-EXAMPLE DEVIATIONS, both deliberate and reported rather than silently absorbed: the
+    walkthroughs pattern is `*.walkthrough.md` (the spec's `*-walkthrough.md` matches 0 of 16 on-disk
+    artifacts; DECISION 03-wpu5zu-D1) and durable `install` is `install.json` (the live load-bearing
+    value; DECISION 03-wpu5zu-D4). The `approved` spec was NOT edited.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `python3 -m pytest -o addopts="" tests/test_layout.py` passes cleanly, with the
     ACTUAL runner output and per-test names pasted (never a claimed pass).
   - PLUS the dependency evidence (round 2, PR-017): paste a grep of the new test file proving it does NOT
@@ -288,8 +367,104 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
   - PLUS the bare full suite `python3 -m pytest` summary line, with the baseline re-measured on unmodified
     HEAD at execution time. This module is additive, so the expected delta is the new tests only; anything
     else must be explained change-by-change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `python3 -m pytest -o addopts="" tests/test_layout.py -v` -> `41 passed in 0.15s`; no `jsonschema` import (stdlib structural validation, `pyproject.toml` untouched); two serializations byte-identical (sha256 `d558c290...`); bare suite baseline on unmodified HEAD `31 failed, 4303 passed` -> after `31 failed, 4344 passed`, an exact +41 delta with an IDENTICAL failure set (31 pre-existing runner/viewer failures, not caused here). Full detail below.
+    TARGETED RUN (actual output, per-test names via `-o addopts=""`):
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_layout.py -v
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    Using --randomly-seed=1112591307
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, randomly-4.1.0, cov-7.1.0, xdist-3.8.0
+    collected 41 items
+
+    ConsumerInterfaceTests::test_primary_types_equal_the_live_known_primary_types PASSED
+    ConsumerInterfaceTests::test_exclusions_are_deterministically_ordered PASSED
+    ConsumerInterfaceTests::test_other_sweep_skip_union_is_derived_from_the_three_inputs PASSED
+    ConsumerInterfaceTests::test_durable_state_classes_equal_the_live_vocabulary PASSED
+    ConsumerInterfaceTests::test_runtime_state_classes_equal_the_live_vocabulary PASSED
+    ConsumerInterfaceTests::test_the_three_dir_sets_are_disjoint PASSED
+    ConsumerInterfaceTests::test_non_primary_record_dirs_equal_the_live_set PASSED
+    ConsumerInterfaceTests::test_traversal_exclusions_equal_the_live_set_as_sets PASSED
+    SerializationTests::test_serialization_is_byte_identical_across_calls PASSED
+    SerializationTests::test_json_key_order_is_stable PASSED
+    SerializationTests::test_schema_is_stable_and_json_serializable PASSED
+    SerializationTests::test_emitted_record_classes_omit_the_root_alias PASSED
+    SerializationTests::test_document_has_the_required_top_level_keys PASSED
+    SerializationTests::test_emitted_state_classes_are_state_root_relative PASSED
+    SchemaConformanceTests::test_traversal_exclusions_satisfy_the_schema PASSED
+    SchemaConformanceTests::test_state_classes_satisfy_the_schema PASSED
+    SchemaConformanceTests::test_no_additional_top_level_properties PASSED
+    SchemaConformanceTests::test_logical_roots_satisfy_their_required_keys_and_types PASSED
+    SchemaConformanceTests::test_schema_version_matches_the_declared_enum PASSED
+    SchemaConformanceTests::test_every_required_top_level_property_is_present PASSED
+    SchemaConformanceTests::test_each_record_class_entry_satisfies_the_schema PASSED
+    NormalizationTests::test_get_record_subpath_resolves_aliases_and_carve_outs PASSED
+    NormalizationTests::test_unknown_type_raises_valueerror_listing_the_valid_set PASSED
+    NormalizationTests::test_expand_type_matches_the_live_expansion PASSED
+    NormalizationTests::test_all_expansion_token_passes_through PASSED
+    NormalizationTests::test_normalization_agrees_with_the_live_helper_for_every_live_token PASSED
+    NormalizationTests::test_canonical_and_alias_tokens_normalize PASSED
+    NormalizationTests::test_resolve_class_name_rejects_unknown_and_the_all_token PASSED
+    NormalizationTests::test_is_known_type_is_falsy_tolerant_like_the_live_helper PASSED
+    NormalizationTests::test_records_alias_is_reachable_by_name_but_not_as_a_type_noun PASSED
+    LayoutModelDefaultsTests::test_legacy_docs_prefixed_subpaths_survive PASSED
+    LayoutModelDefaultsTests::test_artifact_types_reproduce_the_live_tuple_in_order PASSED
+    LayoutModelDefaultsTests::test_record_classes_are_the_union_of_both_live_vocabularies PASSED
+    LayoutModelDefaultsTests::test_root_classes_are_the_six_and_are_not_collapsed PASSED
+    LayoutModelDefaultsTests::test_reviews_is_a_type_noun_only_in_the_union_view PASSED
+    LayoutModelDefaultsTests::test_lifecycle_subdirs_match_the_live_status_dirs PASSED
+    LayoutModelDefaultsTests::test_record_subpaths_match_the_live_final_map PASSED
+    LayoutModelDefaultsTests::test_logical_roots_are_the_four PASSED
+    LayoutModelDefaultsTests::test_aliases_reproduce_the_live_map_exactly PASSED
+    LayoutModelDefaultsTests::test_other_is_a_complement_without_a_literal_subpath PASSED
+    LayoutModelDefaultsTests::test_records_is_the_root_alias_carve_out PASSED
+
+    ============================== 41 passed in 0.15s ==============================
+    ```
+    (Cross-check: `grep -c "    def test_" tests/test_layout.py` -> 41, matching the 41 collected.)
+
+    DEPENDENCY EVIDENCE (stdlib route taken; `pyproject.toml` NOT touched and NOT added to Scope-Paths):
+    ```
+    $ grep -nE "^\s*(import|from)\s+jsonschema" tests/test_layout.py agent_workflows/layout.py
+    (no matches)
+    $ grep -n "jsonschema" tests/test_layout.py
+    10:`jsonschema`, which is declared in neither the runtime deps nor the `[test]` extra and is absent on
+    391:    """Structural conformance checked with the STDLIB (no `jsonschema` dependency)."""
+    ```
+    Both matches are DOCSTRING PROSE explaining the choice, not imports. The new test imports are only
+    `json`, `unittest`, and four `agent_workflows` modules. `SchemaConformanceTests` validates the emitted
+    document against the emitted schema by walking `required`, `properties`, `additionalProperties`, the
+    `enum`, and the declared item types with the stdlib alone.
+
+    DETERMINISM EVIDENCE (two serializations from ONE process, byte-identical):
+    ```
+    sha1 d558c290bdd00a78c355f59bc19c4880ee8665fb5d195ce184e2967376c09061
+    sha2 d558c290bdd00a78c355f59bc19c4880ee8665fb5d195ce184e2967376c09061
+    byte_identical: True 3422
+    fresh_model_identical: True
+    schema_identical: True d8bdc5da8f4b185d
+    ```
+
+    BARE FULL SUITE, with the baseline re-measured on unmodified HEAD at execution time (both new files
+    stashed, suite run, then restored):
+    ```
+    BASELINE (unmodified HEAD ab9795aa, both files stashed):
+    31 failed, 4303 passed, 3 skipped, 4 xfailed in 32.08s
+
+    AFTER (this plan's two new files present):
+    31 failed, 4344 passed, 3 skipped, 4 xfailed in 31.34s
+    ```
+    DELTA IS THE NEW TESTS ONLY: 4303 -> 4344 passed is exactly +41, matching the 41 collected above, and
+    the FAILURE SET IS IDENTICAL (`diff` of the sorted `FAILED` lines before and after reports no
+    difference). Those 31 failures are PRE-EXISTING on unmodified HEAD, not caused here, and are confined
+    to runner/viewer modules untouched by this plan: `test_run_viewer.py` (14), `test_oc_runipd.py` (7),
+    `test_agy_runipd_cli.py` (6), `test_ipd_lifecycle_cli.py` (2), `test_novalnomerge_integration.py` (1),
+    `test_worker_role_refusal.py` (1). Spot-checked
+    `test_run_viewer.py::test_run_viewer_cli_json`, which fails on run-record discovery
+    (`AssertionError: 0 != 1`) with no layout involvement. Reported to the driver rather than fixed:
+    repairing them is outside this plan's Scope-Paths.
+    `aw check-local-leaks --agent` -> `"outcome":"clean","findings":0`, exit 0.
+  - Result: pass
 
 ## Approval and execution gate
 
