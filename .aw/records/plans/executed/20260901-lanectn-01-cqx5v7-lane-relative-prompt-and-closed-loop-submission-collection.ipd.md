@@ -8,16 +8,16 @@
 - Item-Dependencies: none
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: cqx5v7
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-05 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): Executed: lane-relative isolated prompt (R1.1-R1.4) and closed-loop submission collection with an attempt-keyed receipt (R2.1-R2.6), in one host-neutral module both drivers call. All 6 V-items verified with pasted output including two product-level sabotage runs; both suite invocations show an identical failing set before and after.
 - 2026-09-05 executed (aw oc run, opencode/its_direct/pt3-claude-opus-5-1m-us): all 6 E-items performed and all 6 V-items verified with pasted command output, including the two required product-level sabotage runs. Created the declared shared home `agent_workflows/lane_containment.py` (spec R2.6) and wired BOTH drivers to it; `agy_runipd.build_isolation_notice` had been delegating to `oc_runipd`, which made one host the de-facto shared library, and that pre-existing R2.6 violation was fixed here. THREE THINGS FOUND THAT THE PLAN DID NOT PREDICT, all recorded rather than absorbed: (1) the RECOVERY prompt leaked out-of-lane absolute paths through the prior-attempt record's `prompt`/`log`/`worktree` keys, a route the plan's five named path lines do not cover, so `prior_attempt_summary` allow-lists path-free facts for an isolated turn and leaves a non-isolated turn's record untouched; (2) the plan's `make test-all` baseline of 4 CLI-surface failures is STALE - in this lane the pre-existing set is instead the 14 `dh0uno` `test_run_viewer` failures, which is exactly why the plan says to identify the set by name rather than trust the count; (3) an intermediate `save_state` call added at the collection seam tripped `test_no_call_site_was_rewritten` (31 != 30), a real guard, and was removed as redundant. Bare suite and `make test-all` both show an IDENTICAL failing set before and after (14 pre-existing lane failures), with +45 passing accounted for by name.
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 2 further findings, SR-002, SR-003 (both FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.

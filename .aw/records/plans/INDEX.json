@@ -4164,6 +4164,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md",
+    "plan_id": "cqx5v7",
+    "set_id": "lanectn",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md",
     "plan_id": "429f30",
     "set_id": "ocvariant",
@@ -4346,16 +4356,6 @@
     "order": 0,
     "path": "pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md",
     "plan_id": "h0zljh",
-    "set_id": "lanectn",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md",
-    "plan_id": "cqx5v7",
     "set_id": "lanectn",
     "status": "approved"
   },
