@@ -4154,6 +4154,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md",
+    "plan_id": "txc9l1",
+    "set_id": "resumedupe",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-31",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md",
     "plan_id": "4ot0r6",
     "set_id": "setgraph",
@@ -4347,16 +4357,6 @@
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
     "plan_id": "5e4sb6",
     "set_id": "rununify",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-31",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md",
-    "plan_id": "txc9l1",
-    "set_id": "resumedupe",
     "status": "approved"
   },
   {

@@ -2058,6 +2058,51 @@ def build_isolation_notice(lane_root: Path | None) -> str:
     return _shared(lane_root)
 
 
+# resumedupe (`txc9l1`) E-04: recovery ROUTING has ONE definition, in `oc_runipd`, and these delegate
+# to it. Following the shipped `build_isolation_notice` pattern above rather than copying: the twin of
+# `build_recovery_lane_notice` was for a while a VERBATIM copy here, which is exactly how a one-runner
+# fix leaves the other driver duplicating work. `runner_shared` would be the tidier home, but it holds
+# a strict AST fingerprint pin proving a PURE MOVE of the symbols it received, so adding new logic
+# there is out of this plan's scope; delegation gets the same no-drift guarantee today.
+
+
+def classify_recovery_disposition(
+    repo: Path, item: dict[str, Any], state: dict[str, Any]
+) -> Any:
+    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+    from agent_workflows.oc_runipd import classify_recovery_disposition as _shared
+
+    return _shared(repo, item, state)
+
+
+def resolve_prior_lane(
+    item: dict[str, Any],
+) -> tuple[str | None, str | None, str | None]:
+    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+    from agent_workflows.oc_runipd import resolve_prior_lane as _shared
+
+    return _shared(item)
+
+
+def build_verify_and_continue_notice(repo: Path, decision: Any) -> str:
+    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+    from agent_workflows.oc_runipd import build_verify_and_continue_notice as _shared
+
+    return _shared(repo, decision)
+
+
+def route_recovery_turn(
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+) -> Any:
+    """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+    from agent_workflows.oc_runipd import route_recovery_turn as _shared
+
+    return _shared(run_dir, state, item, recovery)
+
+
 def build_prompt(
     item: dict[str, Any],
     state: dict[str, Any],
@@ -2065,6 +2110,7 @@ def build_prompt(
     plan_path: Path,
     recovery: bool,
     lane_root: Path | None = None,
+    routing: Any = None,
 ) -> str:
     setid = item["setid"]
     decisions = run_dir / "decisions-and-questions.md"
@@ -2073,10 +2119,17 @@ def build_prompt(
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    # resumedupe (`txc9l1`) E-04: same routing block as the OpenCode driver, through the delegating
+    # wrapper above, so a resumed turn here is routed identically.
+    verify_notice = (
+        build_verify_and_continue_notice(Path(state["repo"]), routing)
+        if routing is not None and recovery
+        else ""
+    )
     isolation_notice = build_isolation_notice(lane_root)
     return f"""# Antigravity IPD Driver Turn
 
-Mode: {mode}{lane_notice}{isolation_notice}
+Mode: {mode}{lane_notice}{verify_notice}{isolation_notice}
 Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
@@ -2757,10 +2810,15 @@ def execute_item(
     action = item.get("action", "execute")
     is_review = action == "review"
 
+    # resumedupe (`txc9l1`): classify the PRIOR attempt's lane BEFORE this turn's attempt record and
+    # lane exist, for the ordering reason recorded in `oc_runipd.route_recovery_turn`.
+    routing = None if is_review else route_recovery_turn(run_dir, state, item, recovery)
     if is_review:
         prompt_text = build_review_prompt(item, state, run_dir, plan_path, repo)
     else:
-        prompt_text = build_prompt(item, state, run_dir, plan_path, recovery=recovery)
+        prompt_text = build_prompt(
+            item, state, run_dir, plan_path, recovery=recovery, routing=routing
+        )
 
     prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
     max_items = state.get("options", {}).get("max_items_per_session", 4)
@@ -2894,6 +2952,12 @@ def execute_item(
                 attempt["worktree_disposition"] = getattr(
                     wt_handle, "disposition", "created"
                 )
+                # resumedupe (`txc9l1`): persist the DISPLACED lane too. It was already emitted as an
+                # event but never written to durable per-item state, so `resolve_prior_lane`'s last
+                # fallback had nothing to read when an attempt died before the preservation path ran.
+                attempt["worktree_displaced_from"] = getattr(
+                    wt_handle, "displaced_from", None
+                )
                 save_state(run_dir, state)
                 append_jsonl(
                     run_dir / "events.jsonl",
@@ -2957,7 +3021,15 @@ def execute_item(
         except DriverError:
             lane_plan_path = plan_path
         prompt_text = build_prompt(
-            item, state, run_dir, lane_plan_path, recovery=recovery, lane_root=lane_root
+            item,
+            state,
+            run_dir,
+            lane_plan_path,
+            recovery=recovery,
+            lane_root=lane_root,
+            # REUSE the pre-allocation decision; recomputing here would read the lane THIS turn just
+            # allocated (empty by construction) and lose the routing.
+            routing=routing,
         )
         prompt_path = write_prompt(run_dir, item, prompt_text, attempt_no)
         attempt["prompt"] = str(prompt_path)

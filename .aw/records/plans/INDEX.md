@@ -95,7 +95,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 
 ## resumedupe
 
-- `txc9l1` [pending] 01 pending/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md
+- `txc9l1` [executed] 01 executed/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md
 
 ## setgraph
 
