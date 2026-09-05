@@ -65,7 +65,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 ## lanectn
 
 - `h0zljh` [pending] 00 pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md
-- `cqx5v7` [pending] 01 pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md
+- `cqx5v7` [executed] 01 executed/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md
 - `nna8yz` [pending] 02 pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md
 - `lhmrhx` [pending] 03 pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md
 - `y5od1h` [pending] 04 pending/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md

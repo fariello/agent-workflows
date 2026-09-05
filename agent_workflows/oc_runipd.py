@@ -207,6 +207,11 @@ from agent_workflows.selectors import read_front_matter_status as _read_status
 # live in the shared ``runner_stop`` module so both drivers consult ONE mechanism.
 from agent_workflows import runner_stop
 
+# lanectn `cqx5v7` (spec `7ckptx` R2.6): the host-neutral home for lane containment rules. Both
+# drivers call THESE functions; neither carries a second copy of the path projection, the collection,
+# or the idempotency (CID-2).
+from agent_workflows import lane_containment
+
 # Where a hardened lane's scratch/submission channel lives, relative to the lane worktree
 # root. Lane-local so it is writable by construction and torn down with the lane.
 LANE_SCRATCH_SUBDIR = ".aw/lane-scratch"
@@ -4383,39 +4388,13 @@ def route_recovery_turn(
 def build_isolation_notice(lane_root: Path | None) -> str:
     """The WORK HERE block for an isolated turn, or "" for a main-checkout turn.
 
-    laneprompt: isolation used to be conveyed ONLY by `cwd` + `--dir`, while every absolute path in
-    the prompt body was MAIN's and one line told the agent to "leave the main execution checkout
-    safe". Measured consequence (run-20260831T153226Z-3424176, plan y6mfgo): the driver allocated a
-    lane, launched with `--dir <lane>`, and the agent nonetheless read `../../../DECISIONS.md` and
-    committed 18 files into MAIN while the lane branch stayed at zero commits.
-
-    This block is the CHEAP layer and is honestly limited: `host_sandbox_profile`'s own docstring
-    records that a same-user agent with shell access "cannot be cryptographically or filesystem-
-    enforced from prompts, hooks, environment variables, or Python role checks alone". So this stops a
-    FORGETFUL agent, not a determined one; the enforcing layer is the opt-in hardened profile
-    (`_apply_execution_profile`), which binds main read-only.
+    lanectn `cqx5v7` E-02 (spec `7ckptx` R1.2, R1.4): the TEXT now lives in the host-neutral
+    `lane_containment.isolation_notice`, which both drivers call, and the EXCEPTION CLAUSE that used
+    to authorize absolute out-of-lane paths is DELETED rather than reworded. See that function's
+    docstring for the measured defect this block closes, for why the deletion is safe (the paths are
+    lane-relative now, so there is nothing left to except), and for the honest limit.
     """
-    if lane_root is None:
-        return ""
-    return f"""
-
-## Work here
-
-You are running in an ISOLATED GIT WORKTREE (a "lane"), not the main checkout:
-
-    {lane_root}
-
-Do EVERY edit, test run, and commit inside that directory. It is a full checkout of this
-repository on its own branch, so the whole tree you need is already there.
-
-Do NOT read or write the main checkout, and do NOT climb out with a relative path such as
-`../../../<file>`. If you need a repository file, use the copy inside the lane. When a path
-below is given as an absolute path outside the lane, it is a DRIVER-OWNED control path (the
-run directory, the outcome JSON, the decisions register); those are the only exceptions and
-you write them exactly as given.
-
-The driver integrates your lane back into the main checkout after this turn. Leaving work
-outside the lane defeats that integration and can corrupt another agent's tree."""
+    return lane_containment.isolation_notice(lane_root)
 
 
 def build_prompt(
@@ -4428,12 +4407,37 @@ def build_prompt(
     routing: RecoveryDisposition | None = None,
 ) -> str:
     setid = item["setid"]
-    decisions = run_dir / "decisions-and-questions.md"
-    outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    report = run_dir / "execution-report.md"
+    # lanectn `cqx5v7` E-01 (spec R1.1, R1.3): every worker-facing path is projected through the ONE
+    # host-neutral rule. For an ISOLATED turn they come back lane-relative, so the emitted prompt
+    # names no absolute path outside the lane; for a non-isolated turn (`lane_root is None`) the
+    # projection returns exactly the absolute paths this function interpolated before, so that branch
+    # is byte-identical.
+    paths = lane_containment.project_worker_paths(
+        item=item,
+        run_id=state["run_id"],
+        run_dir=run_dir,
+        plan_path=plan_path,
+        lane_root=lane_root,
+    )
+    lane_containment.prepare_lane_submission_dir(paths)
+    decisions = paths.prompt_decisions
+    outcome = paths.prompt_outcome
+    report = paths.prompt_report
+    report_label = paths.prompt_report_label
+    run_dir_line = paths.prompt_run_dir
+    run_dir_label = paths.prompt_run_dir_label
+    plan_line = paths.prompt_plan
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
+    # A prior-attempt record carries `prompt`, `log`, and `worktree` as ABSOLUTE driver-side paths, so
+    # dumping it whole re-introduced out-of-lane paths on every RECOVERY turn through a route the
+    # path projection does not touch. Non-isolated turns still get the full record (R1.3).
+    prior = lane_containment.prior_attempt_summary(prior, lane_root)
+    # The recovery notice legitimately describes a PREVIOUS attempt's lane, which may be a different
+    # directory (an attempt-scoped lane), hence out-of-lane for this turn. Narrow scrub, notice only.
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    if lane_root is not None:
+        lane_notice = lane_containment.scrub_out_of_lane_paths(lane_notice, lane_root)
     # resumedupe (`txc9l1`) E-04: when the driver has ALREADY READ the prior attempt's lane and found
     # finished work there, ADD the verify-and-continue block. The existing recovery notice is kept
     # rather than replaced: it carries the interrupt facts, and this adds the routing instruction. A
@@ -4451,11 +4455,11 @@ Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
 Assigned Set: {setid}
-Plan file at launch: {plan_path}
-External run directory: {run_dir}
+Plan file at launch: {plan_line}
+{run_dir_label}: {run_dir_line}
 Decisions/questions register: {decisions}
 Required JSON outcome: {outcome}
-Driver report: {report}
+{report_label}: {report}
 Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
 
 ## Concurrent Work
@@ -5763,6 +5767,57 @@ def execute_item(
         attempt["cost"] = att_cost
     if att_toks:
         attempt["tokens"] = att_toks
+
+    # lanectn `cqx5v7` E-03/E-04/E-06 (spec R2.1-R2.5): COLLECT the isolated worker's lane-side
+    # submissions to the paths this driver's own readers use, IMMEDIATELY BEFORE the disposition is
+    # computed. The ordering is the requirement, not a preference: `reconcile_disposition` reads
+    # `<run_dir>/outcomes/<NN>-<id6>.json`, so a lane-relative prompt (E-01) without this call would
+    # leave that path empty, score the turn from the empty-outcome fallback, and silently never
+    # finalize a fully successful turn. That is why R2.1 forbids shipping E-01 without E-03.
+    #
+    # No-op for a NON-isolated turn (`work_dir` unset), and never raises for a turn that submitted
+    # nothing: absence is a legitimate observation (R2.4) and reconciliation handles it already.
+    if work_dir and not is_review:
+        try:
+            collection = lane_containment.collect_lane_submissions(
+                run_dir=run_dir,
+                item=item,
+                run_id=state["run_id"],
+                lane_root=Path(work_dir),
+                plan_path=plan_path,
+                attempt=attempt_no,
+            )
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
+            collection = None
+            attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
+        if collection is not None:
+            attempt["collection"] = {
+                "status": collection.get("status"),
+                "collected": collection.get("collected"),
+                "failed": collection.get("failed"),
+                "receipt": str(
+                    lane_containment.collection_receipt_path(run_dir, item, attempt_no)
+                ),
+            }
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-submissions-collected",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "collected": collection.get("collected"),
+                    "failed": collection.get("failed"),
+                },
+            )
+        # No `save_state` here ON PURPOSE. The RECEIPT on disk is the authoritative record (R2.5) and
+        # is written atomically by the collection itself, and the event above is already durable; the
+        # `attempt["collection"]` annotation is a convenience that the existing `save_state` a few
+        # lines below persists. Adding a call here would also move a call-site count that
+        # `tests/test_runner_shared.py::WrapperTests` pins deliberately.
+
     disposition, outcome = reconcile_disposition(repo, item, run_dir, exit_code)
 
     # Turn 2: independent skeptical verification in a fresh session. After a successful

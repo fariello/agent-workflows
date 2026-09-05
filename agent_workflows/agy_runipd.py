@@ -87,6 +87,12 @@ from agent_workflows.render_stream import (
 # `AGENTS.md#aw:reporting` section use), so the two drivers cannot drift apart.
 from agent_workflows import reporting_contract
 
+# lanectn `cqx5v7` (spec `7ckptx` R2.6): the host-neutral lane containment rules, shared with the
+# OpenCode driver. This driver CALLS them and holds no second copy of the path projection, the
+# collection, or the idempotency (CID-2). Do NOT import them from `oc_runipd`: that would make one
+# host the de-facto shared library, which R2.6 forbids.
+from agent_workflows import lane_containment
+
 # fullauto Order 01 (97df1z): the `--full-auto` auto-approve gate lives in ONE shared module. This
 # driver used to carry its own NEAR-copy of `is_plan_review_approved`/`extract_last_history_entry`
 # (docstrings already stripped relative to the oc copies - live evidence of the drift), which meant a
@@ -2091,13 +2097,12 @@ def build_review_prompt(
 def build_isolation_notice(lane_root: Path | None) -> str:
     """The WORK HERE block for an isolated turn, or "" for a main-checkout turn.
 
-    laneprompt: the SHARED text lives in `oc_runipd.build_isolation_notice`; this delegates so the two
-    drivers cannot drift (the same reason `rununify` exists). See that docstring for the measured
-    defect this closes.
+    lanectn `cqx5v7` E-05: this used to delegate to `oc_runipd.build_isolation_notice`, which made the
+    OPENCODE driver the de-facto shared library for a host-neutral rule - exactly what spec `7ckptx`
+    R2.6 forbids. It now calls the host-neutral `lane_containment.isolation_notice`, the same function
+    the oc driver calls, so neither host owns the other's text.
     """
-    from agent_workflows.oc_runipd import build_isolation_notice as _shared
-
-    return _shared(lane_root)
+    return lane_containment.isolation_notice(lane_root)
 
 
 # resumedupe (`txc9l1`) E-04: recovery ROUTING has ONE definition, in `oc_runipd`, and these delegate
@@ -2155,12 +2160,30 @@ def build_prompt(
     routing: Any = None,
 ) -> str:
     setid = item["setid"]
-    decisions = run_dir / "decisions-and-questions.md"
-    outcome = run_dir / "outcomes" / f"{item['position']:02d}-{item['id6']}.json"
-    report = run_dir / "execution-report.md"
+    # lanectn `cqx5v7` E-05: WIRING ONLY. The projection rule itself is host-neutral (spec R1.1, R1.3,
+    # R2.6) and lives in `lane_containment.project_worker_paths`; re-deriving it here would fork the
+    # rule (CID-2). Kept symmetric with `oc_runipd.build_prompt`.
+    paths = lane_containment.project_worker_paths(
+        item=item,
+        run_id=state["run_id"],
+        run_dir=run_dir,
+        plan_path=plan_path,
+        lane_root=lane_root,
+    )
+    lane_containment.prepare_lane_submission_dir(paths)
+    decisions = paths.prompt_decisions
+    outcome = paths.prompt_outcome
+    report = paths.prompt_report
+    report_label = paths.prompt_report_label
+    run_dir_line = paths.prompt_run_dir
+    run_dir_label = paths.prompt_run_dir_label
+    plan_line = paths.prompt_plan
     mode = "RECOVERY/CONTINUATION" if recovery else "NORMAL EXECUTION"
     prior = item.get("attempts", [])[-1] if recovery and item.get("attempts") else None
+    prior = lane_containment.prior_attempt_summary(prior, lane_root)
     lane_notice = build_recovery_lane_notice(item, state, recovery)
+    if lane_root is not None:
+        lane_notice = lane_containment.scrub_out_of_lane_paths(lane_notice, lane_root)
     # resumedupe (`txc9l1`) E-04: same routing block as the OpenCode driver, through the delegating
     # wrapper above, so a resumed turn here is routed identically.
     verify_notice = (
@@ -2176,11 +2199,11 @@ Run ID: {state["run_id"]}
 Queue position: {item["position"]}
 Assigned IPD: {item["id6"]}
 Assigned Set: {setid}
-Plan file at launch: {plan_path}
-External run directory: {run_dir}
+Plan file at launch: {plan_line}
+{run_dir_label}: {run_dir_line}
 Decisions/questions register: {decisions}
 Required JSON outcome: {outcome}
-Driver report: {report}
+{report_label}: {report}
 Prior attempt: {json.dumps(prior, sort_keys=True) if prior else "none"}
 
 ## Concurrent Work
@@ -3214,6 +3237,51 @@ def execute_item(
         attempt["cost"] = att_cost
     if att_toks:
         attempt["tokens"] = att_toks
+
+    # lanectn `cqx5v7` E-05: WIRING ONLY, calling the SAME host-neutral collection the oc driver
+    # calls, positioned IMMEDIATELY BEFORE `reconcile_disposition` for the same reason (spec R2.1: the
+    # reader below looks in the run directory, so an uncollected lane submission makes a successful
+    # turn reconcile to the empty-outcome fallback and never finalize). Re-implementing any part of it
+    # here would fork the rule (CID-2). Verified at THIS driver's own seam rather than assumed
+    # symmetric: this host names the exit code `rc` and the log `log_file`, and `attempt_no` is the
+    # same ledger-derived number the collection keys its receipt by.
+    if work_dir and not is_review:
+        try:
+            collection = lane_containment.collect_lane_submissions(
+                run_dir=run_dir,
+                item=item,
+                run_id=state["run_id"],
+                lane_root=Path(work_dir),
+                plan_path=plan_path,
+                attempt=attempt_no,
+            )
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive; collection must never kill a turn
+            collection = None
+            attempt["collection_error"] = f"{type(exc).__name__}: {exc}"
+        if collection is not None:
+            attempt["collection"] = {
+                "status": collection.get("status"),
+                "collected": collection.get("collected"),
+                "failed": collection.get("failed"),
+                "receipt": str(
+                    lane_containment.collection_receipt_path(run_dir, item, attempt_no)
+                ),
+            }
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "lane-submissions-collected",
+                    "id6": item["id6"],
+                    "attempt": attempt_no,
+                    "collected": collection.get("collected"),
+                    "failed": collection.get("failed"),
+                },
+            )
+        # No `save_state` here, for the reason stated at the oc twin's identical seam: the receipt and
+        # the event are already durable, and the existing save below persists the annotation.
 
     disposition, outcome = reconcile_disposition(repo, item, run_dir, rc)
 
