@@ -39,10 +39,21 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: Engine Install Integration
 
-- [ ] E-01 Update `agent_workflows/engine.py` (`install_into_repo`) to call `layout.build_default_layout().to_json(framework_version)` and `layout.build_default_layout().to_schema()` and write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation.
+- [x] E-01 Update `agent_workflows/engine.py` (`install_into_repo`) to call `layout.build_default_layout().to_json(framework_version)` and `layout.build_default_layout().to_schema()` and write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during installation.
   - Depends on: none
   - Expected outcome: Target repository `.aw/system/` directory receives layout.json and schema.
-  - Execution state: pending
+  - Execution state: performed
+  - Executed 2026-09-05: added `AW_LAYOUT_JSON_PATH` / `AW_LAYOUT_SCHEMA_PATH` constants
+    (`engine.py:96-103`) and a new `emit_layout_artifacts(repo_root, *, dry_run=False)`
+    (`engine.py:5336-5395`) that builds `layout.build_default_layout()`, serializes with
+    `to_json(read_installed_version(repo))` / `to_schema_json()`, writes both at mode `0o644`, and
+    SKIPS a byte-identical existing file so a re-install is a true no-op (not a rewrite). The call
+    sits INSIDE `install_into_repo` itself (after `create_setup_artifacts`, so `.aw/.gitignore`
+    already exists and git never sees the files even transiently), satisfying the PR-026 shared
+    chokepoint requirement; `engine.run()` was NOT touched. A freshly emitted (not pre-existing)
+    artifact is added to the `--undo` created-files record, and the written set is surfaced as
+    `result["layout_artifacts"]`. A `legacy`-layout target returns `[]` rather than manufacturing a
+    `.aw/system/` tree, and an `OSError` warns non-fatally (same posture as the ownership manifest).
   - Set-level prerequisite: `wpu5zu` must be executed first; see `- Item-Dependencies:` in the metadata.
   - THE ONLY EMISSION SITE IS `engine.install_into_repo()` (plan-review PR-003, PR-021). `/aw setup-repo` (alias
     `/setup-repo`) is an AGENT SLASH-COMMAND backed by a workflow BODY
@@ -66,10 +77,19 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 2: Installation Verification Tests
 
-- [ ] E-02 Add the `.aw/.gitignore` entries so the emitted layout artifacts are never committed, per the maintainer's OQ-2 ruling.
+- [x] E-02 Add the `.aw/.gitignore` entries so the emitted layout artifacts are never committed, per the maintainer's OQ-2 ruling.
   - Depends on: E-01
   - Expected outcome: `.aw/.gitignore` carries `system/layout.json` and `system/layout.schema.json`, and a freshly installed repo shows neither file in `git status`.
-  - Execution state: pending
+  - Execution state: performed
+  - Executed 2026-09-05: edited BOTH generation places in `engine.py` as PR-027 requires.
+    (a) `_AW_GITIGNORE_TEMPLATE` (`engine.py:4287-4292`) now ends with a commented
+    `system/layout.json` + `system/layout.schema.json` pair, so a FRESH install emits them.
+    (b) the `additions` back-fill in `_ensure_aw_gitignore` (`engine.py:5384-5393`) appends either
+    pattern that a repo installed BEFORE this change lacks, using an ANCHORED line-match
+    (`(?m)^<pattern>$`) rather than a substring test so the explanatory comment above the patterns
+    cannot be mistaken for the patterns themselves. Reusing the existing `additions` mechanism makes
+    it idempotent by construction. This repo's own checked-in `.aw/.gitignore` got the same block as
+    dogfooding (optional per the scope note; it changes nothing for a target repo).
   - MAINTAINER RULING 2026-09-01 (plan-review PR-004 / OQ-2): the emitted files are GITIGNORED, via a
     `.gitignore` INSIDE the `.aw/` directory. This matches the `ila6vl` decision on generated manifests
     and this spec's own anti-drift rationale (committing generated output would defeat the reason
@@ -105,10 +125,25 @@ Execution-state rule: mark an E-* item complete only after performing the action
     be scoped to "carries no layout entry", NOT to "has no diff", or it will fail for a legitimate
     reason on a first install.
 
-- [ ] E-03 Create `tests/test_engine_install.py` verifying that fresh and updated installs emit valid, gitignored `layout.json` and `layout.schema.json`.
+- [x] E-03 Create `tests/test_engine_install.py` verifying that fresh and updated installs emit valid, gitignored `layout.json` and `layout.schema.json`.
   - Depends on: E-01, E-02
   - Expected outcome: Test suite validates install-time file generation, schema validity, and gitignored status.
-  - Execution state: pending
+  - Execution state: performed
+  - Executed 2026-09-05: CREATED `tests/test_engine_install.py` (18 tests, 3 classes, stdlib-only, no
+    `jsonschema` import per the `tests/test_layout.py` precedent). Covers every clause this plan
+    demanded: both files emitted; mode `0o644`; `framework_version` == the repo's
+    `.aw/system/VERSION`; the emitted document conforms STRUCTURALLY to the emitted schema; the bytes
+    are exactly `build_default_layout()`'s own serialization (no forked serializer); a second install
+    rewrites nothing (asserted on BOTH content AND `st_mtime_ns`, since equal bytes alone would not
+    catch a needless rewrite); stale content IS refreshed (the skip-unchanged path must not become
+    skip-always); emission through `cli._install_one` (the `aw setup` path, PR-026); no emission code
+    in the `setup-repo` workflow body (PR-003); `--dry-run` writes nothing; a `legacy` target emits
+    nothing; the template carries both patterns; a fresh install leaves both invisible to
+    `git status --porcelain` with `git check-ignore -v` attributing the rule to `.aw/.gitignore`; the
+    ROOT `.gitignore` carries no layout entry AND the user's own line survived; the back-fill path
+    adds each pattern exactly once and is idempotent under repeat calls and repeat installs; and the
+    TRACKED `records/comms/shared/inbox/` lane is still not ignored (regression fence on the
+    neighbouring anchored `/inbox/` rule). `tests/test_setup_repo_cli.py` stayed out of scope.
   - CORRECTED (plan-review PR-002): `tests/test_engine_install.py` DOES NOT EXIST at review time, so
     this is a CREATE, not an edit. `tests/test_setup_repo_cli.py` also does not exist and is DROPPED
     from scope: per PR-003 there is no `setup-repo` CLI surface to test.
@@ -174,7 +209,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: in a temporary repo, `engine.install_into_repo()` (via `aw install`) writes BOTH
     `.aw/system/layout.json` and `.aw/system/layout.schema.json` at mode `0o644`. Paste a directory
     listing showing both files and their mode, plus the emitted `framework_version` matching that repo's
@@ -189,10 +224,83 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     `aw setup` (or calling `cli._install_one`) against a temporary repo and pasting the resulting
     `.aw/system/layout.json` listing. A call added to `engine.run()` instead is a FAILED validation even
     if `aw install` emits correctly, because `aw setup` would silently emit nothing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified 2026-09-05 in a temporary git repo seeded with one commit and a
+    pre-existing user line in its root `.gitignore`, driving `engine.install_into_repo(...)`.
 
-- [ ] V-02 validates E-02
+    ```text
+    layout_artifacts: ['.aw/system/layout.json', '.aw/system/layout.schema.json']
+    --- ls -l (mode 0644) ---
+    -rw-r--r-- 1 3422 Sep  5 18:17 .aw/system/layout.json
+    -rw-r--r-- 1 1960 Sep  5 18:17 .aw/system/layout.schema.json
+    --- framework_version vs VERSION ---
+    layout.json framework_version = 1.2.1
+    .aw/system/VERSION        = 1.2.1
+    ```
+
+    DETERMINISM (install twice at the same version; `sha256sum` before and after are identical and
+    the second run reports an EMPTY written set, i.e. a no-op rather than a rewrite):
+
+    ```text
+    --- sha256 before second install ---
+    922da2f3360df366cc09891e22994b5d9c6d22837cef169f4570d701f06a8fcd  .aw/system/layout.json
+    d8bdc5da8f4b185d9f1fa58f5e6de4f6b0d3339433822ae8bd9ef42a27257423  .aw/system/layout.schema.json
+    SECOND INSTALL layout_artifacts: [] (empty = no-op)
+    --- sha256 after second install (identical) ---
+    922da2f3360df366cc09891e22994b5d9c6d22837cef169f4570d701f06a8fcd  .aw/system/layout.json
+    d8bdc5da8f4b185d9f1fa58f5e6de4f6b0d3339433822ae8bd9ef42a27257423  .aw/system/layout.schema.json
+    ```
+
+    The automated twin (`test_reinstall_at_same_version_rewrites_nothing`) additionally asserts
+    `st_mtime_ns` is unchanged, which is the assertion that actually pins "no-op rather than rewrite":
+    a nondeterministic serializer that happened to produce equal bytes would still fail it.
+
+    PR-003 NEGATIVE CHECK, no emission code added to the workflow body:
+
+    ```text
+    $ git diff --name-only
+    .aw/.gitignore
+    agent_workflows/engine.py
+    $ git status --porcelain | grep '^??'
+    ?? tests/test_engine_install.py
+    $ git diff --name-only -- .aw/system/workflows/setup-repo/setup-repo.md
+    (empty = untouched)
+    ```
+
+    Only the three declared `Scope-Paths` are touched; the `setup-repo` workflow body is untouched.
+
+    PR-026 SHARED-CHOKEPOINT PROOF. The diff hunk shows the call inside `install_into_repo`:
+
+    ```diff
+         artifacts = create_setup_artifacts(repo_root, use_git, dry_run=dry_run)
+    +    # wslayout Order 04 (hauwqh), spec kw5y2s Section 6.1: emit the machine-readable layout document
+    +    # + its schema for non-Python consumers. Deliberately INSIDE this shared core rather than in a
+    +    # caller, so `aw install`, `aw setup`, and library callers all get it by construction. ...
+    +    _layout_pre_existing = {
+    +        rel: (repo_root / rel).exists()
+    +        for rel in (AW_LAYOUT_JSON_PATH, AW_LAYOUT_SCHEMA_PATH)
+    +    }
+    +    layout_artifacts = emit_layout_artifacts(repo_root, dry_run=dry_run)
+    ```
+
+    Confirmed by source introspection rather than by reading the diff alone:
+
+    ```text
+    CONFIRMED: emit_layout_artifacts call is INSIDE install_into_repo source
+    engine.run() contains emit_layout_artifacts: False (must be False)
+    ```
+
+    And demonstrated through the SECOND CLI install path (`aw setup` ->
+    `cli._run_setup` -> `cli._install_one`) against a separate temporary repo:
+
+    ```text
+    cli._install_one outcome: ok
+    === emitted via the aw setup path ===
+    -rw-r--r-- 1 3422 Sep  5 18:18 .aw/system/layout.json
+    -rw-r--r-- 1 1960 Sep  5 18:18 .aw/system/layout.schema.json
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `.aw/.gitignore` contains `system/layout.json` and `system/layout.schema.json`;
     paste the relevant lines of the file.
   - PLUS proof the ignore WORKS in a freshly installed temporary repo: paste
@@ -211,18 +319,122 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     back-fill list, not one file: (a) FRESH install into a new temporary repo, then install AGAIN, and
     paste evidence `.aw/.gitignore` gained no duplicate line; and (b) BACK-FILL, i.e. start from a repo
     whose `.aw/.gitignore` LACKS the two entries (simulating a repo installed before this change), run
-    the install, and paste evidence both entries were appended exactly once. Case (b) is the one a
+    the install, and     paste evidence both entries were appended exactly once. Case (b) is the one a
     template-only edit silently fails.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: verified 2026-09-05 in the same temporary installed repo.
 
-- [ ] V-03 validates E-03
+    The framework-owned `.aw/.gitignore` carries both patterns, and the ignore actually TAKES EFFECT:
+
+    ```text
+    === .aw/.gitignore entries ===
+    33:system/layout.json
+    34:system/layout.schema.json
+    === git status --porcelain | grep layout ===
+    (no output = neither emitted file is visible to git)
+    === git check-ignore -v ===
+    .aw/.gitignore:33:system/layout.json	.aw/system/layout.json
+    .aw/.gitignore:34:system/layout.schema.json	.aw/system/layout.schema.json
+    ```
+
+    Both paths are attributed to `.aw/.gitignore`, never to the root file.
+
+    ROOT `.gitignore` CARRIES NO LAYOUT ENTRY (the PR-027 corrected assertion; NOT "no diff", since
+    the installer legitimately writes its managed `aw:block` and the backups line there):
+
+    ```text
+    === grep -n layout .gitignore ===
+    grep exit=1 (1 = no match, correct)
+    === user's pre-existing root line survived ===
+    2:*.user-tmp
+    ```
+
+    IDEMPOTENCY ACROSS BOTH GENERATION PATHS.
+    (a) FRESH install then install AGAIN: `.aw/.gitignore` gained no duplicate line (the automated
+    twin `test_reinstall_does_not_duplicate_the_patterns` asserts exactly one occurrence of each).
+    (b) BACK-FILL, the case a template-only edit silently fails: both entries were STRIPPED from an
+    installed repo's `.aw/.gitignore` to simulate a repo installed before this change, then
+    `_ensure_aw_gitignore` was run THREE times:
+
+    ```text
+    SIMULATED pre-change repo; layout lines now: []
+    === after back-fill x3 (exactly one copy each) ===
+    33:system/layout.json
+    34:system/layout.schema.json
+    counts: json=1 schema=1
+    === check-ignore still attributes to .aw/.gitignore ===
+    .aw/.gitignore:33:system/layout.json	.aw/system/layout.json
+    .aw/.gitignore:34:system/layout.schema.json	.aw/system/layout.schema.json
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: `python3 -m pytest tests/test_engine_install.py` passes cleanly with the ACTUAL
     runner output pasted, and the NEW file is present in the commit.
   - PLUS the BARE FULL SUITE: `python3 -m pytest` (bare) with the `N passed` summary line pasted, zero
     regressions, since this plan changes the installer that every other install test depends on.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: run 2026-09-05 in the PRIMARY lane checkout.
+
+    The NEW file, run with `-o addopts=""` so the per-test count is visible (the configured
+    `addopts` supplies a `-q` that suppresses it):
+
+    ```text
+    $ python3 -m pytest tests/test_engine_install.py -o addopts="" -q
+    ..................                                                       [100%]
+    18 passed in 29.70s
+    ```
+
+    BASELINE re-measured on unmodified HEAD `198bac9249477a07dcd6316333bcce7a54b7958c` (tree clean)
+    BEFORE any edit, bare:
+
+    ```text
+    $ python3 -m pytest
+    31 failed, 4768 passed, 3 skipped, 4 xfailed in 32.61s
+    ```
+
+    AFTER this plan's changes, bare:
+
+    ```text
+    $ python3 -m pytest
+    31 failed, 4786 passed, 3 skipped, 4 xfailed in 35.43s
+    ```
+
+    ZERO REGRESSIONS, proven by set comparison rather than by matching counts (equal counts alone
+    would not exclude one test breaking while another was fixed). The two `FAILED` id lists were
+    sorted and diffed:
+
+    ```text
+    $ diff baseline-failed.txt after-failed.txt && echo IDENTICAL
+    IDENTICAL FAILURE SETS: zero regressions (4768 -> 4786 passed = +18 new tests)
+    ```
+
+    The 31 failures are PRE-EXISTING at the baseline commit and untouched by this plan; they are
+    concentrated in `tests/test_oc_runipd.py`, `tests/test_agy_runipd_cli.py`,
+    `tests/test_ipd_lifecycle_cli.py`, `tests/test_worker_role_refusal.py` and
+    `tests/test_novalnomerge_integration.py`, i.e. the runner/lifecycle harness, none of which this
+    plan's installer wiring touches. The +18 delta is exactly this plan's new tests.
+
+    RE-VALIDATED AFTER THE `ruff-format` PRE-COMMIT HOOK. The hook reformatted the two Python files
+    (pure line-wrapping, no semantic change, inspected before re-staging), so the suite was re-run on
+    the COMMITTED tree at `553d970d` rather than trusting the pre-format run:
+
+    ```text
+    $ python3 -m pytest tests/test_engine_install.py -o addopts="" -q
+    ..................                                                       [100%]
+    18 passed in 29.40s
+    $ python3 -m pytest
+    31 failed, 4786 passed, 3 skipped, 4 xfailed in 35.18s
+    $ diff baseline-failed.txt after2-failed.txt && echo IDENTICAL
+    POST-COMMIT: IDENTICAL FAILURE SETS vs baseline
+    ```
+
+    Leak sanitizer clean:
+
+    ```text
+    $ python3 -m agent_workflows check-local-leaks . --agent
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,
+     "verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 
