@@ -7,7 +7,7 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 ## runprofile
 
 - `3m0urk` [pending] 00 pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md
-- `f2mrsw` [pending] 01 pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
+- `f2mrsw` [executed] 01 executed/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
 - `p0l1to` [pending] 02 pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
 - `3cm15q` [pending] 03 pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
 - `ygzq71` [pending] 04 pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md

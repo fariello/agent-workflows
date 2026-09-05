@@ -6,16 +6,16 @@
 - Scope: Add a dedicated versioned launch-profile domain and atomic XDG-backed store. Define strict validation, collision-safe names, default-runner and per-runner-default semantics, deterministic resolution/precedence, inspectable provenance, and fail-closed error behavior. Version 1 supports OpenCode (`oc`) while leaving an explicit registry seam for later hosts.
 - Scope-Paths: agent_workflows/runner_profiles.py, tests/test_runner_profiles.py
 - Item-Dependencies: executed:0soncw
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runprofile
 - Order: 1
 - Highest E allocated: 04
 - Author: codex gpt-5.6
 - Id: f2mrsw
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-05 executed (aw oc run): aw oc run self-finalize: f2mrsw verified (set runprofile, attempt 1).
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 reviewed (aw set): set Item-Dependencies to executed:0soncw
 - 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
