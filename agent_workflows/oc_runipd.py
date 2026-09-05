@@ -2550,6 +2550,15 @@ def initialize_run(args: argparse.Namespace) -> Path:
         else:
             runbook_path = None
 
+    # runflags-01 (`uyeko5`) E-03/E-04/E-05: refuse an unhonorable flag BEFORE resolution, so a
+    # malformed invocation costs the operator nothing and leaves no durable state. All three refusals
+    # DELEGATE: the unimplemented-flag list is the shared table's, `--unverifiable-ok`'s precondition
+    # is `run_evidence.aggregate_run_exit`'s (executed `zub5f1`), and `--retry-budget`'s 0..10 bound is
+    # `run_recovery.validate_retry_budget`'s (executed `sq61qd`). Nothing is re-decided here.
+    runner_shared.refuse_unimplemented_run_flags(args)
+    runner_shared.evaluate_unverifiable_admission(args)
+    runner_shared.resolve_retry_budget(getattr(args, "retry_budget", None))
+
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
     # 8guhs0 E-02: FAIL CLOSED on an invalid dependency graph BEFORE any host session starts (and
@@ -2564,6 +2573,26 @@ def initialize_run(args: argparse.Namespace) -> Path:
         except (DriverError, KeyError):
             continue
     enforce_dependency_preflight(repo, selected_plan_paths)
+
+    # runflags-01 (`uyeko5`) E-02: THE CALL SITE THAT MAKES `6lu3rq`'s MIXED-TYPE GATE REACHABLE.
+    # Executed plan `6lu3rq` built the entire gate and NOTHING called it: `run_selection_policy` was
+    # imported by no module in the package and `decide` had ZERO call sites, so a fully tested gate was
+    # dead code and a mixed selection was silently accepted. Here, after resolution and BEFORE any
+    # lease, session, or run directory, which is exactly where spec 2.5 places it.
+    #
+    # HONEST LIMIT: no real invocation can produce a mixed selection yet. Discovery walks only the two
+    # plans trees, the manifest is compiled from those alone, and NEITHER host registers `--type`
+    # (spec 2.2/2.3, out of this plan's scope). So the gate is now REACHED on every run and correctly
+    # does not APPLY, because the classification is single-type. Wiring proven; a live mixed selection
+    # being gated is NOT proven and must not be reported as such.
+    mixed_verdict = runner_shared.enforce_mixed_type_gate(
+        repo,
+        selected_plan_paths,
+        allow_mixed=bool(getattr(args, "allow_mixed", False)),
+        interactive=runner_shared.is_interactive_run(args),
+        host="oc",
+        selector=" ".join(str(s) for s in args.selectors),
+    )
 
     run_id = getattr(args, "run_id", None) or new_run_id()
     run_dir = state_root(repo) / run_id
@@ -2690,6 +2719,13 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "self_finalize": getattr(args, "self_finalize", True),
             "isolate_worktree": getattr(args, "isolate_worktree", True),
             "max_items_per_session": getattr(args, "max_items_per_session", 4),
+            # runflags-01 (`uyeko5`) E-06: spec 2.1's policy flags FROZEN at queue build, because
+            # spec 2.1 makes resume use "the original host, queue, and options". A policy re-read
+            # from `args` on every resume would silently change meaning between the first turn and
+            # the last. `**` and not eight literals so the frozen set cannot drift from the table.
+            # This also normalizes `--full-auto` implying `--unattended` and resolves
+            # `--retry-budget` to its effective integer; see `freeze_run_policy_flags`.
+            **runner_shared.freeze_run_policy_flags(args),
         },
         "driver": {
             "path": str(Path(__file__).resolve()),
@@ -2700,6 +2736,22 @@ def initialize_run(args: argparse.Namespace) -> Path:
     append_jsonl(
         run_dir / "events.jsonl",
         {"at": utc_now(), "event": "run-created", "run_id": run_id, "queue": queue_ids},
+    )
+    # runflags-01 (`uyeko5`) E-02: spec 2.5 bullet 4's four facts (confirmed type counts, action
+    # preview, response-or-flag, queue digest) recorded in the run ledger. The record is the one
+    # `run_selection_policy` RETURNED - `6lu3rq` deliberately returns these so a caller with a live run
+    # can persist them without re-deriving anything, and re-deriving them here would be a second
+    # implementation of the counts.
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "mixed-type-gate",
+            "gate_applied": mixed_verdict.gate_applied,
+            "proceed": mixed_verdict.proceed,
+            "reason": mixed_verdict.reason,
+            **mixed_verdict.record.as_dict(),
+        },
     )
     write_report(run_dir, state)
     # runorder (prpipy) E-04: announce the order the run will EXECUTE in, ALWAYS, and warn loudly
@@ -6089,18 +6141,12 @@ AUTOMATIC STATUS ROUTING:
             "subagent is not killed for a quiet stdout (default: 600; 0 to disable)"
         ),
     )
-    start.add_argument(
-        "--full-auto",
-        action=argparse.BooleanOptionalAction,
-        default=False,
-        help=(
-            "Clear a plan that is already 'Status: reviewed' to 'auto-approved' and execute it "
-            "immediately. The decision reads the plan's structured '- Readiness:' field "
-            "(go|go-pending-approval clears; no-go, an unrecognized value, or an absent field with "
-            "no approving review verdict does not). This records an AUTOMATED clear, NOT human "
-            "approval: no --by-human attestation is asserted"
-        ),
-    )
+    # runflags-01 (`uyeko5`) E-01..E-07: spec `25kzda` 2.1's EIGHT policy flags, registered from the
+    # SHARED table so the two hosts cannot declare seven of them and then drift on the eighth - which
+    # is exactly what happened to `--full-auto`, whose default was `False` here and `True` on agy
+    # until E-07 normalized it. `--full-auto` is included in the table, so it is NO LONGER declared
+    # by hand here; its help text and `BooleanOptionalAction` moved into `RUN_POLICY_FLAGS` unchanged.
+    runner_shared.register_run_policy_flags(start)
     start.add_argument(
         "--validate",
         "--verify",
@@ -6164,15 +6210,14 @@ AUTOMATIC STATUS ROUTING:
             "(stdout events or best-effort subagent activity; default: 600; 0 to disable)"
         ),
     )
-    resume.add_argument(
-        "--full-auto",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help=(
-            "Override full-auto mode (clear reviewed plans whose structured '- Readiness:' is "
-            "go/go-pending-approval to 'auto-approved' and execute them; not human approval)"
-        ),
-    )
+    # runflags-01 (`uyeko5`) E-06: the same eight flags on `resume`, every one with `default=None`.
+    # That is the SHIPPED `--full-auto` pattern and it is what makes an OMITTED flag preserve the
+    # frozen value: with `default=False`, resume could not tell "the operator passed `--no-X`" from
+    # "the operator passed nothing" and would clobber frozen policy on every resume.
+    # `--retry-budget` is registered here too although it is REFUSED (spec `:131` freezes it), because
+    # refusing it needs argparse to accept it first; otherwise the operator is told the flag does not
+    # exist instead of being told the frozen value cannot change.
+    runner_shared.register_run_policy_flags(resume, resume=True)
     resume.add_argument(
         "--validate",
         "--verify",
@@ -6374,9 +6419,19 @@ def main(argv: list[str] | None = None) -> int:
             print(run_dir / "execution-report.md")
             return 0
         if args.command == "resume":
-            if getattr(args, "full_auto", None) is not None:
-                state = load_state(run_dir)
-                state.setdefault("options", {})["full_auto"] = args.full_auto
+            # runflags-01 (`uyeko5`) E-06: REFUSE a flag spec 2.1 freezes, before any state is loaded
+            # or written. Scoped to `--retry-budget`, the one flag spec `:131` explicitly freezes ("the
+            # frozen value cannot change on resume"). The blanket `:129` reading is NOT implemented,
+            # because the shipped `--full-auto` on resume OVERWRITES the frozen option rather than
+            # refusing, so the spec's two sentences disagree and converting a shipped flag's behavior
+            # is out of this plan's fence. The divergence is recorded, not papered over.
+            runner_shared.refuse_frozen_flags_on_resume(args)
+            # Apply the policy flags the operator actually PASSED; leave the omitted ones frozen. This
+            # SUBSUMES the hand-written `--full-auto` block that was here: the shared helper applies
+            # the same `None`-means-absent rule to all eight, so `--full-auto`'s shipped resume
+            # behavior (it OVERWRITES the frozen option, it does not refuse) is preserved EXACTLY.
+            state = load_state(run_dir)
+            if runner_shared.apply_run_policy_flags_on_resume(state, args):
                 save_state(run_dir, state)
             if getattr(args, "validate", None) is not None:
                 state = load_state(run_dir)
