@@ -1461,6 +1461,41 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=(),
         exit_contract=(0, 1, 2),
     ),
+    # revsweep 76gsmv E-05: `aw <host> review` is declared as an `alias`, not a `mutation`, because
+    # that is what it IS: spec 25kzda 2.1 defines it as exactly `run <selector> --action review`, and
+    # `cli.expand_host_review_argv` implements it as a pure argv rewrite with no behavior of its own.
+    # The class is load-bearing rather than cosmetic: `empty_error_renderer="delegated"` is REQUIRED
+    # for an alias (test_empty_error_renderer_classification_consistency) and is also the truth here,
+    # since the driver's own parser owns every message and exit code.
+    #
+    # TWO NEW LEAVES, NOT FOUR. `discover_parser_leaves` walks `sa.choices` but SKIPS a name that is
+    # an argparse alias of an already-seen subparser (identity test), so the `opencode`/`antigravity`
+    # host spellings do not surface as separate leaves; measured before and after, the undeclared set
+    # was exactly {`oc review`, `agy review`}. The plan's F-12 predicted four based on an older
+    # `discover_parser_leaves` that did not de-duplicate aliases; that function has since changed and
+    # the count was re-measured rather than trusted.
+    CommandDeclaration(
+        command="oc review",
+        command_class="alias",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+        canonical_command="oc runipd",
+    ),
+    CommandDeclaration(
+        command="agy review",
+        command_class="alias",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+        canonical_command="agy runipd",
+    ),
     CommandDeclaration(
         command="oc update-models",
         command_class="mutation",

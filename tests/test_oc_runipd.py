@@ -3313,5 +3313,439 @@ class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):
             self.assertEqual(captured_argv[idx + 1], "high")
 
 
+# --------------------------------------------------------------------------------------------------
+# revsweep 76gsmv: the `reviews` selector's documentation, the `aw <host> review` alias, `--action`
+# legality, and the empty sweep's exit code.
+# --------------------------------------------------------------------------------------------------
+
+
+def _repo_with_statuses(root: Path, statuses: dict) -> Path:
+    """A git repo holding one conforming plan per (id6 -> status) entry. No commit needed to read."""
+    repo = root / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"], cwd=repo, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, check=True)
+    (repo / ".gitignore").write_text(
+        ".aw/state/\n.aw/worktrees/\n.aw/records/runs/\n", encoding="utf-8"
+    )
+    pending = repo / ".aw" / "records" / "plans" / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+    for order, (id6, status) in enumerate(statuses.items(), start=1):
+        text = _CONFORMING_PLAN.format(id6=id6).replace(
+            "- Status: approved", f"- Status: {status}", 1
+        )
+        if status == "reviewed":
+            # The `--full-auto` danger path needs an APPROVING readiness to be auto-cleared.
+            text = text.replace("- Author: test", "- Author: test\n- Readiness: go", 1)
+        (pending / f"20260828-demo-{order:02d}-{id6}-demo.ipd.md").write_text(
+            text, encoding="utf-8"
+        )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+    return repo
+
+
+class ReviewsSelectorDocumentedTests(unittest.TestCase):
+    """revsweep 76gsmv E-01/V-01: the sweep worked and was invisible. Help must name it.
+
+    The measured consequence of the omission was a maintainer asking for a command that already
+    existed, so these assert the help TEXT, which is the deliverable, not just that the selector
+    resolves (which it always did).
+    """
+
+    def test_all_three_spellings_appear_in_the_top_level_help(self):
+        help_text = driver.build_parser().format_help()
+        for spelling in ("reviews", "review", "to-review"):
+            self.assertIn(spelling, help_text)
+
+    def test_selector_types_block_documents_reviews_and_all(self):
+        """Both were missing from oc's own prose block; `all` was the plan's F-2 correction."""
+        desc = driver.build_parser().description or ""
+        self.assertIn("SELECTOR TYPES:", desc)
+        self.assertIn("reviews:", desc)
+        self.assertIn("all:", desc)
+
+    def test_examples_block_shows_the_bare_sweep(self):
+        epilog = driver.build_parser().epilog or ""
+        self.assertIn("EXAMPLES:", epilog)
+        self.assertRegex(epilog, r"runipd reviews\b")
+
+    def test_selectors_positional_help_names_the_sweep(self):
+        import argparse as _ap
+
+        parser = driver.build_parser()
+        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
+        start = sub.choices["start"]
+        sel = next(a for a in start._actions if a.dest == "selectors")
+        self.assertIn("reviews", sel.help or "")
+
+    def test_help_does_not_claim_cross_type_coverage(self):
+        """The sweep reaches IPDs only (`5slbpi` would change that). Help must not lie about it."""
+        parser = driver.build_parser()
+        blob = (parser.description or "") + (parser.epilog or "")
+        self.assertIn("IPDs only", blob)
+
+    def test_help_does_not_state_membership_as_the_current_buggy_predicate(self):
+        """`6ypimw` widens the predicate; help naming `status == to-review` would go false."""
+        parser = driver.build_parser()
+        blob = (parser.description or "") + (parser.epilog or "")
+        self.assertNotIn("status == to-review", blob)
+        self.assertIn("next legal action is review", blob)
+
+
+class HostReviewAliasExpansionTests(unittest.TestCase):
+    """revsweep 76gsmv E-02/V-02: the alias is an argv REWRITE, with no behavior of its own."""
+
+    def test_bare_form_expands_to_the_canonical_sweep(self):
+        from agent_workflows.cli import expand_host_review_argv
+
+        self.assertEqual(expand_host_review_argv([]), ["reviews", "--action", "review"])
+
+    def test_explicit_selector_is_preserved_in_position_zero(self):
+        from agent_workflows.cli import expand_host_review_argv
+
+        self.assertEqual(
+            expand_host_review_argv(["5ahblp"]), ["5ahblp", "--action", "review"]
+        )
+
+    def test_flag_tail_passes_through_verbatim(self):
+        from agent_workflows.cli import expand_host_review_argv
+
+        self.assertEqual(
+            expand_host_review_argv(["--repo", "/tmp/x", "--session", "s1"]),
+            ["reviews", "--repo", "/tmp/x", "--session", "s1", "--action", "review"],
+        )
+
+    def test_help_is_forwarded_untouched(self):
+        """No selector and no `--action`, so the driver prints its own help as `runipd --help` does."""
+        from agent_workflows.cli import expand_host_review_argv
+
+        self.assertEqual(expand_host_review_argv(["--help"]), ["--help"])
+        self.assertEqual(expand_host_review_argv(["-h"]), ["-h"])
+
+    def test_composition_with_the_implicit_start_shim_yields_exactly_one_start(self):
+        """The plan's named hazard: emitting `start` here would produce `start start`.
+
+        Re-derived from the driver's OWN subcommand set rather than a hardcoded copy, so a new
+        subcommand cannot make this test agree with a stale assumption.
+        """
+        from agent_workflows.cli import expand_host_review_argv
+
+        subcommands = {
+            "start",
+            "resume",
+            "status",
+            "report",
+            "stop",
+            "-h",
+            "--help",
+            "-v",
+            "--version",
+        }
+        for tail in (
+            [],
+            ["5ahblp"],
+            ["--repo", "/tmp/x"],
+            ["5ahblp", "--session", "s"],
+        ):
+            with self.subTest(tail=tail):
+                argv = expand_host_review_argv(tail)
+                self.assertNotIn(
+                    argv[0], subcommands, "must emit a SELECTOR, not `start`"
+                )
+                shimmed = ["start"] + argv
+                self.assertEqual(shimmed.count("start"), 1)
+
+    def test_review_is_a_parser_choice_on_both_host_groups(self):
+        """The reachability half. Without this, `aw oc review` dies at `invalid choice: 'review'`."""
+        import argparse as _ap
+
+        from agent_workflows.cli import _build_parser
+
+        def _choices(p):
+            for action in p._actions:
+                if isinstance(action, _ap._SubParsersAction):
+                    return action.choices
+            return {}
+
+        top = _choices(_build_parser())
+        for host in ("oc", "opencode", "agy", "antigravity"):
+            with self.subTest(host=host):
+                self.assertIn(host, top)
+                self.assertIn("review", _choices(top[host]))
+
+    def test_alias_freezes_the_same_run_state_as_the_canonical_invocation(self):
+        """V-02's LOAD-BEARING half: indistinguishability, not merely "it runs".
+
+        A test that only proved the alias runs would also pass if the alias had forked, which spec
+        25kzda 2.1 names as the one defect an alias can have. So this compares the FROZEN run state
+        of both spellings field by field.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            repo = _repo_with_statuses(Path(td), {"torv01": "to-review"})
+            for run_id, argv in (
+                ("run-ALIAS", ["oc", "review"]),
+                ("run-CANON", ["oc", "runipd", "reviews", "--action", "review"]),
+            ):
+                res = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "agent_workflows",
+                        *argv,
+                        "--repo",
+                        os.fspath(repo),
+                        "--prepare-only",
+                        "--run-id",
+                        run_id,
+                    ],
+                    cwd=repo,
+                    env=_DRIVER_ENV,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+            runs = repo / ".aw" / "records" / "runs"
+            alias = json.loads((runs / "run-ALIAS" / "state.json").read_text())
+            canon = json.loads((runs / "run-CANON" / "state.json").read_text())
+            # Identity and timestamps differ by construction; everything else must not.
+            for volatile in (
+                "run_id",
+                "created_at",
+                "updated_at",
+                "manifest",
+                "runbook",
+                "manifest_sha256",
+                "runbook_sha256",
+            ):
+                alias.pop(volatile, None)
+                canon.pop(volatile, None)
+            self.assertEqual(alias["options"], canon["options"])
+            self.assertEqual(alias["selectors"], canon["selectors"])
+            self.assertEqual(alias["queue"], canon["queue"])
+            self.assertEqual(alias, canon)
+
+
+class ActionLegalityTests(unittest.TestCase):
+    """revsweep 76gsmv E-03/V-03: `--action review` must REFUSE a non-reviewable item.
+
+    This is the plan's F-9 and the one way a thin alias becomes dangerous: `action_for` returns
+    `execute` for BOTH `approved` and `reviewed`, so a merely-accepted flag would let
+    `aw oc review <approved-id6>` EXECUTE that plan while the operator typed "review".
+    """
+
+    def test_action_choices_are_the_spec_vocabulary(self):
+        self.assertEqual(driver.ACTION_CHOICES, ("review", "plan", "execute"))
+        self.assertEqual(driver.ACTION_IMPLEMENTED, frozenset({"review"}))
+
+    def test_none_is_a_no_op(self):
+        driver.enforce_requested_action(None, [("x", "approved", "execute")])
+
+    def test_review_passes_when_every_item_derives_review(self):
+        driver.enforce_requested_action(
+            "review", [("a", "to-review", "review"), ("b", "draft", "review")]
+        )
+
+    def test_review_refuses_an_approved_item(self):
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.enforce_requested_action("review", [("a", "approved", "execute")])
+        self.assertIn("illegal", str(ctx.exception))
+        self.assertIn("approved", str(ctx.exception))
+
+    def test_review_refuses_a_reviewed_item(self):
+        with self.assertRaises(driver.DriverError):
+            driver.enforce_requested_action("review", [("a", "reviewed", "execute")])
+
+    def test_review_refuses_an_orchestrate_item(self):
+        """An orchestrator past review is not agent-executed, so review is not its next action."""
+        with self.assertRaises(driver.DriverError):
+            driver.enforce_requested_action(
+                "review", [("a", "approved", "orchestrate")]
+            )
+
+    def test_plan_and_execute_refuse_honestly_rather_than_silently_accepting(self):
+        for action in ("plan", "execute"):
+            with self.subTest(action=action):
+                with self.assertRaises(driver.DriverError) as ctx:
+                    driver.enforce_requested_action(
+                        action, [("a", "approved", "execute")]
+                    )
+                self.assertIn("not implemented", str(ctx.exception))
+
+    def test_refusal_names_every_illegal_item(self):
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.enforce_requested_action(
+                "review",
+                [("aaa111", "approved", "execute"), ("bbb222", "reviewed", "execute")],
+            )
+        msg = str(ctx.exception)
+        self.assertIn("aaa111", msg)
+        self.assertIn("bbb222", msg)
+        self.assertIn("2 selected item(s)", msg)
+
+    def _refusal_run(self, id6: str, *extra: str):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _repo_with_statuses(
+                Path(td),
+                {"appr01": "approved", "revw01": "reviewed", "torv01": "to-review"},
+            )
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "oc",
+                    "review",
+                    id6,
+                    "--repo",
+                    os.fspath(repo),
+                    "--prepare-only",
+                    *extra,
+                ],
+                cwd=repo,
+                env=_DRIVER_ENV,
+                capture_output=True,
+                text=True,
+            )
+            plan_text = (repo / ".aw" / "records" / "plans" / "pending").glob(
+                f"*{id6}*.ipd.md"
+            )
+            status = next(
+                line
+                for line in next(plan_text).read_text().splitlines()
+                if line.startswith("- Status:")
+            )
+            runs = repo / ".aw" / "records" / "runs"
+            return (
+                res,
+                status,
+                sorted(p.name for p in runs.iterdir()) if runs.is_dir() else [],
+            )
+
+    def test_alias_refuses_an_approved_plan_before_any_run_directory_exists(self):
+        res, status, runs = self._refusal_run("appr01")
+        self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+        self.assertIn("--action review is illegal", res.stderr)
+        self.assertEqual(runs, [], "a refused run must create NO run directory")
+        self.assertEqual(status, "- Status: approved")
+
+    def test_alias_refuses_a_reviewed_plan_even_with_full_auto_present(self):
+        """The exact path that auto-clears `reviewed` to `auto-approved` and executes it.
+
+        The status assertion is the load-bearing one: if the gate ran AFTER the auto-approval, the
+        plan file would have been mutated to `auto-approved` on the way to being executed.
+        """
+        res, status, runs = self._refusal_run("revw01", "--full-auto")
+        self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+        self.assertIn("--action review is illegal", res.stderr)
+        self.assertEqual(runs, [])
+        self.assertEqual(status, "- Status: reviewed")
+
+    def test_alias_accepts_a_to_review_plan(self):
+        res, _status, runs = self._refusal_run("torv01")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertEqual(len(runs), 1)
+
+
+class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
+    """revsweep 76gsmv E-04/V-04: spec 25kzda 2.4a property 3.
+
+    "An empty result is a success, not an error ... it reports that plainly and exits 0 ... the one
+    deliberate exception to the Section 2.3 rule that zero matches exit 2. A misspelled id6 still
+    exits 2; only the status selectors are exempt."
+    """
+
+    def test_the_empty_sweep_raises_the_success_subclass_not_a_bare_driver_error(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "appr01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/pending/20260828-s1-01-appr01-x.ipd.md",
+                    "status": "approved",
+                    "order": 1,
+                    "dependencies": [],
+                }
+            },
+            "sets": {"s1": {"order": ["appr01"]}},
+        }
+        for spelling in ("reviews", "review", "to-review"):
+            with self.subTest(spelling=spelling):
+                with self.assertRaises(driver.EmptyStatusSelection):
+                    driver.expand_selectors(manifest, [spelling])
+
+    def test_the_success_subclass_is_still_a_driver_error(self):
+        """Every OTHER `except DriverError` in the package must keep catching it."""
+        self.assertTrue(issubclass(driver.EmptyStatusSelection, driver.DriverError))
+
+    def test_the_all_selector_still_raises_a_plain_driver_error(self):
+        """The exemption stays NARROW: `all` is not a review sweep and is untouched."""
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "done01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/executed/20260828-s1-01-done01-x.ipd.md",
+                    "status": "executed",
+                    "order": 1,
+                    "dependencies": [],
+                }
+            },
+            "sets": {"s1": {"order": ["done01"]}},
+        }
+        with self.assertRaises(driver.DriverError) as ctx:
+            driver.expand_selectors(manifest, ["all"])
+        self.assertNotIsInstance(ctx.exception, driver.EmptyStatusSelection)
+
+    def test_end_to_end_empty_sweep_exits_zero_and_creates_no_run_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _repo_with_statuses(Path(td), {"appr01": "approved"})
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "oc",
+                    "review",
+                    "--repo",
+                    os.fspath(repo),
+                    "--prepare-only",
+                ],
+                cwd=repo,
+                env=_DRIVER_ENV,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            self.assertIn("Nothing awaiting review", res.stdout)
+            self.assertFalse((repo / ".aw" / "records" / "runs").is_dir())
+
+    def test_end_to_end_misspelled_id6_still_exits_two(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = _repo_with_statuses(Path(td), {"appr01": "approved"})
+            res = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "oc",
+                    "review",
+                    "zzzz99",
+                    "--repo",
+                    os.fspath(repo),
+                    "--prepare-only",
+                ],
+                cwd=repo,
+                env=_DRIVER_ENV,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

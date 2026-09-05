@@ -777,5 +777,226 @@ class AgyFullAutoApprovalTests(unittest.TestCase):
         self.assertIn(agy_runipd.FULL_AUTO_ACTOR, argv)
 
 
+# --------------------------------------------------------------------------------------------------
+# revsweep 76gsmv: the agy half of the selector documentation, the `aw agy review` alias, `--action`
+# legality, and the empty sweep's exit code. PARITY IS THE POINT: the plan's F-7 measured the two
+# runners' sweep predicates as verbatim duplicates, so a change proven only on oc would leave this
+# host behind, which is exactly how `aw agy run --full-auto` was once shipped broken (fullauto 97df1z).
+# --------------------------------------------------------------------------------------------------
+
+
+class AgyReviewsSelectorDocumentedTests(unittest.TestCase):
+    """revsweep 76gsmv E-01/V-01, agy half. It documented `all` while omitting `reviews` (F-2)."""
+
+    def test_selector_types_block_documents_reviews(self):
+        desc = agy_runipd.build_parser().description or ""
+        self.assertIn("SELECTOR TYPES:", desc)
+        self.assertIn("reviews:", desc)
+        self.assertIn("all:", desc)
+
+    def test_all_three_spellings_appear_in_the_help(self):
+        help_text = agy_runipd.build_parser().format_help()
+        for spelling in ("reviews", "review", "to-review"):
+            self.assertIn(spelling, help_text)
+
+    def test_the_bare_sweep_example_lives_in_the_description(self):
+        """F-11: agy has NO `epilog`, so its example goes here rather than in an invented block."""
+        parser = agy_runipd.build_parser()
+        self.assertIsNone(parser.epilog, "agy gained an epilog; re-derive this test")
+        self.assertRegex(parser.description or "", r"runagy reviews\b")
+
+    def test_selectors_positional_help_names_the_sweep(self):
+        import argparse as _ap
+
+        parser = agy_runipd.build_parser()
+        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
+        sel = next(a for a in sub.choices["start"]._actions if a.dest == "selectors")
+        self.assertIn("reviews", sel.help or "")
+
+    def test_help_states_the_current_type_scoping_and_not_the_buggy_predicate(self):
+        desc = agy_runipd.build_parser().description or ""
+        self.assertIn("IPDs only", desc)
+        self.assertIn("next legal action is review", desc)
+        self.assertNotIn("status == to-review", desc)
+
+
+class AgyReviewAliasTests(unittest.TestCase):
+    """revsweep 76gsmv E-02/V-02, agy half: the alias must REACH the driver at all."""
+
+    def test_review_reaches_the_driver_instead_of_invalid_choice(self):
+        for group in ("agy", "antigravity"):
+            with self.subTest(group=group):
+                captured = {}
+
+                def fake_main(argv, _c=captured):
+                    _c["argv"] = list(argv)
+                    return 0
+
+                with mock.patch.object(agy_runipd, "main", fake_main):
+                    rc, out, err = _run_cli([group, "review"])
+                self.assertEqual(rc, 0, out + err)
+                self.assertNotIn("invalid choice", out + err)
+                self.assertEqual(captured["argv"], ["reviews", "--action", "review"])
+
+    def test_explicit_selector_and_verbatim_tail_reach_the_driver(self):
+        captured = {}
+
+        def fake_main(argv, _c=captured):
+            _c["argv"] = list(argv)
+            return 0
+
+        with mock.patch.object(agy_runipd, "main", fake_main):
+            rc, _out, _err = _run_cli(
+                ["agy", "review", "5ahblp", "--repo", "/tmp/x", "--session", "s1"]
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            captured["argv"],
+            ["5ahblp", "--repo", "/tmp/x", "--session", "s1", "--action", "review"],
+        )
+
+    def test_the_two_hosts_share_one_expansion_function(self):
+        """Spec 25kzda 2.1: an operator-visible difference between the spellings is a DEFECT.
+
+        Proven structurally rather than by comparing outputs: both hosts route through the SAME
+        function, so there is no second implementation that could drift.
+        """
+        for tail in ([], ["5ahblp"], ["--repo", "/tmp/x"]):
+            with self.subTest(tail=tail):
+                self.assertEqual(
+                    cli.expand_host_review_argv(tail),
+                    cli.expand_host_review_argv(list(tail)),
+                )
+
+
+class AgyActionLegalityTests(unittest.TestCase):
+    """revsweep 76gsmv E-03/V-03, agy half.
+
+    MORE URGENT ON THIS HOST than on oc: `--full-auto` DEFAULTS TO TRUE here (`initialize_run` reads
+    `getattr(args, "full_auto", True)`), so a merely-accepted `--action review` would let
+    `aw agy review <reviewed-id6>` auto-clear that plan to `auto-approved` and execute it.
+    """
+
+    def test_action_vocabulary_matches_the_oc_host(self):
+        from agent_workflows import oc_runipd
+
+        self.assertEqual(agy_runipd.ACTION_CHOICES, oc_runipd.ACTION_CHOICES)
+        self.assertEqual(agy_runipd.ACTION_IMPLEMENTED, oc_runipd.ACTION_IMPLEMENTED)
+
+    def test_review_passes_a_to_review_item(self):
+        agy_runipd.enforce_requested_action("review", [("a", "to-review", "review")])
+
+    def test_review_refuses_approved_and_reviewed_items(self):
+        for status in ("approved", "reviewed", "auto-approved"):
+            with self.subTest(status=status):
+                with self.assertRaises(agy_runipd.DriverError) as ctx:
+                    agy_runipd.enforce_requested_action(
+                        "review", [("a", status, "execute")]
+                    )
+                self.assertIn("illegal", str(ctx.exception))
+
+    def test_plan_and_execute_refuse_honestly(self):
+        for action in ("plan", "execute"):
+            with self.subTest(action=action):
+                with self.assertRaises(agy_runipd.DriverError) as ctx:
+                    agy_runipd.enforce_requested_action(
+                        action, [("a", "to-review", "review")]
+                    )
+                self.assertIn("not implemented", str(ctx.exception))
+
+    def test_none_is_a_no_op(self):
+        agy_runipd.enforce_requested_action(None, [("a", "approved", "execute")])
+
+    def test_the_action_flag_is_registered_on_start(self):
+        import argparse as _ap
+
+        parser = agy_runipd.build_parser()
+        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
+        action_arg = next(
+            a for a in sub.choices["start"]._actions if a.dest == "action"
+        )
+        self.assertEqual(tuple(action_arg.choices or ()), agy_runipd.ACTION_CHOICES)
+        self.assertIsNone(action_arg.default)
+
+
+class AgyEmptyReviewSweepTests(unittest.TestCase):
+    """revsweep 76gsmv E-04/V-04, agy half: spec 25kzda 2.4a property 3."""
+
+    _MANIFEST = {
+        "schema_version": 1,
+        "plans": {
+            "appr01": {
+                "set": "s1",
+                "file": ".aw/records/plans/pending/20260828-s1-01-appr01-x.ipd.md",
+                "status": "approved",
+                "order": 1,
+                "dependencies": [],
+            }
+        },
+        "sets": {"s1": {"order": ["appr01"]}},
+    }
+
+    def test_empty_sweep_raises_the_success_subclass(self):
+        for spelling in ("reviews", "review", "to-review"):
+            with self.subTest(spelling=spelling):
+                with self.assertRaises(agy_runipd.EmptyStatusSelection):
+                    agy_runipd.expand_selectors(self._MANIFEST, [spelling])
+
+    def test_the_success_subclass_is_still_a_driver_error(self):
+        self.assertTrue(
+            issubclass(agy_runipd.EmptyStatusSelection, agy_runipd.DriverError)
+        )
+
+    def test_all_selector_zero_match_is_untouched(self):
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "done01": {
+                    "set": "s1",
+                    "file": ".aw/records/plans/executed/20260828-s1-01-done01-x.ipd.md",
+                    "status": "executed",
+                    "order": 1,
+                    "dependencies": [],
+                }
+            },
+            "sets": {"s1": {"order": ["done01"]}},
+        }
+        with self.assertRaises(agy_runipd.DriverError) as ctx:
+            agy_runipd.expand_selectors(manifest, ["all"])
+        self.assertNotIsInstance(ctx.exception, agy_runipd.EmptyStatusSelection)
+
+    def test_main_exits_zero_on_an_empty_sweep_and_creates_no_run_state(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "t@e.invalid"], cwd=repo, check=True
+            )
+            subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260828-demo-01-appr01-demo.ipd.md").write_text(
+                _CONFORMING_PLAN.format(id6="appr01"), encoding="utf-8"
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = agy_runipd.main(["reviews", "--repo", str(repo), "--prepare-only"])
+            self.assertEqual(rc, 0, out.getvalue() + err.getvalue())
+            self.assertIn("Nothing awaiting review", out.getvalue())
+            self.assertFalse((repo / ".aw" / "records" / "runs").is_dir())
+
+    def test_main_still_exits_two_for_a_misspelled_id6(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = agy_runipd.main(["zzzz99", "--repo", str(repo), "--prepare-only"])
+            self.assertEqual(rc, 2, out.getvalue() + err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

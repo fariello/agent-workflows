@@ -3334,6 +3334,36 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runipd driver (start/resume/status/report ...).",
     )
+    # revsweep 76gsmv E-02: `aw oc review [<selector>]` is a THIN ALIAS of `runipd <selector>
+    # --action review`, per spec 25kzda 2.1. It is declared HERE, at the host-subcommand seam, because
+    # `cli` resolves the host subcommand before any argv reaches the driver: without this choice,
+    # `aw oc review` fails with `invalid choice: 'review'` and the spelled surface the spec declares
+    # is unreachable no matter what the driver's own parser accepts.
+    #
+    # THE ALIAS CARRIES NO LOGIC. Like `runipd` it captures REMAINDER verbatim and declares none of
+    # the driver's flags; the EXPANSION is a pure argv rewrite in `_dispatch` (see the forwarding
+    # block there). Spec 2.1: "an operator-visible difference between `aw <host> review X` and
+    # `aw <host> run X --action review` is a defect in the alias, not a feature of it."
+    p_oc_review = oc_sub.add_parser(
+        "review",
+        help="Review IPDs awaiting review (thin alias of 'aw oc runipd <selector> --action review'; "
+        "with no selector it sweeps every IPD whose next legal action is review).",
+        add_help=False,
+        description=(
+            "Review the IPDs that are awaiting review. Spelled out, this is exactly `aw oc runipd "
+            "<selector> --action review`, and with no selector it is exactly `aw oc runipd reviews "
+            "--action review`, which sweeps every IPD whose next legal action is review and shares "
+            "one host session across them. It adds nothing of its own: every flag, gate, exit code, "
+            "and run record is the driver's. Because it requires the review action, it refuses "
+            "rather than executing when a selected plan is already past review. A sweep that matches "
+            "nothing is a success and exits 0."
+        ),
+    )
+    p_oc_review.add_argument(
+        "review_args",
+        nargs=argparse.REMAINDER,
+        help="Optional selector, then any driver flag, forwarded verbatim.",
+    )
     # ocsync Order 01 (g7hljt): `aw oc update-models` refreshes each OpenAI-compatible provider's
     # models/pricing from the gateway declared in the user's OWN OpenCode config (no hardcoded host).
     # Unlike `runipd` this verb has STRUCTURED flags, so it is declared here and dispatched from the
@@ -3409,6 +3439,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "runipd_args",
         nargs=argparse.REMAINDER,
         help="Arguments forwarded verbatim to the runagy driver (start/resume/status/report ...).",
+    )
+    # revsweep 76gsmv E-02: `aw agy review [<selector>]`, the same thin alias as `aw oc review`
+    # (which carries the full rationale). Declared at the host-subcommand seam because `cli` resolves
+    # the host subcommand before any argv reaches the driver; expanded by a pure argv rewrite in
+    # `_dispatch`, so it declares none of the driver's flags and can acquire no behavior of its own.
+    p_agy_review = agy_sub.add_parser(
+        "review",
+        help="Review IPDs awaiting review (thin alias of 'aw agy runipd <selector> --action review'; "
+        "with no selector it sweeps every IPD whose next legal action is review).",
+        add_help=False,
+        description=(
+            "Review the IPDs that are awaiting review. Spelled out, this is exactly `aw agy runipd "
+            "<selector> --action review`, and with no selector it is exactly `aw agy runipd reviews "
+            "--action review`, which sweeps every IPD whose next legal action is review and shares "
+            "one host session across them. It adds nothing of its own: every flag, gate, exit code, "
+            "and run record is the driver's. Because it requires the review action, it refuses "
+            "rather than executing when a selected plan is already past review. A sweep that matches "
+            "nothing is a success and exits 0."
+        ),
+    )
+    p_agy_review.add_argument(
+        "review_args",
+        nargs=argparse.REMAINDER,
+        help="Optional selector, then any driver flag, forwarded verbatim.",
     )
     # runnernorm Order 02 (puot79): graduate the remaining Antigravity source-checkout tools
     # under the same packaged-core + host-subcommand pattern. Each captures REMAINDER verbatim and
@@ -9420,6 +9474,36 @@ def _attach_argcomplete_completers(parser: argparse.ArgumentParser) -> None:
     walk(parser)
 
 
+def expand_host_review_argv(tail: Sequence[str]) -> list[str]:
+    """Expand `aw <host> review`'s tail into the CANONICAL driver argv (revsweep 76gsmv E-02).
+
+    Spec `25kzda` 2.1: `aw <host> review [<selector>]` "is exactly `aw <host> run <selector>
+    --action review`, and with the selector omitted it is exactly `aw <host> run
+    <needs-review-selector> --action review`". This function IS that definition, and it is the single
+    implementation of it, shared by the pre-`parse_args` fast path and the parsed-namespace dispatch,
+    so the two spellings cannot drift apart.
+
+    THREE PROPERTIES, each one a way a hand-rolled rewrite would have gone wrong:
+
+    1. It emits a SELECTOR first and never `start`. The driver's own implicit-`start` shim prepends
+       `start` to any argv whose first token is not a subcommand, so emitting `start` here would
+       yield `start start` and launch a run with the literal selector `start`.
+    2. The operator's tail passes through VERBATIM, so `aw oc review --repo X --session Y` reaches
+       the driver's own parser unchanged. This is what keeps the alias free of a flag surface of its
+       own, which is how the two hosts' flag sets diverged before.
+    3. `-h`/`--help` anywhere in the tail is forwarded UNTOUCHED, with no selector and no `--action`,
+       so the driver prints its own help exactly as `runipd --help` does rather than being handed a
+       selector it would then try to resolve.
+    """
+    tokens = [str(t) for t in tail]
+    if any(tok in ("-h", "--help") for tok in tokens):
+        return tokens
+    if tokens and not tokens[0].startswith("-"):
+        # An explicit selector was named; keep it in position 0 where the driver expects it.
+        return [*tokens, "--action", "review"]
+    return ["reviews", *tokens, "--action", "review"]
+
+
 def _dispatch(argv: Optional[Sequence[str]]) -> int:
     parser = _build_parser()
     _maybe_argcomplete(parser)
@@ -9447,6 +9531,34 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    # revsweep 76gsmv E-02: `aw <host> review [<selector>] [<flags>...]` -> the CANONICAL driver
+    # invocation, as spec 25kzda 2.1 defines it. Handled here, in the SAME pre-`parse_args` block as
+    # the verbatim forwarding above, and for the same reason: the driver's own parser must own every
+    # flag and its `--help`, so re-declaring them in `cli.py` "would drift and drop the implicit-start
+    # shim" (see the rationale on the `oc` host group).
+    #
+    # THE REWRITE IS THE WHOLE IMPLEMENTATION, deliberately: prepend the selector when it was omitted,
+    # append `--action review`, and pass the operator's tail through untouched. There is no second
+    # parser and no alias-only code path, so `aw oc review X` cannot behave differently from
+    # `aw oc runipd X --action review`; spec 2.1 calls such a difference a defect in the alias.
+    #
+    # ORDER OF THE TWO REWRITES (76gsmv E-02): the driver's own implicit-`start` shim prepends `start`
+    # to any argv whose first token is not a subcommand. This rewrite therefore emits a SELECTOR first
+    # and never `start` itself; emitting `start` here would produce `start start` once the driver's
+    # shim ran. Composition tested, not assumed.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] in ("oc", "opencode", "agy", "antigravity")
+        and argv_list[1] == "review"
+    ):
+        forwarded = expand_host_review_argv(list(argv_list[2:]))
+        if argv_list[0] in ("oc", "opencode"):
+            from agent_workflows import oc_runipd
+
+            return oc_runipd.main(forwarded)
+        from agent_workflows import agy_runipd
+
+        return agy_runipd.main(forwarded)
     # runnamecollapse 0soncw E-03: the `--` ESCAPE HATCH for a viewer target that collides with a leaf
     # name (`aw runs -- status` means "view the run/Set called `status`", not "run the `status` leaf").
     # It must be handled here, before `parse_args`, because argparse STRIPS `--` while splitting argv,
@@ -9693,6 +9805,16 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
             return oc_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        # revsweep 76gsmv E-02: the alias's parsed-namespace path. `_dispatch` intercepts `oc review`
+        # before `parse_args`, so this is not the live route today; it exists so the leaf cannot
+        # silently fall through to family help if that interception is ever reordered, and it calls
+        # the SAME expansion function, so the two routes cannot diverge.
+        if oc_cmd == "review":
+            from agent_workflows import oc_runipd
+
+            return oc_runipd.main(
+                expand_host_review_argv(list(getattr(args, "review_args", []) or []))
+            )
         # ocsync Order 01 (g7hljt): structured verb, so rebuild argv from the parsed namespace.
         if oc_cmd in ("update-models", "sync-models"):
             from agent_workflows import oc_models
@@ -9719,6 +9841,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
             # Forward the captured REMAINDER verbatim so the runner's own parser (incl. its
             # implicit-`start` shim and `--help`) drives behavior with exact parity.
             return agy_runipd.main(list(getattr(args, "runipd_args", []) or []))
+        # revsweep 76gsmv E-02: the alias's parsed-namespace path, the twin of the `oc` one above and
+        # calling the SAME expansion function, so neither host's spelling can drift from the other's.
+        if agy_cmd == "review":
+            from agent_workflows import agy_runipd
+
+            return agy_runipd.main(
+                expand_host_review_argv(list(getattr(args, "review_args", []) or []))
+            )
         # runnernorm Order 02 (puot79): graduated agy sessions/view tools.
         if agy_cmd == "sessions":
             from agent_workflows import agy_sessions
