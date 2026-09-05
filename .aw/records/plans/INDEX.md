@@ -34,7 +34,7 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 
 ## runflags
 
-- `uyeko5` [pending] 01 pending/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
+- `uyeko5` [executed] 01 executed/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
 
 ## runorder
 
