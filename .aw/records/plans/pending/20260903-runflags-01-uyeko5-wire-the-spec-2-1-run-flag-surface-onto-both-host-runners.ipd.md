@@ -18,6 +18,7 @@
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-09-05 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-07 PERFORMED, V-01..V-07 PASS with pasted evidence, in run `run-20260905T050043Z-639569` position 32, lane `aw/lane/uyeko5`, implementation commit `08aab7ed` from start HEAD `bd91909e`. THE CENTRAL DELIVERABLE LANDED AND ITS LOAD-BEARING EVIDENCE HELD BOTH WAYS: at pre-change HEAD the spec's 2.1 grammar declared 8 policy flags and 7 were MISSING on both hosts and both subcommands (E-01's contract observed failing, `14 failed, 1 passed`), and `run_selection_policy.decide` had ZERO callers package-wide, so `6lu3rq`'s gate was dead code; after, one shared call site exists, reached by both runners, and the gate is demonstrated APPLIED (`gate_applied=True`) on a real multi-type classification - refusing with the spec's verbatim `[RUN-MIXED-TYPES]` text unattended, proceeding with `--allow-mixed`, and rejecting `y`/``/`yes`/`run mixed types` while accepting `run mixed` interactively. E-07's safety fix is proven by a before/after contrast measured in a throwaway detached worktree at `bd91909e`: a bare `aw agy run` auto-cleared a `reviewed` plan to `auto-approved` and executed it with NO flag passed; it now leaves it `reviewed`, while an explicit `--full-auto` still works on both hosts. FOUR THINGS RECORDED AS LIMITS RATHER THAN GLOSSED. (1) No live invocation can yet produce a mixed selection (IPD-only discovery, no `--type` on either host), so the gate is proven WIRED and CORRECT, NOT proven fired in production; a test pins that limit so registering `--type` later fails rather than silently outgrowing it. (2) `--follow-generated`/`--with-dependencies` PARSE AND REFUSE (exit 2, naming backlog `x8diyb`); neither behavior was built and neither is reported as implemented. (3) `--retry-budget`'s middle repository-policy tier is unimplemented, stated in the flag's own `--help` (backlog `dh3us4`), not faked. (4) Only `--retry-budget` is refused on resume; the blanket spec `:129` rule is NOT implemented because the shipped `--full-auto` resume handler overwrites rather than refuses (F-10), and that divergence is recorded. THREE OUT-OF-SCOPE PATHS, each deliberate and justified at finalize: `agent_workflows/runner_shared.py` holds the flag table because this plan's own sequencing rationale (`Item-Dependencies: executed:818uru`) exists so the flags are wired ONCE into the shared shape rather than twice into two diverging parsers; `tests/test_run_flag_surface.py` is the new contract suite, placed in its own file because the property under test is that the two HOSTS agree; and `tests/test_run_evidence_completion.py` had a `zub5f1` test asserting these flags existed nowhere, whose own docstring named `uyeko5` as the CLI owner, INVERTED to assert the handoff completed while keeping the invariant it actually defended (DECISION 32-uyeko5-D1). ONE OF MY OWN CLAIMS WAS WRONG AND IS CORRECTED IN PLACE: I first asserted no frozen run could lack a `full_auto` key; measurement found 14 of 100 states on disk lack it and 7 still hold resumable items, but ALL 14 are opencode runs whose fallback was already `False`, so zero antigravity runs are affected. Every falsifiability claim was checked by sabotage and reverted: reverting agy's sites 2/3 to `True`, reverting the parser default, and adding a runner-local `CONTRIBUTION_NEUTRAL` each reproduced the expected failures. Bare full suite `31 failed, 4551 passed` against my own pre-change baseline `31 failed, 4481 passed` at the same HEAD, failure set byte-identical (all 31 pre-existing lane/worktree failures), pass count +70 exactly. `aw check plans` 11 -> 14 errors, the +3 being this plan's own `check.scope-drift` for the three paths above; no pre-existing issue worsened. Leak sanitizer clean. `aw ipd lint --phase pre-transition` conforming. Nothing pushed.
 - 2026-09-04 approved (aw set): status set to approved
 - 2026-09-04 reviewed (aw set): plan-review round 1 (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 (5 findings, all FIXED in place, zero deferred, zero open). Verified at HEAD d0919400, which is AFTER 818uru executed, so this plan's Item-Dependencies: executed:818uru is now SATISFIED and the tree it will edit is the post-extraction shape it was sequenced to wait for. Target plan committed and unchanged, so the pre-review snapshot was correctly skipped. aw ipd lint conforming at --phase author and again at --phase review-finalize. THE PLAN'S CENTRAL MEASUREMENTS ALL HELD: only --full-auto is registered on either runner (the other seven grep to zero, including in runner_shared.py which registers ZERO arguments, so 818uru did not move the parser seam); run_selection_policy is still imported by nothing and decide still has zero callers, so 6lu3rq's gate is still dead code; the --full-auto default still diverges agy True / oc False at three sites each, so E-07 is still a live safety fix. ONE FINDING CHANGED THE PLAN'S OUTCOME. PR-001 (HIGH): E-02's whole purpose is to make 6lu3rq's gate fire, and as written the plan could have executed to completion, passed its own V-02, and left the gate exactly as unreachable as it found it: decide returns gate_applied=False unless the classification is mixed (run_selection_policy.py:635), and this runner's selection path is structurally single-type end to end (discover_plans walks only the two plans trees, build_dynamic_manifest compiles only those, expand_selectors resolves against that IPD-only manifest) with NO --type flag on either runner, so the call site would be reached and the gate never applied. E-02/V-02 now require gate_applied=True on a constructed multi-type classification and an explicit stated limitation that no live invocation can trigger it yet. PR-002 (MEDIUM): E-06 carried two mutually unsatisfiable instructions because the SPEC contradicts itself: :129 forbids policy-changing flags on resume but the shipped --full-auto resume handler OVERWRITES the frozen option (oc:6336-6338, agy:4267-4269); resolved narrowly to refuse only --retry-budget, which :131 freezes by name, and to leave the shipped flag alone. PR-003 (HIGH, OVER-SCOPE): spec :135's bypass-flag prohibition is ALREADY VIOLATED on both hosts, agy with default=True on permission auto-approval; NOT folded in (a permission behavior change is unrelated to registering policy flags) but raised to the maintainer, who chose to route it to a new IPD, so ki6tom (runbypass-01) was authored review-ready carrying it. PR-004/PR-005: every line citation had drifted because 818uru restructured both runners (refreshed to d0919400), and the --action/--json exclusion wrongly implied those were shipped when --action greps to zero and --json exists only on status. Three decisions recorded (D-1, D-2 reversible; D-3 irreversible and escalated to the maintainer, who answered). Review artifact: .aw/records/reviews/20260904-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.review.md
 
@@ -35,57 +36,57 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the gap, then close the two flags whose policy already ships
 
-- [ ] E-01 Write the failing-first CONTRACT TEST before touching a parser: assert that every flag spec 2.1 declares for `aw <host> run` is registered on BOTH runners' `run` parser, driven by a DATA table of flag names taken from the spec rather than hand-written per flag. It must FAIL at current HEAD naming the seven missing flags, for both hosts. Drive it from the spec's list so a future flag added to the spec and not the code fails this test; that is the property that stops this gap recurring, and it is worth more than the individual wirings below.
+- [x] E-01 Write the failing-first CONTRACT TEST before touching a parser: assert that every flag spec 2.1 declares for `aw <host> run` is registered on BOTH runners' `run` parser, driven by a DATA table of flag names taken from the spec rather than hand-written per flag. It must FAIL at current HEAD naming the seven missing flags, for both hosts. Drive it from the spec's list so a future flag added to the spec and not the code fails this test; that is the property that stops this gap recurring, and it is worth more than the individual wirings below.
   Assert REGISTRATION ONLY here (the flag parses and lands in the namespace), not behavior: behavior is E-02..E-05, and conflating them would make this test fail for two unrelated reasons.
   - Depends on: none
   - Expected outcome: one table-driven test, failing at HEAD, naming all seven missing flags per host. Paste the failure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Wire `--allow-mixed` and `--unattended`, and CONNECT the dead mixed-type gate. These two are pure wiring because the policy already ships: `run_selection_policy.decide` (`:576`) takes `allow_mixed` and `interactive` and returns a typed `Verdict`, with the `RUN-MIXED-TYPES` refusal already composed (`:294`, `:621`).
+- [x] E-02 Wire `--allow-mixed` and `--unattended`, and CONNECT the dead mixed-type gate. These two are pure wiring because the policy already ships: `run_selection_policy.decide` (`:576`) takes `allow_mixed` and `interactive` and returns a typed `Verdict`, with the `RUN-MIXED-TYPES` refusal already composed (`:294`, `:621`).
   THE REAL DEFECT HERE IS THAT NOTHING CALLS IT (measured: `run_selection_policy` is imported by no module outside its own tests, and `decide` has zero callers), so executed plan `6lu3rq`'s gate is DEAD CODE and a mixed selection is silently accepted today. Register both flags and add the ONE call site at queue build, before the queue is frozen, passing `interactive` from the real TTY state and `allow_mixed` from the flag. Do NOT reimplement any part of the gate: the exact-phrase confirmation, the counts preview, and the refusal text are all already written and tested, and a second copy would be the fork this repo keeps paying for.
   `--unattended` must mean the same thing the policy already assumes (no interactive prompt available), and note spec 2.1 says `--full-auto` IMPLIES `--unattended` while implying none of the others; implement that implication explicitly rather than leaving it to chance.
   THE GATE CANNOT FIRE ON TODAY'S SELECTION PATH, AND THAT IS THE HARD PART OF THIS ITEM (F-9, review round 1). `decide` short-circuits `gate_applied=False` whenever `classification.is_mixed` is false (`run_selection_policy.py:635`), and this runner's selection path is STRUCTURALLY SINGLE-TYPE: `discover_plans` walks only `.aw/records/plans` and `.agents/plans` and returns `id6 -> PlanRecord` (`runner_shared.py:614-639`), `build_dynamic_manifest` compiles only those (`oc_runipd.py:2204`), and `expand_selectors` resolves tokens against that IPD-only manifest (`:2234`). There is NO `--type` flag on either runner (greps to zero; the only `--type` in the package is `aw attention`'s, `cli.py:3159`), so no operator input can introduce a second type. Therefore wiring `allow_mixed` alone yields a call site that is REACHED but whose gate is never APPLIED, which is indistinguishable from the dead code this item exists to fix and would let V-02 be satisfied by a single-type `gate_applied=False` verdict.
   SO DO THIS: add the call site, and prove the gate APPLIED (`gate_applied=True`) on a genuinely multi-type classification. Since the runner cannot yet produce one, construct it at the seam: call `classify_paths` on a real multi-type path set (an IPD plus a spec) in the test and assert the runner's wiring refuses/proceeds correctly, AND assert the production call site passes the operator's `allow_mixed` and the real TTY state through unchanged. Do NOT build `--type` or a multi-type selector here (that is spec 2.2/2.3 and this plan's fence excludes it); RECORD in V-02 that the gate is wired and correct but cannot be triggered by any real invocation until multi-type selection exists, so nobody later reads a green V-02 as proof that a live mixed selection was gated.
   - Depends on: E-01
   - Expected outcome: both flags parse on both hosts; `decide` is CALLED exactly once at queue build with no logic duplicated; the gate is demonstrated APPLIED (`gate_applied=True`) on a multi-type classification, refusing without `--allow-mixed` under `--unattended` and proceeding with it, and requiring the exact phrase when interactive; `--full-auto` implies `--unattended`; and the fact that no real invocation can yet produce a mixed selection is stated, not glossed.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: register the five flags whose behavior another plan owns or nothing owns yet
 
-- [ ] E-03 Register `--allow-unverifiable` and `--unverifiable-ok` and bind them to the predicate `zub5f1` lands. `zub5f1` deliberately takes the admission as a PARAMETER because these flags did not exist; this item supplies them, which is the other half of that seam. Spec 2.1: `--unverifiable-ok` is legal ONLY when contractless prompts were admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation, so passing it alone must be REFUSED at the parser/policy boundary rather than silently honored.
+- [x] E-03 Register `--allow-unverifiable` and `--unverifiable-ok` and bind them to the predicate `zub5f1` lands. `zub5f1` deliberately takes the admission as a PARAMETER because these flags did not exist; this item supplies them, which is the other half of that seam. Spec 2.1: `--unverifiable-ok` is legal ONLY when contractless prompts were admitted by `--allow-unverifiable` or the interactive `run unverifiable` confirmation, so passing it alone must be REFUSED at the parser/policy boundary rather than silently honored.
   IF `zub5f1` HAS NOT LANDED when this executes, register the flags and route them to a single clearly-named seam that refuses honestly (documenting that the aggregation predicate is not yet present), and do NOT implement the aggregation rule here. Two implementations of one aggregate rule is worse than one missing flag. State which case applied.
   - Depends on: E-01
   - Expected outcome: both flags parse on both hosts; `--unverifiable-ok` without its precondition is refused with a message naming the missing admission; when `zub5f1` is present the flag reaches ITS predicate and no aggregation logic is duplicated here.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Register `--retry-budget <0..10>` and bind it to the shipped helpers, respecting the precedence spec 2.1 fixes: CLI value overrides repository policy, repository policy overrides the default of 2. `sq61qd` owns the 0..10 RANGE VALIDATION on `plan_retry`/`retry_budget_remaining`; this item owns the FLAG and the precedence, and must call that validation rather than re-checking the range itself.
+- [x] E-04 Register `--retry-budget <0..10>` and bind it to the shipped helpers, respecting the precedence spec 2.1 fixes: CLI value overrides repository policy, repository policy overrides the default of 2. `sq61qd` owns the 0..10 RANGE VALIDATION on `plan_retry`/`retry_budget_remaining`; this item owns the FLAG and the precedence, and must call that validation rather than re-checking the range itself.
   DO NOT CHANGE `DEFAULT_RETRY_LIMIT` (`run_recovery.py:62`, currently `2` by maintainer ruling 2026-08-31). If repository policy has no existing home, do NOT invent a config surface here: implement CLI-over-default and record that the middle tier is unimplemented, rather than adding a policy file this plan has not designed.
   - Depends on: E-01
   - Expected outcome: the flag parses on both hosts and reaches the shipped helpers; an out-of-range value is refused (by `sq61qd`'s validation if present, else by this flag's own bound with the duplication recorded as temporary); the default remains 2; precedence is demonstrated, and any unimplemented tier is stated rather than faked.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Register `--follow-generated` and `--with-dependencies`. NEITHER has any implementation anywhere (both grep to zero), and that makes this the item most likely to go wrong: `--with-dependencies` means "expand the selection to the transitive declared dependency closure BEFORE the queue is frozen, and subject any newly introduced type to the same mixed-type gate" (spec 2.1), which is real graph work, and `--follow-generated` means newly generated IPDs JOIN the active graph rather than being reported as next actions.
+- [x] E-05 Register `--follow-generated` and `--with-dependencies`. NEITHER has any implementation anywhere (both grep to zero), and that makes this the item most likely to go wrong: `--with-dependencies` means "expand the selection to the transitive declared dependency closure BEFORE the queue is frozen, and subject any newly introduced type to the same mixed-type gate" (spec 2.1), which is real graph work, and `--follow-generated` means newly generated IPDs JOIN the active graph rather than being reported as next actions.
   DO NOT BUILD EITHER BEHAVIOR HERE. Register both flags and make each REFUSE with `not yet implemented` naming what is missing. A flag that parses and silently does nothing is strictly worse than no flag, because the operator believes the dependency closure was expanded when it was not, and that is a correctness failure rather than a UX one. If you judge the closure expansion small enough to build, that is a SEPARATE plan with its own review, and say so rather than widening this one.
   - Depends on: E-01
   - Expected outcome: both flags parse and are visible in `--help`, and both refuse with a clear `not yet implemented` message naming the missing capability; NEITHER silently no-ops; the refusal text (or `--help`) points at backlog `x8diyb`, which owns the real behavior.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: freeze the values, and prove both hosts agree
 
-- [ ] E-07 NORMALIZE `--full-auto` TO DEFAULT `False` ON BOTH HOSTS. MAINTAINER RULING 2026-09-04: it should be `False` for both, so this supersedes F-5's "preserve the per-host default" instruction, which recorded the measured divergence as intentional; it was not, and the divergence is the defect.
+- [x] E-07 NORMALIZE `--full-auto` TO DEFAULT `False` ON BOTH HOSTS. MAINTAINER RULING 2026-09-04: it should be `False` for both, so this supersedes F-5's "preserve the per-host default" instruction, which recorded the measured divergence as intentional; it was not, and the divergence is the defect.
   WHY THIS IS A SAFETY FIX AND NOT COSMETIC: `agy_runipd.py:4026-4028` declares `default=True`, so `aw agy run <selector>` TODAY auto-clears any plan whose `Status: reviewed` and whose `- Readiness:` is approving to `auto-approved` and executes it, with NO flag passed and no human approval, unless the operator remembers `--no-full-auto`. The opencode host defaults `False` and requires opting IN. Two hosts disagreeing about whether execution is opt-in or opt-out is exactly the class of divergence the `rununify` Set exists to remove, and here it defaults to the LESS safe direction.
   THREE SITES PER HOST, not one, and missing the last two would leave the old behavior in place while the flag help claims otherwise. RE-MEASURED AT `d0919400` AFTER `818uru` (the line numbers below MOVED from this plan's first authoring, which is exactly why the execution contract says to locate every site BY SYMBOL): the parser default (`agy_runipd.py:4026`), the args fallback (`:1606`, `getattr(args, "full_auto", True)`) and the run-state fallback (`:3305`, `state.get("options", {}).get("full_auto", True)`). The opencode equivalents are already `False` at `oc_runipd.py:6052`, `:2588`, `:5241`; make agy match all three. Leave the `resume` re-declaration at `default=None` on both hosts (F-6): that is a different mechanism and is already correct.
   RESUME COMPATIBILITY, which is the one real hazard here: a run frozen BEFORE this change may carry no `full_auto` key in its options, and changing the fallback silently changes how such a run resumes. Check whether any state on disk relies on the old default, and if a frozen run could flip behavior, record it rather than letting an in-flight run change meaning mid-resume.
   - Depends on: E-01
   - Expected outcome: both hosts default `--full-auto` to `False` at all three sites; `aw agy run` no longer auto-approves without the flag; `--full-auto` still works when passed explicitly on both hosts; the resume `default=None` behavior is unchanged; any pre-existing frozen-state implication is stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Freeze every wired flag into run state and honor the spec's RESUME rule: "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy" (spec `25kzda:129`), and specifically "the frozen value cannot change on resume" for `--retry-budget` (`:131`). Both runners already have a SEPARATE `resume` parser (oc `:6127`, agy `:4078`) where `--full-auto` is re-declared with `default=None` so an absent flag does not clobber the frozen value; FOLLOW THAT EXISTING PATTERN for each new flag rather than inventing one, and note it is why `default=None` matters on resume.
+- [x] E-06 Freeze every wired flag into run state and honor the spec's RESUME rule: "`--resume` is mutually exclusive with a new selector and with flags that would change the frozen queue or policy" (spec `25kzda:129`), and specifically "the frozen value cannot change on resume" for `--retry-budget` (`:131`). Both runners already have a SEPARATE `resume` parser (oc `:6127`, agy `:4078`) where `--full-auto` is re-declared with `default=None` so an absent flag does not clobber the frozen value; FOLLOW THAT EXISTING PATTERN for each new flag rather than inventing one, and note it is why `default=None` matters on resume.
   MIND THE CONTRADICTION BETWEEN THE TWO SPEC SENTENCES, because the shipped code follows only one of them (F-10, review round 1). The existing `--full-auto` on resume does NOT refuse: it OVERWRITES the frozen option (`oc_runipd.py:6336-6338`, `agy_runipd.py:4267-4269` both do `state["options"]["full_auto"] = args.full_auto` and save), so "follow the existing pattern" and "refuse a policy-changing flag on resume" are DIFFERENT behaviors and you cannot do both for the same flag. RESOLUTION for this plan: `--retry-budget` is the one flag the spec explicitly freezes (`:131`), so passing it with `resume` must be REFUSED, not applied. For the others, keep `default=None` so an omitted flag cannot clobber, and do NOT retroactively convert `--full-auto`'s existing override into a refusal (that is a behavior change to a shipped flag, outside this plan's scope). Record the divergence rather than silently picking one: the spec's blanket "mutually exclusive with ... flags that would change ... policy" is NOT what the shipped `--full-auto` resume does, and that gap belongs to a follow-up, not to a plan whose fence is flag registration.
   DEFAULTS: `--full-auto` is NORMALIZED to `False` on both hosts by E-07 (maintainer ruling 2026-09-04), so do not re-diverge it here. For every OTHER flag, the FLAG SET must match across hosts while any existing per-host default stays as documented; do not silently harmonize a default this plan was not told to normalize.
   - Depends on: E-02, E-03, E-04, E-05
   - Expected outcome: every wired flag is frozen into run state at queue build; passing a policy-changing flag with `--resume` is refused; an absent flag on resume does not clobber the frozen value; per-host defaults are unchanged, shown side by side.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -170,40 +171,252 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the contract test FAILING at pre-change HEAD, with the failure naming all seven missing flags for BOTH hosts, then passing after. Paste the test's DATA table showing it is driven by spec 2.1's flag list rather than hand-written assertions, since that is what makes a future spec flag fail the test instead of being silently missed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PRE-CHANGE, at HEAD `bd91909e` (the contract driven from the SPEC FILE, with the table supplied from spec 2.1's own grammar block because `RUN_POLICY_FLAGS` did not exist yet - that absence IS the gap):
+    ```
+    spec 2.1 grammar declares 8 policy flags: ['--allow-mixed', '--allow-unverifiable', '--follow-generated', '--full-auto', '--retry-budget', '--unattended', '--unverifiable-ok', '--with-dependencies']
 
-- [ ] V-02 validates E-02
+    oc_runipd  `start`  parser: 7 of 8 MISSING -> ['--allow-mixed', '--allow-unverifiable', '--follow-generated', '--retry-budget', '--unattended', '--unverifiable-ok', '--with-dependencies']
+    agy_runipd `start`  parser: 7 of 8 MISSING -> ['--allow-mixed', '--allow-unverifiable', '--follow-generated', '--retry-budget', '--unattended', '--unverifiable-ok', '--with-dependencies']
+    oc_runipd  `resume` parser: 7 of 8 MISSING -> [same seven]
+    agy_runipd `resume` parser: 7 of 8 MISSING -> [same seven]
+    ```
+    The test FILE itself at that HEAD: `14 failed, 1 passed in 0.27s`, failing on `RegistrationTests::test_every_flag_is_registered_on_both_hosts_start_parser`, `...resume_parser`, `SpecFlagListTests::test_every_flag_the_spec_declares_is_accounted_for`, `test_the_owned_set_is_the_eight_this_plan_claims`, and every `HelpHonestyTests` case (`AttributeError: module 'agent_workflows.runner_shared' has no attribute 'RUN_POLICY_FLAGS'`).
+    AFTER: `python3 -m pytest tests/test_run_flag_surface.py` -> `70 passed in 2.56s`.
+    THE DATA TABLE IS THE SPEC, NOT A TRANSCRIPTION OF IT, which is what makes a future spec flag fail instead of drift. `SpecFlagListTests.spec_grammar_flags` READS `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md`, extracts the ```` ```text ```` grammar block of section 2.1, and scopes to the `aw <host> run <selector>` stanza:
+    ```python
+    block = section[1].split("```text", 1)[1].split("```", 1)[0]
+    ... # stop at the next `aw ` line, so `aw <host> prompt`'s --text/--file are not demanded of `run`
+    return set(re.findall(r"--[a-z][a-z0-9-]*", "\n".join(stanza)))
+    ```
+    and `test_every_flag_the_spec_declares_is_accounted_for` fails on `declared - owned - excluded`, so a flag added to spec 2.1 and to nothing else is a test failure. The five spec-declared entries this surface does NOT own each carry a named reason and owner in `DECLARED_BUT_NOT_OWNED_HERE` (`--type`, `--action`, `--json`, `--allow-drafts`), and `test_every_exclusion_names_a_reason` forbids a silent one. `test_no_owned_flag_is_absent_from_the_spec` asserts the converse, so this surface cannot invent a flag either. Registration is asserted ONLY as registration (parses, lands in the namespace, appears in `--help`); behavior is V-02..V-07.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste `run_selection_policy.decide`'s call site(s) AFTER the change and a grep proving it is called from the runner (it had ZERO callers before; paste the before-grep too, since the dead-gate fix is this item's real deliverable). Then DEMONSTRATE the gate with `gate_applied=True`: paste the returned `Verdict` for a MULTI-TYPE classification, REFUSED without `--allow-mixed` under `--unattended` and PROCEEDING with it, and an interactive mixed selection requiring the exact phrase. A verdict carrying `gate_applied=False` does NOT satisfy this item: that is the single-type short circuit (`run_selection_policy.py:635`) and it is what a still-dead gate would also return, so accepting it would let the plan's central deliverable pass unproven (F-9). Paste evidence NO part of the gate was reimplemented (the refusal text still comes from `run_selection_policy`). Paste `--full-auto` implying `--unattended`. STATE PLAINLY, as a limitation and not a success, that no real `aw <host> run` invocation can yet produce a mixed selection (IPD-only discovery, no `--type`), so this V-item proves the wiring is correct and NOT that a live mixed selection was gated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DEAD-GATE FIX IS THIS ITEM'S REAL DELIVERABLE, so the before-grep is pasted first. At pre-change HEAD `bd91909e`, `git grep -n "\.decide(" bd91909e -- 'agent_workflows/*.py'` returned **ZERO CALLERS**, and the only package-wide mentions of `run_selection_policy` were three PROSE COMMENTS (`run_evidence.py:1803`, `selectors.py:142`, `:144`). A fully built, fully tested gate was unreachable.
+    AFTER, exactly one call site, in SHARED code both hosts reach:
+    ```
+    $ grep -rn "\.decide(" agent_workflows/*.py
+    agent_workflows/runner_shared.py:1223:    verdict = run_selection_policy.decide(
+    $ grep -n "enforce_mixed_type_gate" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py
+    agent_workflows/oc_runipd.py:2588:    mixed_verdict = runner_shared.enforce_mixed_type_gate(
+    agent_workflows/agy_runipd.py:1598:    mixed_verdict = runner_shared.enforce_mixed_type_gate(
+    ```
+    THE GATE DEMONSTRATED **APPLIED** (`gate_applied=True`) ON A REAL MULTI-TYPE CLASSIFICATION (one IPD plus one spec, typed by the shipped `status_set.detect_artifact_type`):
+    ```
+    classification.spec_types = ('ipd', 'spec')   is_mixed = True
 
-- [ ] V-03 validates E-03
+    --- CASE 1: UNATTENDED, no --allow-mixed -> REFUSED ---
+      raised DriverError: [RUN-MIXED-TYPES] Selection contains IPDs: 1, Specs: 1. No work started. Review the selection, then run: aw oc run all --type <type> ... --allow-mixed
+      Verdict.proceed      = False
+      Verdict.gate_applied = True   <-- the gate APPLIED
+      Verdict.code         = RUN-MIXED-TYPES
+
+    --- CASE 2: UNATTENDED, WITH --allow-mixed -> PROCEEDS, gate APPLIED ---
+      Verdict.proceed         = True
+      Verdict.gate_applied    = True
+      record.response_or_flag = '--allow-mixed'
+      record.type_counts      = {'ipd': 1, 'spec': 1}
+      record.queue_digest     = d1613c659fdd653d...
+
+    --- CASE 3: INTERACTIVE -> requires the EXACT phrase ---
+      response='y'                  proceed=False gate_applied=True
+      response='yes'                proceed=False gate_applied=True
+      response=''                   proceed=False gate_applied=True
+      response='run mixed types'    proceed=False gate_applied=True
+      response='run mixed'          proceed=True  gate_applied=True
+
+    --- CONTRAST: a SINGLE-TYPE selection is the gate_applied=False SHORT CIRCUIT ---
+      proceed=True  gate_applied=False
+    ```
+    That final contrast is why this item demanded `gate_applied=True`: the `False` verdict is `run_selection_policy.py:635`'s single-type short circuit and is EXACTLY what a still-dead gate returns, so accepting it would have let the central deliverable pass unproven.
+    NO PART OF THE GATE WAS REIMPLEMENTED. The refusal above is `run_selection_policy.REFUSAL_TEMPLATE` rendered by `render_refusal`; `enforce_mixed_type_gate` raises `verdict.message` and composes nothing. `test_no_part_of_the_gate_was_reimplemented` asserts that neither runner nor the shared module contains a copy of the refusal text or re-spells `CONFIRM_PHRASE`.
+    `--full-auto` IMPLIES `--unattended` (spec `:134`), applied once at freeze: `freeze_run_policy_flags(Namespace(full_auto=True, ...))["unattended"] is True`, and a real run started `--full-auto` freezes `{'full_auto': True, 'unattended': True}`. `test_full_auto_implies_nothing_else` asserts it implies NONE of the other six.
+    SPEC 2.5 BULLET 4's four facts are durable, from the record the pure module RETURNED (not re-derived): the `mixed-type-gate` event in `events.jsonl` carries `type_counts`, `action_preview`, `response_or_flag`, `queue_digest`, verified on a real run of both hosts.
+    STATED PLAINLY AS A LIMITATION, NOT A SUCCESS: **no real `aw <host> run` invocation can yet produce a mixed selection.** `discover_plans` walks only the plans trees, `build_dynamic_manifest` compiles only those, `expand_selectors` resolves against that IPD-only manifest, and `--type` greps to zero on both hosts and both subcommands. So on every live run the gate is now REACHED and correctly does not APPLY (`gate_applied=False`, `type_counts={'ipd': N}`). This V-item proves the wiring is CORRECT; it does NOT prove a live mixed selection was gated, and must not be read that way. `test_no_live_invocation_can_yet_produce_a_mixed_selection` pins that limit so registering `--type` later fails here rather than silently outgrowing it.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste both flags in `--help` for BOTH hosts. Paste `--unverifiable-ok` alone being REFUSED with a message naming the missing admission, and honored with `--allow-unverifiable`. State plainly whether `zub5f1` had landed: if yes, paste evidence the flag reaches ITS predicate and no aggregation logic exists in the runner; if no, paste the honest refusal and confirm no aggregation rule was written here.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `zub5f1` HAD LANDED (executed at `b2ad8358`, before this turn's start HEAD `bd91909e`), so this is the bound-to-its-predicate case, not the honest-refusal fallback.
+    BOTH FLAGS IN `--help` ON BOTH HOSTS (oc shown; agy byte-identical, from the same shared table):
+    ```
+      --allow-unverifiable, --no-allow-unverifiable
+                            Admit contractless prompts (a prompt with no parseable
+                            run contract), whose verification stays 'unavailable'.
+                            This is the ADMISSION --unverifiable-ok requires; it
+                            does not by itself make such an item aggregate-neutral
+      --unverifiable-ok, --no-unverifiable-ok
+                            Treat an acknowledged, completed contractless prompt
+                            as NEUTRAL for the aggregate exit code, without
+                            relabeling it verified. LEGAL ONLY with --allow-
+                            unverifiable (or the interactive `run unverifiable`
+                            confirmation); passed alone it is refused
+    ```
+    `--unverifiable-ok` ALONE IS REFUSED, naming the missing admission, on BOTH hosts, exit 2:
+    ```
+    $ python3 -m agent_workflows.oc_runipd start prb001 --repo $R --unverifiable-ok --prepare-only
+    runipd: --unverifiable-ok: --unverifiable-ok is legal only when contractless prompts were explicitly admitted by --allow-unverifiable or the interactive `run unverifiable` confirmation; that admission is absent, so aggregate neutrality was NOT applied and the default aggregate stands
+    exit=2
+    $ python3 -m agent_workflows.agy_runipd start prb001 --repo $R --unverifiable-ok --prepare-only
+    runagy: --unverifiable-ok: --unverifiable-ok is legal only when contractless prompts were explicitly admitted ... [identical]
+    exit=2
+    ```
+    WITH `--allow-unverifiable` IT IS HONORED, on both hosts: `Run ID: run-20260905T113538Z-3017812` (oc) and `run-20260905T113540Z-3017870` (agy).
+    THE FLAG REACHES **ITS** PREDICATE AND NO AGGREGATION LOGIC IS DUPLICATED HERE. `evaluate_unverifiable_admission` calls `run_evidence.aggregate_run_exit(unverifiable_ok=..., unverifiable_admitted=...)` - the exact two parameters `zub5f1` deliberately took because these flags did not exist (`run_evidence.py:2127-2129`: "`runflags-01` (`uyeko5`) owns building them and binding them to these two arguments") - and raises with the predicate's OWN `refusal.details`, asserted byte-for-byte by `test_the_refusal_message_is_the_predicates_own`. It is called with an EMPTY item list because the precondition is a property of the INVOCATION, answerable before any item runs. `test_the_aggregation_rule_is_not_reimplemented_in_the_runners` asserts no runner and not the shared module contains `CONTRIBUTION_NEUTRAL`, proven falsifiable by sabotage (adding a runner-local `CONTRIBUTION_NEUTRAL` reproduced the failure in both this test and the inverted `test_run_evidence_completion.py` guard).
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the flag in `--help` for both hosts, an out-of-range value refused, `0` and `10` accepted, and `DEFAULT_RETRY_LIMIT` still `2`. Paste the precedence demonstration (CLI value beating the default). State which tier is unimplemented and confirm it is recorded in `--help` rather than silently absent. If `sq61qd` had landed, paste evidence its validation is CALLED rather than a second range check added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `sq61qd` HAD LANDED (executed at `bd91909e`, this turn's start HEAD), so its validation is CALLED, not duplicated.
+    THE FLAG IN `--help` ON BOTH HOSTS, with the missing tier stated to the OPERATOR rather than only in this plan:
+    ```
+      --retry-budget N      Automatic correction attempts after the initial
+                            attempt, an integer 0..10 inclusive (0 means no
+                            retries). The CLI value overrides the default of 2.
+                            NOTE: spec 2.1's MIDDLE precedence tier (repository
+                            policy) is NOT IMPLEMENTED - no repository-policy home
+                            exists yet (backlog dh3us4) - so precedence today is
+                            CLI over default. Cannot be changed on --resume: the
+                            frozen value stands
+    ```
+    OUT OF RANGE REFUSED, both bounds, both hosts, exit 2:
+    ```
+    $ ... --retry-budget 11 -> runipd: --retry-budget: invalid retry budget 11: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)   exit=2
+    $ ... --retry-budget -1 -> runipd: --retry-budget: invalid retry budget -1: must be an int in the inclusive range 0..10 (spec 25kzda 2.1)
+    $ agy --retry-budget 11 -> runagy: --retry-budget: invalid retry budget 11: ... [identical]                                                 exit=2
+    ```
+    `0` AND `10` ACCEPTED, both hosts: `Run ID: run-20260905T113538Z-3017833` / `...539Z-3017842` (oc), `...540Z-3017891` / `...541Z-3017900` (agy). `0` is explicitly asserted NOT to be treated as unset (`test_zero_is_legal_and_is_not_treated_as_unset`), since reading it as unset would silently restore two retries.
+    `DEFAULT_RETRY_LIMIT` STILL `2`, unchanged: `run_recovery.DEFAULT_RETRY_LIMIT == 2` and `resolve_retry_budget(None) == 2`.
+    PRECEDENCE DEMONSTRATED, CLI beating the default, read back from FROZEN run state: a run started with no flag freezes `retry_budget: 2`; started `--retry-budget 7` freezes `retry_budget: 7`; started `--retry-budget 0` freezes `retry_budget: 0`.
+    `sq61qd`'s VALIDATION IS CALLED, NOT A SECOND RANGE CHECK. `resolve_retry_budget` calls `run_recovery.validate_retry_budget(cli_value)` and translates only the exception type; `test_the_bound_is_sq61qds_and_is_not_re_checked_here` asserts the call and asserts no literal bound in the body. That is the seam `sq61qd` built the helper for: "the future `--retry-budget` CLI flag (`runflags-01` / `uyeko5` E-04), which must validate an operator-supplied value at PARSE time, when no `RunEngine` or step exists" (`run_recovery.py:143-146`).
+    THE UNIMPLEMENTED TIER IS STATED, NOT FAKED: repository policy has no home, so no config surface was invented; the gap is in `--help` (above), in this plan, and tracked as backlog `dh3us4`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste both flags in `--help` for both hosts AND paste each one REFUSING with its `not yet implemented` message. A pasted `--help` alone does NOT satisfy this item: the whole point is that neither flag silently no-ops, and only an observed refusal proves it. Paste the `--help` text showing the not-implemented status is visible to an operator.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH FLAGS IN `--help` ON BOTH HOSTS, with the not-implemented status visible to an operator:
+    ```
+      --follow-generated, --no-follow-generated
+                            NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the
+                            behavior). Would add newly generated IPDs to THIS
+                            frozen run as child queue entries instead of reporting
+                            them as generated next actions
+      --with-dependencies, --no-with-dependencies
+                            NOT YET IMPLEMENTED (refuses; backlog x8diyb owns the
+                            behavior). Would expand the selection to the
+                            transitive declared dependency closure BEFORE the
+                            queue is frozen, subjecting any newly introduced type
+                            to the mixed-type gate
+    ```
+    AND EACH ONE OBSERVED **REFUSING**, which is the part a pasted `--help` cannot prove. Both hosts, exit 2:
+    ```
+    $ python3 -m agent_workflows.oc_runipd start prb001 --repo $R --with-dependencies --prepare-only
+    runipd: --with-dependencies is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. The flag is registered so it fails HERE, loudly, rather than parsing and silently doing nothing
+    exit=2
+    $ python3 -m agent_workflows.oc_runipd start prb001 --repo $R --follow-generated --prepare-only
+    runipd: --follow-generated is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. ...
+    exit=2
+    $ python3 -m agent_workflows.agy_runipd start prb001 --repo $R --with-dependencies --prepare-only
+    runagy: --with-dependencies is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. ...
+    exit=2
+    $ python3 -m agent_workflows.agy_runipd start prb001 --repo $R --follow-generated --prepare-only
+    runagy: --follow-generated is not yet implemented: backlog x8diyb (rundepflags-01) owns the behavior. ...
+    exit=2
+    ```
+    NEITHER SILENTLY NO-OPS, and the refusal happens BEFORE any durable state exists: `test_an_unimplemented_flag_refuses_before_a_run_directory_exists` asserts `.aw/records/runs/run-*` is empty after each refused invocation, and `test_both_runners_refuse_before_any_durable_state` asserts the call precedes `run_dir = state_root(...)` in both `initialize_run` bodies. The refusal names backlog `x8diyb`, which owns the real behavior, so an operator who hits it can find the work item instead of filing a duplicate.
+    NEITHER BEHAVIOR WAS BUILT: no dependency-closure expansion and no generated-IPD graph joining exists. Reported as PARSING AND REFUSING, never as implemented.
+  - Result: pass
 
-- [ ] V-07 validates E-07
+- [x] V-07 validates E-07
   - Required evidence: paste all THREE agy sites showing `False` (parser default, args fallback, run-state fallback) beside the three opencode equivalents, so the normalization is shown complete rather than parser-only. Paste `aw agy run --help` showing the new default. Then DEMONSTRATE the behavior change: a `Status: reviewed` plan with approving `- Readiness:` is NOT auto-approved by a bare `aw agy run`, and IS auto-approved with an explicit `--full-auto`. A pasted default alone does not satisfy this item, since the two fallbacks would keep the old behavior alive while the help text claimed otherwise. State what you found about frozen runs lacking a `full_auto` key.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL THREE SITES PER HOST, side by side, so the normalization is shown COMPLETE rather than parser-only:
+    | site | oc_runipd | agy_runipd |
+    |---|---|---|
+    | 1. parser default | `register_run_policy_flags(start)` -> `default=None if resume else False` (`runner_shared.py`); probed `action.default is False` | same shared call; probed `action.default is False` (was `default=True` at `agy_runipd.py:4029`) |
+    | 2. args fallback, `initialize_run` | `getattr(args, "full_auto", False)` (`:2589`, already False) | `getattr(args, "full_auto", False)` (`:1611`, **was `True`**) |
+    | 3. run-state fallback, `execute_item` | `state.get("options", {}).get("full_auto", False)` (`:5282`, already False) | `state.get("options", {}).get("full_auto", False)` (`:3319`, **was `True`**) |
+    Machine-checked, not eyeballed: `test_site_1/2/3_*` assert each site on BOTH hosts, and `test_no_True_default_for_full_auto_survives_anywhere` regex-scans both whole modules for any surviving `True` spelling. PROVEN FALSIFIABLE BY SABOTAGE: reverting agy sites 2 and 3 to `True` reproduced `3 failed` (`test_site_2...`, `test_site_3...`, `test_no_True_default...`); reverting only the parser default reproduced `3 failed` including the end-to-end behavior test. Restored and re-verified green each time.
+    `aw agy run --help` SHOWING THE NEW DEFAULT: the entry renders as `--full-auto, --no-full-auto` with the shared table's help text, and `_parse("agy_runipd", ["start", "demo"]).full_auto is False`; the side-by-side probe prints `--full-auto  oc start=False  agy start=False`.
+    THE BEHAVIOR CHANGE DEMONSTRATED, on a real repository holding a `Status: reviewed` plan with approving `- Readiness: go`, each case in a FRESH repo so none inherits another's mutation:
+    ```
+    === BEFORE (pre-change HEAD bd91909e, measured in a throwaway detached worktree) ===
+      oc   <no flag>      -> - Status: reviewed
+      agy  <no flag>      -> - Status: auto-approved     <-- executed with NO flag passed
+      oc   --full-auto    -> - Status: auto-approved
+      agy  --full-auto    -> - Status: auto-approved
 
-- [ ] V-06 validates E-06
+    === AFTER (this change) ===
+      oc   <no flag>      -> - Status: reviewed
+      agy  <no flag>      -> - Status: reviewed          <-- FIXED: opt-in on both hosts
+      oc   --full-auto    -> - Status: auto-approved
+      agy  --full-auto    -> - Status: auto-approved     <-- capability preserved
+    ```
+    So a bare `aw agy run` no longer auto-approves, and an explicit `--full-auto` still works on both hosts. The `resume` `default=None` mechanism is UNCHANGED on both hosts (`test_the_resume_declaration_is_still_None_on_both_hosts`).
+    FROZEN RUNS LACKING A `full_auto` KEY - WHAT I FOUND, and it corrected my own initial assumption. I first wrote that `initialize_run` had always written the key so no keyless state could exist; that was wrong. Measured across the 100 run states on disk: **14 carry NO `full_auto` key, and 7 of those still hold resumable items**, so keyless states are real, not hypothetical. BUT all 14 are OPENCODE runs (identified by their `opencode`/`agent`/`auto` option keys and `driver.path`), whose site-3 fallback was ALREADY `False` and is untouched by this change. **Zero antigravity runs are affected, so no in-flight run flips policy mid-resume.** The finding and its measurement are recorded in the code comment at the site itself, and for any keyless state that did reach the fallback, `False` fails CLOSED (it asks for approval it might not need, never auto-approves a plan nobody authorized).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the frozen flag values read back from run state. Paste `--retry-budget` passed with `resume` being REFUSED (that is the flag spec `:131` freezes; F-10 explains why the blanket "refuse any policy-changing flag" is NOT implementable here without changing shipped `--full-auto` behavior, so do not claim it). Paste a resume with a flag OMITTED showing the frozen value survived (this is what `default=None` buys, F-6). State explicitly that `--full-auto` on resume still OVERWRITES the frozen option as it does today, unchanged by this plan. Paste both hosts' `--help` side by side showing the flag SETS match AND that `--full-auto` now defaults `False` on BOTH (E-07's normalization; the earlier requirement to preserve `True` on agy was superseded by maintainer ruling 2026-09-04). Any OTHER per-host default must be unchanged. Then both driver suites and the bare full suite with counts, compared against your own pre-change measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: FROZEN FLAG VALUES READ BACK FROM RUN STATE, both hosts, from a run started `--allow-mixed --retry-budget 7`:
+    ```
+    oc  run-20260905T113554Z-3018023
+       {'allow_mixed': True, 'unattended': False, 'full_auto': False, 'allow_unverifiable': False,
+        'unverifiable_ok': False, 'follow_generated': False, 'with_dependencies': False, 'retry_budget': 7}
+    agy run-20260905T113555Z-3018039
+       {'allow_mixed': True, 'unattended': False, 'full_auto': False, 'allow_unverifiable': False,
+        'unverifiable_ok': False, 'follow_generated': False, 'with_dependencies': False, 'retry_budget': 7}
+    ```
+    Byte-identical across hosts, because both call the SAME `freeze_run_policy_flags`. `test_the_frozen_options_match_across_hosts` asserts it at the STATE level, not just the parser level.
+    `--retry-budget` WITH `resume` IS **REFUSED** (the one flag spec `:131` freezes by name), and the frozen value is untouched:
+    ```
+    $ python3 -m agent_workflows.oc_runipd resume run-20260905T113603Z-3018126 --repo $R --retry-budget 5
+    runipd: --retry-budget cannot be changed on --resume: spec 25kzda 2.1 freezes it at queue build ('the frozen value cannot change on resume'). Resume the run without it, or start a new run
+    exit=2
+    retry_budget after the refused resume: 7 (unchanged)
+    ```
+    `--retry-budget 0` is refused too (`test_retry_budget_zero_with_resume_is_also_refused`), since a truthiness check would have let a real value through.
+    I DO NOT CLAIM THE BLANKET `:129` RULE. As F-10 records, the shipped `--full-auto` on resume OVERWRITES the frozen option rather than refusing, so "refuse any policy-changing flag on resume" is not implementable without changing a shipped flag's behavior, which is outside this plan's fence. Only `--retry-budget` is refused; the divergence is recorded in `refuse_frozen_flags_on_resume`'s docstring and here.
+    A RESUME WITH THE FLAG OMITTED PRESERVES FROZEN STATE - what `default=None` buys (F-6):
+    ```
+    frozen BEFORE:               {'allow_mixed': True, 'full_auto': True, 'unattended': True, 'retry_budget': 7}
+    after a FLAGLESS resume:     {'allow_mixed': True, 'full_auto': True, 'unattended': True, 'retry_budget': 7}
+    ```
+    `--full-auto` ON RESUME STILL **OVERWRITES** THE FROZEN OPTION AS IT DOES TODAY, UNCHANGED BY THIS PLAN:
+    ```
+    after `resume --no-full-auto`: {'allow_mixed': True, 'full_auto': False, 'unattended': True, 'retry_budget': 7}
+    ```
+    `full_auto` went `True` -> `False`, and `unattended` was NOT touched: the `--full-auto` implication is applied once at queue build, never re-applied on resume, so a resume cannot silently flip a second frozen option the operator did not name (`test_resume_does_not_reapply_the_unattended_implication`).
+    BOTH HOSTS' FLAG SETS AND DEFAULTS SIDE BY SIDE, `--full-auto` now `False` on BOTH (E-07), and NO OTHER per-host default changed:
+    ```
+    flag                       oc start    agy start    oc resume   agy resume
+    --allow-mixed                 False        False         None         None
+    --unattended                  False        False         None         None
+    --full-auto                   False        False         None         None
+    --allow-unverifiable          False        False         None         None
+    --unverifiable-ok             False        False         None         None
+    --follow-generated            False        False         None         None
+    --with-dependencies           False        False         None         None
+    --retry-budget                 None         None         None         None
+    ```
+    `test_the_two_hosts_flag_sets_are_identical` and `test_every_resume_declaration_defaults_to_None` pin both properties.
+    TEST RUNS, all in the PRIMARY lane checkout at HEAD `08aab7ed`:
+    ```
+    $ python3 -m pytest tests/test_run_flag_surface.py
+    70 passed in 2.56s
+
+    $ python3 -m pytest tests/test_oc_runipd.py tests/test_agy_runipd_cli.py
+    13 failed, 100 passed in 11.66s
+
+    $ python3 -m pytest            # BARE, per the execution contract
+    31 failed, 4551 passed, 3 skipped, 4 xfailed in 32.99s
+    ```
+    COMPARED AGAINST MY OWN PRE-CHANGE MEASUREMENT at start HEAD `bd91909e`: `31 failed, 4481 passed, 3 skipped, 4 xfailed in 40.22s`. The FAILURE SET is **byte-identical** (`diff` of the two sorted `FAILED` lists is empty), and the pass count rose by exactly the 70 tests added. All 31 are pre-existing lane failures (the known detached-worktree `test_run_viewer` phantoms, backlog `dh0uno`, plus `AW-LIFECYCLE-ROLE-001` worker-role refusals that fire for every plan executed in a managed lane). The 13 driver-suite failures are a subset of those same 31.
+    `aw check plans` NO-WORSENING, NOT A PASS CLAIM: pre-change `errors 11, warnings 0`; after `errors 14, warnings 0`. The +3 are all `check.scope-drift` on THIS plan, for the three files modified outside its declared `- Scope-Paths:` (`runner_shared.py`, `tests/test_run_flag_surface.py`, `tests/test_run_evidence_completion.py`), which is precisely the mechanism `aw ipd finalize --scope-reason` exists to record. No pre-existing issue worsened and no new issue class appeared.
+    Leak sanitizer clean: `{"cmd":"check-local-leaks","outcome":"clean","exit":0,"findings":0}`.
+  - Result: pass
 
 ## Approval and execution gate
 
