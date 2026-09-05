@@ -4240,6 +4240,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 4,
+    "path": "executed/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md",
+    "plan_id": "hauwqh",
+    "set_id": "wslayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-03",
     "disposition": "executed",
     "kind": "child",
@@ -4486,16 +4496,6 @@
     "order": 0,
     "path": "pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
     "plan_id": "rh5tt6",
-    "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md",
-    "plan_id": "hauwqh",
     "set_id": "wslayout",
     "status": "approved"
   },
