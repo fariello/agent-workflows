@@ -1299,6 +1299,334 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--message", "--by-human", "--dry-run", "--json", "--agent"),
         exit_contract=(0, 1, 2),
     ),
+    # ----------------------------------------------------------------------------------------------
+    # Leaves that shipped WITHOUT a declaration (backfilled).
+    #
+    # `find_undeclared_leaves` is the gate that is supposed to make an undeclared leaf impossible,
+    # but it was comparing ALIAS spellings against canonical declarations, so its output was dominated
+    # by ~33 alias false positives and the genuinely-undeclared leaves below hid in the noise. With
+    # `discover_parser_leaves` now canonicalizing aliases, these are what remain, and each one is a
+    # real command a user can invoke today with no declared output contract.
+    #
+    # Classification follows the shipped behavior, not aspiration: `command_class` from what the verb
+    # DOES, `exit_contract` from what it can return, and `empty_error_renderer` per the rule in
+    # `test_empty_error_renderer_classification_consistency` (only the listed query verbs use
+    # `shared_empty_result`; everything else uses `renderer_boundary`).
+    # --- config family (the `conf` spellings are aliases of these) ---
+    CommandDeclaration(
+        command="config show",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="config get",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="config is",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="config set",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="config add",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        # `config rm` is an alias of this leaf.
+        command="config remove",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- releases family (the `release` spellings are aliases of these) ---
+    CommandDeclaration(
+        command="releases list",
+        command_class="read",
+        human_recipe="list",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="releases show",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="releases new",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent", "--apply"),
+        exit_contract=(0, 2),
+    ),
+    # --- research verbs missing from the inventory ---
+    CommandDeclaration(
+        command="research pending",
+        command_class="read",
+        human_recipe="list",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="research set-outcome",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="research set-priority",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- ipd dependency setter ---
+    CommandDeclaration(
+        command="ipd dependencies set",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- host runner groups (the `opencode`/`antigravity` spellings are aliases) ---
+    # These forward argv verbatim to the packaged drivers (`add_help=False` +
+    # `argparse.REMAINDER`), so the driver's own parser owns help and exit codes. Declared as
+    # mutations because a run writes commits, run state, and lifecycle transitions.
+    CommandDeclaration(
+        command="oc runipd",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="oc update-models",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="agy runipd",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="agy exec",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="agy sessions",
+        command_class="read",
+        human_recipe="list",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="agy view",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- work / commit lifecycle helpers ---
+    CommandDeclaration(
+        command="work begin",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--dir",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="commit",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--message", "--no-commit"),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="finish",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--dir",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="test",
+        command_class="read",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="pwatch",
+        command_class="read",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="completion",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--shell",),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- pre-commit / pre-push gate entrypoints ---
+    # Invoked by git hooks rather than typed by a human, but they ARE parser leaves with real exit
+    # contracts (that is the whole point of a gate), so they carry declarations like anything else.
+    CommandDeclaration(
+        command="precommit-scope-gate",
+        command_class="check",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="prepush-authorization-gate",
+        command_class="check",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="backlog-blocking-close-gate",
+        command_class="check",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json",),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="ipd-dependency-statement-gate",
+        command_class="check",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--agent", "--json"),
+        exit_contract=(0, 1, 2),
+    ),
+    # --- shell-completion internal ---
+    # `argparse.SUPPRESS`ed and machine-only (the shell calls it), but still a leaf.
+    CommandDeclaration(
+        command="__complete",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
 )
 
 _DECLARATION_INDEX: Dict[str, CommandDeclaration] = {
@@ -1334,7 +1662,26 @@ def get_standalone_scripts() -> Tuple[StandaloneScriptDeclaration, ...]:
 def discover_parser_leaves(
     parser: argparse.ArgumentParser, prefix: str = ""
 ) -> Set[str]:
-    """Recursively extract all leaf command paths from an argparse.ArgumentParser tree."""
+    """Recursively extract all CANONICAL leaf command paths from an argparse parser tree.
+
+    ALIASES ARE EXCLUDED, and that is the whole subtlety here. ``add_parser("config",
+    aliases=["conf"])`` registers the SAME parser object under both keys in ``sa.choices``, so a
+    naive walk of ``choices`` reports ``conf get`` and ``config get`` as two distinct leaves. Since
+    ``COMMAND_INVENTORY`` declares each command ONCE under its canonical name, every alias then
+    surfaced as an "undeclared leaf": measured at 63 of them (`conf *`, `opencode *`,
+    `antigravity *`, `release *`, `spec *`, ...), which is what turned
+    ``test_zero_undeclared_parser_leaves`` and ``test_no_undeclared_parser_leaves`` red.
+
+    Declaring the aliases would have been the wrong fix twice over: it would double the inventory,
+    and it contradicts the design the surrounding tests already encode. ``AliasEquivalenceTests``
+    owns alias behavior, and ``test_every_declared_leaf_gets_a_full_scenario_row_set`` says in its
+    own comment that "alias leaves ... are not live matrix rows; aliases are gated by
+    AliasEquivalenceTests". So aliases must not appear here in the first place.
+
+    The canonical name is the FIRST key in ``sa.choices`` that maps to a given subparser object,
+    because ``add_parser`` inserts the real name before its aliases; identity (``is``) is the test,
+    not name comparison, so this holds for any alias spelling.
+    """
     leaves: Set[str] = set()
     subparsers_actions = [
         a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
@@ -1346,7 +1693,12 @@ def discover_parser_leaves(
         return leaves
 
     for sa in subparsers_actions:
+        seen_subparsers: list[tuple[str, argparse.ArgumentParser]] = []
         for choice_name, subparser in sa.choices.items():
+            # Skip a name that is an ALIAS of an already-seen subparser (same object).
+            if any(subparser is prior for _, prior in seen_subparsers):
+                continue
+            seen_subparsers.append((choice_name, subparser))
             full_name = f"{prefix} {choice_name}".strip()
             leaves.update(discover_parser_leaves(subparser, full_name))
     return leaves

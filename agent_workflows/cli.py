@@ -50,6 +50,16 @@ from .term import Term
 # E-06). Keyed by full command path. The short one-liner stays as `help=` in the parent
 # listing; this is the multi-sentence "what it does, inputs/outputs, key flags, caveats".
 _DESCRIPTIONS = {
+    # Machine-only leaf: the shell calls it, a human never does, so its `help` is
+    # `argparse.SUPPRESS` and it is absent from `aw --help`. It still needs a description, because
+    # `--help` on it must explain what it is to whoever stumbles onto it while debugging completion.
+    "__complete": (
+        "INTERNAL completion resolver, invoked by the generated shell completion scripts rather than "
+        "by a person. Given the current word index and the tokens typed so far, it prints the "
+        "candidate completions for that position, one per line, and nothing else. Not a stable "
+        "public interface: its arguments and output exist to serve the scripts emitted by "
+        "`aw completion` and may change with them."
+    ),
     "completion": (
         "Emit a native shell completion script for the aw CLI to stdout. `aw completion bash` "
         "(also zsh, fish) prints a self-contained script that completes commands and flags for all "
@@ -1289,6 +1299,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "set",
         parents=[common],
         help="Set/clear a plan's Item-Dependencies (canonicalizes + validates; '-'/'none' clears).",
+        description=(
+            "Write the cross-IPD `Item-Dependencies` statement of one or more plans, replacing any "
+            "existing value. Each edge is `executed:<id6>` (that IPD must be executed), "
+            "`exists:<type>:<id6>` (the artifact must exist), or `state:<type>:<status>:<id6>` (the "
+            "artifact must hold that status); pass `none` or `-` to clear the statement. Every edge "
+            "is canonicalized and validated against the repository before anything is written, so a "
+            "malformed, dangling, ambiguous, or cyclic edge is refused rather than persisted, and "
+            "the value survives a same-status no-op transition."
+        ),
     )
     p_ipd_deps_set.add_argument(
         "selector", help="Plan selector (id6, setid, or filename)."
@@ -1413,6 +1432,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "begin",
         parents=[common],
         help="Validate a plan (fail closed) and allocate an isolated worktree for its execution.",
+        description=(
+            "Start work on one plan the compliant way, in two steps that both have to succeed. First "
+            "the plan is validated through the shared policy engine, and any finding refuses the "
+            "command rather than warning, so execution cannot begin against a plan that does not "
+            "conform. Then an isolated git worktree is allocated with a recorded lease, so the work "
+            "happens off the shared checkout and the lease says who holds it. Use this instead of "
+            "hand-creating a worktree: it is the same validation the repository gates on later."
+        ),
     )
     p_work_begin.add_argument(
         "plan", help="Plan selector (id6, setid, stem, path, or substring)."
@@ -2160,6 +2187,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "pending",
         parents=[common],
         help="List UNRUN research prompts (a set whose NN=00 prompt has no report sibling).",
+        description=(
+            "List the research prompts that have been written but never answered. A prompt counts as "
+            "unrun when its set's `NN=00` prompt file has no report sibling, which is a structural "
+            "test rather than a status field, so a prompt cannot look answered merely because someone "
+            "edited its metadata. Use it to find research you asked for and never got back before "
+            "starting new work that depends on the answer."
+        ),
     )
     p_research_pending.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -2195,6 +2229,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "set-outcome",
         parents=[common],
         help="Set a doc's outcome and consumed-by provenance (preview unless --apply).",
+        description=(
+            "Record what a piece of research was actually WORTH, and which work consumed it. The "
+            "outcome is one of `adopted`, `informational`, `rejected`, or `none-yet`, and "
+            "`--consumed-by` names the plan, spec, or backlog id6s that used it (`-` clears the "
+            "list). This is the provenance link that lets a later reader tell research that changed a "
+            "decision from research nobody read. Previews by default; pass `--apply` to write."
+        ),
     )
     p_research_set_outcome.add_argument("id", help="The <id6> of the doc.")
     p_research_set_outcome.add_argument(
@@ -2222,6 +2263,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "set-priority",
         parents=[common],
         help="Set/clear a research doc's optional Priority (preview unless --apply); xprio.",
+        description=(
+            "Set or clear a research document's optional `Priority` field, using the same "
+            "`low|medium|high` vocabulary that plans, specs, and backlog items use, so one word means "
+            "the same thing across every artifact type. Pass `-` to clear it, which is different from "
+            "setting `low`: cleared means nobody has judged the priority. Previews by default; pass "
+            "`--apply` to write."
+        ),
     )
     p_research_set_priority.add_argument("id", help="The <id6> of the doc.")
     p_research_set_priority.add_argument(
@@ -2613,6 +2661,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "show",
         parents=[common],
         help="Display the configuration file location, status, and all current settings (or a single variable).",
+        description=(
+            "Show where the user configuration file lives, whether it exists, and what it currently "
+            "contains. With no argument every setting is printed; pass a name to narrow to one group "
+            "(`repos`) or one variable (`repos.search`). This is the read-only orientation command: it "
+            "answers 'what is configured right now, and which file would a change land in' without "
+            "modifying anything."
+        ),
     )
     p_config_show.add_argument(
         "varname",
@@ -2625,6 +2680,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "get",
         parents=[common],
         help="Get the value of a configuration variable (e.g. 'defaults.backup', 'repos').",
+        description=(
+            "Print the value of exactly one configuration variable, resolved the same way the rest of "
+            "the toolkit resolves it. Unlike `config show`, the output is the value alone, which makes "
+            "it usable in a script or a shell substitution. Exits nonzero when the variable is not "
+            "set, so a caller can distinguish 'unset' from 'set to an empty value'."
+        ),
     )
     p_config_get.add_argument(
         "varname",
@@ -2635,6 +2696,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "set",
         parents=[common],
         help="Set the value of a configuration variable (syntax: 'var val', 'var=val', 'var = val', 'var to val').",
+        description=(
+            "Write a configuration variable, REPLACING whatever it held before. Several spellings are "
+            "accepted for the same operation (`var val`, `var=val`, `var = val`, `var to val`) so the "
+            "command reads naturally either way. For a list-valued variable this replaces the entire "
+            "list; use `config add` or `config remove` to change one entry without disturbing the rest."
+        ),
     )
     p_config_set.add_argument(
         "set_args",
@@ -2646,6 +2713,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "add",
         parents=[common],
         help="Add an item to a list configuration variable (syntax: 'aw config add <value> to <varname>').",
+        description=(
+            "Append one item to a list-valued configuration variable, leaving the existing entries "
+            "alone. This is the difference from `config set`, which replaces the whole list: use `add` "
+            "when you mean 'also this'. Adding an item the list already contains is a no-op rather "
+            "than a duplicate or an error."
+        ),
     )
     p_config_add.add_argument(
         "add_args",
@@ -2658,6 +2731,12 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["rm"],
         parents=[common],
         help="Remove an item from a list configuration variable (syntax: 'aw config remove <value> from <varname>').",
+        description=(
+            "Delete one item from a list-valued configuration variable, leaving every other entry in "
+            "place. The counterpart to `config add`, and the safe alternative to rewriting the whole "
+            "list with `config set`. Removing an item that is not present is reported rather than "
+            "silently treated as success, so a typo in the value does not look like it worked."
+        ),
     )
     p_config_remove.add_argument(
         "remove_args",
@@ -2669,6 +2748,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "is",
         parents=[common],
         help="Check if an item is present in a list configuration variable (syntax: 'aw config is <value> in <varname>').",
+        description=(
+            "Test whether one item is a member of a list-valued configuration variable, and report the "
+            "answer through the EXIT CODE so it can be used directly in a shell conditional. Nothing "
+            "is modified. Prefer this over grepping `config show`, which would also match a "
+            "coincidental substring of an unrelated entry."
+        ),
     )
     p_config_is.add_argument(
         "is_args",
@@ -3222,6 +3307,13 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["opencode"],
         parents=[common],
         help="OpenCode host tooling. 'aw oc runipd' runs the restartable IPD review/execute driver; 'aw oc update-models' syncs provider models/pricing from your configured gateways. Alias: 'aw opencode'.",
+        description=(
+            "Everything specific to the OpenCode host, grouped under one noun. `aw oc runipd` (alias "
+            "`aw oc run`) is the restartable driver that reviews or executes IPDs in a durable queue, "
+            "and `aw oc update-models` refreshes model and pricing data from the gateways declared in "
+            "your own OpenCode config. Spelled `aw opencode` if you prefer the long form; the two are "
+            "the same commands."
+        ),
     )
     oc_sub = p_oc.add_subparsers(dest="oc_command")
     p_oc_runipd = oc_sub.add_parser(
@@ -3229,6 +3321,13 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["run"],
         help="Restartable non-interactive OpenCode driver for reviewing/executing IPDs.",
         add_help=False,
+        description=(
+            "Run the OpenCode IPD driver. It freezes a queue from your selector, then reviews or "
+            "executes each item in order, committing as it goes and recording durable run state so an "
+            "interrupted run can be resumed rather than restarted. ALL arguments after `runipd` are "
+            "forwarded verbatim to the driver, so consult `aw oc runipd --help` for the real flag set: "
+            "this wrapper deliberately declares none of them, which is what keeps the two in step."
+        ),
     )
     p_oc_runipd.add_argument(
         "runipd_args",
@@ -3284,6 +3383,13 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["antigravity"],
         parents=[common],
         help="Antigravity host tooling. 'aw agy runipd' runs the restartable IPD review/execute driver. Alias: 'aw antigravity'.",
+        description=(
+            "Everything specific to the Antigravity host, grouped under one noun. `aw agy runipd` "
+            "(aliases `run`, `runagy`) is the restartable multi-IPD queue driver; `aw agy exec` runs a "
+            "SINGLE target with the two-turn skeptical audit and is deliberately a separate verb; "
+            "`aw agy sessions` and `aw agy view` inspect sessions and event logs. Spelled "
+            "`aw antigravity` if you prefer the long form."
+        ),
     )
     agy_sub = p_agy.add_subparsers(dest="agy_command")
     p_agy_runipd = agy_sub.add_parser(
@@ -3291,6 +3397,13 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["run", "runagy"],
         help="Restartable non-interactive Antigravity driver for reviewing/executing IPDs.",
         add_help=False,
+        description=(
+            "Run the Antigravity IPD driver. It freezes a queue from your selector, then reviews or "
+            "executes each item in order, committing as it goes and recording durable run state so an "
+            "interrupted run can be resumed rather than restarted. ALL arguments after `runipd` are "
+            "forwarded verbatim to the driver, so consult `aw agy runipd --help` for the real flag "
+            "set: this wrapper deliberately declares none of them, which is what keeps the two in step."
+        ),
     )
     p_agy_runipd.add_argument(
         "runipd_args",
@@ -3306,6 +3419,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "sessions",
         help="List and inspect Antigravity sessions for a workspace/directory.",
         add_help=False,
+        description=(
+            "List the Antigravity conversation sessions recorded for a workspace, so you can find the "
+            "session id a run attached to and inspect what it did. Read-only. ALL arguments are "
+            "forwarded verbatim to the underlying tool, so see its own `--help` for the flag set."
+        ),
     )
     p_agy_sessions.add_argument(
         "sessions_args",
@@ -3317,6 +3435,11 @@ def _build_parser() -> argparse.ArgumentParser:
         aliases=["view-antigravity-jsonl"],
         help="Format Antigravity JSONL event logs as readable terminal text.",
         add_help=False,
+        description=(
+            "Render an Antigravity JSONL event log as readable terminal text, turning the raw "
+            "machine stream a run leaves behind into something a human can follow. Read-only. ALL "
+            "arguments are forwarded verbatim to the underlying tool, so see its own `--help`."
+        ),
     )
     p_agy_view.add_argument(
         "view_args",
@@ -3332,6 +3455,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "exec",
         help="Execute an IPD/spec/prompt-file/prompt with Antigravity + two-turn skeptical audit.",
         add_help=False,
+        description=(
+            "Execute ONE target (an IPD, a spec, a prompt file, or an inline prompt) with Antigravity, "
+            "using the two-turn protocol where a second clean session skeptically audits the first "
+            "session's work. This is deliberately NOT `aw agy run`: that name belongs to the multi-IPD "
+            "queue driver, and conflating a single-target run with a queue run is exactly the "
+            "collision this separate verb avoids. ALL arguments are forwarded verbatim; see its own "
+            "`--help`."
+        ),
     )
     p_agy_exec.add_argument(
         "exec_args",
@@ -3344,6 +3475,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "pwatch",
         parents=[common],
         help="Watch and summarize processes (graduated from tools/pwatch.py).",
+        description=(
+            "Watch running processes and summarize them, with include/exclude matching so a long-lived "
+            "agent run can be monitored without the noise of every unrelated process on the machine. "
+            "Read-only: it observes and reports, and never signals or kills anything. ALL arguments "
+            "are forwarded verbatim to the packaged core, so see its own `--help` for the flag set."
+        ),
         add_help=False,
     )
     p_pwatch.add_argument(
@@ -4080,6 +4217,14 @@ EXAMPLES
         parents=[common],
         help="Local pre-commit gate: refuse a staged commit that violates a repository invariant or "
         "a plan's declared Scope-Paths, teaching the recovery command (OPT-IN, LOCAL; CI is the authority).",
+        description=(
+            "Inspect the STAGED diff and refuse the commit when it violates a repository invariant or "
+            "strays outside the declared `Scope-Paths` of the plan being executed, printing the "
+            "recovery command rather than just a rejection. Normally invoked by a git pre-commit hook "
+            "rather than typed by hand. Honest about its own limits: it is OPT-IN, purely LOCAL, and "
+            "bypassable with `--no-verify`, so CI remains the actual authority; this exists to catch "
+            "the mistake early, not to be the boundary."
+        ),
     )
     # agentadhere diundn: OPT-IN local pre-push gate that prevents an accidental push and explains
     # real authorization. FEEDBACK ONLY, honestly NOT an authority boundary.
@@ -4088,6 +4233,13 @@ EXAMPLES
         parents=[common],
         help="Local pre-push gate: prevent an accidental push and explain real authorization "
         "(OPT-IN, LOCAL FEEDBACK ONLY, bypassable; NOT an authority boundary - CI/protected branch is).",
+        description=(
+            "Stop an ACCIDENTAL push and explain where real authorization comes from. Normally invoked "
+            "by a git pre-push hook rather than typed by hand. Deliberately described as FEEDBACK "
+            "ONLY: it is opt-in, local, and bypassable, so it is not an authority boundary and must "
+            "not be relied on as one. Branch protection and CI are the enforcement; this is the "
+            "reminder that arrives before you need them."
+        ),
     )
 
     # tabcomp Order 01 (bja8og): `aw completion <shell>` streams a native completion script to

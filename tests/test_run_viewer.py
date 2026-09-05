@@ -214,32 +214,92 @@ class RunViewerTests(TestCase):
         self.assertNotIn("Breakdown by Status:", out)
 
     def test_run_viewer_cli_summary_only(self):
-        ns = argparse.Namespace(
-            dir=".",
-            target=[],
-            set=None,
-            ipd=None,
-            status=None,
-            failed=False,
-            active=False,
-            latest=False,
-            last=2,
-            since=None,
-            detail=False,
-            short=False,
-            summary_only=True,
-            json=False,
-            agent=False,
-            no_color=True,
-        )
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            code = run_viewer.run_viewer_cli(ns)
-        self.assertEqual(code, 0)
-        out = buf.getvalue()
-        self.assertIn("Summary across", out)
-        self.assertIn("Breakdown by Status:", out)
-        self.assertNotIn("pid:", out)
+        """`--summary-only` renders the aggregate tables, asserted on an OWNED fixture.
+
+        This test used to run against the LIVE repository (`dir="."`, `last=2`) and asserted
+        `Breakdown by Status:` unconditionally. That is two separate dependencies on ambient state,
+        and both bite:
+
+        * `Breakdown by Status:` is emitted ONLY when the selected runs carry cost/token data
+          (`run_viewer.py:2215-2216` prints `No recorded cost/token data for the selected runs.`
+          instead). Whether the two most recent runs happen to have cost data is not a property of
+          this code, so the assertion passed or failed depending on what the maintainer had last run.
+          Measured: with a live `aw oc run revsweep` in progress, the two newest runs had no cost
+          data and this test failed.
+        * `dir="."` resolves a DIFFERENT `.aw/state` inside a git worktree, where `discover_run_dirs`
+          returns 0 runs (backlog `dh0uno`), which is why this class contributes ~14 phantom failures
+          to any worktree run.
+
+        Fixed the way `i79rgh` already fixed the `--issues` cases in this same file: build a run
+        fixture in a tempdir, WITH cost data, so the assertion tests the renderer rather than the
+        maintainer's recent activity.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run_dir = root / ".aw" / "records" / "runs" / "run-20260829T000000Z-222222"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-20260829T000000Z-222222",
+                "driver": "OpenCode",
+                "queue": [
+                    {
+                        "position": 1,
+                        "id6": "item01",
+                        "setid": "test",
+                        "action": "execute",
+                        "status": "complete",
+                        "disposition": "executed",
+                        "configured_file": "",
+                        "stem": "20260829-test-01-item01",
+                        # Cost/token data is what gates the aggregate tables; without it the
+                        # renderer takes the "No recorded cost/token data" branch by design.
+                        # It is read from ATTEMPTS (`run_viewer.py:597-604`), not from a
+                        # top-level key, so the fixture must carry an attempt record.
+                        "attempts": [
+                            {
+                                "attempt": 1,
+                                "cost": 1.25,
+                                "tokens": {
+                                    "total": 1000,
+                                    "input": 600,
+                                    "output": 300,
+                                    "cache": 100,
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state))
+
+            ns = argparse.Namespace(
+                dir=str(root),
+                target=[],
+                set=None,
+                ipd=None,
+                status=None,
+                failed=False,
+                active=False,
+                latest=False,
+                last=2,
+                since=None,
+                detail=False,
+                short=False,
+                summary_only=True,
+                latest_only=False,
+                issues=False,
+                json=False,
+                agent=False,
+                no_color=True,
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = run_viewer.run_viewer_cli(ns)
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+            self.assertIn("Summary across", out)
+            self.assertIn("Breakdown by Status:", out)
+            self.assertNotIn("pid:", out)
 
     def test_run_viewer_cli_short_and_summary_only_conflict(self):
         ns = argparse.Namespace(
