@@ -9,7 +9,20 @@ setup-repo-needed.md
 # The per-repo append-only workflow-history sidecar (record_history): a local activity log
 # appended on every `aw` status write; local-only, never committed (awhistignore).
 records/history.jsonl
-# The ipdrunner (IPD driver) durable run state: per-run queue, session logs, prompts,
-# outcomes, and lock under records/runs/<run-id>/. This is box-local, ephemeral working
-# material for autonomous execution runs, not a tracked project artifact; never committed.
+# The ipdrunner IPD-driver per-run durable state (queue state.json, session JSONL logs, prompts,
+# outcomes, driver.lock): box-local, ephemeral working material; never committed (awrunsignore).
 records/runs/
+# The inbox: a drop zone for RAW, not-yet-conforming material (e.g. an external LLM's research
+# output) awaiting adoption into a typed records tree. Never committed: the content is unvetted
+# third-party text that has not passed the leak-sanitizer or a provenance check, and git history is
+# permanent; and once adopted, the conforming copy under records/<type>/ is authoritative, so a
+# tracked inbox copy would be a second durable home for the same content with no id6.
+# It sits OUTSIDE records/ DELIBERATELY, so the record sweep cannot see it by construction: the
+# `other` catch-all type is the COMPLEMENT of the known typed trees (selectors _OTHER_SWEEP_SKIP_DIRS),
+# so ANY new directory under records/ is enumerated as records, and a stray `- Id: <id6>` in a dropped
+# file (even one merely QUOTED inside an external report) is harvested as an identity claim that can
+# collide with a real artifact's id6 and make it unresolvable to `aw set`/`aw show`.
+# ANCHORED with a leading slash so it matches ONLY `.aw/inbox/`. A bare `inbox/` is unanchored and
+# would match an `inbox` directory at ANY depth, which silently swallows the TRACKED comms lane
+# `records/comms/shared/inbox/` (and its `.gitkeep`), breaking `aw install` on a fresh repo.
+/inbox/

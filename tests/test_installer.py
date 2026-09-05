@@ -17,7 +17,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from tests.support import REPO_ROOT, init_repo, run_installer, SOURCE_WORKFLOWS
+from tests.support import REPO_ROOT, git, init_repo, run_installer, SOURCE_WORKFLOWS
 
 # The install engine now lives in the agent_workflows package (IPD-2). Import it directly
 # for the unit tests; the root install-workflows.py is a thin deprecated shim exercised by
@@ -2980,6 +2980,126 @@ class AwGitignoreRunsLaneTests(unittest.TestCase):
             text2 = gi.read_text(encoding="utf-8")
             self.assertEqual(text2.count("records/runs/"), 1)
             self.assertEqual(text2.count("records/history.jsonl"), 1)
+
+
+class AwGitignoreInboxLaneTests(unittest.TestCase):
+    """awinbox: `aw install` guarantees the `inbox/` raw-drop lane is gitignored.
+
+    `.aw/inbox/` is the drop zone for RAW external material awaiting adoption. It MUST never be
+    committed (unvetted third-party text; git history is permanent), and it sits OUTSIDE `records/`
+    so the record sweep cannot enumerate it as an artifact.
+    """
+
+    @staticmethod
+    def _inbox_lines(text):
+        """Count only the PATTERN line, not the explanatory comment that also says `inbox/`."""
+        return [ln for ln in text.splitlines() if ln.strip() in ("/inbox/", "inbox/")]
+
+    def test_template_contains_anchored_inbox_pattern(self):
+        lines = self._inbox_lines(INS._AW_GITIGNORE_TEMPLATE)
+        self.assertEqual(
+            len(lines), 1, "the template must carry exactly one `inbox/` pattern line"
+        )
+        # REGRESSION: a BARE `inbox/` is unanchored and matches an `inbox` dir at ANY depth, which
+        # silently ignores the TRACKED comms lane `records/comms/shared/inbox/` and its `.gitkeep`,
+        # breaking `aw install` on a fresh repo. It MUST be anchored to `.aw/inbox/` only.
+        self.assertEqual(
+            lines[0].strip(),
+            "/inbox/",
+            "the inbox pattern must be ANCHORED (`/inbox/`); a bare `inbox/` also ignores "
+            "the tracked records/comms/shared/inbox/ lane",
+        )
+
+    def test_fresh_install_gitignores_inbox_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            INS._ensure_aw_gitignore(root)
+            gi = root / ".aw" / ".gitignore"
+            self.assertEqual(len(self._inbox_lines(gi.read_text(encoding="utf-8"))), 1)
+            # Repeated installs/updates must not duplicate the pattern.
+            for _ in range(3):
+                INS._ensure_aw_gitignore(root)
+            self.assertEqual(len(self._inbox_lines(gi.read_text(encoding="utf-8"))), 1)
+
+    def test_backfill_adds_inbox_once_on_preexisting(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            gi = root / ".aw" / ".gitignore"
+            gi.parent.mkdir(parents=True)
+            # A pre-existing .aw/.gitignore from before the inbox lane existed.
+            gi.write_text(
+                "records/*/untracked/\nsetup-repo-needed.md\n"
+                "records/history.jsonl\nrecords/runs/\n",
+                encoding="utf-8",
+            )
+            INS._ensure_aw_gitignore(root)
+            text = gi.read_text(encoding="utf-8")
+            self.assertEqual(self._inbox_lines(text), ["/inbox/"])
+            INS._ensure_aw_gitignore(root)
+            self.assertEqual(
+                self._inbox_lines(gi.read_text(encoding="utf-8")), ["/inbox/"]
+            )
+
+    def test_backfill_does_not_duplicate_when_comment_mentions_inbox(self):
+        """The back-fill anchors on the bare pattern, not the substring the comment also contains."""
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            gi = root / ".aw" / ".gitignore"
+            gi.parent.mkdir(parents=True)
+            gi.write_text(INS._AW_GITIGNORE_TEMPLATE, encoding="utf-8")
+            INS._ensure_aw_gitignore(root)
+            self.assertEqual(len(self._inbox_lines(gi.read_text(encoding="utf-8"))), 1)
+
+    def test_backfill_repairs_a_preexisting_bare_inbox_pattern(self):
+        """A repo that already carries the UNANCHORED `inbox/` is repaired, not left broken.
+
+        The bare form silently ignores the tracked `records/comms/shared/inbox/` lane, so leaving it
+        in place would keep breaking `aw install` in exactly the repos that installed it.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            gi = root / ".aw" / ".gitignore"
+            gi.parent.mkdir(parents=True)
+            gi.write_text("records/runs/\ninbox/\n", encoding="utf-8")
+            INS._ensure_aw_gitignore(root)
+            text = gi.read_text(encoding="utf-8")
+            self.assertEqual(self._inbox_lines(text), ["/inbox/"])
+            self.assertNotRegex(text, r"(?m)^inbox/[ \t]*$")
+            # Repairing must not duplicate on a later pass either.
+            INS._ensure_aw_gitignore(root)
+            self.assertEqual(
+                self._inbox_lines(gi.read_text(encoding="utf-8")), ["/inbox/"]
+            )
+
+    def test_git_ignores_aw_inbox_but_not_the_tracked_comms_inbox_lane(self):
+        """END-TO-END against real git: the two `inbox` dirs must be treated DIFFERENTLY.
+
+        `.aw/inbox/` is a raw drop zone and must be ignored; `.aw/records/comms/shared/inbox/` is a
+        TRACKED comms lane and must NOT be. This is the assertion that actually pins the bug: the
+        unanchored pattern satisfies every string-level check above while still ignoring both.
+        """
+        with tempfile.TemporaryDirectory() as d:
+            root = init_repo(Path(d) / "repo")
+            INS._ensure_aw_gitignore(root)
+            drop = root / ".aw" / "inbox" / "raw-external-report.md"
+            lane = root / ".aw" / "records" / "comms" / "shared" / "inbox" / ".gitkeep"
+            for f in (drop, lane):
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text("", encoding="utf-8")
+
+            def ignored(path):
+                return (
+                    git(
+                        root, "check-ignore", "-q", str(path.relative_to(root))
+                    ).returncode
+                    == 0
+                )
+
+            self.assertTrue(ignored(drop), ".aw/inbox/ must be gitignored")
+            self.assertFalse(
+                ignored(lane),
+                "the TRACKED records/comms/shared/inbox/ lane must NOT be gitignored",
+            )
 
 
 if __name__ == "__main__":
