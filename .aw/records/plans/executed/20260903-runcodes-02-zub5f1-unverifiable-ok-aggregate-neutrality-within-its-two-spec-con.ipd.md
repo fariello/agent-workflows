@@ -6,18 +6,18 @@
 - Scope: Implement the aggregation predicate PURELY (testable with no live run) so an unverifiable item classifies as a FAILURE contribution by default and as NEUTRAL under the flag, with neutral distinct from success (spec 5.6 grants exit 0 only when every other actionable item is verified, so an integer-sum design cannot express the rule), prove the item's outcome and verification label are byte-identical either way, and refuse the flag when its precondition is absent. Excludes the 13 `RUN-*` codes (Order 1, `wlxkoz`), excludes the retry-budget range (Order 3, `sq61qd`), excludes BUILDING `--allow-unverifiable` or the interactive confirmation (both unbuilt; see F-3 and OQ-01), and excludes wiring anything into either runner module.
 - Scope-Paths: agent_workflows/run_evidence.py, tests/test_run_evidence_completion.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runcodes
 - Order: 2
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: zub5f1
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-09-05 executed (aw oc run): aw oc run self-finalize: zub5f1 verified (set runcodes, attempt 1).
 - 2026-09-05 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-03 performed and V-01..V-03 verified with pasted evidence at HEAD `022c3509` (implementation commit `022c3509`, started from `d91cd795`). Landed `aggregate_run_exit` as a PURE predicate in `run_evidence.py` with THREE-VALUED contributions (`success`/`neutral`/`failure`), integers confined to `_CLASSIFICATION_EXITS` transcribing spec 5.6's RUN table (deliberately NOT `run_cli.py`'s inspection table), spec `:938`'s six non-maskable classes enumerated as data with all six represented, and `_CLASSIFICATION_PRIORITY` keeping a human gate (3), a run-wide class (4), and interruption (130) outranking a neutralized item per `:936`. E-02's admission precondition refuses a standalone flag and returns the refusal as DATA in the module's existing `CompletionPredicate` shape - no `raise` added (the module still has none) and no exception class - yielding the DEFAULT non-neutral aggregate rather than silently granting neutrality. E-03 added 22 tests, purely additive (`408\t0`; zero deletions, no existing assertion touched). BOTH mandatory sabotages were observed FAILING and reverted: relabeling under the flag broke label-invariance (`'ran' != 'verified'`), and neutral-collapsed-into-success broke the not-all-verified case (`'success' != 'neutral'`); the literal integer-sum variant was also run and was caught by the priority table masking a run-wide abort (`'all_clear' != 'run_wide'`). Suite bare: 31 failed / 4440 passed before, 31 failed / 4462 passed after, with the failing SET byte-identical by `diff` of sorted node ids (all 31 pre-existing; none in this plan's test file). `aw check plans` unchanged at `errors 11 warnings 0` (no-worsening; it does not pass). `aw ipd lint --phase pre-transition` conforming. UNDER-SCOPE AS DESIGNED: no CLI flag exists, so no operator can reach this rule; `runflags-01` (`uyeko5`) owns building `--unverifiable-ok`/`--allow-unverifiable` and binding them to these two parameters. One material decision recorded (D-1: lane worktree vs the primary checkout for the suite baseline). `aw ipd begin`/`finalize` were REFUSED to this worker role (`AW-LIFECYCLE-ROLE-001`); the runner owns the lane transition. Not pushed.
 - 2026-09-05 approved (aw set): status set to approved
 

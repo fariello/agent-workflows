@@ -4193,6 +4193,16 @@
     "date": "2026-09-03",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260903-runcodes-02-zub5f1-unverifiable-ok-aggregate-neutrality-within-its-two-spec-con.ipd.md",
+    "plan_id": "zub5f1",
+    "set_id": "runcodes",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-03",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md",
     "plan_id": "prpipy",
@@ -4457,16 +4467,6 @@
     "path": "pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
     "plan_id": "30jug9",
     "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-03",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260903-runcodes-02-zub5f1-unverifiable-ok-aggregate-neutrality-within-its-two-spec-con.ipd.md",
-    "plan_id": "zub5f1",
-    "set_id": "runcodes",
     "status": "approved"
   },
   {
