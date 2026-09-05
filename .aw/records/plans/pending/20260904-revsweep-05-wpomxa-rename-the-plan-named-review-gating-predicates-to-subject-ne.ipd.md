@@ -1,0 +1,155 @@
+# IPD: rename the plan-named review gating predicates to subject-neutral names
+
+- Date: 2026-09-04
+- Kind: child
+- Concern: After `eyh1fu` makes the review record artifact-neutral, two public predicates keep plan-only names for a record that is no longer plan-only. `review_findings.plan_gating_blocks` (`:758`) and `plan_blocks_dependents` (`:841`) take a `plan_id6` parameter and answer a question that, post-`eyh1fu`, applies equally to a spec: does this artifact's review record carry an unresolved gating finding? A name that says `plan` for a predicate that handles specs misleads the next reader in exactly the way the `- Plan-Id:` FIELD did, which is why the maintainer ruled the rename in rather than leaving it. This plan exists because that rename is a SEPARATE CONCERN from the field change: it alters no behavior at all, and it reaches four modules the field change never touches, two of them the highest-contention files in the repo.
+- Scope: Rename `plan_gating_blocks` and `plan_blocks_dependents` to subject-neutral names and update every call site and docstring. A PURE RENAME: no signature semantics, no behavior, no call order, no threshold logic, and no message text changes. EXCLUDES every part of the record's subject fields, its migration, and the checker's type-directed resolution (`eyh1fu` owns all of it and is this plan's hard prerequisite), excludes any change to what the predicates DECIDE, and excludes renaming the `GatingBlock` type or the `Subject-Id`/`Subject-Type` fields themselves.
+- Scope-Paths: agent_workflows/review_findings.py, agent_workflows/check_engine.py, agent_workflows/plan_readiness.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/ipd_set_plan.py, tests/test_plan_readiness.py, tests/test_review_findings_cascade.py
+- Item-Dependencies: executed:eyh1fu
+- Status: to-review
+- Set: revsweep
+- Order: 5
+- Highest E allocated: 03
+- Author: opencode its_direct/pt3-claude-opus-5-1m-us
+- Id: wpomxa
+- Blocks-Release: next
+- From-Spec: 6m4kow
+
+## Workflow history
+
+- 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1 at HEAD `9bb47658`: APPROVE WITH REVISIONS APPLIED; F-1, F-2 both FIXED, zero deferred, zero open. `aw ipd lint` conforming at `--phase author` and again at `--phase review-finalize`. ONE MATERIAL FINDING: the plan's central independence claim was FALSE. It asserted three times that `plan_gating_blocks` never reads the subject field and that the `executed:eyh1fu` edge was mere file serialization; the predicate DOES read it, at `review_findings.py:805` via `doc.plan_id`, populated from `meta["plan-id"]` at `:640`, which is the exact parser field `eyh1fu` E-02 renames. An executor trusting the claim could have renamed around a line about to change. Corrected in F-1, the history and the gate, which now calls the edge LOAD-BEARING. The split remains justified: it rests on separation of CONCERNS (zero-behavior naming versus a release-blocking field change) and on the four extra modules the field change never touches, neither of which the correction affects. VERIFIED WITH NO DEFECT: the five call sites are exactly as claimed, `plan_blocks_dependents` genuinely has zero callers, and the threshold default plus four positional call sites confirm E-01's baseline is the only real guard against a silent semantic change. Review record: `.aw/records/reviews/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-neutral-names.review.md`.
+
+- 2026-09-04 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): EXTRACTED FROM `eyh1fu` at the maintainer's direction after a structural re-review of the plans changed by the 2026-09-04 open-question rulings. The maintainer had ruled (eyh1fu OQ-01) that the rename happen NOW rather than as prose-only, which grew `eyh1fu`'s Scope-Paths from 11 to 15 entries and pulled `oc_runipd.py`, `agy_runipd.py`, `ipd_set_plan.py` and `plan_readiness.py` into a plan whose actual job is the record's subject field. THE SPLIT TEST THE IPD SPEC STATES was then met on two of its three criteria (spans several code regions/files; has independently-executable phases), so the rename is extracted rather than carried. THE INDEPENDENCE CLAIM WAS OVERSTATED AT AUTHORING AND CORRECTED AT REVIEW (F-1): `plan_gating_blocks` DOES read the subject field, at `review_findings.py:805` via `doc.plan_id`, the very parser field `eyh1fu` E-02 renames. The CONCERNS remain separate, which is what justifies the split, but the `executed:eyh1fu` edge is a real code dependency rather than a serialization convenience, and the plan now says so in three places instead of claiming full independence. WHY THIS MATTERS BEYOND TIDINESS: `eyh1fu` removes a RELEASE-BLOCKING blocker that `5slbpi` depends on, and bundling a zero-behavior rename into it meant that blocker-removal could be held up by a merge conflict over function names in the two most contended modules in the repo, where three other pending plans are editing. Separating them lets the blocker land clean. TWO MEASUREMENTS AT AUTHORING, at HEAD `c8a77881`: `plan_gating_blocks` has FIVE call sites (`plan_readiness.py:509`, `agy_runipd.py:1834`, `oc_runipd.py:2847`, `check_engine.py:2070`, `ipd_set_plan.py:489`); `plan_blocks_dependents` has ZERO callers anywhere in the package, so it is public API with no production consumer, which is recorded because it changes the risk profile of renaming it (nothing can break) and raises a separate question this plan does NOT answer (whether it should exist at all).
+
+## Goal
+
+Give the two review gating predicates names that match what they now do, without changing what they do.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: the rename
+
+- [ ] E-01 Pin the CURRENT behavior before renaming anything: capture a characterization baseline for both predicates so the rename can be proven behavior-free rather than asserted to be.
+  A rename is the one change class where "the tests still pass" is weak evidence, because a rename that accidentally swaps an argument or drops the `threshold` default would still satisfy every existing test that passes positionally. So capture, for a fixture with a gating finding and one without: the returned `GatingBlock` tuple contents and order from `plan_gating_blocks`, the boolean from `plan_blocks_dependents`, and the behavior at the default threshold versus an explicit one.
+  NOTE `plan_blocks_dependents` HAS ZERO CALLERS (measured), so its only existing coverage is direct test calls. That makes E-01's baseline the ONLY thing standing between a silent semantic change and a green suite.
+  - Depends on: none
+  - Expected outcome: a recorded pre-rename baseline covering both predicates, both threshold paths, and the empty/non-empty cases; paste it.
+  - Execution state: pending
+
+- [ ] E-02 Perform the rename in `review_findings.py` and update all five call sites plus the two test modules.
+  CHOOSE NAMES THAT DROP `plan` WITHOUT INVENTING A NEW VOCABULARY. The record's own new field is `Subject-Id`/`Subject-Type` (`eyh1fu`), so `subject_gating_blocks` and `subject_blocks_dependents` keep one word for one concept across the field and the predicates. Rename the `plan_id6` PARAMETER to match, and keep it POSITIONAL-compatible: four of the five call sites pass positionally, so a keyword-only change would be a behavior change disguised as a rename.
+  THE FIVE CALL SITES, measured at HEAD `c8a77881`: `plan_readiness.py:509`, `agy_runipd.py:1834`, `oc_runipd.py:2847`, `check_engine.py:2070`, `ipd_set_plan.py:489`. LOCATE EVERY ONE BY SYMBOL, never by these line numbers: both runners are the highest-contention files in the repo and will have moved.
+  DO NOT ADD AN ALIAS. A backward-compatible shim for an internal predicate would leave two names for one function, which is the exact duplication this Set keeps removing, and the repo is pre-release so no external consumer exists.
+  - Depends on: E-01
+  - Expected outcome: both predicates renamed, the parameter renamed, all five call sites and both test modules updated, no alias left behind, and a grep showing zero remaining `plan_gating_blocks`/`plan_blocks_dependents` references.
+  - Execution state: pending
+
+- [ ] E-03 Correct the DOCSTRINGS and comments that describe these predicates as plan-only, which is the whole point of the rename and the part a mechanical find-and-replace will miss.
+  `plan_gating_blocks`'s own docstring says "the answer for a plan with no review artifact at all" (`:761-763`), and the four call sites each carry a comment naming it as the shared predicate (`oc_runipd.py:2834`, `agy_runipd.py:1826`, `check_engine.py:2063`, `ipd_set_plan.py:481`). Update the prose to say ARTIFACT or SUBJECT where it now means either kind, and leave it saying `plan` only where the statement is genuinely plan-specific.
+  DO NOT WEAKEN THE TWO CLAIMS THESE DOCSTRINGS EXIST TO MAKE: that an EMPTY tuple means "nothing recorded blocks dependents" (the deliberate absent-is-silent design), and that a caller needing to tell the operator WHY must use the tuple-returning predicate rather than the boolean. Both are load-bearing and survive the rename unchanged.
+  - Depends on: E-02
+  - Expected outcome: docstrings and the four call-site comments describe an artifact-neutral predicate; the absent-is-silent and use-the-tuple-to-explain claims are intact; no remaining prose calls the predicate plan-only.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- THESE PREDICATES ARE THE ONE SHARED GATE, by design: `oc_runipd.py:2834`, `agy_runipd.py:1826`, `check_engine.py:2063` and `ipd_set_plan.py:481` each carry a comment stating they delegate ENTIRELY to `review_findings.plan_gating_blocks` "so the two hosts cannot diverge". A rename must preserve that single-source property, and must update those comments so the claim still reads true.
+- ABSENCE OF A REVIEW IS DELIBERATELY SILENT: an empty tuple is the answer for an artifact with no review record, documented because zero review files existed against hundreds of plans. Nothing here may turn absence into a block.
+- `plan_readiness.approval_refusals` CONSUMES THIS PREDICATE and documents that its refusal has NO OVERRIDE. That is why E-01's baseline matters: a semantic slip here blocks approvals unfixably.
+- BOTH RUNNER MODULES ARE THE HIGHEST-CONTENTION FILES IN THE REPO, with three other pending plans editing them; the repo's execution contract requires stopping rather than overwriting a co-worker's in-flight change.
+
+## Findings
+
+| # | Finding | Evidence |
+|---|---------|----------|
+| F-1 | THE RENAME IS INDEPENDENT OF THE FIELD'S MEANING, BUT NOT OF ITS CODE PATH, and the first draft of this plan overstated it as fully independent. CORRECTED AT REVIEW: `plan_gating_blocks` DOES read the subject field, via `doc.plan_id` at `review_findings.py:805`, where `ReviewDocument.plan_id` (`:187`) is populated from `meta["plan-id"]` (`:640`). `eyh1fu` E-02 renames exactly that parser field, so it MUST update `:805` as part of its own work. What remains true, and is the real basis for the split: this plan changes no LOGIC and the rename needs no knowledge of what the field is called, since the predicate matches an id6 against whatever the parser exposes. So the `executed:eyh1fu` edge is load-bearing rather than merely a serialization convenience, and this plan must be executed against the POST-`eyh1fu` code. | `review_findings.py:805` (`if (doc.plan_id or "").strip() != wanted`), field at `:187`, populated at `:640`; `eyh1fu` E-02 owns the writer/parser change |
+| F-2 | FIVE CALL SITES, FOUR OF THEM OUTSIDE `eyh1fu`'s ORIGINAL FENCE. This is the measured basis for the split: `eyh1fu`'s Scope-Paths went 11 -> 15 solely to accommodate the rename. | `plan_readiness.py:509`, `agy_runipd.py:1834`, `oc_runipd.py:2847`, `check_engine.py:2070`, `ipd_set_plan.py:489`, measured at HEAD `c8a77881` |
+| F-3 | `plan_blocks_dependents` HAS ZERO CALLERS anywhere in the package: it is defined at `review_findings.py:841` and called by nothing but tests. Renaming it therefore cannot break production behavior, and it also raises a question this plan deliberately does not answer: whether an uncalled public convenience should exist at all. | `grep -rn "plan_blocks_dependents"` over all `*.py` outside `__pycache__`/worktrees returns the definition plus test references only |
+| F-4 | FOUR CALL SITES PASS POSITIONALLY, so renaming the `plan_id6` parameter is safe for them, but making it keyword-only would NOT be a pure rename. Recorded because "rename the parameter too" is the natural instinct and the unsafe version of it is one keystroke away. | `_rf.plan_gating_blocks(repo, dep)` at `oc_runipd.py:2847` and `agy_runipd.py:1834`; `(repo_root, dep_id6, threshold)` at `check_engine.py:2070`; `(_repo_root_for_plans_dir(plans_dir), plan_id6)` at `ipd_set_plan.py:489` |
+| F-5 | A GREEN SUITE IS WEAK EVIDENCE FOR A RENAME, which is why E-01 exists. A rename that swapped an argument or dropped the `threshold` default would still pass every positional call site's tests. Combined with F-3 (one predicate has no production caller), the characterization baseline is the only real guard. | `threshold: Optional[str] = None` default at `review_findings.py:759`; four positional call sites (F-4) |
+| F-6 | THE DOCSTRINGS ARE PART OF THE DELIVERABLE, not decoration: the predicate's own text says "the answer for a plan with no review artifact", and four call sites carry comments asserting the single-shared-predicate property. A find-and-replace on the symbol alone would leave prose that still calls it plan-only, reproducing in comments the exact misleading-name problem the rename fixes. | `review_findings.py:761-763`; `oc_runipd.py:2834`, `agy_runipd.py:1826`, `check_engine.py:2063`, `ipd_set_plan.py:481` |
+
+## Proposed changes (ordered, validatable)
+
+1. Characterization baseline for both predicates, both threshold paths, empty and non-empty (E-01).
+2. Rename both predicates and the parameter, update all five call sites and two test modules, no alias (E-02).
+3. Correct the docstrings and the four call-site comments to artifact-neutral prose, preserving the two load-bearing claims (E-03).
+
+## Deferred / out of scope (with reason)
+
+- EVERYTHING ABOUT THE RECORD'S SUBJECT FIELDS: `Subject-Id`/`Subject-Type`, the corpus migration, the type-directed dangling check, and `_review_index`. All owned by `eyh1fu`, which is this plan's hard prerequisite.
+- WHETHER `plan_blocks_dependents` SHOULD EXIST AT ALL. It has zero callers (F-3), so deleting it is arguably the better answer than renaming it, but deleting a public predicate is a different decision with a different blast radius than renaming one, and the maintainer's ruling was to rename. Recorded as a question for a follow-up rather than silently resolved here.
+- ANY CHANGE TO WHAT THE PREDICATES DECIDE: the threshold semantics, the three failure modes, the deterministic ordering, and the absent-is-silent rule are all unchanged.
+- RENAMING `GatingBlock` OR ANY OTHER TYPE. The ruling named two functions; widening to the type would pull in more call sites for no additional clarity.
+- THE `aw att` GATE-REF DISPLAY and anything else in the attention board. Unrelated surface.
+
+## Scope check
+
+- Over-scope: none. Every edit renames one of the two named predicates, updates one of its call sites, or corrects prose describing it.
+- Under-scope, DELIBERATE: `plan_blocks_dependents` is renamed rather than deleted despite having no callers (F-3). Stated rather than quietly resolved, because the maintainer ruled a rename and deletion is a separate decision.
+- Under-scope: this plan delivers NO behavior change and no user-visible capability. That is the point, and it is why it was extracted from a plan that does deliver one.
+
+## Required tests / validation
+
+- E-01's characterization baseline, captured BEFORE the rename and reproduced identically after. This is the load-bearing evidence, because a green suite alone would also pass for a rename that silently changed an argument (F-5).
+- A grep proving zero remaining references to either old name, in code, tests, and comments.
+- No alias or compatibility shim left behind.
+- The parameter remains POSITIONALLY compatible; four call sites depend on it (F-4).
+- Both test modules green: `tests/test_plan_readiness.py`, `tests/test_review_findings_cascade.py`.
+- The two load-bearing docstring claims still present: absent-is-silent, and use-the-tuple-predicate-to-explain-why.
+- Full suite BARE (`python3 -m pytest`), compared against your own pre-change measurement at the HEAD you started from. No `-n0`, no second `-q`, no `-p no:randomly`.
+- Measure in the PRIMARY checkout, not a scratch worktree (backlog `dh0uno`).
+- `aw check all` NO-WORSENING against your own fresh baseline; do NOT claim it passes.
+
+## Spec / documentation sync
+
+- This plan implements the maintainer's 2026-09-04 ruling on `eyh1fu` OQ-01. It changes no spec text; spec `6m4kow` R-01..R-05 describe the field, not these names.
+- If `.aw/records/reviews/README.md` or any doc names these predicates, update it; otherwise state N/A with the paths checked.
+- No user-facing behavior changes, so no CHANGELOG entry is warranted; say so explicitly rather than leaving it ambiguous.
+
+## Open questions
+
+### OQ-01: Should `plan_blocks_dependents` be deleted instead of renamed, given it has zero callers?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: NOT BLOCKING; this plan renames it as the maintainer ruled, and deletion would be a strictly smaller follow-up. The case for deleting: it has ZERO callers anywhere (F-3), it is a thin boolean wrapper over `plan_gating_blocks`, and its own docstring steers callers AWAY from it toward the tuple-returning version so the operator can be told why, so it is a convenience nobody found convenient. The case for keeping: it is a documented public predicate whose absence would force any future caller wanting a bare verdict to re-derive it, and removing API is a bigger decision than renaming it. Chosen default is RENAME (the ruling), with deletion recorded here so the zero-caller measurement is not lost.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the pre-rename baseline for BOTH predicates, covering a fixture WITH a gating finding and one WITHOUT, at the DEFAULT threshold and at an explicit one, showing the returned tuple contents and order and the boolean result. State plainly that this baseline exists because a green suite cannot distinguish a pure rename from one that swapped an argument or dropped the threshold default (F-5), and that `plan_blocks_dependents` has no production caller to protect it (F-3).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-02 validates E-02
+  - Required evidence: paste the post-rename baseline and show it is IDENTICAL to V-01's, which is this plan's central claim. Paste a grep returning ZERO hits for `plan_gating_blocks` and `plan_blocks_dependents` across code, tests, and comments, plus the before-grep showing the five call sites. Paste evidence NO alias was added. Paste the new signature showing the parameter is still positionally compatible, and confirm all four positional call sites still pass positionally.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-03 validates E-03
+  - Required evidence: paste the updated docstring for each predicate and the four updated call-site comments, showing none still describes an artifact-neutral predicate as plan-only. Paste the two load-bearing claims still intact verbatim: that an empty tuple means nothing recorded blocks dependents, and that a caller needing to explain WHY must use the tuple-returning predicate. Then both test modules, `aw check all` no-worsening against your own baseline, and the bare full suite with counts compared against your own pre-change measurement.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: 3 E-leaves in one task group, one concern: two predicates get names matching what they do, with zero behavior change. E-01 is separate from E-02 because a rename's only real evidence is a before/after behavioral baseline, and capturing it after the edit would be worthless. E-03 is separate from E-02 because the symbol rename is mechanical while the prose correction is judgement about which sentences are genuinely plan-specific, and folding them would let a find-and-replace pass as complete while leaving comments that still call the predicate plan-only (F-6).
+
+Open questions: OQ-01 (delete rather than rename the zero-caller predicate) is non-blocking, with the ruling's answer implemented and the measurement recorded for a follow-up. No blocking question remains.
+
+This plan is `to-review` and requires explicit human approval before execution. It has one hard prerequisite, `- Item-Dependencies: executed:eyh1fu`, and that edge is LOAD-BEARING, not merely a scheduling convenience (corrected at review, F-1): `plan_gating_blocks` reads the subject field through `doc.plan_id` (`review_findings.py:805`), which is precisely the parser field `eyh1fu` E-02 renames. Execute this plan against the POST-`eyh1fu` code and re-read the predicate body before renaming, because the line you are renaming around will have changed. Both plans also edit `review_findings.py` and `check_engine.py`, so they must not run concurrently in any case.
+
+Scope fence: touch ONLY the files in Scope-Paths. Do NOT change what the predicates decide: threshold semantics, the three failure modes, deterministic ordering, and the absent-is-silent rule all stay exactly as they are. Do NOT add an alias or compatibility shim. Do NOT make the renamed parameter keyword-only. Do NOT delete `plan_blocks_dependents` (OQ-01 records that option; the ruling was rename). Do NOT rename `GatingBlock` or any other type. Do NOT touch the record's subject fields, its migration, or `_review_index` (`eyh1fu` owns them). Do not broaden CASUALLY; if the work GENUINELY requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT: `aw ipd finalize` refuses to complete until every out-of-scope path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`.
+
+Honesty rule (HARD MUST): paste the ACTUAL runner output with the `git rev-parse HEAD` it was measured at, from the PRIMARY checkout. The load-bearing evidence is V-02's proof that the post-rename baseline is IDENTICAL to the pre-rename one, because "the tests pass" is exactly what a rename with a swapped argument would also report (F-5). Do NOT describe this plan as delivering any capability: it delivers naming clarity and nothing else, which is why it was extracted from `eyh1fu` rather than carried inside it.
+
+Execution contract: RE-READ `review_findings.py` and every call site immediately before editing and locate each BY SYMBOL, never by the line numbers in this plan: `oc_runipd.py` and `agy_runipd.py` are the highest-contention files in the repo and three other pending plans declare them. Commit ONLY the files changed, path-scoped (`git commit -m msg -- <paths>`), never `git add -A`, never push. Verify with `git diff --cached --name-only` before every commit and re-verify after any hook interruption, since a failed hook invalidates the check. If a co-worker's in-flight change cannot be safely combined with the rename, STOP and report rather than overwriting: this plan delivers no behavior, so it must never win a race against work that does.
+
+Post-gate lifecycle: do not claim done or move this plan until every `V-*` item is verified with concrete pasted evidence and `aw ipd lint --phase pre-transition` reports conforming; the transition is performed by `aw ipd finalize`, never by hand.
