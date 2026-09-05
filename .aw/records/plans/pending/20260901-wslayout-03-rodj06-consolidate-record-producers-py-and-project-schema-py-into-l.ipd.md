@@ -39,10 +39,31 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: Refactor record_producers.py
 
-- [ ] E-01 Update `agent_workflows/record_producers.py` to align `RecordClass`, `DurableStateClass`, `RuntimeStateClass`, and `_RECORD_CLASS_SUBPATHS` with `layout.py` while preserving `_LEGACY_RECORD_CLASS_SUBPATHS` and existing write guard methods.
+- [x] E-01 Update `agent_workflows/record_producers.py` to align `RecordClass`, `DurableStateClass`, `RuntimeStateClass`, and `_RECORD_CLASS_SUBPATHS` with `layout.py` while preserving `_LEGACY_RECORD_CLASS_SUBPATHS` and existing write guard methods.
   - Depends on: none
   - Expected outcome: `record_producers.py` sources subpaths from the layout model.
-  - Execution state: pending
+  - Execution state: performed
+  - Performed 2026-09-05 in commit `0c7405db`. The three enums are now built by a new
+    `_derive_str_enum` helper from `_LAYOUT.record_classes` / `.durable_state_classes` /
+    `.runtime_state_classes`, and all four subpath maps read from the model
+    (`_RECORD_CLASS_SUBPATHS = dict(_LAYOUT.record_subpaths())`,
+    `_LEGACY_RECORD_CLASS_SUBPATHS = dict(_LAYOUT.legacy_record_subpaths())`). The helper upper-cases
+    each value to form the member name, which is the convention the hand-written enums already
+    followed, so every `RecordClass.PLANS`-style access still resolves; the `str` mixin and
+    `__module__` are preserved so value comparison, dict-key use and pickling are unchanged.
+  - `records` carve-out PRESERVED: still a member, still maps to `''` (evidence under V-01).
+  - `_LEGACY_RECORD_CLASS_SUBPATHS` and `resolve_record_read_paths` preserved; no legacy entry was
+    hand-added for a net-new class (the model's override table supplies exactly the three
+    `docs/`-prefixed doc-family entries, and everything else inherits correct-by-absence).
+  - Exception types, `guard_write` and `PRODUCER_INVENTORY` untouched.
+  - ONE DESIGN DECISION, recorded as DECISION 3-rodj06-D1 in the register: the union member `other`
+    is a COMPUTED COMPLEMENT that `layout.record_subpaths()` deliberately omits, so indexing
+    `_RECORD_CLASS_SUBPATHS` directly would have raised `KeyError` for it. Rather than invent a
+    literal `other` subpath (contradicting the Order 01 model and its passing test, and
+    manufacturing a directory that does not exist), `resolve_record_path` now resolves through a new
+    `_record_class_subpath()` that returns `''` for BOTH carve-outs.
+  - Also created `tests/test_record_producers.py` here (see the E-02 note; the file V-01 names did
+    not exist and no other plan in the Set creates it).
   - Set-level prerequisite: `wpu5zu` must be executed first; see `- Item-Dependencies:` in the metadata.
   - THE `records` CARVE-OUT IS MANDATORY (plan-review PR-001). `RecordClass.RECORDS` maps to the EMPTY
     subpath (`agent_workflows/record_producers.py:136`), meaning the records ROOT itself. The draft spec
@@ -70,10 +91,25 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 2: Refactor project_schema.py
 
-- [ ] E-02 Align `LogicalRoot` and `RootClass` enums and constants in `agent_workflows/project_schema.py` with `layout.py`.
+- [x] E-02 Align `LogicalRoot` and `RootClass` enums and constants in `agent_workflows/project_schema.py` with `layout.py`.
   - Depends on: E-01
   - Expected outcome: `project_schema.py` is in 100% sync with the canonical layout model.
-  - Execution state: pending
+  - Execution state: performed
+  - Performed 2026-09-05 in commit `0c7405db`. Both enums were kept LITERAL and strongly typed, as
+    spec Section 5.1 item 4 requires ("remain strongly typed enums"), with alignment ENFORCED by a
+    new `_assert_layout_alignment()` called at import. It raises `RuntimeError` (not `assert`, which
+    `python -O` strips) if either value set diverges from `layout.LOGICAL_ROOTS` /
+    `layout.ROOT_CLASSES`, or if the non-collapse invariant (4 vs 6, and not equal) is violated.
+    Rationale recorded as DECISION 3-rodj06-D2: generating these two would buy no deduplication
+    (they are fixed at 4 and 6, unlike the record classes which had to GAIN members) while costing
+    static navigability of `RootClass.STATE_DURABLE`-style references, and the real risk here is
+    silent drift, which a check removes.
+  - NOT COLLAPSED: `LogicalRoot` still has exactly 4 members and `RootClass` still has all 6
+    (evidence under V-02), and the guard now fails closed on any future attempt to collapse them.
+  - `tests/test_record_producers.py` was CREATED by this plan (plan-review PR-002; the file did not
+    exist at review time). It covers the `records` empty-subpath carve-out and its observable routing
+    consequence, the preserved legacy read paths, and the write guard, plus non-narrowing pinned
+    against literals and the two root enums.
   - ALSO create `tests/test_record_producers.py` if E-01 did not (plan-review PR-002): the file named by
     V-01 does not exist today, and no other plan in the Set creates it. It must cover the `records`
     empty-subpath carve-out, the preserved legacy read paths, and the write guard.
@@ -136,7 +172,7 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - CORRECTED (plan-review PR-002): `tests/test_record_producers.py` DOES NOT EXIST at review time, so
     it cannot simply be run. E-01 must CREATE it (see the E-01 note); this V-item verifies the new file.
   - Required evidence: `python3 -m pytest tests/test_record_producers.py` passes cleanly, with the ACTUAL
@@ -147,18 +183,120 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* it
     present (nothing dropped).
   - PLUS the BARE FULL SUITE (PR-006), because "100% backward compatibility" cannot be proven by narrow
     files: run `python3 -m pytest` (bare) and paste the `N passed` summary line, zero regressions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FOUR REQUIRED ITEMS VERIFIED AND PASTED BELOW (2026-09-05, lane worktree `aw/lane/rodj06`, starting HEAD `043e3369`, commit `0c7405db`): the newly created `tests/test_record_producers.py` passes 48/48, the `records` carve-out proof shows `''` with every pre-existing key still present, the enum shows all nine pre-consolidation members intact, and the bare full suite shows ZERO regressions with a byte-identical failing set (14 failed / 4785 passed vs a re-measured 14 failed / 4737 passed baseline on unmodified HEAD).
 
-- [ ] V-02 validates E-02
+    The new file exists and passes (created by E-01/E-02; present in commit `0c7405db`):
+
+    ```
+    $ python3 -m pytest tests/test_record_producers.py -o addopts="" -p no:randomly
+    ============================= test session starts ==============================
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    rootdir: /.../agent-workflows
+    configfile: pyproject.toml
+    plugins: anyio-4.14.1, cov-7.1.0, xdist-3.8.0
+    collected 48 items
+
+    tests/test_record_producers.py ......................................... [ 85%]
+    .......                                                                  [100%]
+
+    ============================== 48 passed in 0.42s ==============================
+    ```
+
+    THE `records` CARVE-OUT PROOF (PR-001), the required command and its actual output:
+
+    ```
+    $ python3 -c "from agent_workflows import record_producers as RP; print(repr(RP._RECORD_CLASS_SUBPATHS.get('records'))); print(sorted(RP._RECORD_CLASS_SUBPATHS))"
+    ''
+    ['backlog', 'comms', 'plans', 'prompts', 'records', 'releases', 'research', 'reviews', 'roadmaps', 'specs', 'walkthroughs']
+    ```
+
+    Required result MET: `records` still maps to the EMPTY string, and all nine pre-existing keys
+    (`comms`, `plans`, `prompts`, `records`, `releases`, `research`, `reviews`, `specs`,
+    `walkthroughs`) are still present, nothing dropped. The two additional keys `backlog` and
+    `roadmaps` are the union ruling's net-new classes. NOTE `other` is intentionally NOT a key: it is
+    the computed complement (DECISION 3-rodj06-D1), and it resolves through `_record_class_subpath()`,
+    which returns `''` for it as `RecordsCarveOutTests::test_accessor_returns_empty_for_both_carve_outs`
+    and `RoutingResolutionTests::test_other_complement_resolves_to_the_records_root` verify.
+
+    Non-narrowing of the enum itself:
+
+    ```
+    $ python3 -c "from agent_workflows import record_producers as RP; print([m.value for m in RP.RecordClass])"
+    ['plans', 'specs', 'prompts', 'research', 'backlog', 'walkthroughs', 'roadmaps', 'comms', 'releases', 'reviews', 'other', 'records']
+    ```
+
+    All nine pre-consolidation members present; twelve total after the union ruling adds `backlog`,
+    `roadmaps`, `other`.
+
+    THE BARE FULL SUITE (PR-006), with the baseline re-measured on unmodified HEAD `043e3369` at
+    execution time as the plan requires. Two numbers are reported because this lane exports
+    `AW_EXECUTION_ROLE=worker`, which 17 runner tests legitimately assert against (e.g.
+    `test_worker_role_refusal.py` asserts the driver's own env is never worker-marked); that is an
+    artifact of the execution environment, not of the repository or of this change.
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest      # BASELINE, unmodified HEAD 043e3369
+    14 failed, 4737 passed, 3 skipped, 4 xfailed in 31.72s
+
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest      # AFTER this change
+    14 failed, 4785 passed, 3 skipped, 4 xfailed in 33.73s
+    ```
+
+    ```
+    $ python3 -m pytest                                # BASELINE, lane env as-is
+    31 failed, 4714 passed, 3 skipped, 4 xfailed
+
+    $ python3 -m pytest                                # AFTER this change, lane env as-is
+    31 failed, 4768 passed, 3 skipped, 4 xfailed in 64.79s
+    ```
+
+    ZERO REGRESSIONS, proven by identity of the failing set rather than by the count alone:
+
+    ```
+    $ diff <baseline FAILED ids> <after FAILED ids> && echo "ZERO REGRESSIONS CONFIRMED"
+    ZERO REGRESSIONS CONFIRMED
+    ```
+
+    The failing test ids are byte-identical before and after in BOTH configurations. The 14 remaining
+    failures are all `tests/test_run_viewer.py` and are pre-existing at unmodified HEAD, unrelated to
+    this plan. The `+48` passed delta is exactly the new test file.
+
+    `tests/test_layout.py` (41 passed) also verified, because this plan changed one assertion in it;
+    see DECISION 3-rodj06-D3 for why that out-of-scope edit was necessary and its precedent.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: `python3 -m pytest tests/test_project_context.py` passes cleanly, with the ACTUAL runner output pasted (file verified to exist at review time).
   - PLUS proof that `LogicalRoot` and `RootClass` still expose every pre-existing member with unchanged
     values, pasted:
     `python3 -c "from agent_workflows.project_schema import LogicalRoot, RootClass; print([m.value for m in LogicalRoot]); print([m.value for m in RootClass])"`
     Required result: `LogicalRoot` still has exactly system/config/state/records, and `RootClass` still
     has all six members.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BOTH REQUIRED ITEMS VERIFIED AND PASTED BELOW (2026-09-05, same lane and commit): `tests/test_project_context.py` passes alongside the new file (64 passed together), and the member-preservation proof shows `LogicalRoot` still exactly the four and `RootClass` still all six with unchanged values, so the spec Section 5.1 item 4 non-collapse rule holds and is now enforced at import.
+
+    ```
+    $ python3 -m pytest tests/test_record_producers.py tests/test_project_context.py
+    bringing up nodes...
+
+    ................................................................         [100%]
+    64 passed in 2.18s
+    ```
+
+    THE MEMBER-PRESERVATION PROOF, the required command and its actual output:
+
+    ```
+    $ python3 -c "from agent_workflows.project_schema import LogicalRoot, RootClass; print([m.value for m in LogicalRoot]); print([m.value for m in RootClass])"
+    ['system', 'config', 'state', 'records']
+    ['system', 'config_project', 'config_local', 'state_durable', 'state_runtime', 'records']
+    ```
+
+    Required result MET: `LogicalRoot` still has exactly `system`/`config`/`state`/`records` (4), and
+    `RootClass` still has all six members with unchanged values. Neither was collapsed, and the new
+    `_assert_layout_alignment()` now makes a future collapse fail at import;
+    `ProjectSchemaAlignmentTests::test_the_alignment_check_rejects_collapsing_root_classes_to_four`
+    monkeypatches a collapsed enum and asserts the guard raises, so the prohibition is executable
+    rather than advisory.
+  - Result: pass
 
 ## Approval and execution gate
 
