@@ -17,6 +17,7 @@
 - From-Backlog: k1nity
 
 ## Workflow history
+- 2026-09-05 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 performed, V-01..V-06 pass with pasted evidence. Implementation commit `a57e4b67`. The driver now CLASSIFIES the prior attempt's (displaced) lane before dispatching a recovery turn and routes a lane already holding non-snapshot commits to a verify-and-continue prompt carrying that lane's branch, real shas and diffstat. TWO PLAN CITATIONS WERE STALE and are recorded as DECISION 31-txc9l1-D1: `build_recovery_lane_notice` no longer lives in either driver (rununify Order 02 `818uru` moved it to `runner_shared.py`, where a STRICT pre-move AST fingerprint pins it; MEASURED by editing one string and watching `test_every_clean_symbol_is_a_STRICT_fingerprint_match` fail), so the new routing was added as separately-named functions in `oc_runipd` with four delegating wrappers in `agy_runipd`, following the shipped `build_isolation_notice` pattern, rather than re-capturing the fixture that makes the rununify move proof falsifiable. E-02's constant still landed in `worktree_lease.py` as the plan's D-1 ruled. ONE ADDITIONAL DEFECT FOUND AND FIXED while implementing: `displaced_from` records a BRANCH name, and passing it to `inspect_lane` as a lane id re-sanitizes into `aw/lane/aw_lane_<id>`, which does not exist and classifies ABSENT, so the plan's third fallback would have silently hidden the work; `worktree_lease.lane_id_from_branch` is the exact inverse and is pinned by four tests. Nine sabotages were applied and measured; one (`%s`->`%B`) initially ESCAPED, so two cases were added and it then failed. Baseline re-measured at execution time: `31 failed, 4481 passed` before, `31 failed, 4514 passed` after, failure sets byte-identical by `diff` (+33 = exactly the new tests). One out-of-scope edit, `tests/test_runner_shared.py` (DECISION 31-txc9l1-D2).
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER (wrong lane classified, would have shipped inert) through PR-006 all fixed
 
@@ -38,7 +39,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: classify the lane before dispatching a recovery turn
 
-- [ ] E-01 Add `classify_recovery_disposition(repo, item, state)` to `oc_runipd.py` returning a typed decision of `fresh-execution`, `verify-and-continue`, or `undetermined`.
+- [x] E-01 Add `classify_recovery_disposition(repo, item, state)` to `oc_runipd.py` returning a typed decision of `fresh-execution`, `verify-and-continue`, or `undetermined`.
 
   IT MUST CLASSIFY THE PRIOR ATTEMPT'S LANE, NOT THE TURN'S OWN LANE. This is the correction that makes the plan work at all (F-10, MEASURED): allocation NEVER reuses a lane holding work. `allocate_worktree` classifies an existing lane `HOLDS-WORK` and ATTEMPT-SCOPES alongside it (`worktree_lease.py:512-529`), so the resumed turn gets a BRAND-NEW `aw/lane/<id6>_attemptN` at zero commits while the work sits on the lane it was displaced from. Measured directly: after committing on lane `ntf6sx`, a second `allocate_worktree(repo, 'ntf6sx')` returned lane `ntf6sx:attempt2` (`disposition=attempt-scoped`, `displaced_from=aw/lane/ntf6sx`), and `inspect_lane` reported the new lane `EMPTY commits_ahead=0` while the old one reported `HOLDS-WORK commits_ahead=1`. A classifier keyed on the turn's own lane would therefore return `fresh-execution` ON EVERY RESUME and this plan would be INERT while appearing to work, which is exactly the failure `zwnjp3`'s "previously WRITTEN and never READ" note warns about (`oc_runipd.py:1514`).
 
@@ -47,21 +48,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Decide `verify-and-continue` only when the prior lane holds at least one commit that is NOT an INTERRUPTED SNAPSHOT; `fresh-execution` when no prior lane is recorded, or it is absent, empty, or holds only a snapshot; `undetermined` when a recorded lane cannot be read. Pure function of an inspection result: no mutation, no git writes, and NO adoption of the displaced lane.
   - Depends on: none
   - Expected outcome: given a prior lane with 2 real commits and a fresh attempt-scoped current lane at 0 commits, the decision is `verify-and-continue` (proving it read the PRIOR lane, not the current one); no recorded prior lane, or an absent/empty one, classifies `fresh-execution`; a prior lane holding ONLY an INTERRUPTED SNAPSHOT commit classifies `fresh-execution`; an unreadable recorded lane classifies `undetermined`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Distinguish a real commit from a preservation snapshot using the shipped message convention rather than a new marker: `worktree_lease.py:699-700` writes `WIP INTERRUPTED SNAPSHOT (not finished work): lane <id>`. Promote that literal to a module-level constant in `worktree_lease.py` (the correct home: it is the module that WRITES the message, and it imports neither driver while both import it, so no cycle is possible) and consume it in the new classifier plus both places that currently hardcode the phrase in prose. Those two sites are `oc_runipd.py:3759` and `agy_runipd.py:2380` (the plan's original `:3552`/`:2375` citations were STALE by roughly 200 lines and pointed at unrelated code; re-locate by symbol, `build_recovery_lane_notice`, not by line). Detect a snapshot by matching the constant PREFIX against the commit's subject line only, not a substring search of the full body, so the explanatory body text ("This is a preservation snapshot, NOT validated or reviewed work") can never make a real commit look like a snapshot. This is the completeness signal the backlog item's Q3 asks for: a snapshot means work was preserved mid-edit, so redoing it IS correct.
+- [x] E-02 Distinguish a real commit from a preservation snapshot using the shipped message convention rather than a new marker: `worktree_lease.py:699-700` writes `WIP INTERRUPTED SNAPSHOT (not finished work): lane <id>`. Promote that literal to a module-level constant in `worktree_lease.py` (the correct home: it is the module that WRITES the message, and it imports neither driver while both import it, so no cycle is possible) and consume it in the new classifier plus both places that currently hardcode the phrase in prose. Those two sites are `oc_runipd.py:3759` and `agy_runipd.py:2380` (the plan's original `:3552`/`:2375` citations were STALE by roughly 200 lines and pointed at unrelated code; re-locate by symbol, `build_recovery_lane_notice`, not by line). Detect a snapshot by matching the constant PREFIX against the commit's subject line only, not a substring search of the full body, so the explanatory body text ("This is a preservation snapshot, NOT validated or reviewed work") can never make a real commit look like a snapshot. This is the completeness signal the backlog item's Q3 asks for: a snapshot means work was preserved mid-edit, so redoing it IS correct.
   - Depends on: E-01
   - Expected outcome: the literal appears exactly once as a definition; a grep proves the two driver prose sites and the classifier all reference the constant rather than re-spelling the phrase; a commit whose SUBJECT carries it is never counted as finished work, and a commit that merely quotes the phrase in its body still counts as real work.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Treat `undetermined` as fresh execution, and say so where it is decided. If the lane cannot be read the driver must NOT silently skip execution, because skipping risks leaving a plan unimplemented, which is a worse failure than paying for a duplicate turn. This is a deliberate fail-toward-doing-the-work choice and is the OPPOSITE of the fail-closed stance used for lifecycle gates; record the asymmetry in a comment so a later reader does not "fix" it into a refusal.
+- [x] E-03 Treat `undetermined` as fresh execution, and say so where it is decided. If the lane cannot be read the driver must NOT silently skip execution, because skipping risks leaving a plan unimplemented, which is a worse failure than paying for a duplicate turn. This is a deliberate fail-toward-doing-the-work choice and is the OPPOSITE of the fail-closed stance used for lifecycle gates; record the asymmetry in a comment so a later reader does not "fix" it into a refusal.
   - Depends on: E-01
   - Expected outcome: an unreadable lane produces a fresh-execution dispatch plus a recorded reason; no code path turns an inspection failure into a skipped item.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: dispatch the verify-and-continue turn
 
-- [ ] E-04 When the disposition is `verify-and-continue`, dispatch a turn whose prompt asks the agent to VERIFY and COMPLETE what the PRIOR lane already contains rather than to implement the plan from scratch, and pass it the prior lane's concrete facts: its branch name, its commit shas, their subjects, and the diffstat against its recorded base.
+- [x] E-04 When the disposition is `verify-and-continue`, dispatch a turn whose prompt asks the agent to VERIFY and COMPLETE what the PRIOR lane already contains rather than to implement the plan from scratch, and pass it the prior lane's concrete facts: its branch name, its commit shas, their subjects, and the diffstat against its recorded base.
 
   Build this as a variant of the EXISTING recovery branch, extending `build_recovery_lane_notice` (`oc_runipd.py:3692`, NOT the stale `:3485`) rather than adding a second prompt mechanism, and keep its stated constraints: no acknowledgement gate and no refusal path, because a refusal is one more way for an unattended run to stall. `tests/test_lane_allocation_idempotent.py:709-717` PINS that constraint by scanning the function body for `input(`, `acknowledgement required` and `refuse`, so the new text must not introduce those tokens; run that test as a regression check, not just the new file.
 
@@ -70,23 +71,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   THE PROMPT MUST BE EXPLICIT THAT THE WORK IS ON A DIFFERENT BRANCH THAN THE AGENT'S CWD, because it is: the agent runs in the fresh attempt-scoped lane while the prior work sits on the displaced branch (E-01). Tell it the prior branch by name and that it may READ it (for example `git log`/`git diff` against that ref) and must bring forward what is still correct into its OWN lane. Do NOT instruct it to `git checkout`, merge, or commit onto the displaced branch: that lane may be another attempt's preserved work and the shipped rule is to leave it byte-identical (`worktree_lease.py:518-520`, `oc_runipd.py:1691-1695`).
   - Depends on: E-02, E-03
   - Expected outcome: a `verify-and-continue` prompt contains the PRIOR lane's branch name, actual commit shas and diffstat, states that the work is on that other branch, asks for verification-and-completion into the agent's own lane, and contains no instruction to check out or commit onto the displaced branch; a `fresh-execution` recovery prompt is UNCHANGED from today's text; a first-attempt prompt is unchanged; `tests/test_lane_allocation_idempotent.py` still passes.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Record the routing decision and its inputs in the run's durable state and events, so an operator can see WHY a turn was routed as it was without re-deriving it. Include the disposition, the observed `commits_ahead`, whether a snapshot was present, and the reason string. Without this, a wrong routing decision is invisible after the fact, which is the same diagnosability gap that made the original duplication take three runs to notice.
+- [x] E-05 Record the routing decision and its inputs in the run's durable state and events, so an operator can see WHY a turn was routed as it was without re-deriving it. Include the disposition, the observed `commits_ahead`, whether a snapshot was present, and the reason string. Without this, a wrong routing decision is invisible after the fact, which is the same diagnosability gap that made the original duplication take three runs to notice.
   - Depends on: E-04
   - Expected outcome: the item's state carries the disposition and its inputs, and an event records the routing; a run that routed to `verify-and-continue` is distinguishable from one that re-executed, in state alone.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: falsifiable tests
 
-- [ ] E-06 Add `tests/test_resumedupe.py` and SABOTAGE every assertion before trusting it. Build fixtures with the REAL `worktree_lease.allocate_worktree` (as `tests/test_lane_allocation_idempotent.py` does) so the attempt-scoping in E-01 is exercised rather than assumed away by a hand-built state dict.
+- [x] E-06 Add `tests/test_resumedupe.py` and SABOTAGE every assertion before trusting it. Build fixtures with the REAL `worktree_lease.allocate_worktree` (as `tests/test_lane_allocation_idempotent.py` does) so the attempt-scoping in E-01 is exercised rather than assumed away by a hand-built state dict.
 
   Required cases: (a) THE REGRESSION CASE, reconstructing the CORRECTED `zhr6mc` shape, NOT the ntf6sx one (see Goal and F-8): allocate a lane, commit two real commits on it, allocate AGAIN for the resumed turn so the driver holds a fresh attempt-scoped lane at zero commits, and assert the routing is `verify-and-continue`. (a2) THE INERTNESS GUARD, which is the single most important assertion in the file: assert the decision is NOT `fresh-execution` in exactly that shape, and assert the inspected lane id is the PRIOR one, so a regression that reads the turn's own empty lane fails loudly instead of silently disabling the feature. (b) a prior lane holding ONLY an INTERRUPTED SNAPSHOT commit routes `fresh-execution`, proving the completeness signal works and that the plan does not blanket-skip whenever commits exist; (b2) a real commit whose BODY merely quotes the snapshot phrase still routes `verify-and-continue` (the E-02 subject-only rule). (c) no recorded prior lane, an absent prior lane, and an empty prior lane all route `fresh-execution`; (d) an unreadable recorded lane routes `fresh-execution` with a reason (E-03); (e) a FIRST attempt is untouched and its prompt is byte-identical to today's; (f) both drivers agree across the whole matrix, which after E-04's delegation means asserting the Antigravity twin resolves to the OpenCode implementation.
 
   Assert on the routing decision and on prompt CONTENT (the prior lane's branch name and shas present in the verify prompt), never on the mere presence of the word "recovery", which appears in unrelated prose and would pass against a stub. Also assert the classifier ran no git write: capture the prior lane's tip sha and tree state before and after and prove both unchanged.
   - Depends on: E-05
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_resumedupe.py` passes, `tests/test_lane_allocation_idempotent.py` still passes, and each case was verified to FAIL when its branch is deliberately broken.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -171,35 +172,317 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the classifier's decision for five constructed cases (a prior lane with 2 real commits WHILE the current lane is a fresh attempt-scoped lane at 0 commits; no prior lane recorded; prior lane absent; prior lane empty; prior lane snapshot-only) showing `verify-and-continue`, `fresh-execution`, `fresh-execution`, `fresh-execution`, `fresh-execution` respectively. THE INERTNESS PROOF IS MANDATORY: paste the resolved lane id the classifier actually inspected in case 1 and show it is the PRIOR lane, not the turn's own, alongside the `inspect_lane` reading of BOTH lanes (prior `HOLDS-WORK`, current `EMPTY`). Paste the prior lane's tip sha and `git status --porcelain` before and after the call, showing both unchanged, rather than asserting non-mutation in prose.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Five constructed cases, run at commit `a57e4b67` (script output pasted verbatim):
+    ```
+    CASE 1: prior lane 2 real commits, current lane fresh attempt-scoped at 0
+      decision              : verify-and-continue
+      INSPECTED lane id     : zhr6mc   <-- PRIOR lane
+      turn's OWN lane id    : zhr6mc:attempt2   <-- NOT inspected
+      prior  inspect_lane   : HOLDS-WORK commits_ahead=2
+      current inspect_lane  : EMPTY commits_ahead=0
+      prior tip before/after: 81a130198143 / 81a130198143 UNCHANGED
+      prior status b/a      : '' / '' UNCHANGED
+    CASE 2: no prior lane recorded
+      decision: fresh-execution
+    CASE 3: prior lane ABSENT
+      decision: fresh-execution | lane_state: ABSENT
+    CASE 4: prior lane EMPTY
+      decision: fresh-execution | commits_ahead: 0
+    CASE 5: prior lane SNAPSHOT-ONLY
+      decision: fresh-execution | snapshot_only: True | commits_ahead: 1
+    ```
+    The five decisions are `verify-and-continue`, `fresh-execution`, `fresh-execution`,
+    `fresh-execution`, `fresh-execution` as required. THE INERTNESS PROOF: in CASE 1 the resolved lane
+    the classifier actually inspected is `zhr6mc` (the PRIOR lane), NOT the turn's own
+    `zhr6mc:attempt2`, and `inspect_lane` reports the prior lane `HOLDS-WORK commits_ahead=2` against
+    the current lane's `EMPTY commits_ahead=0`. NON-MUTATION is shown by measurement rather than
+    prose: the prior lane's tip sha and `git status --porcelain` are byte-identical before and after
+    the call. Pinned as regressions by `test_a2_the_inspected_lane_is_the_PRIOR_one_not_the_turns_own`
+    and `test_the_classifier_runs_no_git_write`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the constant's definition site in `worktree_lease.py` and the output of a grep proving every consumer (both driver prose sites and the classifier) references it rather than re-spelling the phrase; plus the classifier's decision on a snapshot-only prior lane showing the marker was honored, AND on a real commit whose BODY quotes the phrase showing it still routes `verify-and-continue` (the subject-only rule).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Definition site, and the proof the phrase is spelled exactly once:
+    ```
+    $ grep -n "INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = " agent_workflows/worktree_lease.py
+    58:INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = "WIP INTERRUPTED SNAPSHOT (not finished work):"
 
-- [ ] V-03 validates E-03
+    $ grep -rn "WIP INTERRUPTED SNAPSHOT (not finished work)" agent_workflows/ --include=*.py
+    agent_workflows/worktree_lease.py:58:INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = "WIP INTERRUPTED SNAPSHOT (not finished work):"
+
+    $ grep -rn "INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX\|commit_subject_is_interrupted_snapshot" agent_workflows/ --include=*.py
+    agent_workflows/oc_runipd.py:3846:        if not worktree_lease.commit_subject_is_interrupted_snapshot(subject)
+    agent_workflows/worktree_lease.py:57:# turn redo finished work. Use `commit_subject_is_interrupted_snapshot`.
+    agent_workflows/worktree_lease.py:58:INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX = "WIP INTERRUPTED SNAPSHOT (not finished work):"
+    agent_workflows/worktree_lease.py:61:def commit_subject_is_interrupted_snapshot(subject: str) -> bool:
+    agent_workflows/worktree_lease.py:72:    return subject.strip().startswith(INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX)
+    agent_workflows/worktree_lease.py:757:        INTERRUPTED_SNAPSHOT_SUBJECT_PREFIX
+    ```
+    The literal appears ONCE (line 58, the definition); the WRITER builds its subject from it
+    (line 757) and the CLASSIFIER consumes it through the predicate (`oc_runipd.py:3846`).
+    DEVIATION FROM THE PLAN, recorded as DECISION 31-txc9l1-D1: the plan named two DRIVER prose sites
+    (`oc_runipd.py:3759`, `agy_runipd.py:2380`) to convert, but `rununify` Order 02 (`818uru`) has
+    since moved that text into `runner_shared.build_recovery_lane_notice`, which is held to a STRICT
+    pre-move AST fingerprint (MEASURED: changing one string there fails
+    `test_every_clean_symbol_is_a_STRICT_fingerprint_match`). That prose says only "INTERRUPTED
+    SNAPSHOT", not the full literal, so it is not a second spelling of the constant and the
+    one-definition property holds without editing a fingerprint-pinned body.
+    Behavior on the two boundary cases:
+    ```
+    CASE 5 above (snapshot-only prior lane): fresh-execution | snapshot_only: True
+    body-quote case: verify-and-continue | real: 1 commit   (subject-only rule honored)
+    ```
+    Pinned by `test_b_snapshot_only_lane_routes_fresh_execution`,
+    `test_b2_a_real_commit_quoting_the_phrase_in_its_BODY_still_counts_as_work`,
+    `test_b2_the_phrase_leading_a_body_LINE_still_counts_as_work`,
+    `test_the_subject_predicate_is_prefix_anchored`,
+    `test_the_classifier_reads_only_the_SUBJECT_line_from_git` (which pins `%s` and forbids `%B`,
+    added after a sabotage showed body-reading would otherwise go undetected), and
+    `test_the_marker_has_ONE_definition_and_the_writer_uses_it`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the decision and recorded reason for a deliberately unreadable lane, showing `fresh-execution` rather than a skip, and quote the comment recording the deliberate asymmetry against the fail-closed lifecycle gates.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: A deliberately unreadable lane (`inspect_lane` patched to raise), routed
+    through `route_recovery_turn`:
+    ```
+      ! recovery routing undetermined; dispatching a FRESH EXECUTION (never a skip): recorded prior
+        lane 'unreadable-lane' could not be read: git is unavailable in this fixture
+    disposition   : undetermined
+    dispatched_as : fresh-execution     <- never a skip
+    reason        : recorded prior lane 'unreadable-lane' could not be read: git is unavailable
+    event         : {'event': 'recovery-routed', 'disposition': 'undetermined',
+                     'dispatched_as': 'fresh-execution', 'inspected_lane_id': 'unreadable-lane'}
+    ```
+    The recorded comment stating the deliberate asymmetry (`oc_runipd.route_recovery_turn`):
+    > E-03, THE FAIL-TOWARD-DOING-THE-WORK CHOICE, AND IT IS DELIBERATELY THE OPPOSITE OF A LIFECYCLE
+    > GATE. An `undetermined` reading is dispatched as a FRESH EXECUTION, never as a skip. Do not "fix"
+    > this into a refusal: the lifecycle gates fail CLOSED because their failure mode is falsely
+    > claiming work is done, whereas the failure mode HERE is leaving a plan UNIMPLEMENTED while
+    > reporting a turn was spent, which is strictly worse than paying for a duplicate turn. Wasted
+    > spend is recoverable; a silently skipped implementation is what a human discovers much later.
 
-- [ ] V-04 validates E-04
+    No code path converts an inspection failure into a skipped item: the only two dispatch values are
+    `verify-and-continue` and `fresh-execution`. Pinned by
+    `test_d_an_unreadable_lane_is_undetermined_and_dispatched_as_fresh_execution` and
+    `test_the_undetermined_asymmetry_is_recorded_in_a_comment`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the generated `verify-and-continue` prompt showing the PRIOR lane's branch name, ACTUAL commit shas and diffstat, and the instruction to bring work forward into the agent's own lane; confirm by grep that it contains no `git checkout`/merge/commit instruction targeting the displaced branch. Paste a `fresh-execution` recovery prompt diffed against today's text to prove it is byte-identical, and a first-attempt prompt likewise. Show the Antigravity twin DELEGATES (paste the function body) rather than duplicating. Paste the passing output of `python3 -m pytest -o addopts="" tests/test_lane_allocation_idempotent.py`, which pins the no-acknowledgement-gate constraint.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The generated `verify-and-continue` prompt (abridged only where marked):
+    ```
+    ## A PRIOR ATTEMPT ALREADY COMMITTED WORK FOR THIS PLAN: verify and continue it
 
-- [ ] V-05 validates E-05
+    Do NOT implement this plan from scratch. A previous attempt at this same IPD already
+    committed work, and the driver has READ that work: prior lane 'zhr6mc' already holds 2
+    non-snapshot commit(s); verify and complete that work instead of re-executing the plan.
+
+    THAT WORK IS ON A DIFFERENT BRANCH THAN YOUR WORKING DIRECTORY. It is on `aw/lane/zhr6mc`,
+    which is NOT the lane you are running in. Your own lane is where you must produce your
+    commits; that other branch is READ-ONLY for you.
+
+    Commits already on `aw/lane/zhr6mc` (newest first):
+      - 0995a2683dbeb362338ef83e6c8c8984681f6a9c test: cover it
+      - f00cc644bc475debcc3eb022c69b32616f05a557 feat(runner): close a backlog item when the run
+        executes its last carrier
+
+    Diffstat of that work against its base (`git diff --stat f00cc644...~1 0995a268...`):
+
+        a.py | 1 +
+        b.py | 1 +
+        2 files changed, 2 insertions(+)
+
+    WHAT TO DO, in this order:
+    1. READ that work first. `git log aw/lane/zhr6mc` and `git diff` against that ref show you
+       exactly what exists. Read it before you write anything.
+    2. Judge it against the plan: which `E-*` items does it actually perform, which `V-*` items
+       does it evidence, and what is still missing or wrong.
+    3. BRING FORWARD what is still correct INTO YOUR OWN LANE, then finish the remainder there.
+       Re-authoring work that is already correct produces a duplicate sibling commit and is the
+       exact waste this routing exists to prevent.
+    4. Do NOT `git checkout`, merge, cherry-pick onto, rebase, or commit to `aw/lane/zhr6mc`, and
+       do not amend or delete anything on it. It may hold another attempt's preserved work and
+       must be left byte-identical. Read it; never write it.
+    5. If you conclude the work is ALREADY COMPLETE, you still may not simply assert that: fill
+       each `V-*` item's `Observed evidence:` with the prior work's ACTUAL output (run the tests
+       yourself and paste what they print). A finalize gate checks the checklists and their
+       evidence, not your conclusion. [OQ-01's corrected requirement]
+    ```
+    The prompt carries the PRIOR lane's branch name, its ACTUAL commit shas, and a real diffstat
+    (`2 files changed`), and asks for verification-and-completion into the agent's own lane. Every
+    occurrence of `git checkout`/merge/cherry-pick/rebase sits inside the item 4 PROHIBITION, asserted
+    mechanically by `test_verify_prompt_never_tells_the_agent_to_write_the_displaced_branch` (each
+    line naming one of those verbs must also carry `Do NOT`).
+    UNCHANGED-PROMPT PROOFS, by equality rather than by inspection:
+    `test_e_a_first_attempt_prompt_is_unchanged` asserts a `recovery=False` prompt is byte-identical
+    with and without a routing decision, and `test_e_a_fresh_execution_recovery_prompt_is_byte_identical_to_no_routing`
+    asserts the same for a `fresh-execution` recovery prompt, for BOTH drivers.
+    ANTIGRAVITY DELEGATES rather than duplicating:
+    ```
+    def build_verify_and_continue_notice(repo: Path, decision: Any) -> str:
+        """Delegate to the ONE definition in `oc_runipd` (see its docstring)."""
+        from agent_workflows.oc_runipd import build_verify_and_continue_notice as _shared
+        return _shared(repo, decision)
+    ```
+    asserted by AST in `test_the_antigravity_twin_DELEGATES_rather_than_copying`, which fails if a
+    twin grows a body. The no-acknowledgement-gate regression check:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_lane_allocation_idempotent.py
+    ....                                                                     [100%]
+    35 passed in 3.42s
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the durable state excerpt and the event record for one routed run, showing the disposition, the INSPECTED LANE ID (so a future reader can tell which lane the decision was based on), `commits_ahead`, snapshot presence and reason; confirm a re-executed run and a verify-and-continue run are distinguishable from state alone.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Durable state for one run that routed BOTH ways (full records pasted):
+    ```
+    --- state.json queue[0].recovery_routing (the VERIFY item) ---
+    {
+      "commits_ahead": 2,
+      "dirty": false,
+      "dispatched_as": "verify-and-continue",
+      "disposition": "verify-and-continue",
+      "inspected_branch": "aw/lane/zhr6mc",
+      "inspected_lane_id": "zhr6mc",
+      "inspected_worktree": ".../.aw/worktrees/zhr6mc",
+      "lane_state": "HOLDS-WORK",
+      "real_commits": [
+        {"sha": "2feec09076a7...", "subject": "test: cover it"},
+        {"sha": "12619b9e66f8...", "subject": "feat(runner): close a backlog item ..."}
+      ],
+      "reason": "prior lane 'zhr6mc' already holds 2 non-snapshot commit(s); verify and complete
+                 that work instead of re-executing the plan",
+      "snapshot_only": false
+    }
+    --- state.json queue[1].recovery_routing (the RE-EXECUTED item) ---
+    {
+      "commits_ahead": 0, "dirty": false,
+      "dispatched_as": "fresh-execution", "disposition": "fresh-execution",
+      "inspected_branch": "aw/lane/otherid", "inspected_lane_id": "otherid",
+      "lane_state": "EMPTY", "real_commits": [],
+      "reason": "prior lane 'otherid' holds no commits beyond its base (EMPTY); there is no
+                 committed work to verify",
+      "snapshot_only": false
+    }
+    --- events.jsonl recovery-routed records ---
+    {"commits_ahead": 2, "dispatched_as": "verify-and-continue", "disposition":
+     "verify-and-continue", "event": "recovery-routed", "id6": "zhr6mc", "inspected_branch":
+     "aw/lane/zhr6mc", "inspected_lane_id": "zhr6mc", "lane_state": "HOLDS-WORK",
+     "snapshot_only": false}
+    {"commits_ahead": 0, "dispatched_as": "fresh-execution", "disposition": "fresh-execution",
+     "event": "recovery-routed", "id6": "otherid", "inspected_branch": "aw/lane/otherid",
+     "inspected_lane_id": "otherid", "lane_state": "EMPTY", "snapshot_only": false}
 
-- [ ] V-06 validates E-06
+    DISTINGUISHABLE FROM STATE ALONE: verify-and-continue vs fresh-execution
+    ```
+    Every required field is present: the disposition, the INSPECTED LANE ID (so a future reader can
+    tell WHICH lane the decision was based on), `commits_ahead`, snapshot presence, and the reason.
+    `disposition` and `dispatched_as` are recorded SEPARATELY so an `undetermined` reading that was
+    dispatched as a fresh execution stays visible as such rather than being flattened (see V-03).
+    A re-executed run and a verify-and-continue run are distinguishable from state alone, pinned by
+    `test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone`; a first attempt
+    records nothing (`test_a_first_attempt_records_no_routing`).
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the COMPLETE `python3 -m pytest -o addopts="" tests/test_resumedupe.py` output with per-test names and exit code, PLUS for each of the cases (a), (a2), (b), (b2), (c), (d), (e), (f) the FAILING output produced when its branch is deliberately broken, then confirm each break was reverted. Case (a2)'s sabotage MUST be specifically "make the classifier read the turn's own lane instead of the prior one" and MUST fail, since that is the inert-feature regression. Also paste the bare full-suite summary line, re-measuring the baseline at execution time (`python3 -m pytest` on unmodified HEAD) rather than trusting the recorded `3864 passed, 3 skipped, 4 xfailed`, and explain any delta change-by-change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: COMPLETE per-test output with names and exit code:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_resumedupe.py -v
+    platform linux -- Python 3.14.6, pytest-8.2.2, pluggy-1.6.0
+    collected 33 items
+
+    TestDriverSymmetry::test_both_drivers_record_the_displaced_lane_at_allocation PASSED   [  3%]
+    TestDriverSymmetry::test_both_drivers_expose_the_routing_surface PASSED                [  6%]
+    TestDriverSymmetry::test_the_antigravity_twin_DELEGATES_rather_than_copying PASSED     [  9%]
+    TestDriverSymmetry::test_both_drivers_agree_across_the_whole_matrix PASSED             [ 12%]
+    TestDriverSymmetry::test_both_drivers_route_before_allocating_their_own_lane PASSED    [ 15%]
+    TestFreshExecutionCases::test_c_an_absent_prior_lane_routes_fresh_execution PASSED     [ 18%]
+    TestFreshExecutionCases::test_the_undetermined_asymmetry_is_recorded_in_a_comment PASSED [ 21%]
+    TestFreshExecutionCases::test_c_an_empty_prior_lane_routes_fresh_execution PASSED      [ 24%]
+    TestFreshExecutionCases::test_d_an_unreadable_lane_is_undetermined_and_dispatched_as_fresh_execution PASSED [ 27%]
+    TestFreshExecutionCases::test_c_no_recorded_prior_lane_routes_fresh_execution PASSED   [ 30%]
+    TestRegressionCase::test_a2_sabotage_reading_the_turns_own_lane_is_caught PASSED       [ 33%]
+    TestRegressionCase::test_a_prior_lane_with_real_commits_routes_verify_and_continue PASSED [ 36%]
+    TestRegressionCase::test_the_classifier_runs_no_git_write PASSED                       [ 39%]
+    TestRegressionCase::test_a2_the_inspected_lane_is_the_PRIOR_one_not_the_turns_own PASSED [ 42%]
+    TestBranchNameInversion::test_a_non_lane_branch_name_is_rejected_rather_than_mangled PASSED [ 45%]
+    TestBranchNameInversion::test_a_recorded_branch_name_resolves_to_the_lane_that_actually_exists PASSED [ 48%]
+    TestBranchNameInversion::test_the_inversion_round_trips_for_an_attempt_scoped_lane PASSED [ 51%]
+    TestBranchNameInversion::test_the_displaced_from_fallback_finds_the_work PASSED        [ 54%]
+    TestDurableRecording::test_a_reexecuted_run_is_distinguishable_from_a_verify_run_in_state_alone PASSED [ 57%]
+    TestDurableRecording::test_the_routing_decision_and_its_inputs_are_recorded PASSED     [ 60%]
+    TestDurableRecording::test_a_first_attempt_records_no_routing PASSED                   [ 63%]
+    TestSnapshotCompletenessSignal::test_b2_the_phrase_leading_a_body_LINE_still_counts_as_work PASSED [ 66%]
+    TestSnapshotCompletenessSignal::test_b2_a_real_commit_quoting_the_phrase_in_its_BODY_still_counts_as_work PASSED [ 69%]
+    TestSnapshotCompletenessSignal::test_the_marker_has_ONE_definition_and_the_writer_uses_it PASSED [ 72%]
+    TestSnapshotCompletenessSignal::test_b_snapshot_only_lane_routes_fresh_execution PASSED [ 75%]
+    TestSnapshotCompletenessSignal::test_the_subject_predicate_is_prefix_anchored PASSED   [ 78%]
+    TestSnapshotCompletenessSignal::test_the_classifier_reads_only_the_SUBJECT_line_from_git PASSED [ 81%]
+    TestPromptContent::test_e_a_fresh_execution_recovery_prompt_is_byte_identical_to_no_routing PASSED [ 84%]
+    TestPromptContent::test_verify_prompt_never_tells_the_agent_to_write_the_displaced_branch PASSED [ 87%]
+    TestPromptContent::test_no_acknowledgement_gate_or_refusal_path_was_added PASSED       [ 90%]
+    TestPromptContent::test_e_a_first_attempt_prompt_is_unchanged PASSED                   [ 93%]
+    TestPromptContent::test_a_verify_and_continue_recovery_prompt_gains_the_block PASSED   [ 96%]
+    TestPromptContent::test_verify_prompt_names_the_prior_branch_and_its_actual_shas PASSED [100%]
+
+    ============================== 33 passed in 2.89s ==============================
+    ```
+    Exit code 0 (pytest reports no failures; `31 passed` grew to 33 after two cases were ADDED in
+    response to a sabotage that initially escaped, see below).
+
+    SABOTAGE RESULTS, each applied to the real source, measured, then REVERTED (`git diff` empty and
+    the suite re-run green after each):
+
+    | Case | Sabotage applied | Result |
+    | --- | --- | --- |
+    | (a2) | resolver made to prefer the newest attempt, i.e. THE TURN'S OWN lane | FAILED `test_a2_sabotage_reading_the_turns_own_lane_is_caught`: `'verify-and-continue' != 'fresh-execution'` |
+    | (a2) | ORDERING sabotage: `route_recovery_turn` moved AFTER lane allocation (the true inert path) | FAILED `test_both_drivers_route_before_allocating_their_own_lane`: `244666 not less than 239711` |
+    | (b) | snapshot subject check dropped (`if True`), so a snapshot counts as finished work | FAILED `test_b_snapshot_only_lane_routes_fresh_execution` and `test_both_drivers_agree_across_the_whole_matrix` |
+    | (b2) | predicate changed from `startswith` to `in` (match anywhere) | FAILED `test_the_subject_predicate_is_prefix_anchored`: `True is not false` |
+    | (b2) | git format changed `%s`->`%B` so the whole BODY is classified | INITIALLY PASSED (a real gap); two cases were ADDED, after which it FAILED `test_the_classifier_reads_only_the_SUBJECT_line_from_git` |
+    | (c) | `commits_ahead == 0` branch disabled (`if False`) | FAILED 4 tests incl. `test_c_an_empty_prior_lane_routes_fresh_execution` |
+    | (d) | `undetermined` no longer mapped to a fresh-execution dispatch | FAILED `test_d_an_unreadable_lane_is_undetermined_and_dispatched_as_fresh_execution` |
+    | (e) | verify block leaked into non-recovery prompts (`recovery` condition dropped) | FAILED `test_e_a_first_attempt_prompt_is_unchanged` |
+    | (f) | Antigravity twin replaced with a hand-written COPY | FAILED `test_the_antigravity_twin_DELEGATES_rather_than_copying` |
+
+    Case (a2)'s mandated sabotage ("make the classifier read the turn's own lane instead of the prior
+    one") was performed in BOTH available forms (resolver order, and dispatch ordering) and each
+    failed, since that is the inert-feature regression.
+    THE `%B` RESULT IS REPORTED AS AN INITIAL MISS rather than smoothed over: prefix-anchoring alone
+    made the behavior correct, so no behavioral case could distinguish `%s` from `%B`. Two cases were
+    added (`test_b2_the_phrase_leading_a_body_LINE_still_counts_as_work`, which constructs a commit
+    whose BODY LEADS with the phrase, and `test_the_classifier_reads_only_the_SUBJECT_line_from_git`,
+    which pins the format specifier by AST) and the sabotage then failed as required.
+
+    REGRESSION CHECK on the file that pins driver symmetry and the no-acknowledgement-gate rule:
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_lane_allocation_idempotent.py
+    35 passed in 3.42s
+    ```
+    FULL BARE SUITE, with the baseline RE-MEASURED at execution time rather than trusting the plan's
+    recorded `3864 passed, 3 skipped, 4 xfailed`:
+    ```
+    BASELINE (this lane, my four source files stashed, HEAD bd91909e):
+      31 failed, 4481 passed, 3 skipped, 4 xfailed in 34.01s
+    AFTER (my change applied, commit a57e4b67):
+      31 failed, 4514 passed, 3 skipped, 4 xfailed in 30.87s
+    $ diff baseline_failures.txt final_failures.txt && echo IDENTICAL
+      IDENTICAL
+    ```
+    DELTA EXPLAINED CHANGE-BY-CHANGE: passed +33, exactly the 33 new tests in
+    `tests/test_resumedupe.py`; failed UNCHANGED at 31 with the failure SETS byte-identical by `diff`,
+    so this change introduces ZERO new failures. The 31 pre-existing failures are NOT mine and were
+    measured on unmodified HEAD before I edited anything; 17 of them also fail in the main checkout at
+    the same HEAD, and the 14 extra are all `tests/test_run_viewer.py` cases that read real run
+    directories which do not exist in a fresh lane (`comm` confirms main's 17 are a strict subset of
+    this lane's 31, with nothing failing in main that does not also fail here).
+  - Result: pass
 
 ## Approval and execution gate
 
