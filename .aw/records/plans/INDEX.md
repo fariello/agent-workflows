@@ -48,7 +48,7 @@ Showing the 40 most-recent of 205 Sets; the full manifest is INDEX.json.
 
 ## ctlroot
 
-- `eulhzt` [pending] 01 pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
+- `eulhzt` [executed] 01 executed/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
 
 ## findpaths
 
