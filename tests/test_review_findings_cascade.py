@@ -141,7 +141,8 @@ def _review(repo: Path, id6: str, *, rounds=None) -> Path:
         / "records"
         / "reviews"
         / f"20260829-demo-01-{id6}-cascade.review.md",
-        plan_id=id6,
+        subject_id=id6,
+        subject_type="ipd",
         reviewed_at="2026-08-29",
         reviewer="test",
         verdict="REVIEWED - OPEN QUESTIONS",
@@ -268,7 +269,7 @@ class BlockingTests(_RepoCase):
             / "reviews"
             / "20260829-demo-01-depaaa-cascade.review.md"
         ).write_text(
-            "# Review\n\n- Plan-Id: depaaa\n\n## Round 1\n\n| # | Severity |\n|---|---|\n| F-1 |\n",
+            "# Review\n\n- Subject-Id: depaaa\n- Subject-Type: ipd\n\n## Round 1\n\n| # | Severity |\n|---|---|\n| F-1 |\n",
             encoding="utf-8",
         )
         state = _state(self.repo, [_item("itemaa", ["depaaa"])])

@@ -1,6 +1,7 @@
 # Review: Consolidate artifact_types.py and selectors.py into layout model
 
-- Plan-Id: zvk796
+- Subject-Id: zvk796
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

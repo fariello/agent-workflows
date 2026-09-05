@@ -1,6 +1,7 @@
 # Review: Delete the already-extracted re-forks and make the anti-re-fork guards symmetric
 
-- Plan-Id: 2r306y
+- Subject-Id: 2r306y
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-03
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

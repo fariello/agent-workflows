@@ -127,7 +127,8 @@ class _Repo:
         dest = self.reviews / f"20260830-fixture-01-{id6}-a-fixture-plan.review.md"
         return rf.write_review(
             dest,
-            plan_id=id6,
+            subject_id=id6,
+            subject_type="ipd",
             reviewed_at="2026-08-30",
             reviewer="opencode test",
             verdict="APPROVE",
@@ -137,8 +138,9 @@ class _Repo:
     def write_malformed_review(self, *, id6: str = "abc123") -> Path:
         dest = self.reviews / f"20260830-fixture-01-{id6}-a-fixture-plan.review.md"
         dest.write_text(
-            "# Plan review findings: {0}\n\n"
-            "- Plan-Id: {0}\n"
+            "# Review findings: ipd {0}\n\n"
+            "- Subject-Id: {0}\n"
+            "- Subject-Type: ipd\n"
             "- Reviewed-At: 2026-08-30\n"
             "- Reviewer: opencode test\n"
             "- Verdict: APPROVE\n\n"
@@ -199,7 +201,8 @@ class DecisionRoundTripTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             r = rows[0]
             self.assertEqual(r.id, "D-1")
-            self.assertEqual(r.plan_id, "abc123")
+            self.assertEqual(r.subject_id, "abc123")
+            self.assertEqual(r.subject_type, "ipd")
             self.assertEqual(r.question, "which resolver should the verb use?")
             self.assertEqual(r.chosen, "the shared selectors.resolve")
             self.assertEqual(r.alternatives, "a hand-rolled id6 matcher")

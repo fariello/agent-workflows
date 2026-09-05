@@ -1,6 +1,7 @@
 # Review: Retention: preserve a lane holding unclassifiable content
 
-- Plan-Id: xdr83v
+- Subject-Id: xdr83v
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

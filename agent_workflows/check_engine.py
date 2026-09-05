@@ -126,11 +126,13 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.orphaned-live-blocker": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_HEURISTIC, "I-07"
     ),
-    # revgate Order 01 (15zvu6) E-06: a `.review.md` whose `Plan-Id:` resolves to no plan. Same
+    # revgate Order 01 (15zvu6) E-06: a `.review.md` whose `Subject-Id:` resolves to no artifact of
+    # its declared `Subject-Type:` (revsweep `eyh1fu` made that resolution type-directed; it was
+    # plans-only before). Same
     # SHAPE as the `*-dangling` rules above (an unresolvable cross-tree reference), but deliberately
-    # `warning`, NOT `error` like its neighbours: a review left behind by a superseded or deleted plan
-    # is UNTIDY, not dangerous, and nothing downstream reads it, so it must not block a commit or set
-    # an exit code. The in-tree precedent for an advisory rule in this family is
+    # `warning`, NOT `error` like its neighbours: a review left behind by a superseded or deleted
+    # subject is UNTIDY, not dangerous, and nothing downstream reads it, so it must not block a commit
+    # or set an exit code. The in-tree precedent for an advisory rule in this family is
     # `check.orphaned-live-blocker` directly above. It IS deterministic (a literal id6 set lookup,
     # no inference), hence DET_DETERMINISTIC rather than DET_HEURISTIC.
     "check.review-dangling": RuleSpec(
@@ -2452,15 +2454,60 @@ def check_plan_work_kind(
 
 
 _REVIEW_DANGLING_RULE = "check.review-dangling"
-_REVIEW_PLAN_ID_RE = _re.compile(r"(?m)^-[ \t]*Plan-Id:[ \t]*([0-9a-z]{6})[ \t]*$")
+_REVIEW_SUBJECT_ID_RE = _re.compile(
+    r"(?m)^-[ \t]*Subject-Id:[ \t]*([0-9a-z]{6})[ \t]*$"
+)
+_REVIEW_SUBJECT_TYPE_RE = _re.compile(r"(?m)^-[ \t]*Subject-Type:[ \t]*(\S+)[ \t]*$")
+
+
+def _review_subject_id_sets(repo_root: Path) -> Dict[str, set]:
+    """The known-id6 set for each `Subject-Type`, keyed by the CLOSED vocabulary's own values.
+
+    ONE place decides which tree a subject type resolves against (revsweep `eyh1fu` E-03). Both
+    entries reuse the EXISTING typed iterators (`_iter_plan_ipds`, `_iter_spec_records`), so this
+    helper adds no second "which ids exist" mechanism and, in particular, no `.aw/records/reviews`
+    or specs-tree path literal of its own.
+
+    A type in `review_findings.SUBJECT_TYPES` with no entry here would silently resolve against
+    NOTHING and report every record of that type as dangling, so the mapping is asserted complete by
+    a test rather than left to inspection.
+    """
+    return {
+        "ipd": {
+            m.group(1)
+            for _p, text in _iter_plan_ipds(repo_root)
+            for m in (_ITEM_ID_RE.search(text),)
+            if m
+        },
+        "spec": {
+            m.group(1)
+            for _p, text in _iter_spec_records(repo_root)
+            for m in (_ITEM_ID_RE.search(text),)
+            if m
+        },
+    }
 
 
 def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
-    """Flag a `.review.md` whose `- Plan-Id:` does not resolve to any plan (revgate 15zvu6 E-06).
+    """Flag a `.review.md` whose `- Subject-Id:` does not resolve to any artifact of its declared type.
 
     The cross-tree-reference sibling of `check.from-backlog-dangling`, but ADVISORY (`warning`): a
-    review whose plan was deleted or superseded is untidy, not dangerous. It therefore rides the same
-    full-sweep seam as the other dangling scans while never setting an exit code.
+    review whose subject was deleted or superseded is untidy, not dangerous. It therefore rides the
+    same full-sweep seam as the other dangling scans. Note `warning` does NOT mean "cannot fail
+    anything": `artifact_core.drift_exit_code` exempts only `info`, so this rule can drive exit 1. What
+    the severity buys is that NO LIFECYCLE GATE consumes it (no `aw ipd lint` checkpoint, no
+    begin/finalize refusal, no dependency block).
+
+    RESOLUTION IS TYPE-DIRECTED (revsweep `eyh1fu` E-03, spec `6m4kow` R-03): the id6 is resolved
+    against the tree named by `- Subject-Type:`, not against the plans tree unconditionally, which is
+    what makes a spec review filable at all. The per-type id sets come from
+    :func:`_review_subject_id_sets`.
+
+    AN ABSENT OR UNKNOWN `Subject-Type` IS NOT THIS RULE'S BUSINESS, exactly as a missing subject id
+    already was not: it is a PARSE ERROR the parser reports (`REV-M101`/`REV-M102`), and reporting it
+    here as well would double-report one authoring mistake under an advisory rule id. Critically, this
+    rule does NOT fall back to the plans tree for such a record, because a defaulted type is precisely
+    how a migration bug would hide.
 
     Discovery goes through `review_findings.iter_review_files`, which resolves the tree via the ONE
     record-path authority (`record_producers.resolve_record_path`, registered by E-09). This function
@@ -2473,11 +2520,7 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
     except Exception:
         return drift
 
-    known: set = set()
-    for _p, text in _iter_plan_ipds(repo_root):
-        mid = _ITEM_ID_RE.search(text)
-        if mid:
-            known.add(mid.group(1))
+    known_by_type = _review_subject_id_sets(repo_root)
 
     ignored_dirs = _core.get_ignored_dirs(repo_root)
     for path in _rf.iter_review_files(repo_root):
@@ -2487,24 +2530,34 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        m = _REVIEW_PLAN_ID_RE.search(text)
+        m = _REVIEW_SUBJECT_ID_RE.search(text)
         if m is None:
-            continue  # a missing/malformed Plan-Id is the parser's diagnostic, not this rule's
-        plan_id = m.group(1)
-        if plan_id in known:
+            continue  # a missing/malformed Subject-Id is the parser's diagnostic, not this rule's
+        mt = _REVIEW_SUBJECT_TYPE_RE.search(text)
+        subject_type = mt.group(1).strip().lower() if mt else ""
+        known = known_by_type.get(subject_type)
+        if known is None:
+            # Absent or out-of-vocabulary type: the parser owns that complaint (see the docstring).
+            # Deliberately NOT resolved against the plans tree as a fallback.
+            continue
+        subject_id = m.group(1)
+        if subject_id in known:
             continue
         drift.append(
             enrich_drift(
                 _core.Drift(
                     str(path),
                     _REVIEW_DANGLING_RULE,
-                    f"Plan-Id {plan_id!r} does not resolve to any plan",
+                    f"Subject-Id {subject_id!r} does not resolve to any {subject_type}",
                 ),
-                observed=f"Plan-Id: {plan_id}",
-                required="a Plan-Id matching an existing plan's `- Id:`",
+                observed=f"Subject-Id: {subject_id} (Subject-Type: {subject_type})",
+                required=(
+                    f"a Subject-Id matching an existing {subject_type}'s `- Id:`"
+                ),
                 recovery=(
-                    "correct the Plan-Id to the reviewed plan's id6, or retire the review "
-                    "alongside the plan it reviewed"
+                    "correct the Subject-Id to the reviewed artifact's id6 (or fix Subject-Type if "
+                    "the wrong tree is being searched), or retire the review alongside the "
+                    "artifact it reviewed"
                 ),
             )
         )
@@ -2671,10 +2724,28 @@ def _blocking_escalated_finding_ids(open_questions) -> set:
 
 
 def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
-    """Map a reviewed plan's id6 -> its review file(s), via the ONE discovery helper.
+    """Map a reviewed artifact's id6 -> its review file(s), via the ONE discovery helper.
 
     Discovery is `review_findings.iter_review_files` (the record-path authority plus its documented
     bare-repo fallback), so this function holds NO `.aw/records/reviews` path literal of its own.
+
+    KEYED ON THE NEUTRAL `- Subject-Id:` (revsweep `eyh1fu` E-05), and this is the load-bearing half of
+    that change rather than bookkeeping. Four call sites read this index (the two escalation
+    evaluators and their two sweeps), and `check.review-finding-unescalated` is an **`error`** wired
+    into two `aw ipd lint` checkpoints. Had the field been renamed without repointing here, the index
+    would come back EMPTY, every dependent rule would take its "nothing reviewed: every plan is the (a)
+    absent case" early return, and an unfixed HIGH/BLOCKER would gate NOTHING - a SILENT fail-OPEN
+    indistinguishable from compliance. That is why the migration carries a POSITIVE test that the
+    escalation rule still fires, not merely a green `aw check`.
+
+    ONE SHARED REGEX serves both this index and `check_review_dangling`, deliberately: the subject
+    field has exactly one spelling, and a second matcher is the drift GUIDING_PRINCIPLES P8 forbids.
+
+    NO `Subject-Type` FILTER IS APPLIED, and the omission is deliberate rather than overlooked. An id6
+    is unique across trees (`check.id6-collision` polices that), so keying on the id alone cannot
+    attribute a spec-subject record to a plan: the callers look the index up BY THE PLAN'S OWN id6,
+    which no spec shares. Filtering here would add a second place that decides what a subject type
+    means, for no additional safety.
     """
     index: Dict[str, List[Path]] = {}
     try:
@@ -2690,9 +2761,9 @@ def _review_index(repo_root: Path) -> Dict[str, List[Path]]:
         except OSError:
             # Unreadable: recorded against the id6 we cannot learn, so it cannot be attributed to a
             # plan. `check.review-dangling` already owns the untidy-review surface; a file we cannot
-            # read at all has no Plan-Id to key on.
+            # read at all has no Subject-Id to key on.
             continue
-        m = _REVIEW_PLAN_ID_RE.search(text)
+        m = _REVIEW_SUBJECT_ID_RE.search(text)
         if m is None:
             continue
         index.setdefault(m.group(1), []).append(path)

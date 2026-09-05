@@ -52,9 +52,10 @@ def _finding(
     )
 
 
-def _render(rounds, plan_id="15zvu6"):
+def _render(rounds, subject_id="15zvu6", subject_type="ipd"):
     return rf.render_review(
-        plan_id=plan_id,
+        subject_id=subject_id,
+        subject_type=subject_type,
         reviewed_at="2026-08-30",
         reviewer="opencode/test",
         verdict="APPROVE WITH REVISIONS APPLIED",
@@ -91,7 +92,7 @@ class ReviewNamingTests(unittest.TestCase):
             date="20260829",
             set_id="revgate",
             order=1,
-            plan_id6="15zvu6",
+            subject_id6="15zvu6",
             slug="typed-review-findings",
         )
         self.assertEqual(
@@ -175,7 +176,8 @@ class WriterParserTests(unittest.TestCase):
         f = _finding()
         doc = rf.parse_review_text(_render([rf.Round(1, (f,), ())]))
         self.assertEqual(doc.diagnostics, ())
-        self.assertEqual(doc.plan_id, "15zvu6")
+        self.assertEqual(doc.subject_id, "15zvu6")
+        self.assertEqual(doc.subject_type, "ipd")
         self.assertEqual(doc.reviewed_at, "2026-08-30")
         self.assertEqual(doc.reviewer, "opencode/test")
         self.assertEqual(doc.verdict, "APPROVE WITH REVISIONS APPLIED")
@@ -216,8 +218,8 @@ class WriterParserTests(unittest.TestCase):
 
     def test_malformed_row_diagnoses_and_does_not_raise(self) -> None:
         text = (
-            "# Plan review findings: abc123\n\n"
-            "- Plan-Id: abc123\n- Reviewed-At: 2026-08-30\n"
+            "# Review findings: ipd abc123\n\n"
+            "- Subject-Id: abc123\n- Subject-Type: ipd\n- Reviewed-At: 2026-08-30\n"
             "- Reviewer: oc\n- Verdict: APPROVE\n\n"
             "## Round 1\n\n### Findings\n\n"
             "| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |\n"
@@ -234,7 +236,7 @@ class WriterParserTests(unittest.TestCase):
 
     def test_unknown_severity_and_decision_are_diagnosed_not_coerced(self) -> None:
         text = (
-            "- Plan-Id: abc123\n- Reviewed-At: 2026-08-30\n- Reviewer: oc\n"
+            "- Subject-Id: abc123\n- Subject-Type: ipd\n- Reviewed-At: 2026-08-30\n- Reviewer: oc\n"
             "- Verdict: APPROVE\n\n## Round 1\n\n### Findings\n\n"
             "| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |\n"
             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -264,7 +266,7 @@ class WriterParserTests(unittest.TestCase):
 
     def test_no_rounds_is_diagnosed(self) -> None:
         doc = rf.parse_review_text(
-            "- Plan-Id: abc123\n- Reviewed-At: x\n- Reviewer: y\n- Verdict: z\n"
+            "- Subject-Id: abc123\n- Subject-Type: ipd\n- Reviewed-At: x\n- Reviewer: y\n- Verdict: z\n"
         )
         self.assertIn(rf.D_NO_ROUNDS, [d.code for d in doc.diagnostics])
 
@@ -273,7 +275,8 @@ class WriterParserTests(unittest.TestCase):
             path = Path(tmp) / "20260829-revgate-01-15zvu6-slug.review.md"
             rf.write_review(
                 path,
-                plan_id="15zvu6",
+                subject_id="15zvu6",
+                subject_type="ipd",
                 reviewed_at="2026-08-30",
                 reviewer="oc",
                 verdict="APPROVE",
@@ -281,7 +284,8 @@ class WriterParserTests(unittest.TestCase):
             )
             doc = rf.parse_review_file(path)
             self.assertEqual(doc.diagnostics, ())
-            self.assertEqual(doc.plan_id, "15zvu6")
+            self.assertEqual(doc.subject_id, "15zvu6")
+            self.assertEqual(doc.subject_type, "ipd")
             self.assertEqual(doc.path, path)
 
     def test_unreadable_file_diagnoses_not_raises(self) -> None:
@@ -392,7 +396,7 @@ class DecisionsSectionTests(unittest.TestCase):
 
     def test_malformed_decision_row_diagnoses(self) -> None:
         text = (
-            "- Plan-Id: abc123\n- Reviewed-At: x\n- Reviewer: y\n- Verdict: z\n\n"
+            "- Subject-Id: abc123\n- Subject-Type: ipd\n- Reviewed-At: x\n- Reviewer: y\n- Verdict: z\n\n"
             "## Round 1\n\n### Findings\n\n"
             "| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |\n"
             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
@@ -610,6 +614,7 @@ class ReviewDanglingCheckTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         (self.root / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        (self.root / ".aw" / "records" / "specs").mkdir(parents=True)
         (self.root / ".aw" / "records" / "reviews").mkdir(parents=True)
         (
             self.root
@@ -619,21 +624,32 @@ class ReviewDanglingCheckTests(unittest.TestCase):
             / "pending"
             / "20260830-probe-01-aaa111-real.ipd.md"
         ).write_text("# IPD: real\n\n- Id: aaa111\n- Set: probe\n", encoding="utf-8")
+        # A REAL spec, so the type-directed cases below are not vacuous.
+        (
+            self.root
+            / ".aw"
+            / "records"
+            / "specs"
+            / "20260830-spc111-01-spc111-real.spec.md"
+        ).write_text("# Spec: real\n\n- Id: spc111\n", encoding="utf-8")
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _write_review(self, plan_id: str, slug: str) -> Path:
+    def _write_review(
+        self, subject_id: str, slug: str, subject_type: str = "ipd"
+    ) -> Path:
         path = (
             self.root
             / ".aw"
             / "records"
             / "reviews"
-            / f"20260830-probe-01-{plan_id}-{slug}.review.md"
+            / f"20260830-probe-01-{subject_id}-{slug}.review.md"
         )
         return rf.write_review(
             path,
-            plan_id=plan_id,
+            subject_id=subject_id,
+            subject_type=subject_type,
             reviewed_at="2026-08-30",
             reviewer="oc",
             verdict="APPROVE",
@@ -650,6 +666,105 @@ class ReviewDanglingCheckTests(unittest.TestCase):
         self.assertEqual(len(drift), 1)
         self.assertEqual(drift[0].rule, "check.review-dangling")
         self.assertIn("zzz999", drift[0].detail)
+
+    # ----------------------------------------------------------------------------------
+    # revsweep `eyh1fu`: THE BLOCKER THIS PLAN REMOVES, plus the regressions a
+    # type-directed resolver could silently lose.
+    # ----------------------------------------------------------------------------------
+
+    def test_spec_subject_review_with_a_real_spec_is_clean(self) -> None:
+        """E-01/E-03: THE BLOCKER. Before the neutral subject pair, a review whose subject was a real
+        SPEC was reported `check.review-dangling` by the repository's own checker (the field was
+        plan-bound and resolution consulted the plans tree alone), so a spec review could not be filed
+        at all. It must now be clean."""
+        self._write_review("spc111", "spec-review", subject_type="spec")
+        self.assertEqual(check_engine.check_review_dangling(self.root), [])
+
+    def test_missing_spec_subject_is_still_reported(self) -> None:
+        """The regression that MATTERS MORE than the line above: a resolver that simply stopped
+        complaining would also make the previous test pass. A spec subject that genuinely does not
+        exist must still be reported."""
+        self._write_review("zzz999", "ghost-spec", subject_type="spec")
+        drift = check_engine.check_review_dangling(self.root)
+        self.assertEqual([d.rule for d in drift], ["check.review-dangling"])
+        self.assertIn("zzz999", drift[0].detail)
+        self.assertIn("spec", drift[0].detail)
+
+    def test_resolution_is_type_directed_not_a_union(self) -> None:
+        """A plan id6 declared as a `spec` subject must NOT resolve. Otherwise the check would be a
+        union over all trees and `Subject-Type` would be decorative: a record naming the wrong tree
+        would pass, which is exactly the silent misfiling the typed field exists to catch."""
+        self._write_review("aaa111", "wrong-tree", subject_type="spec")
+        drift = check_engine.check_review_dangling(self.root)
+        self.assertEqual([d.rule for d in drift], ["check.review-dangling"])
+        self.assertIn("aaa111", drift[0].detail)
+
+    def test_absent_subject_type_is_a_parse_error_and_is_not_defaulted(self) -> None:
+        """FAIL CLOSED (F-7): an absent type is a LOUD parser diagnostic, and this rule does NOT fall
+        back to the plans tree. A default of `ipd` is precisely how a migration that dropped the field
+        would stay invisible."""
+        path = (
+            self.root
+            / ".aw"
+            / "records"
+            / "reviews"
+            / "20260830-probe-01-aaa111-notype.review.md"
+        )
+        text = rf.render_review(
+            subject_id="aaa111",
+            subject_type="ipd",
+            reviewed_at="2026-08-30",
+            reviewer="oc",
+            verdict="APPROVE",
+            rounds=[rf.Round(1, (_finding(),), ())],
+        ).replace("- Subject-Type: ipd\n", "")
+        path.write_text(text, encoding="utf-8")
+
+        doc = rf.parse_review_file(path)
+        self.assertIn(rf.D_MISSING_META, [d.code for d in doc.diagnostics])
+        self.assertEqual(doc.subject_type, "")
+        # Not silently resolved against the plans tree, and not double-reported by this rule.
+        self.assertEqual(check_engine.check_review_dangling(self.root), [])
+
+    def test_unknown_subject_type_is_a_parse_error(self) -> None:
+        """An out-of-vocabulary type is its own diagnostic code, distinct from an absent one."""
+        path = self._write_review("aaa111", "badtype")
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "- Subject-Type: ipd", "- Subject-Type: backlog"
+            ),
+            encoding="utf-8",
+        )
+        doc = rf.parse_review_file(path)
+        self.assertIn(rf.D_UNKNOWN_SUBJECT_TYPE, [d.code for d in doc.diagnostics])
+        self.assertEqual(doc.subject_type, "backlog")  # preserved, not coerced
+        self.assertEqual(check_engine.check_review_dangling(self.root), [])
+
+    def test_subject_type_vocabulary_is_closed_and_fully_resolvable(self) -> None:
+        """Every member of the CLOSED vocabulary must have a tree to resolve against. A type present in
+        `SUBJECT_TYPES` but absent from the checker's mapping would resolve against NOTHING and report
+        every record of that type as dangling, so the two are asserted to agree here rather than left
+        to inspection."""
+        self.assertEqual(rf.SUBJECT_TYPES, ("ipd", "spec"))
+        mapping = check_engine._review_subject_id_sets(self.root)
+        self.assertEqual(sorted(mapping), sorted(rf.SUBJECT_TYPES))
+        self.assertEqual(mapping["ipd"], {"aaa111"})
+        self.assertEqual(mapping["spec"], {"spc111"})
+
+    def test_rule_stays_advisory_after_becoming_type_directed(self) -> None:
+        """The rule must not be promoted to blocking as a side effect of this change.
+
+        Verified by the registered `RuleSpec` severity and by the ABSENCE of any lifecycle gate, NOT by
+        an exit code: `artifact_core.drift_exit_code` exempts only `info`, so a `warning` drives exit 1
+        too and an exit-code argument would prove nothing (F-13).
+        """
+        self.assertEqual(
+            check_engine.rule_spec("check.review-dangling").severity, "warning"
+        )
+        gated = (Path(check_engine.__file__).parent / "ipd_lint.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("check.review-dangling", gated)
 
     def test_rule_is_advisory_not_error(self) -> None:
         """Deliberately a warning: a review of a superseded plan is untidy, not dangerous."""

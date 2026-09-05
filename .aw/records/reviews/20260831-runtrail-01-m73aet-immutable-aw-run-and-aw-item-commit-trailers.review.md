@@ -1,6 +1,7 @@
 # Review: Immutable AW-Run and AW-Item commit trailers on the shipped commit helper
 
-- Plan-Id: m73aet
+- Subject-Id: m73aet
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE

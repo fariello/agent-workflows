@@ -1,6 +1,7 @@
 # Review: Setup wizard integration, documentation, and full regression proof
 
-- Plan-Id: p7xhhm
+- Subject-Id: p7xhhm
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

@@ -1,6 +1,7 @@
 # Review: OpenCode profile management wizard and model selector
 
-- Plan-Id: p0l1to
+- Subject-Id: p0l1to
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

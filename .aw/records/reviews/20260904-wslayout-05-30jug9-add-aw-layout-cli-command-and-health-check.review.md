@@ -1,6 +1,7 @@
 # Review: Add aw layout CLI command and workspace health check rule
 
-- Plan-Id: 30jug9
+- Subject-Id: 30jug9
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

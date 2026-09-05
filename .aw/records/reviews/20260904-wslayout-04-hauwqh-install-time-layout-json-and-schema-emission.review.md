@@ -1,6 +1,7 @@
 # Review: Install-time layout.json and schema emission in engine.py
 
-- Plan-Id: hauwqh
+- Subject-Id: hauwqh
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

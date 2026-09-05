@@ -1,6 +1,7 @@
 # Review: The mixed-type confirmation gate and the runner-facing selector policy over the shipped resolver
 
-- Plan-Id: 6lu3rq
+- Subject-Id: 6lu3rq
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

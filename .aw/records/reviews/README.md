@@ -1,11 +1,15 @@
 # .aw/records/reviews/
 
-Typed plan-review findings: the machine-readable record of what a `/plan-review` actually found.
+Typed review findings: the machine-readable record of what a review actually found.
 
 A review record (`<...>.review.md`) holds the reviewer's findings table (each row carrying a Severity
 and a Decision) and, optionally, the judgement calls the reviewer resolved on its own authority. It
 exists so a High or Blocker finding left unfixed is a FACT that tooling can read, rather than prose
 buried in a plan's `## Workflow history` line and a session transcript.
+
+The record names its subject with an artifact-neutral pair, `Subject-Id` plus `Subject-Type`, so it can
+describe a review of a plan or of a spec. Note what that does and does not deliver: the record is
+CAPABLE of describing a spec review, and today only `/plan-review` produces records at all.
 
 ## Why this tree exists
 
@@ -23,10 +27,13 @@ The uniform artifact-naming grammar with the review facet:
 YYYYMMDD-<setid>-NN-<id6>-<slug>.review.md
 ```
 
-`<id6>` is the REVIEWED PLAN's id6, not a fresh identifier. That is the load-bearing choice: the id6
-is the repo's stable cross-tree handle (the same role it plays in `From-Backlog`, `From-Spec`, and
-`Item-Dependencies`), so the join survives a plan rename. A separate id6 would add a second identity
+`<id6>` is the REVIEWED ARTIFACT's id6, not a fresh identifier. That is the load-bearing choice: the
+id6 is the repo's stable cross-tree handle (the same role it plays in `From-Backlog`, `From-Spec`, and
+`Item-Dependencies`), so the join survives a rename. A separate id6 would add a second identity
 with no join value and would need its own dangling check in both directions.
+
+The grammar is artifact-neutral, so the same filename shape serves a plan review and a spec review. The
+artifact TYPE is recorded in the front matter's `Subject-Type`, not in the filename.
 
 ## Layout: flat, and reviews do not move
 
@@ -152,15 +159,35 @@ for gating purposes, as are `open` and `replan`.
 ## Metadata block
 
 ```text
-- Plan-Id: <id6 of the reviewed plan>
+- Subject-Id: <id6 of the reviewed artifact>
+- Subject-Type: <ipd|spec>
 - Reviewed-At: <YYYY-MM-DD>
 - Reviewer: <tool/model that performed the review>
-- Verdict: <the plan-review verdict>
+- Verdict: <the review verdict>
 ```
 
-A review whose `Plan-Id` resolves to no plan is reported by `aw check` as `check.review-dangling`.
-That rule is ADVISORY (a warning, not an error): a review left behind by a superseded plan is untidy
-rather than dangerous, so it never sets an exit code.
+Every record carries BOTH subject fields. `Subject-Id` names the reviewed artifact and `Subject-Type`
+names what kind of artifact it is.
+
+`Subject-Type` is a CLOSED vocabulary, `ipd` or `spec`. A new reviewable type is added by amending the
+vocabulary in `review_findings.SUBJECT_TYPES` and the checker's per-type resolution together, never by
+writing a novel value into a record. An absent or unrecognized value is a PARSE ERROR (`REV-M101` /
+`REV-M102`), never a silent default: a defaulted type would send resolution at the wrong tree, so a
+record that lost the field would still pass while a real subject read as dangling.
+
+A review whose `Subject-Id` resolves to no artifact of its declared `Subject-Type` is reported by
+`aw check` as `check.review-dangling`. Resolution is TYPE-DIRECTED: an `ipd` subject is resolved
+against the plans tree and a `spec` subject against the specs tree, so a record naming the wrong tree
+is reported rather than quietly accepted.
+
+That rule is ADVISORY (a warning, not an error): a review left behind by a superseded artifact is
+untidy rather than dangerous, so no lifecycle gate consumes it (no `aw ipd lint` checkpoint, no
+`begin`/`finalize` refusal, no dependency block). Be precise about what that does NOT mean: only `info`
+severity is exempt from the exit code, so a `warning` DOES contribute to a nonzero `aw check`.
+
+There is deliberately no `- Plan-Id:` and no compatibility reader for it. The field was replaced
+outright rather than carried alongside: this repository is pre-release, and a parser accepting either
+spelling would let a half-migrated corpus pass, which is the state that makes the next change unsafe.
 
 ## The gate threshold
 

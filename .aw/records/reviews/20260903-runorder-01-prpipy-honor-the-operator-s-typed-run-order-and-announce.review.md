@@ -1,6 +1,7 @@
 # Review: Honor the operator's typed run order and announce every reordering
 
-- Plan-Id: prpipy
+- Subject-Id: prpipy
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-03
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

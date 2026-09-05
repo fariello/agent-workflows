@@ -1,6 +1,7 @@
 # Review: Lane-relative prompt and closed-loop submission collection
 
-- Plan-Id: cqx5v7
+- Subject-Id: cqx5v7
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-01
 - Reviewer: codex/gpt-5
 - Verdict: REVIEWED

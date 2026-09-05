@@ -1,6 +1,7 @@
 # Review: document the reviews selector and add the aw <host> review alias
 
-- Plan-Id: 76gsmv
+- Subject-Id: 76gsmv
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED

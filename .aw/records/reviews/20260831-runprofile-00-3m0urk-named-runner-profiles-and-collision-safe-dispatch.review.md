@@ -1,6 +1,7 @@
 # Review: Named runner profiles and collision-safe run-as dispatch (orchestrator)
 
-- Plan-Id: 3m0urk
+- Subject-Id: 3m0urk
+- Subject-Type: ipd
 - Reviewed-At: 2026-08-31
 - Reviewer: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS

@@ -1,6 +1,7 @@
 # Review: Consolidate record_producers.py and project_schema.py into layout model
 
-- Plan-Id: rodj06
+- Subject-Id: rodj06
+- Subject-Type: ipd
 - Reviewed-At: 2026-09-04
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: APPROVE WITH REVISIONS APPLIED
