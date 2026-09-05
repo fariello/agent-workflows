@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 71 hot docs (archive excluded).
+Showing the most-recent 40 of 72 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -16,6 +16,7 @@ Showing the most-recent 40 of 71 hot docs (archive excluded).
 - `0my8eb` 20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md - sonnet5 report.
 - `3uh9j3` 20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md - gemini31pro report.
 - `v912ed` 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
+- `27rjro` 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
 - `3nlmug` 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
 - `q65sz3` 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `5ek188` 20260830-humanchk-00-5ek188-human-owned-task-tracking.research-prompt.md - Originating prompt: how should this toolkit track and surface a HUMAN-owned checklist (things the maintainer must do) so agents can remind and tools can show them.
@@ -27,6 +28,7 @@ Showing the most-recent 40 of 71 hot docs (archive excluded).
 
 ## Most recent
 
+- `27rjro` [todo] 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
 - `tvnq50` [todo] 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
 - `8sq8ls` [todo] 20260831-agent-execution-detection-and-attribution-00-8sq8ls-agent-execution-detection-and-attribution.gpt56high.patch-proposal.md - Proposed three-channel approach to detecting agent execution and attributing it: a normalized AW_* env contract, native tool markers, and process ancestry, plus a per-invocation context file for facts that change mid-session
 - `q65sz3` [todo] 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
@@ -66,4 +68,3 @@ Showing the most-recent 40 of 71 hot docs (archive excluded).
 - `fc2n5j` [reference] reference/202608/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec
 - `krgxp6` [reference] reference/202608/20260808-attention-registry-spec-review-00-krgxp6-attention-registry-spec-review.gpt56.assessment.md - gpt-5.6 (Codex) review of the attention-registry spec
 - `tgmqnb` [reference] reference/202608/20260808-attention-registry-spec-review-01-tgmqnb-attention-registry-spec-review.gemini31pro.assessment.md - Gemini 3.1 Pro review of the attention-registry spec
-- `w0ilhj` [reference] reference/202608/20260808-attention-registry-spec-review-04-w0ilhj-attention-view-spec-plan-review.gpt56high.assessment.md - gpt-5.6-high plan-review of the revised attention-view spec (REVIEWED - OPEN QUESTIONS; PR-001..PR-005)

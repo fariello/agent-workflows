@@ -91,6 +91,27 @@
   },
   {
     "consumed_by": [],
+    "created": "20260905",
+    "date": "20260905",
+    "id6": "27rjro",
+    "kind": "research-prompt",
+    "model": "",
+    "order": "00",
+    "outcome": "none-yet",
+    "path": "20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md",
+    "priority": "high",
+    "set_id": "awmetastore",
+    "status": "todo",
+    "summary": "Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
+    ]
+  },
+  {
+    "consumed_by": [],
     "created": "20260706",
     "date": "20260706",
     "id6": "2838rp",
