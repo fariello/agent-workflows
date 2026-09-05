@@ -6,16 +6,18 @@
 - Scope: Add `aw layout` command (supporting `--json`, `--schema`) to `agent_workflows/cli.py`, add layout consistency checking to `check_engine.py` / `doctor.py`, and author unit tests in `tests/test_cli_layout.py`.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, agent_workflows/command_surface.py, tests/conformance_matrix.py, tests/test_cli_layout.py
 - Item-Dependencies: executed:hauwqh,executed:zvk796
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 5
 - Highest E allocated: 03
 - Author: antigravity
 - Id: 30jug9
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-301; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged. Lint conforming at both checkpoints. CLAIMS RE-MEASURED LIVE: `aw layout` genuinely does NOT exist (argparse rejects it and lists every real verb), so E-01 is correctly net-new; `aw migrate-layout` DOES exist, so F-2's adjacency concern is real and its read-only-vs-transactional distinction is the right resolution; and `aw check reviews` still errors with "unknown artifact type 'reviews'", which is precisely the fence E-03 must assert flips to accepted while `aw check roadmaps` stays accepted. THE FINDING (PR-301, LOW, fixed): the `cli.py` contention count was stale - the plan says 13 pending plans declare it, measured 10 at this HEAD, the drop being siblings that executed. Corrected in F-5 and the Scope check, with the point made explicitly that any number written in a plan is a snapshot and the re-measurement clause is what actually protects the edit. Its dependency edge (`executed:hauwqh,executed:zvk796`) is correct and non-obvious: it needs `hauwqh` for emission behavior and `zvk796` for the `reviews` noun V-03 asserts. No open questions.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 

@@ -6,16 +6,18 @@
 - Scope: Update `agent_workflows/engine.py` to write `.aw/system/layout.json` and `.aw/system/layout.schema.json` during `engine.install_into_repo()` (the only emission site; `/aw setup-repo` inherits it transitively), gitignore them via the framework-owned `.aw/.gitignore`, and add integration test coverage in `tests/test_engine_install.py`.
 - Scope-Paths: agent_workflows/engine.py, .aw/.gitignore, tests/test_engine_install.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 4
 - Highest E allocated: 03
 - Author: antigravity
 - Id: hauwqh
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; no new findings; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged. Lint conforming at both checkpoints. THIS PLAN IS THE BEST-EVIDENCED OF THE FOUR and I could not falsify any load-bearing claim: `install_into_repo` is at `engine.py:5420` as stated; `_AW_GITIGNORE_TEMPLATE` at `:4207` and `_ensure_aw_gitignore` at `:5236`, so PR-027's two-places-in-engine.py instruction (template for a FRESH install, `additions` back-fill for an EXISTING one) is correct and is the part a naive executor would get wrong; `cli.py` really does reach `install_into_repo` directly (`cli.py:4226`), confirming PR-026's finding that wiring emission into `engine.run()` would leave `aw setup` silently emitting nothing; `tests/test_engine_install.py` genuinely does not exist, so E-03 is correctly a CREATE; `.aw/.gitignore` is tracked here, consistent with the plan's own point that a TARGET's copy is GENERATED rather than copied; and `agent_workflows/engine.py` is declared by only ONE other pending plan (its own orchestrator), so F-5's no-current-conflict measurement still holds. The scope fence, the eleven-clause contract, and the root-`.gitignore` precision ("carries no layout entry", NOT "has no diff") are all sound as written. Reviewed with no revisions required.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 

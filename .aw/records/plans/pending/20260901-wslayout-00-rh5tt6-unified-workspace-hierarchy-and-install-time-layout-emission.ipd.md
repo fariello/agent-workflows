@@ -6,16 +6,18 @@
 - Scope: Coordinate execution of the 5-plan child set wslayout implementing Spec kw5y2s across core modeling, internal module consolidation, install-time emission, and CLI surface.
 - Scope-Paths: agent_workflows/layout.py, agent_workflows/artifact_types.py, agent_workflows/selectors.py, agent_workflows/record_producers.py, agent_workflows/project_schema.py, agent_workflows/engine.py, agent_workflows/cli.py, agent_workflows/check_engine.py, agent_workflows/command_surface.py, agent_workflows/doctor.py, .aw/.gitignore, tests/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 0
 - Highest E allocated: 02
 - Author: antigravity
 - Id: rh5tt6
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 5 (orchestrator rh5tt6 only): APPROVE WITH REVISIONS APPLIED; PR-024..PR-030 all FIXED. The round-4 spec-gate REOPENING is STALE: kw5y2s was re-approved --by-human 459s AFTER the plans were demoted (298be4b2 -> 3e05c2ba), so ipd-lifecycle.md:16 is satisfied and readiness moves no-go -> go-pending-approval. PR-024 HIGH: stale reopened-gate claim, fixed here and in all five children. PR-025 HIGH: Scope-Paths union claim was FALSE (missing .aw/.gitignore, command_surface.py, doctor.py). PR-026 HIGH: emission has TWO CLI install paths (aw setup via cli._install_one), so the call must sit inside install_into_repo. PR-027 HIGH: 'root .gitignore untouched' asserted something false about the installer, and .aw/.gitignore is GENERATED so hauwqh must edit the template AND the back-fill list. PR-028 MEDIUM: engine.install() survived in OQ-03 after round 4 claimed it corrected. PR-029 MEDIUM: stale collision/count baselines re-measured (16 not 6 lifecycle diagnostics; 2r306y not e32j35). PR-030 MEDIUM: contract clause 1 called two resolved child OQs open, and the honesty rule was missing. Five children remain Status: to-review and were NOT review candidates this round.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 

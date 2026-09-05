@@ -4227,7 +4227,7 @@
     "path": "pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
     "plan_id": "3m0urk",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4237,7 +4237,7 @@
     "path": "pending/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md",
     "plan_id": "f2mrsw",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4247,7 +4247,7 @@
     "path": "pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md",
     "plan_id": "p0l1to",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4257,7 +4257,7 @@
     "path": "pending/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md",
     "plan_id": "3cm15q",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4267,7 +4267,7 @@
     "path": "pending/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md",
     "plan_id": "ygzq71",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4277,7 +4277,7 @@
     "path": "pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md",
     "plan_id": "p7xhhm",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-29",
@@ -4297,7 +4297,7 @@
     "path": "pending/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md",
     "plan_id": "wlxkoz",
     "set_id": "runcodes",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-31",
@@ -4307,7 +4307,7 @@
     "path": "pending/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md",
     "plan_id": "txc9l1",
     "set_id": "resumedupe",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-08-31",
@@ -4317,7 +4317,7 @@
     "path": "pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md",
     "plan_id": "i6015i",
     "set_id": "worksequence",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4327,7 +4327,7 @@
     "path": "pending/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md",
     "plan_id": "eulhzt",
     "set_id": "ctlroot",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4337,7 +4337,7 @@
     "path": "pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md",
     "plan_id": "h0zljh",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4347,7 +4347,7 @@
     "path": "pending/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md",
     "plan_id": "cqx5v7",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4357,7 +4357,7 @@
     "path": "pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
     "plan_id": "nna8yz",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4367,7 +4367,7 @@
     "path": "pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
     "plan_id": "lhmrhx",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4377,7 +4377,7 @@
     "path": "pending/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md",
     "plan_id": "y5od1h",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4387,7 +4387,7 @@
     "path": "pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md",
     "plan_id": "xdr83v",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4397,7 +4397,7 @@
     "path": "pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md",
     "plan_id": "604wra",
     "set_id": "lanectn",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4407,7 +4407,7 @@
     "path": "pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
     "plan_id": "rh5tt6",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4417,7 +4417,7 @@
     "path": "pending/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md",
     "plan_id": "wpu5zu",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4427,7 +4427,7 @@
     "path": "pending/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md",
     "plan_id": "zvk796",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4437,7 +4437,7 @@
     "path": "pending/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md",
     "plan_id": "rodj06",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4447,7 +4447,7 @@
     "path": "pending/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md",
     "plan_id": "hauwqh",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-01",
@@ -4457,7 +4457,7 @@
     "path": "pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
     "plan_id": "30jug9",
     "set_id": "wslayout",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-03",
@@ -4467,7 +4467,7 @@
     "path": "pending/20260903-runcodes-02-zub5f1-unverifiable-ok-aggregate-neutrality-within-its-two-spec-con.ipd.md",
     "plan_id": "zub5f1",
     "set_id": "runcodes",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-03",
@@ -4477,7 +4477,7 @@
     "path": "pending/20260903-runcodes-03-sq61qd-bounds-check-the-retry-budget-at-the-spec-s-0-10-on-the-ship.ipd.md",
     "plan_id": "sq61qd",
     "set_id": "runcodes",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-03",

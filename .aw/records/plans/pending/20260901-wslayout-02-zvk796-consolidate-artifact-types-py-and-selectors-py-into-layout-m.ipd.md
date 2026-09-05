@@ -6,16 +6,18 @@
 - Scope: Refactor `agent_workflows/artifact_types.py` and `agent_workflows/selectors.py` to import constants and helper logic from `agent_workflows/layout.py`.
 - Scope-Paths: agent_workflows/artifact_types.py, agent_workflows/selectors.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 2
 - Highest E allocated: 02
 - Author: antigravity
 - Id: zvk796
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-101, PR-102; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged, so the pre-review snapshot was correctly skipped. Lint conforming at `--phase author` before and `--phase review-finalize` after. EVERY CHECKABLE CLAIM RE-MEASURED LIVE rather than trusted: `ARTIFACT_TYPES` is the 10 types claimed and DOES contain `roadmaps`; `normalize_type('roadmap')` -> `roadmaps`; `EXCLUDED_RECORD_DIRS` is exactly the 7 pinned entries; `KNOWN_PRIMARY_TYPES` is 9; `NON_PRIMARY_RECORD_DIRS == {'reviews'}`; and `aw check reviews` does still error with "unknown artifact type", so F-4's net-new-behavior claim is current. `layout.py` correctly does not exist yet (Order 01 creates it). ONE MATERIAL FINDING (PR-101, HIGH, fixed): E-02 instructed sourcing the three INPUT sets from `layout.py` but never named `_OTHER_SWEEP_SKIP_DIRS` (`selectors.py:183`), the UNION of those three that the `other` complement actually consults (`:215`). Re-sourcing the inputs silently redefines the union, and V-02 asserted only the 7 exclusions - so a derivation that dropped `reviews` from the union would have PASSED validation while re-opening a measured outage: with `reviews` in neither set, a bare id6 matched twice and `aw set approved <id6>` refused for ALL 28 reviewed plans until `d802e917` added the third set. E-02 now requires the union stay derived, and V-02 now demands the union, the `other`-resolves-empty check, the single-match check, and `tests/test_selector_resolver_matrix.py`. Also recorded (PR-102, F-8): `reviews` is ALREADY a `RecordClass` member while absent from `ARTIFACT_TYPES`, so the union ruling RECONCILES two live vocabularies rather than adding to one. No blocking question; OQ-01 resolved.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 

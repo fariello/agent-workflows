@@ -6,16 +6,18 @@
 - Scope: Refactor `agent_workflows/record_producers.py` and `agent_workflows/project_schema.py` to source definitions from `agent_workflows/layout.py` while preserving existing exception types, class enums, and legacy migration path adapters. Author unit tests in `tests/test_record_producers.py`.
 - Scope-Paths: agent_workflows/record_producers.py, agent_workflows/project_schema.py, tests/test_record_producers.py
 - Item-Dependencies: executed:wpu5zu
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: wslayout
 - Order: 3
 - Highest E allocated: 02
 - Author: antigravity
 - Id: rodj06
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Spec: kw5y2s
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 6: APPROVE WITH REVISIONS APPLIED; PR-201; GO - PENDING HUMAN APPROVAL. Verified at HEAD `16777ccc`, tree clean, plan committed and unchanged. Lint conforming at both checkpoints. CLAIMS RE-MEASURED: `_RECORD_CLASS_SUBPATHS['records'] == ''` (the mandatory empty-subpath carve-out) HOLDS; `_LEGACY_RECORD_CLASS_SUBPATHS` retains a key per class; `LogicalRoot` is exactly 4 (`system`/`config`/`state`/`records`) and `RootClass` exactly 6, so F-4's do-not-collapse rule is current; and `tests/test_record_producers.py` genuinely does NOT exist, so PR-002's create-not-edit correction stands while `tests/test_project_context.py` does exist. THE FINDING (PR-201, MEDIUM, fixed): this plan's own member count was wrong in a way that would corrupt a derivation. E-01 and the Step-0 note said "9 members + `records` root-level carve-out", which reads as TEN; measured, `RecordClass` has NINE members TOTAL with `records` AMONG them, and `_RECORD_CLASS_SUBPATHS` has nine keys. A derivation built to produce ten would either invent a member or mis-map `records` to `records/records/`. Worse, `reviews` is ALREADY a member (shipped by revgate `15zvu6` E-09 with its own deliberate no-legacy-override comment), so the net-new union members are `backlog` and `other` ONLY - an executor following the old text might have tried to add `reviews` and hit a duplicate. Corrected in E-01, the conventions note, and new findings F-6/F-7. No open questions.
 - 2026-09-04 to-review (aw set): Applied deterministic plan-review repairs; controlling spec kw5y2s awaits renewed human approval.
 

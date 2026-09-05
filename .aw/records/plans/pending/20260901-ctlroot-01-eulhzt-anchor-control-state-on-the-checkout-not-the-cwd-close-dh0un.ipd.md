@@ -6,17 +6,19 @@
 - Scope: The ONE control-root authority plus the three legacy control-path constructors that must route through it, the two now-redundant receipt-copy helpers, and the tests that pin the behavior. Does NOT port the 859-line `execution_context.py` + `path_resolver.py` machinery from lane `7p9n2v`, and does NOT relocate state out of the repository (that was `wtiso` Phase 4, which is being retired unlanded; see "Deferred").
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_statefork_dh0uno.py, tests/test_wtiso_characterization.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, .aw/records/backlog/open/
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: ctlroot
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: eulhzt
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Backlog: dh0uno
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-03 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006 all FIXED. E-06/E-07 added for the new git dependency (spawn failure raised from a finally: and leaked the finalize lock; a git fork per path lookup), E-08 for the retired-Phase-4 successor gap, post-gate sequence corrected to run aw ipd begin first. Readiness go-pending-approval
 - 2026-09-02 to-review (aw set): authored from completed work validated in an isolated clone; closes dh0uno at the control-root, replaces wtiso's invalid acceptance criterion with a falsifiable real-worktree regression suite
 

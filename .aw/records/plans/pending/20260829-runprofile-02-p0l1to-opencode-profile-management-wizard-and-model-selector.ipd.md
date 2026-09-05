@@ -6,15 +6,17 @@
 - Scope: Add OpenCode profile-management commands and a reusable wizard. Discover models from the user's actual OpenCode installation/configuration without refreshing or mutating it, offer filtering and exact manual entry, collect a provider-specific variant without overclaiming validation, preview the resolved launch, persist atomically through the Order-01 API, and manage per-OpenCode/global defaults explicitly.
 - Scope-Paths: agent_workflows/runner_profile_wizard.py, agent_workflows/oc_models.py, agent_workflows/cli.py, tests/test_runner_profile_wizard.py, tests/test_oc_profile_cli.py
 - Item-Dependencies: executed:f2mrsw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runprofile
 - Order: 2
 - Highest E allocated: 05
 - Author: codex gpt-5.6
 - Id: p0l1to
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): READINESS BOOKKEEPING, no scope or content change. Added the `- Readiness:` front-matter field, which postdates this plan (the field is a later addition to the review contract, `plan-review.md:377-398`, and automation FAILS CLOSED when it is absent, so a clean plan without it is simply never picked up). Value `go-pending-approval`.
   AND SUPERSEDED THE STALE `REVIEWED - OPEN QUESTIONS` VERDICT, which is the substantive half. That verdict was correct when written on 2026-09-01: the Set carried ONE blocking question, OQ-01, asking whether approved `runnamecollapse-01` (`0soncw`) had to land first, and the maintainer answered ORDER: `0soncw` FIRST, which made the Set depend on `0soncw` reaching `executed` AND inherited `0soncw`'s own unresolved blocking question. BOTH CONDITIONS ARE NOW DISCHARGED, verified rather than assumed: `0soncw` is in `.aw/records/plans/executed/` with `Status: executed`, and its three open questions (OQ-01 permanence, OQ-02 noun placement, OQ-03 subcommand-versus-viewer disambiguation, the one that gated this Set) are all `Status: resolved`. This plan's own OQ-01 is `Status: resolved`, and `aw ipd lint` reports no unresolved blocking question. So the verdict is stated here as APPROVE WITH REVISIONS APPLIED, superseding the neutral one, on the maintainer's 2026-09-04 reading that the outstanding record was bookkeeping rather than an unanswered question. NO re-review of the plan's technical content was performed in this pass and none is claimed: round 1's findings and their fixes stand as recorded.
 

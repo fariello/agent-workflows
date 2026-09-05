@@ -6,15 +6,17 @@
 - Scope: Add a dedicated versioned launch-profile domain and atomic XDG-backed store. Define strict validation, collision-safe names, default-runner and per-runner-default semantics, deterministic resolution/precedence, inspectable provenance, and fail-closed error behavior. Version 1 supports OpenCode (`oc`) while leaving an explicit registry seam for later hosts.
 - Scope-Paths: agent_workflows/runner_profiles.py, tests/test_runner_profiles.py
 - Item-Dependencies: executed:0soncw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runprofile
 - Order: 1
 - Highest E allocated: 04
 - Author: codex gpt-5.6
 - Id: f2mrsw
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 reviewed (aw set): set Item-Dependencies to executed:0soncw
 - 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. This plan is the Set's strongest and has NO scope collision (two new files), so it is executable independently. TWO MAINTAINER-DIRECTED REVISIONS APPLIED, carrying the per-model verification default here because this plan owns the schema and depends on nothing: E-01 gains an optional TRI-STATE per-profile `validate` (plus one in `defaults`), motivated by the measured Opus-off / Gemini-on split; and E-03 gains an explicit tested PRECEDENCE chain where an explicit --validate/--no-validate flag ALWAYS beats a stored default, because an unstated precedence is how vju5ba happened and a profile silently beating a flag would reproduce it inverted. Verdict APPROVE WITH REVISIONS APPLIED (no blocking OQ of its own; the Set-level OQ-01 still gates the Set). Review artifact: .aw/records/reviews/20260831-runprofile-*-f2mrsw-*.review.md

@@ -6,16 +6,18 @@
 - Scope: Have the DRIVER classify the PRIOR attempt's (displaced) lane before dispatching a recovery turn, and route a prior lane that already holds the plan's work to a verify-and-continue turn instead of a fresh execution turn. Consumes the shipped `worktree_lease.inspect_lane` classification and the shipped INTERRUPTED SNAPSHOT convention as the completeness signal. Does NOT remove or weaken the existing recovery prompt notice, does NOT add an acknowledgement gate, does NOT adopt or mutate the displaced lane, and does NOT change first-attempt behavior.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/worktree_lease.py, tests/test_resumedupe.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: resumedupe
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: txc9l1
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Backlog: k1nity
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER (wrong lane classified, would have shipped inert) through PR-006 all fixed
 
 - 2026-09-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1 at HEAD `4541aa7c`: APPROVE WITH REVISIONS APPLIED, PR-001..PR-006, all FIXED. PR-001 BLOCKER: the plan classified THE WRONG LANE and would have shipped INERT. Allocation never reuses a lane holding work (`worktree_lease.py:512-529`), so a resumed turn gets a fresh `_attemptN` lane at 0 commits while the work sits on the displaced one; measured directly (re-allocating over a lane with 1 commit returned `ntf6sx:attempt2`, `displaced_from=aw/lane/ntf6sx`, new lane `EMPTY`, old `HOLDS-WORK`). E-01 now resolves the PRIOR lane from `preserved_lane_id`/`attempts[-1]`/`displaced_from`, E-04 tells the agent the work is on another branch it may read but must not commit to, and E-06 (a2) plus V-01 add a mandatory inertness proof. PR-002 HIGH: the flagship `ntf6sx` measurement was mechanically invalid (`7e9c4444` is a MERGE whose second parent IS `5b8c0004` and which CONTAINS `fb0774b2`, so the empty diff is guaranteed by ancestry) AND the second finalize was legitimate (the merge reverted the plan from `executed/` to `pending/`); the regression case moved to the genuinely duplicated `zhr6mc` pair. PR-003 HIGH: four stale line citations, one landing on `*,`. PR-004 MEDIUM: `worktree_lease.py` added to Scope-Paths (D-1) and the plan's own open scope question ruled. PR-005 MEDIUM: OQ-01 overstated `finalize_precheck`, which deliberately does not refuse on scope. PR-006 LOW: stale suite baseline now re-measured at execution time. Review record: `.aw/records/reviews/20260901-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work.review.md`.

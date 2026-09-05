@@ -6,16 +6,18 @@
 - Scope: Rename `aw attention` to `aw next` (keeping `attention`, `att` and `todo` as aliases), and add `--order-by/-o` selecting the sort, with the current `(class, path, id)` as the unchanged DEFAULT and every other order an explicit opt-in. Includes `depth`, computed from the existing type-agnostic dependency index, so the command can sequence dependent work. Does NOT change any artifact format, does NOT add a committed ordering field or artifact, and does NOT alter what the view SELECTS (only how it is ordered and named).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, docs/, README.md, tests/test_attention.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: worksequence
 - Order: 1
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: i6015i
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Backlog: 2k42zu
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER (-o depth uncomputable / second-scan violation) through PR-007 all fixed
 
 - 2026-09-01 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1 at HEAD `8108fb87`: APPROVE WITH REVISIONS APPLIED, PR-001..PR-007, all FIXED. PR-001 BLOCKER: `-o depth` was UNCOMPUTABLE as drafted and its obvious workaround violated the plan's own single-scan rule. `attention.Item` carries no dependency field and `attention.py` has zero `Item-Dependencies` references, so `sort_items(items, order_by)` cannot compute depth; reaching for `build_dependency_index` re-reads every artifact (measured 0.19s/782 records + 0.22s), the second scan `releases.py:328-333` and E-09 forbid. Resolved by extracting edges in `scan()` (which already holds the text at `attention.py:171`) onto a trailing optional `Item` field, plus a new one-scan call-count guard (E-10 case (i)) because a second scan is invisible in output. PR-002 HIGH: `todo` is NOT an argparse alias but a separate parser accepting only `--all` plus a dispatch special-case (`cli.py:2478-2481,9086-9089`); measured, `aw todo --format json` FAILS and its `--help` still advertises the deleted action ledger, so E-01's byte-identical claim was false. E-01 now converts it and deletes the special-case. PR-003 HIGH: the fail-closed evidence E-09/V-09 planned to use is GONE (the `ntf6sx` duplicate id no longer exists; `aw attention --check` exits 0 with zero drift), replaced by a constructed fixture. PR-004 MEDIUM: coverage figures stale and one materially wrong (filename grammar is 78%, not 96%; 708 items, not 675). PR-005 MEDIUM: `docs/` and `README.md` added to Scope-Paths (D-3) since E-02 requires a docs edit. PR-006 MEDIUM: `Item` shape change affects out-of-module consumers; grep + suite added. PR-007 LOW: four stale citations, two landing in unrelated code, and no spec filename contains `25kzda`. Both OQs resolved from verified evidence. Review record: `.aw/records/reviews/20260901-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by.review.md`.

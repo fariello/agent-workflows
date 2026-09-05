@@ -6,15 +6,17 @@
 - Scope: Coordinate a five-child Set delivering strict user-local launch profiles, an OpenCode profile/model wizard, direct model/variant and run-as support in the durable OpenCode runner, host-neutral fixed dispatch plus default routing, optional setup integration, documentation, and adversarial/end-to-end validation. The orchestrator changes no product code; it validates dependency order and the whole Set.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:0soncw
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runprofile
 - Order: 0
 - Highest E allocated: 02
 - Author: codex gpt-5.6
 - Id: 3m0urk
+- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (aw set): record the maintainer-decided cross-Set order (OQ-01 / PR-001): 0soncw must reach executed before this Set
 - 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.
 - 2026-08-31 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): plan-review round 1 (whole `runprofile` Set, 6 plans, reviewed together at HEAD 6a29f9c0): REVIEWED - OPEN QUESTIONS. BLOCKER PR-001, escalated ONCE as blocking OQ-01 on the orchestrator 3m0urk: this Set builds its entire grammar on the `aw run` noun (measured: `aw run as` x16, `aw run ipd` x12) that APPROVED 0soncw is RETIRING behind a nonzero-exit deprecation stub, and NO plan in the Set mentions 0soncw even once. They are COMPLEMENTARY not contradictory (0soncw frees the name "for a future driver verb", which is this Set), so the fix is ORDER: 0soncw first, then this Set. Reversed, `aw run as gem` would start exiting nonzero. Not agent-resolvable: a cross-Set order decision, and 0soncw itself still carries an unresolved blocking OQ-03. PR-002 MEDIUM, fixed: the Set carries ZERO file:line citations across all six plans (versus 9/4/5 in the comparable 6lu3rq/m73aet/wlxkoz); spot-checked claims were TRUE so this is evidence discipline, and each plan now requires measuring and citing every "already" claim. Orchestrator-specific: corrected its execution contract, which claimed "there are no unresolved questions" (now false), and EXTENDED its rununify STOP clause to cover the unmerged wtiso lane stack and 6knsrx, with the measured per-child collision set recorded. Structural preflight conforming for all six. Review artifact: .aw/records/reviews/20260831-runprofile-*-3m0urk-*.review.md
