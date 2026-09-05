@@ -153,6 +153,38 @@ class _InjectedFault(RuntimeError):
     """Test-only fault injected at a named finalize checkpoint to exercise rollback/recovery."""
 
 
+# Memoized checkout -> control-root resolutions (E-07). Keyed on the RESOLVED ``start`` path, so two
+# different start paths that resolve differently can never share an entry; the value is the resolved
+# control root. Only a POSITIVE resolution (git answered and a main worktree was established) is
+# cached, deliberately:
+#
+# * a FALLBACK must stay recomputable, because it can mean "this directory is not a git checkout YET"
+#   (a test that later runs `git init` in it) or "the git spawn transiently failed" (E-06's EAGAIN
+#   path). Caching either would turn a momentary condition into a permanent wrong answer.
+# * a positive resolution is stable for the life of a checkout, which is what makes it safe to keep.
+#
+# HONEST LIMIT: a cached entry is stale if the very same absolute path stops being that checkout (a
+# temp dir removed and recreated at an identical name, which is what a per-case real-worktree test
+# fixture effectively does). Such tests must call :func:`clear_checkout_control_root_cache` in
+# ``setUp``; the cache is process-local, so nothing persists past the process.
+_CONTROL_ROOT_CACHE: Dict[str, Path] = {}
+
+# Bound the cache so a long test session that builds thousands of throwaway checkouts cannot grow it
+# without limit. A real process sees a handful of checkouts, so the cap is never reached in practice
+# and a plain clear-on-overflow is adequate (no LRU bookkeeping for a cache this small).
+_CONTROL_ROOT_CACHE_MAX = 256
+
+
+def clear_checkout_control_root_cache() -> None:
+    """Drop every memoized checkout->control-root entry (see :func:`checkout_control_root`).
+
+    Call this from a test fixture that creates a FRESH checkout or ``git worktree`` per case, so a
+    new tree at a previously-seen path cannot read the earlier tree's cached answer. Production code
+    should not need it: a checkout's control root does not move while the process runs.
+    """
+    _CONTROL_ROOT_CACHE.clear()
+
+
 def checkout_control_root(start: Path) -> Path:
     """The checkout's ONE ``.aw`` control root for any path inside it (backlog ``dh0uno``).
 
@@ -175,16 +207,44 @@ def checkout_control_root(start: Path) -> Path:
     * NOT in a Git checkout, or a bare/exotic ``GIT_DIR`` where no main worktree can be established
       -> ``start/.aw`` unchanged. There is no checkout identity to collapse to, hence no fork to
       fix, and this keeps temp-directory callers (much of the test suite) byte-compatible.
+    * GIT COULD NOT EVEN BE SPAWNED (git absent, or the OS refused a fork) -> ``start/.aw``, the same
+      fallback the nonzero-returncode branch takes. This function must be TOTAL: its callers
+      (:func:`receipt_dir`, :func:`finalize_lock_path`, :func:`finalize_journal_path`) were PURE path
+      composition before ``dh0uno`` and are called from loops and from error-message formatting, so a
+      raise here would surface in places that cannot handle it. The case that matters most is
+      :func:`release_finalize_lock`, which runs from a ``finally:`` during finalize: a raise there
+      both LEAKS the writer lock and REPLACES the real in-flight exception with a confusing git
+      error. Only ``OSError`` is caught (it covers ``FileNotFoundError`` for a missing git and
+      ``BlockingIOError``/EAGAIN for a fork failure), so a genuine programming error still surfaces.
 
     Nothing is invented and no worktree path is hashed: the fallback is "use exactly what you were
     given", which cannot fork because only one tree is involved.
+
+    The resolution is MEMOIZED (see :data:`_CONTROL_ROOT_CACHE`), so a repeated lookup does not spawn
+    a git subprocess; only a positive resolution is cached, and
+    :func:`clear_checkout_control_root_cache` drops the memo.
     """
     base = Path(start)
     if not base.is_dir():
         return base / ".aw"
-    rc, out, _err = _git(
-        base, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
-    )
+    try:
+        key = str(base.resolve())
+    except OSError:
+        # A path that cannot be resolved is simply not cacheable; fall through uncached rather than
+        # fail a path accessor.
+        key = ""
+    if key:
+        cached = _CONTROL_ROOT_CACHE.get(key)
+        if cached is not None:
+            return cached
+    try:
+        rc, out, _err = _git(
+            base, ["rev-parse", "--path-format=absolute", "--git-common-dir"]
+        )
+    except OSError:
+        # git is absent or the OS refused to spawn it. Not cached: the condition is transient in the
+        # EAGAIN case, and a permanently cached fallback would be a worse failure than a retry.
+        return base / ".aw"
     if rc != 0:
         return base / ".aw"
     raw = (out or "").strip()
@@ -195,7 +255,12 @@ def checkout_control_root(start: Path) -> Path:
     # parent. Anything else (bare repo, GIT_DIR override) has no product worktree to anchor on, so
     # fall back rather than guess a location.
     if common_dir.name == ".git" and common_dir.parent.is_dir():
-        return common_dir.parent / ".aw"
+        resolved = common_dir.parent / ".aw"
+        if key:
+            if len(_CONTROL_ROOT_CACHE) >= _CONTROL_ROOT_CACHE_MAX:
+                _CONTROL_ROOT_CACHE.clear()
+            _CONTROL_ROOT_CACHE[key] = resolved
+        return resolved
     return base / ".aw"
 
 
