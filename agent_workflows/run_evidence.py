@@ -1468,7 +1468,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         inspects="Captured commit-gateway event and argv",
         pass_criterion=(
             "The engine, not the agent, invoked `git commit ... -- <explicit paths>` as an argv "
-            "list; no `-a`, broad add, shell string, or `--no-verify` occurred"
+            "list; no `-a`, broad add, shell string, or `git commit --no-verify` occurred"
         ),
         message=(
             "[RUN-COMMIT-GATEWAY] <item> lacks a valid path-scoped, hook-respecting commit "
