@@ -112,6 +112,44 @@ from agent_workflows.worktree_lease import WORKTREES_SUBDIR
 # The `as <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip
 # the ones this module does not itself call. That is not cosmetic: `ruff` removed 6 such re-exports
 # from `agy_runipd` on a previous change's first attempt and only a symmetry test caught it.
+# orchretire-03 (`pgq326`) E-04 EXTENDS this seam with the ACTION DECISION and the ORCHESTRATOR
+# DISPATCH OUTCOME. `determine_action`/`action_for` were defined HERE, and agy had its own
+# `determine_action` and NO `action_for` at all, so measured at HEAD `844d195c`:
+# `agy.determine_action('approved')` returned `'execute'` where
+# `oc.action_for('orchestrator','approved')` returned `'orchestrate'` -- `aw agy run` would have spent
+# an agent turn AUTHORING against an approved orchestrator whose coordination role the runner has
+# already superseded. Spec `77tr3o` R-10 requires the decision be shared CODE, so both hosts now bind
+# these SAME objects and `tests/test_orchestrator_retirement.py` asserts that by object identity.
+# `decide_orchestrator_dispatch`/`dispatch_orchestrator_item` come with them, because deciding the
+# action is not enough: a host that decides `orchestrate` and has no branch READING it spends the turn
+# anyway (E-07).
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_RECONSIDER as ORCH_DISPATCH_RECONSIDER,
+)
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_RETIRE as ORCH_DISPATCH_RETIRE,
+)
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_TERMINATE as ORCH_DISPATCH_TERMINATE,
+)
+from agent_workflows.runner_shared import (
+    ORCH_REASON_FINALIZE_REFUSED as ORCH_REASON_FINALIZE_REFUSED,
+)
+from agent_workflows.runner_shared import (
+    OrchestratorDispatch as OrchestratorDispatch,
+)
+from agent_workflows.runner_shared import (
+    action_for as action_for,
+)
+from agent_workflows.runner_shared import (
+    decide_orchestrator_dispatch as decide_orchestrator_dispatch,
+)
+from agent_workflows.runner_shared import (
+    determine_action as determine_action,
+)
+from agent_workflows.runner_shared import (
+    dispatch_orchestrator_item as dispatch_orchestrator_item,
+)
 from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
@@ -2439,28 +2477,9 @@ def expand_selectors(
     return expanded
 
 
-def determine_action(status: str) -> str:
-    """Return 'review' for to-review plans; 'execute' for approved/ready plans."""
-    norm = (status or "").lower().strip()
-    if norm in ("to-review", "draft"):
-        return "review"
-    return "execute"
-
-
-def action_for(kind: str | None, status: str) -> str:
-    """Decide the driver action for a plan given its Kind + Status.
-
-    Orchestrators are special ONLY once past review: an approved/auto-approved
-    orchestrator authors no code, so it is not agent-executed ('orchestrate' -> the
-    runner administratively finalizes it iff all its children reached executed). But a
-    draft/to-review orchestrator still needs its own /plan-review to advance (the
-    orchestrator artifact must be review-complete whether the set is driven by
-    aw oc run OR executed manually), so it takes the normal 'review' action. Everything
-    else uses determine_action (review for to-review/draft, execute otherwise)."""
-    norm = (status or "approved").lower().strip()
-    if (kind or "").lower() == "orchestrator" and norm not in ("to-review", "draft"):
-        return "orchestrate"
-    return determine_action(status or "approved")
+# orchretire-03 (`pgq326`) E-04: `determine_action` and `action_for` MOVED to `runner_shared` and are
+# imported at the top of this module, so BOTH hosts bind the same objects. Do NOT reintroduce a local
+# copy here; `tests/test_orchestrator_retirement.py::TheActionDecisionIsSHAREDCode` fails if you do.
 
 
 # revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares. `review` is IMPLEMENTED
@@ -2917,6 +2936,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 # still gets the link rather than silently losing it.
                 "from_backlog": plan.get("from_backlog")
                 or (getattr(rec, "from_backlog", None) if p_path else None),
+                # orchretire-03 (`pgq326`) E-04: the plan's `- Kind:`, frozen on the queue entry so a
+                # RESUME re-derives the same action and the durable record shows which items the runner
+                # treated as orchestrators. Additive and symmetric with the agy queue entry; `action`
+                # above is still what the dispatch reads.
+                "kind": plan.get("kind"),
                 "initial_status": status or "approved",
                 "action": action,
                 "status": "queued"
@@ -3379,14 +3403,45 @@ def dependency_status_detailed(
         reasons[dep] = reason
 
     if item.get("action") == "orchestrate":
-        all_done, unfinished = _set_children_all_executed(
-            state, str(item.get("setid") or ""), item["id6"]
+        # orchretire-03 (`pgq326`) E-01: THE SELECTION GATE IS PART OF THE WIRING, and missing it would
+        # have left this Set's whole mechanism unreachable from the run shape it was built for.
+        #
+        # MEASURED, not reasoned: this clause used to call the queue-scoped `_set_children_all_executed`,
+        # and `initialize_run` derives an already-`executed` child's RUN status as `reviewed` (only
+        # to-review/draft/approved/auto-approved become `queued`). So for the PRIMARY case spec R-1
+        # names -- `aw oc run <setid>` on a Set whose children executed in EARLIER runs -- the gate
+        # reported `satisfied=False, missing=['executed:<child>']` while the on-disk verdict was
+        # `eligible=True`. The orchestrator was never selected, so the dispatch branch was NEVER
+        # REACHED, and wiring only the dispatch branch would have fixed nothing for that run.
+        #
+        # It now asks the SAME shared decision the dispatch branch acts on, so the gate and the dispatch
+        # cannot disagree about one plan. That equivalence is the point: two predicates answering one
+        # question is how this function and `cascade_dependency_blocked` once gave OPPOSITE verdicts
+        # (runorder F-7).
+        #
+        # WHY BLOCK ONLY ON RECONSIDER. A gate exists to make an item WAIT. So:
+        #   * RETIRE     -> admit it; the dispatch branch retires it.
+        #   * RECONSIDER -> block, because this run WILL still act on the named children; the item is
+        #                   re-tested on a later iteration, which IS the reconsideration R-7 requires.
+        #   * TERMINATE  -> ADMIT it, deliberately, so it reaches the dispatch branch and receives its
+        #                   SPECIFIC reason. Blocking instead would leave it to the drain path, which
+        #                   labels it `dependency-blocked` with whatever this function reported -- and
+        #                   for the no-children case that list is EMPTY, which is exactly the `5e4sb6`
+        #                   record that claimed an unmet dependency while naming none.
+        decision = decide_orchestrator_dispatch(
+            repo,
+            str(item.get("setid") or ""),
+            str(item["id6"]),
+            state.get("queue") or [],
+            terminal_states=TERMINAL_STATES,
+            success_states=EXECUTION_SUCCESS_STATES,
         )
-        if not all_done:
-            for child_id in unfinished:
+        if decision.outcome == ORCH_DISPATCH_RECONSIDER:
+            for child_id, child_status in decision.unfinished:
                 _block(
                     f"executed:{child_id}",
-                    f"orchestrator waits for child {child_id} of set '{item.get('setid')}' to execute",
+                    f"orchestrator waits for child {child_id} of set "
+                    f"'{item.get('setid')}' to execute (currently {child_status or 'unfinished'})",
                 )
 
     for dep in item.get("dependencies", []):
@@ -6988,45 +7043,28 @@ def run_queue(
             break
         recovery = bool(runnable.pop("recovery_next", False))
         update_execution_order(state, runnable)
-        # Orchestrators are not agent-executed: finalize iff every child in the set
-        # reached `executed`, else leave blocked (no agent turn). See queue-builder note.
+        # Orchestrators are NOT agent-executed. orchretire-03 (`pgq326`) E-01/E-02: the outcome is the
+        # SHARED three-way `dispatch_orchestrator_item`, replacing the single `else` that wrote a
+        # TERMINAL `dependency-blocked` on ANY failure.
+        #
+        # WHY THE SINGLE WRITE WAS WRONG, both halves measured on real runs. `dependency-blocked` is in
+        # `TERMINAL_STATES` and the selection filter admits only `queued`, so an orchestrator whose
+        # children finished LATER IN THE SAME RUN was excluded forever, from an event literally named
+        # `orchestrator-deferred`. But "just leave it queued" (backlog `kxkc04`) fixes only ONE of the
+        # two failures that `else` covered: one run recorded both `not-all-children-executed` AND
+        # `finalize-refused`, and leaving the second reconsiderable would retry a structural refusal
+        # every iteration and SPIN. Hence three outcomes; `runner_shared` carries the full contract.
         if runnable.get("action") == "orchestrate":
             repo = Path(state["repo"])
-            all_done, unfinished = _set_children_all_executed(
-                state, runnable["setid"], runnable["id6"]
-            )
-            if all_done and finalize_orchestrator(
+            dispatch_orchestrator_item(
                 repo,
-                runnable["id6"],
-                f"Orchestrator rollup: all children of set {runnable['setid']} executed "
-                f"(aw oc run, no agent turn).",
-            ):
-                runnable["status"] = "executed"
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "orchestrator-finalized",
-                        "id6": runnable["id6"],
-                        "setid": runnable["setid"],
-                    },
-                )
-            else:
-                runnable["status"] = "dependency-blocked"
-                runnable["unsatisfied_dependencies"] = unfinished
-                append_jsonl(
-                    run_dir / "events.jsonl",
-                    {
-                        "at": utc_now(),
-                        "event": "orchestrator-deferred",
-                        "id6": runnable["id6"],
-                        "setid": runnable["setid"],
-                        "reason": "not-all-children-executed"
-                        if not all_done
-                        else "finalize-refused",
-                        "unfinished_children": unfinished,
-                    },
-                )
+                run_dir,
+                state,
+                runnable,
+                actor=driver_actor(state),
+                terminal_states=TERMINAL_STATES,
+                success_states=EXECUTION_SUCCESS_STATES,
+            )
             save_state(run_dir, state)
             continue
         # runstop 1qxuke: the set now in flight. Recorded BEFORE the turn so that a stop requested
