@@ -11,7 +11,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 - `p0l1to` [executed] 02 executed/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
 - `3cm15q` [executed] 03 executed/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
 - `ygzq71` [executed] 04 executed/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
-- `p7xhhm` [pending] 05 pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
+- `p7xhhm` [executed] 05 executed/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
 - `kgpptv` [pending] 06 pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md
 
 ## skilldigest

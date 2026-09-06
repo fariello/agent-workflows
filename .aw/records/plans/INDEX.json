@@ -3843,6 +3843,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 5,
+    "path": "executed/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md",
+    "plan_id": "p7xhhm",
+    "set_id": "runprofile",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
@@ -4482,16 +4492,6 @@
   {
     "date": "2026-08-29",
     "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md",
-    "plan_id": "p7xhhm",
-    "set_id": "runprofile",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
@@ -4557,7 +4557,7 @@
     "path": "pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md",
     "plan_id": "kgpptv",
     "set_id": "runprofile",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-05",
