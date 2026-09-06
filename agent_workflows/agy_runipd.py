@@ -2765,6 +2765,16 @@ def run_agy_turn(
             ),
         )
 
+        # lanectn Order 04 (`y5od1h`) E-06, spec R3.1/R3.2/R3.5: the missing-input
+        # REPORT-AND-REFUSE cycle, WIRED rather than reimplemented (spec R2.6 forbids a second copy,
+        # CID-3 makes a rule present in one driver only a DEFECT). The observer object, the reject
+        # rules, and the record SHAPE are identical to the oc twin's because both construct the SAME
+        # host-neutral class; only this construction line is per-host.
+        #
+        # NO SANCTIONED ASYMMETRY HERE, unlike R4.1's permission posture: a worker on this host
+        # reports a missing input exactly as it does on the other, so the cycle is genuinely uniform.
+        missing_input = lane_containment.MissingInputObserver(state["repo"])
+
         try:
             # `escalation_watch` (runstop 71vjbn) joins the turn's scope for the same reason
             # `force_watch` does: it must be armed for exactly the turn's lifetime, no longer.
@@ -2783,6 +2793,10 @@ def run_agy_turn(
                     # exact counterpart of the `oc_runipd` site. Side-effect free: it REPORTS the
                     # requested level, and acting on a level belongs to the later phases.
                     level = runner_stop.poll_stop(run_dir)
+                    # lanectn y5od1h E-06: the exact counterpart of the `oc_runipd` site, at the SAME
+                    # relative point (immediately after the poll) and independent of `output_mode`, so
+                    # the two hosts cannot drift on WHEN a report is noticed (CID-3).
+                    missing_input.note_line(raw_line, run_dir, item, attempt_no)
                     # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
                     # classified, because level 4 must NOT wait for a checkpoint. The counterpart of
                     # the `oc_runipd` site (orchestrator CID-3: identical semantics on both hosts).
@@ -3588,7 +3602,36 @@ def execute_item(
                     file=sys.stderr,
                 )
             else:
-                if wt_handle is not None:
+                # lanectn y5od1h E-06 (spec R3.2): the exact counterpart of the `oc_runipd` site, so
+                # PRESERVE AND PAUSE is enforced on BOTH hosts (CID-3 makes a rule present in one
+                # driver only a DEFECT). Same host-neutral predicate, same durable state.
+                if (
+                    wt_handle is not None
+                    and lane_containment.lane_preserved_for_missing_input(item)
+                ):
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-preserved-for-missing-input",
+                            "id6": item["id6"],
+                            "branch": wt_handle.branch,
+                            "worktree": str(wt_handle.path),
+                            "reason": (
+                                "a missing-input report was refused; the lane is preserved and "
+                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                            ),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                            f"refused (paused per spec R3.2); the lane was not torn down",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
+                elif wt_handle is not None:
                     with contextlib.suppress(Exception):
                         teardown_isolation_worktree(repo, wt_handle)
                     wt_handle = None

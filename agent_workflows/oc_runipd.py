@@ -5358,6 +5358,17 @@ def run_opencode(
             max_turn_timeout=lane_containment.driver_bound_for_host(None),
         )
 
+        # lanectn Order 04 (`y5od1h`) E-01/E-06, spec R3.1/R3.2/R3.5: the missing-input
+        # REPORT-AND-REFUSE cycle. The observer is HOST-NEUTRAL (spec R2.6) and this is its whole
+        # adapter here; the agy twin constructs the identical object (CID-3). Scoped to the turn, so
+        # a refusal is attributed to the attempt that produced it.
+        #
+        # THE CHECKOUT IT CLASSIFIES AGAINST is the repo, NOT `agent_dir`. Classification is
+        # COORDINATOR-SIDE (R3.3) and a report names a REPO-RELATIVE path, so resolving it against
+        # the lane would make an in-lane request look absent whenever the lane legitimately lacks an
+        # ignored file - the exact case a report is for.
+        missing_input = lane_containment.MissingInputObserver(state["repo"])
+
         try:
             # The poller shares the turn's scope, so its thread cannot outlive the turn or
             # leak across attempts. `force_watch` (runstop m0z0ti) joins the same scope so a
@@ -5391,6 +5402,21 @@ def run_opencode(
                     # only REPORTS the requested level here; acting on a level is owned by the
                     # later phases (levels 1-2 branch between items, level 3 at this point).
                     level = runner_stop.poll_stop(run_dir)
+                    # lanectn y5od1h E-01/E-05 (spec R3.1/R3.2/R3.5): classify a missing-input report
+                    # and RECORD the refusal. Per-line and INDEPENDENT of `output_mode`, for the same
+                    # reason the poll just above is: a report must not be missed because of an
+                    # unrelated display flag. The worker is NOT blocked - it emitted the token and
+                    # continued (R3.1) - and nothing here prompts (R3.2).
+                    #
+                    # PLACED AFTER THE POLL, not beside the stall-watchdog heartbeat above, on
+                    # purpose: `test_runner_stop.py::PollWiringTests` bounds the CHARACTER DISTANCE
+                    # from that heartbeat to this poll (to prove the poll sits at the per-line
+                    # checkpoint), and inserting this block between them pushed the gap past its
+                    # window. The ordering is behaviorally equivalent - both run for EVERY line,
+                    # before any `output_mode` branch - so honoring the sibling bound costs nothing.
+                    # Do not name that heartbeat symbol in this comment: the sibling test locates it
+                    # with `rindex`, so a mention here would become the anchor it measures from.
+                    missing_input.note_line(line, run_dir, item, attempt_no)
                     # runstop m0z0ti (level 4, spec R7/A2): checked FIRST and BEFORE the line is
                     # classified, because level 4 must NOT wait for a checkpoint. The out-of-band
                     # `force_watch` above is what makes it prompt on a silent child; this is the
@@ -6247,7 +6273,38 @@ def execute_item(
                 )
                 disposition = fail_status
             else:
-                if wt_handle is not None:
+                # lanectn y5od1h E-01 (spec R3.2): PRESERVE AND PAUSE is enforced HERE, not merely
+                # recorded. A lane that reported a refused missing input keeps its worktree and
+                # branch even on the success path, because `teardown_isolation_worktree` force-removes
+                # both and would destroy the evidence the refusal points at. The predicate is
+                # host-neutral and reads DURABLE state, so it is also correct on a resumed run.
+                if (
+                    wt_handle is not None
+                    and lane_containment.lane_preserved_for_missing_input(item)
+                ):
+                    append_jsonl(
+                        run_dir / "events.jsonl",
+                        {
+                            "at": utc_now(),
+                            "event": "lane-preserved-for-missing-input",
+                            "id6": item["id6"],
+                            "branch": wt_handle.branch,
+                            "worktree": str(wt_handle.path),
+                            "reason": (
+                                "a missing-input report was refused; the lane is preserved and "
+                                "paused (spec 7ckptx R3.2) so its evidence is not destroyed"
+                            ),
+                        },
+                    )
+                    print(
+                        pal(
+                            f"  ! lane {wt_handle.branch} PRESERVED: a missing-input report was "
+                            f"refused (paused per spec R3.2); the lane was not torn down",
+                            "yellow",
+                        ),
+                        file=sys.stderr,
+                    )
+                elif wt_handle is not None:
                     with contextlib.suppress(Exception):
                         teardown_isolation_worktree(repo, wt_handle)
                     wt_handle = None

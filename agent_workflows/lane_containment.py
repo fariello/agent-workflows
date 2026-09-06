@@ -1412,3 +1412,559 @@ def parse_host_ceiling_seconds(value: Any) -> float | None:
     except ValueError:
         return None
     return seconds if seconds > 0 else None
+
+
+# ==================================================================================================
+# lanectn Order 04 (`y5od1h`): THE MISSING-INPUT REPORT-AND-REFUSE CYCLE (spec R3)
+# ==================================================================================================
+#
+# WHAT THIS IS, in one sentence: a worker that genuinely lacks a file has a deterministic, auditable
+# way to SAY SO, and the driver answers with a precise REFUSAL RECORD rather than a copy.
+#
+# READ THE AMENDMENT FIRST, because the obvious reading of "repair" is now WRONG. Spec `R3.3a`
+# (maintainer decision, 2026-09-01) WITHDREW the permit-and-copy branch and the secret vocabulary
+# that gated it. Three reasons, the third decisive:
+#
+#   (a) Policing secrets invites blame for a miss, while `gitleaks` (commit hook) and `aw sanitize`
+#       already cover them where it matters.
+#   (b) The research (`x03wgn`) said do-not-COPY, not adjudicate-requests; building a
+#       secret-detection vocabulary was an over-extension at authoring time.
+#   (c) DECISIVELY, THE BRANCH WAS INERT. A lane is a `git worktree` at a commit, so it ALREADY
+#       contains every TRACKED file (measured 2026-09-01: 0 of 1470 absent), and `R3.3b` permitted
+#       ONLY tracked files - so the copy branch could only ever copy a file the lane already had.
+#       The inputs the research actually worries about (`.venv`, `node_modules`, generated schemas)
+#       are IGNORED or UNTRACKED, which is exactly the category it REFUSED.
+#
+# SO NOTHING HERE COPIES ANYTHING INTO A LANE, and there is no permitted path to test. A test
+# asserting a successful copy would assert behavior the spec now FORBIDS. What is PRESERVED is the
+# escape hatch that makes R1.1's strictness survivable: the worker still reports (R3.1) and the
+# driver still preserves and pauses the lane rather than prompting (R3.2). Only the ANSWER changed.
+#
+# HONEST CONSEQUENCE, recorded rather than hidden (spec R3.3a): a turn genuinely blocked on a missing
+# IGNORED input now fails with a precise record instead of self-repairing. That is the intended
+# trade. The conforming fix, if it ever proves an operational problem, is UP-FRONT lane assembly
+# under an explicit policy - not a request-time copy.
+#
+# HOST-NEUTRAL BY CONSTRUCTION (spec R2.6). The token parse, the classification, the refusal record,
+# and the pause all live HERE; each driver contributes only a per-line call and its own event shape,
+# so neither host is the de-facto shared library and the rule cannot fork (R6.1, CID-2/CID-3).
+
+
+#: The two channels a refusal can arrive through, recorded on the decision so an artifact reader can
+#: tell them apart WITHOUT changing the verdict. R3.7's whole point is that both reach the SAME
+#: classification path, so this field is provenance only and is never an input to the rule.
+MISSING_INPUT_SOURCE_TOKEN = "worker-token"  # the worker emitted `AW_MISSING_INPUT:...`
+MISSING_INPUT_SOURCE_PERMISSION = (
+    "denied-permission-event"  # the host denied an ask (R3.7)
+)
+
+#: THE ONLY VERDICT THIS CYCLE HAS (spec R3.3a as amended, R3.6).
+#:
+#: There is deliberately NO `GRANTED`/`PERMITTED` sibling constant, and adding one is how R3.6's
+#: guarantee would die: the requirement is that the decision TYPE cannot represent a live grant, not
+#: that a boolean happens to be False. `tests/test_missing_input_repair.py` enumerates this module's
+#: `MISSING_INPUT_VERDICT_*` names and `MissingInputDecision._fields`, so introducing either a second
+#: verdict or a grant-shaped field FAILS the suite rather than silently widening the rule.
+MISSING_INPUT_VERDICT_REFUSED = "refused"
+
+#: Why a request was refused. EVERY request is refused (R3.3a), so these distinguish the RULE that
+#: fired, which is what makes the record "precise" in R3.5's sense rather than a bare failure.
+#:
+#: `withdrawn-repair-path` is the one that fires for a path with nothing wrong with it: it exists,
+#: it is inside the checkout, it is a regular file, and it is STILL refused, because no permitted
+#: path exists any more. Naming it explicitly (rather than reusing a shape rejection) is what keeps
+#: the artifact honest about WHY - a reader must not conclude the path was malformed.
+REJECT_ABSOLUTE = "absolute-path"
+REJECT_ESCAPES_CHECKOUT = "escapes-checkout"
+REJECT_COORDINATOR_SURFACE = "coordinator-owned-surface"
+REJECT_SIBLING_LANE = "sibling-lane-or-worktrees-root"
+REJECT_MACHINE_STATE = "machine-local-state"
+REJECT_GIT_ADMIN = "git-administration-directory"
+REJECT_DIRECTORY = "directory-not-a-file"
+REJECT_ABSENT = "path-does-not-exist"
+REJECT_WITHDRAWN_REPAIR = "withdrawn-repair-path"
+REJECT_MALFORMED_TOKEN = "malformed-report"
+
+#: Machine-local state R3.3 names as its own reject class. Derived from the ONE existing spelling of
+#: the run/state prefixes where one exists, so a rename cannot leave this list behind.
+#:
+#: NOT a secret vocabulary, and it must never become one: R3.3a WITHDREW that, and adding
+#: credentials families here would ship the liability the maintainer explicitly declined. These are
+#: MACHINE-LOCAL paths (a lane's own scratch, a driver's durable run state, per-lane worktree owner
+#: records), which are refused because they are not repository content at all.
+MACHINE_LOCAL_PREFIXES: tuple[str, ...] = (
+    ".aw/state/",
+    LANE_SUBMISSION_SUBDIR + "/",
+    ".aw/lane-scratch/",
+)
+
+
+class MissingInputDecision(NamedTuple):
+    """The coordinator's answer to a missing-input report: ALWAYS a refusal (spec R3.3a, R3.5, R3.6).
+
+    STRUCTURALLY INCAPABLE OF GRANTING ACCESS, which R3.6 requires to be a property of the TYPE and
+    not a convention. Concretely, and each absence is deliberate:
+
+      * there is NO `granted`/`permitted`/`allowed` field, so no call site can flip one;
+      * there is NO field naming a location OUTSIDE the lane (no source path, no absolute path, no
+        original-checkout path), so even a careless `as_dict()` cannot leak one into an artifact;
+      * `verdict` has exactly ONE legal value, `MISSING_INPUT_VERDICT_REFUSED`, because the module
+        defines no other verdict constant.
+
+    `rule` names WHICH reject class fired and `detail` carries the worker's own stated reason, so the
+    record is precise (R3.5) rather than a bare failure. `source` is provenance only: a worker token
+    and a denied permission event produce the SAME verdict through the SAME path (R3.7).
+
+    HONEST LIMIT, stated because spec Goal 5 requires it: Python has no sealed types, so this is an
+    ACCIDENT GUARD plus a test that fails on a grant-shaped field, not a proof that no future edit
+    could add one. What it does guarantee is that such an edit cannot be silent.
+    """
+
+    path: str
+    reason: str
+    rule: str
+    source: str = MISSING_INPUT_SOURCE_TOKEN
+    detail: str = ""
+    verdict: str = MISSING_INPUT_VERDICT_REFUSED
+
+    def as_dict(self) -> dict[str, Any]:
+        """The refusal exactly as it is recorded on the attempt and in the event log (R3.5)."""
+
+        record: dict[str, Any] = {
+            "path": self.path,
+            "verdict": self.verdict,
+            "rule": self.rule,
+            "reason": self.reason,
+            "source": self.source,
+            # Stated on EVERY record, not merely implied by the absence of a copy: an auditor reading
+            # one refusal must be able to see that no materialization happened without cross-checking
+            # the filesystem (spec R3.3a, R3.6).
+            "copied_into_lane": False,
+            "granted_original_checkout_access": False,
+        }
+        if self.detail:
+            record["worker_stated_reason"] = self.detail
+        return record
+
+
+def format_missing_input_token(path: str, why: str) -> str:
+    """Render the ONE report token form (spec R3.1), the same shape the prompt names.
+
+    Paired with `parse_missing_input_token` so emit and parse cannot drift, and BOTH derive their
+    separator and prefix from `MISSING_INPUT_TOKEN_FORM` - the constant `cqx5v7` already publishes
+    into the prompt (R1.4) - rather than hardcoding a second spelling of the shape.
+    """
+
+    return "{0}:{1}:{2}".format(_token_prefix(), path, why)
+
+
+def _token_prefix() -> str:
+    """The token's leading code, READ OUT OF `MISSING_INPUT_TOKEN_FORM` rather than duplicated.
+
+    Deriving it is the point: the prompt text and the parser are then provably the same shape, so a
+    change to the published form cannot leave the parser matching the old one.
+    """
+
+    return MISSING_INPUT_TOKEN_FORM.split(":", 1)[0]
+
+
+def parse_missing_input_token(line: str) -> "tuple[str, str] | None":
+    """Parse one `AW_MISSING_INPUT:<repo-relative-path>:<why>` line into `(path, why)`, else `None`.
+
+    Returns `None` for any line that is not a report, because this is called on EVERY line of a
+    child's stdout: a driver must not raise on ordinary output. A line that IS a report but carries
+    an empty path or no reason is a MALFORMED report, and the caller
+    (`classify_missing_input_report`) refuses it with `REJECT_MALFORMED_TOKEN` rather than ignoring
+    it - silently dropping a malformed report is how a worker's genuine need disappears.
+
+    THE REASON MAY CONTAIN COLONS (`split` with `maxsplit=2`), because a worker writes prose there.
+    """
+
+    prefix = _token_prefix()
+    text = line.strip()
+    if not text.startswith(prefix + ":"):
+        return None
+    parts = text.split(":", 2)
+    if len(parts) < 3:
+        return "", ""
+    return parts[1].strip(), parts[2].strip()
+
+
+def _relative_to_checkout(path: str, checkout: Path) -> "Path | None":
+    """Resolve a repo-relative request against the checkout, or `None` if it escapes it.
+
+    Uses `os.path.normpath` on the RELATIVE text before joining, so `a/../../etc/passwd` is caught by
+    the escape rule rather than by whatever the filesystem happens to contain. Symlinks are resolved
+    afterwards, so a link inside the checkout that points out of it is an escape too.
+    """
+
+    normalized = os.path.normpath(path)
+    if normalized.startswith("..") or os.path.isabs(normalized):
+        return None
+    candidate = (checkout / normalized).resolve()
+    try:
+        checkout_resolved = checkout.resolve()
+    except OSError:
+        checkout_resolved = checkout
+    if candidate != checkout_resolved and checkout_resolved not in candidate.parents:
+        return None
+    return candidate
+
+
+def classify_missing_input_report(
+    path: str,
+    why: str = "",
+    *,
+    checkout: Path | str,
+    source: str = MISSING_INPUT_SOURCE_TOKEN,
+) -> MissingInputDecision:
+    """THE ONE classification path for a missing-input report (spec R3.3, R3.5, R3.6, R3.7).
+
+    COORDINATOR-SIDE ONLY, which is R3.3's first clause: this runs in the driver process, never in
+    the lane, so resolving the request never hands the worker a path it could not already see.
+
+    ALWAYS REFUSES (R3.3a as amended). The reject SHAPES still matter, because R3.5 requires the
+    record to name WHY, and an auditor must be able to tell "you asked for something malformed" from
+    "your request was well-formed but no permitted path exists". The eight R3.3 shapes are checked
+    first, in the order the spec lists them, and a well-formed survivor is refused with
+    `REJECT_WITHDRAWN_REPAIR`.
+
+    THE COORDINATOR-SURFACE CLASS COMES FROM THE SHARED PREDICATE, by CALL (spec R3.3's last clause,
+    CID-2). `worktree_lease.path_is_worker_forbidden` owns the question "is this a coordinator-owned
+    surface?" and is consulted for it rather than having its five hints copied here, so the two
+    cannot drift. The OTHER classes are properties of a requested PATH (absolute, escaping, a
+    directory, absent) rather than a list of protected surfaces, so they are checked beside it; they
+    are deliberately NOT pushed into that predicate, because it is also consulted by
+    `assert_worker_scope` to validate a lane's declared WRITES and widening it would change a
+    sibling's rule (see the walkthrough's note for `604wra`, which owns R6 consolidation).
+
+    NEVER RAISES on a bad request. Every failure mode is a refusal RECORD, because this is called
+    from a driver's stdout loop where an exception would kill a healthy turn.
+    """
+
+    from agent_workflows import worktree_lease
+
+    root = Path(checkout)
+    requested = (path or "").strip()
+    detail = (why or "").strip()
+
+    if not requested:
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_MALFORMED_TOKEN,
+            reason=(
+                "the report named no path, so there is nothing to resolve; the required form is "
+                + MISSING_INPUT_TOKEN_FORM
+            ),
+            source=source,
+            detail=detail,
+        )
+    normalized = requested.replace("\\", "/")
+
+    if os.path.isabs(requested) or _looks_absolute(normalized):
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_ABSOLUTE,
+            reason=(
+                "an absolute path is refused: a report must name a REPO-RELATIVE path, and honoring "
+                "an absolute one would describe a location outside the lane"
+            ),
+            source=source,
+            detail=detail,
+        )
+
+    # ORDER MATTERS from here. The surface/lane/state/git classes are decided from the PATH TEXT, so
+    # they are reported even for a path that does not exist - which is the honest answer: "you may
+    # not ask for that" is more precise than "that is missing".
+    if worktree_lease.path_is_worker_forbidden(normalized):
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_COORDINATOR_SURFACE,
+            reason=(
+                "the path is a COORDINATOR-OWNED surface (refused by the shared "
+                "`worktree_lease.path_is_worker_forbidden` predicate), which the driver owns and a "
+                "worker never reads or writes"
+            ),
+            source=source,
+            detail=detail,
+        )
+    if normalized == worktree_lease.WORKTREES_SUBDIR or normalized.startswith(
+        worktree_lease.WORKTREES_SUBDIR + "/"
+    ):
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_SIBLING_LANE,
+            reason=(
+                "the path is inside the per-lane worktrees root, so it names either a SIBLING LANE's "
+                "workspace or the root itself; a lane is isolated from every other lane"
+            ),
+            source=source,
+            detail=detail,
+        )
+    if any(normalized.startswith(prefix) for prefix in MACHINE_LOCAL_PREFIXES):
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_MACHINE_STATE,
+            reason=(
+                "the path is MACHINE-LOCAL state (driver run state, lane submissions, or lane "
+                "scratch) rather than repository content, so it is not a lane input at all"
+            ),
+            source=source,
+            detail=detail,
+        )
+    if normalized == ".git" or normalized.startswith(".git/"):
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_GIT_ADMIN,
+            reason=(
+                "the path is the GIT ADMINISTRATION directory; the driver performs every git "
+                "mutation after the worker exits, so a worker never needs it"
+            ),
+            source=source,
+            detail=detail,
+        )
+
+    resolved = _relative_to_checkout(requested, root)
+    if resolved is None:
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_ESCAPES_CHECKOUT,
+            reason=(
+                "the path ESCAPES the checkout once normalized, so it names a location outside the "
+                "repository the lane is a worktree of"
+            ),
+            source=source,
+            detail=detail,
+        )
+    if resolved.is_dir():
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_DIRECTORY,
+            reason=(
+                "the path names a DIRECTORY rather than a file; a report must name one specific "
+                "required file so the need is unambiguous"
+            ),
+            source=source,
+            detail=detail,
+        )
+    if not resolved.exists():
+        return MissingInputDecision(
+            path=requested,
+            rule=REJECT_ABSENT,
+            reason=(
+                "the path DOES NOT EXIST in the checkout, so no input could satisfy the report even "
+                "if a permitted path existed"
+            ),
+            source=source,
+            detail=detail,
+        )
+
+    # WELL-FORMED AND STILL REFUSED, and this is the branch the amendment created. Nothing is wrong
+    # with the path; there is simply no permitted path any more (spec R3.3a). Saying so precisely is
+    # what R3.5 requires: an auditor must not read this as a malformed request.
+    return MissingInputDecision(
+        path=requested,
+        rule=REJECT_WITHDRAWN_REPAIR,
+        reason=(
+            "the request is well-formed, but NOTHING is materialized into a lane on request: spec "
+            "7ckptx R3.3a withdrew the permit-and-copy branch, so the driver RECORDS the need for a "
+            "human or a follow-up instead of satisfying it inline. If this input is genuinely "
+            "required, the conforming fix is UP-FRONT lane assembly under an explicit policy, not a "
+            "request-time copy"
+        ),
+        source=source,
+        detail=detail,
+    )
+
+
+def _looks_absolute(normalized: str) -> bool:
+    """True for a POSIX or Windows-style absolute path, checked on the SLASH-NORMALIZED text.
+
+    `os.path.isabs` is platform-dependent (`C:/x` is not absolute on POSIX), and a report is
+    classified by the COORDINATOR, which may run on a different platform than the text was written
+    on. Refusing both spellings everywhere is the fail-closed direction.
+    """
+
+    if normalized.startswith("/"):
+        return True
+    return len(normalized) >= 3 and normalized[1] == ":" and normalized[2] == "/"
+
+
+def classify_denied_permission_path(
+    path: str,
+    why: str = "",
+    *,
+    checkout: Path | str,
+) -> MissingInputDecision:
+    """R3.7: route a DENIED host permission event through the SAME path, so there is ONE rule.
+
+    This is deliberately a thin call to `classify_missing_input_report` with a different `source`,
+    and NOT a second classifier. The requirement is that a denied event pointing into the original
+    checkout produces the SAME decision as the equivalent worker token for that path (criterion A19),
+    so the only difference the record may carry is PROVENANCE.
+
+    WHY IT MATTERS THAT THIS IS ONE LINE: child `lhmrhx` produces the denial (the opencode host is
+    configured with `permission.external_directory=deny`), and this plan classifies what that catches.
+    Two classifiers would let the driver refuse an ask one way and a report another, which is exactly
+    the "hook rule differs from driver" hazard the shared-predicate rule exists to prevent.
+    """
+
+    return classify_missing_input_report(
+        path,
+        why,
+        checkout=checkout,
+        source=MISSING_INPUT_SOURCE_PERMISSION,
+    )
+
+
+class MissingInputObserver:
+    """The per-turn, host-neutral observer both drivers feed their child's stdout to (spec R3).
+
+    ONE PER TURN, constructed by the driver adapter with the turn's own `checkout`. `observe_line` is
+    called for EVERY line, exactly like `TurnBoundWatch.note_progress` already is, and returns the
+    decision it recorded (or `None` for an ordinary line) so a caller can react without re-parsing.
+
+    IT DOES NOT BLOCK THE WORKER, which is R3.1's explicit requirement: observing a report records a
+    refusal and marks the lane paused; it never waits for an answer, and it never opens an
+    interactive prompt (R3.2 - there is no answerer in an unattended turn, which is the measured
+    deadlock this whole Set exists to prevent).
+
+    `paused` is the PRESERVE-AND-PAUSE signal (R3.2). It is advisory state the driver reads AFTER the
+    turn to keep the lane rather than reclaim it; nothing here tears a lane down, and nothing here
+    copies a file into one.
+    """
+
+    def __init__(self, checkout: Path | str) -> None:
+        self.checkout = Path(checkout)
+        self.decisions: list[MissingInputDecision] = []
+        self.paused = False
+        self.pause_reason = ""
+
+    def observe_line(self, line: str) -> "MissingInputDecision | None":
+        """Classify one line of worker output; record and pause if it is a report."""
+
+        parsed = parse_missing_input_token(line)
+        if parsed is None:
+            return None
+        path, why = parsed
+        return self.record(
+            classify_missing_input_report(
+                path, why, checkout=self.checkout, source=MISSING_INPUT_SOURCE_TOKEN
+            )
+        )
+
+    def note_line(
+        self,
+        line: str,
+        run_dir: Path,
+        item: dict[str, Any],
+        attempt_no: int,
+    ) -> "MissingInputDecision | None":
+        """Observe one line AND record any refusal: the whole per-line duty in ONE call.
+
+        THE REASON THIS EXISTS rather than leaving each driver to do both steps: with `observe_line`
+        and `record_missing_input_refusal` called separately, every driver carried a four-line
+        `if`-block, and two hand-written copies of a two-step sequence is precisely the drift CID-3
+        warns about (one host could observe while the other also recorded). Collapsing it here leaves
+        each driver with a SINGLE call, so the twins cannot diverge on the STEPS - only on the fact of
+        being wired at all, which `TwinParityTests` checks directly.
+
+        Returns the recorded decision, or `None` for an ordinary line.
+        """
+
+        decision = self.observe_line(line)
+        if decision is not None:
+            record_missing_input_refusal(run_dir, item, attempt_no, decision)
+        return decision
+
+    def observe_denied_permission(
+        self, path: str, why: str = ""
+    ) -> MissingInputDecision:
+        """R3.7's entry point: a denied host permission event for `path`, same rule as a token."""
+
+        return self.record(
+            classify_denied_permission_path(path, why, checkout=self.checkout)
+        )
+
+    def record(self, decision: MissingInputDecision) -> MissingInputDecision:
+        """Record a refusal and PRESERVE-AND-PAUSE the lane (R3.2), without blocking the worker."""
+
+        self.decisions.append(decision)
+        self.paused = True
+        self.pause_reason = "missing-input refused: {0} ({1})".format(
+            decision.path or "<no path>", decision.rule
+        )
+        return decision
+
+    def as_record(self) -> dict[str, Any]:
+        """The attempt-level summary: every refusal, plus the pause state (R3.2, R3.5)."""
+
+        return {
+            "paused": self.paused,
+            "pause_reason": self.pause_reason,
+            "refusals": [d.as_dict() for d in self.decisions],
+        }
+
+
+def record_missing_input_refusal(
+    run_dir: Path,
+    item: dict[str, Any],
+    attempt_no: int,
+    decision: MissingInputDecision,
+) -> dict[str, Any]:
+    """Write ONE refusal onto the attempt AND to the event log (spec R3.5).
+
+    HOST-NEUTRAL for the same reason `record_host_posture` is (R2.6): both drivers call THIS, so the
+    record SHAPE cannot drift between hosts and an artifact reader is never misled by a per-host
+    layout. The event is best-effort (`suppress`) because a logging failure must never escalate into
+    killing a turn that is otherwise making progress - but the ATTEMPT record is written first, so
+    the refusal survives even when the event write fails.
+    """
+
+    record = decision.as_dict()
+    for attempt in item.get("attempts") or []:
+        if attempt.get("number") == attempt_no:
+            attempt.setdefault("missing_input_refusals", []).append(record)
+            attempt["lane_paused_for_missing_input"] = True
+            break
+    else:
+        item.setdefault("missing_input_refusals", []).append(record)
+        item["lane_paused_for_missing_input"] = True
+    with contextlib.suppress(Exception):
+        runner_shared.append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": runner_shared.utc_now(),
+                "event": "missing-input-refused",
+                "id6": item.get("id6", ""),
+                "attempt": attempt_no,
+                **record,
+            },
+        )
+    return record
+
+
+def lane_preserved_for_missing_input(item: dict[str, Any]) -> bool:
+    """True when a refused missing-input report means this lane MUST NOT be torn down (spec R3.2).
+
+    THIS IS WHAT MAKES "PRESERVE AND PAUSE" REAL RATHER THAN A LOG LINE, and it is the half that is
+    easy to omit: recording a refusal while the success path still force-removes the lane would
+    destroy the very evidence the refusal points at. `teardown_worktree(force=True)` deletes the lane
+    BRANCH and its uncommitted files unrecoverably (measured, see that function's own warning), so a
+    lane holding a refusal is exactly the "classify first, tear down only a provably-empty lane" case.
+
+    HOST-NEUTRAL and read from the ITEM (not from a live observer), so it answers correctly on a
+    RESUMED run whose observer object is long gone: the flag is durable state written by
+    `record_missing_input_refusal`, which is why that function writes the attempt record BEFORE the
+    best-effort event.
+
+    Checked at BOTH levels because `record_missing_input_refusal` writes at whichever exists: the
+    attempt when the run has one, otherwise the item.
+    """
+
+    if item.get("lane_paused_for_missing_input"):
+        return True
+    for attempt in item.get("attempts") or []:
+        if attempt.get("lane_paused_for_missing_input"):
+            return True
+    return False
