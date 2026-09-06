@@ -2,12 +2,17 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 211 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 212 Sets; the full manifest is INDEX.json.
 
 ## hostdefault
 
 - `tm2cz8` [pending] 01 pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md
 - `ybkmzp` [pending] 02 pending/20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md
+
+## idxuntrack
+
+- `4r0qp1` [pending] 01 pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md
+- `yvvf98` [pending] 02 pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md
 
 ## orchretire
 
@@ -194,10 +199,6 @@ Showing the 40 most-recent of 211 Sets; the full manifest is INDEX.json.
 ## bkclose
 
 - `zhr6mc` [executed] 01 executed/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md
-
-## bklgrad
-
-- `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
 
 ## (singletons: no Set)
 

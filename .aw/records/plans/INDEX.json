@@ -4612,6 +4612,26 @@
   {
     "date": "2026-09-06",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md",
+    "plan_id": "4r0qp1",
+    "set_id": "idxuntrack",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md",
+    "plan_id": "yvvf98",
+    "set_id": "idxuntrack",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
