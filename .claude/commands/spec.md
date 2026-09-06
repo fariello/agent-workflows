@@ -1,5 +1,5 @@
 ---
-description: Front of funnel: turn a fuzzy request into a reviewable specification (goals, non-goals, users, requirements, testable acceptance criteria, constraints, open questions). Guided/interactive; writes the spec to the repo's convention. Produces the artifact that `/advise spec-editor` interrogates and `plan-review` reviews.
+description: Front of funnel: turn a fuzzy request into a reviewable specification (goals, non-goals, users, requirements, testable acceptance criteria, constraints, open questions). Guided/interactive; writes the spec to the repo's convention. Produces the artifact that `/advise spec-editor` interrogates and `spec-review` reviews.
 argument-hint: "[optional target path or flags]"
 ---
 

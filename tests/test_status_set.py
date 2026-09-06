@@ -335,6 +335,59 @@ class TestStatusSetCommands(StatusSetTestBase):
         text = done_path.read_text(encoding="utf-8")
         self.assertIn("- Status: done", text)
 
+    def _write_spec_review_record(
+        self, subject_id6: str, slug: str = "test-spec"
+    ) -> Path:
+        """A conforming spec-review record, so a spec may legally reach `reviewed`.
+
+        revsweep `5slbpi` made `to-review -> reviewed` an ATTESTED transition for specs: it now requires
+        a parseable review record naming the spec as its `- Subject-Id:`. Written through
+        `review_findings` (the single writer) rather than as literal markdown, so this fixture cannot
+        drift from the format the setter's predicate parses.
+        """
+        from agent_workflows import review_findings as rf
+
+        rnd = rf.Round(
+            number=1,
+            findings=(
+                rf.Finding(
+                    id="SR-001",
+                    severity="low",
+                    scope="in-scope",
+                    area="B",
+                    evidence="spec.md:1",
+                    finding="a fixture finding",
+                    remediation_risk="Overall:Low",
+                    decision="fixed",
+                    resolution="handled",
+                ),
+            ),
+            decisions=(),
+        )
+        p = (
+            self.repo_root
+            / ".aw"
+            / "records"
+            / "reviews"
+            / rf.build_review_name(
+                date="20260822",
+                set_id="setmix",
+                order=1,
+                subject_id6=subject_id6,
+                slug=slug,
+            )
+        )
+        rf.write_review(
+            p,
+            subject_id=subject_id6,
+            subject_type="spec",
+            reviewed_at="2026-08-22",
+            reviewer="fixture",
+            verdict="APPROVE",
+            rounds=[rnd],
+        )
+        return p
+
     def test_set_multiple_mixed_types(self):
         plan = self.create_plan(
             "20260822-setmix-01-pl0005-test-plan.ipd.md",
@@ -351,6 +404,10 @@ class TestStatusSetCommands(StatusSetTestBase):
             "setmix",
             "to-review",
         )
+        # revsweep `5slbpi`: the spec member's `->reviewed` transition is now ATTESTED, so the batch
+        # needs the spec's review record to exist. The plan and prompt members are unaffected (a
+        # missing review stays deliberately silent for a plan).
+        self._write_spec_review_record("sp0003")
 
         # Set all 3 to reviewed in one command
         rc = cli.main(
@@ -370,6 +427,39 @@ class TestStatusSetCommands(StatusSetTestBase):
         self.assertIn("- Status: reviewed", plan.read_text(encoding="utf-8"))
         self.assertIn("- Status: reviewed", spec.read_text(encoding="utf-8"))
         self.assertIn("- Status: reviewed", prompt.read_text(encoding="utf-8"))
+
+    def test_mixed_batch_refuses_ALL_when_the_spec_member_is_unattested(self):
+        """revsweep `5slbpi`: the attestation composes with the ATOMIC pre-flight, so a batch
+        containing one unattested spec sets NOTHING rather than partially applying.
+
+        This is the companion of the test directly above and the reason it needed a record: the
+        pre-flight loop validates every matched record before any write, so the spec's refusal must
+        leave the plan and prompt untouched too.
+        """
+        plan = self.create_plan(
+            "20260822-setmix-02-pl0008-test-plan.ipd.md",
+            "pl0008",
+            "setmix2",
+            "to-review",
+        )
+        spec = self.create_spec(
+            "20260822-0004-01-test-spec.spec.md", "sp0004", "setmix2", "to-review"
+        )
+        # NO review record for sp0004.
+        rc = cli.main(
+            [
+                "set",
+                "reviewed",
+                "pl0008",
+                "sp0004",
+                "--yes",
+                "--dir",
+                str(self.repo_root),
+            ]
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("- Status: to-review", spec.read_text(encoding="utf-8"))
+        self.assertIn("- Status: to-review", plan.read_text(encoding="utf-8"))
 
     def test_set_by_setid_all_members_updated(self):
         plan1 = self.create_plan(

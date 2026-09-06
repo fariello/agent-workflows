@@ -923,3 +923,120 @@ def subject_gating_blocks(
 # A caller that needs only a verdict should write `bool(subject_gating_blocks(...))` at the call site,
 # because a caller that must TELL THE OPERATOR WHY needs the tuple anyway, and a block whose message
 # does not name its cause is the failure mode this Set exists to remove.
+
+
+# --------------------------------------------------------------------------------------
+# The shared "did a review actually happen?" ATTESTATION predicate (revsweep `5slbpi` E-04).
+#
+# WHY IT LIVES HERE. It answers a question about REVIEW RECORDS, and this module is the single
+# writer, parser, and discoverer of those records. Both callers that must enforce it - the FORKED
+# `specs.run_set` and `status_set.validate_transition_allowed`, reached by two different CLI
+# spellings of the same operation - already import from here for the GATING predicate, so putting
+# the attestation beside it means one import and, critically, ONE COPY. Installing this in only one
+# of the two setters would be bypassed by choosing the other spelling, which is the exact defect
+# `apprvguard` d7bnhc documented at `status_set.py:532-538`.
+#
+# WHAT IT IS AND IS NOT, stated plainly because overselling it is the failure mode. It is the
+# `evidence` KIND of authority that `attention_contract.APPROVAL_FLOOR` already describes: presence,
+# format, and resolvability of a citation are enforced; SEMANTIC verification that a competent review
+# happened is NOT and cannot be. Spec `25kzda` Section 6.1 states the same limit for plans. So the
+# honest claim is "a review occurred and was recorded", never "the spec was reviewed well".
+#
+# WHY A RECORD AND NOT A HISTORY RECEIPT (spec `6m4kow` R-11, plan OQ-02). A history line is written
+# by the same agent making the transition, in the same file, in the same breath, so it attests only
+# that the agent CLAIMED a review. The repository already learned this distinction on the plan side:
+# `plan-review.md:394-398` says the history prose "IS NOT THE MACHINE SIGNAL" and a consumer finding
+# no structured field FAILS CLOSED. A separate record with a verdict and findings is at least an
+# artifact whose absence is DETECTABLE.
+#
+# GRANDFATHERING IS STRUCTURAL, NOT A DATE (`5slbpi` DECISION D2). `TRANSITION_AUTHORITY` is consulted
+# only when a transition is ATTEMPTED (`specs.py` and `status_set.py` both look up `->{new}` at set
+# time), so the 20 specs already at `approved`/`implemented` are never re-tested: they are not
+# transitioning. No cutover constant is needed, and adding one would be dead configuration implying a
+# check that does not exist. The one real consequence, deliberately kept: a spec moved BACKWARD to
+# `to-review` for re-review must produce a record to return to `reviewed`. That is the gate working.
+# --------------------------------------------------------------------------------------
+
+
+def subject_review_records(repo_root, subject_id6: str) -> Tuple[Path, ...]:
+    """Every review record naming ``subject_id6`` as its subject, in deterministic order.
+
+    Includes a record that fails to PARSE; judging conformance is :func:`review_attestation_missing`'s
+    job, and a caller listing "what exists" must see a malformed file rather than have it vanish.
+
+    Never raises: an unreadable tree yields an empty tuple.
+    """
+    wanted = (subject_id6 or "").strip()
+    if not wanted:
+        return ()
+    out: List[Path] = []
+    try:
+        paths = sorted(iter_review_files(repo_root), key=lambda p: str(p))
+    except Exception:
+        return ()
+    for path in paths:
+        doc = parse_review_file(path)
+        if (doc.subject_id or "").strip() == wanted:
+            out.append(path)
+    return tuple(out)
+
+
+def review_attestation_missing(
+    repo_root, subject_id6: str, subject_type: str = "spec"
+) -> Optional[str]:
+    """Why ``subject_id6`` has NO conforming review record, or ``None`` when one exists.
+
+    THE ONE ATTESTATION PREDICATE. The setter and the checker both consult THIS function; neither
+    reimplements the rule, so the refusal a user meets and the finding a check reports cannot
+    disagree about the same spec.
+
+    A record is CONFORMING when it (a) names this subject via ``- Subject-Id:``, (b) declares
+    ``- Subject-Type:`` matching ``subject_type``, and (c) PARSES with no diagnostics. All three are
+    required, and (c) is the one worth arguing about: a record that exists but cannot be parsed proves
+    nothing about what it says, and the identical judgement is already made by
+    :func:`subject_gating_blocks` case (b), which treats a malformed record as BLOCKING rather than
+    absent. Accepting an unparseable record here while that function blocks on it would let one file
+    be simultaneously good enough to attest a review and bad enough to block an approval.
+
+    FAILS CLOSED. Returns a REASON STRING (never a bare bool) so the caller can name the cause and
+    the recovery, which is the house rule for every refusal in this repository. An empty
+    ``subject_id6`` is itself a refusal reason: an artifact with no ``- Id:`` cannot be attested,
+    and silently permitting it would make the id6-less case the bypass.
+
+    ``subject_type`` is a parameter rather than hardcoded ``"spec"`` because the record vocabulary is
+    artifact-neutral (:data:`SUBJECT_TYPES`) and a future type must not need this function reopened.
+    It is NOT a licence to widen enforcement: the only CALLER today is the spec `->reviewed`
+    transition. Plans deliberately stay silent on a missing review (see :func:`subject_gating_blocks`
+    case (a): zero review files existed against 428 plans), and this function does not change that,
+    because nothing consults it for a plan.
+    """
+    wanted = (subject_id6 or "").strip()
+    want_type = (subject_type or "").strip().lower()
+    if not wanted:
+        return "the artifact carries no `- Id:` bullet, so no review record can be matched to it"
+
+    malformed: List[str] = []
+    wrong_type: List[str] = []
+    for path in subject_review_records(repo_root, wanted):
+        doc = parse_review_file(path)
+        if doc.diagnostics:
+            codes = ", ".join(sorted({d.code for d in doc.diagnostics}))
+            malformed.append("{0} ({1})".format(path, codes))
+            continue
+        if (doc.subject_type or "").strip().lower() != want_type:
+            wrong_type.append(
+                "{0} (Subject-Type: {1})".format(path, doc.subject_type or "absent")
+            )
+            continue
+        return None  # a conforming record exists.
+
+    if malformed:
+        return "a review record naming {0} exists but does NOT parse, so it attests nothing: {1}".format(
+            wanted, "; ".join(malformed)
+        )
+    if wrong_type:
+        return (
+            "a review record naming {0} exists but declares a different subject type "
+            "(expected {1}): {2}".format(wanted, want_type, "; ".join(wrong_type))
+        )
+    return "no review record names {0} as its `- Subject-Id:`".format(wanted)

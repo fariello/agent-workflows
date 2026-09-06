@@ -547,6 +547,18 @@ def run_set(args) -> int:
                 "(an existing .agents/plans/executed/ IPD path); refused.\n"
             )
             return 1
+    # revsweep 5slbpi E-04: the `->reviewed` ATTESTATION. Enforced through the ONE shared predicate
+    # (`review_findings.review_attestation_missing`), never a second copy, because this function is a
+    # FORK of `status_set`'s path reached by the `--status` spelling: a gate in only one of them is
+    # bypassed by choosing the other. See the same reasoning at `status_set.py:532-538`.
+    #
+    # Guarded by `old != new` so a NO-OP re-set of an already-`reviewed` spec is not retroactively
+    # refused; the authority table governs TRANSITIONS, and `old == new` is not one.
+    if auth.get("review_record") and old != new:
+        reason = _review_attestation_refusal(path, text)
+        if reason is not None:
+            sys.stderr.write(reason)
+            return 1
 
     # apprvguard Order 01 (d7bnhc) E-07: THE SECOND APPROVAL SURFACE. This function is a FORK of
     # `status_set`'s approval path, reached by the `aw specs set <path> --status approved` spelling
@@ -983,6 +995,49 @@ def _spec_repo_root(spec_path: Path) -> Path:
         ):
             return parent
     return Path(".")
+
+
+_SPEC_ID_BULLET_RE = re.compile(r"(?m)^-[ \t]*Id:[ \t]*([0-9a-z]{6})[ \t]*$")
+
+
+def _review_attestation_refusal(spec_path: Path, text: str) -> Optional[str]:
+    """The refusal MESSAGE for a `->reviewed` transition with no conforming review record, or None.
+
+    revsweep `5slbpi` E-04. TWO SURFACES SHARE THIS FUNCTION, and that is the whole point: `run_set`
+    (the `--status` spelling) and `status_set.validate_transition_allowed` (the positional spelling)
+    both call it, so the refusal a user meets is byte-identical whichever spelling they chose. The
+    JUDGEMENT is not made here either - it is delegated to `review_findings.review_attestation_missing`,
+    the single predicate `aw check` also consults - so this function owns only the wording and the
+    recovery command.
+
+    A refusal that does not name its cause AND its recovery is the failure mode this repository's
+    refusals exist to avoid, so the message states which spec, why the record is unacceptable
+    (absent / unparseable / wrong type), and the exact next command.
+
+    Never raises: an unreadable reviews tree yields a refusal reason rather than an exception, which
+    is the fail-closed direction for an attestation (an attestation we cannot verify is not one).
+    """
+    from agent_workflows import review_findings as _rf
+
+    m = _SPEC_ID_BULLET_RE.search(text or "")
+    id6 = m.group(1) if m else ""
+    repo_root = _spec_repo_root(spec_path)
+    try:
+        missing = _rf.review_attestation_missing(repo_root, id6, "spec")
+    except Exception as exc:  # pragma: no cover - defensive; see docstring
+        missing = "the reviews tree could not be read ({0})".format(exc)
+    if missing is None:
+        return None
+    return (
+        "aw specs set: to-review -> reviewed requires evidence that a review OCCURRED, namely a "
+        "conforming review record naming this spec as its `- Subject-Id:`; refused (file unchanged).\n"
+        "  reason: {0}\n"
+        "  recovery: run the spec review (`/spec-review {1}`), which writes "
+        ".aw/records/reviews/<...>.review.md with `- Subject-Id: {2}` and `- Subject-Type: spec`, "
+        "then re-run this command.\n"
+        "  note: this proves a review happened and was recorded. It does NOT prove the review was "
+        "thorough.\n".format(missing, spec_path, id6 or "<spec-id6>")
+    )
 
 
 def _evidence_resolvable(spec_path: Path, evidence: str) -> bool:

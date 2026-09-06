@@ -208,6 +208,18 @@ _COMMAND_FAMILY: Dict[str, str] = {
     "release-review-plan": "release review modes",
     "plan-review": "plan review aliases",
     "plan-review-long": "plan review aliases",
+    # revsweep `5slbpi`: the SPEC reviewer. Registered here because this table FAILS CLOSED by design
+    # (`_command_disposition` raises `InventoryError` for an unassigned command), so a new manifest row
+    # MUST be dispositioned rather than silently defaulted. That is the table working, not a defect.
+    #
+    # ITS OWN FAMILY, deliberately NOT "plan review aliases", and the distinction is the whole point of
+    # this inventory: that family exists to record that `plan-review-long` is an ALIAS of `plan-review`
+    # (one canonical package, two command names, collapsed by Order 14 E-03). `spec-review` is the
+    # opposite claim - an INDEPENDENT package with its own body, produced by a maintainer ruling that
+    # explicitly rejected generalizing `plan-review` - so filing it under the alias family would assert
+    # a collapse that does not exist and would put it inside Order-14's migration scope, which the
+    # ownership fence at `check_completeness` would then have to be told to allow.
+    "spec-review": "spec review",
     "verify-execution": "verification/lifecycle",
     "ipd-lifecycle": "verification/lifecycle",
     "exec-set": "verification/lifecycle",
@@ -250,6 +262,31 @@ _FAMILY_DEFAULTS: Dict[str, Dict[str, str]] = {
         "risk": "low",
         "interaction": "interactive",
         "migration_owner": "order-14",
+    },
+    # revsweep `5slbpi`. Each value is chosen against the shipped body rather than copied from the
+    # plan-review row, because two of them genuinely differ:
+    #
+    # * `guided` not `shared-harness`: it is ONE linear body an agent reads, with no lens/persona
+    #   indirection and no shared harness behind it. Calling it `shared-harness` would assert exactly
+    #   the generalization the maintainer's ruling rejected.
+    # * `single-context` not `bounded-runtime`: a single file, no step packets to load one at a time
+    #   (that is `plan-review-long`'s shape, and this package has no multi-file variant).
+    # * `artifact` evidence: the run PRODUCES a durable `.review.md`, and since `5slbpi` E-04 that
+    #   artifact is the ATTESTATION the `->reviewed` transition requires. `inspection` (plan-review's
+    #   level) would understate a run whose output is now load-bearing for a lifecycle gate.
+    # * `low` risk and `interactive`: it edits a planning artifact and drives one tooled status
+    #   transition, never code; it asks the human to decide open questions when a channel exists.
+    # * `order-16`: the compact-workflow + shim tier, matching the other single-body guided workflows
+    #   (`spec`, `handoff`, `incident`). NOT `order-14`, whose ownership fence admits only the shared
+    #   assess/advise families and the plan-review collapse.
+    "spec review": {
+        "execution_mode": "guided",
+        "skill_decision": "skill",
+        "orchestration_decision": "single-context",
+        "evidence_level": "artifact",
+        "risk": "low",
+        "interaction": "interactive",
+        "migration_owner": "order-16",
     },
     "verification/lifecycle": {
         "execution_mode": "deterministic",

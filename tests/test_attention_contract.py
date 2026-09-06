@@ -107,6 +107,47 @@ class TransitionAuthorityTests(unittest.TestCase):
         self.assertIn("--by-human", A.APPROVAL_FLOOR)
         self.assertIn("INSUFFICIENT", A.APPROVAL_FLOOR)
 
+    def test_reviewed_transition_is_attested(self):
+        """revsweep `5slbpi` E-04: `->reviewed` carries a `review_record` requirement.
+
+        It had NO entry at all before, which is the hole this plan closed: `aw specs set reviewed`
+        succeeded with no review, no findings, and no record, while the same claim on a plan was
+        policed. This asserts the entry exists AND that it is the record kind rather than being
+        mis-declared as a `--evidence` citation (there is no `--evidence` flag on this transition, so
+        declaring `evidence: True` would make it unsatisfiable).
+        """
+        entry = A.TRANSITION_AUTHORITY["->reviewed"]
+        self.assertTrue(entry["review_record"])
+        self.assertFalse(entry["evidence"])
+        self.assertFalse(entry["by_human"])
+        self.assertFalse(entry["human_token"])
+        self.assertEqual(entry["who"], "reviewer")
+
+    def test_approval_floor_states_the_review_record_requirement_and_its_limit(self):
+        """The floor is the human-readable contract, so a new requirement must appear IN it.
+
+        And it must appear WITH its honest limit: the attestation proves a review occurred and was
+        recorded, never that it was competent. Overselling it is the failure mode the plan named.
+        """
+        self.assertIn("REVIEW RECORD", A.APPROVAL_FLOOR)
+        self.assertIn("Subject-Id", A.APPROVAL_FLOOR)
+        self.assertIn("does NOT prove the review was competent", A.APPROVAL_FLOOR)
+
+    def test_every_authority_key_is_a_reachable_transition(self):
+        """An authority entry for a transition the graph forbids would be dead, unfireable config.
+
+        Asserted rather than eyeballed because the entry added by `5slbpi` is the first one whose
+        target is a NON-terminal status, so the pairing with `SPEC_TRANSITIONS` is newly load-bearing.
+        """
+        reachable = {new for allowed in A.SPEC_TRANSITIONS.values() for new in allowed}
+        for key in A.TRANSITION_AUTHORITY:
+            self.assertTrue(key.startswith("->"), f"malformed authority key {key!r}")
+            self.assertIn(
+                key[2:],
+                reachable,
+                f"{key} has authority but no legal transition reaches it",
+            )
+
 
 class GateTests(unittest.TestCase):
     def test_gate_kinds(self):

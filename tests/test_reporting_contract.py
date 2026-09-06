@@ -33,6 +33,35 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIM_CORPUS_BASELINE_BYTES = 42_701
 SHIM_POINTER_BUDGET_BYTES_PER_FILE = 160
 
+# The file count the baseline was measured over. Kept EXPLICIT so the ceiling can be scaled to the
+# CURRENT corpus instead of being pinned to that snapshot (revsweep `5slbpi`).
+#
+# WHY THIS WAS NECESSARY, since silently relaxing an anti-duplication guard would be the wrong move.
+# The ceiling was `BASELINE + PER_FILE * len(corpus)`, which mixes an ABSOLUTE total measured over 48
+# files with a PER-FILE allowance. Adding any new workflow therefore breached it for a reason the
+# guard does not care about (a legitimately larger corpus), not for the reason it exists (the prose
+# being copied into each shim). Measured: registering `spec-review` added 2 files and ~2.4KB of
+# genuinely new shim content and put the total 526 bytes over a ceiling that had grown by only 320.
+#
+# The fix SCALES the baseline by the plan-time per-file average rather than raising it, so the guard
+# still measures BYTES PER SHIM and remains sensitive to exactly what it was written to catch:
+# duplicating the ~1.7KB contract into every shim is ~+1.7KB/file against a ~890+160 = ~1050 B/file
+# allowance, i.e. still an order-of-magnitude breach. `test_budget_guard_actually_fails_on_duplication`
+# proves that sensitivity survived, and it is asserted against the SAME helper so the two cannot drift.
+SHIM_CORPUS_BASELINE_FILES = 48
+
+
+def _shim_corpus_ceiling(file_count: int) -> int:
+    """The byte ceiling for a corpus of ``file_count`` generated shims.
+
+    Scales the plan-time baseline by its own per-file average, then adds the per-file pointer
+    allowance. ONE formula, used by the budget assertion and by the guard-sensitivity test alike.
+    """
+    per_file_baseline = SHIM_CORPUS_BASELINE_BYTES / SHIM_CORPUS_BASELINE_FILES
+    return int(per_file_baseline * file_count) + (
+        SHIM_POINTER_BUDGET_BYTES_PER_FILE * file_count
+    )
+
 
 def _flat(text: str) -> str:
     """Collapse whitespace so a needle assertion is insensitive to line wrapping.
@@ -433,13 +462,13 @@ class ShimPointerTests(unittest.TestCase):
 
         corpus = _shim_corpus()
         total = sum(len(t.encode("utf-8")) for t in corpus.values())
-        allowance = SHIM_POINTER_BUDGET_BYTES_PER_FILE * len(corpus)
-        ceiling = SHIM_CORPUS_BASELINE_BYTES + allowance
+        ceiling = _shim_corpus_ceiling(len(corpus))
         self.assertLessEqual(
             total,
             ceiling,
             f"shim corpus is {total} bytes across {len(corpus)} files, over the "
-            f"{ceiling}-byte ceiling (baseline {SHIM_CORPUS_BASELINE_BYTES} + "
+            f"{ceiling}-byte ceiling (baseline {SHIM_CORPUS_BASELINE_BYTES} over "
+            f"{SHIM_CORPUS_BASELINE_FILES} files, scaled, plus "
             f"{SHIM_POINTER_BUDGET_BYTES_PER_FILE}/file). The contract prose was "
             "probably duplicated into the shims; E-03 requires a pointer.",
         )
@@ -454,9 +483,9 @@ class ShimPointerTests(unittest.TestCase):
         corpus = _shim_corpus()
         duplicated = {rel: text + RC.contract_text() for rel, text in corpus.items()}
         total = sum(len(t.encode("utf-8")) for t in duplicated.values())
-        ceiling = SHIM_CORPUS_BASELINE_BYTES + SHIM_POINTER_BUDGET_BYTES_PER_FILE * len(
-            duplicated
-        )
+        # The SAME ceiling helper the real assertion uses, so a change to the formula cannot make the
+        # guard permissive while leaving this sensitivity proof passing against the old one.
+        ceiling = _shim_corpus_ceiling(len(duplicated))
         self.assertGreater(
             total,
             ceiling,

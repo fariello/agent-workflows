@@ -138,6 +138,19 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.review-dangling": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-07"
     ),
+    # revsweep 5slbpi E-04: a spec CURRENTLY at `- Status: reviewed` with no conforming review record
+    # naming it. `error`, NOT the advisory severity its `check.review-dangling` neighbour directly
+    # above carries, and the difference is deliberate rather than inherited: a stale review is untidy
+    # leftover data nothing downstream reads, whereas a spec claiming `reviewed` with no review is a
+    # FALSE LIFECYCLE CLAIM on the artifact that AUTHORIZES plans, which is exactly what invariant
+    # I-03 (lifecycle-status authority) exists to police. Registration is not bookkeeping: an
+    # unregistered id falls back to `_DEFAULT_RULESPEC` with an EMPTY invariant, so omitting this entry
+    # would silently drop the I-03 trace. Deterministic: a literal `- Status:` token test plus the
+    # shared `review_findings.review_attestation_missing` predicate (presence + declared type +
+    # parseability of a record). No inference.
+    "check.spec-review-unattested": RuleSpec(
+        "error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-03"
+    ),
     # revgate Order 02 (plqjt7) E-01: an unfixed finding at or above the configured severity
     # threshold that was never escalated into a `Blocking: yes` open question. UNLIKE
     # `check.review-dangling` above (advisory, an untidy leftover), this one is an `error`: an unfixed
@@ -1746,6 +1759,13 @@ def check_types(
             drift.extend(check_review_dangling(repo_root))
         except Exception:
             pass
+        # revsweep 5slbpi E-04: the OTHER half of the `->reviewed` attestation. The setter refuses the
+        # transition; this rule catches a spec that reached `reviewed` some other way (a hand edit, a
+        # pre-existing file). Same shared predicate, so the refusal and the finding cannot disagree.
+        try:
+            drift.extend(check_spec_review_attestation(repo_root))
+        except Exception:
+            pass
         # proclint 79li67: the COMMIT-SCOPED untooled-status detector rides `aw check`/`aw check all`
         # (a fast no-op when no plan status change is staged), the intermediate-transition sibling of
         # the dulzpy pre-commit gate. It examines only commit-changed plan files (no whole-tree scan).
@@ -2779,6 +2799,80 @@ def check_review_dangling(repo_root: Path) -> List[_core.Drift]:
                     "correct the Subject-Id to the reviewed artifact's id6 (or fix Subject-Type if "
                     "the wrong tree is being searched), or retire the review alongside the "
                     "artifact it reviewed"
+                ),
+            )
+        )
+    return drift
+
+
+_SPEC_REVIEW_ATTESTATION_RULE = "check.spec-review-unattested"
+
+
+def check_spec_review_attestation(repo_root: Path) -> List[_core.Drift]:
+    """Flag a spec CURRENTLY at `- Status: reviewed` with no conforming review record.
+
+    revsweep `5slbpi` E-04, spec `6m4kow` R-11/R-12. The setter half refuses the TRANSITION; this half
+    catches a spec that reached `reviewed` some OTHER way - a hand edit, an import, a pre-toolkit
+    file - because a gate that only guards the front door leaves the window open. Both halves consult
+    the SAME predicate (`review_findings.review_attestation_missing`), which is what R-12 requires and
+    what keeps the refusal a user meets and the finding a check reports from disagreeing about one spec.
+
+    SCOPED TO `reviewed` AND NOTHING ELSE, which is also what makes grandfathering FREE rather than
+    configured (`5slbpi` DECISION D2). `reviewed` is a TRANSIENT state on the way to `approved`, and
+    measured at implementation NO spec in this repository sat there: the census was 15 `implemented`,
+    5 `approved`, 2 `draft`, 2 `deferred`, 1 `to-review`, 1 `superseded`, 1 `implementing`. So the 20
+    pre-existing `approved`/`implemented` specs - none of which has a review record and none of which
+    ever will - are outside this rule BY CONSTRUCTION, with no cutover date to maintain. A rule keyed on
+    "has this spec ever been reviewed" would instead have flagged all 20 and retroactively invalidated
+    most of the specs tree, which R-13 forbids.
+
+    `error` rather than the advisory severity its `check.review-dangling` neighbour carries, and the
+    difference is deliberate: a stale review is untidy leftover data nothing reads, whereas a spec
+    claiming `reviewed` with no review is a FALSE LIFECYCLE CLAIM on the artifact that authorizes plans.
+    That is the invariant class I-03 (lifecycle-status authority) covers.
+
+    Never raises: an unreadable specs or reviews tree yields no findings, because a crashing check is a
+    disabled check.
+    """
+    drift: List[_core.Drift] = []
+    try:
+        from agent_workflows import review_findings as _rf
+    except Exception:
+        return drift
+
+    for path, text in _iter_spec_records(repo_root):
+        ms = _re.search(r"(?m)^-[ \t]*Status:[ \t]*(\S+)[ \t]*$", text)
+        if ms is None or ms.group(1).strip().lower() != "reviewed":
+            continue
+        mid = _ITEM_ID_RE.search(text)
+        id6 = mid.group(1) if mid else ""
+        try:
+            missing = _rf.review_attestation_missing(repo_root, id6, "spec")
+        except Exception:
+            continue
+        if missing is None:
+            continue
+        drift.append(
+            enrich_drift(
+                _core.Drift(
+                    str(path),
+                    _SPEC_REVIEW_ATTESTATION_RULE,
+                    f"spec is `reviewed` but {missing}",
+                ),
+                observed="- Status: reviewed with no conforming review record",
+                # Deliberately describes the record by its FIELDS, not by a reviews-tree path. A path
+                # string here would be a second hardcoded reviews location (the anti-duplication guard
+                # `tests/test_review_findings.py::test_no_hardcoded_reviews_path_in_check_engine`
+                # enforces its absence, and it cannot distinguish prose from a resolution path). The
+                # authority for WHERE reviews live stays `review_findings.review_dirs`.
+                required=(
+                    "a `*.review.md` in the repository's reviews tree that PARSES and carries "
+                    "`- Subject-Id: <this spec's id6>` plus `- Subject-Type: spec`"
+                ),
+                recovery=(
+                    "run the spec review (`/spec-review <spec>`) to produce the record, or return the "
+                    'spec to `to-review` with `aw specs set to-review <id6> --message "review not '
+                    'recorded"` so the attested transition can be performed properly'
                 ),
             )
         )

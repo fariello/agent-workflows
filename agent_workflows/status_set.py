@@ -513,6 +513,22 @@ def validate_transition_allowed(
                         False,
                         f"Transition {old_status} -> {norm_status} requires --by-human attestation",
                     )
+            # revsweep 5slbpi E-04: the `->reviewed` ATTESTATION, on THIS surface too. The positional
+            # `aw specs set reviewed <selector>` spelling routes HERE while the `--status` spelling
+            # routes to the forked `specs.run_set`, exactly as the approval gate below documents, so a
+            # gate installed in only one of them is bypassed by choosing the other. Both call the SAME
+            # `specs._review_attestation_refusal`, which in turn delegates the judgement to the one
+            # shared `review_findings.review_attestation_missing` predicate: one rule, one message,
+            # three consumers (both setters and `aw check`).
+            if ac.TRANSITION_AUTHORITY.get(f"->{norm_status}", {}).get("review_record"):
+                from agent_workflows import specs as _specs
+
+                reason = _specs._review_attestation_refusal(rec.path, rec.raw_text)
+                if reason is not None:
+                    # `validate_transition_allowed` returns a one-line reason; the shared message is
+                    # multi-line for the CLI, so it is flattened here rather than forked into a second
+                    # wording that could drift from the other surface's.
+                    return False, " ".join(reason.split())
 
     # apprvguard Order 01 (d7bnhc): THE APPROVAL GATE. Until this existed, reaching `approved` - the
     # state that LICENSES EXECUTION - required only that the status token be spelled correctly. On

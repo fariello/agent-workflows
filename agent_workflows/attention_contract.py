@@ -378,7 +378,30 @@ SPEC_TRANSITIONS: Dict[str, FrozenSet[str]] = {
 # Transition authority (spec Section 7). ``by_human`` means the mechanism requires an explicit
 # --by-human attestation (a conscious speed bump recording attributed human approval; NOT anti-malicious crypto;
 # see APPROVAL_FLOOR). ``evidence`` means a resolvable implementation-evidence citation is required.
+#
+# ``review_record`` (revsweep ``5slbpi`` E-04, spec ``6m4kow`` R-11) is a THIRD requirement kind and a
+# variety of ``evidence``: the citation is not passed on the command line but must EXIST in the reviews
+# tree as a conforming ``.review.md`` naming this artifact. It is enforced by the one shared predicate
+# ``review_findings.review_attestation_missing``, consulted by BOTH spec-setting surfaces (the forked
+# ``specs.run_set`` and ``status_set.validate_transition_allowed``) and by ``aw check``.
+#
+# WHY ``->reviewed`` NEEDED AN ENTRY AT ALL. It had none, so ``aw specs set reviewed <id6>`` succeeded
+# with no review, no findings, and no record, while the SAME claim on a plan is policed by
+# ``check.review-finding-unescalated`` and the approval verdict guard. Specs AUTHORIZE plans, so the
+# least-attested transition in the tree sat at the top of the authority chain.
+#
+# HONEST LIMIT, and the reason this is the ``evidence`` kind rather than something stronger: presence,
+# type, and parseability of the record are enforced; that the review was COMPETENT is not, and cannot
+# be. See APPROVAL_FLOOR's identical caveat and spec ``25kzda`` Section 6.1. Do not describe this as a
+# quality guarantee.
 TRANSITION_AUTHORITY: Dict[str, Dict[str, object]] = {
+    "->reviewed": {
+        "who": "reviewer",
+        "by_human": False,
+        "human_token": False,
+        "evidence": False,  # not a --evidence citation; see `review_record` below.
+        "review_record": True,
+    },
     "->approved": {
         "who": "human",
         "by_human": True,
@@ -414,7 +437,10 @@ APPROVAL_FLOOR = (
     "status set WITHOUT --by-human is INSUFFICIENT: it stops and refuses the transition. The "
     "implementing -> implemented transition requires a RESOLVABLE evidence citation (e.g. an existing "
     ".agents/plans/executed/ IPD path), not merely a well-formed string; aw specs enforces presence + "
-    "format + resolvability, NOT semantic verification that the work truly happened."
+    "format + resolvability, NOT semantic verification that the work truly happened. The "
+    "to-review -> reviewed transition requires a CONFORMING REVIEW RECORD naming the spec as its "
+    "Subject-Id (revsweep 5slbpi); like the evidence citation it proves a review OCCURRED and was "
+    "RECORDED, and it does NOT prove the review was competent."
 )
 
 

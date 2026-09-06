@@ -812,6 +812,167 @@ def discover_plans(
     return plans
 
 
+# ==================================================================================================
+# revsweep-04 (`5slbpi`) E-05: CROSS-TYPE needs-review DISCOVERY (spec `6m4kow` R-15).
+#
+# WHAT WAS MISSING, precisely. `6ypimw` made the needs-review PREDICATE type-aware and said so at its
+# own definition: "TYPE-AWARE BY SIGNATURE AND IPD-ONLY BY REACH ... NOTHING IN THE PACKAGE CAN
+# CURRENTLY HAND IT ONE - `runner_shared.discover_plans` walks only the two plans trees ... That gap
+# is real and is owned by `5slbpi`". This section closes exactly that gap and nothing wider: it
+# supplies the SPECS ENUMERATION the predicate was shaped to consume. It does NOT touch the
+# predicate's logic (that is `6ypimw`'s) and it does NOT register `--type` on either runner (that is
+# `uyeko5`, which has not landed; verified: `grep '"--type"'` finds no registration in either driver).
+#
+# SO BE HONEST ABOUT REACH. After this change a CALLER passing `spec_type="spec"` resolves real specs.
+# An OPERATOR typing `--type spec` still cannot, because the flag does not exist yet. Reporting the
+# latter as working would be the false claim this comment exists to prevent.
+#
+# NO NEW PATH LITERAL. Enumeration goes through `check_engine._iter_spec_records`, the same iterator
+# `check.review-dangling` and `check.from-spec-dangling` already use, exactly as `review_findings
+# .review_dirs` deliberately routes through the record-path authority rather than hardcoding a second
+# reviews path. A second "where do specs live" mechanism is the drift GUIDING_PRINCIPLES P8 forbids.
+#
+# WHY NOT `aw find specs --status` (`5slbpi` DECISION D4). Because it is BROKEN and silently so:
+# `cli._find_type_records`'s "All other types" branch (`cli.py:8487-8512`) never consults
+# `explicit_flags.status`, unlike the `plans` and `research` branches which both call a `query(...)`
+# helper. Re-verified at implementation: `aw find specs --status draft`, `--status to-review`, and
+# unfiltered `aw find specs` each return all 27 specs. This plan AVOIDS the filter rather than fixing
+# it, because the fix lives in `cli.py` (outside this plan's Scope-Paths) and would change the
+# behavior of seven record types at once.
+# ==================================================================================================
+
+
+class SpecRecord(NamedTuple):
+    """The minimum a needs-review decision needs about ONE spec: its id, status, and path.
+
+    Deliberately NOT a runner `PlanRecord`. Those are per-runner NamedTuples with plan-shaped fields
+    (`kind`, `order`, `dependencies`) that a spec does not have, and `discover_plans` has to INJECT
+    `parse_plan_file` precisely because the two runners' records disagree. A spec needs none of that:
+    the dispatch table (`run_selection_policy._SPEC_ACTIONS`) keys on STATUS alone, so this record
+    carries status and identity and stops there rather than inventing spec analogues of plan fields.
+
+    ``file`` is repo-relative POSIX, matching the `file` key a manifest plan entry carries, so the
+    same terminal-directory exclusion in `run_selection_policy.needs_review` applies unchanged.
+    """
+
+    id6: str
+    status: str
+    file: str
+    path: Path
+
+
+def discover_specs(repo: Path) -> dict[str, SpecRecord]:
+    """Scan the repository's specs tree(s), returning id6 -> :class:`SpecRecord`.
+
+    The SPEC sibling of :func:`discover_plans`, and the piece `6ypimw` named as this plan's job. It
+    takes NO injected parser, unlike `discover_plans`: there is one spec record shape (above) rather
+    than two divergent per-runner ones, so there is nothing to inject.
+
+    Identity and status are read through the SHARED authorities, not by fresh regexes:
+    `check_engine._iter_spec_records` enumerates (no new path literal), `check_engine._ITEM_ID_RE`
+    reads `- Id:`, and `selectors.read_front_matter_status` reads `- Status:`. That last one matters:
+    it returns None for a MULTI-WORD status, so a legacy free-form status line yields no status rather
+    than a mis-parsed token, and an item with no status is simply not swept.
+
+    A spec with no `- Id:` is SKIPPED rather than keyed under an empty string. Without an id6 it
+    cannot be named by a selector, cannot carry a review record (which joins on `Subject-Id`), and
+    cannot be attested, so admitting it would put an unreviewable item in a review sweep.
+
+    THAT SKIP IS NOT HYPOTHETICALLY SAFE, IT IS MEASURED SAFE, and the number is recorded here because
+    a reader who sees "8 discovered" against "27 spec files" will otherwise assume a bug. At
+    implementation, 19 of 27 specs carried no `- Id:`: every one is a PRE-CUTOVER legacy
+    `YYYYMMDD-HHMM-NN-<slug>.spec.md` name that predates `check_engine.SPEC_ID6_CUTOVER_DATE`
+    (`20260828`), which grandfathers exactly those. Verified that the skip costs no review coverage:
+    all 19 sit at `implemented` (15), `approved` (1), `deferred` (2), or `superseded` (1), and asking
+    `run_selection_policy.needs_review` about each returned False for ALL of them, so ZERO id-less
+    specs would have been review-eligible even had they been admitted. A legacy spec that ever needs
+    reviewing is converted first with `aw rename specs <legacy> --to-id6`, which is the documented
+    forward path and mints the `- Id:` this function requires.
+
+    Never raises: an absent or unreadable specs tree yields an empty dict, which is the fail-safe
+    direction (nothing swept) rather than an exception inside selector expansion.
+    """
+    specs: dict[str, SpecRecord] = {}
+    try:
+        from agent_workflows import check_engine as _ce
+        from agent_workflows import selectors as _sel
+    except Exception:
+        return specs
+
+    root = Path(repo).resolve()
+    try:
+        records = list(_ce._iter_spec_records(Path(repo)))
+    except Exception:
+        return specs
+
+    for path, text in records:
+        m = _ce._ITEM_ID_RE.search(text)
+        if not m:
+            continue  # no id6 -> unnameable, unattestable; see docstring.
+        id6 = m.group(1)
+        if id6 in specs:
+            continue  # first wins, matching `discover_plans`'s de-duplication by resolved path.
+        status = (_sel.read_front_matter_status(text) or "").strip().lower()
+        try:
+            rel = str(path.resolve().relative_to(root)).replace("\\", "/")
+        except (ValueError, OSError):
+            rel = path.name
+        specs[id6] = SpecRecord(id6=id6, status=status, file=rel, path=path)
+    return specs
+
+
+def sweep_review_candidates_for_type(
+    repo: Path,
+    spec_type: str,
+    *,
+    manifest: dict[str, Any] | None = None,
+) -> list[str]:
+    """The needs-review sweep for ONE artifact type. The type-scoped entry point (spec 2.4a).
+
+    TYPE SCOPING IS NORMATIVE AND FIXED BY SPEC `25kzda` 2.4a PROPERTY 1: with no `--type`, `reviews`
+    selects IPDs ONLY, and a type added later never joins the sweep implicitly. So this function
+    requires ``spec_type`` EXPLICITLY and has no default: a defaulted parameter is precisely how a
+    later caller would silently widen the default sweep. `sweep_review_candidates` remains the
+    IPD-only entry point and is unchanged, so no existing caller's behavior moves.
+
+    MEMBERSHIP IS STILL THE ONE PREDICATE. For `ipd` this delegates to the existing
+    :func:`sweep_review_candidates` verbatim (same manifest walk, same Set ordering, same memoized
+    decision), so this function adds no second copy of the IPD path. For `spec` it enumerates through
+    :func:`discover_specs` and asks the SAME `run_selection_policy.needs_review`, so the sweep and
+    the dispatch table agree BY CONSTRUCTION (spec `6m4kow` R-16) for specs exactly as they now do
+    for plans.
+
+    ``manifest`` is required for `ipd` (that path is manifest-driven) and IGNORED for `spec` (specs
+    have no manifest; the tree is the source). Passing None for `ipd` yields an empty list rather
+    than raising, matching the fail-safe posture of the rest of selector expansion.
+
+    Returns id6s in deterministic order. The CALLER decides what an empty result means; spec 2.4a
+    property 3 makes an empty `reviews` a success that exits 0.
+    """
+    from agent_workflows import run_selection_policy as _policy
+
+    norm = (spec_type or "").strip().lower()
+    if norm == "ipd":
+        return sweep_review_candidates(manifest or {}, repo=repo)
+    if norm != "spec":
+        # An unknown type sweeps NOTHING rather than guessing a tree. Fail-safe, and it keeps this
+        # function from becoming the place a new type is quietly admitted without amending the
+        # dispatch table it must agree with.
+        return []
+
+    out: list[str] = []
+    for id6, rec in sorted(discover_specs(repo).items(), key=lambda kv: kv[1].file):
+        # No completeness input is supplied for a spec `draft`, so an undetermined draft is NOT swept
+        # (`needs_review`'s documented fail-safe: `bool(None)` is False). The deterministic SPEC
+        # completeness parser that spec `25kzda` 3.3 names does not exist yet; inventing a second
+        # heuristic here would make the sweep and that future parser disagree about the same draft,
+        # which is the exact defect `6ypimw` was written to remove. A spec at `to-review` - the case
+        # this plan exists to serve - needs no completeness answer.
+        if _policy.needs_review("spec", rec.status, file_path=rec.file):
+            out.append(id6)
+    return out
+
+
 def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
     from agent_workflows import selectors
 
