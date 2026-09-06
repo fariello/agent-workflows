@@ -7,7 +7,6 @@
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:5942n7
 - Status: to-review
-- Readiness: go-pending-approval
 - Set: orchretire
 - Order: 2
 - Highest E allocated: 05

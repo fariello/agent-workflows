@@ -1310,7 +1310,21 @@ def agents_pointer_prose(target_layout: str = "legacy") -> str:
         "`ipd-lifecycle` workflow gates execution and the terminal transition. Completion rule: do NOT "
         f"claim done or move a plan to `{plans_dir}/executed/` until `aw ipd lint --phase "
         "pre-transition` conforms and every validation item is verified with concrete evidence (tests "
-        "run, actual output pasted)."
+        "run, actual output pasted).\n\n"
+        "NEVER WRITE ANOTHER ROLE'S ATTESTATION FIELD. Some fields are OUTPUTS of a step you are not "
+        "performing, and writing one forges the evidence that a gate reads. The canonical case is "
+        "`- Readiness:` (`go`/`go-pending-approval`/`no-go`), which is an output of `/plan-review`: the "
+        "auto-approve predicate reads that FIELD FIRST and only falls back to parsing the workflow "
+        "history when it is ABSENT, so a hand-written value asserts that a review cleared the plan, and "
+        "under `--full-auto` that assertion is what promotes a plan to approved and its queue action to "
+        "`execute`. Measured 2026-09-06: an agent authoring a four-plan Set wrote "
+        "`Readiness: go-pending-approval` into all four having run no review, and the predicate "
+        "returned True for every one. So when AUTHORING, OMIT the field: absence is the correct state, "
+        "it is silent, and it makes the gate fail closed. `aw ipd scaffold` already omits it; do not add "
+        "it. `aw ipd lint` refuses an unattested value (`IPD-M107`), which also blocks `aw ipd begin`. "
+        "The same rule generalizes: never hand-write an `- Approval:` attestation, a `V-*` "
+        "`Observed evidence` block you did not observe, or an `Execution state: performed` for work you "
+        "did not do."
     )
 
 

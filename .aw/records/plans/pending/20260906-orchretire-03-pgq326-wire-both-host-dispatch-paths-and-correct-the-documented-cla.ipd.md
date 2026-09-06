@@ -7,7 +7,6 @@
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_retirement.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:5942n7, executed:ueg5cf
 - Status: to-review
-- Readiness: go-pending-approval
 - Set: orchretire
 - Order: 3
 - Highest E allocated: 06

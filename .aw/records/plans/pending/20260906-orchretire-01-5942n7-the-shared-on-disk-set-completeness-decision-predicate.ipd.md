@@ -7,7 +7,6 @@
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
 - Status: to-review
-- Readiness: go-pending-approval
 - Set: orchretire
 - Order: 1
 - Highest E allocated: 04

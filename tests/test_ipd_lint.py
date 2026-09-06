@@ -233,6 +233,110 @@ class MetadataLintTests(unittest.TestCase):
         self.assertTrue(any(d.code == L.C_WATERMARK for d in res.diagnostics))
 
 
+class ReadinessAttestationTests(unittest.TestCase):
+    """rdattest: `- Readiness:` is a REVIEW OUTPUT and may not be written at authoring time.
+
+    THE REGRESSION THIS PINS, measured 2026-09-06: an agent authoring a plan Set wrote
+    `- Readiness: go-pending-approval` into four fresh plans having run no review.
+    `plan_readiness.is_plan_review_approved` reads the FIELD FIRST and only falls back to the
+    workflow history when the field is ABSENT, so all four asserted that review had cleared them and
+    the predicate returned True for every one. Under `--full-auto` that predicate is what promotes a
+    plan to approved and its queue action to `execute`, so a hand-typed field is a route from
+    unreviewed to executing. The vocabulary was already policed (IPD-M104); the PROVENANCE was not.
+    """
+
+    def test_readiness_without_review_evidence_is_flagged(self):
+        text = _conforming_child().replace(
+            "- Status: to-review",
+            "- Status: to-review\n- Readiness: go-pending-approval",
+        )
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertTrue(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
+            [d.render("t") for d in res.diagnostics],
+        )
+
+    def test_absent_readiness_is_silent(self):
+        """Absence is the CORRECT authoring state, so it must not be nudged or flagged."""
+        res = L.lint_text(_conforming_child(), checkpoint="author", directory="pending")
+        self.assertFalse(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics)
+        )
+        self.assertFalse(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.advisories)
+        )
+
+    def test_readiness_accepted_when_a_review_verdict_is_in_history(self):
+        """A real review writes the field in the same pass; that must stay conforming."""
+        text = (
+            _conforming_child()
+            .replace(
+                "- Status: to-review",
+                "- Status: to-review\n- Readiness: go-pending-approval",
+            )
+            .replace(
+                "## Workflow history",
+                "## Workflow history\n\n- 2026-09-06 reviewed (tester): /plan-review round 1: "
+                "APPROVE WITH REVISIONS APPLIED; GO - PENDING HUMAN APPROVAL.",
+                1,
+            )
+        )
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertFalse(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
+            [d.render("t") for d in res.diagnostics],
+        )
+
+    def test_no_go_readiness_accepted_from_a_review(self):
+        """A NO-GO verdict is review evidence too; the rule must not require an APPROVE."""
+        text = (
+            _conforming_child()
+            .replace("- Status: to-review", "- Status: to-review\n- Readiness: no-go")
+            .replace(
+                "## Workflow history",
+                "## Workflow history\n\n- 2026-09-06 reviewed (tester): /plan-review round 1: "
+                "NO-GO, a blocking open question remains.",
+                1,
+            )
+        )
+        res = L.lint_text(text, checkpoint="author", directory="pending")
+        self.assertFalse(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
+            [d.render("t") for d in res.diagnostics],
+        )
+
+    def test_rule_blocks_the_pre_execution_gate(self):
+        """The rule must be BLOCKING, not advisory: this is what stops the --full-auto route.
+
+        `ipd_lifecycle.begin` refuses unless the `pre-execution` lint is conforming, so an
+        unattested Readiness must make that lint non-conforming or the rule is only cosmetic.
+        """
+        text = _conforming_child().replace(
+            "- Status: to-review",
+            "- Status: approved\n- Approval: 2026-09-06, probe\n- Readiness: go",
+        )
+        res = L.lint_text(text, checkpoint="pre-execution", directory="pending")
+        self.assertEqual(res.disposition, S.DISPOSITION_ERROR)
+        self.assertTrue(
+            any(d.code == L.C_READINESS_UNATTESTED for d in res.diagnostics),
+            [d.render("t") for d in res.diagnostics],
+        )
+
+    def test_every_readiness_carrying_plan_in_the_tree_is_attested(self):
+        """Corpus guard: no tracked plan may carry a Readiness with no review behind it.
+
+        This is the check that would have caught the original mistake at commit time, and it keeps
+        catching it for any plan a future session authors.
+        """
+        offenders = []
+        for plan in sorted((REPO_ROOT / SOURCE_PLANS).rglob("*.ipd.md")):
+            doc = L.parse(plan.read_text(encoding="utf-8"))
+            if not L.check_readiness_attestation(doc):
+                continue
+            offenders.append(plan.name)
+        self.assertEqual(offenders, [], f"unattested Readiness in: {offenders}")
+
+
 class IdBijectionTests(unittest.TestCase):
     def test_orphan_validation_flagged(self):
         text = _conforming_child().replace(

@@ -67,6 +67,9 @@ C_EXEC_HISTORY = "IPD-S405"
 C_EXEC_ATTRIBUTION = (
     "IPD-S406"  # terminal history actor/summary attribution (Order wezhxg)
 )
+C_READINESS_UNATTESTED = (
+    "IPD-M107"  # `- Readiness:` present with no review verdict behind it (rdattest)
+)
 C_OQ = "IPD-Q501"
 C_SIZE = "IPD-Z601"
 C_SIZE_DENSITY = "IPD-Z602"
@@ -663,6 +666,63 @@ def check_density(doc: ParsedDoc) -> List[Diagnostic]:
     return advisories
 
 
+# rdattest: `- Readiness:` is a REVIEW OUTPUT, not an authoring field, and this rule is the only thing
+# that says so mechanically.
+#
+# THE FAILURE THIS EXISTS TO STOP, observed 2026-09-06 and committed before the maintainer caught it:
+# an agent authoring a fresh plan Set wrote `- Readiness: go-pending-approval` into all four plans at
+# AUTHORING TIME, having never run a review. `plan_readiness.is_plan_review_approved` consults the
+# FIELD FIRST and only falls back to parsing the workflow history when the field is ABSENT, so those
+# four plans asserted "review has cleared this plan" and the predicate returned True for every one of
+# them. Under `aw <host> run ... --full-auto` that predicate is what flips a reviewed plan to approved
+# and its queue action to `execute` in the same run (the host drivers' auto-approve sites, which call
+# the shared predicate), so a hand-typed field could have carried unreviewed plans into execution.
+# NOTE this module deliberately does NOT name or import any driver module: an anti-divergence guard
+# (`tests/test_runner_item_dependencies.py::AntiDivergenceGuardTests`) requires the shared rule
+# modules to stay ignorant of the runner, and it correctly caught an earlier draft of this comment.
+#
+# WHY THE EXISTING CHECKS DID NOT CATCH IT: `ipd_schema.validate_metadata` validates the VOCABULARY
+# (an out-of-enum value is IPD-M104) and `aw ipd scaffold` correctly omits the field entirely, so a
+# fabricated but well-spelled value passed every gate. The vocabulary was policed; the PROVENANCE was
+# not. `plan-review.md` calls the field "REQUIRED output of the review", but that instruction only
+# reaches an agent that is running a review, never one that is authoring.
+#
+# THE RULE: if `- Readiness:` is present, the plan's own `## Workflow history` must contain evidence
+# that a review produced it. Absence of the field is SILENT and remains the correct authoring state
+# (the field is optional, and absence makes the predicate fall back to prose and fail closed).
+#
+# DELIBERATELY EVIDENCE-BASED, NOT AUTHORSHIP-BASED: it would be tempting to key this on `Status`
+# (e.g. "only a reviewed plan may carry Readiness"), but a review legitimately writes the field in the
+# SAME pass that sets `reviewed`, and `plan-review-long` can leave a plan at `to-review` with a
+# recorded NO-GO readiness. Keying on the history evidence admits both while still refusing a value
+# with nothing behind it.
+_REVIEW_EVIDENCE_RE = re.compile(
+    r"(?i)\b(?:/?plan-review(?:-long)?\b|APPROVE\b|NO-GO\b|REJECT\b)"
+)
+
+
+def check_readiness_attestation(doc: ParsedDoc) -> List[Diagnostic]:
+    """Refuse a `- Readiness:` value that no review in the plan's history accounts for (rdattest)."""
+    raw = doc.meta_fields.get(S.META_READINESS)
+    if raw is None or not str(raw).strip():
+        # Absent is the correct authoring state and is silent, by design.
+        return []
+    history = "\n".join(line for _lineno, line in doc.history_lines)
+    if _REVIEW_EVIDENCE_RE.search(history):
+        return []
+    return [
+        Diagnostic(
+            0,
+            0,
+            C_READINESS_UNATTESTED,
+            f"{S.META_READINESS}: '{str(raw).strip()}' is a REVIEW OUTPUT but no review verdict "
+            "appears in '## Workflow history'. Do not write this field when authoring: the "
+            "auto-approve gate reads it BEFORE the history, so a hand-written value asserts that a "
+            "review cleared the plan when none has. Remove the line and let /plan-review write it.",
+        )
+    ]
+
+
 def check_checkpoint(
     doc: ParsedDoc, checkpoint: str, directory: Optional[str]
 ) -> List[Diagnostic]:
@@ -969,6 +1029,7 @@ def lint_text(
 
     diags: List[Diagnostic] = []
     diags += check_metadata(doc, directory)
+    diags += check_readiness_attestation(doc)
     diags += check_headings(doc)
     diags += check_ids_and_bijection(doc)
     diags += check_states(doc)

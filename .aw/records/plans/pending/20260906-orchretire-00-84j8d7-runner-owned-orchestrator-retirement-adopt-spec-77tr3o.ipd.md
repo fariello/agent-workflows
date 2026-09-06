@@ -7,7 +7,6 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
 - Status: to-review
-- Readiness: go-pending-approval
 - Set: orchretire
 - Order: 0
 - Highest E allocated: 01
