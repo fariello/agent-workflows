@@ -6,15 +6,17 @@
 - Scope: Fix `render_table()` in `agent_workflows/attention.py` so it honors explicit ordering rather than resetting it with the hardcoded sort; extend `--order-by` (`-o`) in `agent_workflows/cli.py` and `agent_workflows/attention_contract.py` to accept a comma-separated list of attributes, expanding the vocabulary to include `status`, `type`, `blocking`, `priority`, `readiness`, `oqs`, `rqs`, `setid`, `id6`, `file`, `ctime`, and `mtime`; implement multi-attribute stable sorting using reverse-order stable sort passes with the deterministic `(path, id)` tiebreaker; and add unit and CLI tests in `tests/test_next_ordering.py` verifying multi-column sort sequences and TTY table sort preservation.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: attorder
 - Order: 1
 - Highest E allocated: 04
 - Author: Gabriele Fariello <gabriele.fariello@gmail.com>
 - Id: 8ldrlx
+- Approval: 2026-09-06, human ("approved"): user approved execution in turn: 'now execute, please'
 
 ## Workflow history
+- 2026-09-06 approved (aw set, --by-human): user approved execution in turn: 'now execute, please'
 
 - 2026-09-06 reviewed (antigravity/gemini-2.5-pro): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Structural lint conformed at `--phase author` and `--phase review-finalize`.
 - 2026-09-06 to-review (Gabriele Fariello <gabriele.fariello@gmail.com>): created review-ready IPD for multi-attribute sorting and TTY table sort preservation.
