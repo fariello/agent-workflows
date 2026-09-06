@@ -6,7 +6,7 @@
 - Scope: The tree state and the statements about it. IN: adding the four paths to the framework-owned `.aw/.gitignore`; `git rm --cached` them in the SAME commit; deciding and implementing the `check.stale-index` semantics for a now-untracked file at its two emitters and four doctor consumers; correcting the three documents that imply the manifests are committed. OUT: the commit-path-set removal (child 01, a declared dependency); any change to `aw index` regeneration itself; the broader repo-local-untracked question (backlog `hsixiz`).
 - Scope-Paths: .aw/.gitignore, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md, .aw/records/research/INDEX.json, .aw/records/research/INDEX.md, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/doctor.py, .aw/records/plans/README.md, .aw/records/research/README.md, CONTRIBUTING.md, tests/test_doctor.py
 - Item-Dependencies: executed:4r0qp1
-- Status: draft
+- Status: to-review
 - Set: idxuntrack
 - Order: 2
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 - Id: yvvf98
 
 ## Workflow history
+- 2026-09-06 to-review (aw set): Authored and ready for critique: aw ipd lint conforming, E-01..E-05 with a V-* bijection, every V-item demanding pasted evidence including two mutation checks, and the one genuinely open question (OQ-01, missing-manifest severity) left open with its decision criteria stated rather than pre-empted.
 
 - 2026-09-06 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-06 authored (opencode/its_direct/pt3-claude-opus-5-1m-us): graduated from backlog `ila6vl`. Carries the maintainer's 2026-08-31 decision to untrack plus the 2026-09-06 answer to the item's one remaining check (nothing outside the repo consumes the committed manifests), which removes the last precondition. Depends on child 01 because untracking before the commit-path removal would point a journalled finalize transaction at gitignored paths.

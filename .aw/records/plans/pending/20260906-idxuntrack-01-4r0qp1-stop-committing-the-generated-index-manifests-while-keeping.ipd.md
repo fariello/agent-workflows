@@ -6,7 +6,7 @@
 - Scope: The four commit-path-set sites and their tests. IN: dropping the manifest paths from `owned_paths` (`ipd_lifecycle.finalize`), from the `aw set` self-commit path list, from `_index_paths_for_types`, and from `artifact_rename`'s self-commit paths; keeping every REGENERATION call untouched; updating `tests/test_auto_index_on_mutation.py` so the refresh half stays covered rather than deleted. OUT: `.gitignore`, `git rm --cached`, the `check.stale-index` semantics decision, and the three documents (all child 02); any change to WHEN a manifest is regenerated.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/artifact_rename.py, tests/test_auto_index_on_mutation.py
 - Item-Dependencies: none
-- Status: draft
+- Status: to-review
 - Set: idxuntrack
 - Order: 1
 - Highest E allocated: 05
@@ -15,6 +15,7 @@
 - Id: 4r0qp1
 
 ## Workflow history
+- 2026-09-06 to-review (aw set): Authored and ready for critique: aw ipd lint conforming, E-01..E-05 with a V-* bijection, every V-item demanding pasted evidence, no TODO placeholders, and OQ-01 resolved from repository evidence rather than deferred to the maintainer.
 
 - 2026-09-06 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
 - 2026-09-06 authored (opencode/its_direct/pt3-claude-opus-5-1m-us): graduated from backlog `ila6vl` (maintainer decision 2026-08-31 to stop tracking the generated manifests; external-consumer check answered 2026-09-06: none). Every consumer line citation on the item was RE-VERIFIED at HEAD `7f80180e` rather than trusted, and two had drifted: `ipd_lifecycle` owned_paths moved from the item's `:1630` to `:2340`, and the `status_set` auto-refresh from `:823-894` to `:936-972`. Split from the item's single scope because the COMMIT-path removal must strictly precede untracking.
