@@ -4614,10 +4614,20 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
+    "plan_id": "7wei1o",
+    "set_id": "runsverify",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md",
     "plan_id": "mn3gwr",
     "set_id": "verifygap",
-    "status": "to-review"
+    "status": "approved"
   },
   {
     "date": "2026-08-07",
