@@ -6,17 +6,19 @@
 - Scope: Make an unresolvable target a nonzero refusal that names the registered leaves and the closest match, while preserving every currently-working invocation (a real run id, a setid, a bare `aw runs`, the viewer flags, the `--` escape hatch, and a legitimate leaf-name collision). Also narrow the OVER-MATCHING resolver that makes the refusal reachable in the first place: the `state.json` substring fallback matches any quoted JSON token anywhere in the file, so `status`, `run`, `main` and `clean` each "resolve" to 96-106 of 106 runs today and would be silently exempted from the refusal.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/run_viewer.py, tests/test_run_viewer.py, tests/test_run_noun_split.py, tests/test_cli_conformance_matrix.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runsverify
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 7wei1o
+- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: 6kq1lj
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-06 approved (aw set): status set to approved
 
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-008. Structural lint conformed at `--phase author` and `--phase review-finalize`. Re-measured every claim independently at HEAD `de26ef00`, unpiped: all seven of the plan's exit-code claims reproduce exactly. FOUR material additions. (1) PR-001, the one that would have broken the build: `tests/test_run_noun_split.py:280-284` ALREADY ASSERTS the behavior this plan removes (`runs -- no-such-target-xyz` -> rc 0 and the literal `no matching runs found`), and that module was NOT in `Scope-Paths`, so the executor would have hit a red suite outside its fence. Added to the fence with E-06. (2) PR-002: the resolver OVER-MATCHES via a raw `f'"{t_str}"' in content` substring test over the whole `state.json` (`run_viewer.py:1148`), so `status` resolves to 106/106 runs, `run`/`opencode` 106, `main` 96, `execute` 53, `clean` 105, `approved` 46, `verified` 13. Those are not setids; they are ordinary JSON values and keys. Any such token would be silently EXEMPTED from the refusal, which is the same fail-open shape one layer down, so E-07 narrows the fallback to the real setid field. (3) PR-003: `aw runs repair <bogus>` exits 0 having repaired nothing (measured, zero output), a second instance of the defect on the same surface and inside the fence; E-08 fixes it. (4) PR-004: `--agent`/`--json` return `{"runs": []}` at exit 0 (`run_viewer.py:2539-2541`), the path an automated consumer actually reads, so the refusal must be honored in all three renderers, not just the human one.
 - 2026-09-06 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored from backlog `6kq1lj`, inheriting its `Blocks-Release: next` gate. Every claim below was measured at HEAD `63107a76` WITHOUT a shell pipe, because a piped `$?` reports the last pipeline stage and that exact mistake produced a false sibling finding in `zrzfkw` (corrected in `63107a76`). Measured: `aw runs verify <run-id>` exits 0 and prints the normal report; `aw runs totalgibberish` exits 0 and prints `no matching runs found`; `aw runs totalgibberish <real-run-id>` exits 0 and prints the real run's report with the bogus token silently dropped, which is the worst variant because the operator sees plausible output. Confirmed still-correct behavior that must not regress: a real run id, a setid (`lanectn`), and `--last` all exit 0 today.
