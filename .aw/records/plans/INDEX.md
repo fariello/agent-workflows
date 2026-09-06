@@ -2,7 +2,12 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 209 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 210 Sets; the full manifest is INDEX.json.
+
+## hostdefault
+
+- `tm2cz8` [pending] 01 pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md
+- `ybkmzp` [pending] 02 pending/20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md
 
 ## orchretire
 
@@ -17,7 +22,7 @@ Showing the 40 most-recent of 209 Sets; the full manifest is INDEX.json.
 
 ## verifygap
 
-- `mn3gwr` [pending] 01 pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md
+- `mn3gwr` [superseded] 01 superseded/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md
 
 ## runprofile
 
@@ -194,10 +199,6 @@ Showing the 40 most-recent of 209 Sets; the full manifest is INDEX.json.
 
 - `75ov5j` [executed] 01 executed/20260829-cfgverbs-01-75ov5j-cli-verbs-aw-config-get-set-and-show-with-typed-schema-regis.ipd.md
 - `k99n3m` [executed] 02 executed/20260829-cfgverbs-02-k99n3m-cli-verbs-aw-config-add-remove-show-var-and-is-in-with-conf.ipd.md
-
-## coauthor
-
-- `a5ni7v` [executed] 01 executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md
 
 ## (singletons: no Set)
 

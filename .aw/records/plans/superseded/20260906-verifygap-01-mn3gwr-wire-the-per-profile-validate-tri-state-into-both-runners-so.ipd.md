@@ -1,5 +1,41 @@
 # IPD: Wire the per-profile validate tri-state into both runners so the per-model verification default is honored
 
+
+> **RETIRED 2026-09-06: SUPERSEDED BY THE `hostdefault` SET** (`tm2cz8` order 01, `ybkmzp` order 02),
+> on a maintainer ruling. DO NOT EXECUTE. This plan was `approved`, and it is retired UNRUN rather
+> than executed, so nothing here was implemented.
+>
+> WHY, since the reason is the whole point. The maintainer asked why deepening the oc/agy driver
+> divergence is a good thing. It is not, and the framing that said otherwise ("Antigravity is
+> untouched, so nothing gets worse") was wrong: the file is untouched but the GAP widens, at a seam
+> `rununify`'s orchestrator child table already names as remaining work (its row `03+` names "run
+> initialization" as an example seam and this plan modifies `initialize_run`; its row `last` names
+> closing "opencode-only" surfaces and this plan would ADD one).
+>
+> TWO MEASURED CORRECTIONS TO THIS PLAN'S OWN REASONING, both verified live at `f3e17ff6`:
+>
+> 1. **F-8's blocker is OVERSTATED.** It says reaching antigravity needs "a registry (schema) change
+>    plus the whole seam `3cm15q` built for oc". But the `validate` chain does NOT consult the
+>    registry at all (neither `RUNNER_REGISTRY` nor `canonical_runner` appears in that block), and a
+>    prototype of ONE field plus ONE row made `resolve(runner="agy").validate` return `True` with
+>    provenance, made a profile declaring `runner: agy` parse and resolve, and kept the explicit flag
+>    winning on both hosts. The registry's own docstring says as much: "Adding a host is ONE ROW here
+>    plus that host's own adapter work."
+> 2. **The real defect is the one this plan worked AROUND rather than the one it named.**
+>    `SHIPPED_VALIDATE_DEFAULT` is a single module global that cannot express two opposite host
+>    postures, so this plan's E-03 pins antigravity with a TEST against a constant that does not
+>    describe it. That pin is the symptom of a missing per-host field.
+>
+> WHAT SURVIVES, because most of this plan is right: its F-5 polarity arithmetic (writing a resolved
+> `validate` into agy's inverted `no_verify` key silently disables verification), its F-9 measurement
+> that the `None`-default mechanism breaks `tests/test_novalnomerge_integration.py`, its F-4
+> correction about `launch_profile_record` carrying provenance but not the value, its F-7 history of
+> the 13 verifier runs and the conditional ~33% cost ruling, and every one of its resolved open
+> questions. All are carried forward with citation into `tm2cz8` and `ybkmzp`.
+>
+> Its `- From-Backlog: h7qsje` and `- Blocks-Release: next` are INHERITED by both children, so the
+> release gate is preserved rather than dropped.
+
 - Date: 2026-09-06
 - Kind: child
 - Concern: Executed plan `f2mrsw` shipped a per-profile `validate` tri-state and a documented four-tier precedence chain for it, but the opencode runner does not pass `validate=` into `runner_profiles.resolve()` and does not read `ResolvedLaunch.validate`. The two middle tiers (a named profile's own value, and `defaults.validate`) are therefore dead: the operator's stored per-model choice is silently ignored and verification remains a flag that must be retyped every invocation.
@@ -7,18 +43,18 @@
 - Scope: Pass the explicit flag into the resolver and consume the resolved value as the run's frozen `validate` option ON THE OPENCODE HOST, preserving that host's CURRENT effective default when no flag and no profile speak. Record the resolved value in run state beside the provenance tier the record already carries. PIN the antigravity host's verification default as UNCHANGED, by leaving that host's verification path untouched and proving non-disturbance. No change to the resolver, the runner registry, the schema, the precedence rules, or either host's default behavior.
 - Scope-Paths: agent_workflows/oc_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_profiles.py, tests/test_novalnomerge_integration.py
 - Item-Dependencies: none
-- Status: approved
+- Status: superseded
 - Readiness: go-pending-approval
 - Set: verifygap
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: mn3gwr
-- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: h7qsje
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-06 superseded (aw set): Superseded UNRUN by the hostdefault Set (tm2cz8 order 01, ybkmzp order 02) on a maintainer ruling. Two measured corrections to this plan's reasoning: (1) its F-8 blocker is overstated, since the validate chain never consults the runner registry and a prototype of one field plus one row made resolve(runner='agy').validate work with provenance, the explicit flag still winning on both hosts; (2) the real defect is the one it worked around, a single module-global SHIPPED_VALIDATE_DEFAULT that cannot express two opposite host postures, which is why its E-03 pins antigravity with a test against a constant that does not describe it. Also: it would add an opencode-only surface at a seam rununify's child table names as remaining convergence work (row 03+ names 'run initialization', row last names closing opencode-only surfaces). Its F-4/F-5/F-7/F-9 findings and all resolved OQs are carried forward with citation; From-Backlog h7qsje and Blocks-Release next are inherited by both children.
 - 2026-09-06 approved (aw set): status set to approved
 
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-401..PR-408 all FIXED; GO - PENDING HUMAN APPROVAL. Lint conforming at `--phase author` and again at `--phase review-finalize`. SELF-REVIEW (I authored this plan in the same session), which matters here because both blockers are cases where authoring trusted a sibling plan's prose instead of measuring code that the sibling's own review had already measured. THE THESIS IS SOUND AND INDEPENDENTLY RE-VERIFIED: the resolver implements the whole four-tier chain with provenance, the runner passes no `validate=` and reads no resolved value, and live probes confirm a configured `defaults.validate: true` resolves `True`/`defaults` while the run still freezes the raw flag. WHAT CHANGED IS THE PLAN'S REACH. PR-401 (BLOCKER): the "on BOTH hosts" premise is not implementable. `RUNNER_REGISTRY` version 1 registers only `oc`, so `resolve(cfg, runner="agy")` RAISES `unknown runner 'agy'`, a profile declaring `runner: agy` is refused identically, and `agy_runipd.py` imports nothing from `runner_profiles`; reaching agy needs a registry/schema change plus the whole seam `3cm15q` built for oc, which this plan's own Scope forbids and its Scope-Paths exclude. The plan is now opencode-only, `agy_runipd.py` is OUT of Scope-Paths and off-limits by fence, and E-02 became a prove-and-record item that files the agy follow-up carrying the inherited `Blocks-Release: next` gate so the release blocker is not dropped. The honest consequence is stated: after this plan, per-model verification is configuration on opencode and still a remembered flag on agy. PR-402 (BLOCKER): the authored E-03/E-04 would have written a resolved `validate` into agy's `no_verify` key while claiming to preserve existing meanings, but those keys are INVERTED IN POLARITY, so resolved `True` becomes `no_verify=True` and the verifier does NOT run - verification requested and silently skipped. The plan's loudest warning described a hazard its own instructions created, and its proposed remedy fixed the value mismatch while leaving the inversion. E-03 is now a test-only PIN proving agy did not move, plus a prohibition on adding a `validate` key to agy's options. PR-403 (HIGH): E-01's required default change breaks a shipped test that pins the premise of `evgi9n`'s $528 bug class (`assertIs(defaults.get("validate"), False)`), measured by mutating the real parser; E-01 now names both mechanisms, requires the choice recorded, and requires that test UPDATED (not weakened or deleted) to pin the property `evgi9n` actually depends on. PR-405 (MEDIUM): E-06 specified coverage that already ships at the resolver level, leaving the seam this plan BUILDS untested; it now tests frozen run state through `initialize_run` with an isolated store. PR-404/406/407/408 correct a half-wrong provenance claim (the tier IS already recorded, only the value is missing), the untracked derived `no_audit` key, an unqualified host-parity claim plus a stale sibling status, and the absence of store isolation in tests. Five recorded decisions, all reversible; D-1 changes what the plan delivers and is surfaced to the maintainer explicitly.

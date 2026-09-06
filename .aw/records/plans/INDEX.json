@@ -4592,6 +4592,26 @@
   {
     "date": "2026-09-06",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
+    "plan_id": "tm2cz8",
+    "set_id": "hostdefault",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md",
+    "plan_id": "ybkmzp",
+    "set_id": "hostdefault",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
@@ -4617,16 +4637,6 @@
     "path": "pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
     "plan_id": "7wei1o",
     "set_id": "runsverify",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md",
-    "plan_id": "mn3gwr",
-    "set_id": "verifygap",
     "status": "approved"
   },
   {
@@ -4897,6 +4907,16 @@
     "path": "superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md",
     "plan_id": "tch3bo",
     "set_id": "lanecontain",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md",
+    "plan_id": "mn3gwr",
+    "set_id": "verifygap",
     "status": "superseded"
   }
 ]
