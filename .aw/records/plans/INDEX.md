@@ -8,7 +8,7 @@ Showing the 40 most-recent of 209 Sets; the full manifest is INDEX.json.
 
 - `84j8d7` [pending] 00 pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md
 - `5942n7` [executed] 01 executed/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md
-- `ueg5cf` [pending] 02 pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
+- `ueg5cf` [executed] 02 executed/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
 - `pgq326` [pending] 03 pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md
 
 ## runsverify

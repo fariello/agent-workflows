@@ -4460,6 +4460,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
+    "plan_id": "ueg5cf",
+    "set_id": "orchretire",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4586,16 +4596,6 @@
     "order": 0,
     "path": "pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
     "plan_id": "84j8d7",
-    "set_id": "orchretire",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
-    "plan_id": "ueg5cf",
     "set_id": "orchretire",
     "status": "approved"
   },
