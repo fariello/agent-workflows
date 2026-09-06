@@ -83,7 +83,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 - `zvk796` [executed] 02 executed/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md
 - `rodj06` [executed] 03 executed/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md
 - `hauwqh` [executed] 04 executed/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md
-- `30jug9` [pending] 05 pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md
+- `30jug9` [executed] 05 executed/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md
 
 ## apprvguard
 

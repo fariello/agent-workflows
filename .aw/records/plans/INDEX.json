@@ -4280,6 +4280,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
+    "plan_id": "30jug9",
+    "set_id": "wslayout",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-03",
     "disposition": "executed",
     "kind": "child",
@@ -4520,16 +4530,6 @@
     "status": "approved"
   },
   {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md",
-    "plan_id": "30jug9",
-    "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
     "date": "2026-09-04",
     "disposition": "pending",
     "kind": "child",
@@ -4547,7 +4547,7 @@
     "path": "pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
     "plan_id": "ki6tom",
     "set_id": "runbypass",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-05",
@@ -4567,7 +4567,7 @@
     "path": "pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md",
     "plan_id": "8fhjjc",
     "set_id": "skilldigest",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",
