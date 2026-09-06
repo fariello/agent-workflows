@@ -6,18 +6,18 @@
 - Scope: Wire child 01's predicate and child 02's transition into BOTH hosts' dispatch, replace the single terminal-status write with the reconsiderable-versus-dead distinction (spec `77tr3o` R-7, R-8), give the agy runner the `orchestrate` action it lacks via SHARED code rather than a copy (R-10), make the four refusal reasons distinguishable in the durable record (R-9), and correct the false `AGENTS.md` self-finalization claim (R-11). It does NOT change the eligibility predicate (child 01) or the transition (child 02), and it does NOT touch the general `dependency-blocked`-is-terminal defect for ORDINARY items, which is `nueip1`.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_retirement.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:5942n7, executed:ueg5cf
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 3
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pgq326
-- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: pgq326 verified (set orchretire, attempt 1). [Scope reconciliation - out-of-scope tests/test_runner_shared.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-06 executed-pending-transition (opencode its_direct/pt3-claude-opus-5-1m-us): All 7 E-items performed and all 7 V-items verified with pasted evidence; `aw ipd lint --phase pre-transition` reports CONFORMING. Implementation committed as abb3d648 (7 files, path-scoped). Suite 31 failed / 5458 passed against a measured baseline of 31 failed / 5431 passed in this same worktree, with an IDENTICAL failing node-id set (zero regressions); the 31 are lane-environmental (AW_EXECUTION_ROLE=worker begin/finalize refusals, and run_viewer's .aw/state resolution in a linked worktree). THE TERMINAL TRANSITION IS NOT PERFORMED HERE: `aw ipd finalize` refuses in the worker role (AW-LIFECYCLE-ROLE-001) and instructs the lane to report its result and let the driver transition the plan, so this plan is deliberately left in `pending/`. THREE FINDINGS the plan did not anticipate, each measured rather than reasoned: (1) the SELECTION GATE, not the dispatch branch, is what made the Set's primary case unreachable, so E-01 had to wire it too; (2) RECONSIDER is performed by that gate (skip, no status, no event), not by a deferred re-dispatch, so V-01's 're-dispatched twice' expectation was wrong; (3) the existing drain path does NOT terminate every dead Set, so OQ-01's answer is NO and a narrow actionability test was added (201 dispatches measured, reduced to 1), introducing a fifth typed refusal reason beyond the spec's four. Two out-of-scope test edits are justified in the outcome record.
 - 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-301..PR-305 fixed, Readiness go-pending-approval
