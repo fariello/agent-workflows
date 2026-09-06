@@ -8,16 +8,16 @@
 - Item-Dependencies: executed:cqx5v7
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 3
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: lhmrhx
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: lhmrhx verified (set lanectn, attempt 1).
 - 2026-09-05 executed (aw oc run, run-20260905T211011Z-3780617 position 8): all six E-items performed and all six V-items verified with pasted evidence. THREE THINGS A READER SHOULD KNOW. (1) `PERMISSION_TIMEOUT` SHIPS AT `0`, NOT 30s: V-04's required-evidence text says 30s, but E-04 / spec R4.4b / criterion A10c all require it disabled until detection is proven against a real ask, and detection is NOT proven (the host exposes no flag to force an ask, the last real run's stdout carried zero permission events, and the motivating evidence came from opencode's log file rather than stdout). A10c option (ii) was taken and the consequence is written down: `MAX_TURN_TIMEOUT` is currently the only bound covering a permission deadlock. See DECISION 08-lhmrhx-D1 and D2. (2) SABOTAGE CAUGHT A REAL TEST DEFECT: V-01's first test asserted the injection by SOURCE TEXT and stayed GREEN while the product was broken; it was replaced with one that captures the env actually handed to `Popen`, which fails on the sabotaged product. (3) ONE PRE-EXISTING TEST NEEDED ACCOMMODATION: `test_runner_stop.py::PollWiringTests` measures character distance between `watchdog.touch()` and the in-turn poll, and my comment pushed the poll out of its window; since that file is outside this plan's Scope-Paths I shortened my own comment rather than widening someone else's test. R4.4d resolved by OFFSET (D3) so the driver bound fires first on antigravity and a kill is attributable; the posture stays isolation-scoped while the bounds are uniform (D4).
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.

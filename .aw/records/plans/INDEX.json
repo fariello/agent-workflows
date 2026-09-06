@@ -4203,6 +4203,16 @@
     "date": "2026-09-01",
     "disposition": "executed",
     "kind": "child",
+    "order": 3,
+    "path": "executed/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
+    "plan_id": "lhmrhx",
+    "set_id": "lanectn",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md",
     "plan_id": "429f30",
@@ -4446,16 +4456,6 @@
     "order": 2,
     "path": "pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
     "plan_id": "nna8yz",
-    "set_id": "lanectn",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 3,
-    "path": "pending/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
-    "plan_id": "lhmrhx",
     "set_id": "lanectn",
     "status": "approved"
   },
