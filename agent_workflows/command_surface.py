@@ -933,6 +933,32 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--workflow", "--agent", "--json"),
         exit_contract=(0, 1, 3, 5),
     ),
+    # runprofile Order 04 (ygzq71) E-01: the two HOST-NEUTRAL DISPATCH routes on the writing noun.
+    # `aw run as <profile> ...` and `aw run ipd ...` forward argv verbatim to the resolved host
+    # runner's own parser (`add_help=False` + `argparse.REMAINDER`, the same mechanism `oc runipd`
+    # uses), so the driver owns help, output, and exit codes. Declared as MUTATIONS for the same
+    # reason `oc runipd` is: a run writes commits, durable run state, and lifecycle transitions.
+    # `legacy_flags=()` is the truth, not an omission - these routes declare no flags of their own.
+    CommandDeclaration(
+        command="run as",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
+    CommandDeclaration(
+        command="run ipd",
+        command_class="mutation",
+        human_recipe="status",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(),
+        exit_contract=(0, 1, 2),
+    ),
     CommandDeclaration(
         command="run finalize",
         command_class="mutation",

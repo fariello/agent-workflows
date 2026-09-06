@@ -899,5 +899,78 @@ class InstallAtomicWizardTests(CliTestBase):
         self.assertIn(".aw/records/plans/", out)
 
 
+class RunDispatchHelpSurfaceTests(unittest.TestCase):
+    """runprofile Order 04 (ygzq71) E-01/V-01: the `aw run` help surface after the two fixed routes.
+
+    Scoped to HELP and REGISTRATION, which is what this file owns. The behavioral contract (argv
+    parity, fail-closed refusals, and the adversarial namespace matrix) lives in
+    `tests/test_run_dispatch.py`; duplicating it here would give one claim two owners.
+    """
+
+    def _run_help(self) -> str:
+        import argparse
+
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"NO_COLOR": "1", "COLUMNS": "100"}):
+            parser = cli._build_parser()
+            top = next(
+                a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+            )
+            return top.choices["run"].format_help()
+
+    def test_run_help_documents_both_canonical_dispatch_routes(self):
+        text = self._run_help()
+        self.assertIn("as", text)
+        self.assertIn("ipd", text)
+        self.assertIn("profile", text)
+
+    def test_run_help_retains_every_ledger_example(self):
+        """The plan requires the ledger examples to SURVIVE the added dispatch documentation."""
+
+        text = self._run_help()
+        for example in (
+            "aw run start <target>",
+            "aw run record <target>",
+            "aw run cancel <target>",
+            "aw run finalize <target>",
+        ):
+            self.assertIn(
+                example, text, f"`aw run` help dropped the example {example!r}"
+            )
+        # Reading still points at the other noun.
+        self.assertIn("aw runs show <target>", text)
+
+    def test_run_help_advertises_no_prohibited_spelling(self):
+        text = self._run_help()
+        for prohibited in ("aw run-gem", "aw run:gem", "aw gemrun", "aw rungem"):
+            self.assertNotIn(prohibited, text)
+        # The alternate clause spellings the plan excludes must not appear as grammar.
+        for excluded in ("aw run with ", "aw run using ", "aw run w "):
+            self.assertNotIn(excluded, text)
+
+    def test_both_routes_are_parser_leaves_carrying_declarations(self):
+        from agent_workflows.command_surface import (
+            discover_parser_leaves,
+            get_declaration,
+        )
+
+        leaves = discover_parser_leaves(cli._build_parser())
+        for leaf in ("run as", "run ipd"):
+            self.assertIn(leaf, leaves, f"{leaf} is not a parser leaf")
+            self.assertIsNotNone(
+                get_declaration(leaf), f"{leaf} carries no CommandDeclaration"
+            )
+
+    def test_no_dispatch_route_leaked_into_the_reading_noun(self):
+        """`aw runs` is READ-ONLY; a launcher there would make an inspection verb mutate."""
+
+        from agent_workflows.command_surface import discover_parser_leaves
+
+        leaves = discover_parser_leaves(cli._build_parser())
+        self.assertNotIn("runs as", leaves)
+        self.assertNotIn("runs ipd", leaves)
+
+
 if __name__ == "__main__":
     unittest.main()

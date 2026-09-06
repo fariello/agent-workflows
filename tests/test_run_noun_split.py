@@ -409,12 +409,47 @@ class MovedLeafRemovalTests(_LedgerFixture):
         self.assertIn("Cancelled run", out)
 
     def test_bare_run_help_advertises_only_the_writing_leaves(self) -> None:
-        """`aw run`'s own help must not still sell the leaves it no longer has (E-07)."""
+        """`aw run`'s own help must not still sell the leaves it no longer has (E-07).
+
+        WHAT THIS ASSERTS, AND WHAT IT DELIBERATELY DOES NOT. The claim `0soncw` E-07 makes is that
+        no READ leaf is advertised under the WRITING noun. It is NOT that `aw run` may never gain
+        another writing/dispatch leaf: `0soncw` kept the noun alive precisely so the approved
+        `runprofile` Set could add `aw run as <profile>` / `aw run ipd <selector>` to it (see
+        `test_the_writing_noun_still_works` and the noun's own comment in `cli.py`).
+
+        So the choice list is checked by SET MEMBERSHIP rather than against a frozen literal string.
+        The original `assertIn("{start,record,cancel,finalize}", out)` conflated the two claims and
+        would fail for the legitimate addition it was written to permit (measured when `runprofile-04`
+        `ygzq71` registered the two dispatch routes). The falsifiable part is retained and
+        STRENGTHENED: every writer must appear, and NO viewer leaf may, checked for all nine rather
+        than the two the old assertion spot-checked.
+        """
         rc, out = _cli("run")
         for writer in WRITER_LEAVES:
             self.assertIn(writer, out, f"`aw run` help omits its own leaf {writer!r}")
-        # The choice list argparse prints is the authoritative surface; it must hold only writers.
-        self.assertIn("{start,record,cancel,finalize}", out)
+        # The choice list argparse prints is the authoritative surface. It must contain every writer
+        # and no VIEWER; a new writing/dispatch leaf is permitted and is asserted to be a known one.
+        match = re.search(r"\{([a-z0-9,\-]+)\}", out)
+        self.assertIsNotNone(match, f"no choice list found in `aw run` help:\n{out}")
+        assert match is not None  # narrow for type-checkers
+        choices = set(match.group(1).split(","))
+        self.assertEqual(
+            set(WRITER_LEAVES) - choices,
+            set(),
+            f"`aw run` no longer offers all four writers: {sorted(choices)}",
+        )
+        self.assertEqual(
+            choices & set(VIEWER_LEAVES),
+            set(),
+            f"`aw run` advertises a READ leaf: {sorted(choices & set(VIEWER_LEAVES))}",
+        )
+        # The dispatch routes the `runprofile` Set added are the ONLY non-writer leaves permitted
+        # here, so an unreviewed third addition still fails this guard.
+        self.assertEqual(
+            choices - set(WRITER_LEAVES) - {"as", "ipd"},
+            set(),
+            f"unexpected new `aw run` leaf: {sorted(choices - set(WRITER_LEAVES))}",
+        )
         # And the prose must not describe a moved leaf as if `aw run` still provided it.
         for moved in ("verify-ledger", "evidence"):
             self.assertNotIn(

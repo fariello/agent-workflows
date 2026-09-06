@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
+from . import run_dispatch as _run_dispatch
 from .project_schema import DeliveryMode, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, select_output
 from .term import Term
@@ -110,10 +111,12 @@ _DESCRIPTIONS = {
     # runnamecollapse 0soncw E-07: the run surface is split by DIRECTION. `aw run` WRITES,
     # `aw runs` READS, so these help entries follow the leaves to their owning noun.
     "run": (
-        "Run ledger transaction verbs (the WRITING half of the run surface): 'start' (take the "
-        "single-writer lease and move a runnable step to running), 'record' (append a step attempt "
-        "outcome), 'cancel' (record a terminal cancellation), 'finalize' (evaluate the completion "
-        "predicate and record terminal completion). To INSPECT a run, use 'aw runs'."
+        "The WRITING half of the run surface, in two groups. HOST-NEUTRAL DISPATCH launches an IPD "
+        "without naming a host: 'as <profile> <selector>' uses a saved runner profile, and "
+        "'ipd <selector>' uses the configured default_runner. RUN LEDGER TRANSACTIONS are 'start' "
+        "(take the single-writer lease and move a runnable step to running), 'record' (append a step "
+        "attempt outcome), 'cancel' (record a terminal cancellation), and 'finalize' (evaluate the "
+        "completion predicate and record terminal completion). To INSPECT a run, use 'aw runs'."
     ),
     "runs": (
         "Inspect driver execution runs and run ledgers (the READING half of the run surface): bare "
@@ -2021,6 +2024,62 @@ def _build_parser() -> argparse.ArgumentParser:
             _register_run_leaf(runs_sub, _leaf_name, _leaf_help, _leaf_desc)
         else:
             _register_run_leaf(run_sub, _leaf_name, _leaf_help, _leaf_desc)
+
+    # runprofile Order 04 (ygzq71) E-01: the two HOST-NEUTRAL DISPATCH routes, registered as FIXED
+    # grammar on the WRITING noun (`aw run` is the dispatch noun; 0soncw E-03 deliberately kept it
+    # alive for exactly this).
+    #
+    #   aw run as <profile> [SELECTOR ...]   the profile decides the host
+    #   aw run ipd [SELECTOR ...]            `default_runner` decides the host
+    #
+    # WHY FIXED AND NOT DYNAMIC, since this is the whole design constraint: a profile name is read
+    # ONLY from the bounded position immediately after the literal `as`, so the command position is
+    # decided BEFORE any configuration file is read. A profile may therefore be called `status`,
+    # `report`, `show` or `evidence` without shadowing a real leaf, and no profile ever manufactures
+    # a command (`aw gem`, `aw run gem`, `aw run-gem` do not exist). Registering profile names as
+    # dynamic subcommands would ALSO mean every future `aw run <verb>` addition silently reinterpreted
+    # an existing invocation.
+    #
+    # `add_help=False` + `argparse.REMAINDER` is the SAME mechanism `aw oc runipd` uses (see the `oc`
+    # group), and for the same reason: the host driver's own parser must own every flag, its `--help`,
+    # and its exit codes, so this wrapper declares none of them. That is what keeps `aw run as gem X`
+    # from drifting away from `aw oc run as gem X`. REMAINDER cannot capture a LEADING option, so
+    # `_dispatch` intercepts these two routes before `parse_args` as well; both paths call the one
+    # `run_dispatch.dispatch` entry point.
+    for _route_token, _route_help, _route_desc in (
+        (
+            _run_dispatch.AS_TOKEN,
+            "Run an IPD with a named runner profile (host-neutral: the profile picks the host).",
+            "Launch an IPD run through the host runner that the NAMED PROFILE belongs to, without "
+            "naming that host: `aw run as gem <selector>`. `as` is fixed grammar and the very next "
+            "token is always the profile name, so a profile may be named `status` or `report` "
+            "without shadowing a command. Everything after the profile is forwarded verbatim to "
+            "that host's own driver, which owns every flag, message, and exit code; launch fields "
+            "resolve once, there, with explicit --model/--variant/--agent overriding only the "
+            "matching profile field. Manage profiles with `aw oc profile`.",
+        ),
+        (
+            _run_dispatch.IPD_TOKEN,
+            "Run an IPD with the configured default runner (host-neutral, unqualified).",
+            "Launch an IPD run through the runner configured as `default_runner`, without naming a "
+            "host or a profile: `aw run ipd <selector>`. Refuses (exit 2) when no `default_runner` "
+            "is configured rather than guessing a host, because guessing would launch a model you "
+            "did not choose. That host then applies its own per-runner default profile through the "
+            "shared resolver. Every argument is forwarded verbatim to the host's driver, which owns "
+            "its flags, output, and exit codes.",
+        ),
+    ):
+        _p_route = run_sub.add_parser(
+            _route_token,
+            help=_route_help,
+            add_help=False,
+            description=_route_desc,
+        )
+        _p_route.add_argument(
+            "dispatch_args",
+            nargs=argparse.REMAINDER,
+            help="Profile name (for `as`) and/or selector, then any host-runner flag, forwarded verbatim.",
+        )
     # `list` is the viewer table under its own name. It takes the viewer's positional/flag shape, not
     # the single-`target` leaf shape, so it is registered directly rather than via _register_run_leaf.
     _p_runs_list = runs_sub.add_parser(
@@ -10326,6 +10385,24 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         from agent_workflows import agy_runipd
 
         return agy_runipd.main(list(argv_list[2:]))
+    # runprofile Order 04 (ygzq71) E-01/E-02: `aw run as <profile> ...` / `aw run ipd ...` forward
+    # their tail VERBATIM to the resolved host runner's own parser, exactly as the two host blocks
+    # above do, and for the same two reasons. FIRST, the driver's parser must own every flag and its
+    # `--help` so the host-neutral spelling cannot drift from `aw oc run as gem X`. SECOND, and
+    # measured: `argparse.REMAINDER` does NOT capture a LEADING option, so without this pre-parse
+    # interception `aw run ipd --prepare-only all` dies with "unrecognized arguments: --prepare-only"
+    # while `aw run ipd all --prepare-only` works - an order-dependence the operator would experience
+    # as a random failure. Intercepting here makes flag position irrelevant.
+    #
+    # SCOPED TO EXACTLY THE TWO FIXED TOKENS. Any other `aw run <leaf>` (start/record/cancel/finalize)
+    # falls through to the normal parser and its ledger handler untouched, which is what keeps this
+    # from being the "unknown token means selector" inference the plan prohibits.
+    if (
+        len(argv_list) >= 2
+        and argv_list[0] == "run"
+        and argv_list[1] in _run_dispatch.ROUTES
+    ):
+        return _run_dispatch.dispatch(argv_list[1], list(argv_list[2:]))
     # revsweep 76gsmv E-02: `aw <host> review [<selector>] [<flags>...]` -> the CANONICAL driver
     # invocation, as spec 25kzda 2.1 defines it. Handled here, in the SAME pre-`parse_args` block as
     # the verbatim forwarding above, and for the same reason: the driver's own parser must own every
@@ -10565,6 +10642,15 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if not getattr(args, "run_command", None):
             return _show_family_help(
                 parser, "run", "aw run show <target>", term, context=context
+            )
+        # runprofile Order 04 (ygzq71) E-01/E-02: the two host-neutral DISPATCH routes, checked
+        # BEFORE the ledger dispatcher so `as`/`ipd` never reach `run_cli` (which would report an
+        # unknown leaf). The parsed-namespace path; `_dispatch` also intercepts these two routes
+        # pre-`parse_args` because REMAINDER cannot capture a LEADING option. BOTH paths call the
+        # same `run_dispatch.dispatch`, so neither can behave differently from the other.
+        if args.run_command in _run_dispatch.ROUTES:
+            return _run_dispatch.dispatch(
+                args.run_command, list(getattr(args, "dispatch_args", []) or [])
             )
         from agent_workflows import run_cli
 

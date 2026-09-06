@@ -320,7 +320,14 @@ class CompleteQueryArtifactTests(_DynamicRepoFixture):
         offering targets there would advertise a shape the parser rejects.
         """
         got = completion.complete_query(["aw", "run", ""], 2, self.root)
-        self.assertEqual(sorted(got), ["cancel", "finalize", "record", "start"])
+        # runprofile Order 04 (ygzq71): `as` and `ipd` are the host-neutral DISPATCH routes the
+        # approved `runprofile` Set added to this same writing noun (`0soncw` kept the noun alive for
+        # exactly that). They belong in this slot because the parser really accepts them there, which
+        # is this test's own stated rule: offer what the parser accepts and nothing else. The
+        # falsifiable claims are unchanged below - no retired VIEWER leaf, and no target.
+        self.assertEqual(
+            sorted(got), ["as", "cancel", "finalize", "ipd", "record", "start"]
+        )
         # None of the retired viewer leaves may be offered under the old noun.
         for retired in ("show", "status", "evidence", "verify-ledger", "list"):
             self.assertNotIn(retired, got)
