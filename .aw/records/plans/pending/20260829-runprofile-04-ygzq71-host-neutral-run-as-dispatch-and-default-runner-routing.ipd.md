@@ -44,27 +44,27 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 ### Task group 1: fixed grammar and dispatch registry
 
-- [ ] E-01 Register fixed aw run as and aw run ipd parser entries under the existing run family.
+- [x] E-01 Register fixed aw run as and aw run ipd parser entries under the existing run family.
   - Depends on: none
   - Expected outcome: profile names exist only as data after the literal as token, while current/future command namespaces remain protected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Create run_dispatch.py with a small explicit runner registry and adapter functions. For v1, oc delegates to oc_runipd.main using its accepted canonical start/as/direct-field grammar; no shell subprocess or reconstructed prompt is introduced. Named dispatch derives runner from the profile and verifies registration; default dispatch requires a valid default_runner and per-runner/default resolution. Unknown/unimplemented runners fail with exact setup commands and never fall back to OpenCode.
+- [x] E-02 Create run_dispatch.py with a small explicit runner registry and adapter functions. For v1, oc delegates to oc_runipd.main using its accepted canonical start/as/direct-field grammar; no shell subprocess or reconstructed prompt is introduced. Named dispatch derives runner from the profile and verifies registration; default dispatch requires a valid default_runner and per-runner/default resolution. Unknown/unimplemented runners fail with exact setup commands and never fall back to OpenCode.
   - Depends on: E-01
   - Expected outcome: generic syntax is a thin deterministic router, not a second runner, parser fork, or optimistic host detector.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: parity and namespace protection
 
-- [ ] E-03 Define and test exact parity pairs: aw run as gem X and aw oc run as gem X reach oc_runipd.main with equivalent normalized arguments; aw run ipd X and aw oc run X are equivalent when oc and gem are configured defaults; explicit --model/--variant/--agent overrides survive generic dispatch exactly once. Preserve exit codes, stdout/stderr ownership, interruption handling, and machine-output flags by returning the host runner's result directly.
+- [x] E-03 Define and test exact parity pairs: aw run as gem X and aw oc run as gem X reach oc_runipd.main with equivalent normalized arguments; aw run ipd X and aw oc run X are equivalent when oc and gem are configured defaults; explicit --model/--variant/--agent overrides survive generic dispatch exactly once. Preserve exit codes, stdout/stderr ownership, interruption handling, and machine-output flags by returning the host runner's result directly.
   - Depends on: E-01, E-02
   - Expected outcome: generic routing adds no behavioral layer beyond runner/profile selection.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add adversarial parser/dispatch tests with profiles named status, report, run, show, evidence, and future-command; prove real aw run status/report/show/evidence/start/verify-ledger still select their original handlers while aw run as status selects the profile. Prove aw status, aw gem, aw gemrun, aw run gem, aw run-gem, aw run:gem, and aw rungem are not created/interpreted as aliases; a selector equal to gem under aw run ipd remains a selector; missing profile/default/runner and malformed config fail before host invocation.
+- [x] E-04 Add adversarial parser/dispatch tests with profiles named status, report, run, show, evidence, and future-command; prove real aw run status/report/show/evidence/start/verify-ledger still select their original handlers while aw run as status selects the profile. Prove aw status, aw gem, aw gemrun, aw run gem, aw run-gem, aw run:gem, and aw rungem are not created/interpreted as aliases; a selector equal to gem under aw run ipd remains a selector; missing profile/default/runner and malformed config fail before host invocation.
   - Depends on: E-01, E-02, E-03
   - Expected outcome: a regression test fails if an implementation buys terseness by consuming command namespace, guessing from unknown tokens, or changing ledger routing.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -132,22 +132,77 @@ Execution-state rule: mark an E-* item complete only after performing the action
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a V-* item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Paste parser/help tests proving only fixed as and ipd were added; named/default selectors and structured overrides parse; existing run subcommands retain their handlers; and no dynamic profile command/subcommand is registered. Include the parser result for aw run as status X versus aw run status X.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: `python3 -m pytest -p no:randomly tests/test_run_dispatch.py -k "FixedGrammarRegistration or ProfileParsedAsData"` -> `7 passed, 41 deselected in 0.81s` (exit 0). `python3 -m pytest -p no:randomly tests/test_cli.py -k RunDispatchHelpSurface` -> `5 passed, 52 deselected in 0.26s` (exit 0).
+    ONLY the two fixed entries exist: `test_run_family_is_exactly_the_writers_plus_the_two_fixed_routes` asserts the `aw run` choice set equals `{start,record,cancel,finalize,as,ipd}`, measured live as `{start,record,cancel,finalize,as,ipd}` in `aw run --help`. Neither route declares a flag of its own (`test_the_two_routes_declare_no_flags_of_their_own`: `flags == []`, exactly one `REMAINDER` each).
+    THE `as status` VS `status` PARSER RESULT the item asks for, measured from `cli._build_parser()`:
+    ```
+    run as status SEL -> command=run  run_command=as     dispatch_args=['status', 'SEL']
+    runs status SEL   -> command=runs runs_command=status target=SEL
+    run ipd gem       -> command=run  run_command=ipd    dispatch_args=['gem']
+    run start T       -> command=run  run_command=start  target=T
+    ```
+    So `status` after `as` is DATA (the profile name) while `status` in a command position is still the leaf. NOTE the noun: `0soncw` (executed after this plan was authored) moved `status` onto the READING noun `aw runs`; `aw run status` is now correctly REJECTED, and that rejection is asserted too (see V-04). Recorded as DECISION 19-ygzq71-D4.
+    NO dynamic command was created: `test_no_profile_name_became_a_command_or_subcommand` proves `gem`, `sonnet`, `gemrun`, `rungem`, `run-gem`, `run:gem` are absent from BOTH the top-level and the `run` choice maps, with a store on disk that defines `gem` and `sonnet`.
+    Both leaves carry contract declarations (`run as`, `run ipd`, class `mutation`), and `find_undeclared_leaves` no longer reports them; the 5 it still reports (`oc profile *`) are PRE-EXISTING from Order 02 and were failing at baseline before this plan.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: Paste adapter-registry tests showing named runner derivation, default_runner resolution, OpenCode delegation to oc_runipd.main with no subprocess/shell/prompt duplication, direct returned exit codes, and explicit failures for missing/unknown/unimplemented runners with no host invocation.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m pytest -p no:randomly tests/test_run_dispatch.py -k "AdapterRegistry or FailClosed"` -> `18 passed, 30 deselected in 0.54s` (exit 0).
+    RUNNER DERIVATION: `resolve_named_runner('gem') == 'oc'` (from the PROFILE, never from `default_runner`); `resolve_default_runner() == 'oc'` (via `runner_profiles.resolve(generic=True)`, so the precedence chain is not forked). `registered_runners() == ['oc']`, and every adapter key is also in `runner_profiles.RUNNER_REGISTRY`.
+    DELEGATION WITH NO DUPLICATION: `test_the_opencode_adapter_delegates_to_oc_runipd_main` asserts `oc_runipd.main` is called ONCE with the exact argv and that its return value (7) is returned unchanged. `test_the_adapter_uses_no_subprocess_or_shell` proves it STRUCTURALLY by walking the module AST: no `subprocess`/`os`/`shlex`/`pty` import, no `system`/`Popen`/`run`/`spawn`/`execv`/`fork` reference, no `shell=` keyword. (Written as an AST walk after a substring scan was measured to fail on the docstring, which mentions "subprocess" while promising not to use one.)
+    EXIT CODES RETURNED DIRECTLY: `test_the_host_exit_code_is_returned_unchanged` for 0, 1, 2, 3, 130 on both routes.
+    EVERY REFUSAL HAPPENS BEFORE HOST INVOCATION (each asserts `host_calls == 0` and exit 2): unknown profile (message names `aw oc profile add nope`), absent `default_runner` (message contains `does not guess`), absent store, malformed JSON store, unsupported `schema_version`, a profile whose runner has no adapter (`no dispatch adapter`), bare `as`, and `as --model ...`. `test_a_registered_but_unimplemented_runner_is_a_distinct_refusal` proves "known runner, no adapter" is NOT reported as "not a runner", because the two have different fixes. There is no fallback to OpenCode on any of these paths.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: Paste exact mock-call parity for aw run as gem X versus aw oc run as gem X and aw run ipd X versus defaulted aw oc run X. Show model/variant/agent overrides appear exactly once and stdout/stderr/exit ownership remains delegated.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04
+  - Observed evidence: `python3 -m pytest -p no:randomly tests/test_run_dispatch.py -k HostParity` -> `11 passed, 37 deselected in 1.11s` (exit 0).
+    EXACT FORWARDED ARGV, captured by patching `oc_runipd.main` and driving the real `cli.main` (synthetic models only):
+    ```
+    run as gem SEL                                                    -> rc=0 argv=['as', 'gem', 'SEL']
+    oc run as gem SEL                                                 -> rc=0 argv=['as', 'gem', 'SEL']
+    run ipd SEL                                                       -> rc=0 argv=['SEL']
+    oc run SEL                                                        -> rc=0 argv=['SEL']
+    run as gem SEL --model synthetic/x --variant low --agent build     -> rc=0 argv=['as','gem','SEL','--model','synthetic/x','--variant','low','--agent','build']
+    oc run as gem SEL --model synthetic/x --variant low --agent build  -> rc=0 argv=['as','gem','SEL','--model','synthetic/x','--variant','low','--agent','build']
+    run ipd --prepare-only SEL                                        -> rc=0 argv=['--prepare-only', 'SEL']
+    oc run --prepare-only SEL                                         -> rc=0 argv=['--prepare-only', 'SEL']
+    ```
+    Each generic form is BYTE-IDENTICAL to its host-specific twin. Parity also holds for the long spelling (`opencode runipd as gem SEL`).
+    OVERRIDES EXACTLY ONCE: asserted per flag and for all three together, counting occurrences in the forwarded argv (`argv.count(flag) == 1` and `argv.count(value) == 1`). The router never re-resolves launch fields, so the host applies each exactly once.
+    OWNERSHIP DELEGATED: the default route forwards NO `as` clause (`test_default_route_forwards_no_as_clause`), so the host applies its own default profile; `aw run as gem --help` forwards `['as','gem','--help']` identically to the host spelling, so the DRIVER prints its own help; the `--` literal-selector escape reaches the host intact (`['--','as']`); and exit codes are returned unchanged (V-02).
+    BOTH ENTRY PATHS AGREE: `test_both_entry_paths_produce_identical_argv` runs the pre-`parse_args` interception and the parsed-namespace branch and asserts identical rc and argv, so the two registrations cannot drift.
+    END-TO-END, NOT ONLY MOCKED: with a temp `XDG_CONFIG_HOME` store, `aw run as gem ygzq71 --prepare-only` exited 0 and the driver printed `Launch: model=synthetic/test-model (profile); variant=high (profile); profile=gem (requested)`, proving the clause reached the real resolver.
+  - Result: pass
+- [x] V-04 validates E-04
   - Required evidence: Paste the adversarial command matrix for profiles status/report/run/show/evidence/future-command, existing run-ledger handlers, selector gem under run ipd, malformed/missing config, and every prohibited dynamic spelling. Include full existing run-family test output proving no routing regression.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest -p no:randomly tests/test_run_dispatch.py -k "LedgerRoutingUnchanged or ProhibitedSpelling or SelectorAmbiguity"` -> `12 passed, 36 deselected in 2.98s` (exit 0).
+    COMMAND-LIKE PROFILES: with a store defining `status`, `report`, `run`, `show`, `evidence`, `future-command`, each is reachable after `as` and forwards as DATA (`test_every_command_like_profile_name_is_reachable_after_as`: `aw run as <name> SEL` -> `['as','<name>','SEL']` for all six).
+    THE ADVERSARIAL MATRIX, measured live (`host_calls` is the number of times the host runner was invoked):
+    ```
+    PROHIBITED SPELLINGS (must fail, host never invoked):
+      aw gem                     rc=2 host_calls=0     aw run gem            rc=2 host_calls=0
+      aw gemrun                  rc=2 host_calls=0     aw run gem SEL        rc=2 host_calls=0
+      aw rungem                  rc=2 host_calls=0     aw run with gem SEL   rc=2 host_calls=0
+      aw run-gem                 rc=2 host_calls=0     aw run using gem SEL  rc=2 host_calls=0
+      aw run:gem                 rc=2 host_calls=0     aw run w gem SEL      rc=2 host_calls=0
+      aw run future-command      rc=2 host_calls=0
+    REAL LEDGER LEAVES (must NOT reach host):
+      aw run start T   rc=2 h=0    aw run record T   rc=2 h=0    aw run cancel T rc=2 h=0
+      aw run finalize T rc=2 h=0   aw runs show T    rc=2 h=0    aw runs status T rc=2 h=0
+      aw runs evidence T rc=2 h=0  aw runs verify-ledger T rc=2 h=0
+    MOVED VIEWERS STILL REJECTED UNDER aw run (0soncw's contract preserved):
+      aw run show rc=2 h=0   aw run status rc=2 h=0   aw run evidence rc=2 h=0
+      aw run verify-ledger rc=2 h=0
+    aw status (a profile named `status` must NOT capture it):  rc=0 host_calls=0
+    ```
+    (The exit 2 on the real ledger leaves is the fixture's missing target/flag, not a routing error: `test_writer_leaves_still_select_the_ledger_dispatcher` proves WHERE each lands by patching `run_cli.run_cli` and asserting it is entered with the right `run_command`, which is a stronger claim than an exit code.)
+    SELECTOR AMBIGUITY: `aw run ipd gem` forwards `['gem']` with no `as` injected, identical to `aw oc run gem`, so a profile-like token without `as` stays a selector. A profile can never be NAMED `as` (`RESERVED_PROFILE_NAMES`), and a second `as` clause is refused by the driver (exit 2) rather than silently accepted.
+    MISSING/MALFORMED CONFIG: covered in V-02 (unknown profile, absent default, absent store, malformed JSON, bad schema version - all exit 2 with zero host invocations).
+    NO ROUTING REGRESSION IN THE EXISTING RUN FAMILY: `python3 -m pytest -p no:randomly tests/test_run_dispatch.py tests/test_run_noun_split.py` -> `64 passed in 7.02s` (exit 0). `tests/test_run_noun_split.py` is the characterization suite that pins the exit CLASS of all twelve ledger leaves plus the bare viewer; it passes unchanged apart from the ONE generalized assertion recorded as DECISION 19-ygzq71-D2.
+    WHOLE SUITE: bare `python3 -m pytest` -> `31 failed, 5336 passed, 3 skipped, 2 xfailed in 110.52s`. All 31 failures are PRE-EXISTING: a baseline run at HEAD 33cbcdc2 with this plan's changes removed failed 35, and `comm -13 baseline final` is EMPTY, i.e. this plan introduces ZERO new failures (4 baseline failures are live-repo/order-sensitive and did not recur). `aw sanitize --agent` -> `"outcome":"clean","findings":0`; `git diff --check` clean.
+  - Result: pass
 
 
 ## Approval and execution gate
