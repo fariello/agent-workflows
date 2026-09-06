@@ -2,19 +2,21 @@
 
 - Date: 2026-09-06
 - Kind: child
-- Concern: Four code sites put the generated `INDEX.json`/`INDEX.md` paths into a COMMIT path-set. Once child 02 gitignores those files, every one of them either silently no-ops or hard-fails, and the worst case is a transaction with rollback. Measured at HEAD `7f80180e`: `ipd_lifecycle.py:2340-2343` places both plans-manifest paths into `owned_paths` for the finalize lifecycle commit; `status_set.py:936-937,971-972` collects them for the `aw set` auto-refresh self-commit; `status_set.py:1122-1138` (`_index_paths_for_types`) computes them for the same purpose; `artifact_rename.py:63-74` computes them for the rename self-commit. This child removes the COMMIT half at all four sites while PRESERVING the REFRESH half, so the manifests stay current on disk and `check.stale-index` keeps working. It must land BEFORE untracking, because a `git commit -- <gitignored path>` in a journalled transaction is the sharpest failure mode in the whole change.
-- Scope: The four commit-path-set sites and their tests. IN: dropping the manifest paths from `owned_paths` (`ipd_lifecycle.finalize`), from the `aw set` self-commit path list, from `_index_paths_for_types`, and from `artifact_rename`'s self-commit paths; keeping every REGENERATION call untouched; updating `tests/test_auto_index_on_mutation.py` so the refresh half stays covered rather than deleted. OUT: `.gitignore`, `git rm --cached`, the `check.stale-index` semantics decision, and the three documents (all child 02); any change to WHEN a manifest is regenerated.
-- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/artifact_rename.py, tests/test_auto_index_on_mutation.py
+- Concern: Multiple code sites put the generated `INDEX.json`/`INDEX.md` paths into a COMMIT path-set. Once child 02 gitignores those files, every one of them fails, and the failure is NOT a benign no-op: `git add -- <ignored-path>` exits 1 and stages NOTHING, so `git_commit_helper.offer_commit` returns `error` and commits NOTHING AT ALL, losing the real artifact's commit alongside the manifest's (measured, see F-7). This child removes the COMMIT half at every site while PRESERVING the REFRESH half, so the manifests stay current on disk and `check.stale-index` keeps working. It must land BEFORE untracking, because a `git commit -- <gitignored path>` in a journalled transaction is the sharpest failure mode in the whole change. REVIEW CORRECTION (2026-09-06, `/plan-review`): the authored scope named FOUR sites; a re-sweep at HEAD `7f80180e` found EIGHT contributors reaching FIVE distinct commit gateways (F-7..F-10). The four added ones are not new drift; all four existed at `7f80180e` and were missed. The `artifact_rename` site the plan named is additionally UNREACHABLE dead code (F-8).
+- Scope: Every commit-path-set contributor for a generated manifest, plus one choke-point backstop, plus the tests that pin both halves. IN: dropping the manifest paths from `owned_paths` (`ipd_lifecycle.finalize`), from the `aw set` self-commit path list and `_index_paths_for_types`, from the TWO `cli.py` group/rename aggregation sites that actually perform the `MutationResult.index_paths` commit (which covers `plans_refs`, `research_refs` and `artifact_rename` at one place), from `artifact_rename`'s dead contribution, and from the two `*_archive` shard-move `touched` lists; correcting the `MutationResult` docstring that documents the removed contract; adding an ignored-path guard in `git_commit_helper.offer_commit` so a MISSED site degrades to "manifest not committed" instead of "nothing committed"; keeping every REGENERATION call untouched; retargeting the tests that actually assert a manifest was committed. OUT: `.gitignore`, `git rm --cached`, the `check.stale-index` semantics decision, the installer `.gitignore` TEMPLATE gap (child 02, see Deferred), and the three documents (all child 02); any change to WHEN a manifest is regenerated; the broader dead-code cleanup inside `artifact_rename`'s unreachable auto-index blocks.
+- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/artifact_rename.py, agent_workflows/cli.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/plans_archive.py, agent_workflows/research_archive.py, agent_workflows/git_commit_helper.py, tests/test_auto_index_on_mutation.py, tests/test_selfcommit_adoption.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: idxuntrack
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 09
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: ila6vl
 - Id: 4r0qp1
 
 ## Workflow history
+- 2026-09-06 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 (10 fixed, PR-008 deferred to child 02). Re-swept commit-path contributors backward from every commit gateway: 4 authored -> 8 real, one of the 4 dead code. Measured that git add of an ignored path stages NOTHING and loses the artifact's commit.
 - 2026-09-06 to-review (aw set): Authored and ready for critique: aw ipd lint conforming, E-01..E-05 with a V-* bijection, every V-item demanding pasted evidence, no TODO placeholders, and OQ-01 resolved from repository evidence rather than deferred to the maintainer.
 
 - 2026-09-06 draft (opencode/its_direct/pt3-claude-opus-5-1m-us): created.
@@ -24,35 +26,56 @@
 
 Make every code path that currently COMMITS a generated index manifest stop doing so, while leaving every path that REGENERATES one untouched. After this child, the manifests are still written and still byte-comparable on disk, but no `aw` verb tries to include them in a commit. That is the precondition that makes child 02's `git rm --cached` safe.
 
+Add ONE defensive backstop at the shared commit gateway, because the review's own re-sweep is the argument for it: the authored plan enumerated four sites and there were eight, so "we found them all" is a claim this Set has already falsified once. With the guard, a site missed by BOTH the author and this review degrades to a manifest silently not committed instead of the artifact commit vanishing.
+
 ## Detailed Implementation Checklist (TODO)
 
 Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-### Task group 1: remove the commit half, preserve the refresh half
+### Task group 1: the shared backstop (do this FIRST)
 
-- [ ] E-01 In `ipd_lifecycle.finalize`, stop putting the two plans-manifest paths into the transaction's `owned_paths`. Locate by SYMBOL (`owned_paths`, the `index_json_rel`/`index_md_rel` locals), not by the line number, which has already drifted once. Keep the manifest REGENERATION that the MUTATING phase performs; remove only the paths from the commit set. Re-read the surrounding docstring's phase list (`PREPARED -> MUTATING -> READY_TO_COMMIT -> commit -> ...`) and confirm no rollback/journal step keys on those two entries before removing them; if one does, report it rather than working around it.
+- [ ] E-06 In `git_commit_helper.offer_commit`, filter GITIGNORED paths out of the staging set instead of letting `git add` fail the whole commit. Locate by SYMBOL (`offer_commit`, its `rc, _out, err = _git(repo_root, ["add", "--", *rel_paths])` step at `:450`). Before staging, drop any `rel_paths` entry that `git check-ignore` reports as ignored; if that leaves the set EMPTY, return the existing `nothing-to-commit` outcome rather than `error`. Print a short note naming each dropped path so the drop is never silent. Do this FIRST so it is in place while E-01..E-05 land, and so a site anyone missed cannot take an artifact commit down with it. Do NOT add `-f`/`--force` anywhere: force-adding an ignored path is the exact behavior this Set exists to remove. Rationale, measured (F-7): with one ignored path in a two-path set, `offer_commit` returned `status=error`, `staged=()`, and created NO commit, so the real artifact went uncommitted too.
   - Depends on: none
-  - Expected outcome: `owned_paths` contains the plan's source and destination paths only; the finalize commit no longer names a manifest; the manifest is still refreshed on disk during the transaction.
+  - Expected outcome: a path-set mixing a real artifact with a gitignored manifest commits the artifact and skips the manifest, with the skip reported; an all-ignored set is `nothing-to-commit`, not `error`.
   - Execution state: pending
 
-- [ ] E-02 In `status_set.py`, stop returning the manifest paths for the `aw set` auto-refresh self-commit, at BOTH collection sites (the plans branch and the research branch around `:936-972`) and in `_index_paths_for_types` (`:1122-1138`). Keep every `run_index`/refresh call. `_index_paths_for_types` exists ONLY to produce self-commit paths, so decide explicitly and record which: delete the function and its call sites, or keep it returning an empty list with a docstring saying why. Prefer deletion if nothing else consumes it; prove which by grepping its callers before choosing.
-  - Depends on: none
-  - Expected outcome: an `aw set` status change refreshes the manifests on disk and commits only the artifact whose status changed.
+### Task group 2: remove the commit half, preserve the refresh half
+
+- [ ] E-01 In `ipd_lifecycle._finalize_transaction`, stop putting the two plans-manifest paths into the transaction's `owned_paths`. Locate by SYMBOL (`owned_paths`, the `index_json_rel`/`index_md_rel` locals), not by the line number, which has already drifted once. Keep the manifest REGENERATION the MUTATING phase performs (`_refresh_plans_index_fail_loud`), which is a fail-loud gate and must stay. THREE journal consumers key on these entries and each needs a decision, so handle them explicitly rather than discovering them at runtime: (a) `git_index_entries` (`:2412`) captures `git ls-files --stage` for owned paths, which is harmless once untracked (it simply records nothing); (b) `_rollback_precommit` (`:1681-1688`) iterates `owned_paths` calling `git restore --staged -- <p>`, and that command exits 1 with "pathspec did not match any file(s) known to git" for an untracked path (measured), so leaving a manifest in `owned_paths` would make rollback emit a spurious error; (c) `index_json_before`/`index_md_before` (`:2410-2411`) snapshot the manifest CONTENT and are read by nothing (verified: no other reference in `agent_workflows/` or `tests/`), so leave them or drop them, but say which and why. Also note `stage` (`:2467`) filters on existence, so it does NOT protect against an ignored path, only a missing one.
+  - Depends on: E-06
+  - Expected outcome: `owned_paths` contains the plan's source and destination paths only; the finalize commit no longer names a manifest; the manifest is still refreshed on disk during the transaction; rollback no longer references an untracked path.
   - Execution state: pending
 
-- [ ] E-03 In `artifact_rename.py`, stop computing the manifest paths for the rename self-commit (the helper at `:63-74`). Same rule as E-02: the refresh stays, the commit-path contribution goes.
-  - Depends on: none
-  - Expected outcome: `aw rename <type>` refreshes the manifests and commits only the renamed artifact plus any files whose references it rewrote.
+- [ ] E-02 In `status_set.py`, stop contributing the manifest paths to the `aw set` self-commit. The ONE site that feeds the commit is `_index_paths_for_types` (`:1122-1138`), consumed at `_offer_self_commit:1165`. Delete the function and that call, having first confirmed by grep that nothing else consumes it (verified at review time: `_offer_self_commit` is its only caller). Do NOT touch `_auto_index_types` (`:912-988`): its `changes.append(Change(...))` entries at `:936-937,971-972` are the agent-mode CHANGES REPORT, not a commit path-set, and the plan's original citation of those lines as commit contributors was WRONG (F-11). They must keep reporting the refresh, and `tests/test_auto_index_on_mutation.py::test_aw_set_agent_output_includes_index_in_changes` must keep passing UNCHANGED as proof.
+  - Depends on: E-06
+  - Expected outcome: an `aw set` status change refreshes the manifests on disk, still REPORTS them in agent-mode changes, and commits only the artifact whose status changed.
   - Execution state: pending
 
-- [ ] E-04 Update `tests/test_auto_index_on_mutation.py` (6 test functions at HEAD) so the REFRESH half stays covered and the COMMIT half is asserted ABSENT. Do not delete a test to make it pass: for each case that currently asserts a manifest was committed, invert it to assert the manifest was refreshed on disk AND is not in the commit's path set. The point of the file is that a mutation keeps the manifest current; that guarantee must survive this change.
-  - Depends on: E-01, E-02, E-03
-  - Expected outcome: the module still fails if a future change stops refreshing a manifest, and now also fails if one starts committing a manifest again.
+- [ ] E-03 Remove the `MutationResult.index_paths` commit contribution at the TWO aggregation sites that actually perform the commit: `cli.py:8557` (`index_all.extend(result.index_paths)`, committed at `:8560-8569` via `_offer_records_commit`) and `cli.py:11057-11062` (the `aw research set-assign`/`mv` branch). These two are the real gateway for `plans_refs` (`:451,499`), `research_refs` (`:347,367`) AND `artifact_rename` (`:658,804`), so fixing them here covers all three producers at the choke point instead of in three places. Then stop the producers contributing at all: make `artifact_rename._index_paths_for` (`:62-80`) unused and delete it with its two call sites, and do the same for `plans_refs._index_paths_for` (`:413-423`) and `research_refs._index_paths_for` (`:310-322`). Prefer removing the `index_paths` FIELD from `MutationResult` (`plans_refs.py:156`) entirely if no consumer remains; if you keep the field for compatibility, UPDATE its docstring (`plans_refs.py:148,150`), which currently states "The commit path-set is `touched_paths + index_paths`" and would otherwise document a contract the code no longer honors. Note `artifact_rename`'s contribution is DEAD at HEAD (F-8): its auto-index blocks are gated on `artifact_type in {"plans","research"}` but `artifact_types.TYPE_BACKENDS` routes plans/research to `plans_refs`/`research_refs`, never to `artifact_rename`. Remove it anyway, and record that it was dead so the next reader is not misled.
+  - Depends on: E-06
+  - Expected outcome: `aw rename <type>` / `aw group <type>` / `aw research mv` refresh the manifests and commit only the renamed artifact plus any files whose references were rewritten; no `MutationResult` docstring claims a contract the code no longer has.
   - Execution state: pending
 
-- [ ] E-05 Confirm no OTHER site adds a manifest to a commit path-set. Sweep for `INDEX.json`/`INDEX.md`/`INDEX_JSON`/`INDEX_MD` across `agent_workflows/` and classify every hit as writer, path constant, help text, reader, or commit-path contributor. The four in this plan's scope were found that way at HEAD `7f80180e`; a fifth appearing since is exactly the kind of thing this item's own 6-day-stale citations prove happens. Report any new one instead of silently expanding scope.
-  - Depends on: E-01, E-02, E-03
-  - Expected outcome: a pasted classification of every hit, with zero unaccounted commit-path contributors, or a named new one reported for a scope decision.
+- [ ] E-07 Remove the manifest paths from the two ARCHIVE shard-move commit sets, which the authored plan missed entirely (F-9). `plans_archive.apply_shard_moves` (`:159-182`) appends both manifests to the `touched` list it RETURNS, and that list is committed verbatim by `_offer_archive_commit` (`:283-307`); `research_archive` has the identical shape at `:274-283` committed at `:387-411`. Note the research one appends UNCONDITIONALLY (no `p.exists()` guard), unlike its plans twin. Keep both `_refresh_index` / inline regeneration calls exactly as they are; remove only the append loops. Mind that `_offer_archive_commit` also calls `_gch._git(repo_root, ["reset", "--quiet", "HEAD", "--", *touched])` before committing, which is harmless for an untracked path (measured: exit 0), so no change is needed there.
+  - Depends on: E-06
+  - Expected outcome: `aw archive plans` / `aw archive research` commit exactly the moved artifact files, with the manifests refreshed on disk and absent from the commit.
+  - Execution state: pending
+
+### Task group 3: pin both halves in tests
+
+- [ ] E-04 Retarget the tests that actually assert a manifest was COMMITTED. Do NOT expect to find them in `tests/test_auto_index_on_mutation.py`: that module contains ZERO commit assertions (verified: `grep -c commit` returns 0), so the authored E-04 premise was wrong (F-12) and its 6 tests should pass UNCHANGED as the proof that the refresh half survived. The real commit assertions are in `tests/test_selfcommit_adoption.py`: `:265` (`assertTrue(any(f.endswith("INDEX.json") for f in files))`, on the archive commit) and `:348` (`assertTrue(any(p.endswith("INDEX.json") for p in mr.index_paths))`, on the plans backend). INVERT both to assert the manifest is ABSENT from the committed set, keeping their existing assertions that the real artifact IS committed. Add one case for E-06's guard: a path-set mixing a real file with a gitignored one commits the real file. Do not delete a test to make it pass.
+  - Depends on: E-01, E-02, E-03, E-06, E-07
+  - Expected outcome: the suite fails if a future change stops refreshing a manifest, fails if one starts committing a manifest again, and fails if the ignored-path guard regresses.
+  - Execution state: pending
+
+- [ ] E-05 Re-sweep for any REMAINING commit-path contributor and classify every hit. Sweep `INDEX.json`/`INDEX.md`/`INDEX_JSON`/`INDEX_MD`/`index_paths` across `agent_workflows/` (exclude `__pycache__`) and classify each as writer, path constant, help text, reader, changes-report entry, or commit-path contributor. Cross-check from the OTHER direction too, which is how this review found the four missed sites: enumerate every `offer_commit` / `_offer_records_commit` / `_offer_archive_commit` / `_offer_self_commit` call and trace each one's path-set to its origin. The eight known contributors are E-01, E-02, E-03 (x2 gateway + 3 producers), and E-07 (x2); report any NINTH rather than silently expanding scope.
+  - Depends on: E-01, E-02, E-03, E-07
+  - Expected outcome: a pasted two-direction classification with zero unaccounted commit-path contributors, or a named new one reported for a scope decision.
+  - Execution state: pending
+
+- [ ] E-08 Prove the end state against a REAL gitignore, which is the only check that can catch a ninth site. In a scratch clone or worktree, apply child 02's ignore locally (add the four paths to `.aw/.gitignore` and `git rm --cached` them) WITHOUT committing that change to this branch, then exercise `aw set`, `aw rename plans`, `aw group plans`, `aw archive plans`, `aw research mv` and `aw ipd finalize`, and confirm each still commits its artifact. This is a temporary local experiment to validate child 01; revert it and confirm the branch does not carry it. If any verb fails, that is a ninth site: report it.
+  - Depends on: E-01, E-02, E-03, E-05, E-06, E-07
+  - Expected outcome: every mutating verb commits its artifact successfully under a real gitignore, proving child 02 can land safely; the experimental ignore is reverted and provably absent from the branch.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -61,6 +84,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - `aw index plans --check` byte-compares an in-memory rebuild against the file ON DISK, never against git. Verified by running it at HEAD (`plans index --check: clean`, 490 plans). This is why untracking does not break the check, and it is the item's own point 6.
 - The suite must be run bare (`python3 -m pytest`); `addopts` already supplies `-q -n auto --dist=worksteal -m 'not slow'`.
 - This is a shared checkout with concurrent agents and runs. Prefer an isolated worktree for execution; a measured lesson from 2026-09-06, when a co-worker's mid-run commit caused 56 unrelated failures to be misattributed to a local change.
+- Every records self-commit funnels through ONE helper, `git_commit_helper.offer_commit`, reached via four thin wrappers (`_offer_records_commit` in `cli.py`, `_offer_archive_commit` in both `*_archive` modules, `_offer_self_commit` in `status_set.py`) plus direct calls from `specs.py`, `work_cmd.py` and `oc_runipd.py`. Enumerating those call sites and tracing each path-set BACKWARD is a more reliable way to find commit-path contributors than grepping for `INDEX`, and it is how this review found the four the author missed. `ipd_lifecycle.finalize` is the one exception: it stages and commits directly rather than through the helper, so it needs its own treatment (E-01) and is not covered by E-06's guard.
+- `git add -- <ignored-path>` is NOT tolerant: it exits 1 and stages nothing, including the non-ignored paths in the same invocation. Any code that builds a mixed path-set must therefore filter ignored paths itself. Measured during this review; see F-7.
 
 ## Findings
 
@@ -72,33 +97,49 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-4 | MED | `artifact_rename.py:63-74` | Computes manifest paths for the rename self-commit. | docstring: "jgcm68 self-commit paths" |
 | F-5 | LOW | item `ila6vl` body | Two of the item's line citations had drifted in 6 days (`:1630` -> `:2340`; `:823-894` -> `:936-972`). The consumers are all still real. | re-verified at HEAD `7f80180e` |
 | F-6 | INFO | CI | No CI workflow references INDEX at all (`local-leaks.yml`, `secret-scan.yml`, `tests.yml`), so the item's scope point 8 ("confirm nothing in CI expects a committed baseline") is already satisfied. | `grep -rn INDEX .github/` returns nothing |
+| F-7 | BLOCKER | `git_commit_helper.py:450-457` | The plan's premise that a missed site "silently no-ops" is FALSE, and the true behavior is worse. `git add -- <ignored>` exits 1 and stages NOTHING; `offer_commit` then resets its own paths and returns `error`, creating NO commit, so the REAL ARTIFACT goes uncommitted alongside the manifest. A single missed site therefore silently stops an artifact from being committed. Addressed by new E-06. | measured: `offer_commit(repo,['sub/plan.md','sub/INDEX.json'])` with `sub/INDEX.json` ignored returned `status=error`, `staged=()`, `git log` unchanged, `sub/plan.md` left dirty |
+| F-8 | HIGH | `artifact_rename.py:62-80,658,804`; `artifact_types.py:75-118` | The `artifact_rename` site the plan scopes as one of its four is UNREACHABLE DEAD CODE. Both auto-index blocks gate on `artifact_type in {"plans","research"}`, but `TYPE_BACKENDS` routes `plans`->`plans_refs` and `research`->`research_refs`; `artifact_rename` only ever receives specs/prompts/backlog/walkthroughs/roadmaps/releases/other, for which `_index_paths_for` returns `()`. So E-03 as authored would have fixed nothing, while the two LIVE producers (`plans_refs`, `research_refs`) were unscoped. | `grep -n '"plans"\|"research"' artifact_types.py`; `_index_paths_for` returns `()` for every type actually routed there |
+| F-9 | HIGH | `plans_archive.py:159-182,283-307`; `research_archive.py:274-283,387-411` | Two commit-path contributors the plan missed entirely: both `apply_shard_moves`-style functions append the manifests to the `touched` list that `_offer_archive_commit` commits verbatim. `aw archive plans`/`aw archive research` would hit F-7 and commit NOTHING. `research_archive` appends without an `exists()` guard. Added as E-07. | source read; `_offer_archive_commit(args, repo_root, touched)` at `plans_archive.py:239,279` |
+| F-10 | HIGH | `plans_refs.py:413-423,451,499`; `research_refs.py:310-322,347,367`; `cli.py:8557,11057` | The two LIVE `MutationResult.index_paths` producers and the two aggregation sites that actually commit them were unscoped. `cli.py:8557`/`:11057` are the shared choke point for all three producers, so removing the contribution there covers `aw group`/`aw rename`/`aw research mv` at once. `MutationResult`'s docstring (`plans_refs.py:148,150`) documents the removed contract and would go stale. Folded into E-03. | source read; `_offer_records_commit(..., paths=[*touched_all, *index_all])` at `cli.py:8565` |
+| F-11 | MED | `status_set.py:912-988` | The plan's citation of `status_set.py:936-937,971-972` as commit-path contributors is WRONG. Those lines append `Change(...)` records to the agent-mode CHANGES REPORT, not to any commit path-set; the only commit contributor in the module is `_index_paths_for_types` (`:1122-1138`) via `_offer_self_commit:1165`. Following the plan as authored would have deleted correct reporting behavior and broken `test_aw_set_agent_output_includes_index_in_changes`. Corrected in E-02. | source read; `_auto_index_types(..., changes=changes)` builds `Change`, never a commit list |
+| F-12 | MED | `tests/test_auto_index_on_mutation.py` | E-04's premise ("for each case that currently asserts a manifest was committed, invert it") is false for the module it names: that file has ZERO commit assertions and only asserts on-disk refresh. The real commit assertions are in `tests/test_selfcommit_adoption.py:265,348`, which the plan never named. Corrected in E-04. | `grep -c commit tests/test_auto_index_on_mutation.py` -> `0`; both modules pass at HEAD (6 and 20 tests) |
+| F-13 | MED | `ipd_lifecycle.py:1681-1688` | E-01 asked the executor to "confirm no rollback/journal step keys on those two entries" and to report if one does. THREE do, so the answer is pre-resolved rather than left as a runtime discovery: `_rollback_precommit` calls `git restore --staged -- <p>` over `owned_paths`, which exits 1 on an untracked path (measured: "pathspec did not match any file(s) known to git"); `git_index_entries` (`:2412`) captures stage lines; `index_json_before`/`index_md_before` (`:2410-2411`) snapshot content and are read by NOTHING. Enumerated in E-01. | measured `git restore --staged -- <untracked>` -> exit 1; `grep -rn index_json_before agent_workflows/ tests/` -> one definition, no reader |
+| F-14 | MED | `engine.py:4274-4308,5323-5370` | The `.aw/.gitignore` the repo carries is byte-identical to `engine._AW_GITIGNORE_TEMPLATE` (verified), and `_ensure_aw_gitignore` back-fills patterns for already-installed repos. Child 02 edits the repo's FILE only, so unless the template and the back-fill list also gain the four paths, every fresh `aw install` and every existing managed repo will keep tracking the manifests, and this Set's fix would not generalize. Not in this child's scope; raised as an explicit dependency for child 02 (see Deferred). | `engine._AW_GITIGNORE_TEMPLATE == Path('.aw/.gitignore').read_text()` -> `True` |
 
 ## Proposed changes (ordered, validatable)
 
-1. E-01 removes the manifest paths from the finalize transaction's commit set (highest risk first, so a problem surfaces before the cheaper edits are made).
-2. E-02 and E-03 remove the same contribution from the `aw set` and `aw rename` self-commits.
-3. E-04 re-points the existing test module so both halves (refresh present, commit absent) are pinned.
-4. E-05 proves no fifth site exists.
+1. E-06 lands the shared `offer_commit` guard FIRST, so every later step is protected while it is being made and a ninth site cannot take an artifact commit down with it.
+2. E-01 removes the manifest paths from the finalize transaction's commit set and settles its three journal consumers (highest-risk site next, so a problem surfaces before the cheaper edits).
+3. E-02, E-03 and E-07 remove the contribution from the `aw set` self-commit, the group/rename `MutationResult` gateway (covering all three producers), and the two archive shard-move commits.
+4. E-04 pins both halves in the tests that actually assert them.
+5. E-05 re-sweeps from BOTH directions (manifest symbols, and every commit gateway's path-set) to prove no ninth site.
+6. E-08 exercises every mutating verb under a REAL local gitignore, the only check that can catch a site all three passes missed.
 
 ## Deferred / out of scope (with reason)
 
-- `.gitignore` entries and `git rm --cached`: child 02. Doing them here would mean this child's own validation runs against files that are simultaneously tracked and gitignored.
+- `.gitignore` entries and `git rm --cached`: child 02. Doing them here would mean this child's own validation runs against files that are simultaneously tracked and gitignored. E-08's temporary local experiment is deliberately NOT a commit of that change.
+- The INSTALLER `.gitignore` template gap (F-14): child 02, which owns the `.gitignore` change and must extend `engine._AW_GITIGNORE_TEMPLATE` and the `_ensure_aw_gitignore` back-fill list alongside the repo's own file, or the fix will not reach a fresh install or any already-managed repo. Recorded here because this review found it; assigned there because that is where the gitignore work lives.
 - The `check.stale-index` semantics decision: child 02, because it is only forced once the files are untracked.
 - The three documents (`.aw/records/plans/README.md`, `.aw/records/research/README.md`, `CONTRIBUTING.md`): child 02, where the statements actually become wrong.
 - Any change to regeneration TIMING or to `aw index` itself: not needed by this item and would widen the blast radius.
+- The wider dead-code cleanup in `artifact_rename`'s two unreachable auto-index blocks (F-8): remove only the commit-path contribution here. Deleting the surrounding regeneration blocks is a separate refactor with its own risk, and leaving them costs nothing once they contribute no commit path.
 
 ## Scope check
 
-- Over-scope: none.
-- Under-scope: none. This child is deliberately the code-only half; the tree-state half is child 02, which declares a dependency on this one.
+- Over-scope: `git_commit_helper.py` (E-06) is a defensive change to a shared helper, not strictly required to make the four verbs work. Justified and kept: F-7 measured that a missed site loses the ARTIFACT's commit, and this review found four sites the author missed, so the residual risk of a ninth is demonstrated rather than hypothetical. It is additive (it only ever removes an unstageable path) and cannot change behavior while nothing is gitignored.
+- Under-scope: none remaining. The authored scope was materially under-scoped (F-8/F-9/F-10 named four more contributors, one of the original four being dead code); corrected above.
 
 ## Required tests / validation
 
-`python3 -m pytest` bare, in an isolated worktree, with the baseline measured in that worktree at execution time and pasted. Compare failing NODE IDS, not totals: ~35 environment-related failures are expected in any lane worktree (backlog `agrlvw`), and a concurrent co-worker commit can move the total under the executor's feet. Beyond the suite, E-01 requires an actual `aw ipd finalize` exercise (or the existing finalize tests) proving the transaction still completes with the manifests absent from `owned_paths`.
+`python3 -m pytest` bare, in an isolated worktree, with the baseline measured in that worktree at execution time and pasted. Compare failing NODE IDS, not totals: ~35 environment-related failures are expected in any lane worktree (backlog `agrlvw`), and a concurrent co-worker commit can move the total under the executor's feet. Baseline measured at review time on the main checkout, for reference: `tests/test_auto_index_on_mutation.py` 6 passed, `tests/test_selfcommit_adoption.py` 20 passed, `tests/test_plans_refs.py tests/test_research_refs.py tests/test_plans_archive.py tests/test_research_archive.py` 44 passed.
+
+Beyond the suite: E-01 requires an actual `aw ipd finalize` exercise (or the finalize test subset) proving the transaction still completes; E-08 requires every mutating verb exercised under a real local gitignore, which is the validation that would have caught F-8/F-9/F-10 and is therefore the one that must not be skipped.
 
 ## Spec / documentation sync
 
-N/A for this child: it changes no documented behavior. The three documents that assert the manifests are committed become wrong only once child 02 untracks them, and child 02 owns correcting them.
+No user-facing document changes here; the three documents that assert the manifests are committed become wrong only once child 02 untracks them, and child 02 owns correcting them.
+
+Two INTERNAL doc-in-code syncs ARE required and are part of the E-items rather than deferred: the `MutationResult` docstring (`plans_refs.py:148,150`), which states "The commit path-set is `touched_paths + index_paths`" and becomes false (E-03); and `offer_commit`'s docstring/`Parameters` block, which currently promises that "ONLY these are ever staged ... including deletions, renames, and any regenerated index" and must record the new ignored-path filtering and its `nothing-to-commit` outcome (E-06).
 
 ## Open questions
 
@@ -106,42 +147,65 @@ N/A for this child: it changes no documented behavior. The three documents that 
 
 - Blocking: no
 - Status: resolved
-- Owner: executor
-- Resolution or deferral rationale: E-02 resolves this from repository evidence rather than asking: grep its callers, and delete it if the self-commit is the only consumer (which the docstring asserts). Either choice satisfies the goal; the executor records which and why. Not escalated to the maintainer because it is an internal-helper shape with no public contract.
+- Owner: reviewer
+- Resolution or deferral rationale: RESOLVED AT REVIEW from repository evidence, so the executor no longer has to decide: DELETE it. `grep -n "_index_paths_for_types" agent_workflows/*.py` shows exactly one caller, `_offer_self_commit` (`status_set.py:1165`), and that call is itself being removed by E-02, leaving the function with no consumer at all. A dead function kept "returning empty" is a trap for the next reader, who cannot tell whether it is disabled or merely unused. Same ruling applied to the three `_index_paths_for` helpers in E-03. Not escalated to the maintainer: internal helper shape, no public contract.
+
+### OQ-02: Is the shared `offer_commit` guard (E-06) wanted, or should the fix stay confined to the enumerated call sites?
+
+- Blocking: no
+- Status: resolved
+- Owner: reviewer
+- Resolution or deferral rationale: RESOLVED AT REVIEW: include it. The evidence is this Set's own history, not a hypothetical. The authored plan named four contributors; a re-sweep found eight, and one of the four named was dead code, so the estimate was wrong in both directions. F-7 measures the cost of a single missed site as the LOSS OF THE ARTIFACT'S OWN COMMIT, silently, which is precisely the failure class that stranded lane `ueg5cf` and motivated the parent item. The guard is additive, is inert while nothing is gitignored, and turns that failure into a reported skip. REVERSIBLE: it is a local edit to one helper that a later maintainer can drop by deleting the filter. Alternative rejected: rely on E-05's sweep alone, which is the same kind of enumeration that already proved insufficient once here.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the post-change `owned_paths` construction showing no manifest entries, AND pasted output of a finalize exercise (a real `aw ipd finalize` on a scratch plan, or the finalize test subset) completing successfully. Also paste a grep of the journal/rollback code proving no step keys on the removed entries.
+  - Required evidence: paste the post-change `owned_paths` construction showing no manifest entries, AND pasted output of a finalize exercise (a real `aw ipd finalize` on a scratch plan, or the finalize test subset) completing successfully. Paste the resolution of all THREE journal consumers named in E-01: the current `_rollback_precommit` loop showing it no longer iterates a manifest path, the `git_index_entries` call, and the decision taken on `index_json_before`/`index_md_before` with the grep proving no reader.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste an `aw set` status change on a scratch artifact showing (a) the manifest file's mtime/content updated on disk, and (b) `git show --stat` of the resulting commit containing no INDEX path.
+  - Required evidence: paste an `aw set` status change on a scratch artifact showing (a) the manifest file's content updated on disk, and (b) `git show --stat` of the resulting commit containing no INDEX path. ALSO paste `python3 -m pytest tests/test_auto_index_on_mutation.py -o addopts="" -q` still at 6 passed, which is the proof the agent-mode changes report (F-11) was NOT damaged, and paste a grep showing `_index_paths_for_types` no longer exists.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste an `aw rename <type>` exercise showing the manifest refreshed on disk and absent from the resulting commit's `--stat`.
+  - Required evidence: paste an `aw rename plans` AND an `aw group plans` AND an `aw research mv` exercise (all three reach different call sites) each showing the manifest refreshed on disk and absent from the resulting commit's `--stat`. Paste the post-change `cli.py` aggregation sites showing no `index_paths` contribution, and the updated (or removed) `MutationResult` docstring proving it no longer claims `touched_paths + index_paths` is the commit set.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste the full `python3 -m pytest tests/test_auto_index_on_mutation.py -o addopts="" -q` output (passing), plus a MUTATION CHECK: temporarily re-add a manifest path to one commit set, show the module FAILS, then revert and show it passes again. A test that cannot fail is not evidence.
+  - Required evidence: paste the full passing output of `python3 -m pytest tests/test_auto_index_on_mutation.py tests/test_selfcommit_adoption.py -o addopts="" -q`, plus a MUTATION CHECK on the INVERTED assertions: temporarily re-add a manifest path to one commit set, show `test_selfcommit_adoption` FAILS, then revert and show it passes. A test that cannot fail is not evidence. State the before/after counts (26 passed at review baseline for the two modules combined).
   - Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
-  - Required evidence: paste the classification sweep (every `INDEX*` hit under `agent_workflows/` with its category) showing zero remaining commit-path contributors.
+  - Required evidence: paste BOTH sweep directions. (a) every `INDEX*`/`index_paths` hit under `agent_workflows/` (excluding `__pycache__`) with its category; (b) every `offer_commit`/`_offer_records_commit`/`_offer_archive_commit`/`_offer_self_commit` call site with its path-set traced to origin. Both must show zero remaining commit-path contributors, or name the ninth.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste a reproduction of F-7 BEFORE and AFTER. Before: a two-path `offer_commit` where one path is gitignored returning `status=error`, `staged=()`, no commit created. After: the same call committing the real path, reporting the skipped one by name, and creating a commit. Plus an all-ignored call returning `nothing-to-commit` rather than `error`, and a grep proving no `-f`/`--force` was introduced.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste an `aw archive plans --apply --commit` and an `aw archive research --apply --commit` exercise on scratch artifacts, each showing `git show --stat` with the moved files and NO INDEX path, and the manifests refreshed on disk. Plus `python3 -m pytest tests/test_plans_archive.py tests/test_research_archive.py -o addopts="" -q` passing.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: paste, from the scratch clone/worktree with the four paths REALLY gitignored and `git rm --cached`ed, the successful commit evidence for each of `aw set`, `aw rename plans`, `aw group plans`, `aw archive plans`, `aw research mv`, and `aw ipd finalize`, each showing its artifact committed. Then paste `git check-ignore` and `git status --porcelain -- .aw/.gitignore` from THIS branch proving the experimental ignore was reverted and is not carried by the change.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: not required
+- Size note: 8 E-leaves in 3 groups, within the count thresholds; grown from 5 by the review's re-sweep.
+- Cohesion rationale: E-03 is the one item touching several files (`cli.py`, `plans_refs.py`, `research_refs.py`, `artifact_rename.py`) and it is deliberately NOT split, because those four are one data-flow path: the `MutationResult.index_paths` field, its three producers, and the two aggregation sites that commit it. Removing the producers while leaving the aggregation, or the reverse, leaves a half-wired contract whose docstring is false and whose behavior depends on which half landed, and no intermediate state is independently verifiable. Every other E-item is single-file and single-concern. E-06 is sequenced first on purpose: it is the only item that makes a MISS by any later item non-destructive.
 
 Execution contract: commit ONLY the files this plan changed, path-scoped (`git commit -m msg -- <path>`); never `git add -A`, never `-a`, never push. Verify the staged set with `git diff --cached --name-only` before every commit and RE-VERIFY after any failed or hook-interrupted commit, because pre-commit's stash/restore can leave a co-worker's paths in the index. When reporting tests passed, paste the ACTUAL runner output.
 
