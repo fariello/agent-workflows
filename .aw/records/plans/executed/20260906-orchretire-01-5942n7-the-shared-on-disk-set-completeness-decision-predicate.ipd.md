@@ -6,18 +6,18 @@
 - Scope: Build ONE shared, host-neutral predicate in `runner_shared.py` that decides whether a Set is retirement-eligible, reading the PLANS TREE rather than a run queue, and returning a typed reason for every refusal. Implements spec `77tr3o` R-1, R-2, R-3, R-9, R-10. It DECIDES ONLY and performs no transition (child 02 owns that) and touches no dispatch site (child 03 owns that). It does NOT change `_set_children_all_executed`'s callers, does NOT alter `EXECUTION_SUCCESS_STATES` (spec Section 4), and does NOT touch the `dependency-blocked` write.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 5942n7
-- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: 5942n7 verified (set orchretire, attempt 1).
 - 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-101..PR-105 fixed, Readiness go-pending-approval
 
