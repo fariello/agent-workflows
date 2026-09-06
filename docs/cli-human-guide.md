@@ -115,3 +115,14 @@ in your own scripts for "the command could not run at all".
 | That board ordered by dependency, prerequisites first | `aw next -o depth` |
 | Only the fields you care about (agent) | `aw find plans --agent --fields findings` |
 | Bounded output with a continuation hint | `aw find plans --agent --limit 20` |
+| Launch an IPD with a saved model alias | `aw run as gem <selector>` |
+
+## Naming a model once instead of on every run
+
+If you keep retyping `--model <provider/model> --variant high`, save it as a named RUNNER
+PROFILE and run `aw run as gem <selector>` instead. Profiles are user-local, never created or
+made default for you, and `aw setup` offers to set one up with a question that defaults to No.
+
+[Runner profiles](runner-profiles.md) is the complete reference: every command form, the exact
+per-field override precedence, storage and privacy, and what happens on a bad or missing
+profile.

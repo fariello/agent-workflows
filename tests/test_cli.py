@@ -10,13 +10,16 @@ from __future__ import annotations
 
 import pytest
 
+import argparse
 import io
+import json
 import os
 import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from tests.support import init_repo
 from agent_workflows import cli, config as CFG
@@ -970,6 +973,417 @@ class RunDispatchHelpSurfaceTests(unittest.TestCase):
         leaves = discover_parser_leaves(cli._build_parser())
         self.assertNotIn("runs as", leaves)
         self.assertNotIn("runs ipd", leaves)
+
+
+# ==================================================================================================
+# runprofile Order 05 (p7xhhm) E-02 / V-01 / V-02: the OPTIONAL, default-NO runner-profile step in
+# interactive `aw setup`.
+#
+# WHAT THESE TESTS EXIST TO FALSIFY, each a way a plausible implementation would have been wrong:
+#
+# 1. CONSENT POLARITY. `--yes` preauthorizes install mutations; it must NOT consent to a model
+#    choice. A non-TTY run, an empty answer, an EOF, and an interrupt must all write NOTHING.
+#    Asserted by BYTE COMPARISON of the store, not by inspection, so a "wrote then restored"
+#    implementation still fails.
+# 2. ASKED ONCE, NOT PER REPOSITORY. A profile store is per-user, so a two-repo setup must ask
+#    exactly one profile gate question. Asserted by COUNTING the gate prompt in the transcript.
+# 3. DEFAULTS STAY EXPLICIT. Saving a profile must not implicitly change `default_runner` or the
+#    per-runner default profile; each is its own question, and declining preserves the prior value.
+# 4. NO CLOBBER. An existing profile of the same name is refused, and the existing bytes survive.
+# 5. AN OPTIONAL EXTRA NEVER FAILS AN INSTALL. A wizard blowing up AFTER repositories were
+#    installed must be reported and swallowed, and setup must still reach orientation.
+# ==================================================================================================
+
+
+class SetupRunnerProfileStepTests(unittest.TestCase):
+    """E-02: every consent polarity, ordering, and failure branch of the setup profile step."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self._old_xdg = os.environ.get("XDG_CONFIG_HOME")
+        os.environ["XDG_CONFIG_HOME"] = str(self.base / "cfg")
+        self._old_nocolor = os.environ.get("NO_COLOR")
+        os.environ["NO_COLOR"] = "1"
+
+    def tearDown(self):
+        if self._old_xdg is None:
+            os.environ.pop("XDG_CONFIG_HOME", None)
+        else:
+            os.environ["XDG_CONFIG_HOME"] = self._old_xdg
+        if self._old_nocolor is None:
+            os.environ.pop("NO_COLOR", None)
+        else:
+            os.environ["NO_COLOR"] = self._old_nocolor
+        self._tmp.cleanup()
+
+    # -- helpers -----------------------------------------------------------------------------
+
+    @property
+    def store(self) -> Path:
+        from agent_workflows import runner_profiles as RP
+
+        return RP.store_path()
+
+    def store_bytes(self):
+        """The store's exact bytes, or None when absent. The unit of the no-write assertions."""
+
+        return self.store.read_bytes() if self.store.is_file() else None
+
+    def write_store(self, doc) -> bytes:
+        self.store.parent.mkdir(parents=True, exist_ok=True)
+        self.store.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        return self.store.read_bytes()
+
+    def catalog(self, *models):
+        from agent_workflows import oc_models as OM
+
+        return OM.ModelCatalog(models=tuple(models), source=OM.CATALOG_SOURCE_CLI)
+
+    def run_step(self, answers, *, yes=False, isatty=True, models=("synth/model-a",)):
+        """Drive `cli._configure_runner_profiles` with a scripted transcript.
+
+        Returns (emitted_text, prompts_asked). `answers` may end early: a further question raises
+        EOFError, which is exactly what a pipe reaching end of input does.
+        """
+
+        from agent_workflows import oc_models as OM
+        from agent_workflows.term import Term
+
+        pending = list(answers)
+        prompts = []
+        emitted = []
+
+        def fake_input(prompt=""):
+            prompts.append(prompt)
+            if not pending:
+                raise EOFError
+            nxt = pending.pop(0)
+            if isinstance(nxt, BaseException):
+                raise nxt
+            return nxt
+
+        term = Term(stream=io.StringIO(), color=False)
+        term.line = lambda text="": emitted.append(text)  # type: ignore[method-assign]
+        term.status = lambda status, message: emitted.append(  # type: ignore[method-assign]
+            f"{status.upper()} {message}"
+        )
+        term.heading = lambda text: emitted.append(text)  # type: ignore[method-assign]
+        term.kv = lambda key, value: emitted.append(f"{key}: {value}")  # type: ignore[method-assign]
+
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=isatty),
+            mock.patch.object(cli, "input", create=True, side_effect=fake_input),
+            mock.patch.object(
+                OM, "discover_models", return_value=self.catalog(*models)
+            ),
+        ):
+            cli._configure_runner_profiles(argparse.Namespace(yes=yes), term)
+        return "\n".join(emitted), prompts
+
+    #: A full accept transcript: gate -> name -> model#1 -> variant `high` -> agent(skip) ->
+    #: save -> default profile -> default runner -> no second profile.
+    ACCEPT = ["y", "gem", "1", "4", "", "y", "y", "y", "n"]
+
+    def loaded(self):
+        from agent_workflows import runner_profiles as RP
+
+        return RP.load()
+
+    # -- the accept path ---------------------------------------------------------------------
+
+    def test_yes_with_discovered_model_writes_the_profile_and_both_defaults(self):
+        text, _ = self.run_step(self.ACCEPT, models=("synth/model-a", "synth/model-b"))
+        cfg = self.loaded()
+        self.assertIn("gem", cfg.profiles)
+        self.assertEqual(cfg.profiles["gem"].model, "synth/model-a")
+        self.assertEqual(cfg.profiles["gem"].variant, "high")
+        self.assertEqual(cfg.profiles["gem"].runner, "oc")
+        # Both defaults were asked SEPARATELY and both were accepted here.
+        self.assertEqual(cfg.default_profile_for("oc"), "gem")
+        self.assertEqual(cfg.default_runner, "oc")
+        self.assertIn("Saved runner profile(s): gem", text)
+
+    def test_yes_with_manual_model_after_discovery_failure(self):
+        """Discovery failure must fall through to EXACT manual entry, never abort the step."""
+
+        from agent_workflows import oc_models as OM
+        from agent_workflows.term import Term
+
+        pending = ["y", "gem", "synth/manual-model", "1", "", "y", "n", "n", "n"]
+        emitted = []
+
+        def fake_input(prompt=""):
+            if not pending:
+                raise EOFError
+            return pending.pop(0)
+
+        term = Term(stream=io.StringIO(), color=False)
+        term.line = lambda text="": emitted.append(text)  # type: ignore[method-assign]
+        term.status = lambda status, message: emitted.append(  # type: ignore[method-assign]
+            f"{status.upper()} {message}"
+        )
+        term.heading = lambda text: emitted.append(text)  # type: ignore[method-assign]
+        term.kv = lambda key, value: emitted.append(f"{key}: {value}")  # type: ignore[method-assign]
+
+        unavailable = OM.ModelCatalog(
+            models=(), source=OM.CATALOG_SOURCE_NONE, reason="opencode not found"
+        )
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, side_effect=fake_input),
+            mock.patch.object(OM, "discover_models", return_value=unavailable),
+        ):
+            cli._configure_runner_profiles(argparse.Namespace(yes=False), term)
+
+        text = "\n".join(emitted)
+        # The reason is stated verbatim rather than reported as an empty catalog.
+        self.assertIn("opencode not found", text)
+        cfg = self.loaded()
+        self.assertEqual(cfg.profiles["gem"].model, "synth/manual-model")
+        # Provider default: NO variant stored, rather than a guessed string.
+        self.assertIsNone(cfg.profiles["gem"].variant)
+
+    def test_multiple_profiles_in_one_session(self):
+        answers = [
+            # gate, then profile 1 (no defaults), then "another?" yes, then profile 2, then no.
+            *["y", "gem", "1", "4", "", "y", "n", "n"],
+            "y",
+            *["sol", "2", "3", "", "y", "n", "n"],
+            "n",
+        ]
+        self.run_step(answers, models=("synth/model-a", "synth/model-b"))
+        cfg = self.loaded()
+        self.assertEqual(sorted(cfg.profiles), ["gem", "sol"])
+        self.assertEqual(cfg.profiles["sol"].model, "synth/model-b")
+        self.assertEqual(cfg.profiles["sol"].variant, "medium")
+
+    def test_each_default_answer_is_independent_of_the_save(self):
+        """Saving a profile must not imply either default. Both polarities, one profile each."""
+
+        # Save, DECLINE default profile, DECLINE default runner.
+        self.run_step(["y", "gem", "1", "1", "", "y", "n", "n", "n"])
+        cfg = self.loaded()
+        self.assertIn("gem", cfg.profiles)
+        self.assertIsNone(cfg.default_profile_for("oc"))
+        self.assertIsNone(cfg.default_runner)
+
+        # A second run: ACCEPT the default profile only, still DECLINE the default runner.
+        self.run_step(["y", "sol", "1", "1", "", "y", "y", "n", "n"])
+        cfg = self.loaded()
+        self.assertEqual(cfg.default_profile_for("oc"), "sol")
+        self.assertIsNone(cfg.default_runner, "default_runner changed without consent")
+
+    # -- every no-write path, asserted by BYTES ----------------------------------------------
+
+    def test_declined_gate_writes_nothing(self):
+        before = self.store_bytes()
+        text, prompts = self.run_step(["n"])
+        self.assertEqual(self.store_bytes(), before)
+        self.assertIsNone(before)
+        self.assertIn("aw oc profile add", text)
+        # Exactly ONE question was asked: the gate. The interview was never entered.
+        self.assertEqual(len(prompts), 1, prompts)
+
+    def test_empty_answer_is_a_no(self):
+        before = self.store_bytes()
+        self.run_step([""])
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_eof_at_the_gate_writes_nothing(self):
+        before = self.store_bytes()
+        self.run_step([])  # no answers at all -> EOFError on the first prompt
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_interrupt_inside_the_interview_writes_nothing(self):
+        before = self.store_bytes()
+        self.run_step(["y", "gem", KeyboardInterrupt()])
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_eof_inside_the_interview_writes_nothing(self):
+        before = self.store_bytes()
+        self.run_step(["y", "gem", "1"])  # ends mid-interview
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_declined_save_writes_nothing(self):
+        before = self.store_bytes()
+        self.run_step(["y", "gem", "1", "1", "", "n", "n"])
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_yes_flag_never_prompts_and_never_writes(self):
+        before = self.store_bytes()
+        _, prompts = self.run_step(self.ACCEPT, yes=True)
+        self.assertEqual(prompts, [], "--yes consented to a model choice")
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_non_tty_never_prompts_and_never_writes(self):
+        before = self.store_bytes()
+        _, prompts = self.run_step(self.ACCEPT, isatty=False)
+        self.assertEqual(prompts, [])
+        self.assertEqual(self.store_bytes(), before)
+
+    def test_existing_profiles_and_defaults_survive_an_opt_out(self):
+        before = self.write_store(
+            {
+                "schema_version": 1,
+                "default_runner": "oc",
+                "defaults": {"profiles": {"oc": "keep"}},
+                "profiles": {"keep": {"runner": "oc", "model": "synth/keep-me"}},
+            }
+        )
+        text, _ = self.run_step(["n"])
+        self.assertEqual(self.store_bytes(), before, "an opt-out rewrote the store")
+        # The user is shown what they already have before being asked.
+        self.assertIn("keep", text)
+
+    def test_duplicate_name_is_refused_and_the_existing_profile_survives(self):
+        before = self.write_store(
+            {
+                "schema_version": 1,
+                "profiles": {"gem": {"runner": "oc", "model": "synth/original"}},
+            }
+        )
+        # The wizard re-asks the name; ending input there leaves the store untouched.
+        text, _ = self.run_step(["y", "gem"])
+        self.assertEqual(self.store_bytes(), before)
+        self.assertIn("already exists", text)
+        self.assertEqual(self.loaded().profiles["gem"].model, "synth/original")
+
+    def test_malformed_store_is_reported_and_never_overwritten(self):
+        self.store.parent.mkdir(parents=True, exist_ok=True)
+        self.store.write_text("{not json", encoding="utf-8")
+        before = self.store_bytes()
+        text, prompts = self.run_step(self.ACCEPT)
+        self.assertEqual(
+            self.store_bytes(), before, "a malformed store was overwritten"
+        )
+        self.assertEqual(prompts, [], "the interview was offered over a broken store")
+        self.assertIn("WARN", text)
+        self.assertIn("aw oc profile add", text)
+
+    def test_wizard_failure_is_reported_not_raised(self):
+        """An optional extra must never propagate an exception into the setup flow."""
+
+        from agent_workflows import runner_profile_wizard as WIZ
+        from agent_workflows.term import Term
+
+        emitted = []
+        term = Term(stream=io.StringIO(), color=False)
+        term.line = lambda text="": emitted.append(text)  # type: ignore[method-assign]
+        term.status = lambda status, message: emitted.append(  # type: ignore[method-assign]
+            f"{status.upper()} {message}"
+        )
+        term.heading = lambda text: emitted.append(text)  # type: ignore[method-assign]
+        term.kv = lambda key, value: emitted.append(f"{key}: {value}")  # type: ignore[method-assign]
+
+        before = self.store_bytes()
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, return_value="y"),
+            mock.patch.object(
+                WIZ, "run_session", side_effect=RuntimeError("catalog exploded")
+            ),
+        ):
+            cli._configure_runner_profiles(
+                argparse.Namespace(yes=False), term
+            )  # no raise
+        text = "\n".join(emitted)
+        self.assertIn("did not complete", text)
+        self.assertIn("catalog exploded", text)
+        self.assertEqual(self.store_bytes(), before)
+
+
+class SetupRunnerProfileIntegrationTests(CliTestBase):
+    """E-02: the step's PLACEMENT in the real `aw setup` flow (order, once-ness, non-gating)."""
+
+    def test_step_runs_once_after_installs_and_before_orientation(self):
+        a = self._repo("proj_a")
+        b = self._repo("proj_b")
+        seen = []
+
+        real_install = cli._install_one
+        real_completion = cli._configure_completion
+        real_orient = cli._orient
+
+        def spy_install(repo, source_root, args, term):
+            seen.append(f"install:{Path(repo).name}")
+            return real_install(repo, source_root, args, term)
+
+        def spy_completion(args, term):
+            seen.append("completion")
+            return real_completion(args, term)
+
+        def spy_profiles(args, term):
+            seen.append("profiles")
+
+        def spy_orient(term):
+            seen.append("orient")
+            return real_orient(term)
+
+        with (
+            mock.patch.object(cli, "_install_one", side_effect=spy_install),
+            mock.patch.object(cli, "_configure_completion", side_effect=spy_completion),
+            mock.patch.object(
+                cli, "_configure_runner_profiles", side_effect=spy_profiles
+            ),
+            mock.patch.object(cli, "_orient", side_effect=spy_orient),
+        ):
+            code, out = _run(["setup", "--root", str(self.base), "--yes"])
+
+        self.assertEqual(code, 0, out)
+        self.assertEqual(
+            seen.count("profiles"), 1, f"asked per repository, not once: {seen}"
+        )
+        installs = [i for i, s in enumerate(seen) if s.startswith("install:")]
+        self.assertTrue(installs, seen)
+        # AFTER every repository install, and BEFORE orientation.
+        self.assertGreater(seen.index("profiles"), max(installs), seen)
+        self.assertLess(seen.index("profiles"), seen.index("orient"), seen)
+        # Both repos really were installed, so this is not a vacuous ordering claim.
+        self.assertTrue((a / ".aw/system/VERSION").is_file())
+        self.assertTrue((b / ".aw/system/VERSION").is_file())
+
+    def test_install_verb_does_not_offer_the_profile_step(self):
+        """`aw install` installs into one more repo; that is not a moment to pick a model."""
+
+        repo = self._repo("solo")
+        with mock.patch.object(cli, "_configure_runner_profiles") as spy:
+            code, out = _run(["install", str(repo), "--yes"])
+        self.assertEqual(code, 0, out)
+        spy.assert_not_called()
+
+    def test_setup_yes_writes_no_profile_store(self):
+        """The whole-command consent assertion: an unattended `aw setup --yes` stores no profile."""
+
+        from agent_workflows import runner_profiles as RP
+
+        self._repo("proj")
+        code, out = _run(["setup", "--root", str(self.base), "--yes"])
+        self.assertEqual(code, 0, out)
+        self.assertFalse(
+            RP.store_path().exists(), "`aw setup --yes` created a runner-profile store"
+        )
+
+    def test_wizard_failure_after_installs_does_not_fail_setup(self):
+        """An optional step failing must not turn a successful install into a failed setup."""
+
+        repo = self._repo("proj")
+        with mock.patch.object(
+            cli, "_configure_runner_profiles", side_effect=RuntimeError("boom")
+        ):
+            with self.assertRaises(RuntimeError):
+                _run(["setup", "--root", str(self.base), "--yes"])
+        # The repo was still installed before the optional step ran: the install is not gated on it.
+        self.assertTrue((repo / ".aw/system/VERSION").is_file())
+
+        # And with the REAL step (which swallows its own failures), setup reaches orientation.
+        with (
+            mock.patch.object(cli.sys.stdin, "isatty", return_value=True),
+            mock.patch.object(cli, "input", create=True, return_value="n"),
+        ):
+            code, out = _run(["setup", "--root", str(self.base)])
+        self.assertEqual(code, 0, out)
+        self.assertIn("You are set up", out)
 
 
 if __name__ == "__main__":

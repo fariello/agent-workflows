@@ -181,6 +181,26 @@ clean, `1` findings, `2` cannot run. See the [Human TTY guide](docs/cli-human-gu
 [migration guide](docs/cli-migration.md), and the normative
 [CLI Output Mode Contract](docs/cli-output-contract.md).
 
+### Runner profiles (short aliases for a model choice)
+
+Instead of repeating `--model <provider/model> --variant high` on every run, save the choice
+once as a named profile and use it:
+
+```bash
+aw oc profile add                # interactive: pick a model, name it, confirm (nothing implicit)
+aw run as gem <selector>         # launch an IPD with that profile
+aw run ipd <selector>            # launch with your configured default runner and profile
+```
+
+Profiles are USER-LOCAL (`~/.config/agent-workflows/runner-profiles.json`), never committed, and
+hold only structured launch fields: no arguments string, no command, no environment, and no place
+for a credential. A profile is never created for you and never becomes the default implicitly:
+`aw setup` offers the interview once with a question that defaults to No, and `--yes` and
+noninteractive runs write nothing. Explicit `--model` / `--variant` / `--agent` still win, per
+field, so overriding one field keeps the rest of the profile. A run freezes its resolved launch
+identity at start, so editing or deleting a profile never changes a run already in flight. See
+[Runner profiles](docs/runner-profiles.md).
+
 ### Concise agent reporting
 
 Installing agent-workflows also makes concise, essential-information-only reporting the

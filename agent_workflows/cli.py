@@ -5482,6 +5482,97 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
     )
 
 
+def _configure_runner_profiles(args: argparse.Namespace, term: Term) -> None:
+    """Offer the runner-profile interview ONCE per `aw setup`, default NO (`p7xhhm` E-01).
+
+    THE POLARITY IS THE WHOLE POINT. A runner profile binds a MODEL to a short alias, and a model
+    is a cost and a behavior decision that belongs to the user, not to an installer. So this step
+    is strictly OPT-IN: it asks one gate question whose default is NO, and every other path
+    (`--yes`, no TTY, empty input, EOF, interrupt, a declined save) leaves
+    `runner-profiles.json` BYTE-IDENTICAL. `--yes` deliberately does NOT consent here even though
+    it preauthorizes install mutations, because "install the framework into these repos I already
+    listed" and "pick a model for me" are different kinds of decision; the completion step above
+    set that precedent (`_configure_completion`), and this follows it.
+
+    HOST-LEVEL, ONCE PER INVOCATION, exactly like the completion step and for the same reason: a
+    profile store is per-user and per-machine, so asking inside the per-repo install loop would
+    re-prompt on every target repository. It therefore runs from `_run_setup` only, AFTER the
+    repositories are installed, so an optional convenience can never gate or fail an install.
+
+    THE INTERVIEW IS NOT REIMPLEMENTED HERE. `runner_profile_wizard.run_session` owns the
+    questions, the model discovery, the preview, the save confirmation, the two independent
+    default questions, and the "configure another?" loop (`p0l1to` E-02/E-04). This function only
+    decides WHETHER to call it and wires stdin/stdout/the store to it, which is the seam that
+    module's docstring reserved for Order 05. Any failure is reported and swallowed: a setup that
+    already installed repositories must not report failure because an optional extra went wrong.
+    """
+
+    if getattr(args, "yes", False):
+        return  # --yes preauthorizes install mutations, NOT a model/default choice.
+    if not sys.stdin.isatty():
+        return  # non-interactive: the safe default is to write nothing.
+
+    from agent_workflows import (
+        oc_models,
+        runner_profile_wizard as wiz,
+        runner_profiles as rp,
+    )
+
+    try:
+        cfg = rp.load()
+    except (rp.ProfileSchemaError, rp.ProfileStoreError) as exc:
+        # A malformed store is reported, never silently replaced. Offering the interview would
+        # risk writing over a file the user can still repair by hand.
+        term.line()
+        term.status(
+            "warn",
+            f"Runner profiles not offered: {exc} "
+            "Fix or remove that file, then run 'aw oc profile add'.",
+        )
+        return
+
+    term.line()
+    term.heading("Runner profiles (optional)")
+    term.line(
+        "A profile turns a model choice into a short alias, so you can run "
+        "'aw run as gem <selector>' instead of repeating '--model <provider/model> "
+        "--variant high'. Profiles are stored only on this machine, under "
+        f"{_oc_profile_store_display(rp.store_path())}, and nothing is written unless you "
+        "confirm each step."
+    )
+    if cfg.profiles:
+        term.kv("Existing profiles", ", ".join(sorted(cfg.profiles)))
+    try:
+        answer = input("  Set up a runner profile now? [y/N] ").strip().lower()
+    except EOFError:
+        return
+    if answer not in ("y", "yes"):
+        term.status("skip", "Skipped; set one up later with 'aw oc profile add'.")
+        return
+
+    # `discover`/`load`/`save` are passed EXPLICITLY rather than left to `WizardIO`'s dataclass
+    # defaults, which bind the function objects at class-definition time and so cannot be patched
+    # by a test that patches the module attribute. Naming them here keeps the seam late-bound.
+    io = wiz.WizardIO(
+        ask=input,
+        emit=term.line,
+        discover=oc_models.discover_models,
+        load=rp.load,
+        save=rp.save,
+    )
+    try:
+        results = wiz.run_session(io)
+    except Exception as exc:  # noqa: BLE001 - an optional extra must never fail setup
+        term.status("warn", f"Runner profile setup did not complete: {exc}")
+        return
+    if not any(r.saved for r in results):
+        term.status("skip", "No profile was saved; nothing was changed.")
+        return
+    saved = [r.name for r in results if r.saved and r.name]
+    term.status("ok", f"Saved runner profile(s): {', '.join(saved)}.")
+    term.line("See docs/runner-profiles.md for every run form and override rule.")
+
+
 def _teach(term: Term) -> None:
     term.line()
     term.status(
@@ -6542,6 +6633,11 @@ def _run_setup(args: argparse.Namespace, term: Term) -> int:
     # here (after the per-repo installs, before orientation) rather than inside install_wizard.py,
     # which is the per-target-repo project-policy wizard and would re-prompt on every repo.
     _configure_completion(args, term)
+    # runprofile Order 05 (p7xhhm) E-01: the OPTIONAL, default-NO runner-profile step, in the same
+    # host-level position and for the same reason (per-user concern, asked once, after the repos
+    # are installed so it can never gate an install). `aw install` deliberately does NOT get this
+    # step: installing into one more repo is not a moment to reconsider your model.
+    _configure_runner_profiles(args, term)
 
     _orient(term)
     _completion_tip(term)
