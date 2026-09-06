@@ -18,6 +18,7 @@
 - From-Spec: 6m4kow
 
 ## Workflow history
+- 2026-09-06 executed (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 performed and V-01..V-06 verified with pasted evidence, executed by `aw oc run` (run-20260905T211011Z-3780617, position 13) in lane `.aw/worktrees/5slbpi` from base `3d55a2d6`. Implementation commit `8992ca96`, 18 files, +2129/-11. THE HOLE IS CLOSED: `to-review -> reviewed` now carries a `review_record` entry in `TRANSITION_AUTHORITY` enforced by ONE shared predicate (`review_findings.review_attestation_missing`, exactly one definition by grep) consulted by BOTH setter spellings and by the new `check.spec-review-unattested` error rule, and a real `spec-review/` package exists to satisfy it. TEST EVIDENCE, actual runner output: baseline `35 failed, 5154 passed, 3 skipped, 4 xfailed in 103.98s` at `3d55a2d6`; after `35 failed, 5225 passed, 3 skipped, 4 xfailed in 105.99s`; the failure SET is byte-identical (diff of the two FAILED lists is empty), so +71 passing and zero new failures. THREE FAILURES I INTRODUCED AND FIXED, disclosed rather than hidden: the reviews-path anti-duplication guard (my `required=` prose named a reviews path; rephrased to describe the record by its FIELDS), the shim-corpus byte budget (its ceiling mixed an absolute 48-file baseline with a per-file allowance, so ANY new workflow breached it; scaled by the plan-time per-file average, with the duplication-sensitivity proof re-pointed at the same helper so the guard cannot be quietly relaxed), and a mixed-type `->reviewed` batch test that predated the attestation (given the spec's record, plus a NEW companion asserting the atomic pre-flight refuses the WHOLE batch when the spec member is unattested). GRANDFATHERING PROVEN, not claimed: 27/27 specs still conform and `check.spec-review-unattested` reports ZERO on the real tree; the mechanism is structural (the authority table is consulted only at transition time, so the 20 `approved`/`implemented` specs are never re-tested) rather than a cutover date, recorded as DECISION D2. THE BEHAVIOR CHANGE AN APPROVER MUST KNOW, which the plan itself never named until review found it: filing a spec review record ARMS an already-wired, NO-OVERRIDE refusal on `aw specs set approved`, because `approval_refusals` keys on the artifact's `- Id:` and specs carry one; `specs.py:558-568` predicted this activation in a comment, so it is intended, and it is proven in both directions plus the non-parsing case. FOUR AUTONOMOUS DECISIONS recorded in the run register: D1 `aw install` is the only shim-regeneration mechanism and it also emits 135 unrelated files, so its side effects were reverted and only the 4 generated shims kept; D2 grandfathering needs no cutover constant; D3 `--type spec` is delivered at the FUNCTION boundary because the operator flag is `uyeko5`'s and has not landed; D4 `aw find specs --status` is left BROKEN and unfixed (root cause located at `cli.py:8487-8512`, affecting seven record types, outside Scope-Paths) and avoided rather than depended on. OUT-OF-FENCE EDITS, each justified at `aw ipd finalize`: `status_set.py` (the second setter spelling, without which the gate is bypassable), `migration_inventory.py` (a fail-closed table that REFUSES an unregistered manifest command), `tests/test_reporting_contract.py` + `tests/test_status_set.py` (the two guards above), `tests/test_spec_review_attestation.py` (the plan named `tests/test_specs.py`, which does not exist), and the generated shims (regenerated, not edited, per F-11). HONEST LIMITS: the attestation proves a review OCCURRED and was RECORDED, never that it was competent (spec `25kzda` 6.1); `--type spec` is not operator-reachable until `uyeko5`; the 20 grandfathered specs will never have records; and `aw check all` is reported as NO-WORSENING (14 -> 13 excluding `check.scope-drift`, whose 26 findings are the finalize gate's in-flight mechanism, 17 of them cross-attributed to a concurrent agent's plan sharing my base commit), NOT as passing.
 - 2026-09-05 approved (aw set): status set to approved
 
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review ROUND 2 (cursory, scoped to the post-ruling edits) at HEAD `9bb47658`: APPROVE WITH REVISIONS APPLIED; R2-1 FIXED, R2-2 verified clean. R2-1: the execution contract still carried the lockstep-parity warning about editing `plan-review` and `plan-review-long`, two files the OQ-01 ruling had just removed from scope, and told the executor to re-read the plan-review body without marking it a READ-ONLY reference, which is the distinction the ruling turns on. Both corrected. R2-2 confirms the ruling propagated completely (E-01 records rather than decides, E-02 names the separate package, open-questions line and cohesion rationale both refreshed, `exception` size retained with its re-justification). Round 2 record appended.
@@ -38,56 +39,56 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: decide the shape, then build the review
 
-- [ ] E-01 Write the already-made workflow-shape ruling into the new package's README before authoring any workflow text. MAINTAINER RULING 2026-09-04 (OQ-01): a SEPARATE `spec-review/` package, NOT a generalization of `plan-review/`. This item records that ruling; it does not decide or re-open it.
+- [x] E-01 Write the already-made workflow-shape ruling into the new package's README before authoring any workflow text. MAINTAINER RULING 2026-09-04 (OQ-01): a SEPARATE `spec-review/` package, NOT a generalization of `plan-review/`. This item records that ruling; it does not decide or re-open it.
   THE EVIDENCE BEHIND THE RULING, to be recorded rather than re-derived: the plan-review body is 601 lines and its three plan-only obligations are all mandatory REQUIREMENTS, not optional prose, at `plan-review.md:113-133` (the guarded `aw ipd lint --phase author` preflight), `:377-398` (the REQUIRED `- Readiness:` write, whose own text warns a consumer finding no field FAILS CLOSED), and `:487-496` (the E/V-bijection and right-sizing rubric items). Generalizing would therefore mean three conditional branches in a 601-line body, duplicated across two files held in DELIBERATE PARITY, i.e. six sites an agent reads under load where a mis-taken branch writes a wrong lifecycle value to a real artifact.
   THE CONSTRAINT THE RULING DOES NOT RELAX, and the one thing a fork must not do: the findings/verdict/record machinery stays shared EXACTLY ONCE. `review_findings` remains the single writer and parser, and the verdict vocabulary remains `plan_readiness.VERDICTS`. A separate BODY is authorized; a separate RECORD FORMAT is not, and a design that forks the record is rejected.
   ALSO RECORD THE ACCEPTED COST, since a fork's known downside is drift: state in the new package's README how its rubric is kept from diverging from `plan-review`'s over time, so the next reader inherits the mitigation and not just the decision.
   - Depends on: none
   - Expected outcome: the ruling, its cited evidence, the rejected option's six-site cost, the single-sourced-record constraint, and an explicit anti-drift statement, all recorded in the new package's README and this plan's history; no re-litigation of the shape.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Build the spec review as a SEPARATE `spec-review/` package (the E-01 ruling). It MUST produce: a findings table using the existing columns, a verdict from the existing four-value vocabulary, a conforming review record with `Subject-Type: spec` (which `eyh1fu` made possible), and a legal tool-authored transition to `reviewed`.
+- [x] E-02 Build the spec review as a SEPARATE `spec-review/` package (the E-01 ruling). It MUST produce: a findings table using the existing columns, a verdict from the existing four-value vocabulary, a conforming review record with `Subject-Type: spec` (which `eyh1fu` made possible), and a legal tool-authored transition to `reviewed`.
   KNOW WHAT A SPEC REVIEW RECORD WILL IMMEDIATELY DO TO SPEC APPROVAL, which this plan does not mention and which is the biggest behavior change it actually ships (F-10). `aw specs set approved` ALREADY calls `plan_readiness.approval_refusals` (`specs.py:564-579`), which consults `review_findings.plan_gating_blocks` keyed on the artifact's `- Id:` bullet (`plan_readiness.py:503-509`), and SPECS CARRY `- Id:`. Today that half is inert only because no record names a spec. The moment this plan files one, an unfixed finding at or above the configured threshold (default `high`) BLOCKS that spec's approval, and `plan_readiness` documents that this refusal has NO OVERRIDE. `specs.py:558-563` even predicts this, saying the verdict half "ACTIVATES BY ITSELF if a spec-review artifact type is ever added". So this is intended, not accidental, but it MUST be stated, tested, and reported rather than discovered by a maintainer whose spec suddenly cannot be approved. TEST BOTH DIRECTIONS: a spec review with an unfixed HIGH blocks approval with a clear refusal, and a clean one does not.
   ALSO NOTE THE MALFORMED-RECORD TRAP the same predicate carries: any parse diagnostic in a review record is treated as BLOCKING (`review_findings.py:807-811`). A spec review record that does not parse therefore blocks its spec's approval unfixably, so the writer must produce a record that parses, verified, not merely one that looks right.
   THREE HARD PROHIBITIONS, each one a measured way `/plan-review` would corrupt a spec. (a) DO NOT write `- Readiness:` onto a spec: it is a plan field, spec `25kzda` 3.3 stops a reviewed spec at an unconditional human approval gate even under `--full-auto`, so there is no automated readiness signal to record and inventing one would create a machine signal no consumer may act on. (b) DO NOT hand-edit `- Status:` or the workflow-history section: both are owned by `aw specs set`/`aw specs note`, the spec README forbids it, and a `status_untooled_gate` hook exists for this bypass. (c) DO NOT run `aw ipd lint` against a spec: it is IPD-only, and worse, plan-review's preflight is GUARDED so it would silently SKIP rather than fail, making the gate pass by not running. The spec equivalent is `aw specs check`, which is exactly what `25kzda`'s `SPEC-REVIEW-STRUCTURE` recovery command already names.
   ASK SPEC QUESTIONS, NOT PLAN QUESTIONS, in whatever rubric the chosen shape uses: are the requirements testable, do the acceptance criteria cover them, are the decisions recorded with rationale, are the open questions dispositioned. A plan rubric applied to a spec produces findings about the wrong artifact.
   - Depends on: E-01
   - Expected outcome: a spec at `to-review` can be reviewed end to end, producing findings, a verdict, a `Subject-Type: spec` record, and a tool-authored transition; none of the three prohibitions is violated; the rubric asks spec questions.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Register the capability in the workflow manifest and correct the DOCUMENTATION THAT IS ALREADY WRONG. `.aw/system/workflows/index.md:44` and `.opencode/commands/spec.md:2` currently claim specs are the artifact "`plan-review` reviews", which the plan-review body does not honor.
+- [x] E-03 Register the capability in the workflow manifest and correct the DOCUMENTATION THAT IS ALREADY WRONG. `.aw/system/workflows/index.md:44` and `.opencode/commands/spec.md:2` currently claim specs are the artifact "`plan-review` reviews", which the plan-review body does not honor.
   So this is not additive documentation: leaving those lines while adding a real spec review would give the repository two contradictory statements about which workflow reviews a spec, which is worse than the single wrong one it has now.
   FIX THE MANIFEST, THEN REGENERATE THE SHIM; DO NOT EDIT BOTH BY HAND (F-11). Verified at review: the shim's `description:` is COPIED VERBATIM from the manifest row (the manifest's `spec` description string is byte-present in `.opencode/commands/spec.md`), and the installer generates the shims from the manifest table (`index.md:19`, "The installer reads it to generate per-tool command shims"; `engine.py:1008` `generate_shim_members`). Hand-editing the shim as a second site would drift the moment anyone reinstalls, and hand-editing it INSTEAD of the manifest would leave the wrong text to be regenerated back. So the manifest row is the ONE edit and the shim follows from the installer. Note also there are TWO shim families (`.opencode/commands/` and `.claude/commands/`), so re-check the Claude copy rather than assuming one file.
   Note `aw workflow validate|compile|check-generated` governs TYPED workflow packages with a `_generated/` projection; `plan-review/` has no `_generated/` directory, so check whether the package you touch is compiled before reaching for the compiler, and do not claim `check-generated` coverage for a package that has none.
   - Depends on: E-02
   - Expected outcome: the capability appears in the manifest through the proper mechanism; the manifest row is corrected and the shims REGENERATED rather than hand-edited (both `.opencode` and `.claude` families checked); no generated file hand-edited; `aw workflow check-generated` clean for any package that actually has a `_generated/` projection, and stated as N/A for any that does not.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: attest the transition and widen discovery
 
-- [ ] E-04 Make `to-review -> reviewed` REQUIRE evidence a review occurred: a conforming review record whose `Subject-Id` is that spec. Add the `->reviewed` entry to `TRANSITION_AUTHORITY` and enforce it through ONE shared predicate consulted by the setter and the checker alike, never a second copy.
+- [x] E-04 Make `to-review -> reviewed` REQUIRE evidence a review occurred: a conforming review record whose `Subject-Id` is that spec. Add the `->reviewed` entry to `TRANSITION_AUTHORITY` and enforce it through ONE shared predicate consulted by the setter and the checker alike, never a second copy.
   GRANDFATHER EXISTING SPECS, and measure before you do. 20 specs are already `approved` or `implemented` with no review record, so a naive rule would retroactively invalidate them. Bind the requirement to transitions performed AFTER the change, exactly as spec `25kzda` Section 2.11 grandfathers pre-cutover dependency statements. Verify no existing spec becomes non-conforming.
   FAIL CLOSED, and give the refusal a recovery command naming the missing record, the way every other refusal in this repository does.
   DO NOT MAKE A MISSING REVIEW AN ERROR FOR PLANS. Absence is deliberately silent there (`review_findings.py:768-769` records why: zero review files existed against 428 plans), and 428 plans still have none. This item's new pressure applies to the SPEC transition only.
   - Depends on: E-03
   - Expected outcome: `aw specs set reviewed` refuses without a conforming record and succeeds with one; the rule is one shared predicate; all 20 pre-existing `approved`/`implemented` specs remain conforming; plan behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Let needs-review discovery reach the SPECS tree. `6ypimw` made the predicate type-aware while its knowledge stayed IPD-only because `runner_shared.discover_plans` walks only `.aw/records/plans` and `.agents/plans`; this item supplies the specs enumeration so `--type spec` resolves to real artifacts.
+- [x] E-05 Let needs-review discovery reach the SPECS tree. `6ypimw` made the predicate type-aware while its knowledge stayed IPD-only because `runner_shared.discover_plans` walks only `.aw/records/plans` and `.agents/plans`; this item supplies the specs enumeration so `--type spec` resolves to real artifacts.
   ENUMERATE THROUGH THE EXISTING AUTHORITY, not a new path literal: use the record-path resolution the rest of the package uses, the way `check_engine.check_review_dangling` deliberately avoids hardcoding the reviews path.
   BEWARE ONE MEASURED TRAP: `aw find specs --status` SILENTLY IGNORES ITS FILTER at authoring, returning all 26 specs for every one of the nine status values. So anything built on that filter inherits the bug. Either fix it (stating that you did) or avoid depending on it, and do NOT assume it works because the flag exists.
   TYPE SCOPING IS FIXED BY SPEC `25kzda` 2.4a: IPDs only with no `--type`, so adding spec discovery must NOT silently widen the default sweep. A spec must appear only when `--type spec` names it.
   - Depends on: E-04
   - Expected outcome: specs are enumerable and `--type spec` resolves to real specs; the default sweep still selects IPDs only; no new path literal; the broken status filter is fixed or avoided, stated either way.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Prove the END-TO-END path on a real spec: a `to-review` spec selected by the sweep, reviewed, recorded, and transitioned, with `aw check all` clean for the new record.
+- [x] E-06 Prove the END-TO-END path on a real spec: a `to-review` spec selected by the sweep, reviewed, recorded, and transitioned, with `aw check all` clean for the new record.
   CREATE THE FIXTURE HONESTLY, AND RE-MEASURE THE POPULATION FIRST (F-7 CORRECTED AT REVIEW). The plan says ZERO specs were at `to-review`; there is now ONE, spec `6m4kow` itself, which is this plan's own source spec. That makes the temptation concrete rather than hypothetical: reviewing `6m4kow` would both demonstrate the capability AND advance the spec that authorizes this plan, using a capability built by the plan it authorizes. DO NOT DO THAT as this plan's validation. It is circular (the artifact under review is the mandate for the tool reviewing it), it is a lifecycle write on the maintainer's in-flight artifact, and if the review found a BLOCKER it would block `6m4kow`'s own approval through the gate F-10 describes. Use a FIXTURE spec created for the test, and say which. Equally, do NOT promote either of the 2 real `draft` specs for test convenience.
   A REAL SPEC REVIEW OF `6m4kow` IS LEGITIMATE WORK, just not this plan's self-validation: if it is wanted, run it as a separate, human-requested review after this plan lands.
   ALSO EXERCISE THE THREE `25kzda` 4.8 CHECKS by name (`SPEC-REVIEW-COMPLETE`, `SPEC-REVIEW-TRANSITION`, `SPEC-REVIEW-STRUCTURE`), since making them satisfiable is a stated acceptance criterion (spec `6m4kow` A-08) and they are the spec's own definition of a verified spec review.
   - Depends on: E-05
   - Expected outcome: one complete end-to-end spec review demonstrated on a fixture; `aw check all` clean for the record; the three named checks each exercised; no real draft spec promoted for test convenience.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -189,36 +190,249 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the recorded decision with its CITED COUNTS of plan-specific machinery in the plan-review body (the `aw ipd lint` preflight, the `Readiness` write, the E/V and Scope-Paths rubric items, and anything else found), the rejected option's stated cost, and explicit confirmation that `review_findings` remains the single record writer/parser and `plan_readiness.VERDICTS` the single verdict vocabulary. Paste the same decision recorded in the workflow README, since a decision only in a plan is invisible to the next reader.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: RECORDED IN `.aw/system/workflows/spec-review/README.md`, section "Why this is a separate package and not a generalization of `plan-review`". The ruling is stated as "MAINTAINER RULING, 2026-09-04 (IPD `5slbpi` OQ-01 ...): the spec reviewer is a SEPARATE `spec-review/` package, NOT a conditional generalization", followed by a three-row table of the CITED, RE-MEASURED plan-only obligations:
 
-- [ ] V-02 validates E-02
-  - Required evidence: paste a complete spec review on a fixture: the findings table, the verdict, the rendered record showing `Subject-Type: spec`, and the setter-authored transition. THEN PROVE THE THREE PROHIBITIONS NEGATIVELY, which a passing review does NOT demonstrate: a grep showing NO `- Readiness:` on any spec, evidence the `- Status:` and history changes came from `aw specs set`/`aw specs note` rather than a text edit, and evidence `aw ipd lint` was never invoked against a spec. Note especially that plan-review's IPD-lint preflight is GUARDED and would SKIP on a spec, so "the gate passed" is not evidence it ran.
-    THEN PROVE THE APPROVAL-GATE ACTIVATION IN BOTH DIRECTIONS (F-10), which is the consequence this plan ships and never previously named: paste `aw specs set approved` REFUSING a fixture spec whose review record carries an unfixed HIGH finding, with the refusal text, and paste it NOT refusing a fixture spec with a clean record. Paste a non-parsing record blocking approval too. State plainly that this activates an existing no-override gate, citing `specs.py`'s own comment predicting the activation, so nobody reads the refusal as a regression.
-  - Observed evidence:
-  - Result: pending
+        $ wc -l .aw/system/workflows/plan-review/plan-review.md
+        601 .aw/system/workflows/plan-review/plan-review.md
+        $ grep -n "aw ipd lint --phase author\|- Readiness:\|Right-sizing and conceptual density" .aw/system/workflows/plan-review/plan-review.md
+        117:    aw ipd lint --phase author --agent <plan-file>
+        383:- Readiness: <go | go-pending-approval | no-go>
+        490:- **Right-sizing and conceptual density (per E-item):** ...
 
-- [ ] V-03 validates E-03
-  - Required evidence: paste the manifest entry created through the proper mechanism, and paste BOTH corrected documentation claims (`index.md:44` and the generated shim) showing they no longer say `plan-review` reviews specs. SHOW THE SHIM WAS REGENERATED FROM THE CORRECTED MANIFEST, not hand-edited (F-11): the description is copied verbatim from the manifest row, so a hand-edit is drift waiting for the next install. Check BOTH shim families (`.opencode/commands/spec.md` and the `.claude/` equivalent) and say whether each was regenerated. Paste `aw workflow check-generated` clean for any touched package that HAS a `_generated/` projection, and state N/A with the path checked for any that does not (F-12).
-  - Observed evidence:
-  - Result: pending
+    COUNT: 3 obligations, all mandatory REQUIREMENTS. The README records the rejected option's cost as "three conditionals would have become SIX sites, in two long bodies", the parity citation (`plan-review.md:17`), and why the cost matters ("a mis-taken branch there ... writes a wrong lifecycle value onto a real artifact").
+    SINGLE-SOURCED-RECORD CONSTRAINT confirmed in the README's own section "The constraint the ruling does NOT relax": "`agent_workflows/review_findings.py` remains the SINGLE writer and parser of a `.review.md`", "The verdict vocabulary remains `agent_workflows/plan_readiness.VERDICTS`", "A separate BODY is authorized; a separate RECORD FORMAT is not". ANTI-DRIFT MITIGATION recorded as a 4-point "Keeping this from drifting" section whose point 4 names the enforcing test.
+    ASSERTED, not merely written: `tests/test_spec_review_attestation.py::WorkflowPackageTests` has `test_readme_records_the_maintainer_ruling_with_its_evidence`, `test_readme_states_the_single_sourced_record_constraint`, and `test_readme_states_the_anti_drift_mitigation`, all passing.
+  - Result: pass
 
-- [ ] V-04 validates E-04
-  - Required evidence: paste `aw specs set reviewed` REFUSED without a conforming record, including the recovery command, and SUCCEEDING with one. Paste the `->reviewed` entry in `TRANSITION_AUTHORITY` and a grep proving ONE shared predicate serves both the setter and the checker. Paste the count of conforming specs BEFORE and AFTER, proving all 20 pre-existing `approved`/`implemented` specs survived grandfathering; a claim is not evidence here, because retroactive invalidation of the specs tree is the main risk of this item. Paste evidence plan behavior is unchanged (a missing review still silent for plans).
-  - Observed evidence:
-  - Result: pending
+- [x] V-02 validates E-02
+  - Required evidence: (see the plan's original text above; abbreviated here) a complete spec review on a fixture, the three prohibitions proven NEGATIVELY, and the approval-gate activation proven in BOTH directions.
+  - Observed evidence: END-TO-END ON A FIXTURE (E-06's subject, `e2efix`; see V-06 for the full run). The record renders and parses:
 
-- [ ] V-05 validates E-05
-  - Required evidence: paste `--type spec` resolving to real specs, AND paste the default sweep still selecting IPDs only, since silently widening the default would violate spec `25kzda` 2.4a. State explicitly whether `aw find specs --status` was FIXED or AVOIDED and show which (F-8); if avoided, show what was used instead. Confirm no new records-path literal was added.
-  - Observed evidence:
-  - Result: pending
+        record: .aw/records/reviews/20260906-e2efix-01-e2efix-fixture-spec-for-end-to-end-spec-review.review.md
+        Subject-Type: spec | Verdict: APPROVE WITH REVISIONS APPLIED
+        parse diagnostics: () <- MUST be empty
+        findings: [('SR-001', 'medium', 'fixed'), ('SR-002', 'low', 'fixed')]
+        decisions: [('D-1', 'yes')]
 
-- [ ] V-06 validates E-06
-  - Required evidence: paste the end-to-end run on the FIXTURE (name it) with `aw check all` clean for the new record, and confirm NO real draft spec was promoted for test convenience AND that `6m4kow`, this plan's own source spec and currently the only spec at `to-review`, was NOT the subject (F-7). Paste each of the three `25kzda` 4.8 checks (`SPEC-REVIEW-COMPLETE`, `SPEC-REVIEW-TRANSITION`, `SPEC-REVIEW-STRUCTURE`) exercised by name with the evidence each inspects. Paste WHICH history record `newest_verdict` reads for the reviewed fixture, proving it is the review's record and not the setter's bare status line, which also qualifies as a review record and states no verdict (F-9 as corrected). Then `aw check all` no-worsening against your own fresh baseline and the bare full suite with counts, compared against your own pre-change measurement.
-  - Observed evidence:
-  - Result: pending
+    THE THREE PROHIBITIONS, PROVEN NEGATIVELY (a passing review does not demonstrate these):
+
+        ############ (a) no `- Readiness:` on ANY spec ############
+        -- the fixture:  0 occurrences
+        -- every REAL spec in this repository:
+          0 occurrences across all 27 specs -> PASS
+
+        ############ (b) status+history came from the SETTER ############
+        40:- 2026-09-06 reviewed (aw specs): APPROVE WITH REVISIONS APPLIED; SR-001, SR-002
+        {"id6": "e2efix", "date": "20260906", "tree": "specs", "workflow": "aw specs", "actor": "aw specs", "message": "reviewed: APPROVE WITH REVISIONS APPLIED; SR-001, SR-002"}
+        agent_workflows/hooks/status_untooled_gate.py
+
+    The `(aw specs)` actor parenthesis is written BY the setter (`specs.py` `_append_history`), and the sidecar `history.jsonl` entry is written only on a tooled write, so neither could come from a text edit.
+
+        ############ (c) `aw ipd lint` never invoked on a spec ############
+        48:7. NEVER run `aw ipd lint` against a spec. `aw specs check` is the spec's structural gate.
+        83:### (c) Do NOT run `aw ipd lint` against a spec
+        85:`plan-review.md:113-133` runs `aw ipd lint --phase author` as a preflight GATE, and that linter is
+        145:required and separate. See prohibition (c): do NOT substitute `aw ipd lint`.
+        256:- No `- Readiness:` field was added, no `- Status:` line was hand-edited, and `aw ipd lint` was never
+
+    Every mention in the body is a PROHIBITION or a reference, never an instruction, and `test_body_prescribes_the_spec_structural_gate_not_the_ipd_linter` asserts that per-line. The body prescribes `aw specs check` instead (`:92`, `:141`). NOTE the subtle half is recorded in the body verbatim: the preflight is guarded so on a spec the gate "would PASS BY NOT RUNNING", so "the gate passed" is not evidence it ran.
+
+    THE APPROVAL-GATE ACTIVATION, BOTH DIRECTIONS (F-10). REFUSED with an unfixed HIGH:
+
+        === now try to APPROVE fixt02 (unfixed HIGH) ===
+        aw specs set: refusing to approve /tmp/opencode/5slbpi/t1/.aw/records/specs/20260906-fixt02-01-fixt02-second-fixture.spec.md (file unchanged):
+          the typed review artifact records an unresolved gating finding: fixt02: review finding SR-001 is high/deferred and unresolved
+        approve EXIT=1
+
+    NOT refused with a clean record:
+
+        === clean record (fixt01, all FIXED): approval should NOT be refused ===
+        aw specs set: /tmp/opencode/5slbpi/t1/.aw/records/specs/20260906-fixt01-01-fixt01-fixture-spec.spec.md -> approved
+        approve EXIT=0
+
+    A NON-PARSING record blocks too (`tests/...::ApprovalGateActivationTests::test_a_non_parsing_record_also_blocks_approval`, passing), and the refusal has NO override (`test_the_refusal_has_no_override` passes `allow_open_questions=True` and the gating refusal still fires).
+    STATED PLAINLY, as the plan requires: this ACTIVATES AN EXISTING gate rather than adding one. `specs.py:558-568` predicted it in a comment ("the verdict half ACTIVATES BY ITSELF once a spec review is actually filed"), so a maintainer meeting this refusal is seeing intended behavior, not a regression.
+  - Result: pass
+
+- [x] V-03 validates E-03
+  - Required evidence: paste the manifest entry created through the proper mechanism, and paste BOTH corrected documentation claims showing they no longer say `plan-review` reviews specs. SHOW THE SHIM WAS REGENERATED FROM THE CORRECTED MANIFEST, not hand-edited (F-11), checking BOTH shim families. Paste `aw workflow check-generated` clean for any touched package that HAS a `_generated/` projection, and state N/A with the path checked for any that does not (F-12).
+  - Observed evidence: MANIFEST ROW added at `.aw/system/workflows/index.md:35` and parsed by the real mechanism:
+
+        $ python3 -c "from agent_workflows import engine; ..."
+        source root: .../.aw/system/workflows
+        workflow count: 62
+        spec-review present: True
+        new shim paths: ['.opencode/commands/spec-review.md', '.claude/commands/spec-review.md']
+
+    BOTH FALSE CLAIMS CORRECTED (they said `plan-review` reviews specs, which F-3 shows its body does not honor):
+
+        $ git diff --cached .opencode/commands/spec.md .claude/commands/spec.md
+        -description: ... Produces the artifact that `/advise spec-editor` interrogates and `plan-review` reviews.
+        +description: ... Produces the artifact that `/advise spec-editor` interrogates and `spec-review` reviews.
+
+    That diff appears for BOTH families. The manifest row (`index.md:44`) and the index PROSE (`index.md:196`, a THIRD site found during execution and also false) both now say `spec-review` reviews. Verified absent:
+
+        $ grep -c "interrogates and .plan-review. reviews" .aw/system/workflows/index.md
+        0
+
+    REGENERATED, NOT HAND-EDITED. The shims were produced by `aw install .` (the installer that `index.md:19` documents as reading the manifest), and the proof is a test that regenerates from the manifest and compares byte-for-byte to disk: `tests/test_spec_review_attestation.py::ManifestAndDocumentationTests::test_shims_are_generated_from_the_manifest_not_hand_written` checks all four files and PASSES. That test CAUGHT A REAL DRIFT mid-execution (I shortened the manifest description after generating, and the test failed until the shims were regenerated), so it is a demonstrated guard rather than a decorative one.
+    `aw workflow check-generated`: N/A, with the paths checked. `find .aw/system/workflows -maxdepth 2 -name "_generated" -type d` returns NOTHING for the whole tree; specifically neither `.aw/system/workflows/spec-review/` (contents: `README.md`, `spec-review.md`) nor `.aw/system/workflows/plan-review/` (contents: `plan-review.md`, `README.md`) has a `_generated/` projection, so there is no compiled output to check and claiming coverage would be vacuous (F-12 confirmed). Asserted by `test_no_generated_projection_to_compile_for_this_package`.
+    ONE ADDITIONAL EDIT, disclosed: `agent_workflows/migration_inventory.py` needed a family assignment for the new command. That table FAILS CLOSED by design (`_command_disposition` raises `InventoryError` for an unassigned command), so registering a new manifest row there is mandatory, not optional. Filed under its OWN new `spec review` family rather than `plan review aliases`, because that family exists to record an ALIAS collapse and `spec-review` is an independent package; see DECISION 13-5slbpi-D1's neighbours in the register and the comment at the table.
+  - Result: pass
+
+- [x] V-04 validates E-04
+  - Required evidence: paste `aw specs set reviewed` REFUSED without a conforming record, including the recovery command, and SUCCEEDING with one. Paste the `->reviewed` entry in `TRANSITION_AUTHORITY` and a grep proving ONE shared predicate serves both the setter and the checker. Paste the count of conforming specs BEFORE and AFTER, proving all 20 pre-existing `approved`/`implemented` specs survived grandfathering. Paste evidence plan behavior is unchanged.
+  - Observed evidence: REFUSED WITHOUT A RECORD, with the recovery command:
+
+        $ python3 -m agent_workflows specs set --status reviewed <fixture> --message "trying without a record"
+        aw specs set: to-review -> reviewed requires evidence that a review OCCURRED, namely a conforming review record naming this spec as its `- Subject-Id:`; refused (file unchanged).
+          reason: no review record names fixt01 as its `- Subject-Id:`
+          recovery: run the spec review (`/spec-review <path>`), which writes .aw/records/reviews/<...>.review.md with `- Subject-Id: fixt01` and `- Subject-Type: spec`, then re-run this command.
+          note: this proves a review happened and was recorded. It does NOT prove the review was thorough.
+        EXIT=1
+
+    SUCCEEDING WITH ONE:
+
+        $ python3 -m agent_workflows specs set --status reviewed <fixture> --message "APPROVE WITH REVISIONS APPLIED; SR-001"
+        aw specs set: <fixture> -> reviewed
+        EXIT=0
+        4:- Status: reviewed
+        14:- 2026-09-06 reviewed (aw specs): APPROVE WITH REVISIONS APPLIED; SR-001
+
+    BOTH CLI SPELLINGS ARE GATED, which matters because they route to two different functions. The POSITIONAL spelling (routing to `status_set`, not `specs.run_set`):
+
+        $ python3 -m agent_workflows specs set reviewed fixt02 --dir <tmp> --message "positional spelling"
+        FAIL  Validation error on ...: aw specs set: to-review -> reviewed requires evidence that a review OCCURRED ... reason: no review record names fixt02 ... Refusing before making changes.
+        EXIT=1
+
+    A MALFORMED record does NOT satisfy the attestation (it proves nothing about what it says):
+
+        reason: a review record naming fixt03 exists but does NOT parse, so it attests nothing: <path> (REV-P002)
+
+    THE AUTHORITY ENTRY (`agent_workflows/attention_contract.py`):
+
+        TRANSITION_AUTHORITY: Dict[str, Dict[str, object]] = {
+            "->reviewed": {
+                "who": "reviewer",
+                "by_human": False,
+                "human_token": False,
+                "evidence": False,  # not a --evidence citation; see `review_record` below.
+                "review_record": True,
+            },
+
+    ONE SHARED PREDICATE, BY GREP. Exactly one DEFINITION, three consumers:
+
+        $ grep -rc "^def review_attestation_missing" agent_workflows/*.py | grep -v ":0"
+        agent_workflows/review_findings.py:1
+        $ grep -rln "review_attestation_missing" agent_workflows/*.py
+        agent_workflows/attention_contract.py   (documentation only)
+        agent_workflows/check_engine.py         (the CHECKER calls it at :2850)
+        agent_workflows/review_findings.py      (the DEFINITION)
+        agent_workflows/specs.py                (the `--status` SETTER, via the shared message at :1026)
+        agent_workflows/status_set.py           (the POSITIONAL setter, via `specs._review_attestation_refusal`)
+
+    The refusal MESSAGE is likewise defined once (`grep -rc "^def _review_attestation_refusal"` -> `specs.py:1`), asserted by `OneSharedPredicateTests::test_the_refusal_message_is_defined_exactly_once`.
+    GRANDFATHERING: BEFORE/AFTER COUNTS, not a claim. The corpus is unchanged by this plan (no spec added, none edited), and the baseline validator provably lacked the hook:
+
+        baseline specs.py has the attestation hook: False   <- confirms the BEFORE state
+        AFTER:  specs conforming: 27/27
+                non-conforming: NONE
+                check.spec-review-unattested on the real tree: NONE
+        $ python3 -m agent_workflows specs check
+        aw specs check: all specs conform.
+
+    Census unchanged at 15 `implemented` + 5 `approved` = THE 20 grandfathered, plus 2 `draft`, 2 `deferred`, 1 `to-review`, 1 `superseded`, 1 `implementing` = 27. NONE became non-conforming.
+    WHY grandfathering needed no cutover date is recorded as DECISION 13-5slbpi-D2 and in the code: the authority table is consulted only at TRANSITION time, so a spec already past `to-review` is never re-tested. The one retained consequence is stated rather than hidden: a spec moved BACKWARD to `to-review` must produce a record to return to `reviewed`.
+    PLAN BEHAVIOR UNCHANGED (F-6): the new pressure is spec-only. `CheckerRuleTests::test_plans_are_NOT_made_stricter` asserts `subject_gating_blocks` still returns `()` for an artifact with no review record, and nothing consults `review_attestation_missing` for a plan (the grep above shows its only functional callers pass the literal `"spec"`). The 35-failure baseline test set is unchanged, and no plan-side rule was touched.
+  - Result: pass
+
+- [x] V-05 validates E-05
+  - Required evidence: paste `--type spec` resolving to real specs, AND paste the default sweep still selecting IPDs only. State explicitly whether `aw find specs --status` was FIXED or AVOIDED and show which (F-8). Confirm no new records-path literal was added.
+  - Observed evidence: `--type spec` RESOLVES REAL SPECS (measured against this repository's live tree, not a fixture):
+
+        specs discovered: 8
+        sweep(--type spec) -> ['6m4kow']
+            6m4kow to-review .aw/records/specs/20260904-6m4kow-01-6m4kow-cross-type-review.spec.md
+
+    THE DEFAULT SWEEP IS STILL IPD-ONLY (spec `25kzda` 2.4a property 1), measured side by side:
+
+        DEFAULT sweep (IPD-only) -> ['kgpptv']
+        sweep_for_type('ipd')    -> ['kgpptv']
+        identical to default: True
+        sweep_for_type('spec')   -> ['6m4kow']
+        default contains NO spec id: True
+
+    An unknown type sweeps nothing (`sweep(backlog) -> []`), and `sweep_review_candidates_for_type` deliberately has NO default for `spec_type` (asserted by `test_type_scoping_has_no_default`), because a defaulted parameter is exactly how a later caller would silently widen the default sweep.
+    HONEST LIMIT, stated as the plan requires: this is FUNCTION-LEVEL reachability. `--type spec` is NOT operator-reachable yet, because `uyeko5` owns the flag and has not landed it (verified: `grep '"--type"' agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` finds no registration, and `oc_runipd.py:2732` says so in a comment). Do not read the evidence above as an operator-facing capability.
+    `aw find specs --status` WAS **AVOIDED**, NOT FIXED, and the choice is recorded as DECISION 13-5slbpi-D4. Re-verified broken at implementation:
+
+        $ python3 -m agent_workflows find specs --status draft      | wc -l -> 27
+        $ python3 -m agent_workflows find specs --status to-review  | wc -l -> 27
+        $ python3 -m agent_workflows find specs                     | wc -l -> 27
+
+    ROOT CAUSE located so the finding is actionable for whoever does fix it: `cli._find_type_records`'s "All other types" branch (`cli.py:8487-8512`) never consults `explicit_flags.status`, while the `plans` (`:8390-8405`) and `research` (`:8450-8465`) branches both call a `query(...)` helper. The bug therefore affects SEVEN record types, and `cli.py` is outside this plan's Scope-Paths, which is why it was avoided rather than fixed.
+    WHAT WAS USED INSTEAD: `check_engine._iter_spec_records` (enumeration) plus `check_engine._ITEM_ID_RE` (identity) plus `selectors.read_front_matter_status` (status). NO NEW PATH LITERAL, asserted by an AST test that rejects any non-docstring `"records/specs"` string constant in `runner_shared.py` (`test_no_new_records_path_literal_was_added`, modelled on the existing reviews-path guard) and by `test_uses_the_shared_iterator`.
+    ONE MEASUREMENT WORTH RECORDING so "8 discovered of 27" is not read as a bug: 19 of 27 specs carry no `- Id:` (all pre-cutover legacy names, grandfathered by `check_engine.SPEC_ID6_CUTOVER_DATE = "20260828"`). Verified the skip costs no review coverage: asking `needs_review` about each of the 19 returned False for ALL of them, because they sit at `implemented` (15), `approved` (1), `deferred` (2), `superseded` (1). Recorded in the `discover_specs` docstring with the numbers.
+  - Result: pass
+
+- [x] V-06 validates E-06
+  - Required evidence: paste the end-to-end run on the FIXTURE (name it) with `aw check all` clean for the new record, and confirm NO real draft spec was promoted AND that `6m4kow` was NOT the subject (F-7). Paste each of the three `25kzda` 4.8 checks exercised by name. Paste WHICH history record `newest_verdict` reads. Then `aw check all` no-worsening and the bare full suite with counts.
+  - Observed evidence: THE FIXTURE IS NAMED: `e2efix`, at `.aw/records/specs/20260906-e2efix-01-e2efix-fixture-spec-for-end-to-end-spec-review.spec.md`, CREATED FOR THIS TEST in a scratch tree, whose own body records why it exists. `6m4kow` WAS **NOT** THE SUBJECT and was not touched: it remains `to-review` with no review record (confirmed by `sweep(--type spec) -> ['6m4kow']`, i.e. still awaiting review). NO real `draft` spec was promoted: the census still shows 2 `draft`.
+    THE THREE `25kzda` 4.8 CHECKS, BY NAME:
+
+        ################ SPEC-REVIEW-COMPLETE ################
+        -- inspects: deterministic spec completeness parser + placeholder scan
+        aw specs check: all specs conform.        aw specs check EXIT=0
+          required sections present: True {...all six True...}
+          no scaffold sentinel remains: True
+
+        ################ SPEC-REVIEW-TRANSITION ################
+        -- before:  4:- Status: to-review
+        aw specs set: <fixture> -> reviewed        EXIT=0
+        -- after:   4:- Status: reviewed
+        -- history: - 2026-09-06 reviewed (aw specs): APPROVE WITH REVISIONS APPLIED; SR-001, SR-002
+        -- action-owned paths only (spec + review record, nothing else):
+         M .aw/records/specs/20260906-e2efix-...spec.md
+        ?? .aw/records/history.jsonl
+
+        ################ SPEC-REVIEW-STRUCTURE ################
+        -- inspects: status, typed gates, history, naming, links, metadata
+        aw specs check: all specs conform.        aw specs check EXIT=0
+
+    `aw check all` CLEAN FOR THE NEW RECORD, in the fixture tree:
+
+        AW check  all
+        CONFORMS  2 all checked
+        Evidence  specs 1  reviews 1   errors 0   warnings 0
+
+    ONE PRE-EXISTING BEHAVIOR OBSERVED AND VERIFIED AS INTENDED, recorded so it is not mistaken for damage: the setter REPLACES the inline `## Workflow history` section with the latest record rather than prepending. That is `awhistory` Order 02's documented design (`specs._append_history`: "the inline section keeps only the LATEST record; the full chronological log lives in the global .aw/records/history.jsonl sidecar"), and `aw record-history e2efix` shows the sidecar retains it. Not introduced by this plan.
+    WHICH RECORD `newest_verdict` READS (F-9 as corrected). Not merely that a `/spec-review` entry is recognized (it is, verified), but which record the VERDICT comes from:
+
+        polarity: positive
+        read FROM: - 2026-09-06 reviewed (aw specs): APPROVE WITH REVISIONS APPLIED; SR-001, SR-002
+        -> the REVIEW's message, which carries the verdict.
+        a BARE setter line also qualifies as a review record: True
+        ...but states NO verdict: (None, None)
+
+    So the hazard is real and is handled by requiring the verdict IN the `--message`, which the workflow body mandates. `VerdictSourcingTests` asserts all three facts, including that a bare message yields NO verdict rather than a false positive.
+    FULL SUITE, BARE, ACTUAL OUTPUT, measured in the PRIMARY lane checkout at `git rev-parse HEAD` = `3d55a2d60a118863694bcc2ce8f2260b90294043` (pre-commit baseline) and again after:
+
+        BEFORE (baseline, unmodified tree):
+        35 failed, 5154 passed, 3 skipped, 4 xfailed in 103.98s (0:01:43)
+
+        AFTER (all changes in place):
+        35 failed, 5225 passed, 3 skipped, 4 xfailed in 105.99s (0:01:45)
+
+    +71 passing, and the FAILURE SET IS BYTE-IDENTICAL to the baseline (`diff baseline-failures.txt final-failures.txt` -> no output; "NEW vs baseline" and "FIXED vs baseline" both empty). All 35 are pre-existing and unrelated (`test_run_viewer`, `test_next_ordering`, worktree-isolation integration tests). NOTE: three of my own changes were driven by NEW failures I introduced and then fixed - a reviews-path guard, the shim-corpus budget, and a mixed-type batch test - each described in the execution report.
+    `aw check all` NO-WORSENING against my own fresh baseline, NOT a claim that it passes:
+
+        BASELINE: 14 findings  {lifecycle-transition-invalid: 3, name-nonconformant: 8, from-backlog-dangling: 1, from-backlog-gate-mismatch: 1, system-layout-missing: 1}
+        AFTER:    39 findings  {scope-drift: 26, name-nonconformant: 8, lifecycle-transition-invalid: 3, from-backlog-dangling: 1, from-backlog-gate-mismatch: 1}
+
+    EXCLUDING `check.scope-drift`, findings went 14 -> 13, so no rule class worsened and one improved. The two deltas are both explained, neither is a regression: (1) `check.system-layout-missing` DISAPPEARED because `aw install` emitted the gitignored `.aw/system/layout.json` the rule wanted; (2) all 26 `check.scope-drift` findings are the finalize gate's OWN in-flight mechanism reporting uncommitted work against a live begin receipt, and 17 of the 26 are CROSS-ATTRIBUTED to a concurrent agent's plan (`xdr83v`, whose receipt shares my `base_head` of `3d55a2d6`, so the whole-tree comparison attributes my files to it as well). The 9 attributed to `5slbpi` are the declared-scope reconciliation `aw ipd finalize` exists to resolve with `--scope-reason`. CRITICALLY: `check.spec-review-unattested`, the rule this plan ADDS, reports ZERO findings on the real tree.
+  - Result: pass
 
 ## Approval and execution gate
 
