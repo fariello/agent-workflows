@@ -39,14 +39,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rename
 
-- [ ] E-01 Pin the CURRENT behavior of `plan_gating_blocks` before renaming it, so the rename can be proven behavior-free rather than asserted to be. Only that one predicate needs a baseline: `plan_blocks_dependents` is DELETED by E-02 (OQ-01 ruling) and has no caller whose behavior could change.
+- [x] E-01 Pin the CURRENT behavior of `plan_gating_blocks` before renaming it, so the rename can be proven behavior-free rather than asserted to be. Only that one predicate needs a baseline: `plan_blocks_dependents` is DELETED by E-02 (OQ-01 ruling) and has no caller whose behavior could change.
   A rename is the one change class where "the tests still pass" is weak evidence, because a rename that accidentally swaps an argument or drops the `threshold` default would still satisfy every existing test that passes positionally. So capture, for a fixture with a gating finding and one without: the returned `GatingBlock` tuple contents and order from `plan_gating_blocks`, the boolean from `plan_blocks_dependents`, and the behavior at the default threshold versus an explicit one.
   NOTE `plan_gating_blocks` IS CONSUMED POSITIONALLY BY FOUR OF ITS FIVE CALLERS, so a swapped argument would still satisfy their tests. That makes this baseline the ONLY thing standing between a silent semantic change and a green suite.
   - Depends on: none
   - Expected outcome: a recorded pre-rename baseline for `plan_gating_blocks` covering both threshold paths and the empty/non-empty cases; paste it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Rename `plan_gating_blocks` and DELETE `plan_blocks_dependents`, then update all five call sites plus the two test modules.
+- [x] E-02 Rename `plan_gating_blocks` and DELETE `plan_blocks_dependents`, then update all five call sites plus the two test modules.
   MAINTAINER RULING 2026-09-04 (OQ-01), asked interactively: `plan_blocks_dependents` is DELETED, not renamed. It is a one-line wrapper (`return bool(plan_gating_blocks(...))`, `review_findings.py:850`) with ZERO callers anywhere, no direct test, and no `__all__` entry, and its own docstring steers callers to the tuple-returning version instead. Deleting it removes the maintenance and the naming question in one step. Nothing can break, because nothing calls it; that is the whole basis for the ruling, so VERIFY the zero-caller claim again immediately before deleting rather than trusting this plan's measurement.
   CHOOSE A NAME THAT DROPS `plan` WITHOUT INVENTING A NEW VOCABULARY. The record's own new field is `Subject-Id`/`Subject-Type` (`eyh1fu`), so `subject_gating_blocks` keeps one word for one concept across the field and the predicate. Rename the `plan_id6` PARAMETER to match, and keep it POSITIONAL-compatible: four of the five call sites pass positionally, so a keyword-only change would be a behavior change disguised as a rename.
   THE FIVE CALL SITES, measured at HEAD `c8a77881`: `plan_readiness.py:509`, `agy_runipd.py:1834`, `oc_runipd.py:2847`, `check_engine.py:2070`, `ipd_set_plan.py:489`. LOCATE EVERY ONE BY SYMBOL, never by these line numbers: both runners are the highest-contention files in the repo and will have moved.
@@ -54,16 +54,16 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   TWO SITES REFERENCE THE NAME AS A STRING AND A SYMBOL RENAME WILL NOT FIND THEM (added at review, F-7). `tests/test_plan_readiness.py:736` and `:759` patch the target by dotted path, `mock.patch("agent_workflows.review_findings.plan_gating_blocks", ...)`, which fails at RUNTIME with an AttributeError rather than at import, so a rename that misses them looks fine until those tests run. And `tests/test_review_findings_cascade.py:303` asserts `assertIn("plan_gating_blocks", src)` against each RUNNER'S SOURCE TEXT, so it fails unless the call sites and the assertion are renamed together. Update all three deliberately; do not rely on an editor's symbol rename.
   - Depends on: E-01
   - Expected outcome: `plan_gating_blocks` renamed and its parameter renamed; `plan_blocks_dependents` DELETED with its zero-caller status re-verified first; all five call sites and both test modules updated; no alias left behind; and a grep showing zero remaining references to either old name.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 Correct the DOCSTRINGS and comments that describe these predicates as plan-only, which is the whole point of the rename and the part a mechanical find-and-replace will miss.
+- [x] E-03 Correct the DOCSTRINGS and comments that describe these predicates as plan-only, which is the whole point of the rename and the part a mechanical find-and-replace will miss.
   `plan_gating_blocks`'s own docstring says "the answer for a plan with no review artifact at all" (`:761-763`), and the four call sites each carry a comment naming it as the shared predicate (`oc_runipd.py:2834`, `agy_runipd.py:1826`, `check_engine.py:2063`, `ipd_set_plan.py:481`). Update the prose to say ARTIFACT or SUBJECT where it now means either kind, and leave it saying `plan` only where the statement is genuinely plan-specific.
   DECIDE AND STATE WHAT HAPPENS TO `GatingBlock.plan_id6`, the dataclass field these predicates POPULATE (`review_findings.py:739`), which keeps the plan-only word after the rename (added at review, F-8). It is the value an operator sees in a gate message, so leaving it makes the rename visibly half-done, while changing it touches every construction site and any consumer reading the attribute. This plan's default is to LEAVE IT and record why, because it is a public attribute of a returned record and renaming it is a wider change than the two function names the ruling named; if you change it instead, treat it as a third rename with its own before/after evidence. Either way, say which you did rather than leaving it unmentioned.
   NOTE ONE OF THE TWO DOCSTRINGS IS GONE: `plan_blocks_dependents` is DELETED by E-02 (OQ-01 ruling), so only `plan_gating_blocks`'s docstring and the four call-site comments remain to correct. Its "use the tuple-returning version instead" sentence disappears with it, which is consistent: that advice existed to steer callers away from a wrapper that no longer exists.
   DO NOT WEAKEN THE CLAIM THE REMAINING DOCSTRING EXISTS TO MAKE: that an EMPTY tuple means "nothing recorded blocks dependents", the deliberate absent-is-silent design. It is load-bearing and survives the rename unchanged.
   - Depends on: E-02
   - Expected outcome: docstrings and the four call-site comments describe an artifact-neutral predicate; the absent-is-silent and use-the-tuple-to-explain claims are intact; no remaining prose calls the predicate plan-only.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -138,20 +138,246 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the pre-rename baseline for `plan_gating_blocks`, covering a fixture WITH a gating finding and one WITHOUT, at the DEFAULT threshold and at an explicit one, showing the returned tuple contents and order. State plainly that this baseline exists because a green suite cannot distinguish a pure rename from one that swapped an argument or dropped the threshold default (F-5), and that `plan_blocks_dependents` has no production caller to protect it (F-3).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PRE-RENAME BASELINE captured at `git rev-parse HEAD` = `117a8638a0e6a1c2ae1267e0b29efb7a8767d264`, in the PRIMARY lane checkout (`.aw/worktrees/wpomxa`, backlog `dh0uno`: not a scratch worktree of my own making). Full transcripts are preserved under this run's lane submission dir as `baseline_pre.txt` (and `baseline_post.txt` for V-02). Excerpt, three fixtures x four threshold paths:
+    ```
+    MEASURED MODULE: <SCRATCH>/pretree/agent_workflows/review_findings.py
+    predicate under test: review_findings.plan_gating_blocks
+    boolean wrapper present: True
+    signature parameter names: ['repo_root', 'plan_id6', 'threshold']
+    threshold default: None
+    GatingBlock._fields: ['plan_id6', 'finding_id', 'severity', 'decision', 'kind', 'review_path', 'detail']
 
-- [ ] V-02 validates E-02
+    A with-gating-finding | DEFAULT (threshold omitted -> config fallback)
+      positional call: plan_gating_blocks(repo, 'aaa111')
+      returned: (GatingBlock(plan_id6='aaa111', finding_id='F-1', severity='high', decision='open', kind='finding', review_path='<TMPREPO>/.aw/records/reviews/20260829-demo-01-aaa111-baseline.review.md', detail=''))
+      len=1 type=tuple
+        [0].describe(): aaa111: review finding F-1 is high/open and unresolved
+      plan_blocks_dependents -> True
+
+    A with-gating-finding | explicit 'high'      -> len=1, same GatingBlock, plan_blocks_dependents -> True
+    A with-gating-finding | explicit 'blocker'   -> returned: ()  len=0, plan_blocks_dependents -> False
+    A with-gating-finding | explicit 'off'       -> returned: ()  len=0, plan_blocks_dependents -> False
+    B finding-decided-fixed | all four paths     -> returned: ()  len=0, plan_blocks_dependents -> False
+    C no-review-artifact    | all four paths     -> returned: ()  len=0, plan_blocks_dependents -> False
+    edge: blank id6 -> ()
+    edge: keyword call via plan_id6= -> (GatingBlock(plan_id6='aaa111', ...))
+    edge: json of case A default -> [["aaa111", "F-1", "high", "open", "finding", "<TMPREPO>/...review.md", ""]]
+    ```
+    The baseline deliberately records FIELD ORDER (`GatingBlock._fields` plus a positional JSON dump), not just membership, and exercises BOTH the omitted-threshold config-fallback path and three explicit thresholds (`high` gating, `blocker` non-gating, `off` disabling), so a dropped default or a swapped argument shows up as a value change rather than as silence.
+    WHY THIS EXISTS, stated plainly per the requirement: a green suite CANNOT distinguish a pure rename from one that swapped an argument or dropped the `threshold` default, because four of the five call sites pass positionally (F-4/F-5) and would still type-check and still pass. And `plan_blocks_dependents` had NO production caller at all (F-3), so no test anywhere would have noticed a semantic slip in it. This before/after transcript is therefore the only real guard, which is exactly why it had to be captured before the edit and not after.
+    ONE MEASUREMENT DEFECT FOUND AND CORRECTED, recorded so a bad measurement is not trusted twice (see D-1 in the run's decisions register): the first run of this script was invoked from a scratch dir outside the repo and resolved `agent_workflows` through the EDITABLE INSTALL (the venv's `site-packages` -> the MAIN checkout) rather than through this lane worktree, so pre and post both measured the same unmodified tree and the diff was vacuously empty. The script now PRINTS the resolved module path as its first line (`MEASURED MODULE:`), and both baselines were re-taken with an explicit `PYTHONPATH`: the pre-baseline against a pristine `git archive` of `117a8638` extracted to a scratch dir outside the repo, the post-baseline against the lane worktree. An empty diff produced by measuring the wrong tree is worse than no evidence, because it looks like proof.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the post-rename baseline and show it is IDENTICAL to V-01's, which is this plan's central claim. Paste a grep returning ZERO hits for `plan_gating_blocks` and `plan_blocks_dependents` across code, tests, and comments, plus the before-grep showing the five call sites. Paste evidence NO alias was added. Paste the new signature showing the parameter is still positionally compatible, and confirm all four positional call sites still pass positionally. Paste the re-measured zero-caller grep for `plan_blocks_dependents` taken IMMEDIATELY BEFORE deleting it, and the post-delete grep showing it gone; a deletion justified only by this plan's earlier measurement does not satisfy this item, since three other pending plans are editing the modules where a new caller would most likely appear. Paste the three STRING-REFERENCE sites updated (F-7): both `mock.patch` dotted paths and the `assertIn` source assertion, since a symbol rename cannot find them and the `mock.patch` failure surfaces only at test RUNTIME.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All measured in the PRIMARY lane checkout at starting HEAD `117a8638a0e6a1c2ae1267e0b29efb7a8767d264`.
+    (1) POST-RENAME BASELINE IS IDENTICAL, this plan's central claim. Full transcript in the same lane submission dir as `baseline_post.txt`; header excerpt:
+    ```
+    MEASURED MODULE: <REPO>/.aw/worktrees/wpomxa/agent_workflows/review_findings.py
+    predicate under test: review_findings.subject_gating_blocks
+    boolean wrapper present: False
+    signature parameter names: ['repo_root', 'subject_id6', 'threshold']
+    threshold default: None
+    GatingBlock._fields: ['plan_id6', 'finding_id', 'severity', 'decision', 'kind', 'review_path', 'detail']
+    ```
+    The identity is proven two ways rather than by eyeball. FIRST, verbatim: every line that carries a RETURNED VALUE or anything derived from one (`returned:`, `len=`, `[0].describe():`, `edge: blank`, `edge: json`) is byte-identical between the two transcripts, 28 such lines:
+    ```
+    returned/derived value lines identical VERBATIM: True ( 28 lines )
+    ```
+    SECOND, whole-transcript: normalizing ONLY the two renamed identifiers (predicate name -> `<PRED>`, id parameter -> `<IDPARAM>`) and dropping the two lines that MUST differ (`MEASURED MODULE:`, and the `boolean wrapper present:`/`plan_blocks_dependents ->` lines reporting the deliberate deletion), all 70 remaining lines match:
+    ```
+    compared lines: 70 IDENTICAL: True
+    ```
+    The raw `diff baseline_pre.txt baseline_post.txt` is non-empty, and every hunk in it is one of exactly three expected things: the module path under measurement, an old->new NAME, or the deleted wrapper's line vanishing. No returned tuple, no field order, no length, no `describe()` string, and no threshold verdict changed.
+    (2) SIGNATURE STILL POSITIONALLY COMPATIBLE (F-4). `inspect.signature` after the rename:
+    ```
+    subject_gating_blocks signature: (repo_root, subject_id6: 'str', threshold: 'Optional[str]' = None) -> 'Tuple[GatingBlock, ...]'
+    ```
+    Three positional-or-keyword parameters in the same order, `threshold` default still `None` (NOT keyword-only, no `*` marker), so all four positional call sites still pass positionally: `oc_runipd._findings_block_reason` -> `_rf.subject_gating_blocks(repo, dep)`; `agy_runipd._findings_block_reason` -> `_rf.subject_gating_blocks(repo, dep)`; `check_engine._findings_blocks_for` -> `_rf.subject_gating_blocks(repo_root, dep_id6, threshold)`; `ipd_set_plan._findings_gate_reason` -> `_rf.subject_gating_blocks(_repo_root_for_plans_dir(plans_dir), plan_id6)`. The fifth (`plan_readiness.approval_refusals`) also passes positionally: `_rf.subject_gating_blocks(repo_root, id6_match.group(1))`. The baseline additionally proves a KEYWORD call still works via the new name (`edge: keyword call via subject_id6=`).
+    (3) BEFORE-GREP, the five call sites plus both old names, at the starting HEAD:
+    ```
+    $ grep -rn "plan_gating_blocks\|plan_blocks_dependents" --include="*.py" . | grep -v "^./.aw/records/"
+    ./tests/test_plan_readiness.py:736:            "agent_workflows.review_findings.plan_gating_blocks", return_value=()
+    ./tests/test_plan_readiness.py:759:            "agent_workflows.review_findings.plan_gating_blocks", return_value=(block,)
+    ./tests/test_review_findings_cascade.py:297:            rf.plan_gating_blocks.__module__, "agent_workflows.review_findings"
+    ./tests/test_review_findings_cascade.py:304:                self.assertIn("plan_gating_blocks", src)
+    ./tests/test_review_findings_gate.py:316:        its plan's gating findings invisible, and (via `plan_gating_blocks` case (b)) a MALFORMED one
+    ./agent_workflows/plan_readiness.py:446:    2. THE TYPED REVIEW ARTIFACT, via ``review_findings.plan_gating_blocks``, reused UNCHANGED so the
+    ./agent_workflows/plan_readiness.py:509:            for block in _rf.plan_gating_blocks(repo_root, id6_match.group(1)):
+    ./agent_workflows/agy_runipd.py:2009:    ``review_findings.plan_gating_blocks``, so the two hosts cannot diverge and the gate is not
+    ./agent_workflows/agy_runipd.py:2017:        blocks = _rf.plan_gating_blocks(repo, dep)
+    ./agent_workflows/oc_runipd.py:3055:    ``review_findings.plan_gating_blocks``, the ONE shared predicate, which both host runners, the
+    ./agent_workflows/oc_runipd.py:3068:        blocks = _rf.plan_gating_blocks(repo, dep)
+    ./agent_workflows/check_engine.py:2065:    Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the SAME function both host runners
+    ./agent_workflows/check_engine.py:2072:        return _rf.plan_gating_blocks(repo_root, dep_id6, threshold)
+    ./agent_workflows/review_findings.py:820:def plan_gating_blocks(
+    ./agent_workflows/review_findings.py:914:def plan_blocks_dependents(
+    ./agent_workflows/review_findings.py:922:    The boolean convenience over :func:`plan_gating_blocks` ...
+    ./agent_workflows/review_findings.py:923:    A caller that must TELL THE OPERATOR WHY should use :func:`plan_gating_blocks` instead; a block
+    ./agent_workflows/review_findings.py:926:    return bool(plan_gating_blocks(repo_root, plan_id6, threshold))
+    ./agent_workflows/ipd_set_plan.py:481:    revgate Order 03 (7nkcgp) E-07. Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the
+    ./agent_workflows/ipd_set_plan.py:489:        blocks = _rf.plan_gating_blocks(_repo_root_for_plans_dir(plans_dir), plan_id6)
+    ```
+    Every site was located BY SYMBOL at edit time, not by this plan's recorded line numbers, and both runners had indeed moved (`oc_runipd` 2847 -> 3068, `agy_runipd` 1834 -> 2017), exactly as the plan warned.
+    (4) AFTER-GREP, zero live references to either old name, in code, tests, and comments:
+    ```
+    $ grep -rn "plan_gating_blocks\|plan_blocks_dependents" --include="*.py" . | grep -v "^./.aw/"
+    ./agent_workflows/review_findings.py:832:    renamed it from ``plan_gating_blocks``. Since revsweep ``eyh1fu`` the record names its subject
+    ./agent_workflows/review_findings.py:920:# NO BOOLEAN CONVENIENCE WRAPPER LIVES HERE, deliberately. `plan_blocks_dependents` used to, a one
+    ```
+    The only two survivors are deliberate PROSE HISTORY (the new docstring naming what it was renamed FROM, and the tombstone comment recording what was deleted and why); neither is a definition, a call, or a reference a reader could follow. Mechanically:
+    ```
+    $ grep -rnE "(def |[^a-z_])plan_gating_blocks\(|(def |[^a-z_])plan_blocks_dependents\(" --include="*.py" . | grep -v "^./.aw/records/"
+    NONE (no definition, no call, no alias)
+    ```
+    (5) NO ALIAS OR SHIM, asserted at runtime rather than by reading:
+    ```
+    plan_gating_blocks present (must be False): False
+    plan_blocks_dependents present (must be False): False
+    ```
+    The full `git diff` of `review_findings.py` shows the `def` line renamed in place with NO second binding added anywhere, and there is no `__all__` in the module to update (`grep -c "__all__"` = 0).
+    (6) THE ZERO-CALLER RE-MEASUREMENT, taken IMMEDIATELY BEFORE the delete and NOT quoted from this plan, exactly as the item demands:
+    ```
+    === RE-VERIFY zero callers of plan_blocks_dependents at 117a8638a0e6a1c2ae1267e0b29efb7a8767d264 ===
+    $ grep -rn "plan_blocks_dependents" --include="*.py" .
+    ./agent_workflows/review_findings.py:914:def plan_blocks_dependents(
+    --- any non-.py, non-records reference:
+    grep: ./agent_workflows/__pycache__/review_findings.cpython-314.pyc: binary file matches
+    --- __all__ in review_findings: 0
+    ```
+    The ONLY hit is the definition itself: no caller in `agent_workflows/`, none in `tests/`, no `__all__` entry (the module has none), and the sole extra match is a stale `.pyc`. The concurrency worry the plan raised was real and was checked rather than assumed: three other pending plans edit these modules, so a new caller could have appeared since authoring; none had. Post-delete grep is item (4) above, and the runtime assertion in (5) confirms the attribute is gone from the module.
+    (7) THE THREE STRING-REFERENCE SITES (F-7), which a symbol rename cannot find, each updated deliberately. Both `mock.patch` dotted paths in `tests/test_plan_readiness.py` (the dangerous class, since `mock.patch` resolves by `getattr` at CALL time and an incomplete rename would import and type-check cleanly, then fail only when those tests run):
+    ```
+    -            "agent_workflows.review_findings.plan_gating_blocks", return_value=()
+    +            "agent_workflows.review_findings.subject_gating_blocks", return_value=()
+    -            "agent_workflows.review_findings.plan_gating_blocks", return_value=(block,)
+    +            "agent_workflows.review_findings.subject_gating_blocks",
+    +            return_value=(block,),
+    ```
+    And the source-text assertion in `tests/test_review_findings_cascade.py`, which reads each RUNNER's own source and would fail unless the call sites and the assertion moved together:
+    ```
+    -                self.assertIn("plan_gating_blocks", src)
+    +                self.assertIn("subject_gating_blocks", src)
+    ```
+    (plus the same file's `rf.plan_gating_blocks.__module__` -> `rf.subject_gating_blocks.__module__`). That both `mock.patch` tests now PASS is the positive proof the dotted paths resolve: `test_it_calls_the_shipped_typed_gate_rather_than_forking_the_severity_rule` asserts `spy.call_count == 1`, which is only reachable if the patch target exists.
+    A FOURTH STRING SITE existed that this plan did not know about, `tests/test_review_findings_gate.py:316`, a docstring naming `plan_gating_blocks` (see D-2). It is OUTSIDE Scope-Paths and was edited anyway with a recorded justification, because leaving prose pointing at a symbol that no longer exists reproduces in a comment the exact misleading-name defect this plan removes.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the updated docstring for each predicate and the four updated call-site comments, showing none still describes an artifact-neutral predicate as plan-only. Paste the two load-bearing claims still intact verbatim: that an empty tuple means nothing recorded blocks dependents, and that a caller needing to explain WHY must use the tuple-returning predicate. STATE what you did with `GatingBlock.plan_id6` (F-8) and why. Then both test modules, `aw check all` no-worsening against your own baseline, and the bare full suite with counts compared against your own pre-change measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: docstrings and the four call-site comments are artifact-neutral, both load-bearing claims survive verbatim, `GatingBlock.plan_id6` is deliberately LEFT as-is with the reason recorded in code, and the suite plus `aw check` are unchanged. Detail below.
+    (1) THE RENAMED PREDICATE'S DOCSTRING, now artifact-neutral in its NAME as well as its behavior. The pre-change text asserted the mismatch was deliberate and deferred the rename to this plan; that paragraph would have become false the moment the rename landed, so it was rewritten rather than left:
+    ```
+    def subject_gating_blocks(
+        repo_root, subject_id6: str, threshold: Optional[str] = None
+    ) -> Tuple[GatingBlock, ...]:
+        """Every recorded reason ``subject_id6``'s review blocks its dependents, in deterministic order.
+
+        THE PREDICATE IS ARTIFACT-NEUTRAL AND SO IS ITS NAME, since revsweep ``wpomxa`` (`revsweep-05`)
+        renamed it from ``plan_gating_blocks``. Since revsweep ``eyh1fu`` the record names its subject
+        with ``- Subject-Id:``/``- Subject-Type:``, so this function answers the question for ANY
+        reviewable artifact: it matches the id6 against whatever the record declares as its subject and
+        never consults the type. ``subject`` is deliberately the SAME word the record's own field uses, so
+        one concept keeps one name across the field, the parameter, and the predicate. The parameter stays
+        POSITIONAL-compatible because four of the five call sites pass positionally.
+    ```
+    (2) THE SECOND DOCSTRING IS GONE WITH ITS FUNCTION, as E-03 anticipated. `plan_blocks_dependents` was DELETED (E-02, OQ-01 ruling), so there was no second docstring to correct; a tombstone comment replaces it so the deletion is discoverable rather than a silent gap:
+    ```
+    # NO BOOLEAN CONVENIENCE WRAPPER LIVES HERE, deliberately. `plan_blocks_dependents` used to, a one
+    # line `return bool(subject_gating_blocks(...))`; revsweep `wpomxa` DELETED it on the maintainer's
+    # 2026-09-04 ruling after re-verifying it had ZERO callers, no direct test, and no `__all__` entry.
+    # A caller that needs only a verdict should write `bool(subject_gating_blocks(...))` at the call site,
+    # because a caller that must TELL THE OPERATOR WHY needs the tuple anyway, and a block whose message
+    # does not name its cause is the failure mode this Set exists to remove.
+    ```
+    (3) THE FOUR CALL-SITE COMMENTS, each of which asserts the single-shared-predicate property BY NAME and would have read false after the rename:
+    ```
+    oc_runipd.py:3055    ``review_findings.subject_gating_blocks``, the ONE shared predicate, which both host runners, the
+    agy_runipd.py:2009   ``review_findings.subject_gating_blocks``, so the two hosts cannot diverge and the gate is not
+    check_engine.py:2065 Delegates ENTIRELY to ``review_findings.subject_gating_blocks``, the SAME function both host runners
+    ipd_set_plan.py:481  revgate Order 03 (7nkcgp) E-07. Delegates ENTIRELY to ``review_findings.subject_gating_blocks``, the
+    ```
+    A FIFTH prose site was corrected for the same reason, `plan_readiness.approval_refusals`'s numbered contract, which names the predicate it delegates to:
+    ```
+    plan_readiness.py:446    2. THE TYPED REVIEW ARTIFACT, via ``review_findings.subject_gating_blocks``, reused UNCHANGED so the
+    ```
+    NO REMAINING PROSE CALLS THE PREDICATE PLAN-ONLY: the after-grep in V-02 item (4) returns only the docstring line naming what it was renamed FROM and the deletion tombstone, both of which are deliberate history, not a plan-only description of current behavior.
+    (4) THE TWO LOAD-BEARING CLAIMS, verbatim and unweakened. Absent-is-silent, still stating BOTH the rule and the corpus-scale reason it is safety rather than laziness:
+    ```
+        An EMPTY tuple means "nothing recorded blocks dependents", which is the answer for an artifact with
+        no review artifact at all.
+        ...
+        (a) NO review artifact -> EMPTY (silent). Required for safety, not laziness: zero ``.review.md``
+            files exist against 428 plans, so a fail-closed absent case would block the entire corpus.
+    ```
+    And use-the-tuple-to-explain-WHY, which survived the deletion of the function whose docstring used to carry it, now stated in the tombstone (quoted in item 2): "A caller that needs only a verdict should write `bool(subject_gating_blocks(...))` at the call site, because a caller that must TELL THE OPERATOR WHY needs the tuple anyway, and a block whose message does not name its cause is the failure mode this Set exists to remove." The advice is preserved rather than lost with its host, which was E-03's explicit requirement.
+    (5) `GatingBlock.plan_id6` IS LEFT AS-IS, DELIBERATELY, taking this plan's recorded default rather than widening the rename (F-8). WHY: it is a public attribute of a RETURNED record, so renaming it reaches every construction site (`review_findings.py:812`, `:829`) plus any consumer reading the attribute, including a fixture in `tests/test_plan_readiness.py` that constructs `GatingBlock(plan_id6="tst001", ...)` by keyword; the maintainer's ruling named two FUNCTIONS, and the plan's own scope fence says "Do NOT rename `GatingBlock` or any other type". Silence would have made the rename look half-done by accident, so the position is now recorded IN THE CODE where the next reader meets the field:
+    ```
+        ``plan_id6`` KEEPS ITS PLAN-FLAVOURED NAME DELIBERATELY, decided in revsweep ``wpomxa`` when that
+        plan renamed :func:`subject_gating_blocks`. It holds the SUBJECT's id6 whatever the subject's type,
+        so the word is imprecise; it is left alone because renaming a public attribute of a returned record
+        is a wider change than the predicate rename the maintainer ruled in, reaching every construction
+        site and any consumer reading the attribute. Read it as "the reviewed artifact's id6".
+    ```
+    Reversible and cheap to revisit: the field name appears in exactly three places in the module plus one test fixture. NOT renamed, and said so rather than left unmentioned.
+    (6) BOTH TEST MODULES GREEN, plus `test_review_findings_gate.py` (the fourth string site, D-2). Actual runner output:
+    ```
+    $ python3 -m pytest tests/test_plan_readiness.py tests/test_review_findings_cascade.py tests/test_review_findings_gate.py
+    bringing up nodes...
+    ........................................................................ [ 48%]
+    ........................................................................ [ 96%]
+    ......                                                                   [100%]
+    150 passed in 2.48s
+    ```
+    Same 150 passed as the pre-change measurement of the same three modules, so the rename neither broke nor silently skipped a test.
+    (7) FULL SUITE BARE, no added flags, compared against my OWN pre-change measurement at the starting HEAD. PRE (`117a8638`, before any edit):
+    ```
+    31 failed, 4901 passed, 3 skipped, 4 xfailed in 45.17s
+    ```
+    POST (same checkout, after all edits):
+    ```
+    31 failed, 4901 passed, 3 skipped, 4 xfailed in 34.41s
+    ```
+    Counts alone are weak evidence (a broken test could be masked by a newly-passing one), so the FAILURE SETS were captured and diffed by name:
+    ```
+    $ diff <SCRATCH>/fail_pre.txt <SCRATCH>/fail_post.txt
+    FAILURE SET STILL IDENTICAL TO PRE-CHANGE      # pre=31 post=31, byte-identical sorted lists
+    ```
+    THE 31 FAILURES ARE PRE-EXISTING AND NOT MINE, and I did not merely assume it: they live in six modules (`test_run_viewer`, `test_oc_runipd`, `test_agy_runipd_cli`, `test_ipd_lifecycle_cli`, `test_worker_role_refusal`, `test_novalnomerge_integration`), they fail identically before my first edit, and none of those modules references either predicate name:
+    ```
+    $ grep -rn "subject_gating_blocks\|plan_gating_blocks" tests/test_oc_runipd.py tests/test_run_viewer.py tests/test_agy_runipd_cli.py tests/test_worker_role_refusal.py tests/test_ipd_lifecycle_cli.py tests/test_novalnomerge_integration.py
+    NONE of the 6 failing test modules reference either predicate name: the 31 failures cannot be caused by this rename
+    ```
+    Sampled root causes confirm they are environment/lane artifacts, not gating logic: `test_discover_run_dirs` fails on `assertTrue(len(runs) > 0)` (no runs present in this lane), and `test_non_passing_gate_defers_not_faked_executed` fails on `'blocked' != 'merge-conflict'`. I am NOT claiming the suite is green; I am claiming it is UNCHANGED, which is the correct claim for a zero-behavior rename.
+    (8) LINTERS NO-WORSENING, checked because the pinned `ruff-format` pre-commit hook would otherwise reformat my own edit at commit time. It wanted one change, confined to a line I had just made too long, and I applied it; after that, all nine changed files are format-clean:
+    ```
+    $ python3 -m ruff format tests/test_plan_readiness.py && python3 -m ruff format --check $(git diff --name-only)
+    1 file reformatted
+    9 files already formatted
+    ALL 9 CHANGED FILES ruff-format CLEAN
+    ```
+    `ruff check` counts per changed file are identical pre vs post (measured against a pristine `git archive` of `117a8638`) with ONE improvement, `review_findings.py` 50 -> 49, from deleting the wrapper. No file worsened.
+    (9) `aw check all` NO-WORSENING against my OWN fresh baseline, and NOT a claim that it passes: it reports 41 findings before my work and does not pass. Per-rule counts, PRE vs POST:
+    ```
+    === PRE ===                             === POST ===
+    findings: 41 outcome: findings          findings: 49 outcome: findings
+        1  check.from-backlog-dangling          1  check.from-backlog-dangling
+        1  check.from-backlog-gate-mismatch     1  check.from-backlog-gate-mismatch
+        5  check.lifecycle-transition-invalid   5  check.lifecycle-transition-invalid
+        8  check.name-nonconformant             8  check.name-nonconformant
+       25  check.scope-drift                   33  check.scope-drift
+        1  check.setid-collision                1  check.setid-collision
+    ```
+    The total moved, so I attributed every new finding rather than waving at the delta. `scope-drift` is per-location; grouping by file shows only ONE of the eight new findings is mine:
+    ```
+    $ aw check all --agent | (group check.scope-drift by location)
+         32 .aw/records/plans/pending/20260831-worksequence-01-i6015i-...ipd.md      # NOT MINE: 25 -> 32, a co-worker's plan growing concurrently
+          1 .aw/records/plans/pending/20260904-revsweep-05-wpomxa-...ipd.md          # MINE: exactly one
+    ```
+    MINE IS EXPECTED AND IS THE OUT-OF-FENCE EDIT, not a defect: my live begin receipt freezes `scope_paths` at this plan's eight declared entries, and I changed a ninth file, `tests/test_review_findings_gate.py` (D-2). `check.scope-drift` is precisely the rule that exists to surface that, and `aw ipd finalize` refuses to complete until the path carries a `--scope-reason`, which is how the deviation is recorded rather than hidden. The other seven new findings belong to `i6015i`, a plan I did not touch, in a shared checkout where other agents are working concurrently; I left that work alone.
+  - Result: pass
 
 ## Approval and execution gate
 
