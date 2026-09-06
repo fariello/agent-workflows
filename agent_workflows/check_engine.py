@@ -269,6 +269,31 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.push-unauthorized": RuleSpec(
         "error", ASSURANCE_AUTHORITY, DET_HEURISTIC, "I-02"
     ),
+    # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted machine-readable layout
+    # document is ABSENT from, or STALE relative to, an INSTALLED workspace.
+    #
+    # WHY THIS RULE EXISTS AT ALL, since the reason decides its severity. Spec Section 2.3 rules the
+    # emitted `.aw/system/layout.json` GITIGNORED, so git will never show a diff for it: there is no
+    # review surface and no history to inspect. That makes this rule the ONLY loud-failure backstop
+    # telling a user or a CI job to run an install before a non-Python tool tries to read the layout.
+    #
+    # `warning`, NOT `error`, and the distinction is honest rather than cosmetic. Behaviorally these
+    # are equally loud: `artifact_core.drift_exit_code` fails the gate for anything that is not
+    # `info`, so either severity exits 1 and fails CI. The class is what differs. An `error` in this
+    # registry means a RECORD is malformed and a human authored it wrong; here the artifact is
+    # GENERATED and the remedy is mechanical ("run `aw install`"), so `warning` states the condition
+    # truthfully without weakening the gate.
+    #
+    # NEITHER RULE FIRES WITHOUT THE INSTALL MARKER (`.aw/system/VERSION`). A repo that has simply
+    # never been installed has nothing to be missing or stale, and because the emitted files are
+    # gitignored, EVERY fresh clone is in that state; keying on the marker is what keeps `aw check`
+    # from failing on a fresh clone by design (30jug9 E-02, DECISION 05-30jug9-D1).
+    "check.system-layout-missing": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "check.system-layout-drift": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,
@@ -1334,6 +1359,192 @@ def check_scope_drift(
     return drift
 
 
+# ======================================================================================
+# wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: workspace layout health.
+#
+# ONE loader and ONE rule, shared by `aw layout` (which needs to KNOW which document it is
+# showing) and by `aw check` / `aw doctor` (which need to REPORT that the document is absent or
+# stale). Sharing the loader is the point: if the inspector and the checker parsed the emitted
+# file differently, the CLI could display a document the checker calls invalid.
+# ======================================================================================
+
+
+def load_emitted_layout(repo_root: Path) -> Tuple[Optional[Dict], str]:
+    """Load the install-emitted `.aw/system/layout.json`.
+
+    Returns ``(document, error)``. Exactly one side is meaningful: on success ``document`` is the
+    parsed mapping and ``error`` is ``""``; on failure ``document`` is ``None`` and ``error`` is a
+    short human-readable reason.
+
+    ABSENCE IS NOT AN ERROR HERE, and that asymmetry is deliberate. Spec Section 2.3 makes the file
+    GITIGNORED, so a fresh clone legitimately has none; this loader therefore reports absence with
+    the plain reason ``"absent"`` and lets each caller decide what it means (`aw layout` falls back
+    to the in-process model; `aw check` reports it only when the workspace is actually installed).
+    A file that exists but is unreadable, unparseable, or not a JSON OBJECT is a genuinely different
+    condition and gets its own reason string.
+    """
+
+    import json
+
+    target = Path(repo_root) / _engine.AW_LAYOUT_JSON_PATH
+    if not target.is_file():
+        return None, "absent"
+    try:
+        raw = target.read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, "unreadable: {0}".format(exc)
+    try:
+        doc = json.loads(raw)
+    except ValueError as exc:
+        return None, "invalid JSON: {0}".format(exc)
+    if not isinstance(doc, dict):
+        return None, "not a JSON object (got {0})".format(type(doc).__name__)
+    return doc, ""
+
+
+def check_system_layout(repo_root: Path) -> List[_core.Drift]:
+    """The workspace layout presence/drift rule (spec kw5y2s Section 6.2).
+
+    Emits at most ONE finding, in one of two flavors:
+
+    * ``check.system-layout-missing`` - the workspace is INSTALLED but `.aw/system/layout.json`
+      (or its sibling schema) is absent, so a non-Python consumer has nothing to read.
+    * ``check.system-layout-drift`` - the document is present but unparseable, structurally
+      invalid against the model's own required keys, or its ``framework_version`` disagrees with
+      the installed `.aw/system/VERSION`. The version comparison is the ONLY way a stale emitted
+      file is detectable at all: it is gitignored, so there is no diff to review.
+
+    SILENT WHEN THE WORKSPACE IS NOT INSTALLED. The gate is `.aw/system/VERSION`, the same install
+    marker `engine.read_installed_version` consults. Three states are distinguished exactly as
+    30jug9 E-02 requires: (a) no marker -> NO finding (never installed, or a deliberately-legacy
+    `.agents/` layout, which `engine.emit_layout_artifacts` also skips); (b) marker present and the
+    document absent -> ``missing``; (c) marker present and the document present but stale or
+    invalid -> ``drift``. Without gate (a) every fresh clone would fail `aw check` by design, since
+    the emitted artifacts are gitignored and therefore never present until an install runs.
+
+    Read-only and deterministic: it reads at most three files and writes nothing.
+    """
+
+    root = Path(repo_root)
+    installed_version = _engine.read_installed_version(root)
+    if not installed_version:
+        return []  # case (a): not an installed AW workspace; nothing can be missing or stale
+
+    json_rel = _engine.AW_LAYOUT_JSON_PATH
+    schema_rel = _engine.AW_LAYOUT_SCHEMA_PATH
+    recovery = "run 'aw install {0}' to regenerate the emitted layout document".format(
+        root
+    )
+
+    doc, err = load_emitted_layout(root)
+    if doc is None and err == "absent":
+        return [
+            enrich_drift(
+                _core.Drift(
+                    json_rel,
+                    "check.system-layout-missing",
+                    "installed workspace (version {0}) has no emitted layout document; "
+                    "non-Python consumers cannot read the hierarchy until an install "
+                    "regenerates it".format(installed_version),
+                ),
+                observed="absent",
+                required="present (emitted by 'aw install')",
+                recovery=recovery,
+            )
+        ]
+    if doc is None:
+        return [
+            enrich_drift(
+                _core.Drift(
+                    json_rel,
+                    "check.system-layout-drift",
+                    "emitted layout document is unusable ({0})".format(err),
+                ),
+                observed=err,
+                required="a readable JSON object",
+                recovery=recovery,
+            )
+        ]
+
+    # Structural validity is checked against the MODEL's own required keys rather than a
+    # hand-copied list, so a future schema change cannot leave this rule asserting a stale shape.
+    from agent_workflows import layout as _layout
+
+    model = _layout.build_default_layout()
+    required = model.to_schema().get("required") or []
+    missing_keys = [key for key in required if key not in doc]
+    if missing_keys:
+        return [
+            enrich_drift(
+                _core.Drift(
+                    json_rel,
+                    "check.system-layout-drift",
+                    "emitted layout document is missing required key(s): {0}".format(
+                        ", ".join(sorted(missing_keys))
+                    ),
+                ),
+                observed="missing {0}".format(", ".join(sorted(missing_keys))),
+                required="every key required by the current layout schema",
+                recovery=recovery,
+            )
+        ]
+
+    if doc.get("schema_version") != model.schema_version:
+        return [
+            enrich_drift(
+                _core.Drift(
+                    json_rel,
+                    "check.system-layout-drift",
+                    "emitted layout document declares schema_version {0!r}, but this "
+                    "framework emits {1!r}".format(
+                        doc.get("schema_version"), model.schema_version
+                    ),
+                ),
+                observed=str(doc.get("schema_version")),
+                required=str(model.schema_version),
+                recovery=recovery,
+            )
+        ]
+
+    emitted_version = doc.get("framework_version")
+    if emitted_version != installed_version:
+        return [
+            enrich_drift(
+                _core.Drift(
+                    json_rel,
+                    "check.system-layout-drift",
+                    "emitted layout document is stale: framework_version {0!r} does not "
+                    "match the installed {1} ({2!r})".format(
+                        emitted_version, _engine.VERSION_FILE, installed_version
+                    ),
+                ),
+                observed=str(emitted_version),
+                required=installed_version,
+                recovery=recovery,
+            )
+        ]
+
+    # The SCHEMA sibling is reported last and as `missing`, not `drift`: the document itself is
+    # fine, and the absent artifact is the local validation surface spec Section 6.1 item 3 emits
+    # alongside it, so the remedy is the same regeneration.
+    if not (root / schema_rel).is_file():
+        return [
+            enrich_drift(
+                _core.Drift(
+                    schema_rel,
+                    "check.system-layout-missing",
+                    "emitted layout document is present and current, but its JSON Schema "
+                    "sibling is absent, so a non-Python consumer cannot validate it locally",
+                ),
+                observed="absent",
+                required="present (emitted by 'aw install')",
+                recovery=recovery,
+            )
+        ]
+
+    return []
+
+
 def check_commit_invariants(repo_root: Path) -> List[_core.Drift]:
     """Aggregate the SHARED commit-scoped invariant rules for a pre-commit gate (agentadhere Phase 4,
     IPD diundn E-01; DECISION 17-diundn-D1).
@@ -1548,6 +1759,16 @@ def check_types(
         # into the exit-blocking sweep; the WARN-severity findings are surfaced by attention only.
         try:
             drift.extend(check_release_gate_consistency(repo_root))
+        except Exception:
+            pass
+        # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted layout document is absent
+        # or stale. A WORKSPACE-level rule, not a per-type one, so it rides this once-per-full-sweep
+        # seam exactly like its neighbors above: fanning it out over `check_type` would emit the same
+        # finding once per record type and would also fire it on `aw check plans`, where the state of
+        # a generated system file is irrelevant. Own try/except, per the established pattern, so a
+        # failure here cannot suppress any other rule.
+        try:
+            drift.extend(check_system_layout(repo_root))
         except Exception:
             pass
     return drift

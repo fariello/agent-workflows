@@ -250,6 +250,21 @@ _DESCRIPTIONS = {
         "(system|config|state|records) for the target repo. --agent prints only the "
         "absolute path (no prose), suitable for scripting."
     ),
+    # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2. STRICTLY READ-ONLY, and the help text
+    # says so first, because the adjacent `aw migrate-layout` verb is TRANSACTIONAL and moves a
+    # legacy tree: tab completion puts the two side by side, so a user who cannot tell them apart
+    # from one line of help is one keystroke from a migration they did not ask for.
+    "layout": (
+        "Print the canonical workspace LAYOUT MODEL: the record-class vocabulary (subpath, file "
+        "pattern, lifecycle subdirectories, aliases), the state-class map, the four logical roots, "
+        "and the traversal exclusions. READ-ONLY: it writes nothing and moves nothing (contrast "
+        "'aw migrate-layout', which transactionally migrates a legacy .agents/ tree). --json emits "
+        "the machine-readable layout document, --schema emits the JSON Schema that validates it. "
+        "Prefers the install-emitted .aw/system/layout.json and falls back to the in-process model, "
+        "so it still works on a fresh clone where that gitignored file does not exist yet; the "
+        "source actually used is always reported. See also 'aw context' (resolved logical root "
+        "PATHS for this repo) and 'aw path <root>' (one resolved path, for scripting)."
+    ),
     "project": (
         "Owner verbs for AW project identity and the AW_HOME registry: 'status' (identity "
         "and matching), 'attach' (bind a repo to a project id), 'move' (update the target "
@@ -2450,6 +2465,32 @@ def _build_parser() -> argparse.ArgumentParser:
         "--repo",
         default=None,
         help="Target repository directory (default: current directory).",
+    )
+
+    # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the READ-ONLY layout inspection verb.
+    # `--json` and `--schema` are MUTUALLY EXCLUSIVE: they name two different documents (the layout
+    # instance vs the schema that validates it), so combining them is a usage error (exit 2) rather
+    # than a silent precedence rule the user has to memorize. Note `--json` already exists on the
+    # shared `common` parent (as the generic structured-output flag) and is deliberately NOT
+    # redeclared here; adding it to the exclusive group directly would raise an argparse conflict.
+    p_layout = sub.add_parser(
+        "layout",
+        parents=[common],
+        help=(
+            "Print the canonical workspace layout model (record classes, state classes, logical "
+            "roots, exclusions). Read-only; --json for the layout document, --schema for its JSON Schema."
+        ),
+    )
+    p_layout.add_argument(
+        "--repo",
+        default=None,
+        help="Target repository directory (default: current directory).",
+    )
+    p_layout.add_argument(
+        "--schema",
+        dest="schema",
+        action="store_true",
+        help="Emit the JSON Schema that validates the layout document (instead of the document).",
     )
 
     p_project = sub.add_parser(
@@ -7391,6 +7432,181 @@ def _run_path(args: argparse.Namespace, term: Term) -> int:
     return 0
 
 
+def _run_layout(
+    args: argparse.Namespace, term: Term, context: Optional[Any] = None
+) -> int:
+    """Print the canonical workspace LAYOUT MODEL. READ-ONLY (wslayout Order 05 `30jug9`,
+    spec kw5y2s Section 6.2).
+
+    STRICTLY READ-ONLY, and that is the load-bearing distinction from the adjacent
+    `aw migrate-layout`, which is TRANSACTIONAL and moves a legacy `.agents/` tree. This
+    function opens no file for writing, creates no directory, and runs no git command; the
+    only filesystem access is a read of the install-emitted layout document.
+
+    SOURCE RESOLUTION (D3): prefer the emitted `.aw/system/layout.json`, else fall back to the
+    in-process `layout.build_default_layout()`, and REPORT which one was used. Both halves are
+    required. The emitted file is what a non-Python consumer actually reads, so the CLI must be
+    able to show it (a stale document is otherwise invisible); and because spec Section 2.3
+    makes that file GITIGNORED, a fresh clone legitimately has none, so requiring it would make
+    the command fail on exactly the repo state the ruling creates.
+
+    `--schema` is ALWAYS generated in process from the model rather than read from the emitted
+    `layout.schema.json`: a schema describes what the RUNNING code considers valid, so serving a
+    stale on-disk copy would defeat the drift detection `check.system-layout-drift` performs.
+    """
+    import os
+
+    from agent_workflows import check_engine as _ce
+    from agent_workflows import layout as _layout
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import (
+        CommandResult,
+        Evidence,
+        NextAction,
+        select_output,
+    )
+
+    ctx_out = context or select_output(args)
+    repo_root = Path(getattr(args, "repo", None) or os.getcwd())
+    want_schema = bool(getattr(args, "schema", False))
+    model = _layout.build_default_layout()
+
+    # `--schema` and `--json` name two DIFFERENT documents (the schema vs the instance), so
+    # combining them is a usage error rather than a silent precedence rule. Exit 2 per the
+    # standard contract (0 clean, 1 domain failure, 2 usage/cannot-run).
+    if want_schema and bool(getattr(args, "json", False)):
+        res = CommandResult(
+            command="layout",
+            status="error",
+            exit_code=2,
+            summary=(
+                "--schema and --json are mutually exclusive: --schema emits the JSON Schema, "
+                "--json emits the layout document it validates."
+            ),
+            next_actions=[NextAction(command="aw layout --help")],
+            # `str(...)`, not the Path: `CommandResult.to_dict` is JSON-serialized directly by the
+            # JSON renderer, and a PosixPath raises there. `aw check` stamps the same field the
+            # same way (`cli.py` `_run_check`), so this is the house convention, not a local fix.
+            data={"repo_root": str(repo_root)},
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx_out).emit(res, ctx_out)
+
+    if want_schema:
+        schema_doc = model.to_schema()
+        if ctx_out.is_agent or ctx_out.is_json:
+            res = CommandResult(
+                command="layout",
+                status="clean",
+                exit_code=0,
+                summary="workspace layout JSON Schema (generated in process)",
+                data={"schema": schema_doc, "source": "in-process"},
+                verified=True,
+                complete=True,
+            )
+            return get_renderer(ctx_out).emit(res, ctx_out)
+        # Human mode for `--schema` prints the schema document itself: it exists to be fed to a
+        # validator, so prose framing would make the output unusable for its only purpose.
+        print(model.to_schema_json(), end="")
+        return 0
+
+    # The layout DOCUMENT. `read_installed_version` is the same install marker the check rules
+    # use, so the version reported here and the version the drift rule compares against cannot
+    # disagree.
+    emitted, emitted_error = _ce.load_emitted_layout(repo_root)
+    if emitted is not None:
+        doc = emitted
+        source = "emitted"
+        source_path = str(repo_root / engine.AW_LAYOUT_JSON_PATH)
+    else:
+        doc = model.to_dict(engine.read_installed_version(repo_root) or "")
+        source = "in-process"
+        source_path = None
+
+    if ctx_out.is_agent or ctx_out.is_json:
+        data: Dict[str, Any] = {
+            "layout": doc,
+            "source": source,
+            "repo_root": str(repo_root),
+        }
+        if source_path is not None:
+            data["source_path"] = source_path
+        # A plain "absent" is the EXPECTED fresh-clone state (the file is gitignored), so it is
+        # not surfaced as an error; only a file that exists and could not be used is.
+        if emitted_error and emitted_error != "absent":
+            data["emitted_error"] = emitted_error
+        res = CommandResult(
+            command="layout",
+            status="clean",
+            exit_code=0,
+            summary=f"workspace layout model ({source})",
+            data=data,
+            evidence=[
+                Evidence(
+                    key="record_classes", value=len(doc.get("record_classes") or {})
+                ),
+                Evidence(
+                    key="logical_roots", value=len(doc.get("logical_roots") or {})
+                ),
+            ],
+            verified=True,
+            complete=True,
+        )
+        return get_renderer(ctx_out).emit(res, ctx_out)
+
+    term.heading("AW Workspace Layout Model")
+    # The READ-ONLY nature is stated in the output itself (E-01 requirement), not only in the
+    # help text, so a user who lands here without reading `--help` still cannot mistake this for
+    # the transactional `aw migrate-layout`.
+    term.status("info", "Read-only inspection; nothing is written or moved.")
+    term.status("info", f"Schema version:    {doc.get('schema_version')}")
+    term.status(
+        "info", f"Framework version: {doc.get('framework_version') or '(none)'}"
+    )
+    if source == "emitted":
+        term.status("info", f"Source:            emitted {source_path}")
+    else:
+        term.status(
+            "info",
+            "Source:            in-process model (no emitted .aw/system/layout.json; "
+            "it is gitignored and written by 'aw install')",
+        )
+    if emitted_error and emitted_error != "absent":
+        # A file that EXISTS but could not be used is worth a warning; a plain absence is the
+        # expected fresh-clone state (the file is gitignored) and the Source line above already
+        # said so, so warning about it would train the user to ignore warnings.
+        term.status("warn", f"Emitted file ignored: {emitted_error}")
+    term.line()
+
+    term.heading("Logical Roots:")
+    for root_name, subpath in (doc.get("logical_roots") or {}).items():
+        term.status("info", f"  {root_name:<8} -> {subpath}")
+    term.line()
+
+    term.heading("Record Classes:")
+    for cls_name, entry in (doc.get("record_classes") or {}).items():
+        lifecycle = ", ".join(entry.get("lifecycle_subdirs") or []) or "-"
+        aliases = ", ".join(entry.get("aliases") or []) or "-"
+        subpath = entry.get("subpath") or "(computed complement)"
+        term.status("info", f"  {cls_name}")
+        term.status("info", f"      subpath:   {subpath}")
+        term.status("info", f"      pattern:   {entry.get('pattern')}")
+        term.status("info", f"      lifecycle: {lifecycle}")
+        term.status("info", f"      aliases:   {aliases}")
+    term.line()
+
+    term.heading("State Classes:")
+    for tier, entries in (doc.get("state_classes") or {}).items():
+        for cls_name, subpath in (entries or {}).items():
+            term.status("info", f"  {tier:<8} {cls_name:<18} -> {subpath}")
+    term.line()
+
+    term.heading("Traversal Exclusions:")
+    term.status("info", f"  {', '.join(doc.get('traversal_exclusions') or [])}")
+    return 0
+
+
 def _run_project_status(
     args: argparse.Namespace, term: Term, context: Optional[Any] = None
 ) -> int:
@@ -10649,6 +10865,11 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         return _run_context(args, term, context=context)
     if args.command == "path":
         return _run_path(args, term)
+    # wslayout Order 05 (30jug9): the read-only layout model inspector. Deliberately routed
+    # NEXT TO `context`/`path` (the other read-only inspectors) and NOT near `migrate-layout`,
+    # which is a transactional mutation with an entirely different authorization posture.
+    if args.command == "layout":
+        return _run_layout(args, term, context=context)
 
     # worksequence i6015i E-01: `next` is canonical; `attention`/`att`/`todo` are its aliases. All
     # four spellings route to the one implementation, so they are byte-equivalent for equal arguments.

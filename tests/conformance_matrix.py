@@ -109,6 +109,10 @@ def required_scenarios(decl: CommandDeclaration) -> Tuple[str, ...]:
 LIVE_SAFE_LEAVES: Dict[str, List[str]] = {
     "status": [],
     "context": [],
+    # wslayout Order 05 (30jug9): `aw layout` is read-only by construction (it opens nothing for
+    # writing and shells out to no git command), so it satisfies this dict's safety precondition
+    # and is live-executed across every audience scenario rather than covered by declaration only.
+    "layout": [],
     "list-repos": [],
     "attention": ["--check"],
     "doctor": [],
@@ -200,7 +204,9 @@ def run_cli(
     )
     out = proc.stdout.decode(encoding, errors="replace")
     err = proc.stderr.decode(encoding, errors="replace")
-    return RunResult(argv=list(argv), returncode=proc.returncode, stdout=out, stderr=err)
+    return RunResult(
+        argv=list(argv), returncode=proc.returncode, stdout=out, stderr=err
+    )
 
 
 # --------------------------------------------------------------------------------------------------

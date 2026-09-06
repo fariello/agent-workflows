@@ -178,6 +178,23 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent",),
         exit_contract=(0, 1, 2),
     ),
+    # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2. `command_class="read"` and
+    # `mutation_gate="none"` are the machine-readable statement that this verb is READ-ONLY,
+    # which is what keeps it classified apart from the adjacent transactional `migrate-layout`
+    # (declared with a mutation gate). The exit contract omits 1: there is no DOMAIN failure
+    # mode here, because a missing emitted layout document is not an error for this command
+    # (it falls back to the in-process model, spec Section 2.3); reporting that absence is
+    # `aw check`'s job via `check.system-layout-missing`, not this inspector's.
+    CommandDeclaration(
+        command="layout",
+        command_class="read",
+        human_recipe="detail",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=("--json", "--agent", "--schema"),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="show",
         command_class="read",

@@ -406,6 +406,19 @@ def probe_environment(
                     )
                 )
 
+        # wslayout Order 05 (30jug9), spec kw5y2s Section 6.2: the emitted machine-readable layout
+        # document is absent from, or stale relative to, an INSTALLED workspace. Attached to THIS
+        # probe (rather than `probe_artifacts`) because this probe already owns every layout and
+        # version question - it is what emits `doctor.layout-split-brain` above and the
+        # `doctor.version-*` family - and the finding is about a generated SYSTEM file, not about any
+        # record type. It delegates to the SAME `check_engine.check_system_layout` that `aw check`
+        # calls, so `aw doctor` and `aw check` cannot report this condition differently. Its own
+        # try/except keeps a failure here from costing the rest of the environment probe.
+        try:
+            res.drift.extend(check_engine.check_system_layout(repo_root))
+        except Exception:
+            pass
+
         # Setup needed
         res.setup_needed = attention_mod.setup_needed(repo_root)
         if res.setup_needed:
