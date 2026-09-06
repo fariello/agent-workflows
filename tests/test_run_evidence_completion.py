@@ -1143,7 +1143,10 @@ class TestRunFindingCodeVocabulary(unittest.TestCase):
         self.assertNotIn("<run-id>", rendered)
         self.assertNotIn("<record>", rendered)
         # The recovery command survives substitution.
-        self.assertTrue(rendered.endswith("aw runs verify run-abcdef1234"))
+        # `verify-ledger`, not `verify`: the latter is not a registered `aw runs` leaf, so it degrades
+        # into a run-id TARGET and the command exits 0 having verified nothing (spec corrected
+        # 2026-09-05). A recovery command must actually run.
+        self.assertTrue(rendered.endswith("aw runs verify-ledger run-abcdef1234"))
 
     def test_unrendered_message_equals_the_spec_template(self) -> None:
         for code in evidence.run_finding_codes():

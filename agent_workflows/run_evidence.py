@@ -1269,7 +1269,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-STRUCTURE-PREFLIGHT] <item> violates <finding-code>: <detail>. Repair it, run "
-            "aw check <type> <selector>, then: aw <host> run --resume <run-id>"
+            "aw check <type> <selector>, then: aw <host> run resume <run-id>"
         ),
         action="FAIL ITEM; ABORT RUN if identity/type is ambiguous",
         abort=ABORT_CONDITIONAL,
@@ -1292,7 +1292,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-BASELINE-OWNERSHIP] <paths> already contain unowned changes or an active "
-            "lease. Resolve the owner or wait, then: aw <host> run --resume <run-id>"
+            "lease. Resolve the owner or wait, then: aw <host> run resume <run-id>"
         ),
         action="ABORT RUN",
         abort=ABORT_ALWAYS,
@@ -1316,7 +1316,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-LEDGER-INTEGRITY] Run <run-id> has invalid or missing ledger evidence at "
-            "<record>. Inspect it with: aw runs verify <run-id>"
+            "<record>. Inspect it with: aw runs verify-ledger <run-id>"
         ),
         action="ABORT RUN",
         abort=ABORT_ALWAYS,
@@ -1367,7 +1367,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-HOST-ATTEMPT] <item> has no valid completed host attempt: <detail>. Inspect "
-            "evidence, then retry with: aw <host> run --resume <run-id>"
+            "evidence, then retry with: aw <host> run resume <run-id>"
         ),
         action=(
             "RETRY for spawn/nonzero failures; FAIL ITEM for timeout, cancellation, or exhausted "
@@ -1393,7 +1393,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-FRESH-VERIFIER] <item> has no valid independent verification attempt. Retry "
-            "verification with: aw <host> run --resume <run-id>"
+            "verification with: aw <host> run resume <run-id>"
         ),
         action="RETRY, then FAIL ITEM",
         abort=ABORT_NEVER,
@@ -1528,7 +1528,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-CHECK-FRESHNESS] Check <recipe> is missing, stale, or failed for <item>. Run "
-            "the registered check through the runner, then: aw <host> run --resume <run-id>"
+            "the registered check through the runner, then: aw <host> run resume <run-id>"
         ),
         action="RETRY, then FAIL ITEM",
         abort=ABORT_NEVER,
@@ -1552,7 +1552,7 @@ RUN_FINDING_CODES: Tuple[RunFindingCode, ...] = (
         ),
         message=(
             "[RUN-CROSS-TREE] Repository invariant <finding-code> failed after <item>: <detail>. "
-            "Contain the item, repair it, run aw check all, then: aw <host> run --resume <run-id>"
+            "Contain the item, repair it, run aw check all, then: aw <host> run resume <run-id>"
         ),
         action=(
             "FAIL ITEM; ABORT RUN only for identity/type ambiguity or ownership conflict"
