@@ -2008,3 +2008,457 @@ def apply_run_policy_flags_on_resume(state: dict, args: Any) -> bool:
             options[row.dest] = value
             changed = True
     return changed
+
+
+# ==================================================================================================
+# orchretire-01 (`5942n7`): THE SHARED ON-DISK SET-COMPLETENESS DECISION PREDICATE
+# (spec `77tr3o` R-1, R-2, R-3, R-9, R-10)
+# ==================================================================================================
+#
+# WHAT THIS REPLACES, AND WHY THE OLD ANSWER COULD NOT BE FIXED IN PLACE.
+# `oc_runipd._set_children_all_executed` inspects `state["queue"]` ONLY. That makes the maintainer's
+# requirement - "retire the orchestrator when the Set's LAST outstanding child completes" -
+# UNIMPLEMENTABLE, because a run that executes only that last child holds ONE child in its queue
+# while the Set on disk holds several. Measured: `wslayout` passed its queue-scoped check only
+# INCIDENTALLY (child `wpu5zu` executed in an earlier run and was absent from the queue, and the four
+# children that happened to be present were all `executed`). So the fix is not a better queue scan;
+# it is reading the PLANS TREE, which is what this section does.
+#
+# THE QUEUE KEEPS ITS JOB. It remains the source of what to DISPATCH. It is simply not the source of
+# Set MEMBERSHIP. Those are two different questions that one function used to answer with one input.
+#
+# THIS SECTION DECIDES ONLY. It performs no transition and writes no status. `ueg5cf` (child 02) owns
+# the retirement transition and `pgq326` (child 03) owns the dispatch wiring, so a wrong decision here
+# cannot move a plan. `_set_children_all_executed` and its callers are deliberately UNTOUCHED.
+#
+# THE FAILURE DIRECTION IS THE WHOLE DESIGN, and it is asymmetric ON PURPOSE:
+#   * a FALSE REFUSAL leaves an orchestrator lingering in `pending/`, which is exactly today's status
+#     quo and costs nothing new; while
+#   * a FALSE ELIGIBILITY retires a plan whose Set is not done, asserting a completion that never
+#     happened - the same class of never-true claim this Set exists to correct.
+# So wherever the code cannot tell, it REFUSES. That single rule explains every conservative choice
+# below (the `executed` allowlist, the unparseable-table refusal, the non-numeric row token refusal).
+#
+# NO THIRD "WHICH PLANS EXIST" MECHANISM. Membership goes through `selectors.resolve(repo, "plans",
+# setid)`, which already returns members across `pending/` and `executed/`, and each member's fields
+# through `ipd_lint.parse(text).meta_fields`. Adding a plans-tree path literal here would be the drift
+# GUIDING_PRINCIPLES P8 forbids, and `discover_plans` above cannot serve: it INJECTS the host's
+# `parse_plan_file` precisely because the two runners' `PlanRecord` types disagree, and a shared
+# decision must not depend on which host called it.
+#
+# WHY THE TWO IMPORTS ARE LOCAL rather than at module scope. `ipd_lint`'s import closure is 52 modules
+# and pulls in `check_engine`/`attention`; paying that on every `import runner_shared` would tax every
+# runner start for a function most runs never call. Neither module reaches a runner (verified by
+# closure walk: `runner_shared` is absent from `ipd_lint`'s and `selectors`' transitive imports), so
+# this is a cost decision and NOT an evasion of the no-runner-import rule, which
+# `tests/test_runner_shared.py::NoRunnerImportTests` enforces at module AND lazy scope.
+
+
+#: The ONLY member status that counts as done for RETIREMENT purposes (spec R-2).
+#:
+#: AN ALLOWLIST, NOT A DENYLIST, and the difference is load-bearing. A denylist of known-bad values
+#: (`substantially-complete`, `blocked`, `dependency-blocked`, ...) silently ACCEPTS any status added
+#: to the vocabulary later, which is how a conservative gate quietly stops gating. One accepted value
+#: cannot do that: a new status is refused until someone deliberately admits it here.
+#:
+#: DELIBERATELY NOT `EXECUTION_SUCCESS_STATES`. That set (`oc_runipd.py:274`) includes
+#: `substantially-complete` for DEPENDENCY-EDGE purposes and is out of scope (spec Section 4). This
+#: predicate simply does not consult it; nothing about it is changed here.
+SET_RETIREMENT_DONE_STATUS = "executed"
+
+#: The typed refusal reasons (spec R-9). Four distinct facts that MUST NOT share one message: today
+#: they all surface as "dependency-blocked (unmet dependencies)", which named no dependency at all in
+#: `5e4sb6`'s recorded event (`unfinished_children: []`).
+RETIRE_ELIGIBLE = "eligible"
+RETIRE_REFUSED_UNFINISHED_CHILDREN = "unfinished-children"
+RETIRE_REFUSED_NO_CHILDREN = "no-children"
+RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS = "unauthored-child-rows"
+RETIRE_REFUSED_NO_ORCHESTRATOR = "no-orchestrator"
+
+#: The `## Child IPDs, sequence, and dependencies` heading, taken from the SCHEMA rather than spelled
+#: again here. The heading is schema-enforced (`ipd_schema.H_CHILD_IPDS`) and measured IDENTICAL in
+#: all five live orchestrators, so keying on it is safe. The table BODY is not, per spec OQ-2.
+_CHILD_IPDS_HEADING = "Child IPDs, sequence, and dependencies"
+
+#: A table row: a line that starts and (modulo trailing space) ends with a pipe.
+_TABLE_ROW_RE = re.compile(r"^\s*\|(?P<body>.*)\|\s*$")
+
+#: A markdown alignment/separator row (`|---|:--:|---:|`), which is layout and not a declared child.
+_TABLE_SEPARATOR_CELL_RE = re.compile(r"^:?-{2,}:?$")
+
+#: An Order token that resolves to a definite child number. EXACTLY digits, nothing else. `03+` and
+#: `last` deliberately do NOT match; see `parse_declared_child_orders`.
+_ORDER_TOKEN_RE = re.compile(r"^(?P<order>\d{1,3})$")
+
+
+class SetMember(NamedTuple):
+    """ONE member of a Set as it exists in the PLANS TREE.
+
+    Deliberately NOT a runner `PlanRecord`: those are per-host NamedTuples (oc's carries a `kind`
+    agy's lacks), which is exactly why `discover_plans` has to inject `parse_plan_file`. A retirement
+    DECISION must be identical on both hosts, so it reads a host-neutral record of its own.
+
+    `status` is the plan file's own `- Status:` bullet, NOT a run-state disposition. The distinction
+    matters: `substantially-complete` is a RUN-STATE value and never appears in a plan file's
+    `Status:` (measured: `nna8yz`'s plan file carries `approved`, while `substantially-complete`
+    appears for it only in a run's `state.json`).
+    """
+
+    id6: str
+    order: int | None
+    kind: str
+    status: str
+    path: Path
+
+    @property
+    def is_orchestrator(self) -> bool:
+        """True for the Set's Order-0 coordinating plan.
+
+        Reads `Kind` FIRST and falls back to `Order == 0`, because 74 legacy plans in this repo carry
+        an `Order: 0` with NO `Kind:` bullet at all (measured). Falling back keeps those recognized
+        as orchestrators instead of miscounting them as children, which would make an old Set look
+        like it had an extra unfinished member forever.
+        """
+
+        if self.kind:
+            return self.kind == "orchestrator"
+        return self.order == 0
+
+
+class SetMembership(NamedTuple):
+    """A Set's members read from disk, split into its orchestrator and its children."""
+
+    setid: str
+    orchestrator: SetMember | None
+    children: tuple[SetMember, ...]
+    #: Why an EMPTY membership is empty, when the reason is something other than "no such Set".
+    #: Populated only for the id6-collision case below, so a refusal can explain itself instead of
+    #: reporting a bare "no orchestrator" for a Set the operator can plainly see on disk.
+    resolution_note: str = ""
+
+    @property
+    def members(self) -> tuple[SetMember, ...]:
+        head = (self.orchestrator,) if self.orchestrator is not None else ()
+        return head + self.children
+
+
+class RetirementDecision(NamedTuple):
+    """The typed answer to "may this Set's orchestrator be retired now?".
+
+    NOT a bare bool, and not a `(bool, list)` pair either. The old shape returned `(False, [])` for
+    BOTH "children exist and are unfinished" and "there are no children at all", which is how
+    `5e4sb6`'s durable event came to say "dependency-blocked (unmet dependencies)" while naming no
+    dependency. `reason` distinguishes every refusal cause and `detail` carries the specifics the
+    record needs, so a caller cannot write a message it cannot substantiate.
+    """
+
+    eligible: bool
+    reason: str
+    setid: str
+    #: `(id6, actual_status)` for each child that is not `executed`. Carries the STATUS as well as the
+    #: id so the record can say WHY a child does not count rather than only that it does not.
+    unfinished: tuple[tuple[str, str], ...] = ()
+    #: Order tokens the orchestrator's child table declares that resolve to no plan (spec R-3).
+    unauthored_rows: tuple[str, ...] = ()
+    #: One human-readable sentence, always populated, safe to put straight into an event.
+    detail: str = ""
+
+
+def read_set_membership(repo: Path, setid: str) -> SetMembership:
+    """Return every member of `setid` FROM THE PLANS TREE, with its Id/Order/Kind/Status.
+
+    THIS IS THE FIX FOR spec R-1. Because it reads disk rather than a run queue, a Set whose earlier
+    children were executed in PREVIOUS runs is returned IN FULL, which is precisely the case a
+    queue-scoped check cannot see.
+
+    Resolution is pinned to the `setid` selector kind. `selectors.resolve`'s precedence puts `id6`
+    ABOVE `setid`, and this repo really does contain id6-shaped setids (`awhelp`, `clianx`, `detrun`,
+    `agyrun`, `ackme8`, `ocsync`, `awuiux`, `rstodo`), so an unpinned resolve could match a PLAN whose
+    id6 equals the setid and return one file where the Set has six. Pinning makes that a clean
+    no-match instead of a wrong answer.
+
+    THE PIN HAS ONE HONEST COST, recorded rather than hidden. When a setid collides with some OTHER
+    plan's `Id`, the pinned resolve reports `rejected_kind == "id6"` and returns NOTHING, so the Set
+    becomes invisible instead of misread. That is still the safe direction - a Set nobody can resolve
+    is never retired - but a bare "this Set has no orchestrator" would be a misleading way to say it
+    about a Set sitting plainly on disk. So the reason is carried in `resolution_note` and surfaces in
+    the refusal detail. No live Set collides today (checked: all eight id6-shaped setids resolve via
+    `setid`), so this is a guard, not an observed failure.
+
+    A member whose file cannot be read or parsed is SKIPPED here rather than guessed at. It then
+    cannot appear as `executed`, so the predicate refuses - the safe direction.
+    """
+
+    from agent_workflows import (
+        selectors as _selectors,
+    )  # local: see the section note above
+    from agent_workflows import ipd_lint as _ipd_lint
+
+    token = (setid or "").strip()
+    if not token:
+        return SetMembership(setid=token, orchestrator=None, children=())
+
+    resolution = _selectors.resolve(
+        repo, "plans", token, allow=frozenset({_selectors.MATCH_SETID})
+    )
+    note = ""
+    if resolution.rejected_kind:
+        note = (
+            f"selector {token!r} resolved only as a "
+            f"{resolution.rejected_kind!r} match, not as a Set name; Set membership was "
+            "not resolved (refusing rather than reading one plan as a whole Set)"
+        )
+
+    orchestrator: SetMember | None = None
+    children: list[SetMember] = []
+    for path in sorted(resolution.paths):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        meta = _ipd_lint.parse(text).meta_fields
+        id6 = (meta.get("Id") or "").strip()
+        if not id6:
+            continue
+        raw_order = (meta.get("Order") or "").strip()
+        try:
+            order: int | None = int(raw_order)
+        except ValueError:
+            order = None
+        member = SetMember(
+            id6=id6,
+            order=order,
+            kind=(meta.get("Kind") or "").strip(),
+            status=(meta.get("Status") or "").strip(),
+            path=path,
+        )
+        if member.is_orchestrator:
+            # A Set with two Order-0 plans is malformed; keep the FIRST deterministically (paths are
+            # sorted) and treat the rest as children, so the extra one shows up as an unfinished
+            # member rather than being silently dropped.
+            if orchestrator is None:
+                orchestrator = member
+            else:
+                children.append(member)
+        else:
+            children.append(member)
+
+    children.sort(key=lambda m: (m.order is None, m.order or 0, m.id6))
+    return SetMembership(
+        setid=token,
+        orchestrator=orchestrator,
+        children=tuple(children),
+        resolution_note=note,
+    )
+
+
+def parse_declared_child_orders(orchestrator_text: str) -> tuple[tuple[str, ...], bool]:
+    """Read the Order tokens an orchestrator's child table DECLARES.
+
+    Returns `(tokens, parsed)`. `parsed` is False when no table row could be recognized at all, which
+    the caller MUST treat as a refusal (spec R-3 + OQ-2): an unparseable table is not evidence that a
+    Set is fully authored.
+
+    WHY THIS IS PARSED POSITIONALLY, WITH MEASUREMENTS, because assuming one column layout is exactly
+    how this check would silently pass everything. The five live orchestrators use FIVE layouts and
+    share ONLY the first column:
+
+        orchretire  | Order | Id | Child | Depends on |
+        wslayout    | Order | Id | What it does | Set dependencies |
+        runprofile  | Order | Id | Child | Responsibility | Depends on |
+        lanectn     | Order | Id | Depth | Requirements owned | Prerequisite | What it delivers |
+        rununify    | Order | What it does | Depends on |          <- NO `Id` COLUMN AT ALL
+
+    So a parser that located a named `Id` header would CRASH or vacuously pass on `rununify`, the one
+    Set this check exists for. The Order token is therefore read from the FIRST cell, positionally,
+    and no `Id` column is required.
+
+    ROW TOKENS ARE NOT ALL NUMERIC, also measured: `rununify` declares a row `03+` AND a row whose
+    token is the word `last`. Those are returned as tokens like any other; the CALLER resolves them,
+    and since neither can ever resolve to an Order they refuse. That keeps this function a parser and
+    puts the policy in one place.
+    """
+
+    from agent_workflows import (
+        ipd_schema as _ipd_schema,
+    )  # local: see the section note above
+
+    heading = getattr(_ipd_schema, "H_CHILD_IPDS", _CHILD_IPDS_HEADING)
+    tokens: list[str] = []
+    in_section = False
+    saw_row = False
+    for raw in (orchestrator_text or "").splitlines():
+        if raw.startswith("## "):
+            in_section = raw[3:].strip() == heading
+            continue
+        if not in_section:
+            continue
+        row = _TABLE_ROW_RE.match(raw)
+        if not row:
+            continue
+        cells = [c.strip() for c in row.group("body").split("|")]
+        if not cells:
+            continue
+        first = cells[0]
+        if not first:
+            continue
+        if all(_TABLE_SEPARATOR_CELL_RE.match(c or "-") for c in cells if c != ""):
+            continue  # alignment row: layout, not a declared child
+        saw_row = True
+        # Strip the decorations a prose table uses around a token (`` `01` ``, `**01**`).
+        token = first.strip("`*_ ").strip()
+        if not token:
+            continue
+        if token.lower() in {"order", "orders"}:
+            continue  # the header row itself
+        tokens.append(token)
+    return tuple(tokens), saw_row
+
+
+def find_unauthored_child_rows(
+    orchestrator_text: str, membership: SetMembership
+) -> tuple[tuple[str, ...], bool]:
+    """Return `(unauthored_tokens, parsed)`: the declared rows that resolve to NO plan (spec R-3).
+
+    THE COMPARISON IS ONE-DIRECTIONAL AND MUST STAY THAT WAY. It refuses only when a DECLARED row
+    resolves to nothing. It does NOT refuse when a resolved child has no declared row, because disk
+    can legitimately hold MORE children than the table lists: `runprofile` declares Orders 01-05 and
+    has SIX children on disk (`kgpptv`, Order 6). A symmetric "table and disk must match" rule would
+    refuse a legitimately-extended Set forever. That direction is R-2's business anyway - an extra
+    child is simply not `executed` yet - not R-3's.
+
+    A non-numeric or open-ended token (`03+`, `last`) can never resolve to an Order, so it lands in
+    `unauthored_tokens` and refuses. Per spec OQ-2 the maintainer accepted that explicitly: the worst
+    case is a FALSE REFUSAL, in which an orchestrator lingers exactly as it does today.
+    """
+
+    declared, parsed = parse_declared_child_orders(orchestrator_text)
+    if not parsed:
+        return (), False
+    present = {m.order for m in membership.children if m.order is not None}
+    unauthored: list[str] = []
+    for token in declared:
+        match = _ORDER_TOKEN_RE.match(token)
+        if match is None:
+            unauthored.append(token)  # `03+`, `last`, or anything else unresolvable
+            continue
+        if int(match.group("order")) not in present:
+            unauthored.append(token)
+    return tuple(unauthored), True
+
+
+def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
+    """Decide whether `setid`'s orchestrator may be retired, with a TYPED reason for any refusal.
+
+    Eligible ONLY when ALL of the following hold (spec R-1/R-2/R-3):
+      1. the Set has an orchestrator on disk;
+      2. the Set has at least one child;
+      3. EVERY child's on-disk `Status:` is exactly `executed` (an allowlist, per
+         :data:`SET_RETIREMENT_DONE_STATUS`); and
+      4. the orchestrator's child table declares no row that resolves to no plan, and its table was
+         parseable at all.
+
+    Refusals are checked in that order so the reported reason is the most fundamental one, and each
+    carries the specifics: unfinished children come back WITH their actual statuses, unauthored rows
+    WITH their literal tokens.
+
+    DECIDES ONLY. It writes nothing, moves nothing, and calls no transition.
+    """
+
+    membership = read_set_membership(repo, setid)
+    token = membership.setid
+
+    if membership.orchestrator is None:
+        detail = (
+            f"Set {token!r} has no Order-0 orchestrator plan on disk, so there is "
+            "nothing to retire"
+        )
+        if membership.resolution_note:
+            detail = f"Set {token!r}: {membership.resolution_note}"
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_NO_ORCHESTRATOR,
+            setid=token,
+            detail=detail,
+        )
+
+    if not membership.children:
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_NO_CHILDREN,
+            setid=token,
+            detail=(
+                f"Set {token!r} has no child plans on disk; retirement is gated on children "
+                "being executed, and a Set with none has demonstrated nothing"
+            ),
+        )
+
+    unfinished = tuple(
+        (m.id6, m.status or "<no Status:>")
+        for m in membership.children
+        if m.status != SET_RETIREMENT_DONE_STATUS
+    )
+    if unfinished:
+        listed = ", ".join(f"{i} ({s})" for i, s in unfinished)
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_UNFINISHED_CHILDREN,
+            setid=token,
+            unfinished=unfinished,
+            detail=(
+                f"Set {token!r} has {len(unfinished)} child(ren) that are not "
+                f"{SET_RETIREMENT_DONE_STATUS!r}: {listed}"
+            ),
+        )
+
+    try:
+        orch_text = membership.orchestrator.path.read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError as exc:
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS,
+            setid=token,
+            detail=(
+                f"Set {token!r}: the orchestrator's child table could not be read "
+                f"({exc}), so whether the child set is fully authored is unknown"
+            ),
+        )
+
+    unauthored, parsed = find_unauthored_child_rows(orch_text, membership)
+    if not parsed:
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS,
+            setid=token,
+            detail=(
+                f"Set {token!r}: no rows could be parsed from the orchestrator's "
+                f"'{_CHILD_IPDS_HEADING}' table, so whether the child set is fully authored "
+                "is unknown; refusing rather than assuming it is"
+            ),
+        )
+    if unauthored:
+        return RetirementDecision(
+            eligible=False,
+            reason=RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS,
+            setid=token,
+            unauthored_rows=unauthored,
+            detail=(
+                f"Set {token!r}: the orchestrator's child table declares row(s) "
+                f"{', '.join(repr(t) for t in unauthored)} that resolve to no plan, so the "
+                "child set is not fully authored"
+            ),
+        )
+
+    executed = ", ".join(m.id6 for m in membership.children)
+    return RetirementDecision(
+        eligible=True,
+        reason=RETIRE_ELIGIBLE,
+        setid=token,
+        detail=(
+            f"Set {token!r} is complete on disk: all {len(membership.children)} "
+            f"child(ren) are {SET_RETIREMENT_DONE_STATUS} ({executed}), and every row of the "
+            "orchestrator's child table resolves to a plan"
+        ),
+    )
