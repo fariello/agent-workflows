@@ -116,6 +116,15 @@ from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
 from agent_workflows.runner_shared import (
+    conflicted_paths as conflicted_paths,
+)
+from agent_workflows.runner_shared import (
+    format_merge_conflict_reason as format_merge_conflict_reason,
+)
+from agent_workflows.runner_shared import (
+    generated_manifest_paths as generated_manifest_paths,
+)
+from agent_workflows.runner_shared import (
     SCHEMA_VERSION as SCHEMA_VERSION,
 )
 from agent_workflows.runner_shared import (
@@ -1987,11 +1996,13 @@ def integrate_lane_branch(
         )
 
     # Gate passed (conflict-free, revalidated). Perform the real integration onto main.
-    rc, _out, err = _run_git(repo, ["merge", "--ff-only", handle.branch])
+    # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
+    # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).
+    rc, _out, _err = _run_git(repo, ["merge", "--ff-only", handle.branch])
     if rc == 0:
         return True, "fast-forward integrated to main", "integrated"
     # main advanced past the lane base: attempt a controlled non-ff merge of ONLY this branch.
-    rc, _out, err2 = _run_git(
+    rc, out2, err2 = _run_git(
         repo,
         [
             "merge",
@@ -2006,10 +2017,14 @@ def integrate_lane_branch(
         return True, "controlled non-ff merge integrated to main", "integrated"
     # A real merge conflict: abort so main stays clean (no markers/partial merge); a human/serial
     # ordering resolves it via the preserved lane branch (E-02).
+    # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
+    conflicted = conflicted_paths(repo)
     _run_git(repo, ["merge", "--abort"])
     return (
         False,
-        f"merge-back conflict: {(err2 or err).strip()}",
+        format_merge_conflict_reason(
+            repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
+        ),
         "merge-conflict",
     )
 

@@ -122,6 +122,15 @@ from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
 from agent_workflows.runner_shared import (
+    conflicted_paths as conflicted_paths,
+)
+from agent_workflows.runner_shared import (
+    format_merge_conflict_reason as format_merge_conflict_reason,
+)
+from agent_workflows.runner_shared import (
+    generated_manifest_paths as generated_manifest_paths,
+)
+from agent_workflows.runner_shared import (
     SCHEMA_VERSION as SCHEMA_VERSION,
 )
 from agent_workflows.runner_shared import (
@@ -1136,10 +1145,12 @@ def integrate_lane_branch(
             "merge-conflict",
         )
 
-    rc, _out, err = _run_git(repo, ["merge", "--ff-only", handle.branch])
+    # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
+    # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).
+    rc, _out, _err = _run_git(repo, ["merge", "--ff-only", handle.branch])
     if rc == 0:
         return True, "fast-forward integrated to main", "integrated"
-    rc, _out, err2 = _run_git(
+    rc, out2, err2 = _run_git(
         repo,
         [
             "merge",
@@ -1152,8 +1163,16 @@ def integrate_lane_branch(
     )
     if rc == 0:
         return True, "controlled non-ff merge integrated to main", "integrated"
+    # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
+    conflicted = conflicted_paths(repo)
     _run_git(repo, ["merge", "--abort"])
-    return False, f"merge-back conflict: {(err2 or err).strip()}", "merge-conflict"
+    return (
+        False,
+        format_merge_conflict_reason(
+            repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
+        ),
+        "merge-conflict",
+    )
 
 
 @contextlib.contextmanager

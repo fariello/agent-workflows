@@ -125,7 +125,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, TextIO
+from typing import Any, Callable, NamedTuple, Sequence, TextIO
 
 from agent_workflows.render_stream import Palette, render_run_summary_table
 
@@ -219,6 +219,88 @@ def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
         stderr=subprocess.PIPE,
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def conflicted_paths(repo: Path) -> list[str]:
+    """The paths git left in the UNMERGED (``U``) state by a failed merge, sorted.
+
+    Read via `git diff --name-only --diff-filter=U`, which reports exactly the conflicted entries and
+    nothing else. MUST be called BEFORE `git merge --abort`, because the abort clears the index state
+    this reads. Returns `[]` when git reports nothing (a merge that failed for a reason OTHER than a
+    content conflict, e.g. a refusal to start), so a caller can distinguish "conflicted in these files"
+    from "did not conflict".
+    """
+    _rc, out, _err = _run_git(repo, ["diff", "--name-only", "--diff-filter=U"])
+    return sorted(p.strip() for p in out.splitlines() if p.strip())
+
+
+def generated_manifest_paths(paths: Sequence[str]) -> list[str]:
+    """The subset of ``paths`` that are GENERATED index manifests (`INDEX.json` / `INDEX.md`).
+
+    These are byte-deterministically regenerated from the artifact files, so a conflict in one is not
+    a substantive disagreement and is NOT resolved by editing it: the fix is to regenerate. Kept as a
+    name test rather than a hardcoded path list so it holds for any record tree.
+    """
+    out: list[str] = []
+    for p in paths:
+        name = p.rsplit("/", 1)[-1]
+        if name in ("INDEX.json", "INDEX.md"):
+            out.append(p)
+    return out
+
+
+def format_merge_conflict_reason(
+    repo: Path,
+    *,
+    merge_stdout: str,
+    merge_stderr: str,
+    paths: Sequence[str] | None = None,
+) -> str:
+    """Build the operator-facing reason for a lane merge-back that failed on a real git conflict.
+
+    WHY THIS EXISTS (mergemsg; measured 2026-09-06 in run `run-20260906T162533Z-1552446`). Both hosts
+    used to report `f"merge-back conflict: {(err2 or err).strip()}"`, keeping only STDERR from each of
+    the two merge attempts. But GIT WRITES MERGE CONFLICTS TO STDOUT: a conflicting
+    `git merge --no-ff` exits 1 with `CONFLICT (content): Merge conflict in <path>` on **stdout** and
+    an **empty stderr**, while the preceding EXPECTED `--ff-only` failure writes
+    `fatal: Not possible to fast-forward` plus the diverging-branches advice to **stderr**. So
+    `(err2 or err)` fell through to the ff-only text on EVERY genuine conflict, and the report always
+    described a merge whose failure was not an error, never the conflict itself. The conflicted paths,
+    the one thing the operator needs, sat in the discarded stdout.
+
+    So: name the PATHS (authoritative, read from the index), and use the conflicting merge's STDOUT.
+    NEVER fall back to the `--ff-only` output, which describes an expected non-erroneous outcome.
+
+    ``paths`` should be the result of :func:`conflicted_paths` captured BEFORE `git merge --abort`; when
+    omitted it is read now (only correct if the merge state still stands).
+    """
+    resolved = list(paths) if paths is not None else conflicted_paths(repo)
+    detail = (merge_stdout or "").strip() or (merge_stderr or "").strip()
+
+    parts: list[str] = []
+    if resolved:
+        parts.append(
+            f"merge-back conflict in {len(resolved)} file(s): {', '.join(resolved)}"
+        )
+        generated = generated_manifest_paths(resolved)
+        if generated and len(generated) == len(resolved):
+            # The whole conflict is regenerable, so the fix is NOT a manual merge. Say so, because a
+            # human reading "conflict" reasonably reaches for a merge tool.
+            parts.append(
+                "every conflicted path is a GENERATED index manifest, so no substantive change "
+                "disagrees: re-run the owning `aw index <type>` to regenerate rather than merging "
+                "by hand"
+            )
+        elif generated:
+            parts.append(
+                "generated index manifest(s) among them (regenerate with `aw index <type>`, do not "
+                f"hand-merge): {', '.join(generated)}"
+            )
+    else:
+        parts.append("merge-back conflict")
+    if detail:
+        parts.append(detail)
+    return "; ".join(parts)
 
 
 def git_head(repo: Path, *, run_checked: Callable[..., str]) -> str:
