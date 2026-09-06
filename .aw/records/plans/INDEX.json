@@ -4454,6 +4454,16 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md",
+    "plan_id": "8ldrlx",
+    "set_id": "attorder",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md",
     "plan_id": "5942n7",
     "set_id": "orchretire",
@@ -4594,16 +4604,6 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
-    "path": "pending/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md",
-    "plan_id": "8ldrlx",
-    "set_id": "attorder",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
     "path": "pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
     "plan_id": "tm2cz8",
     "set_id": "hostdefault",
@@ -4677,7 +4677,7 @@
     "path": "pending/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md",
     "plan_id": "mm6wuz",
     "set_id": "streamfmt",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

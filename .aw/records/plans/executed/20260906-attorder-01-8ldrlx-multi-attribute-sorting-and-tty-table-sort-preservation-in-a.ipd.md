@@ -6,16 +6,16 @@
 - Scope: Fix `render_table()` in `agent_workflows/attention.py` so it honors explicit ordering rather than resetting it with the hardcoded sort; extend `--order-by` (`-o`) in `agent_workflows/cli.py` and `agent_workflows/attention_contract.py` to accept a comma-separated list of attributes, expanding the vocabulary to include `status`, `type`, `blocking`, `priority`, `readiness`, `oqs`, `rqs`, `setid`, `id6`, `file`, `ctime`, and `mtime`; implement multi-attribute stable sorting using reverse-order stable sort passes with the deterministic `(path, id)` tiebreaker; and add unit and CLI tests in `tests/test_next_ordering.py` verifying multi-column sort sequences and TTY table sort preservation.
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: attorder
 - Order: 1
 - Highest E allocated: 04
 - Author: Gabriele Fariello <gabriele.fariello@gmail.com>
 - Id: 8ldrlx
-- Approval: 2026-09-06, human ("approved"): user approved execution in turn: 'now execute, please'
 
 ## Workflow history
+- 2026-09-06 executed (antigravity/gemini-2.5-pro): multi-attribute sorting and TTY table sort preservation [Scope reconciliation - in-scope-unmodified agent_workflows/attention.py: committed-in-129106db; in-scope-unmodified agent_workflows/attention_contract.py: committed-in-129106db; in-scope-unmodified agent_workflows/cli.py: committed-in-129106db; in-scope-unmodified tests/test_next_ordering.py: committed-in-129106db]
 - 2026-09-06 approved (aw set, --by-human): user approved execution in turn: 'now execute, please'
 
 - 2026-09-06 reviewed (antigravity/gemini-2.5-pro): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-005. Structural lint conformed at `--phase author` and `--phase review-finalize`.
@@ -31,31 +31,31 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Fix TTY table sort erasure
 
-- [ ] E-01 In `agent_workflows/attention.py`, update `render_table()` to accept an `order_by: Optional[str]` parameter (passed from `cmd_attention`). When `order_by` is provided and differs from `A.ORDER_CLASS`, skip the hardcoded `visible.sort(key=_sort_key)` call so the items strictly retain their caller-sorted sequence. When `order_by` is absent or `A.ORDER_CLASS`, retain the historical default table sort.
+- [x] E-01 In `agent_workflows/attention.py`, update `render_table()` to accept an `order_by: Optional[str]` parameter (passed from `cmd_attention`). When `order_by` is provided and differs from `A.ORDER_CLASS`, skip the hardcoded `visible.sort(key=_sort_key)` call so the items strictly retain their caller-sorted sequence. When `order_by` is absent or `A.ORDER_CLASS`, retain the historical default table sort.
   - Depends on: none
   - Expected outcome: `render_table()` displays rows in the exact order specified by `-o` rather than resetting them to the hardcoded sort.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: Expand sort attribute vocabulary and multi-attribute parsing
 
-- [ ] E-02 In `agent_workflows/attention_contract.py` and `agent_workflows/cli.py`, expand the ordering vocabulary to recognize `readiness`, `oqs`, `rqs`, `file`, `ctime`, and `mtime` alongside existing keys (`class`, `priority`, `date`, `set`, `order`, `blocking`, `depth`, `id6`, `path`, `status`, `tree`). In `cli.py`, replace the strict atomic `choices` check with a parser/validator that accepts comma-separated lists of keys (e.g. `priority,status,id6`), verifies every component against `_attention_order_keys()`, and raises an actionable error listing valid choices if an unknown token is supplied.
+- [x] E-02 In `agent_workflows/attention_contract.py` and `agent_workflows/cli.py`, expand the ordering vocabulary to recognize `readiness`, `oqs`, `rqs`, `file`, `ctime`, and `mtime` alongside existing keys (`class`, `priority`, `date`, `set`, `order`, `blocking`, `depth`, `id6`, `path`, `status`, `tree`). In `cli.py`, replace the strict atomic `choices` check with a parser/validator that accepts comma-separated lists of keys (e.g. `priority,status,id6`), verifies every component against `_attention_order_keys()`, and raises an actionable error listing valid choices if an unknown token is supplied.
   - Depends on: none
   - Expected outcome: `aw att -o priority,status,id6` parses cleanly into a validated sequence of sort keys, while invalid keys continue to be rejected with helpful error messages.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: Multi-attribute stable sort engine
 
-- [ ] E-03 In `agent_workflows/attention.py`, implement multi-attribute sorting across the full vocabulary (`status`, `type`, `blocking`, `priority`, `readiness`, `oqs`, `rqs`, `setid`, `id6`, `file`, `ctime`, `mtime`). For `ctime` and `mtime`, read file stat timestamps via `(repo_root / it.path).stat()` inside a `try...except OSError` block, safely returning `(_ABSENT, 0)` if the file is missing or unreadable. Apply stable sort passes in reverse order of the requested attributes, falling through to the deterministic `(path, id)` tiebreaker. Enforce explicit direction semantics: descending for `priority`, `blocking`, `oqs`, `rqs`, `ctime`, `mtime`; ascending for `status`, `type`, `setid`, `id6`, `file`; and ranked order for `readiness` (`go` > `go-pending-approval` > `no-go` > absent).
+- [x] E-03 In `agent_workflows/attention.py`, implement multi-attribute sorting across the full vocabulary (`status`, `type`, `blocking`, `priority`, `readiness`, `oqs`, `rqs`, `setid`, `id6`, `file`, `ctime`, `mtime`). For `ctime` and `mtime`, read file stat timestamps via `(repo_root / it.path).stat()` inside a `try...except OSError` block, safely returning `(_ABSENT, 0)` if the file is missing or unreadable. Apply stable sort passes in reverse order of the requested attributes, falling through to the deterministic `(path, id)` tiebreaker. Enforce explicit direction semantics: descending for `priority`, `blocking`, `oqs`, `rqs`, `ctime`, `mtime`; ascending for `status`, `type`, `setid`, `id6`, `file`; and ranked order for `readiness` (`go` > `go-pending-approval` > `no-go` > absent).
   - Depends on: E-01, E-02
   - Expected outcome: items are sorted stably according to the multi-column precedence specified by the user with robust handling of missing files.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: Suite verification and test coverage
 
-- [ ] E-04 Add comprehensive tests in `tests/test_next_ordering.py` covering: (1) multi-column sorting precedence on fixture data, (2) TTY table output preserving explicit sort order under colored mode, (3) new attribute keys (`readiness`, `oqs`, `rqs`, `file`, `ctime`, `mtime`) including synthetic missing-file handling, and (4) verify the entire test suite passes bare (`python3 -m pytest`).
+- [x] E-04 Add comprehensive tests in `tests/test_next_ordering.py` covering: (1) multi-column sorting precedence on fixture data, (2) TTY table output preserving explicit sort order under colored mode, (3) new attribute keys (`readiness`, `oqs`, `rqs`, `file`, `ctime`, `mtime`) including synthetic missing-file handling, and (4) verify the entire test suite passes bare (`python3 -m pytest`).
   - Depends on: E-01, E-02, E-03
   - Expected outcome: all new ordering features are pinned by unit tests and `python3 -m pytest` passes with zero regressions.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -111,25 +111,51 @@ None. All sort keys, syntax conventions, direction semantics, and tiebreaker rul
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: Unit test in `tests/test_next_ordering.py` verifying that calling `render_table()` with explicitly ordered items preserves their exact sequence.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `TableSortPreservationTests` executed via `python3 -m pytest -o addopts="" -v tests/test_next_ordering.py -k TableSortPreservationTests`:
+    ```
+    tests/test_next_ordering.py::TableSortPreservationTests::test_render_board_forwards_order_by_to_render_table PASSED [ 50%]
+    tests/test_next_ordering.py::TableSortPreservationTests::test_render_table_preserves_explicit_ordering PASSED [100%]
+    2 passed, 59 deselected in 0.16s
+    ```
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: Unit test in `tests/test_next_ordering.py` verifying that comma-separated lists of keys (e.g. `priority,status,id6`) parse cleanly and reject invalid tokens.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `MultiAttributeOrderingTests` parsing tests executed via `python3 -m pytest -o addopts="" -v tests/test_next_ordering.py -k "MultiAttributeOrderingTests and (parsing or refused or rejects)"`:
+    ```
+    tests/test_next_ordering.py::MultiAttributeOrderingTests::test_multi_key_with_invalid_token_is_refused_by_argparse PASSED [ 33%]
+    tests/test_next_ordering.py::MultiAttributeOrderingTests::test_sort_items_rejects_invalid_token_in_multi_key PASSED [ 66%]
+    tests/test_next_ordering.py::MultiAttributeOrderingTests::test_multi_key_parsing_in_argparse PASSED [100%]
+    3 passed, 58 deselected in 0.42s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: Unit tests in `tests/test_next_ordering.py` verifying multi-attribute sort precedence on fixtures with known attributes, confirming that earlier keys take precedence over later keys, missing files are handled safely, and stable tiebreaking holds.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `NewAttributeOrderTests` and precedence tests executed via `python3 -m pytest -o addopts="" -v tests/test_next_ordering.py -k "NewAttributeOrderTests or (MultiAttributeOrderingTests and not (parsing or refused or rejects))"`:
+    ```
+    tests/test_next_ordering.py::MultiAttributeOrderingTests::test_multi_attribute_precedence PASSED [ 11%]
+    tests/test_next_ordering.py::MultiAttributeOrderingTests::test_three_attribute_ordering_with_tiebreaker PASSED [ 22%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_file_orders_by_basename PASSED [ 33%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_ctime_and_mtime_newest_first_with_real_files PASSED [ 44%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_readiness_orders_go_then_go_pending_then_no_go PASSED [ 55%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_oqs_orders_descending_with_absent_last PASSED [ 66%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_ctime_and_mtime_missing_files_sort_last_safely PASSED [ 77%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_rqs_orders_descending_with_absent_last PASSED [ 88%]
+    tests/test_next_ordering.py::NewAttributeOrderTests::test_setid_and_type_aliases PASSED [100%]
+    9 passed, 52 deselected in 0.15s
+    ```
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: Full output from a bare `python3 -m pytest` run demonstrating that all existing and new tests pass without regressions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Full bare `python3 -m pytest` run output:
+    ```
+    5489 passed, 3 skipped, 2 xfailed in 174.40s (0:02:54)
+    ```
+  - Result: pass
 
 ## Approval and execution gate
 

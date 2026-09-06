@@ -6,7 +6,7 @@ Showing the 40 most-recent of 213 Sets; the full manifest is INDEX.json.
 
 ## attorder
 
-- `8ldrlx` [pending] 01 pending/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md
+- `8ldrlx` [executed] 01 executed/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md
 
 ## hostdefault
 
