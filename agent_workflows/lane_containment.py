@@ -17,11 +17,17 @@ WHAT LIVES HERE (and what deliberately does not):
   * R2.5 the attempt-keyed collection receipt, which is the AUTHORITATIVE answer to "was this lane's
     submission collected?" (child `xdr83v`'s retention classification consumes it).
 
-  * NOT the missing-input CLASSIFIER, and not `wtiso_gate.format_missing_input` /
-    `parse_missing_input`. Those bodies are owned by the missing-input child (`y5od1h`, spec R3), and
-    spec R6.3 forbids a plan from implementing a body it is not chartered for. This module carries
-    only the token's DOCUMENTED FORM, as prompt text, so R1.4 can be satisfied without forking R3's
-    rule. A reader looking for the parse/emit implementation must go to `wtiso_gate`.
+  * R3 the missing-input REPORT-AND-REFUSE cycle (child `y5od1h`): the token emit/parse, the
+    coordinator-side classification, the refusal record, and the lane pause.
+
+    UPDATED BY `604wra` (spec R6.1), because the note here used to point the wrong way. It said the
+    emit/parse bodies lived in `wtiso_gate` and that this module carried "only the token's DOCUMENTED
+    FORM". The DIRECTION IS NOW THE REVERSE: `format_missing_input_token` /
+    `parse_missing_input_token` BELOW are the single definitions, and
+    `wtiso_gate.format_missing_input` / `parse_missing_input` are one-line DELEGATIONS to them, so
+    the gate library's stable-code surface and this rule cannot fork. What `wtiso_gate` does own is
+    the stable ERROR CODE `AW_MISSING_INPUT`, which this module imports for
+    `MISSING_INPUT_TOKEN_FORM` rather than retyping.
 
 HONEST LIMIT, stated because spec Goal 5 requires it and because overstating it is the failure mode:
 everything here is SIGNAL PURITY plus DRIVER-SIDE BOOKKEEPING, not a boundary. Nothing in this module
@@ -48,6 +54,13 @@ from typing import Any, NamedTuple
 
 from agent_workflows import runner_shared
 
+# The STABLE ERROR CODE for a missing-input report, imported rather than retyped (`604wra`, spec
+# R6.1). `wtiso_gate` declares the code vocabulary a hook prints and a driver matches on; this module
+# composes the worker-facing token form around it (see `MISSING_INPUT_TOKEN_FORM`). Import-safe in
+# this direction: `wtiso_gate` has NO runtime module-level imports of its own, so there is no cycle,
+# and its own delegations to this module are deliberately function-local for the same reason.
+from agent_workflows.wtiso_gate import AW_MISSING_INPUT as _AW_MISSING_INPUT
+
 # ---- where a worker's submissions live, inside the lane -------------------------------------------
 
 #: Lane-relative home for everything an isolated worker submits back to the driver.
@@ -60,11 +73,19 @@ from agent_workflows import runner_shared
 LANE_SUBMISSION_SUBDIR = ".aw/state/lane-submissions"
 
 #: The literal token form an isolated worker uses to report a genuinely missing input (spec R1.4,
-#: R3.1). This is DOCUMENTATION TEXT for the prompt, not an implementation of the token: emit/parse
-#: are `wtiso_gate.format_missing_input` / `parse_missing_input`, owned by child `y5od1h` (spec R3),
-#: and R6.3 forbids implementing a body this plan is not chartered to own. The form is stated in one
-#: place so the prompt and that later implementation cannot disagree about the shape.
-MISSING_INPUT_TOKEN_FORM = "AW_MISSING_INPUT:<repo-relative-path>:<why it is required>"
+#: R3.1). The PROMPT text and the parser both derive from this one constant, so the instruction a
+#: worker reads and the code that reads its output cannot disagree about the shape.
+#:
+#: THE LEADING CODE IS IMPORTED, NOT RETYPED (`604wra`, spec R6.1). `wtiso_gate.AW_MISSING_INPUT` is
+#: the STABLE ERROR CODE, declared there with the rest of the contract a hook prints and a driver
+#: matches on; this composes the human-facing form around it. It was previously spelled out here as a
+#: literal, which is the fork R6.1 forbids even while the copies agree: renaming the code would have
+#: left this prompt text publishing the old spelling, and a worker following the prompt would emit a
+#: token no parser recognized. `_token_prefix()` reads the prefix back OUT of this string, so all
+#: three surfaces - the code, the prompt, the parser - now trace to a single definition.
+MISSING_INPUT_TOKEN_FORM = (
+    _AW_MISSING_INPUT + ":<repo-relative-path>:<why it is required>"
+)
 
 #: Names of the submission files a worker may write inside its lane, and the driver-side reader each
 #: one feeds. Kept as data so the projection, the collection, and the receipt cannot disagree about
@@ -1552,7 +1573,12 @@ def format_missing_input_token(path: str, why: str) -> str:
 
     Paired with `parse_missing_input_token` so emit and parse cannot drift, and BOTH derive their
     separator and prefix from `MISSING_INPUT_TOKEN_FORM` - the constant `cqx5v7` already publishes
-    into the prompt (R1.4) - rather than hardcoding a second spelling of the shape.
+    into the prompt (R1.4) - rather than hardcoding a second spelling of the shape. That constant in
+    turn composes around `wtiso_gate.AW_MISSING_INPUT`, so the stable error code, the prompt text, and
+    this emitter all trace to ONE definition (`604wra`, R6.1).
+
+    THIS IS THE SINGLE DEFINITION. `wtiso_gate.format_missing_input` delegates here; it does not hold
+    a second implementation. Do not "simplify" either side into a local render.
     """
 
     return "{0}:{1}:{2}".format(_token_prefix(), path, why)

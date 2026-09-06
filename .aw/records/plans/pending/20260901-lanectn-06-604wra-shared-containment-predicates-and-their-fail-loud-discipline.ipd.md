@@ -18,6 +18,7 @@
 - Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-06 executed (opencode/its_direct/pt3-claude-opus-5-1m-us, run-20260905T211011Z-3780617 pos 11): all 4 E-items performed, all 4 V-items pass with pasted evidence and product-level sabotage for V-02/V-03/V-04. Prerequisites CHECKED not assumed: `y5od1h` and `lhmrhx` both in `executed/` and all 19 of their symbols verified present in this lane before editing. FOUR THINGS A REVIEWER SHOULD KNOW. (1) E-01 found NO forked function or class: the AST survey resolved all 32 rule symbols to exactly 1 definition each. The consolidation it DID make is a string-level one - the stable code `AW_MISSING_INPUT` was retyped inside `MISSING_INPUT_TOKEN_FORM`, so renaming the code would have left the worker's PROMPT publishing the old spelling and the escape hatch would have failed silently. (2) E-04's instruction was NOT followable as written and the divergence is recorded (D3): it asked each stale label to name the superseding `lanectn` child, but all three named owner phases (`qcqhj7`, `rchpms`, `2c122z`) are RETIRED and four of the five left-raising predicates have NO successor at all, so inventing one would have been fabricated provenance; each label now states its phase, retirement, what DID land, and plainly says when nothing supersedes it. (3) Three predicates were implemented as DELEGATIONS rather than new logic, per `y5od1h`'s handoff note and R6.1; only `check_permission_deadline` is new, and its docstring states the honest limit that it is a pure predicate over a recorded stream and NOT a live bound (`PERMISSION_TIMEOUT` still ships at 0). (4) The bare suite has 35 PRE-EXISTING failures at this lane's HEAD, not zero as the plan expected; I characterized all 35 before editing and the failing node-id set is IDENTICAL after (0 new, 0 fixed). 17 are caused by the driver exporting `AW_EXECUTION_ROLE=worker` into the turn, and 18 by lane-absent `.aw/records/runs/` plus a real `attention.duplicate-id` in committed backlog data (`2k42zu` in both `graduated/` and `done/`) - both worth a maintainer's attention and neither this plan's to fix.
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.
 - 2026-09-01 reviewed (aw set): /aw plan-review round 1 complete; all findings ACCEPTED and resolved. Every one was verified against the artifact before fixing. Two were serious: (1) my orchestrator claimed a proven-complete dependency graph while two children's metadata omitted edges their own prose required, which is the same CLASS of defect that got the predecessor tch3bo rejected - the proof had checked acyclicity only and never metadata-vs-prose agreement; (2) the spec's secret vocabulary was derived from THIS repository's ignore file with no floor, which would admit secrets in a managed target repo, fixed by a maintainer-approved spec amendment adding a built-in floor, union-only composition, and fail-closed behavior. Also fixed: the right-sizing complaint that I complied on E-item count while hiding each second driver's whole implementation in one 'mirror' item (now host-neutral code plus thin adapters), stale hardcoded suite baselines (now measure-at-execution-time and compare failures by identity), a genuine data-model error where retention read the input manifest for OUTPUT collection state (now an attempt-keyed collection receipt owned by the plan that owns collection), and an unfollowable instruction to read docstring owner labels that name superseded phases (now a measured predicate ownership table).
@@ -56,26 +57,28 @@ FOUR implemented, FIVE left raising, and exactly ONE of the four (`check_scope`)
 
 ### Task group 1: single definitions (R6.1)
 
-- [ ] E-01 IMPLEMENTS R6.1. Audit the rules the earlier children of this Set introduced and establish that each has exactly ONE definition with every consumer importing it. Where a rule ended up defined twice, consolidate to one and repoint the callers. Do this by AST or the import graph over the package, repo-wide and NOT per file, because a per-file check passes while two copies exist in different files and a text grep is satisfied by the checking code itself.
+- [x] E-01 IMPLEMENTS R6.1. Audit the rules the earlier children of this Set introduced and establish that each has exactly ONE definition with every consumer importing it. Where a rule ended up defined twice, consolidate to one and repoint the callers. Do this by AST or the import graph over the package, repo-wide and NOT per file, because a per-file check passes while two copies exist in different files and a text grep is satisfied by the checking code itself.
   - Depends on: none
   - Expected outcome: for each containment rule this Set introduced, exactly one definition exists in the package and every consumer reaches it by import, established structurally rather than by text search.
-  - Execution state: pending
-- [ ] E-02 IMPLEMENTS R6.1, R6.3 (the body half). Implement the predicate bodies this Set owns in the dedicated module, so the rules the drivers now enforce live where every surface can call them. Give each a unit test. Use the PREDICATE OWNERSHIP TABLE above, which enumerates every predicate by symbol; do NOT rely on the docstring labels, which name superseded phases and are what made the original instruction unfollowable.
+  - Execution state: performed
+  - Notes: AST survey over all of `agent_workflows/` covered the 32 symbols the Set's three shipped children introduced; every one resolved to exactly 1 top-level definition in `lane_containment.py`, and both drivers reach them by `from agent_workflows import lane_containment`. NO function or class was forked. One STRING-level fork WAS found and consolidated: `"AW_MISSING_INPUT"` was spelled as a literal in both `wtiso_gate.AW_MISSING_INPUT` (the declared stable error code) and inside `lane_containment.MISSING_INPUT_TOKEN_FORM` (the prompt text). The form now composes around the imported code, so the code, the prompt instruction, and the parser prefix all trace to one definition. Recorded as DECISION D1 with the concrete failure it prevents (renaming the code would have left the prompt publishing the old spelling, so a worker obeying instructions would emit a token no parser recognized). Import direction verified cycle-free in both orders.
+- [x] E-02 IMPLEMENTS R6.1, R6.3 (the body half). Implement the predicate bodies this Set owns in the dedicated module, so the rules the drivers now enforce live where every surface can call them. Give each a unit test. Use the PREDICATE OWNERSHIP TABLE above, which enumerates every predicate by symbol; do NOT rely on the docstring labels, which name superseded phases and are what made the original instruction unfollowable.
   - Depends on: E-01
   - Expected outcome: each predicate body this Set owns has a real implementation and unit tests, and no predicate assigned to another phase was modified.
-  - Execution state: pending
-
+  - Execution state: performed
+  - Notes: Four bodies implemented in `wtiso_gate.py`, three of them as DELEGATIONS to the existing single definition rather than new logic (DECISION D2): `format_missing_input` and `parse_missing_input` forward to `lane_containment.format_missing_input_token`/`parse_missing_input_token` (as `y5od1h`'s walkthrough explicitly instructed), and `check_scope` calls `ipd_lifecycle._scope_match` so the Scope-Paths grammar is not forked away from the rule finalize already enforces. Only `check_permission_deadline` is new logic, because no existing definition computes it (`TurnBoundWatch` enforces a LIVE wall-clock bound and cannot judge a recorded stream); it is session-agnostic so a NESTED child ask cannot be masked by root-session traffic. The wire-YES predicates needed no driver edit: their consumers reach the rules through `lane_containment`, which both drivers already import. 31 unit tests in `tests/test_containment_predicates.py`. No predicate assigned to another phase was modified (asserted structurally).
 ### Task group 2: fail-loud discipline (R6.2, R6.3)
 
-- [ ] E-03 IMPLEMENTS R6.2. Verify the fail-loud discipline still holds for every predicate this Set does NOT own: each must still raise, naming its owning phase, rather than returning a permissive default. This is the guard that prevents a half-built module from silently allowing what it cannot yet check. Confirm none was quietly given a default, a pass-through, or an empty return during this Set's work.
+- [x] E-03 IMPLEMENTS R6.2. Verify the fail-loud discipline still holds for every predicate this Set does NOT own: each must still raise, naming its owning phase, rather than returning a permissive default. This is the guard that prevents a half-built module from silently allowing what it cannot yet check. Confirm none was quietly given a default, a pass-through, or an empty return during this Set's work.
   - Depends on: E-02
   - Expected outcome: every predicate not owned by this Set still raises with its owning phase named, demonstrated by calling each one, and none returns a permissive value.
-  - Execution state: pending
-- [ ] E-04 IMPLEMENTS R6.3 (the wiring boundary), and updates the module's own docstring. Confirm that a predicate whose BODY this Set implemented but whose WIRING is reserved to a later phase has NO product caller: the body exists, the callers do not, and that is correct rather than incomplete. Then update the module docstring AND each stale per-predicate owner label to state which predicates are real, which still raise, and which `lanectn` child superseded each old label, so the skeleton stops naming a superseded owner.
+  - Execution state: performed
+  - Notes: All five (`check_lifecycle_role`, `check_hook_bypass`, `classify_retention`, `check_receipt`, `check_protected_refs`) still raise `NotImplementedError`, demonstrated by CALLING each one rather than reading its source. Two of the five were live temptations to fill and were deliberately NOT filled (DECISION D4): the shipped worker-role rule and `xdr83v`'s retention classification are both a DIFFERENT SHAPE from their stub's signature, so wrapping either would mean inventing a contract no caller requested and, for retention, silently asserting two vocabularies are equivalent. Additionally asserted by AST that no body contains ANY value-returning path, which catches a conditional early return the representative arguments would miss.
+- [x] E-04 IMPLEMENTS R6.3 (the wiring boundary), and updates the module's own docstring. Confirm that a predicate whose BODY this Set implemented but whose WIRING is reserved to a later phase has NO product caller: the body exists, the callers do not, and that is correct rather than incomplete. Then update the module docstring AND each stale per-predicate owner label to state which predicates are real, which still raise, and which `lanectn` child superseded each old label, so the skeleton stops naming a superseded owner.
   - Depends on: E-03
   - Expected outcome: the body-implemented-but-not-wired predicate has zero product callers, shown structurally; and the module docstring accurately lists which predicates are real and which raise, with owners.
-  - Execution state: pending
-
+  - Execution state: performed
+  - Notes: `check_scope` has a real body and ZERO product callers, established by walking every consumer module's AST for both `name(...)` and `module.name(...)` call forms. Module docstring rewritten to list all nine predicates by symbol with their true state. THE PLAN'S OWN INSTRUCTION COULD NOT BE FOLLOWED AS WRITTEN, and the divergence is recorded as DECISION D3: it asked each stale label to name "which `lanectn` child superseded it", but I measured that ALL THREE named phases are RETIRED and that for FOUR of the five left-raising predicates NO `lanectn` child supersedes them. Writing a superseding child for those would have been a fabricated provenance claim, so each label instead names its phase, its retirement date and disposition, what DID land where that changes what is actually missing, and says plainly when there is no successor plan. The plan's escape clause ("record the difference and proceed on the MEASURED contents") authorizes exactly this.
 ## Project conventions discovered (Step 0)
 
 - Measured at HEAD `59e68d5a`; anchor on symbol names.
@@ -150,22 +153,352 @@ Spec `7ckptx` is normative; this plan cites requirement ids. E-04 updates the pr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01 (proves R6.1; spec A16)
+- [x] V-01 validates E-01 (proves R6.1; spec A16)
   - Required evidence: paste the AST or import-graph output over the package showing, for each containment rule this Set introduced, exactly ONE definition and every consumer reaching it by import. State the method used and why a text grep would not suffice here (the checking code contains the symbol; a per-file check passes while duplicates live in different files). If consolidation was needed, paste the before and after.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02 (proves R6.1, R6.3 body half; spec A16)
+  - Observed evidence: PASS. AST over all of `agent_workflows/`: all 32 rule symbols this Set introduced resolve to exactly 1 top-level definition in `lane_containment.py`; 0 forks; both drivers reach them by import. One STRING fork found and consolidated (the `AW_MISSING_INPUT` code was retyped inside `MISSING_INPUT_TOKEN_FORM`); before/after and the cycle-free import check are pasted below.
+
+    METHOD: `ast.parse` over every `agent_workflows/**/*.py`, collecting TOP-LEVEL `FunctionDef`,
+    `AsyncFunctionDef`, `ClassDef`, `Assign` and `AnnAssign` names, then counting sites per rule
+    symbol. Top level only, deliberately: a nested helper cannot be imported by another surface so it
+    cannot BE the second definition of a shared rule, and counting nested defs would false-positive on
+    ordinary closures.
+
+    WHY NOT A TEXT GREP, demonstrated rather than asserted (`SabotageTests::test_a_text_grep_cannot_establish_single_definition`):
+    the symbol `classify_missing_input_report` appears in the CHECKING CODE itself, so a text count
+    over the package exceeds the definition count. And a per-file check passes while two byte-identical
+    copies live in different files, which is how this repository's own earlier cross-Set verification
+    was fooled before it switched to AST.
+
+    ```
+    == DEFINITION COUNT per rule (AST, package-wide, top level) ==
+      OK   project_worker_paths: 1 -> ['agent_workflows/lane_containment.py:228']
+      OK   isolation_notice: 1 -> ['agent_workflows/lane_containment.py:352']
+      OK   prior_attempt_summary: 1 -> ['agent_workflows/lane_containment.py:206']
+      OK   absolute_paths_outside_lane: 1 -> ['agent_workflows/lane_containment.py:308']
+      OK   scrub_out_of_lane_paths: 1 -> ['agent_workflows/lane_containment.py:327']
+      OK   collect_lane_submissions: 1 -> ['agent_workflows/lane_containment.py:541']
+      OK   merge_decisions_block: 1 -> ['agent_workflows/lane_containment.py:505']
+      OK   lane_submission_root: 1 -> ['agent_workflows/lane_containment.py:140']
+      OK   collection_receipt_path: 1 -> ['agent_workflows/lane_containment.py:425']
+      OK   read_collection_receipt: 1 -> ['agent_workflows/lane_containment.py:435']
+      OK   prepare_lane_submission_dir: 1 -> ['agent_workflows/lane_containment.py:161']
+      OK   attempt_key: 1 -> ['agent_workflows/lane_containment.py:123']
+      OK   item_slug: 1 -> ['agent_workflows/lane_containment.py:135']
+      OK   decisions_block_key: 1 -> ['agent_workflows/lane_containment.py:500']
+      OK   build_permission_policy_env: 1 -> ['agent_workflows/lane_containment.py:778']
+      OK   opencode_posture_record: 1 -> ['agent_workflows/lane_containment.py:916']
+      OK   antigravity_posture_record: 1 -> ['agent_workflows/lane_containment.py:937']
+      OK   evaluate_policy_observation: 1 -> ['agent_workflows/lane_containment.py:993']
+      OK   TurnBoundWatch: 1 -> ['agent_workflows/lane_containment.py:1216']
+      OK   driver_bound_for_host: 1 -> ['agent_workflows/lane_containment.py:1123']
+      OK   bound_expiry_reaper: 1 -> ['agent_workflows/lane_containment.py:1165']
+      OK   bound_expiry_record: 1 -> ['agent_workflows/lane_containment.py:1144']
+      OK   record_host_posture: 1 -> ['agent_workflows/lane_containment.py:1353']
+      OK   parse_host_ceiling_seconds: 1 -> ['agent_workflows/lane_containment.py:1408']
+      OK   format_missing_input_token: 1 -> ['agent_workflows/lane_containment.py:1571']
+      OK   parse_missing_input_token: 1 -> ['agent_workflows/lane_containment.py:1597']
+      OK   classify_missing_input_report: 1 -> ['agent_workflows/lane_containment.py:1640']
+      OK   classify_denied_permission_path: 1 -> ['agent_workflows/lane_containment.py:1819']
+      OK   MissingInputDecision: 1 -> ['agent_workflows/lane_containment.py:1523']
+      OK   MissingInputObserver: 1 -> ['agent_workflows/lane_containment.py:1846']
+      OK   record_missing_input_refusal: 1 -> ['agent_workflows/lane_containment.py:1935']
+      OK   lane_preserved_for_missing_input: 1 -> ['agent_workflows/lane_containment.py:1973']
+
+    == FORKS ==
+      none
+
+    == product modules importing the home ==
+      agent_workflows/agy_runipd.py: ['from agent_workflows import lane_containment']
+      agent_workflows/oc_runipd.py: ['from agent_workflows import lane_containment']
+      agent_workflows/wtiso_gate.py: ['from agent_workflows import lane_containment']
+    ```
+
+    CONSOLIDATION, BEFORE AND AFTER. No function was forked, but the stable error code was:
+
+    ```
+    BEFORE  agent_workflows/wtiso_gate.py:45        AW_MISSING_INPUT = "AW_MISSING_INPUT"
+            agent_workflows/lane_containment.py:67  MISSING_INPUT_TOKEN_FORM = "AW_MISSING_INPUT:<repo-relative-path>:<why it is required>"
+                                                    ^^^^^^^^^^^^^^^^ the same code, retyped
+
+    AFTER   agent_workflows/lane_containment.py     from agent_workflows.wtiso_gate import AW_MISSING_INPUT as _AW_MISSING_INPUT
+                                                    MISSING_INPUT_TOKEN_FORM = (
+                                                        _AW_MISSING_INPUT + ":<repo-relative-path>:<why it is required>"
+                                                    )
+    ```
+
+    ```
+    $ python3 -c "from agent_workflows import lane_containment as lc, wtiso_gate as g; ..."
+    TOKEN_FORM: AW_MISSING_INPUT:<repo-relative-path>:<why it is required>
+    prefix == code: True
+    roundtrip: ('a/b.txt', 'why')
+    gate roundtrip: ('a/b.txt', 'why')
+    ```
+
+    Import direction is cycle-free, checked in both orders (`wtiso_gate` has no runtime module-level
+    imports of its own, and its delegations to `lane_containment` are function-local for that reason):
+
+    ```
+    $ python3 -c "import agent_workflows.wtiso_gate; import agent_workflows.lane_containment; ..."
+    both import OK, order A
+    both import OK, order B
+    drivers import OK
+    ```
+  - Result: pass
+- [x] V-02 validates E-02 (proves R6.1, R6.3 body half; spec A16)
   - Required evidence: paste unit-test output for each predicate body this Set implemented. Paste evidence that NO predicate assigned to another phase was modified (a diff limited to the owned ones). SABOTAGE REQUIRED: break one implemented body, paste the FAILING unit test, restore, paste it passing plus `git status` proving the product is unmodified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03 (proves R6.2; spec A16)
+  - Observed evidence: PASS. 31 unit tests green (`31 passed in 27.05s`), covering all four implemented bodies. No predicate owned by another phase modified; both drivers byte-unmodified. SABOTAGE: replacing `format_missing_input`'s delegation with a local render was caught by 4 checks (`4 failed, 27 passed`), including the STRUCTURAL delegation check that a today-agreeing fork would otherwise pass; restored to `31 passed` with a `diff` proving identity.
+
+    UNIT TESTS for the four implemented bodies (31 tests; `-o addopts=""` used ONLY to get per-test
+    counts, per the repo contract's allowance):
+
+    ```
+    $ python3 -m pytest tests/test_containment_predicates.py -o addopts=""
+    collected 31 items
+    tests/test_containment_predicates.py ...............................     [100%]
+    ============================= 31 passed in 27.05s ==============================
+    ```
+
+    Direct behavioral check of each implemented body:
+
+    ```
+    --- IMPLEMENTED ---
+    format: 'AW_MISSING_INPUT:config/local.ini:absent from lane'
+    parse : ('a/b.txt', 'why: with colons')
+    parse non-token: None
+    deadline: ['AW_PERMISSION_DEADLINE']
+    scope   : ['AW_GATE_SCOPE'] []
+    ```
+
+    `check_permission_deadline` edge matrix (all as designed; note that a root-session answer does NOT
+    clear a CHILD's ask, which is the nested-deadlock property, and that `0` disables the check):
+
+    ```
+    OK   answered on same session -> []
+    OK   answered on OTHER session does not clear -> ['AW_PERMISSION_DEADLINE']
+    OK   two asks one answer -> one violation -> ['AW_PERMISSION_DEADLINE']
+    OK   within deadline -> []
+    OK   deadline 0 disables -> []
+    OK   no timestamp -> no violation -> []
+    OK   empty -> []
+    OK   non-dict tolerated -> ['AW_PERMISSION_DEADLINE']
+    ```
+
+    NO PREDICATE OWNED BY ANOTHER PHASE WAS MODIFIED. The five unowned bodies all still contain the
+    `_unimplemented(...)` raise, asserted per predicate by
+    `ImplementedPredicateTests::test_no_predicate_owned_by_another_phase_was_modified`, and the diff
+    touches only the four owned bodies plus docstrings. Files changed in the product:
+    `agent_workflows/wtiso_gate.py` and `agent_workflows/lane_containment.py` only; BOTH drivers are
+    byte-unmodified (`git status --porcelain agent_workflows/oc_runipd.py` empty).
+
+    SABOTAGE: replaced `format_missing_input`'s delegation with a locally rendered token
+    (`return "SABOTAGE:{0}:{1}".format(path, why)`), i.e. a second implementation.
+
+    ```
+    $ python3 -m pytest tests/test_containment_predicates.py -o addopts=""
+    tests/test_containment_predicates.py ....F...F.....F......F.........     [100%]
+    FAILED tests/test_containment_predicates.py::SabotageTests::test_the_delegation_check_fails_on_a_second_implementation
+    FAILED tests/test_containment_predicates.py::ImplementedPredicateTests::test_each_implemented_predicate_returns_its_documented_shape
+    FAILED tests/test_containment_predicates.py::SingleDefinitionTests::test_both_token_surfaces_produce_identical_results
+    FAILED tests/test_containment_predicates.py::SingleDefinitionTests::test_the_token_emitters_are_delegations_not_second_implementations
+    ======================== 4 failed, 27 passed in 26.81s =========================
+    ```
+
+    Four independent checks caught it, INCLUDING the structural delegation check - which matters
+    because a forked implementation that AGREES with the original today would pass a purely behavioral
+    check. RESTORED:
+
+    ```
+    $ diff /tmp/.../wtiso_gate.py.pristine agent_workflows/wtiso_gate.py && echo IDENTICAL
+    IDENTICAL
+    $ python3 -m pytest tests/test_containment_predicates.py -o addopts=""
+    ============================= 31 passed in 26.98s ==============================
+    $ git status --porcelain agent_workflows/wtiso_gate.py
+     M agent_workflows/wtiso_gate.py
+    ```
+
+    The `M` is THIS PLAN'S intended change, not sabotage residue; the `diff` against the pre-sabotage
+    snapshot above proves the sabotage itself is fully gone.
+  - Result: pass
+- [x] V-03 validates E-03 (proves R6.2; spec A16)
   - Required evidence: CALL every predicate this Set does not own and paste the raised error for each, showing it names the owning phase. Do not infer this from reading the source: an accidental default would still read plausibly. A predicate that returns any value instead of raising FAILS this item, and reporting it as fine is the silent-hole failure the fail-loud design exists to prevent. SABOTAGE REQUIRED: replace ONE not-owned predicate's raise with a permissive return, paste the FAILING check proving your verification actually notices a softened stub, restore, paste it passing plus `git status` proving the product is unmodified. Without this, a verification that merely calls each predicate and reports success cannot be distinguished from one that would accept a default.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04 (proves R6.3 wiring boundary; spec A16)
+  - Observed evidence: PASS. All five unowned predicates CALLED (not read); each raised `NotImplementedError` naming its owner AND its retirement. SABOTAGE: softening `check_lifecycle_role` to `return []` was caught by 5 checks (`5 failed, 33 passed`) with the diagnostic naming the returned value; restored to `38 passed`. Full messages and the measured owner-retirement correction are below.
+
+    ALL FIVE CALLED (not read). Each raised; none returned:
+
+    ```
+    --- STILL RAISING ---
+    check_lifecycle_role raises OK
+    check_hook_bypass raises OK
+    classify_retention raises OK
+    check_receipt raises OK
+    check_protected_refs raises OK
+    ```
+
+    The raised message for each NAMES ITS OWNER and its disposition. Full text of one, as
+    representative (the others follow the same shape and are asserted per predicate by
+    `FailLoudTests::test_each_unowned_predicate_names_a_real_retired_owner`):
+
+    ```
+    NotImplementedError: wtiso_gate.check_lifecycle_role has no rule body; its owner is `rchpms`
+    (Phase 2, RETIRED 2026-09-02, partly landed). The rule itself DOES ship, as
+    `ipd_lifecycle.worker_role_active` + the AW-LIFECYCLE-ROLE-001 refusal, and both drivers already
+    enforce it; this pure-predicate SHAPE has no caller, so no body is written here. It raises rather
+    than returning a permissive default (spec 7ckptx R6.2), so a caller wired up before a body exists
+    fails loudly instead of silently allowing. Do not soften this to a default: implement the body
+    under a plan that owns it.
+    ```
+
+    IMPORTANT MEASURED CORRECTION, recorded as DECISION D3: every "owning phase" named in this module
+    is RETIRED (`qcqhj7` superseded by this Set, `rchpms` partly-landed then retired, `2c122z` retired
+    unlanded). So naming only the phase would send a reader to a plan that will never run. Each message
+    now carries the phase AND its retirement AND, where relevant, what DID land instead.
+
+    SABOTAGE, the critical one for this item: replaced `check_lifecycle_role`'s raise with
+    `return []`, the exact permissive default a caller would read as "no violations".
+
+    ```
+    $ python3 -c "from agent_workflows import wtiso_gate as g; print(g.check_lifecycle_role('finalize','worker'))"
+    softened stub returns: []
+    ```
+
+    ```
+    $ python3 -m pytest tests/test_containment_predicates.py tests/test_wtiso_taxonomy_freeze.py -o addopts=""
+    E  AssertionError: check_lifecycle_role RETURNED [] instead of raising. A permissive default
+       converts a loud gap into a silent hole in a gate (spec R6.2).
+    FAILED tests/test_wtiso_taxonomy_freeze.py::GateLibraryTests::test_gate_predicates_refuse_rather_than_silently_allow
+    FAILED tests/test_containment_predicates.py::FailLoudTests::test_each_unowned_predicate_names_a_real_retired_owner
+    FAILED tests/test_containment_predicates.py::FailLoudTests::test_each_unowned_predicate_raises_when_called
+    FAILED tests/test_containment_predicates.py::FailLoudTests::test_no_unowned_predicate_returns_a_permissive_value
+    FAILED tests/test_containment_predicates.py::SabotageTests::test_the_fail_loud_check_fails_on_a_softened_stub
+    ======================== 5 failed, 33 passed in 26.90s =========================
+    ```
+
+    FIVE independent checks caught the softened stub, with the diagnostic naming the returned value.
+    This is what distinguishes the verification from one that would accept a default. RESTORED:
+
+    ```
+    $ diff /tmp/.../wtiso_gate.py.pristine agent_workflows/wtiso_gate.py && echo RESTORED IDENTICAL
+    RESTORED IDENTICAL
+    $ python3 -m pytest tests/test_containment_predicates.py tests/test_wtiso_taxonomy_freeze.py -o addopts=""
+    ============================= 38 passed in 26.59s ==============================
+    ```
+  - Result: pass
+- [x] V-04 validates E-04 (proves R6.3 wiring boundary; spec A16)
   - Required evidence: paste structural evidence that the body-implemented-but-not-wired predicate has ZERO product callers, and state in writing that this is CORRECT rather than incomplete, naming the phase that owns its wiring. Paste the updated module docstring and confirm it matches reality predicate by predicate. Then paste the tripwire suite result with its `xfailed` count and the delta from the Set's start explained per pin, and both whole-suite invocations with expected counts stated separately per invocation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `check_scope` has a real body and ZERO product callers, proven structurally over both call forms; sabotage planting a real caller was located at `oc_runipd.py:894` and then restored. Docstring matches reality predicate by predicate. Tripwire `12 passed, 4 xfailed` -> `14 passed, 2 xfailed`, both conversions explained per pin. Whole suite: BARE `35 failed` before and after, `make test-all` `41 failed` before and after, failing node-id sets IDENTICAL (0 new, 0 fixed); all pre-existing failures are ENVIRONMENTAL and named below.
+
+    ZERO PRODUCT CALLERS for `check_scope`, established structurally by walking each consumer module's
+    AST for BOTH `check_scope(...)` and `<module>.check_scope(...)` call forms (a check that saw only
+    one form would miss half the wirings it exists to detect):
+
+    ```
+    $ python3 -m pytest tests/test_containment_predicates.py -o addopts="" -k WiringBoundary
+    ================== 5 passed, 26 deselected ==================
+    (test_the_body_without_wiring_has_zero_product_callers -> call_sites('check_scope') == [])
+    ```
+
+    THIS IS CORRECT, NOT INCOMPLETE, and I state it in writing. `check_scope`'s wiring was assigned to
+    wtiso Phase 2 (`rchpms`), which would have connected the pre-commit hook, `aw lane status`, the
+    driver, finalize, and integration to it. `rchpms` was RETIRED on 2026-09-02 with that half recorded
+    as NOT LANDED, and it has no successor plan. So there is no phase in flight that owns the wiring,
+    the body is genuinely waiting for a consumer, and wiring it here would both take another phase's
+    work and fork the scope rule that `ipd_lifecycle` already enforces. The scope rule ACTUALLY in
+    force today runs through `ipd_lifecycle.finalize_precheck`, which this body delegates to, so the two
+    cannot disagree.
+
+    SABOTAGE for this item: planted a real product caller in `oc_runipd.py`.
+
+    ```
+    E  + [] : check_scope must have NO product caller: its wiring is unowned (spec R6.3).
+             Found: ['oc_runipd.py:894']
+    FAILED tests/test_containment_predicates.py::WiringBoundaryTests::test_the_body_without_wiring_has_zero_product_callers
+    ================== 1 failed, 4 passed, 26 deselected in 0.95s ==================
+    ```
+
+    Located the planted wiring by file and line. RESTORED (`git status --porcelain
+    agent_workflows/oc_runipd.py` empty, i.e. byte-identical to HEAD).
+
+    MODULE DOCSTRING now matches reality predicate by predicate: it lists the four REAL bodies with the
+    single definition each delegates to, the five STILL RAISING with the note that none has an owner in
+    flight, the R6.3 body-without-wiring case and why its zero callers are correct, and a paragraph
+    recording that all three original owner labels were retired. Asserted mechanically by
+    `WiringBoundaryTests::test_the_module_docstring_describes_its_real_state`, which requires every one
+    of the nine predicates to be named in it.
+
+    TRIPWIRE SUITE, with the per-pin delta explained (CID-5). Measured at the Set's start vs now, for
+    the two wtiso guard modules:
+
+    ```
+    BEFORE  $ python3 -m pytest tests/test_wtiso_adversarial.py tests/test_wtiso_taxonomy_freeze.py -o addopts=""
+            ======================== 12 passed, 4 xfailed in 0.38s =========================
+
+    AFTER   $ python3 -m pytest tests/test_wtiso_adversarial.py tests/test_wtiso_taxonomy_freeze.py -o addopts=""
+            ======================== 14 passed, 2 xfailed in 0.40s =========================
+    ```
+
+    `xfailed` 4 -> 2, and BOTH conversions are accounted for by name (DECISION D5). Neither was deleted
+    or weakened:
+
+    1. `test_missing_input_driver_denial_pinned_absent` -> `test_missing_input_driver_denial_now_exists`.
+       Its subject arrived: `y5od1h` shipped the report-and-refuse cycle and this plan re-pointed the
+       gate stubs at it. The converted test asserts BOTH token surfaces agree and that a well-formed
+       request for a real file is still REFUSED with nothing copied - strictly more than the pin.
+       Deliberately does NOT assert a "resume" or a copy, because spec R3.3a withdrew that branch.
+    2. `test_nested_permission_bounded_kill_pinned_absent` ->
+       `test_nested_permission_detection_now_exists_but_is_not_armed`. As `strict=True` it reported
+       `failed [XPASS(strict)]` the moment the body landed, which is its designed investigate-me signal;
+       I confirmed the pass was legitimate before converting. Converted into a TWO-part assertion so the
+       remaining gap stays visible: the detector catches a nested ask AND `PERMISSION_TIMEOUT` is still
+       `0.0` (disabled per R4.4b, so `MAX_TURN_TIMEOUT` remains the only bound covering a permission
+       deadlock). Asserting only the first half would have overstated what shipped.
+
+    The 2 remaining pins (`forgetful_agent_driver_report`, `hook_bypass_driver_rejection`) are UNTOUCHED
+    and still `xfailed`. The module's health signal (`failed == 0` AND `xfailed > 0`) holds.
+
+    Two further pins outside those files were converted for the same mechanical reason:
+    `test_missing_input_repair.py::TwinParityTests::test_the_wtiso_gate_stubs_are_left_raising_for_their_owner`
+    (renamed to `..._now_delegate_to_this_single_definition`; `y5od1h`'s own walkthrough asked this
+    executor to retire it in the same change) and
+    `test_wtiso_taxonomy_freeze.py::test_gate_predicates_refuse_rather_than_silently_allow` (now asserts
+    the property per CURRENT state rather than a fixed list, so it keeps catching a softened stub).
+
+    BOTH WHOLE-SUITE INVOCATIONS, with expectations stated SEPARATELY per invocation. Baselines were
+    MEASURED at this lane's HEAD `7e3deb92` immediately before editing, not copied from this plan:
+
+    ```
+    BARE (measured baseline)   35 failed, 5251 passed, 3 skipped, 4 xfailed in 103.97s
+    BARE (after my change)     35 failed, 5284 passed, 3 skipped, 2 xfailed in 108.38s
+      NEW failures (absent from baseline):  <none>
+      FIXED (in baseline, now passing):     <none>
+
+    make test-all (baseline)   41 failed, 5654 passed, 3 skipped, 4 xfailed in 162.84s
+    make test-all (after)      41 failed, 5687 passed, 3 skipped, 2 xfailed in 164.27s
+      NEW failures: <none>        FIXED: <none>
+    ```
+
+    COMPARED BY TEST IDENTITY, not by total: the failing node-id sets before and after are IDENTICAL
+    for both invocations (`comm` over the sorted `FAILED` id lists returns empty in both directions).
+    Passed counts rose by 33 = my 31 new tests + 2 converted xfails now counted as passes; `xfailed`
+    fell by 2 for the same conversions.
+
+    EXPECTATION PER INVOCATION, stated separately because a single "failed == 0" claim across both would
+    be the contradiction that got predecessor `tch3bo` flagged. The plan expected BARE to have ZERO
+    failures. IT DOES NOT, and I did not cause it: all 35 are PRE-EXISTING AND ENVIRONMENTAL, identified
+    by name and split into two independent causes (see the decisions register NOTE-1):
+
+    * 17 are caused by THE DRIVER'S OWN ENVIRONMENT. The runner exports `AW_EXECUTION_ROLE=worker`, and
+      `ipd_lifecycle.worker_role_active` reads exactly that, so every test exercising `aw ipd
+      begin`/`finalize` gets the legitimate `AW-LIFECYCLE-ROLE-001` refusal. Proven by re-running the
+      same 35 under `env -u AW_EXECUTION_ROLE`: 17 pass, 18 remain.
+    * 18 are repo-state dependent: `test_run_viewer.py` needs a non-empty `.aw/records/runs/`, which a
+      lane worktree does not have (gitignored driver state), and `test_next_ordering.py` fails because
+      `aw next` exits 1 on a real `attention.duplicate-id` in committed data (backlog id `2k42zu` is in
+      BOTH `graduated/` and `done/`). That last one is a genuine repo defect but not this plan's to fix.
+
+    The 6 additional `make test-all` failures are the known pre-existing CLI-surface declaration set
+    (`test_command_surface_declarations`, `test_cli_conformance_matrix`, plus 3 installer/runner-stop
+    tests), identified by name in my own measurement rather than trusted from a recorded number.
+  - Result: pass
 
 ## Approval and execution gate
 

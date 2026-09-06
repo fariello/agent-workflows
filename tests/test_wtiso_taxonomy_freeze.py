@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import re
 import unittest
+from pathlib import Path
 
 from tests.support import REPO_ROOT
 
@@ -271,22 +272,51 @@ class GateLibraryTests(unittest.TestCase):
         )
 
     def test_gate_predicates_refuse_rather_than_silently_allow(self):
-        """A predicate called before its owning phase lands must FAIL LOUDLY.
+        """A predicate with NO rule body must FAIL LOUDLY (spec `7ckptx` R6.2).
 
-        This is the anti-greenwash property of the skeleton: if the stubs returned an empty
-        violation list (a permissive default), a caller wired up early would report "no
-        violations" and the gate would silently pass everything. Raising `NotImplementedError`
-        makes that mistake impossible to miss.
+        This is the anti-greenwash property: if an unimplemented stub returned an empty violation
+        list (a permissive default), a caller wired up early would report "no violations" and the
+        gate would silently pass everything. Raising `NotImplementedError` makes that mistake
+        impossible to miss.
+
+        UPDATED BY `lanectn` child `604wra`, which implemented three of the predicates this test
+        previously asserted must raise. It now asserts the property PER CURRENT STATE rather than
+        naming a fixed list, so it keeps catching a softened stub without having to be rewritten each
+        time a body legitimately lands. `tests/test_containment_predicates.py` owns the exhaustive
+        version, including the sabotage proof that this check actually notices a permissive default.
         """
 
         from agent_workflows import wtiso_gate
 
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.check_scope(["a.py"], ["b.py"])
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.check_lifecycle_role("finalize", "worker")
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.format_missing_input("x.txt", "absent")
+        # STILL UNIMPLEMENTED: each must raise, and the message must NAME ITS OWNER (R6.2).
+        for name, args in (
+            ("check_lifecycle_role", ("finalize", "worker")),
+            ("check_hook_bypass", (Path("."), "HEAD", ["allowed.py"])),
+            ("classify_retention", (Path("."), "x.py")),
+            ("check_receipt", ({}, {})),
+            ("check_protected_refs", ({}, {})),
+        ):
+            with self.subTest(predicate=name):
+                with self.assertRaises(NotImplementedError) as caught:
+                    getattr(wtiso_gate, name)(*args)
+                self.assertIn(
+                    "owner",
+                    str(caught.exception).lower(),
+                    "an unimplemented predicate must name its owner (R6.2)",
+                )
+
+        # IMPLEMENTED by `604wra`: these must NOT raise, and must return the documented shape. Pinned
+        # in the same test so a regression that reverted a body to a stub fails here too.
+        self.assertEqual(
+            wtiso_gate.format_missing_input("x.txt", "absent"),
+            "AW_MISSING_INPUT:x.txt:absent",
+        )
+        self.assertEqual(
+            wtiso_gate.parse_missing_input("AW_MISSING_INPUT:x.txt:absent"),
+            ("x.txt", "absent"),
+        )
+        self.assertEqual(wtiso_gate.check_scope(["a.py"], ["b.py"]), ["AW_GATE_SCOPE"])
+        self.assertEqual(wtiso_gate.check_scope(["b.py"], ["b.py"]), [])
 
 
 if __name__ == "__main__":

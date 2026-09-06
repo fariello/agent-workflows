@@ -185,25 +185,59 @@ class MissingInputTests(unittest.TestCase):
             "no permission policy key is passed to the host yet",
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="AW_MISSING_INPUT deny/classify/resume lands in qcqhj7/Phase 1",
-    )
-    def test_missing_input_driver_denial_pinned_absent(self):
-        """PINNED ABSENT: no driver-side missing-input deny/classify/resume cycle exists.
+    def test_missing_input_driver_denial_now_exists(self):
+        """CONVERTED FROM A PIN (`lanectn` `604wra`): the missing-input cycle now EXISTS.
 
-        Owned by `qcqhj7` (Phase 1), which adds the minimal input manifest, the response contract,
-        and the runner-local config that denies unattended `external_directory` and `question`
-        asks.
+        WHY THIS IS NO LONGER `xfail`, stated because silently deleting a pin is how a safety net
+        disappears. This module's own contract (see the module docstring) is that a
+        `strict=True` pin which starts passing is reported as `failed [XPASS(strict)]` and must be
+        investigated. It started passing legitimately: `lanectn` child `y5od1h` shipped the
+        report-and-refuse cycle (spec R3) and `604wra` re-pointed the gate-library stubs at it
+        (R6.1). So the pin is CONVERTED into a positive assertion of the guard that arrived, which is
+        strictly stronger than the pin was.
+
+        NOT the same as the original owner's plan, and the difference is recorded rather than glossed:
+        `qcqhj7` (Phase 1) was RETIRED, and its permit-and-copy branch was WITHDRAWN outright by spec
+        `7ckptx` R3.3a. The cycle that landed is REPORT-AND-REFUSE: nothing is ever materialized into
+        a lane on request. Asserting a "resume" or a successful copy here would assert behavior the
+        spec now forbids.
         """
 
-        from agent_workflows import wtiso_gate
+        from agent_workflows import lane_containment, wtiso_gate
 
-        # Phase 1 fills these bodies in the ONE shared gate library; today they refuse.
+        # 1. The token surface is real, and BOTH surfaces agree (one definition, R6.1).
         self.assertEqual(
             wtiso_gate.format_missing_input("config/local.ini", "absent from lane"),
             "AW_MISSING_INPUT:config/local.ini:absent from lane",
         )
+        self.assertEqual(
+            wtiso_gate.parse_missing_input(
+                "AW_MISSING_INPUT:config/local.ini:absent from lane"
+            ),
+            ("config/local.ini", "absent from lane"),
+        )
+
+        # 2. The DRIVER-SIDE classification exists and REFUSES, which is the guard this guard is
+        # about: a well-formed request for a real file is still refused, and nothing is copied.
+        with tempfile.TemporaryDirectory() as temp:
+            repo = init_repo(Path(temp) / "repo")
+            _commit_base(repo)
+            decision = lane_containment.classify_missing_input_report(
+                "tracked.py", "needed by step 3", checkout=repo
+            )
+        self.assertEqual(
+            decision.verdict, lane_containment.MISSING_INPUT_VERDICT_REFUSED
+        )
+        record = decision.as_dict()
+        self.assertFalse(record["copied_into_lane"])
+        self.assertFalse(record["granted_original_checkout_access"])
+
+        # 3. And the host-denial half of the original pin's subject: the runner now supplies a
+        # permission posture, which is the root cause the observability half above still pins.
+        self.assertEqual(
+            lane_containment.LANE_PERMISSION_POLICY["external_directory"], "deny"
+        )
+        self.assertEqual(lane_containment.LANE_PERMISSION_POLICY["question"], "deny")
 
 
 # ---- Guard 3: hook bypass (x03wgn Section 7 row "Hook bypass") -----------------------------------
@@ -380,19 +414,27 @@ class NestedPermissionDeadlockTests(unittest.TestCase):
                 "{0} should not exist before qcqhj7/Phase 1".format(symbol),
             )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="permission-event deadline lands in qcqhj7/Phase 1",
-    )
-    def test_nested_permission_bounded_kill_pinned_absent(self):
-        """PINNED ABSENT: an unanswered CHILD-session permission ask does not yet cause a bounded kill.
+    def test_nested_permission_detection_now_exists_but_is_not_armed(self):
+        """CONVERTED FROM A PIN (`lanectn` `604wra`): the DETECTOR exists; the live bound does NOT.
 
-        The captured event stream below is the qyaime shape: the ask arrives on a CHILD sessionID,
-        not the root, which is why a root-only parser would miss it entirely. Owned by `qcqhj7`
-        (Phase 1).
+        WHY CONVERTED. As `strict=True`, this pin reported `failed [XPASS(strict)]` the moment
+        `604wra` implemented `check_permission_deadline`, which is precisely the investigate-me signal
+        this module's docstring specifies. Investigated: the pass is legitimate, so the pin becomes a
+        positive assertion.
+
+        BUT READ THE SECOND HALF, because converting this to a plain "the guard arrived" test would
+        OVERSTATE what shipped, and overstating a guarantee is the failure mode spec `7ckptx` Goal 5
+        names. What exists is a PURE PREDICATE over a recorded stream. What does NOT exist is a live
+        permission-event bound: `lane_containment.PERMISSION_TIMEOUT` ships at `0` (DISABLED) because
+        detection would be pattern matching on the child's stdout and is UNVERIFIED against a real
+        provoked ask (spec R4.4b). So this test asserts BOTH halves - the detector works, and the
+        bound is still disarmed - which keeps the remaining gap visible instead of declaring victory.
+
+        The captured event stream below is the qyaime shape: the ask arrives on a CHILD sessionID, not
+        the root, which is why a root-only parser would miss it entirely.
         """
 
-        from agent_workflows import wtiso_gate
+        from agent_workflows import lane_containment, wtiso_gate
 
         events = [
             {"type": "session.start", "sessionID": "root-1", "time": 0.0},
@@ -412,8 +454,30 @@ class NestedPermissionDeadlockTests(unittest.TestCase):
             {"type": "keepalive", "sessionID": "root-1", "time": 90.0},
         ]
 
+        # HALF 1: the detector catches the NESTED ask, which a root-only parser would miss.
         violations = wtiso_gate.check_permission_deadline(events, deadline_seconds=5.0)
         self.assertEqual(violations, [wtiso_gate.AW_PERMISSION_DEADLINE])
+
+        # ...and does not cry wolf when the ask WAS answered on its own child session.
+        answered = events[:-1] + [
+            {"type": "permission.answer", "sessionID": "child-9", "time": 3.0},
+            {"type": "keepalive", "sessionID": "root-1", "time": 90.0},
+        ]
+        self.assertEqual(
+            wtiso_gate.check_permission_deadline(answered, deadline_seconds=5.0), []
+        )
+
+        # HALF 2: THE REMAINING GAP, asserted so it cannot be quietly closed or quietly forgotten.
+        # The permission bound is DISARMED (spec R4.4b): its detector is unverified against a real
+        # ask, and a false positive would kill a healthy turn. `MAX_TURN_TIMEOUT` is therefore still
+        # the ONLY bound covering a permission deadlock. If someone arms `PERMISSION_TIMEOUT`, this
+        # fails loudly and must be updated TOGETHER with the captured-stream evidence R4.4b demands.
+        self.assertEqual(
+            lane_containment.PERMISSION_TIMEOUT,
+            0.0,
+            "PERMISSION_TIMEOUT must stay disabled until its detector is verified (R4.4b)",
+        )
+        self.assertGreater(lane_containment.MAX_TURN_TIMEOUT, 0.0)
 
 
 if __name__ == "__main__":

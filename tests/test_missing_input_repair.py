@@ -681,16 +681,26 @@ class TwinParityTests(unittest.TestCase):
                     f"{label} must observe reports at the same point as its twin",
                 )
 
-    def test_the_wtiso_gate_stubs_are_left_raising_for_their_owner(self):
-        # DECISION D2: this plan puts the bodies in the declared shared home and does NOT touch
-        # `wtiso_gate`, whose stubs sibling `604wra` is chartered to implement and wire. Spec R6.2
-        # requires they still fail loudly, so pin that rather than leaving it to chance.
+    def test_the_wtiso_gate_stubs_now_delegate_to_this_single_definition(self):
+        # CONVERTED, NOT DELETED, by sibling `604wra` (spec R6.1). `y5od1h` DECISION D2 pinned these
+        # two stubs RAISING because that plan deliberately did not touch `wtiso_gate`, and its
+        # walkthrough instructed `604wra` to re-point them here and retire the pin in the same change.
+        # `604wra` implemented them as one-line delegations, so a pin demanding they raise would now
+        # be asserting the fork R6.1 forbids.
+        #
+        # WHAT REPLACES IT IS STRONGER, and that is why this is a conversion rather than a removal: it
+        # asserts the two surfaces produce IDENTICAL results, so a future second implementation in
+        # `wtiso_gate` fails here even though it would satisfy a mere "does not raise" check.
         from agent_workflows import wtiso_gate
 
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.format_missing_input("x.txt", "absent")
-        with self.assertRaises(NotImplementedError):
-            wtiso_gate.parse_missing_input("AW_MISSING_INPUT:x.txt:absent")
+        token = LC.format_missing_input_token("x.txt", "absent")
+        self.assertEqual(wtiso_gate.format_missing_input("x.txt", "absent"), token)
+        self.assertEqual(
+            wtiso_gate.parse_missing_input(token), LC.parse_missing_input_token(token)
+        )
+        self.assertEqual(wtiso_gate.parse_missing_input(token), ("x.txt", "absent"))
+        # A non-report stays a non-report on both surfaces: a driver calls this per stdout line.
+        self.assertIsNone(wtiso_gate.parse_missing_input("ordinary output"))
 
 
 if __name__ == "__main__":  # pragma: no cover
