@@ -447,41 +447,69 @@ def offer_commit(
             "skipped: non-interactive; pass --commit to commit these changes",
         )
 
-    # --- Stage ONLY the requested paths (never -A/-a). ---
-    # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
-    # path would error, so we let git report it and surface as an error outcome.
-    rc, _out, err = _git(repo_root, ["add", "--", *rel_paths])
-    if rc != 0:
-        # Roll back any partial staging of OUR paths so we leave the index as we found it.
-        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
-        return CommitOutcome(STATUS_ERROR, None, (), f"git add failed: {err.strip()}")
+    # --- Serialize the stage+commit window against every other self-committing `aw` verb. ---
+    # MEASURED HARM (2026-09-06): `pre-commit` stashes unstaged changes, runs hooks, then restores the
+    # stash OVER whatever is on disk, so a peer process writing a tracked file inside that window has
+    # its write DESTROYED (not in `git stash`, not in the patch file). Holding the shared writer lock
+    # for the whole window stops OUR verbs from being that peer. It is not a guarantee: a hand-run
+    # `git commit` or an editor-on-save is outside this lock, which is why every failure path below
+    # still fails closed. See `commit_lock` for the reproduction and the honest limit.
+    from agent_workflows import commit_lock as _lock
 
-    # Which of our requested paths actually ended up staged (existed / had a diff)?
-    now_staged = set(_staged_paths(repo_root))
-    our_staged = sorted(now_staged & set(rel_paths))
-    if not our_staged:
-        # Nothing of ours changed (already committed / identical); do not create an empty commit.
-        return CommitOutcome(
-            STATUS_NOTHING_TO_COMMIT,
-            None,
-            (),
-            "nothing to commit: requested paths have no staged changes",
+    with _lock.writer_lock(repo_root, owner="git_commit_helper.offer_commit") as _held:
+        # --- Stage ONLY the requested paths (never -A/-a). ---
+        # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
+        # path would error, so we let git report it and surface as an error outcome.
+        rc, _out, err = _git(repo_root, ["add", "--", *rel_paths])
+        if rc != 0:
+            # Roll back any partial staging of OUR paths so we leave the index as we found it.
+            _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
+            return CommitOutcome(
+                STATUS_ERROR, None, (), f"git add failed: {err.strip()}"
+            )
+
+        # Which of our requested paths actually ended up staged (existed / had a diff)?
+        now_staged = set(_staged_paths(repo_root))
+        our_staged = sorted(now_staged & set(rel_paths))
+        if not our_staged:
+            # Nothing of ours changed (already committed / identical); no empty commit.
+            return CommitOutcome(
+                STATUS_NOTHING_TO_COMMIT,
+                None,
+                (),
+                "nothing to commit: requested paths have no staged changes",
+            )
+
+        # --- Path-scoped commit (never --no-verify, never push). ---
+        rc, out, err = _git(
+            repo_root, ["commit", "-m", full_message, "--", *our_staged]
         )
+        if rc != 0:
+            _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
+            msg = err.strip() or out.strip() or "git commit exited non-zero"
+            # Name a foreign cause when the failure was a peer writing inside the hook window, so the
+            # operator is not told to fix something in their own change set.
+            try:
+                from agent_workflows.ipd_lifecycle import classify_commit_refusal
 
-    # --- Path-scoped commit (never --no-verify, never push). ---
-    rc, out, err = _git(repo_root, ["commit", "-m", full_message, "--", *our_staged])
-    if rc != 0:
-        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
-        msg = err.strip() or out.strip() or "git commit exited non-zero"
+                foreign = classify_commit_refusal(repo_root, msg, our_staged)
+            except Exception:
+                foreign = None
+            detail = f"git commit failed: {msg}"
+            if foreign:
+                detail = f"{detail}\nDIAGNOSIS: {foreign}"
+            elif not _held:
+                detail = (
+                    f"{detail}\nNOTE: the shared aw writer lock could not be taken, so this commit "
+                    "ran unserialized and may have raced a peer verb; a retry is safe."
+                )
+            return CommitOutcome(STATUS_ERROR, None, tuple(our_staged), detail)
+
+        rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
+        sha = head.strip() if rc == 0 else None
         return CommitOutcome(
-            STATUS_ERROR, None, tuple(our_staged), f"git commit failed: {msg}"
+            STATUS_COMMITTED,
+            sha,
+            tuple(our_staged),
+            f"committed {len(our_staged)} path(s) as {sha}",
         )
-
-    rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
-    sha = head.strip() if rc == 0 else None
-    return CommitOutcome(
-        STATUS_COMMITTED,
-        sha,
-        tuple(our_staged),
-        f"committed {len(our_staged)} path(s) as {sha}",
-    )
