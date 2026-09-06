@@ -795,5 +795,240 @@ class OneScanGuardTests(unittest.TestCase):
         )
 
 
+class MultiAttributeOrderingTests(unittest.TestCase):
+    """Multi-column sort precedence, comma-separated parsing, and stable tiebreaking."""
+
+    def test_multi_key_parsing_in_argparse(self):
+        from agent_workflows.cli import _build_parser
+
+        parser = _build_parser()
+        args = parser.parse_args(["next", "-o", "priority,status,id6"])
+        self.assertEqual(args.order_by, "priority,status,id6")
+
+    def test_multi_key_with_invalid_token_is_refused_by_argparse(self):
+        proc = subprocess.run(
+            [sys.executable, "-m", "agent_workflows", "next", "-o", "priority,bogus"],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("invalid choice", proc.stderr)
+
+    def test_sort_items_rejects_invalid_token_in_multi_key(self):
+        with self.assertRaises(ValueError) as ctx:
+            att.sort_items([], "priority,not-a-key")
+        self.assertIn("not-a-key", str(ctx.exception))
+
+    def test_multi_attribute_precedence(self):
+        items = [
+            _item("prio_hi_draft", "p/a.md", priority="high", native_status="draft"),
+            _item("prio_hi_open", "p/b.md", priority="high", native_status="open"),
+            _item("prio_lo_draft", "p/c.md", priority="low", native_status="draft"),
+            _item("prio_lo_open", "p/d.md", priority="low", native_status="open"),
+        ]
+        # priority primary, status secondary
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "priority,status")],
+            ["prio_hi_draft", "prio_hi_open", "prio_lo_draft", "prio_lo_open"],
+        )
+        # status primary, priority secondary
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "status,priority")],
+            ["prio_hi_draft", "prio_lo_draft", "prio_hi_open", "prio_lo_open"],
+        )
+
+    def test_three_attribute_ordering_with_tiebreaker(self):
+        items = [
+            _item("c01", "p/c.md", priority="high", native_status="open"),
+            _item("a01", "p/a.md", priority="high", native_status="open"),
+            _item("b01", "p/b.md", priority="high", native_status="draft"),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "priority,status,id6")],
+            ["b01", "a01", "c01"],
+        )
+
+
+class NewAttributeOrderTests(unittest.TestCase):
+    """Ordering by readiness, oqs, rqs, file, aliases (setid, type), and timestamps (ctime, mtime)."""
+
+    def test_readiness_orders_go_then_go_pending_then_no_go(self):
+        items = [
+            _item("no001", "p/no.md", readiness="no-go"),
+            _item("go001", "p/go.md", readiness="go"),
+            _item("pen001", "p/pen.md", readiness="go-pending-approval"),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "readiness")],
+            ["go001", "pen001", "no001"],
+        )
+
+    def test_oqs_orders_descending_with_absent_last(self):
+        items = [
+            _item("oq1", "p/oq1.md", oqs=1),
+            _item("oq5", "p/oq5.md", oqs=5),
+            _item("oq0", "p/oq0.md", oqs=0),
+            _item("none", "p/none.md"),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "oqs")],
+            ["oq5", "oq1", "none", "oq0"],
+        )
+
+    def test_rqs_orders_descending_with_absent_last(self):
+        items = [
+            _item("rq2", "p/rq2.md", rqs=2),
+            _item("rq9", "p/rq9.md", rqs=9),
+            _item("rq0", "p/rq0.md", rqs=0),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "rqs")],
+            ["rq9", "rq2", "rq0"],
+        )
+
+    def test_file_orders_by_basename(self):
+        items = [
+            _item("z01", "deep/nested/z_file.md"),
+            _item("a01", "other/a_file.md"),
+            _item("m01", "root/m_file.md"),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "file")],
+            ["a01", "m01", "z01"],
+        )
+
+    def test_setid_and_type_aliases(self):
+        items = [
+            _item(
+                "aaa111",
+                ".agents/plans/pending/20260101-zeta-01-aaa111-a.ipd.md",
+                tree="specs",
+            ),
+            _item(
+                "bbb222",
+                ".agents/plans/pending/20260101-alpha-01-bbb222-b.ipd.md",
+                tree="backlog",
+            ),
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "setid")], ["bbb222", "aaa111"]
+        )
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "type")], ["bbb222", "aaa111"]
+        )
+
+    def test_ctime_and_mtime_newest_first_with_real_files(self):
+        import os
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f_old = root / "old.md"
+            f_new = root / "new.md"
+            _write(f_old, "# Old")
+            _write(f_new, "# New")
+            os.utime(f_old, (1000.0, 1000.0))
+            os.utime(f_new, (2000.0, 2000.0))
+
+            items = [
+                _item("old01", "old.md"),
+                _item("new01", "new.md"),
+            ]
+            self.assertEqual(
+                [it.id for it in att.sort_items(items, "mtime", repo_root=root)],
+                ["new01", "old01"],
+            )
+            self.assertEqual(
+                [it.id for it in att.sort_items(items, "ctime", repo_root=root)],
+                ["new01", "old01"],
+            )
+
+    def test_ctime_and_mtime_missing_files_sort_last_safely(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            f_real = root / "real.md"
+            _write(f_real, "# Real")
+
+            items = [
+                _item("miss01", "does_not_exist.md"),
+                _item("real01", "real.md"),
+            ]
+            for key in ("ctime", "mtime"):
+                got = [it.id for it in att.sort_items(items, key, repo_root=root)]
+                self.assertEqual(got, ["real01", "miss01"])
+
+
+class TableSortPreservationTests(unittest.TestCase):
+    """TTY table render_table preserves user-specified ordering when order_by != class."""
+
+    def test_render_table_preserves_explicit_ordering(self):
+        spec_item = _item(
+            "spec01",
+            "specs/20260101-spec01-01-spec01-s.spec.md",
+            tree="specs",
+            priority="high",
+        )
+        backlog_item = _item(
+            "bklg01",
+            "backlog/20260101-bklg01-01-bklg01-b.md",
+            tree="backlog",
+            priority="low",
+        )
+        # Under priority sorting, high comes before low: [spec_item, backlog_item]
+        items_sorted_by_priority = [spec_item, backlog_item]
+
+        # 1. When order_by="priority" is passed, render_table MUST preserve the order: spec_item first
+        out_priority = att.render_table(
+            items_sorted_by_priority,
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+            order_by="priority",
+        )
+        lines_priority = [line for line in out_priority.splitlines() if line.strip()]
+        self.assertIn("spec01", lines_priority[1])
+        self.assertIn("bklg01", lines_priority[2])
+
+        # 2. When order_by is None or ORDER_CLASS, historical table sort applies: backlog before specs
+        out_default = att.render_table(
+            items_sorted_by_priority,
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+            order_by=A.ORDER_CLASS,
+        )
+        lines_default = [line for line in out_default.splitlines() if line.strip()]
+        self.assertIn("bklg01", lines_default[1])
+        self.assertIn("spec01", lines_default[2])
+
+    def test_render_board_forwards_order_by_to_render_table(self):
+        spec_item = _item(
+            "spec01",
+            "specs/20260101-spec01-01-spec01-s.spec.md",
+            tree="specs",
+            priority="high",
+        )
+        backlog_item = _item(
+            "bklg01",
+            "backlog/20260101-bklg01-01-bklg01-b.md",
+            tree="backlog",
+            priority="low",
+        )
+        items = [spec_item, backlog_item]
+        term = att.T.Term(color=True)
+        # Force color=True so render_board calls render_table
+        out = att.render_board(
+            items,
+            [],
+            show_all=True,
+            term=term,
+            order_by="priority",
+        )
+        clean = att.T.strip_ansi(out)
+        lines = [line for line in clean.splitlines() if line.strip()]
+        self.assertIn("spec01", lines[1])
+        self.assertIn("bklg01", lines[2])
+
+
 if __name__ == "__main__":
     unittest.main()

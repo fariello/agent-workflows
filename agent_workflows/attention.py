@@ -406,6 +406,12 @@ _NAME_GRAMMAR_RE = re.compile(
 # `check_engine._PRIORITY_RANK`) rather than a second hardcoded rank table, which is the mistake
 # `ipd_schema` recorded when a duplicated status copy desynced.
 _PRIORITY_SORT_RANK = {name: i for i, name in enumerate(A.PRIORITY_ORDER)}
+_READINESS_SORT_RANK = {
+    name: i
+    for i, name in enumerate(
+        getattr(A, "READINESS_ORDER", ("go", "go-pending-approval", "no-go"))
+    )
+}
 
 # The sentinel for "this item has no value for the selected key". Sorting is done on a
 # `(absent_flag, value, default_tail...)` tuple, where `absent_flag` is 1 for a missing value, so
@@ -490,7 +496,12 @@ def dependency_depths(items: Sequence[Item]) -> Tuple[Dict[str, int], List[List[
     return out, cycles
 
 
-def _order_key(it: Item, order_by: str, depths: Optional[Dict[str, int]]) -> Tuple:
+def _order_key(
+    it: Item,
+    order_by: str,
+    depths: Optional[Dict[str, int]],
+    repo_root: Optional[Path] = None,
+) -> Tuple:
     """The PRIMARY sort component for one item under ``order_by``.
 
     Every branch returns ``(absent_flag, value)`` where ``absent_flag`` is `_ABSENT` for an item that
@@ -512,7 +523,7 @@ def _order_key(it: Item, order_by: str, depths: Optional[Dict[str, int]]) -> Tup
             if it.last_history_at
             else (_ABSENT, "")
         )
-    if order_by == "set":
+    if order_by in ("set", "setid"):
         set_id, _order = _name_grammar_fields(it.path)
         return (_PRESENT, set_id) if set_id else (_ABSENT, "")
     if order_by == "order":
@@ -529,10 +540,45 @@ def _order_key(it: Item, order_by: str, depths: Optional[Dict[str, int]]) -> Tup
         return (_PRESENT, it.id) if it.id else (_ABSENT, "")
     if order_by == "path":
         return (_PRESENT, it.path) if it.path else (_ABSENT, "")
+    if order_by == "file":
+        return (_PRESENT, Path(it.path).name) if it.path else (_ABSENT, "")
     if order_by == "status":
         return (_PRESENT, it.native_status) if it.native_status else (_ABSENT, "")
-    if order_by == "tree":
+    if order_by in ("tree", "type"):
         return (_PRESENT, it.tree) if it.tree else (_ABSENT, "")
+    if order_by == "readiness":
+        rank = _READINESS_SORT_RANK.get((it.readiness or "").lower())
+        return (
+            (_PRESENT, rank)
+            if rank is not None
+            else (_ABSENT, len(_READINESS_SORT_RANK))
+        )
+    if order_by == "oqs":
+        oqs = getattr(it, "oqs", 0) or 0
+        return (_PRESENT, -oqs) if oqs > 0 else (_ABSENT, 0)
+    if order_by == "rqs":
+        rqs = getattr(it, "rqs", 0) or 0
+        return (_PRESENT, -rqs) if rqs > 0 else (_ABSENT, 0)
+    if order_by in ("ctime", "mtime"):
+        if repo_root is None:
+            try:
+                from agent_workflows.project_context import (
+                    is_project_dir,
+                    resolve_verb_repo_root,
+                )
+
+                cand = resolve_verb_repo_root(None)
+                if is_project_dir(cand):
+                    repo_root = cand
+            except Exception:
+                pass
+        f = (repo_root / it.path) if repo_root else Path(it.path)
+        try:
+            st = f.stat()
+            ts = st.st_ctime if order_by == "ctime" else st.st_mtime
+            return (_PRESENT, -ts)
+        except OSError:
+            return (_ABSENT, 0.0)
     # `class` (the default) adds no primary component; the default tail alone decides.
     return ()
 
@@ -548,7 +594,11 @@ def _invert_str(value: str) -> Tuple[int, ...]:
     return tuple(-ord(ch) for ch in value)
 
 
-def sort_items(items: Sequence[Item], order_by: str = A.ORDER_CLASS) -> List[Item]:
+def sort_items(
+    items: Sequence[Item],
+    order_by: str = A.ORDER_CLASS,
+    repo_root: Optional[Path] = None,
+) -> List[Item]:
     """Return ``items`` ordered by ``order_by``. Never filters: the result is a PERMUTATION.
 
     The DEFAULT (`class`) reproduces the historical `(class order, path, id)` tuple exactly, byte for
@@ -560,12 +610,14 @@ def sort_items(items: Sequence[Item], order_by: str = A.ORDER_CLASS) -> List[Ite
     rather than per comparison. Cycles are reported through `sort_items_with_notices`; this function
     keeps the plain signature for callers that only want the order.
     """
-    ordered, _notices = sort_items_with_notices(items, order_by)
+    ordered, _notices = sort_items_with_notices(items, order_by, repo_root=repo_root)
     return ordered
 
 
 def sort_items_with_notices(
-    items: Sequence[Item], order_by: str = A.ORDER_CLASS
+    items: Sequence[Item],
+    order_by: str = A.ORDER_CLASS,
+    repo_root: Optional[Path] = None,
 ) -> Tuple[List[Item], List[str]]:
     """`sort_items` plus any human-facing notices the ordering produced (E-08).
 
@@ -574,19 +626,24 @@ def sort_items_with_notices(
     view that quietly reorders around a cycle hides a defect `aw check` has a rule for. Notices are
     advisory and never change the exit code, which stays owned by the drift set.
     """
-    if order_by not in A.ORDER_KEYS:
-        # An out-of-vocabulary key cannot reach here through the CLI (argparse `choices` refuses it),
-        # so this is a programming error rather than user input; fail loudly instead of silently
-        # falling back to an order the caller did not ask for.
-        raise ValueError(
-            "unknown order key {0!r}; valid keys: {1}".format(
-                order_by, ", ".join(A.ORDER_KEYS)
+    keys = [k.strip() for k in order_by.split(",") if k.strip()]
+    if not keys:
+        keys = [A.ORDER_CLASS]
+
+    for k in keys:
+        if k not in A.ORDER_KEYS:
+            # An out-of-vocabulary key cannot reach here through the CLI (argparse `choices` refuses it),
+            # so this is a programming error rather than user input; fail loudly instead of silently
+            # falling back to an order the caller did not ask for.
+            raise ValueError(
+                "unknown order key {0!r}; valid keys: {1}".format(
+                    k, ", ".join(A.ORDER_KEYS)
+                )
             )
-        )
 
     notices: List[str] = []
     depths: Optional[Dict[str, int]] = None
-    if order_by == "depth":
+    if "depth" in keys:
         depths, cycles = dependency_depths(items)
         for cyc in cycles:
             notices.append(
@@ -597,7 +654,7 @@ def sort_items_with_notices(
 
     def key(it: Item) -> Tuple:
         return (
-            _order_key(it, order_by, depths),
+            tuple(_order_key(it, k, depths, repo_root) for k in keys),
             A.ATTENTION_CLASS_ORDER.index(it.attention_class),
             it.path,
             it.id,
@@ -1582,6 +1639,7 @@ def render_table(
     long: bool = False,
     details: bool = False,
     repo_root: Optional[Path] = None,
+    order_by: Optional[str] = None,
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
@@ -1622,15 +1680,17 @@ def render_table(
     if not visible:
         return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
 
-    def _sort_key(it: Item) -> Tuple:
-        type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
-        blk_ver = _resolve_release_version(repo_root, it.blocks_release)
-        is_blocking = 0 if (blk_ver == "-" or not it.blocks_release) else 1
-        prio_rank = PRIORITY_RANK.get((it.priority or "").lower(), 0)
-        name = _identity_stem(it.path)
-        return (type_word, is_blocking, prio_rank, name, it.path)
+    if not (order_by and order_by != A.ORDER_CLASS):
 
-    visible.sort(key=_sort_key)
+        def _sort_key(it: Item) -> Tuple:
+            type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
+            blk_ver = _resolve_release_version(repo_root, it.blocks_release)
+            is_blocking = 0 if (blk_ver == "-" or not it.blocks_release) else 1
+            prio_rank = PRIORITY_RANK.get((it.priority or "").lower(), 0)
+            name = _identity_stem(it.path)
+            return (type_word, is_blocking, prio_rank, name, it.path)
+
+        visible.sort(key=_sort_key)
     # The table is ONE flat list, not per-class sections, so there is no section header to hoist a
     # shared gate ref into. When every visible row is gated by the SAME ref, say it once above the
     # table and drop it from the rows; otherwise each row keeps its own (now `--long`-aware) ref.
@@ -1668,6 +1728,7 @@ def render_board(
     details: bool = False,
     legend: bool | None = None,
     repo_root: Path | None = None,
+    order_by: Optional[str] = None,
 ) -> str:
     """Render the attention board.
 
@@ -1688,6 +1749,7 @@ def render_board(
             long=long,
             details=details,
             repo_root=repo_root,
+            order_by=order_by,
         )
     if legend is None:
         legend = colored
@@ -1984,7 +2046,9 @@ def run(args) -> int:
     # Re-order the (possibly filtered) items. `scan()` already returned them in the default order, so
     # for `-o class` this is a no-op re-sort of an already-sorted list and the output is unchanged.
     if order_by != A.ORDER_CLASS:
-        items, order_notices = sort_items_with_notices(items, order_by)
+        items, order_notices = sort_items_with_notices(
+            items, order_by, repo_root=repo_root
+        )
 
     fmt = getattr(args, "format", None)
 
@@ -2113,6 +2177,7 @@ def run(args) -> int:
                 details=details,
                 legend=False,
                 repo_root=repo_root,
+                order_by=order_by,
             )
             if blockers:
                 # Name the release the blockers gate (id6 + version), not just a count, so the
@@ -2145,6 +2210,7 @@ def run(args) -> int:
                 details=details,
                 legend=False,
                 repo_root=repo_root,
+                order_by=order_by,
             )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a

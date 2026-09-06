@@ -86,19 +86,28 @@ ORDER_KEYS: Tuple[str, ...] = (
     "priority",  # high > medium > low, then unprioritized
     "date",  # last_history_at, newest first
     "set",  # Set id from the filename grammar
+    "setid",  # alias for set
     "order",  # Order number from the filename grammar
     "blocking",  # items carrying Blocks-Release first
     "depth",  # declared dependency depth: prerequisites BEFORE dependents
     "id6",  # the stable 6-char handle
     "path",  # repo-relative POSIX path
+    "file",  # filename / basename
     "status",  # native status
     "tree",  # records tree / artifact type
+    "type",  # alias for tree
+    "readiness",  # review readiness: go > go-pending-approval > no-go
+    "oqs",  # unresolved open questions count (descending)
+    "rqs",  # resolved questions count (descending)
+    "ctime",  # filesystem creation time (newest first)
+    "mtime",  # filesystem modification time (newest first)
 )
 
 # The priority ranks used by `-o priority`. DERIVED from one shared vocabulary rather than forked:
 # `backlog.PRIORITIES` is the enum and `check_engine._PRIORITY_RANK` is the existing rank; this maps
 # the rank into DESCENDING sort position (high first) without introducing a second rank table.
 PRIORITY_ORDER: Tuple[str, ...] = ("high", "medium", "low")
+READINESS_ORDER: Tuple[str, ...] = ("go", "go-pending-approval", "no-go")
 
 
 # --------------------------------------------------------------------------------------

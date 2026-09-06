@@ -763,6 +763,27 @@ def _attention_order_keys() -> Tuple[str, ...]:
         return (_ATTENTION_DEFAULT_ORDER,)
 
 
+class _AttentionOrderChoices:
+    """Argparse choices container that iterates over atomic keys for help/error listings,
+    while validating single keys or comma-separated composite keys against the vocabulary."""
+
+    def __init__(self, keys: Sequence[str]):
+        self._keys = tuple(keys)
+        self._set = set(keys)
+
+    def __iter__(self):
+        return iter(self._keys)
+
+    def __contains__(self, item):
+        if not isinstance(item, str):
+            return False
+        tokens = [t.strip() for t in item.split(",") if t.strip()]
+        return bool(tokens) and all(t in self._set for t in tokens)
+
+    def __len__(self):
+        return len(self._keys)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # A shared parent so --no-color, --agent, and --json work consistently across all subcommands.
     common = _AwArgumentParser(add_help=False)
@@ -3371,12 +3392,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--order-by",
         "-o",
         dest="order_by",
-        choices=_attention_order_keys(),
+        choices=_AttentionOrderChoices(_attention_order_keys()),
         default=_ATTENTION_DEFAULT_ORDER,
         help=(
-            "Sort the view by this key (default: %(default)s, the historical class/path/id order). "
-            "'depth' sequences declared dependencies so a prerequisite precedes its dependents. "
-            "Items lacking the selected key sort LAST; ordering never filters."
+            "Sort the view by one or more comma-separated keys (default: %(default)s, the "
+            "historical class/path/id order). Multi-attribute sorting applies keys in order "
+            "(e.g. -o priority,status,id6). 'depth' sequences declared dependencies so a "
+            "prerequisite precedes its dependents. Items lacking the selected key sort LAST; "
+            "ordering never filters."
         ),
     )
     p_attention.add_argument(
