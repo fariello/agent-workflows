@@ -6,17 +6,17 @@
 - Scope: Rename `aw attention` to `aw next` (keeping `attention`, `att` and `todo` as aliases), and add `--order-by/-o` selecting the sort, with the current `(class, path, id)` as the unchanged DEFAULT and every other order an explicit opt-in. Includes `depth`, computed from the existing type-agnostic dependency index, so the command can sequence dependent work. Does NOT change any artifact format, does NOT add a committed ordering field or artifact, and does NOT alter what the view SELECTS (only how it is ordered and named).
 - Scope-Paths: agent_workflows/attention.py, agent_workflows/attention_contract.py, agent_workflows/cli.py, agent_workflows/command_surface.py, agent_workflows/completion.py, docs/, README.md, tests/test_attention.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: worksequence
 - Order: 1
 - Highest E allocated: 10
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: i6015i
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - From-Backlog: 2k42zu
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: i6015i verified (set worksequence, attempt 1). [Scope reconciliation - out-of-scope tests/test_awcmdsurf_merge_and_renames.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_command_surface_declarations.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/completion.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_attention.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-02 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001 BLOCKER (-o depth uncomputable / second-scan violation) through PR-007 all fixed
 

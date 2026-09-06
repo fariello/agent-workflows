@@ -103,7 +103,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 
 ## worksequence
 
-- `i6015i` [pending] 01 pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md
+- `i6015i` [executed] 01 executed/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md
 
 ## attcompact
 

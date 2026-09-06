@@ -4180,6 +4180,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-08-31",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md",
+    "plan_id": "i6015i",
+    "set_id": "worksequence",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-01",
     "disposition": "executed",
     "kind": "child",
@@ -4447,16 +4457,6 @@
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
     "plan_id": "5e4sb6",
     "set_id": "rununify",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-31",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md",
-    "plan_id": "i6015i",
-    "set_id": "worksequence",
     "status": "approved"
   },
   {
