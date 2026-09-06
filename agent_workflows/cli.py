@@ -34,7 +34,7 @@ import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from . import __version__, config, discovery, engine, versioning
 from .project_schema import DeliveryMode, Preset, RecordsBackend
@@ -3406,6 +3406,155 @@ def _build_parser() -> argparse.ArgumentParser:
         "--allow-insecure",
         action="store_true",
         help="Permit a non-https baseURL, and only for a loopback host.",
+    )
+
+    # runprofile Order 02 (p0l1to) E-03: `aw oc profile <verb>`, a FIXED namespace of five verbs
+    # for named launch profiles (`gem`, `sonnet`, `sol`). Declared here with STRUCTURED flags and
+    # dispatched from the parsed namespace, like `update-models` and UNLIKE `aw oc run`, whose
+    # argparse.REMAINDER forwarding exists so the driver's own parser owns its flag set. A profile
+    # verb has no second parser to stay in step with, so REMAINDER would only cost the user
+    # `--help`, tab-completion, and argparse's own error messages.
+    #
+    # THE VERBS ARE FIXED, WHICH IS THE POINT. A profile name never becomes a command: it is only
+    # ever an argument (`profile show gem`, and later `run as gem`), so `status`/`report`/`run`
+    # remain legal profile names and cannot shadow anything. Dynamic per-profile subcommands would
+    # make every new alias a namespace change, which the orchestrator (3m0urk) excludes by name.
+    p_oc_profile = oc_sub.add_parser(
+        "profile",
+        aliases=["profiles"],
+        parents=[common],
+        help="Manage named OpenCode launch profiles (add/list/show/remove/default), e.g. 'gem' -> a model + variant.",
+        description=(
+            "Create and manage named OpenCode launch profiles, so you can say `as gem` instead of "
+            "repeating `--model <provider/model> --variant high`. `add` runs an interactive wizard "
+            "on a TTY that lists the models your own OpenCode can see (read-only: it never "
+            "refreshes the catalog or edits your OpenCode config) and always lets you type an exact "
+            "identifier, including a private one no catalog lists. Profiles are stored in your "
+            "user-local runner-profiles.json, never in the repository, because a model identifier "
+            "can be institution-specific. Nothing is written unless you confirm, and making a "
+            "profile the default is a separate question that defaults to No."
+        ),
+    )
+    oc_profile_sub = p_oc_profile.add_subparsers(dest="oc_profile_command")
+
+    p_ocp_add = oc_profile_sub.add_parser(
+        "add",
+        parents=[common],
+        help="Create a profile: interactive wizard on a TTY, or fully specified with --model/--yes.",
+        description=(
+            "Create a named profile. With no flags on a TTY this starts the wizard (prompting for "
+            "the name when you omit it). For scripts, supply the COMPLETE definition: --model plus "
+            "--yes. An existing name is never silently overwritten; pass --replace to mean it. "
+            "Without a TTY, an incomplete invocation refuses rather than guessing."
+        ),
+    )
+    p_ocp_add.add_argument(
+        "name",
+        nargs="?",
+        help="Profile name (lowercase letters/digits/hyphens, e.g. gem).",
+    )
+    p_ocp_add.add_argument(
+        "--model",
+        help="Exact provider/model identifier (required for the noninteractive form).",
+    )
+    p_ocp_add.add_argument(
+        "--variant",
+        help="Provider-specific variant/reasoning effort (e.g. high). Omit for the provider default.",
+    )
+    # SPELLED `--oc-agent`, NOT `--agent`, and the reason is measured rather than stylistic. `--agent`
+    # is the repo-wide MACHINE-OUTPUT flag (declared once on the shared `common` parent at
+    # `agent_workflows/cli.py:729`, normative in `docs/cli-output-contract.md`), so overloading it on
+    # one verb would make one spelling mean two things. Worse, it does not merely shadow: argparse
+    # `parents=` SHARES the action OBJECT, and this file's `conflict_handler="resolve"` (see
+    # `_AwArgumentParser.__init__`) then mutates that shared object's `option_strings` IN PLACE.
+    # Measured: declaring `--agent` on a `parents=[common]` subparser emptied `common`'s own
+    # `--agent` option strings, after which `aw attention` parsed with `agent=True` always on and
+    # `aw oc profile add --agent` reported "unrecognized arguments". So the profile's OpenCode-agent
+    # field gets its own name; the CAPABILITY the plan asked for is unchanged.
+    p_ocp_add.add_argument(
+        "--oc-agent",
+        dest="oc_agent",
+        help="OpenCode agent to launch with (spelled --oc-agent because --agent selects machine-readable output).",
+    )
+    p_ocp_add.add_argument(
+        "--replace",
+        action="store_true",
+        help="Overwrite an existing profile of this name (required; there is no silent overwrite).",
+    )
+    p_ocp_add.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm the noninteractive form (required without a TTY; never sets a default).",
+    )
+    p_ocp_add.add_argument(
+        "--set-default",
+        action="store_true",
+        help="Also make this profile the default OpenCode profile (never implied).",
+    )
+
+    oc_profile_sub.add_parser(
+        "list",
+        aliases=["ls"],
+        parents=[common],
+        help="List every profile with its model, variant, agent, and which one is the default.",
+        description=(
+            "List your profiles. Human table on a TTY, aw.agent/v1 JSONL when piped or with "
+            "--agent, structured JSON with --json. An empty list is a clean result, not an error."
+        ),
+    )
+
+    p_ocp_show = oc_profile_sub.add_parser(
+        "show",
+        parents=[common],
+        help="Show one profile and the exact OpenCode launch it expands to.",
+        description=(
+            "Show one profile: its stored fields and the exact `opencode run` flags it expands to, "
+            "which is the same expansion the runner performs."
+        ),
+    )
+    p_ocp_show.add_argument("name", help="Profile name.")
+
+    p_ocp_remove = oc_profile_sub.add_parser(
+        "remove",
+        aliases=["rm"],
+        parents=[common],
+        help="Remove a profile; removing the default one requires an explicit decision.",
+        description=(
+            "Remove a profile. If it is the default for its runner, you must decide explicitly: "
+            "--clear-default drops the default, or --replacement NAME points it elsewhere. "
+            "Dropping the reference silently would quietly fall back to the host default model."
+        ),
+    )
+    p_ocp_remove.add_argument("name", help="Profile name.")
+    p_ocp_remove.add_argument(
+        "--clear-default",
+        action="store_true",
+        help="Also clear the runner default when this profile is it.",
+    )
+    p_ocp_remove.add_argument(
+        "--replacement",
+        help="Point the runner default at this profile instead of clearing it.",
+    )
+    p_ocp_remove.add_argument(
+        "--yes",
+        action="store_true",
+        help="Required without a TTY to confirm the removal.",
+    )
+
+    p_ocp_default = oc_profile_sub.add_parser(
+        "default",
+        parents=[common],
+        help="Set or clear the default OpenCode profile (used when you name none).",
+        description=(
+            "Set the default OpenCode profile, or clear it with --clear. The default applies only "
+            "when an invocation names no profile and passes no explicit --model."
+        ),
+    )
+    p_ocp_default.add_argument(
+        "name", nargs="?", help="Profile name (omit with --clear)."
+    )
+    p_ocp_default.add_argument(
+        "--clear", action="store_true", help="Clear the default OpenCode profile."
     )
 
     p_agy = sub.add_parser(
@@ -9252,6 +9401,384 @@ def _rewrite_help_token(argv):
     return out
 
 
+# ==================================================================================================
+# runprofile Order 02 (p0l1to) E-03 / E-04: the `aw oc profile` verb runners.
+#
+# EVERY read, mutation, and write goes through `agent_workflows.runner_profiles` (Order 01,
+# `f2mrsw`), and the interview goes through `agent_workflows.runner_profile_wizard` (E-02). These
+# functions are argv-to-API adapters and nothing more: they hold no schema knowledge, no second
+# name grammar, no second precedence rule, and no store path of their own. That is deliberate, and
+# it is why `f2mrsw`'s docstring says later children "CONSUME this module; none of them may
+# re-parse or re-store profiles" - two copies of a validator diverge, and the copy that drifts is
+# whichever one is not covered by the other's tests.
+#
+# NOTHING HERE TOUCHES OPENCODE'S OWN CONFIGURATION. Model discovery is read-only
+# (`oc_models.discover_models`), and writing OpenCode's config remains the exclusive business of
+# `aw oc update-models`.
+# ==================================================================================================
+
+
+def _oc_profile_store_display(path: Any) -> Optional[str]:
+    """Render the store path `~`-preserved, so no machine record carries a home path.
+
+    The profile store lives under the user's config dir, so it is legitimately ABSOLUTE and
+    outside any repo; the output contract nevertheless requires path-valued fields to be free of
+    `/home/<user>/` (`docs/cli-output-contract.md:90`), and the leak-sanitizer enforces it. Reuses
+    `config._preserve_home`, which is the same conversion `aw config` already applies to its own
+    config path (`agent_workflows/cli.py:6154`), rather than a second home-stripping rule.
+    """
+
+    if path is None:
+        return None
+    return config._preserve_home(str(path))
+
+
+def _oc_profile_out(args, result, data: Optional[Dict[str, Any]] = None) -> int:
+    """Emit one profile-verb result through the SHARED output contract and return its exit code.
+
+    Human table/lines on a TTY, aw.agent/v1 JSONL when piped or `--agent`, structured JSON with
+    `--json` - the same `select_output` + `get_renderer` path every other owner verb uses
+    (`releases.run_list` is the model), so no verb-local formatter can drift from the contract.
+    """
+
+    from agent_workflows.renderers import get_renderer
+    from agent_workflows.result_types import select_output
+
+    ctx = select_output(args)
+    if data is not None:
+        result.data.update(data)
+    if ctx.is_agent or ctx.is_json:
+        return get_renderer(ctx).emit(result, ctx)
+    return -1  # sentinel: the caller renders the human view itself
+
+
+def _oc_profile_result(
+    verb: str,
+    status: str,
+    exit_code: int,
+    summary: str,
+    data: Optional[Dict[str, Any]] = None,
+):
+    from agent_workflows.result_types import CommandResult
+
+    return CommandResult(
+        command=f"oc profile {verb}",
+        status=status,
+        exit_code=exit_code,
+        summary=summary,
+        data=dict(data or {}),
+        verified=exit_code == 0,
+        complete=exit_code == 0,
+    )
+
+
+def _oc_profile_error(args, verb: str, message: str) -> int:
+    """Report an actionable failure: exit 2, and never a traceback (E-03)."""
+
+    result = _oc_profile_result(verb, "cannot-run", 2, message)
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+    print(f"error: {message}", file=sys.stderr)
+    return 2
+
+
+def _run_oc_profile(args, verb: str) -> int:
+    """Dispatch one `aw oc profile <verb>`, converting every typed store error into exit 2."""
+
+    from agent_workflows import runner_profiles as rp
+
+    handlers = {
+        "add": _oc_profile_add,
+        "list": _oc_profile_list,
+        "ls": _oc_profile_list,
+        "show": _oc_profile_show,
+        "remove": _oc_profile_remove,
+        "rm": _oc_profile_remove,
+        "default": _oc_profile_default,
+    }
+    handler = handlers.get(verb)
+    if handler is None:  # pragma: no cover - argparse already restricts the choices
+        return _oc_profile_error(args, verb, f"unknown profile verb {verb!r}")
+    try:
+        return handler(args)
+    except rp.RunnerProfileError as exc:
+        # A malformed store, a dangling default, a refused overwrite: all typed, all actionable,
+        # none a traceback. `runner_profiles` never degrades a broken file to "empty", so an
+        # unreadable config surfaces HERE rather than silently launching the host default model.
+        return _oc_profile_error(args, verb, str(exc))
+    except OSError as exc:
+        return _oc_profile_error(args, verb, f"cannot access the profile store: {exc}")
+
+
+def _oc_profile_add(args) -> int:
+    """`aw oc profile add [NAME]`: the wizard on a TTY, or a COMPLETE noninteractive definition.
+
+    THE TWO FORMS ARE DELIBERATELY DISJOINT. Interactive means a TTY and no `--model`; the wizard
+    prompts for whatever is missing, including the name. Noninteractive requires `--model` AND
+    `--yes`, because a script that half-specifies a launch profile should fail loudly rather than
+    have a model chosen for it. Without a TTY an incomplete invocation refuses (exit 2) and writes
+    nothing: it does not fall back to a guess, and it does not block on a prompt no one can answer.
+    """
+
+    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+
+    name = getattr(args, "name", None)
+    model = getattr(args, "model", None)
+    variant = getattr(args, "variant", None)
+    oc_agent = getattr(args, "oc_agent", None)
+    replace = bool(getattr(args, "replace", False))
+    assume_yes = bool(getattr(args, "yes", False))
+    set_default = bool(getattr(args, "set_default", False))
+    interactive = bool(getattr(sys.stdin, "isatty", None) and sys.stdin.isatty())
+
+    if model is None:
+        # ---- interactive form ---------------------------------------------------------------
+        if not interactive:
+            return _oc_profile_error(
+                args,
+                "add",
+                "no TTY and no --model: the noninteractive form needs at least "
+                "'--model <provider/model> --yes'. Nothing was written.",
+            )
+        if assume_yes:
+            return _oc_profile_error(
+                args,
+                "add",
+                "--yes needs the complete noninteractive form (--model <provider/model>); "
+                "it cannot pre-confirm answers the wizard has not asked yet.",
+            )
+        io = wiz.WizardIO(ask=input, emit=lambda line: print(line), save=rp.save)
+        result = wiz.run_wizard(io, name, replace=replace)
+        return 0 if result.saved else 1
+
+    # ---- noninteractive form ----------------------------------------------------------------
+    if not name:
+        return _oc_profile_error(
+            args, "add", "a profile NAME is required with --model."
+        )
+    if not assume_yes:
+        return _oc_profile_error(
+            args,
+            "add",
+            "--yes is required for the noninteractive form (it is the confirmation the wizard "
+            "would otherwise ask for). Nothing was written.",
+        )
+
+    cfg = rp.load()
+    profile = rp.parse_profile(
+        name,
+        {
+            "runner": wiz.RUNNER,
+            "model": model,
+            **({"variant": variant} if variant else {}),
+            **({"agent": oc_agent} if oc_agent else {}),
+        },
+    )
+    # `add_profile` is the no-clobber authority: it raises ProfileExistsError without --replace, so
+    # this path cannot silently overwrite an alias the user forgot existed.
+    new_cfg = rp.add_profile(cfg, name, profile, replace=replace)
+    if set_default:
+        new_cfg = rp.set_default_profile(new_cfg, name)
+    # ONE atomic write for the profile AND any accepted default (E-04).
+    path = rp.save(new_cfg)
+
+    data = {
+        "profile": dict(wiz.profile_dict(name, profile)),
+        "store": _oc_profile_store_display(path),
+        "default_profile": new_cfg.default_profile_for(wiz.RUNNER),
+        "replaced": bool(cfg.profiles.get(name)),
+    }
+    summary = f"saved profile {name!r} ({profile.model})"
+    if set_default:
+        summary += "; now the default OpenCode profile"
+    result = _oc_profile_result("add", "ok", 0, summary, data)
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+    for line in wiz.preview_lines(name, profile):
+        print(line)
+    print("")
+    print(f"Saved. Use it with: aw oc run as {name}")
+    if set_default:
+        print(f"{name!r} is now the default OpenCode profile.")
+    return 0
+
+
+def _oc_profile_list(args) -> int:
+    """`aw oc profile list`: every profile, plus which one is the default. Empty is CLEAN."""
+
+    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+
+    cfg = rp.load()
+    names = sorted(cfg.profiles)
+    default_name = cfg.default_profile_for(wiz.RUNNER)
+    entries = [dict(wiz.profile_dict(n, cfg.profiles[n])) for n in names]
+    for entry in entries:
+        entry["is_default"] = entry["name"] == default_name
+
+    data = {
+        "profiles": entries,
+        "count": len(entries),
+        "default_profile": default_name,
+        "default_runner": cfg.default_runner,
+        "config_present": cfg.present,
+        "store": _oc_profile_store_display(cfg.source),
+    }
+    result = _oc_profile_result(
+        "list", "clean", 0, f"{len(entries)} runner profile(s)", data
+    )
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+
+    term = Term(color=False if getattr(args, "no_color", False) else None)
+    if not entries:
+        from agent_workflows.result_types import NextAction
+
+        term.empty_result(
+            summary="no runner profiles configured",
+            next_action=NextAction(
+                command="aw oc profile add gem",
+                description="create one with the model selector",
+            ),
+        )
+        return 0
+    rows = [
+        [
+            entry["name"] + (" *" if entry["is_default"] else ""),
+            entry["runner"],
+            entry["model"],
+            entry["variant"] or "-",
+            entry["agent"] or "-",
+        ]
+        for entry in entries
+    ]
+    sys.stdout.write(
+        term.format_table(["NAME", "RUNNER", "MODEL", "VARIANT", "AGENT"], rows) + "\n"
+    )
+    if default_name:
+        sys.stdout.write(f"\n* default OpenCode profile: {default_name}\n")
+    return 0
+
+
+def _oc_profile_show(args) -> int:
+    """`aw oc profile show NAME`: one profile and the EXACT OpenCode launch it expands to."""
+
+    from agent_workflows import runner_profile_wizard as wiz, runner_profiles as rp
+
+    cfg = rp.load()
+    name = args.name
+    profile = cfg.get(
+        name
+    )  # raises ProfileNotFoundError -> exit 2 with the known-name list
+    entry = dict(wiz.profile_dict(name, profile))
+    entry["is_default"] = cfg.default_profile_for(wiz.RUNNER) == name
+    result = _oc_profile_result(
+        "show", "clean", 0, f"{name} -> {profile.model}", {"profile": entry}
+    )
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+    for line in wiz.preview_lines(name, profile):
+        print(line)
+    if entry["is_default"]:
+        print("")
+        print(f"{name!r} is the default OpenCode profile.")
+    return 0
+
+
+def _oc_profile_remove(args) -> int:
+    """`aw oc profile remove NAME`: removing a REFERENCED default requires an explicit decision.
+
+    `runner_profiles.remove_profile` owns that rule and raises when the caller has not decided, so
+    this verb only surfaces the choice; it never picks one. Silently dropping the reference would
+    leave the user's unqualified runs quietly on the host default model.
+    """
+
+    from agent_workflows import runner_profiles as rp
+
+    name = args.name
+    clear_default = bool(getattr(args, "clear_default", False))
+    replacement = getattr(args, "replacement", None)
+    assume_yes = bool(getattr(args, "yes", False))
+    interactive = bool(getattr(sys.stdin, "isatty", None) and sys.stdin.isatty())
+
+    if not assume_yes and not interactive:
+        return _oc_profile_error(
+            args,
+            "remove",
+            f"refusing to remove {name!r} without a TTY: pass --yes to confirm. "
+            "Nothing was changed.",
+        )
+
+    cfg = rp.load()
+    cfg.get(name)  # existence check first, so the confirmation names a real profile
+    if not assume_yes:
+        term = Term(color=False if getattr(args, "no_color", False) else None)
+        if not _confirm(term, f"Remove profile {name!r}?", False):
+            print("Nothing was changed.")
+            return 1
+
+    new_cfg = rp.remove_profile(
+        cfg, name, clear_default=clear_default, replacement=replacement
+    )
+    path = rp.save(new_cfg)
+    data = {
+        "removed": name,
+        "store": _oc_profile_store_display(path),
+        "default_profile": new_cfg.default_profile_for("oc"),
+        "remaining": sorted(new_cfg.profiles),
+    }
+    result = _oc_profile_result("remove", "ok", 0, f"removed profile {name!r}", data)
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+    print(f"Removed profile {name!r}.")
+    remaining = new_cfg.default_profile_for("oc")
+    if remaining:
+        print(f"Default OpenCode profile: {remaining}")
+    return 0
+
+
+def _oc_profile_default(args) -> int:
+    """`aw oc profile default [NAME|--clear]`: set or clear the default OpenCode profile."""
+
+    from agent_workflows import runner_profiles as rp
+
+    name = getattr(args, "name", None)
+    clear = bool(getattr(args, "clear", False))
+    if clear and name:
+        return _oc_profile_error(
+            args, "default", "choose one: a profile NAME or --clear, not both."
+        )
+    if not clear and not name:
+        return _oc_profile_error(
+            args, "default", "name a profile, or pass --clear to clear the default."
+        )
+
+    cfg = rp.load()
+    if clear:
+        new_cfg = rp.clear_default_profile(cfg, "oc")
+        summary = "cleared the default OpenCode profile"
+    else:
+        new_cfg = rp.set_default_profile(
+            cfg, str(name)
+        )  # raises when NAME does not exist
+        summary = f"default OpenCode profile is now {name!r}"
+    path = rp.save(new_cfg)
+    data = {
+        "default_profile": new_cfg.default_profile_for("oc"),
+        "store": _oc_profile_store_display(path),
+    }
+    result = _oc_profile_result("default", "ok", 0, summary, data)
+    rc = _oc_profile_out(args, result)
+    if rc != -1:
+        return rc
+    print(summary + ".")
+    return 0
+
+
 def _show_family_help(
     parser: argparse.ArgumentParser,
     cmd_name: str,
@@ -9826,6 +10353,19 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 if getattr(args, flag, False):
                     forwarded.append("--" + flag.replace("_", "-"))
             return oc_models.run(forwarded)
+        # runprofile Order 02 (p0l1to) E-03: the profile verbs. Structured flags, so dispatched from
+        # the parsed namespace (like `update-models`) rather than forwarded as REMAINDER.
+        if oc_cmd in ("profile", "profiles"):
+            profile_cmd = getattr(args, "oc_profile_command", None)
+            if profile_cmd is None:
+                return _show_family_help(
+                    parser,
+                    "oc",
+                    "aw oc profile list | aw oc profile add gem",
+                    term,
+                    context,
+                )
+            return _run_oc_profile(args, profile_cmd)
         return _show_family_help(
             parser,
             "oc",

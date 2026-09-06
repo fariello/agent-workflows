@@ -31,6 +31,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import subprocess
 import tempfile
 import urllib.error
 import urllib.request
@@ -149,6 +151,280 @@ def _classify_target(path: Path) -> ConfigTarget:
             path, False, f"not parseable as JSON ({type(exc).__name__})"
         )
     return ConfigTarget(path, True)
+
+
+# --------------------------------------------------------------------------------------
+# runprofile Order 02 (p0l1to) E-01: the READ-ONLY model catalog
+#
+# The profile wizard needs to show the user the models THEIR OpenCode can actually see. That
+# is a different job from everything else in this module: `update-models` WRITES the config
+# after talking to a gateway over the network, whereas this reads and writes NOTHING. It
+# lives here anyway because this file is the established OpenCode boundary
+# (`resolve_config_path` above already mirrors OpenCode's own config discovery), and forking
+# those path rules into a second module is how two copies of a lookup drift apart.
+#
+# FOUR PROPERTIES, each one a way a naive implementation would have gone wrong:
+#
+# 1. NO REFRESH, NO WRITE. `opencode models --refresh` re-fetches the cache from models.dev,
+#    which is a network call and a mutation of the user's cache. The argv is built by
+#    `catalog_argv` and checked against :data:`FORBIDDEN_CATALOG_FLAGS`, so a refresh or write
+#    flag cannot be added by accident; profile creation is READ-ONLY toward OpenCode.
+# 2. ARGV LIST, `shell=False`. The executable name comes from configuration, so composing a
+#    shell string would make the config file a command-injection surface.
+# 3. AN EMPTY CATALOG IS NEVER A SUCCESS. Missing binary, timeout, nonzero exit, output that
+#    parses to nothing, and an empty list are each a NAMED diagnostic (:data:`CATALOG_*`), never
+#    a successful empty list. `ModelCatalog.available` is literally `bool(models)`, so
+#    "succeeded with no models" is unrepresentable rather than merely discouraged. A wizard that
+#    green-washed a discovery failure into "your OpenCode has no models" would push the user
+#    toward the wrong fix.
+# 4. THE FALLBACK CARRIES NO SECRET. When the CLI cannot answer, the STATICALLY DECLARED model
+#    ids in the user's own config are still useful (they include the private ones a public
+#    catalog omits). Only `provider.<name>.models.<id>` keys are read; the options block and
+#    every other credential-bearing field are never touched, so no `resolve_api_key` call and no
+#    credential can reach the output.
+# --------------------------------------------------------------------------------------
+
+#: Bounded wall-clock budget for the catalog subprocess. A hung `opencode` must not hang a
+#: wizard prompt forever; the timeout becomes a named diagnostic and the user types a model.
+CATALOG_TIMEOUT = 20.0
+
+#: Flags that would make the catalog probe non-read-only. Checked by `catalog_argv`.
+FORBIDDEN_CATALOG_FLAGS: Tuple[str, ...] = (
+    "--refresh",
+    "--apply",
+    "--write",
+    "--update",
+)
+
+#: Where a catalog's model ids came from.
+CATALOG_SOURCE_CLI = "opencode-cli"
+CATALOG_SOURCE_CONFIG = "opencode-config"
+CATALOG_SOURCE_NONE = "none"
+
+#: Named unavailability diagnostics. One per distinguishable failure, because "no models" and
+#: "opencode is not installed" call for different user action.
+CATALOG_MISSING_BINARY = "executable-not-found"
+CATALOG_TIMED_OUT = "timeout"
+CATALOG_NONZERO_EXIT = "nonzero-exit"
+CATALOG_UNPARSEABLE = "unparseable-output"
+CATALOG_NO_MODELS = "no-models-listed"
+CATALOG_NO_CONFIG = "no-config-found"
+
+# ANSI CSI/OSC noise a colorized CLI may emit even when piped. Stripped before parsing so a
+# styled `provider/model` is still recognized rather than silently dropped.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+
+# The accepted record shape. Deliberately the SAME grammar the profile schema stores
+# (`runner_profiles.MODEL_RE`), resolved lazily in `_model_re` so a discovered model can always
+# be saved: two independent notions of "a valid model id" would let the wizard offer a value the
+# store then refuses.
+_FALLBACK_MODEL_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9._+:-]*(?:/[A-Za-z0-9][A-Za-z0-9._+:-]*)+$"
+)
+
+
+class ModelCatalog(NamedTuple):
+    """A read-only snapshot of the models this user's OpenCode can see.
+
+    ``available`` is derived from ``models`` rather than stored, so a "successful empty
+    catalog" cannot be constructed. ``reason`` is EMPTY only when the CLI answered; when the
+    config fallback supplied the ids it still records WHY the CLI did not, so a degraded
+    catalog is never silent.
+    """
+
+    models: Tuple[str, ...] = ()
+    source: str = CATALOG_SOURCE_NONE
+    reason: str = ""
+    detail: str = ""
+
+    @property
+    def available(self) -> bool:
+        return bool(self.models)
+
+
+def _model_re():
+    """The profile schema's model grammar, with a local fallback if it cannot be imported."""
+
+    try:
+        from agent_workflows import runner_profiles as _rp
+
+        return _rp.MODEL_RE
+    except (
+        Exception
+    ):  # pragma: no cover - defensive; keeps discovery working standalone
+        return _FALLBACK_MODEL_RE
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI CSI/OSC sequences from ``text``."""
+
+    return _ANSI_RE.sub("", text)
+
+
+def catalog_argv(opencode: str = "opencode") -> List[str]:
+    """Return the EXACT argv for the read-only catalog probe.
+
+    Raises ``ValueError`` if the executable name itself smuggles in a forbidden flag, so the
+    read-only guarantee is structural rather than a comment.
+    """
+
+    argv = [str(opencode), "models"]
+    for token in argv:
+        if token in FORBIDDEN_CATALOG_FLAGS:
+            raise ValueError(
+                f"refusing to build a catalog probe containing {token!r}: model discovery is "
+                "read-only and must never refresh or write OpenCode state"
+            )
+    return argv
+
+
+def parse_models_output(text: str) -> Tuple[str, ...]:
+    """Parse `opencode models` output into exact, deduplicated ``provider/model`` ids.
+
+    ANSI noise and surrounding whitespace are normalized; a line that is not exactly one
+    ``provider/model`` record (blank lines, banners, progress text, bullets, trailing
+    annotations) is DROPPED rather than guessed at, because a guessed model id would be stored
+    and then launched. Order is first-seen, so the result is deterministic for a given input.
+    """
+
+    pattern = _model_re()
+    seen: Dict[str, None] = {}
+    for raw_line in strip_ansi(text or "").splitlines():
+        candidate = raw_line.strip()
+        if not candidate:
+            continue
+        if pattern.match(candidate):
+            seen.setdefault(candidate, None)
+    return tuple(seen)
+
+
+def models_from_config(config: Any) -> Tuple[str, ...]:
+    """Statically declared ``provider/model`` ids from a parsed OpenCode config.
+
+    Reads ONLY the per-provider model keys. It never looks at a provider's options block,
+    credential value, or headers, so no secret can reach the caller.
+    """
+
+    if not isinstance(config, Mapping):
+        return ()
+    providers = config.get("provider")
+    if not isinstance(providers, Mapping):
+        return ()
+    pattern = _model_re()
+    found: Dict[str, None] = {}
+    for provider_name, spec in providers.items():
+        if not isinstance(provider_name, str) or not isinstance(spec, Mapping):
+            continue
+        models = spec.get("models")
+        if not isinstance(models, Mapping):
+            continue
+        for model_id in models:
+            if not isinstance(model_id, str):
+                continue
+            candidate = f"{provider_name.strip()}/{model_id.strip()}"
+            if pattern.match(candidate):
+                found.setdefault(candidate, None)
+    return tuple(found)
+
+
+def catalog_from_config(
+    env: Optional[Mapping[str, str]] = None,
+    cwd: Optional[Path] = None,
+) -> Tuple[Tuple[str, ...], str]:
+    """Return ``(models, reason)`` from the user's own config, the no-secret fallback."""
+
+    target = resolve_config_path(env=env, cwd=cwd)
+    if target is None:
+        return (), CATALOG_NO_CONFIG
+    try:
+        parsed = json.loads(target.path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        # A `.jsonc` (or otherwise unparseable) config is not an error here: the caller already
+        # has a CLI diagnostic to report, and this path only ever ADDS ids.
+        return (), CATALOG_UNPARSEABLE
+    models = models_from_config(parsed)
+    return models, ("" if models else CATALOG_NO_MODELS)
+
+
+def discover_models(
+    opencode: str = "opencode",
+    *,
+    timeout: float = CATALOG_TIMEOUT,
+    runner: Optional[Callable[..., Any]] = None,
+    env: Optional[Mapping[str, str]] = None,
+    cwd: Optional[Path] = None,
+    allow_config_fallback: bool = True,
+) -> ModelCatalog:
+    """List the models this user's OpenCode can see, without refreshing or mutating anything.
+
+    ``runner`` is the injected subprocess boundary (defaults to ``subprocess.run``) so tests can
+    assert the exact argv, ``shell=False``, and the bounded timeout without executing anything.
+    Every failure yields an UNAVAILABLE catalog carrying a named ``reason``; none yields a
+    successful empty list.
+    """
+
+    run = subprocess.run if runner is None else runner
+    argv = catalog_argv(opencode)
+    reason = ""
+    detail = ""
+
+    try:
+        proc = run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            shell=False,
+            check=False,
+        )
+    except FileNotFoundError:
+        reason, detail = (
+            CATALOG_MISSING_BINARY,
+            f"{opencode!r} was not found on PATH",
+        )
+    except subprocess.TimeoutExpired:
+        reason, detail = (
+            CATALOG_TIMED_OUT,
+            f"{' '.join(argv)} did not finish within {timeout:g}s",
+        )
+    except OSError as exc:
+        reason, detail = (
+            CATALOG_MISSING_BINARY,
+            f"cannot execute {opencode!r}: {type(exc).__name__}",
+        )
+    else:
+        returncode = getattr(proc, "returncode", 1)
+        stdout = getattr(proc, "stdout", "") or ""
+        if returncode != 0:
+            reason, detail = (
+                CATALOG_NONZERO_EXIT,
+                f"{' '.join(argv)} exited {returncode}",
+            )
+        else:
+            models = parse_models_output(stdout)
+            if models:
+                return ModelCatalog(models=models, source=CATALOG_SOURCE_CLI)
+            if strip_ansi(stdout).strip():
+                reason, detail = (
+                    CATALOG_UNPARSEABLE,
+                    "no line of output was an exact provider/model identifier",
+                )
+            else:
+                reason, detail = (
+                    CATALOG_NO_MODELS,
+                    f"{' '.join(argv)} listed no models",
+                )
+
+    if allow_config_fallback:
+        fallback, _fallback_reason = catalog_from_config(env=env, cwd=cwd)
+        if fallback:
+            return ModelCatalog(
+                models=fallback,
+                source=CATALOG_SOURCE_CONFIG,
+                reason=reason,
+                detail=detail,
+            )
+    return ModelCatalog(source=CATALOG_SOURCE_NONE, reason=reason, detail=detail)
 
 
 # --------------------------------------------------------------------------------------
