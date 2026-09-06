@@ -4393,6 +4393,16 @@
     "date": "2026-09-04",
     "disposition": "executed",
     "kind": "child",
+    "order": 4,
+    "path": "executed/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md",
+    "plan_id": "5slbpi",
+    "set_id": "revsweep",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-04",
+    "disposition": "executed",
+    "kind": "child",
     "order": 5,
     "path": "executed/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md",
     "plan_id": "wpomxa",
@@ -4527,16 +4537,6 @@
     "path": "pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
     "plan_id": "rh5tt6",
     "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-04",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 4,
-    "path": "pending/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md",
-    "plan_id": "5slbpi",
-    "set_id": "revsweep",
     "status": "approved"
   },
   {
