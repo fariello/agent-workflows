@@ -36,13 +36,13 @@ input below is therefore expected to REFUSE.
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from agent_workflows import runner_shared as rs
 from tests.support import REPO_ROOT
-
 
 # ==================================================================================================
 # Synthetic-repo helpers
@@ -2214,6 +2214,1313 @@ class TheRejectedShapeWasNotTaken(unittest.TestCase):
         text = matches[0].read_text(encoding="utf-8")
         scope = next(ln for ln in text.splitlines() if ln.startswith("- Scope-Paths:"))
         self.assertNotIn("ipd_lint", scope)
+
+
+# ==================================================================================================
+# orchretire Order 03 (`pgq326`): WIRING BOTH HOSTS' DISPATCH
+#
+# WHAT THIS THIRD SECTION PINS, and why it is the half that makes the previous two REACHABLE. Children
+# 01 and 02 built a predicate and a transition that NOTHING CALLED: a correct mechanism that no real run
+# can reach is indistinguishable, from the outside, from the broken one it replaced. So the tests below
+# drive `run_queue` itself rather than the helpers, because the defect was never in a helper:
+#
+#   * the oc branch wrote a TERMINAL `dependency-blocked` on ANY failure, so an orchestrator whose
+#     children finished LATER IN THE SAME RUN was excluded forever, from an event named
+#     `orchestrator-deferred`;
+#   * one `else` covered two unrelated failures, so `kxkc04`'s "leave it queued" fix was right for one
+#     and would have SPUN on the other; and
+#   * the agy runner had NO `orchestrate` action and no branch reading one, so `aw agy run` would have
+#     spent an agent turn AUTHORING against a plan whose purpose the runner supersedes.
+#
+# EVERY TEST HERE RUNS ON BOTH HOSTS where the behavior is shared, because a one-host fix passes every
+# oc-only test - the exact failure `818uru` recorded when a guard written for one runner let the other
+# re-fork four symbols and DRIFT one of them.
+#
+# THE SPIN TESTS ARE NOT DEFENSIVE PADDING. `test_a_child_only_on_disk_terminates_instead_of_spinning`
+# pins a loop that was MEASURED, not imagined: with the naive "reconsider unless a child is dead" rule,
+# a scripted run dispatched the orchestrator 201 times without terminating, and the existing drain path
+# could not catch it because the drain is reached only when NOTHING is selectable while that
+# orchestrator stayed selectable forever.
+# ==================================================================================================
+
+
+def _dispatch_hosts():
+    """(label, module) for every host that must behave identically. Both, always."""
+
+    from agent_workflows import agy_runipd, oc_runipd
+
+    return (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
+
+
+class TheActionDecisionIsSHAREDCode(unittest.TestCase):
+    """E-04/V-04: both hosts must call the SAME decider object, not merely agree today.
+
+    Object identity rather than equal outputs, and the distinction is the whole point: two copies agree
+    until one is edited, which is precisely how `Heartbeat` DRIFTED after `render_stream` was extracted
+    with a one-sided guard. Equal outputs would pass against two copies.
+
+    THIS CLASS PROVES THE DECISION ONLY. The dispatched OUTCOME is `TheAgyHostActsOnTheDecision`'s, and
+    reading this class as evidence of host parity is the specific mistake `pgq326`'s gate warns about:
+    before that class existed, agy DECIDED `orchestrate` and then ignored it.
+    """
+
+    def test_both_hosts_bind_the_same_decider_object(self):
+        from agent_workflows import runner_shared
+
+        for name in ("action_for", "determine_action", "dispatch_orchestrator_item"):
+            objs = {label: getattr(mod, name) for label, mod in _dispatch_hosts()}
+            with self.subTest(symbol=name):
+                self.assertIs(
+                    objs["oc_runipd"],
+                    objs["agy_runipd"],
+                    f"{name} must be ONE shared object, not a copy per host",
+                )
+                self.assertIs(
+                    objs["oc_runipd"],
+                    getattr(runner_shared, name),
+                    f"{name} must be owned by runner_shared",
+                )
+
+    def test_neither_host_redefines_the_decider(self):
+        """The AST half. A stale local definition shadowed by a later import passes identity alone."""
+
+        import ast
+
+        for label, mod in _dispatch_hosts():
+            src = Path(str(mod.__file__)).read_text(encoding="utf-8")
+            defined = {
+                node.name
+                for node in ast.parse(src).body
+                if isinstance(
+                    node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                )
+            }
+            for name in (
+                "action_for",
+                "determine_action",
+                "dispatch_orchestrator_item",
+            ):
+                with self.subTest(host=label, symbol=name):
+                    self.assertNotIn(
+                        name,
+                        defined,
+                        f"{label} re-defines `{name}`; import the shared one instead",
+                    )
+
+    def test_an_approved_orchestrator_is_orchestrate_on_BOTH_hosts(self):
+        """The measured asymmetry: agy returned `execute` here and would have agent-executed it."""
+
+        for label, mod in _dispatch_hosts():
+            with self.subTest(host=label):
+                self.assertEqual(
+                    mod.action_for("orchestrator", "approved"), "orchestrate"
+                )
+                self.assertEqual(
+                    mod.action_for("orchestrator", "auto-approved"), "orchestrate"
+                )
+                # Past review, but NOT before it: a to-review orchestrator still needs its own review.
+                self.assertEqual(mod.action_for("orchestrator", "to-review"), "review")
+                self.assertEqual(mod.action_for("orchestrator", "draft"), "review")
+                # And an ordinary plan is untouched by any of this.
+                self.assertEqual(mod.action_for("child", "approved"), "execute")
+                self.assertEqual(mod.action_for(None, "approved"), "execute")
+
+    def test_the_agy_queue_entry_carries_kind(self):
+        """Without `kind` on the entry the shared decider cannot see an orchestrator at all.
+
+        Asserted through the real `build_dynamic_manifest` + `discover_plans` path rather than a
+        hand-built dict, because the defect was that agy's record type has no `kind` field and nothing
+        supplied it from anywhere else.
+        """
+
+        from agent_workflows import agy_runipd
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            d = root / ".aw" / "records" / "plans" / "pending"
+            d.mkdir(parents=True)
+            (d / "20260906-kindset-00-orck01-o.ipd.md").write_text(
+                "# IPD: o\n\n- Id: orck01\n- Kind: orchestrator\n- Set: kindset\n"
+                "- Order: 0\n- Status: approved\n",
+                encoding="utf-8",
+            )
+            found = agy_runipd.discover_plans(root)
+            manifest = agy_runipd.build_dynamic_manifest(root, found)
+            entry = manifest["plans"]["orck01"]
+            self.assertEqual(entry["kind"], "orchestrator")
+            self.assertEqual(
+                agy_runipd.action_for(entry["kind"], entry["status"]), "orchestrate"
+            )
+            # The record type itself is UNCHANGED: `818uru` pinned the two as distinct and that
+            # invariant is not this plan's to break.
+            self.assertNotIn("kind", agy_runipd.PlanRecord._fields)
+
+    def test_the_QUEUE_BUILD_derives_orchestrate_on_both_hosts(self):
+        """The real `initialize_run` queue entry, not just the decider called by hand.
+
+        THIS IS THE TEST THE OTHERS IN THIS CLASS CANNOT REPLACE, and its absence was found by
+        SABOTAGE: reverting agy's queue-build line back to `determine_action(status)` left every other
+        assertion here PASSING, because they read module attributes or call `action_for` directly and
+        none of them observes what `initialize_run` actually FREEZES onto the queue entry. The frozen
+        `action` is what the dispatch loop reads, so it is the value that decides whether an agent turn
+        is spent.
+        """
+
+        import argparse
+        import contextlib as _ctx
+        import io as _io
+        import subprocess
+
+        for label, module in _dispatch_hosts():
+            with self.subTest(host=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+                    subprocess.run(
+                        ["git", "config", "user.email", "t@e.com"], cwd=root, check=True
+                    )
+                    subprocess.run(
+                        ["git", "config", "user.name", "T"], cwd=root, check=True
+                    )
+                    for bucket, id6, order, status, kind in (
+                        ("pending", "orcq01", 0, "approved", "orchestrator"),
+                        ("executed", "chiq01", 1, "executed", "child"),
+                    ):
+                        d = root / ".aw" / "records" / "plans" / bucket
+                        d.mkdir(parents=True, exist_ok=True)
+                        (
+                            d / f"20260906-qbuild-{order:02d}-{id6}-synthetic.ipd.md"
+                        ).write_text(
+                            "# IPD: synthetic\n\n"
+                            f"- Date: 2026-09-06\n- Kind: {kind}\n- Id: {id6}\n"
+                            f"- Set: qbuild\n- Order: {order}\n- Status: {status}\n\n"
+                            "## Child IPDs, sequence, and dependencies\n\n"
+                            "| Order | Id | Child | Depends on |\n|---|---|---|---|\n"
+                            "| 01 | x | x | x |\n",
+                            encoding="utf-8",
+                        )
+                    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+                    subprocess.run(["git", "commit", "-qm", "s"], cwd=root, check=True)
+
+                    args = argparse.Namespace(
+                        repo=str(root),
+                        selectors=["qbuild"],
+                        manifest=None,
+                        runbook=None,
+                        model=None,
+                        agent=None,
+                        variant=None,
+                        opencode="opencode",
+                        antigravity="antigravity",
+                        full_auto=False,
+                        action=None,
+                        isolate_worktree=True,
+                        validate=None,
+                        retry_budget=None,
+                        prepare_only=True,
+                        profile=None,
+                        output_mode=None,
+                        new_session=False,
+                        verify=False,
+                        timeout=None,
+                        stall_timeout=None,
+                    )
+                    buf = _io.StringIO()
+                    with _ctx.redirect_stdout(buf), _ctx.redirect_stderr(buf):
+                        run_dir = module.initialize_run(args)
+                    state = json.loads(
+                        (Path(run_dir) / "state.json").read_text(encoding="utf-8")
+                    )
+                    entry = next(it for it in state["queue"] if it["id6"] == "orcq01")
+                    self.assertEqual(
+                        entry["action"],
+                        "orchestrate",
+                        f"{label} froze action={entry['action']!r} onto the queue entry; an "
+                        "'execute' here means the host will spend an AGENT TURN authoring "
+                        "against an orchestrator",
+                    )
+
+
+class DispatchRunCase(unittest.TestCase):
+    """Drives a host's real `run_queue` over a synthetic Set, with agent turns stubbed out.
+
+    Stubbing `execute_item` is not a shortcut around the thing under test: the thing under test is
+    exactly whether the ORCHESTRATOR path avoids `execute_item` while a CHILD reaches it, so the stub is
+    the instrument. It records every call, which is what lets a test assert "no agent turn".
+    """
+
+    PLAN = (
+        "# IPD: synthetic {kind}\n\n"
+        "- Date: 2026-09-06\n"
+        "- Kind: {kind}\n"
+        "- Id: {id6}\n"
+        "- Set: {setid}\n"
+        "- Order: {order}\n"
+        "- Status: {status}\n\n"
+        "## Child IPDs, sequence, and dependencies\n\n"
+        "| Order | Id | Child | Depends on |\n"
+        "|---|---|---|---|\n"
+        "{rows}"
+    )
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.addCleanup(self._tmp.cleanup)
+        self.turns: list[str] = []
+
+    def write_plan(self, *, bucket, id6, order, status, kind, setid, declared=()):
+        d = self.root / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        rows = "".join(f"| {tok} | x | x | x |\n" for tok in declared)
+        path = d / f"20260906-{setid}-{order:02d}-{id6}-synthetic.ipd.md"
+        path.write_text(
+            self.PLAN.format(
+                kind=kind,
+                id6=id6,
+                setid=setid,
+                order=order,
+                status=status,
+                rows=rows,
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def make_run(self, module, queue, *, run_id="run-dispatch"):
+        run_dir = self.root / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        state = {
+            "schema_version": 1,
+            "run_id": run_id,
+            "repo": str(self.root),
+            "created_at": "2026-09-06T00:00:00+00:00",
+            "updated_at": "2026-09-06T00:00:00+00:00",
+            "selectors": ["synthetic"],
+            "options": {},
+            "set_sessions": {},
+            "queue": queue,
+        }
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        return run_dir
+
+    def item(self, id6, setid, action, status, *, kind=None, deps=(), position=1):
+        return {
+            "position": position,
+            "id6": id6,
+            "setid": setid,
+            "action": action,
+            "kind": kind or ("orchestrator" if action == "orchestrate" else "child"),
+            "status": status,
+            "dependencies": list(deps),
+            "attempts": [],
+        }
+
+    def drive(self, module, run_dir, *, on_turn=None, budget=50):
+        """Run the queue with agent turns stubbed, and FAIL LOUDLY on a spin rather than hanging.
+
+        The budget is the spin detector. A test that merely hung would time the suite out with no
+        diagnosis; this reports the dispatch count, which is the number that distinguishes 1 from 201.
+        """
+
+        import contextlib as _ctx
+        import io as _io
+        from unittest.mock import patch
+
+        shared = module.dispatch_orchestrator_item
+        seen = {"n": 0}
+
+        def counted(*a, **kw):
+            seen["n"] += 1
+            if seen["n"] > budget:
+                raise AssertionError(
+                    f"SPIN: the orchestrator was dispatched {seen['n']} times without the run "
+                    "terminating; a RECONSIDERED item must become either retired or terminal"
+                )
+            return shared(*a, **kw)
+
+        def fake_exec(rd, st, it, *a, **kw):
+            self.turns.append(str(it.get("id6")))
+            if on_turn is not None:
+                on_turn(it)
+            else:
+                it["status"] = "executed"
+            module.save_state(rd, st)
+
+        buf = _io.StringIO()
+        with patch.object(module, "execute_item", side_effect=fake_exec):
+            with patch.object(
+                module, "dispatch_orchestrator_item", side_effect=counted
+            ):
+                with _ctx.redirect_stdout(buf), _ctx.redirect_stderr(buf):
+                    rc = module.run_queue(run_dir, retry_incomplete=False)
+        self.dispatch_count = seen["n"]
+        return rc, json.loads((run_dir / "state.json").read_text())
+
+    def events(self, run_dir):
+        path = run_dir / "events.jsonl"
+        if not path.exists():
+            return []
+        return [json.loads(ln) for ln in path.read_text().splitlines() if ln.strip()]
+
+    def statuses(self, state):
+        return {it["id6"]: it["status"] for it in state["queue"]}
+
+
+class AnOrchestratorIsRetiredMidRun(DispatchRunCase):
+    """V-01: the case the terminal write made IMPOSSIBLE.
+
+    The orchestrator is offered for dispatch BEFORE its last child finishes, so it must be RECONSIDERED
+    and then RE-SELECTED and retired in the SAME run.
+
+    WHERE RECONSIDERATION ACTUALLY HAPPENS, measured rather than assumed, because the plan expected the
+    dispatch branch to own it and it does not. `run_queue` has TWO deferral points for an `orchestrate`
+    item, and the FIRST one fires:
+
+      1. THE SELECTION GATE (`dependency_status`), which now asks the same shared decision. On
+         RECONSIDER it reports UNSATISFIED, so the item is skipped by the inner selection pass and left
+         `queued` with no status written, no event, and NO dispatch at all. That is the cheapest correct
+         reconsideration and it is the path a mid-run orchestrator takes.
+      2. THE DISPATCH BRANCH, reached once the gate admits it, which then retires or terminates it.
+
+    So RE-SELECTION here means "considered again on a later iteration and then dispatched", which is
+    asserted below by ITERATION COUNT and final state rather than by a dispatch count of 2: the first
+    consideration deliberately never reaches the dispatcher. An item left unlabelled and never
+    reconsidered at all would end the run `queued`, and that is the assertion that separates
+    reconsidered from forgotten.
+    """
+
+    def _set(self, setid="midrun"):
+        self.write_plan(
+            bucket="pending",
+            id6="orc100",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid=setid,
+            declared=("01",),
+        )
+        self.child = self.write_plan(
+            bucket="pending",
+            id6="chi100",
+            order=1,
+            status="approved",
+            kind="child",
+            setid=setid,
+        )
+
+    def test_reconsidered_then_retired_in_the_same_run_on_both_hosts(self):
+        for label, module in _dispatch_hosts():
+            with self.subTest(host=label):
+                self.setUp()
+                self._set()
+                run_dir = self.make_run(
+                    module,
+                    [
+                        # Position 1: the orchestrator is dispatched FIRST, which is what makes this a
+                        # test of reconsideration rather than of ordering.
+                        self.item(
+                            "orc100", "midrun", "orchestrate", "queued", position=1
+                        ),
+                        self.item("chi100", "midrun", "execute", "queued", position=2),
+                    ],
+                )
+
+                def finish_child(it):
+                    """The child's turn ALSO lands `Status: executed` on disk, as a real turn does."""
+                    it["status"] = "executed"
+                    text = self.child.read_text(encoding="utf-8")
+                    self.child.write_text(
+                        text.replace("- Status: approved", "- Status: executed"),
+                        encoding="utf-8",
+                    )
+
+                from unittest.mock import patch
+
+                # The TRANSITION is stubbed: this test is about the DISPATCH reaching it, and child 02
+                # already proves the transition itself against a real git repo. Stubbing keeps this
+                # test from silently re-testing `ueg5cf`.
+                from agent_workflows import ipd_lifecycle as LC
+
+                applied = []
+
+                class _Ok:
+                    exit_code = 0
+                    message = "stubbed retire"
+
+                def fake_retire(repo, plan_path, actor, **kw):
+                    applied.append((str(plan_path), kw.get("setid"), actor))
+                    return _Ok()
+
+                with patch.object(LC, "retire_orchestrator", side_effect=fake_retire):
+                    rc, state = self.drive(module, run_dir, on_turn=finish_child)
+
+                st = self.statuses(state)
+                self.assertEqual(
+                    st["chi100"], "executed", "the child must have run its turn"
+                )
+                self.assertEqual(
+                    st["orc100"],
+                    "executed",
+                    "the orchestrator must be RETIRED in this same run, not left blocked",
+                )
+                # RE-SELECTION, the property that distinguishes RECONSIDERED from FORGOTTEN. The
+                # orchestrator was offered at position 1 and DECLINED by the gate on the first
+                # iteration (unsatisfied, because its child had not run), then considered again on a
+                # later iteration and dispatched. Evidence: the child took its turn FIRST, and the
+                # orchestrator still reached the dispatcher afterwards.
+                self.assertEqual(
+                    self.dispatch_count,
+                    1,
+                    "the orchestrator must reach the dispatcher EXACTLY once: the first consideration "
+                    "is declined by the selection gate (RECONSIDER writes nothing and does not "
+                    "dispatch), and re-dispatching it more than once would be a spin",
+                )
+                self.assertEqual(
+                    self.turns,
+                    ["chi100"],
+                    "only the CHILD may consume an agent turn; the orchestrator must not",
+                )
+                self.assertTrue(applied, "the retirement transition must be reached")
+                # The ORDER is the re-selection proof: the child's turn must precede the retirement, so
+                # the orchestrator cannot have been retired on the first consideration.
+                names = [e["event"] for e in self.events(run_dir)]
+                self.assertIn("orchestrator-finalized", names)
+                # And it was NOT terminally labelled on the way, which is the whole defect.
+                self.assertEqual(
+                    [
+                        e
+                        for e in self.events(run_dir)
+                        if e["event"] == "orchestrator-deferred" and e.get("terminated")
+                    ],
+                    [],
+                    "an orchestrator whose children merely had not finished must never receive a "
+                    "TERMINAL disposition; that is the bug this plan fixes",
+                )
+
+    def test_an_unfinished_child_yields_RECONSIDER_and_never_a_TERMINAL_disposition(
+        self,
+    ):
+        """The RECONSIDER branch itself, exercised DIRECTLY. SABOTAGE-DRIVEN.
+
+        WHY THE END-TO-END TEST ABOVE CANNOT COVER THIS, discovered by sabotage rather than by reading.
+        Forcing the RECONSIDER branch to return TERMINATE left that test PASSING, because
+        `dependency_depth` treats every non-orchestrator Set member as a prerequisite of its
+        orchestrator, so `queue_sort_key` dispatches the CHILD FIRST no matter what positions the queue
+        declares (measured: child depth 0, orchestrator depth 1). By the time the orchestrator is
+        dispatched the Set is already complete, so the run never reaches the RECONSIDER branch and a
+        broken RECONSIDER is invisible to it.
+
+        That ordering is a FEATURE (it is why a mid-run retirement works at all), so the fix is not to
+        fight it but to test the branch on its own. This is the assertion that fails if RECONSIDER is
+        ever turned back into a terminal write, which is the exact defect this plan exists to fix.
+        """
+
+        self._set("recons")
+        decision = rs.decide_orchestrator_dispatch(
+            self.root,
+            "recons",
+            "orc100",
+            [
+                self.item("orc100", "recons", "orchestrate", "queued"),
+                # In the queue and NOT terminal: this run will still act on it.
+                self.item("chi100", "recons", "execute", "queued"),
+            ],
+            terminal_states={"failed-safely", "dependency-blocked", "executed"},
+            success_states={"executed"},
+        )
+        self.assertEqual(
+            decision.outcome,
+            rs.ORCH_DISPATCH_RECONSIDER,
+            "an unfinished child THIS RUN will act on must be RECONSIDERED, never terminal; "
+            f"got {decision.outcome!r} ({decision.detail})",
+        )
+        self.assertNotIn(
+            decision.outcome,
+            {rs.ORCH_DISPATCH_TERMINATE},
+            "the pre-pgq326 code wrote a TERMINAL dependency-blocked here",
+        )
+        self.assertEqual(decision.unfinished, (("chi100", "queued"),))
+
+    def test_the_reconsidered_item_is_left_queued_and_not_relabelled_by_the_cascade(
+        self,
+    ):
+        """The half of RECONSIDER that a status check alone cannot see (F-6).
+
+        `cascade_dependency_blocked` runs at the TOP of every iteration and propagates
+        `dependency-blocked` over reverse edges to a fixed point, so it could undo RECONSIDER through a
+        path the dispatch never touches. It reads only DECLARED `dependencies` edges, and an
+        orchestrator's child-set relationship is not one - asserted here rather than trusted.
+        """
+
+        from agent_workflows import oc_runipd
+
+        state = {
+            "repo": str(self.root),
+            "queue": [
+                self.item("orc100", "midrun", "orchestrate", "queued", position=1),
+                self.item("chi100", "midrun", "execute", "queued", position=2),
+            ],
+        }
+        self.assertEqual(oc_runipd.cascade_dependency_blocked(state), [])
+        self.assertEqual(self.statuses(state)["orc100"], "queued")
+
+
+class TheSelectionGateUsesTheSameDecision(DispatchRunCase):
+    """E-01: the gate is part of the wiring, and missing it left the mechanism UNREACHABLE.
+
+    THE MEASURED DEFECT, which is why this class exists at all. `dependency_status_detailed` has its own
+    `action == "orchestrate"` clause and it used the QUEUE-SCOPED `_set_children_all_executed`. Meanwhile
+    `initialize_run` derives an already-`executed` child's RUN status as `reviewed` (only
+    to-review/draft/approved/auto-approved become `queued`). So for the PRIMARY case spec R-1 names --
+    `aw oc run <setid>` on a Set whose children executed in EARLIER runs -- the gate reported
+    `satisfied=False, missing=['executed:<child>']` while the on-disk verdict was `eligible=True`, and
+    the orchestrator was never selected at all. Wiring only the dispatch branch would have fixed nothing
+    for that run, because the dispatch branch was never reached.
+
+    Two predicates answering one question is also how `cascade_dependency_blocked` and this function once
+    gave OPPOSITE verdicts (runorder F-7), so the gate now asks the same shared decision.
+    """
+
+    def _set(self, setid, child_bucket, child_status):
+        self.write_plan(
+            bucket="pending",
+            id6="orc600",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid=setid,
+            declared=("01",),
+        )
+        self.write_plan(
+            bucket=child_bucket,
+            id6="chi600",
+            order=1,
+            status=child_status,
+            kind="child",
+            setid=setid,
+        )
+
+    def test_a_cross_run_complete_set_is_ADMITTED_by_the_gate(self):
+        """The R-1 case: an already-`executed` child, which the OLD gate counted as unfinished.
+
+        THE QUEUE SHAPE IS THE TEST, and getting it wrong makes this vacuous. `initialize_run` derives
+        an already-`executed` child's RUN status as `reviewed`, NOT `executed` (only
+        to-review/draft/approved/auto-approved become `queued`; everything else becomes `reviewed`), so
+        the child IS in the queue and the old queue-scoped check saw `unfinished=['chi600']` and BLOCKED.
+
+        An earlier draft of this test put the orchestrator in the queue ALONE. That version passed even
+        with the fix reverted, because the old check's no-children branch returned `(False, [])` and an
+        empty list blocks nothing -- it was measuring nothing at all. Verified by reverting the gate: the
+        realistic shape below FAILS, the orchestrator-only shape did not.
+        """
+
+        from agent_workflows import oc_runipd
+
+        self._set("crossrun", "executed", "executed")
+        orch = self.item("orc600", "crossrun", "orchestrate", "queued", position=1)
+        # `reviewed` is exactly what `initialize_run` writes for a plan already `executed` on disk.
+        child = self.item("chi600", "crossrun", "execute", "reviewed", position=2)
+        state = {"repo": str(self.root), "queue": [orch, child]}
+        satisfied, missing, why = oc_runipd.dependency_status_detailed(orch, state)
+        self.assertTrue(
+            satisfied,
+            f"the gate must ADMIT a Set that is complete on disk; it reported missing={missing} "
+            f"reasons={why}",
+        )
+        self.assertEqual(missing, [])
+
+    def test_the_gate_is_not_vacuous_for_the_orchestrator_only_queue_either(self):
+        """The other cross-run shape: `aw oc run <orchestrator-id6>` with no child in the queue."""
+
+        from agent_workflows import oc_runipd
+
+        self._set("crossrn2", "executed", "executed")
+        item = self.item("orc600", "crossrn2", "orchestrate", "queued")
+        state = {"repo": str(self.root), "queue": [item]}
+        satisfied, missing, _why = oc_runipd.dependency_status_detailed(item, state)
+        self.assertTrue(satisfied, f"missing={missing}")
+
+    def test_the_gate_still_makes_a_LIVE_child_wait(self):
+        """The gate must not become a rubber stamp: a child this run will run still blocks."""
+
+        from agent_workflows import oc_runipd
+
+        self._set("waiting", "pending", "approved")
+        orch = self.item("orc600", "waiting", "orchestrate", "queued", position=1)
+        child = self.item("chi600", "waiting", "execute", "queued", position=2)
+        state = {"repo": str(self.root), "queue": [orch, child]}
+        satisfied, missing, why = oc_runipd.dependency_status_detailed(orch, state)
+        self.assertFalse(satisfied, "an unfinished in-queue child must still gate")
+        self.assertEqual(missing, ["executed:chi600"])
+        # The reason names the child AND its actual status, so the record can substantiate the wait.
+        self.assertIn("chi600", why["executed:chi600"])
+        self.assertIn("queued", why["executed:chi600"])
+
+    def test_a_TERMINATE_verdict_is_admitted_so_it_gets_its_SPECIFIC_reason(self):
+        """Deliberately admitted, and the alternative is the `5e4sb6` record.
+
+        If the gate BLOCKED a terminal verdict, the item would be left to the drain path, which labels
+        it `dependency-blocked` with whatever this function reported. For the no-children case that list
+        is EMPTY, producing exactly the recorded event that named no dependency at all while the summary
+        claimed an unmet one. Admitting it routes it to the dispatch branch, which writes the typed
+        cause.
+        """
+
+        from agent_workflows import oc_runipd
+
+        # No children at all: a TERMINATE verdict.
+        self.write_plan(
+            bucket="pending",
+            id6="orc601",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="nokid2",
+            declared=("01",),
+        )
+        item = self.item("orc601", "nokid2", "orchestrate", "queued")
+        state = {"repo": str(self.root), "queue": [item]}
+        satisfied, missing, _why = oc_runipd.dependency_status_detailed(item, state)
+        self.assertTrue(
+            satisfied,
+            "a TERMINATE verdict must reach the dispatch branch, or its specific reason is lost",
+        )
+        self.assertEqual(missing, [])
+
+    def test_the_gate_and_the_dispatch_cannot_disagree(self):
+        """One shared decision, so the two sites cannot give opposite verdicts about one plan."""
+
+        import ast
+
+        from agent_workflows import oc_runipd
+
+        src = Path(str(oc_runipd.__file__)).read_text(encoding="utf-8")
+        fn = next(
+            n
+            for n in ast.parse(src).body
+            if isinstance(n, ast.FunctionDef) and n.name == "dependency_status_detailed"
+        )
+        body = ast.unparse(fn)
+        self.assertIn(
+            "decide_orchestrator_dispatch",
+            body,
+            "the selection gate must consult the SHARED decision, not a second predicate",
+        )
+        self.assertNotIn(
+            "_set_children_all_executed",
+            body,
+            "the gate must no longer use the QUEUE-SCOPED check; that is what made the "
+            "cross-run case unreachable",
+        )
+
+
+class ADeadSetTerminatesInsteadOfLooping(DispatchRunCase):
+    """V-03: a child that can never become `executed` must END the run, with a naming reason."""
+
+    def test_a_terminally_failed_child_terminates_with_a_reason_naming_it(self):
+        for label, module in _dispatch_hosts():
+            with self.subTest(host=label):
+                self.setUp()
+                self.write_plan(
+                    bucket="pending",
+                    id6="orc200",
+                    order=0,
+                    status="approved",
+                    kind="orchestrator",
+                    setid="deadset",
+                    declared=("01",),
+                )
+                self.write_plan(
+                    bucket="pending",
+                    id6="chi200",
+                    order=1,
+                    status="approved",
+                    kind="child",
+                    setid="deadset",
+                )
+                run_dir = self.make_run(
+                    module,
+                    [
+                        self.item(
+                            "orc200", "deadset", "orchestrate", "queued", position=1
+                        ),
+                        # Already dead: this run cannot make it `executed`.
+                        self.item(
+                            "chi200", "deadset", "execute", "failed-safely", position=2
+                        ),
+                    ],
+                )
+                rc, state = self.drive(module, run_dir)
+
+                self.assertIn(
+                    self.statuses(state)["orc200"],
+                    rs_terminal(module),
+                    "a dead Set's orchestrator must be TERMINAL, not left reconsiderable forever",
+                )
+                self.assertEqual(self.turns, [], "no agent turn may be spent")
+                deferred = [
+                    e
+                    for e in self.events(run_dir)
+                    if e["event"] == "orchestrator-deferred"
+                ]
+                self.assertTrue(deferred, "the refusal must be recorded")
+                last = deferred[-1]
+                self.assertTrue(last["terminated"])
+                self.assertIn(
+                    "chi200",
+                    last["detail"],
+                    f"the reason must NAME the dead child; got {last['detail']!r}",
+                )
+
+    def test_a_child_only_on_disk_terminates_instead_of_spinning(self):
+        """THE MEASURED SPIN (E-03/OQ-01), pinned so it cannot come back.
+
+        `dependency_status` gates an `orchestrate` item on its IN-QUEUE children, so when every queued
+        child is `executed` the orchestrator is SELECTABLE even though a child on disk is unfinished. A
+        naive RECONSIDER then re-dispatches it forever, and the drain path never sees it because the
+        drain is reached only when nothing is selectable. Measured before the fix: 201 dispatches.
+        """
+
+        for label, module in _dispatch_hosts():
+            with self.subTest(host=label):
+                self.setUp()
+                self.write_plan(
+                    bucket="pending",
+                    id6="orc300",
+                    order=0,
+                    status="approved",
+                    kind="orchestrator",
+                    setid="spinset",
+                    declared=("01", "02"),
+                )
+                self.write_plan(
+                    bucket="executed",
+                    id6="chia03",
+                    order=1,
+                    status="executed",
+                    kind="child",
+                    setid="spinset",
+                )
+                # Unfinished ON DISK and absent from the queue: nothing this run does can finish it.
+                self.write_plan(
+                    bucket="pending",
+                    id6="chib03",
+                    order=2,
+                    status="approved",
+                    kind="child",
+                    setid="spinset",
+                )
+                run_dir = self.make_run(
+                    module,
+                    [
+                        self.item(
+                            "orc300", "spinset", "orchestrate", "queued", position=1
+                        ),
+                        self.item(
+                            "chia03", "spinset", "execute", "executed", position=2
+                        ),
+                    ],
+                )
+                rc, state = self.drive(module, run_dir, budget=25)
+
+                self.assertLessEqual(
+                    self.dispatch_count,
+                    2,
+                    "a decision this run cannot change must be made ONCE, not re-evaluated",
+                )
+                self.assertIn(self.statuses(state)["orc300"], rs_terminal(module))
+                deferred = [
+                    e
+                    for e in self.events(run_dir)
+                    if e["event"] == "orchestrator-deferred"
+                ]
+                self.assertEqual(
+                    deferred[-1]["reason"], rs.ORCH_REASON_CHILDREN_NOT_IN_RUN
+                )
+                self.assertIn("chib03", deferred[-1]["detail"])
+
+
+class TheFourRefusalReasonsAreDistinguishable(DispatchRunCase):
+    """V-02: spec R-9. Four different facts must not share one message.
+
+    The defect being measured: `5e4sb6`'s durable event carried `unfinished_children: []` while the run
+    summary read "dependency-blocked (unmet dependencies)", naming no dependency at all - because the
+    no-children branch returned `(False, [])` and every cause collapsed into one write.
+    """
+
+    def _decide(self, setid):
+        return rs.decide_orchestrator_dispatch(
+            self.root,
+            setid,
+            "orc400",
+            [],
+            terminal_states={"failed-safely", "dependency-blocked", "executed"},
+            success_states={"executed"},
+        )
+
+    def test_each_cause_yields_a_DISTINCT_reason_and_a_detail_that_substantiates_it(
+        self,
+    ):
+        # 1. no children at all.
+        self.write_plan(
+            bucket="pending",
+            id6="orc400",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="nokids",
+            declared=("01",),
+        )
+        nokids = self._decide("nokids")
+
+        # 2. children exist but are unfinished, and this run will not act on them.
+        self.write_plan(
+            bucket="pending",
+            id6="orc401",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="unfin",
+            declared=("01",),
+        )
+        self.write_plan(
+            bucket="pending",
+            id6="chi401",
+            order=1,
+            status="approved",
+            kind="child",
+            setid="unfin",
+        )
+        unfin = rs.decide_orchestrator_dispatch(
+            self.root,
+            "unfin",
+            "orc401",
+            [],
+            terminal_states={"failed-safely"},
+            success_states={"executed"},
+        )
+
+        # 3. the child table declares a row resolving to no plan (the `rununify` shape).
+        self.write_plan(
+            bucket="pending",
+            id6="orc402",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="unauth",
+            declared=("01", "03+"),
+        )
+        self.write_plan(
+            bucket="executed",
+            id6="chi402",
+            order=1,
+            status="executed",
+            kind="child",
+            setid="unauth",
+        )
+        unauth = rs.decide_orchestrator_dispatch(
+            self.root,
+            "unauth",
+            "orc402",
+            [],
+            terminal_states={"failed-safely"},
+            success_states={"executed"},
+        )
+
+        # 4. the transition refuses. Exercised through the dispatcher, because the rewrite from RETIRE
+        #    to TERMINATE happens there and nowhere else.
+        self.write_plan(
+            bucket="pending",
+            id6="orc403",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="refuse",
+            declared=("01",),
+        )
+        self.write_plan(
+            bucket="executed",
+            id6="chi403",
+            order=1,
+            status="executed",
+            kind="child",
+            setid="refuse",
+        )
+        run_dir = self.root / "run-refuse"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        item = self.item("orc403", "refuse", "orchestrate", "queued")
+        state = {"repo": str(self.root), "run_id": "run-refuse", "queue": [item]}
+
+        from unittest.mock import patch
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        class _No:
+            exit_code = 3
+            message = "REFUSED: synthetic structural refusal"
+
+        with patch.object(LC, "retire_orchestrator", return_value=_No()):
+            refused = rs.dispatch_orchestrator_item(
+                self.root,
+                run_dir,
+                state,
+                item,
+                actor="aw oc run model=test",
+                terminal_states={"failed-safely"},
+                success_states={"executed"},
+            )
+
+        reasons = {
+            "no-children": nokids.reason,
+            "unfinished": unfin.reason,
+            "unauthored": unauth.reason,
+            "finalize-refused": refused.reason,
+        }
+        self.assertEqual(
+            len(set(reasons.values())),
+            4,
+            f"the four causes must be DISTINGUISHABLE; got {reasons}",
+        )
+        self.assertEqual(nokids.reason, rs.RETIRE_REFUSED_NO_CHILDREN)
+        self.assertEqual(unauth.reason, rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS)
+        self.assertEqual(refused.reason, rs.ORCH_REASON_FINALIZE_REFUSED)
+
+        # `finalize-refused` is TERMINATE, never RECONSIDER: `rh5tt6` proves a refusal can be
+        # structural, and retrying it every iteration would spin.
+        self.assertEqual(refused.outcome, rs.ORCH_DISPATCH_TERMINATE)
+
+        # Every detail SUBSTANTIATES its reason, so no summary can claim a cause it cannot name.
+        self.assertIn("chi401", unfin.detail)
+        self.assertIn("03+", unauth.detail)
+        self.assertIn("synthetic structural refusal", refused.detail)
+        for label, decision in reasons.items():
+            with self.subTest(cause=label):
+                self.assertTrue(decision, "every refusal must carry a typed reason")
+
+    def test_the_unfinished_case_names_the_ids_AND_their_actual_statuses(self):
+        """`5e4sb6` reported an unmet dependency it could not name. Both halves are required."""
+
+        self.write_plan(
+            bucket="pending",
+            id6="orc404",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="named",
+            declared=("01", "02"),
+        )
+        self.write_plan(
+            bucket="pending",
+            id6="chi404",
+            order=1,
+            status="approved",
+            kind="child",
+            setid="named",
+        )
+        self.write_plan(
+            bucket="pending",
+            id6="chi405",
+            order=2,
+            status="reviewed",
+            kind="child",
+            setid="named",
+        )
+        decision = rs.decide_orchestrator_dispatch(
+            self.root,
+            "named",
+            "orc404",
+            [
+                self.item("chi404", "named", "execute", "queued"),
+                self.item("chi405", "named", "execute", "queued"),
+            ],
+            terminal_states={"failed-safely"},
+            success_states={"executed"},
+        )
+        self.assertEqual(decision.outcome, rs.ORCH_DISPATCH_RECONSIDER)
+        ids = {i for i, _s in decision.unfinished}
+        self.assertEqual(ids, {"chi404", "chi405"})
+        for child, status in decision.unfinished:
+            with self.subTest(child=child):
+                self.assertTrue(status, "the STATUS must be carried, not only the id")
+                self.assertIn(child, decision.detail)
+                self.assertIn(status, decision.detail)
+
+    def test_a_terminated_item_never_claims_a_dependency_it_cannot_name(self):
+        """The `5e4sb6` summary defect, asserted on the written ITEM rather than on prose."""
+
+        self.write_plan(
+            bucket="pending",
+            id6="orc406",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="noname",
+            declared=("01",),
+        )
+        run_dir = self.root / "run-noname"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        item = self.item("orc406", "noname", "orchestrate", "queued")
+        state = {"repo": str(self.root), "run_id": "run-noname", "queue": [item]}
+        rs.dispatch_orchestrator_item(
+            self.root,
+            run_dir,
+            state,
+            item,
+            actor="aw oc run model=test",
+            terminal_states={"failed-safely"},
+            success_states={"executed"},
+        )
+        # No children exist, so there is no dependency to name -- and the record must therefore carry
+        # the TYPED reason instead of an empty dependency list dressed up as one.
+        self.assertEqual(item["unsatisfied_dependencies"], [])
+        self.assertEqual(
+            item["orchestrator_refusal_reason"], rs.RETIRE_REFUSED_NO_CHILDREN
+        )
+        self.assertIn("noname", item["orchestrator_refusal_detail"])
+
+
+class TheAgyHostActsOnTheDecision(DispatchRunCase):
+    """V-07: agy must DISPATCH the outcome, which sharing the DECIDER does not accomplish.
+
+    THE CONTRAST THIS CLASS EXISTS FOR. Before it, `agy_runipd` contained the token `orchestrate`
+    nowhere outside an unrelated import, derived only `is_review` in `execute_item`, and called
+    `execute_item` unconditionally. So a shared decider alone would have shipped a value agy IGNORED,
+    while `TheActionDecisionIsSHAREDCode`'s identity assertion still passed. That is why the two are
+    separate test classes and why V-04 must not be read as evidence for this.
+    """
+
+    def test_agy_retires_an_approved_orchestrator_with_NO_agent_turn(self):
+        from agent_workflows import agy_runipd
+
+        self.write_plan(
+            bucket="pending",
+            id6="orc500",
+            order=0,
+            status="approved",
+            kind="orchestrator",
+            setid="agyset",
+            declared=("01",),
+        )
+        self.write_plan(
+            bucket="executed",
+            id6="chi500",
+            order=1,
+            status="executed",
+            kind="child",
+            setid="agyset",
+        )
+        run_dir = self.make_run(
+            agy_runipd,
+            [self.item("orc500", "agyset", "orchestrate", "queued", position=1)],
+        )
+
+        from unittest.mock import patch
+
+        from agent_workflows import ipd_lifecycle as LC
+
+        class _Ok:
+            exit_code = 0
+            message = "stubbed retire"
+
+        with patch.object(LC, "retire_orchestrator", return_value=_Ok()):
+            rc, state = self.drive(agy_runipd, run_dir)
+
+        self.assertEqual(self.statuses(state)["orc500"], "executed")
+        self.assertEqual(
+            self.turns,
+            [],
+            "agy must NOT call execute_item for an orchestrator; that is the whole defect",
+        )
+        # No session/prompt artifact was written for it either: an agent turn leaves traces even when
+        # `execute_item` is stubbed, so both are asserted.
+        for sub in ("sessions", "prompts"):
+            leftovers = (
+                list((run_dir / sub).glob("*")) if (run_dir / sub).is_dir() else []
+            )
+            self.assertEqual(
+                leftovers, [], f"an orchestrator must leave no {sub}/ artifact"
+            )
+        self.assertIn(
+            "orchestrator-finalized", [e["event"] for e in self.events(run_dir)]
+        )
+
+    def test_agy_would_agent_execute_it_without_the_dispatch_BRANCH(self):
+        """THE SABOTAGE that separates this item from V-04, run as a real experiment.
+
+        The shared decider is left returning `orchestrate` (so V-04's identity assertion still holds)
+        and only agy's BRANCH is neutralized. If the branch were the decider in disguise, this test
+        could not fail while V-04 passed.
+        """
+
+        import ast
+
+        from agent_workflows import agy_runipd, runner_shared
+
+        # V-04's assertion still holds under the sabotage, by construction: we do not touch the decider.
+        self.assertIs(agy_runipd.action_for, runner_shared.action_for)
+        self.assertEqual(
+            agy_runipd.action_for("orchestrator", "approved"), "orchestrate"
+        )
+
+        # The branch must EXIST in the source, and it must guard `execute_item` rather than sit after it.
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        run_queue = next(
+            n
+            for n in tree.body
+            if isinstance(n, ast.FunctionDef) and n.name == "run_queue"
+        )
+        branch = [
+            n
+            for n in ast.walk(run_queue)
+            if isinstance(n, ast.If) and "orchestrate" in ast.unparse(n.test)
+        ]
+        self.assertTrue(
+            branch,
+            "agy_runipd.run_queue has NO branch reading the `orchestrate` action; the shared "
+            "decider would return a value this host ignores, and it would spend an agent turn",
+        )
+        # And the branch must SHORT-CIRCUIT (continue), so control never reaches `execute_item`.
+        self.assertTrue(
+            any(isinstance(n, ast.Continue) for b in branch for n in ast.walk(b)),
+            "the orchestrate branch must `continue`, or the item falls through to execute_item",
+        )
+        # It must call the SHARED performer, not a forked copy of the outcome logic.
+        self.assertIn("dispatch_orchestrator_item", ast.unparse(branch[0]))
+
+    def test_neither_host_forks_the_outcome_logic(self):
+        """Spec R-10: shared CODE, not two copies. The re-fork would be silent until it drifted."""
+
+        import ast
+
+        for label, module in _dispatch_hosts():
+            src = Path(str(module.__file__)).read_text(encoding="utf-8")
+            defined = {
+                n.name
+                for n in ast.parse(src).body
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            }
+            with self.subTest(host=label):
+                self.assertNotIn("dispatch_orchestrator_item", defined)
+                self.assertNotIn("decide_orchestrator_dispatch", defined)
+
+
+def rs_terminal(module):
+    """The host's own terminal-state set, read from the host rather than re-listed here."""
+    return set(module.TERMINAL_STATES)
+
+
+class TheDocumentedClaimMatchesTheCode(unittest.TestCase):
+    """E-05/V-05: every factual assertion in the managed AGENTS.md block must have a test behind it.
+
+    An assertion no test exercises is the PRECISE defect this Set corrects: `AGENTS.md` asserted
+    self-finalization worked while it had never once succeeded (0 in 103 run records). So the corrected
+    text is held to the standard the old text failed, and the mapping is asserted mechanically instead
+    of promised in prose.
+    """
+
+    def prose(self) -> str:
+        from agent_workflows import engine
+
+        return engine.agents_pointer_prose(target_layout="aw")
+
+    def paragraph(self) -> str:
+        text = self.prose()
+        start = text.find("### The runners own ordering, isolation, and orchestrators")
+        self.assertGreater(start, 0, "the runner-behavior paragraph must exist")
+        end = text.find("### ", start + 10)
+        return text[start : end if end > 0 else len(text)]
+
+    def test_the_false_self_finalization_claim_is_GONE(self):
+        para = self.paragraph()
+        self.assertNotIn("self-finalizes", para)
+        # And the symbols it cited as evidence for a mechanism that never ran.
+        self.assertNotIn("_set_children_all_executed", para)
+        self.assertNotIn("finalize_orchestrator", para)
+
+    def test_it_states_what_the_runner_does_AND_what_it_refuses(self):
+        """R-11 forbids replacing one overstatement with another, so BOTH halves are required."""
+
+        para = self.paragraph()
+        self.assertIn("retire", para.lower())
+        for phrase in ("REFUSES", "unauthored"):
+            self.assertIn(
+                phrase,
+                para,
+                f"the text must say what the mechanism does NOT do; missing {phrase!r}",
+            )
+
+    def test_the_do_not_raise_instruction_no_longer_forbids_reporting_a_REFUSAL(self):
+        """The neighbouring instruction listed 'orchestrator finalization' as settled. It is not.
+
+        A refusal (an unauthored child row, a refusing transition) is something an agent legitimately
+        MAY raise, so the instruction must be scoped to the part the tests actually demonstrate.
+        """
+
+        para = self.paragraph()
+        idx = para.find("Do NOT raise")
+        self.assertGreater(idx, 0, "the 'Do NOT raise' instruction must still exist")
+        instruction = para[idx:]
+        self.assertNotIn(
+            "orchestrator finalization",
+            instruction,
+            "the instruction must not forbid reporting a case the mechanism deliberately refuses",
+        )
+
+    def test_the_rendered_AGENTS_md_carries_the_corrected_text(self):
+        """The generator is the source, but the RENDERED file is what an agent loads."""
+
+        text = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertNotIn("self-finalizes", text)
+        self.assertIn("retires it", text)
+
+    def test_every_assertion_in_the_new_text_maps_to_a_test_in_THIS_module(self):
+        """The mapping V-05 demands, asserted rather than promised.
+
+        Each claim the paragraph makes about orchestrator handling is paired with the test class that
+        demonstrates it. A claim with no test must be deleted rather than shipped.
+        """
+
+        para = self.paragraph()
+        mapping = {
+            # claim fragment -> the test that demonstrates it
+            "retires it": AnOrchestratorIsRetiredMidRun,
+            "same run": AnOrchestratorIsRetiredMidRun,
+            "REFUSES": TheFourRefusalReasonsAreDistinguishable,
+            "unauthored": TheFourRefusalReasonsAreDistinguishable,
+            "BOTH hosts": TheAgyHostActsOnTheDecision,
+            "no agent turn": TheAgyHostActsOnTheDecision,
+            "ON DISK": AnOrchestratorIsRetiredMidRun,
+            "this run cannot finish": ADeadSetTerminatesInsteadOfLooping,
+        }
+        for fragment, test_class in mapping.items():
+            with self.subTest(claim=fragment):
+                self.assertIn(
+                    fragment,
+                    para,
+                    f"the paragraph must make the claim {fragment!r} that {test_class.__name__} "
+                    "demonstrates, or that test is guarding nothing",
+                )
+                self.assertTrue(
+                    any(
+                        name.startswith("test_")
+                        for name in vars(test_class)
+                        if callable(getattr(test_class, name, None))
+                    ),
+                    f"{test_class.__name__} must contain tests",
+                )
+
+    def test_a_re_render_is_IDEMPOTENT(self):
+        """A generator edit that renders differently each time would churn every adopter's file."""
+
+        from agent_workflows import engine
+
+        current = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        sections = engine.agents_managed_sections(target_layout="aw")
+        once, _ = engine.merge_aw_block(current, sections, default_header="# AGENTS")
+        twice, _ = engine.merge_aw_block(once, sections, default_header="# AGENTS")
+        self.assertEqual(once, twice, "a second render must be a no-op")
 
 
 if __name__ == "__main__":  # pragma: no cover

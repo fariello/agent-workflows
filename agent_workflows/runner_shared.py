@@ -124,8 +124,14 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections.abc import Container, Mapping, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any, Callable, NamedTuple, Sequence, TextIO
+from typing import (
+    Any,
+    Callable,
+    NamedTuple,
+    TextIO,
+)
 
 from agent_workflows.render_stream import Palette, render_run_summary_table
 
@@ -2544,3 +2550,461 @@ def evaluate_set_retirement(repo: Path, setid: str) -> RetirementDecision:
             "orchestrator's child table resolves to a plan"
         ),
     )
+
+
+# ==================================================================================================
+# orchretire-03 (`pgq326`): THE SHARED ACTION DECIDER AND THE SHARED DISPATCH OUTCOME
+# (spec `77tr3o` R-7, R-8, R-9, R-10)
+# ==================================================================================================
+#
+# THE TWO THINGS THIS SECTION OWNS, and why they are one section rather than two.
+#
+# FIRST, THE ACTION DECISION (`determine_action` / `action_for`, E-04). It was defined in `oc_runipd`
+# only. `agy_runipd` had its own `determine_action` and NO `action_for` at all, so measured at HEAD
+# `844d195c`: `agy.determine_action('approved')` returned `'execute'` where
+# `oc.action_for('orchestrator','approved')` returned `'orchestrate'`. `aw agy run` would therefore
+# AGENT-EXECUTE an approved orchestrator - spending a turn authoring against a plan whose entire
+# coordination role the runner has already superseded. That is a worse failure than oc's lingering
+# orchestrator, because it produces work rather than merely omitting it.
+#
+# SECOND, THE DISPATCH OUTCOME (`decide_orchestrator_dispatch`, E-01/E-02/E-07). Deciding the action
+# is not enough: a host that DECIDES `orchestrate` and then has no branch reading it spends the agent
+# turn anyway. So the OUTCOME of dispatching an `orchestrate` item lives here too, and both hosts call
+# it. Keeping the pair together is deliberate: `action_for` is what makes an item reach this outcome,
+# so a reader who finds one immediately sees the other.
+#
+# WHY BOTH LIVE HERE RATHER THAN IN `oc_runipd`. The anti-re-fork discipline `2r306y`/`818uru`
+# established is binding: shared runner logic has ONE definition in this module and is IMPORTED by
+# both hosts. `agy_runipd` already imports ~40 names FROM `oc_runipd` (tracked as backlog `cnwy8g`),
+# so adding to that pile would deepen a layering defect the repo is actively paying down. And a
+# COPY is the specific failure spec R-10 names: two identical bodies have no disagreement today, which
+# is exactly why nothing signals when one is edited.
+#
+# ---- THE THREE-WAY OUTCOME, WHICH REPLACES ONE `else` --------------------------------------------
+#
+# The pre-`pgq326` dispatch branch (`oc_runipd.py:6993-7031`) wrote ONE status on ANY failure:
+#
+#     else:
+#         runnable["status"] = "dependency-blocked"
+#
+# `dependency-blocked` is in `TERMINAL_STATES`, and the selection filter admits only `queued`, so the
+# orchestrator was excluded FOREVER - even when its children all finished later in the SAME run. The
+# event was literally named `orchestrator-deferred`, and a deferral is by definition something you
+# return to.
+#
+# But "just leave it queued" (backlog `kxkc04`'s prescription) is correct for only ONE of the failures
+# that `else` covered. Two distinct reasons were recorded on a single real run: `5e4sb6 |
+# not-all-children-executed` and `rh5tt6 | finalize-refused`. Leaving the SECOND reconsiderable would
+# retry a structural refusal on every loop iteration and SPIN FOREVER, which is the one regression
+# worse than the bug. Hence three outcomes, not two:
+#
+#   * RETIRE      - eligible per child 01's predicate; perform child 02's transition.
+#   * RECONSIDER  - children merely UNFINISHED. Write NO status, exactly as an item skipped by the
+#                   inner selection pass already does, so a later iteration re-tests it.
+#   * TERMINATE   - it can never become eligible: a child reached a non-success terminal state, the
+#                   child set is unauthored, the Set has no children, or the transition itself
+#                   refused. Say so terminally rather than spinning.
+#
+# RECONSIDER IS A CLAIM ABOUT RE-SELECTION, NOT MERELY ABOUT NOT WRITING A STATUS. "Not terminal" and
+# "reachable again" are different properties and only the second one fixes the bug; see
+# `ORCH_DISPATCH_RECONSIDER` below for the two mechanisms that were checked.
+
+#: The three dispatch outcomes. A typed vocabulary rather than prose, for the same reason child 01's
+#: `RetirementDecision.reason` is one: a caller must not have to string-match a message to know what
+#: happened, and a host that switches on these cannot silently mishandle a case it does not know.
+ORCH_DISPATCH_RETIRE = "retire"
+#: Leave the item `queued` so a LATER ITERATION OF THE SAME RUN re-tests it (spec R-7).
+#:
+#: WHAT WAS VERIFIED, because writing no status is necessary and NOT sufficient. Two mechanisms sit
+#: between "unlabelled" and "re-selected", and both were checked rather than assumed (E-01/V-01):
+#:   1. THE SELECTION PASS admits an item only when `dependency_status(item, state)` reports
+#:      satisfied. For an `orchestrate` item that predicate consults the children itself, so once the
+#:      last child reaches `executed` the orchestrator becomes satisfiable and IS re-selected.
+#:   2. `cascade_dependency_blocked` runs at the TOP of every iteration and propagates
+#:      `dependency-blocked` over reverse edges to a fixed point. It reads only the item's DECLARED
+#:      `dependencies` edges, and an orchestrator's implicit child-set relationship is not one, so it
+#:      does not relabel an orchestrator left `queued` on account of its children. It WILL relabel one
+#:      whose own declared edge died, which is correct and is TERMINATE's job anyway.
+ORCH_DISPATCH_RECONSIDER = "reconsider"
+#: Write a terminal status: this orchestrator can NEVER become eligible (spec R-8).
+ORCH_DISPATCH_TERMINATE = "terminate"
+
+#: The refusal causes, kept DISTINGUISHABLE in the durable record (spec R-9). Before this, all four
+#: collapsed into `dependency-blocked` plus an `unsatisfied_dependencies` list that was EMPTY for both
+#: observed cases, producing a run summary reading "dependency-blocked (unmet dependencies)" while
+#: naming no dependency at all. Each value below is carried in the `orchestrator-deferred` event's
+#: `reason` field, so the record names the actual cause.
+ORCH_REASON_UNFINISHED_CHILDREN = "children-unfinished"
+ORCH_REASON_DEAD_CHILDREN = "children-terminally-failed"
+#: Unfinished children that THIS RUN will not act on (absent from its queue, or already terminal in it
+#: without reaching `executed` on disk). A FIFTH reason beyond the spec's four, added because E-03
+#: MEASURED a spin the spec's four could not express: the run cannot finish them, so reconsidering
+#: would repeat the same decision every iteration, and the drain path never sees it because the
+#: orchestrator stays selectable. Terminating names the real obstacle instead.
+ORCH_REASON_CHILDREN_NOT_IN_RUN = "children-not-in-this-run"
+ORCH_REASON_NO_CHILDREN = "no-children"
+ORCH_REASON_UNAUTHORED_CHILD_ROWS = "unauthored-child-rows"
+ORCH_REASON_FINALIZE_REFUSED = "finalize-refused"
+ORCH_REASON_NO_ORCHESTRATOR = "no-orchestrator"
+
+
+class OrchestratorDispatch(NamedTuple):
+    """What a host should DO with an `orchestrate` item, with a reason it can substantiate.
+
+    `outcome` is one of the three `ORCH_DISPATCH_*` values. `reason` is one of the `ORCH_REASON_*`
+    values (empty for RETIRE). `detail` is one human-readable sentence, always populated, safe to put
+    straight into an event payload. `unfinished` carries `(id6, status)` pairs so the record can say
+    WHY a child does not count rather than only that it does not - the `5e4sb6` defect.
+
+    DECIDES ONLY. It writes no status, performs no transition, and touches no file.
+    """
+
+    outcome: str
+    reason: str
+    detail: str
+    unfinished: tuple[tuple[str, str], ...] = ()
+    unauthored_rows: tuple[str, ...] = ()
+    #: The eligibility verdict this decision was derived from, passed on to the transition so it
+    #: VALIDATES the same verdict rather than recomputing a possibly-different one.
+    eligibility: RetirementDecision | None = None
+
+
+def determine_action(status: str) -> str:
+    """Return 'review' for to-review/draft plans; 'execute' for approved/ready plans."""
+    norm = (status or "").lower().strip()
+    if norm in ("to-review", "draft"):
+        return "review"
+    return "execute"
+
+
+def action_for(kind: str | None, status: str) -> str:
+    """Decide the driver action for a plan given its Kind + Status. SHARED BY BOTH HOSTS (spec R-10).
+
+    Orchestrators are special ONLY once past review: an approved/auto-approved orchestrator authors no
+    code, so it is not agent-executed ('orchestrate' -> the runner retires it once every child of its
+    Set reached `executed`). But a draft/to-review orchestrator still needs its own /plan-review to
+    advance (the orchestrator artifact must be review-complete whether the Set is driven by a runner
+    OR executed manually), so it takes the normal 'review' action. Everything else uses
+    `determine_action` (review for to-review/draft, execute otherwise).
+
+    THE `orchestrate` RETURN STARTS AT `reviewed`, NOT AT `approved`, which matters to any caller
+    treating this as authority: it is a DISPATCH decision, not a retirement authorization. The
+    retirement transition therefore re-checks eligibility itself rather than trusting Kind
+    (`ipd_lifecycle.retire_orchestrator`), and this function must not be read as a permission.
+    """
+    norm = (status or "approved").lower().strip()
+    if (kind or "").lower() == "orchestrator" and norm not in ("to-review", "draft"):
+        return "orchestrate"
+    return determine_action(status or "approved")
+
+
+def decide_orchestrator_dispatch(
+    repo: Path,
+    setid: str,
+    orchestrator_id6: str,
+    queue: Sequence[Mapping[str, Any]],
+    *,
+    terminal_states: Container[str],
+    success_states: Container[str],
+) -> OrchestratorDispatch:
+    """Decide RETIRE / RECONSIDER / TERMINATE for one `orchestrate` item (spec R-7/R-8/R-9).
+
+    Consumes child 01's `evaluate_set_retirement` for the ON-DISK verdict, then uses the RUN QUEUE for
+    the one question disk cannot answer: is an unfinished child still LIVE, or did it reach a
+    non-success terminal state and become permanently unfinishable? That split is deliberate and is
+    the whole reason both inputs are needed:
+
+      * DISK decides ELIGIBILITY (spec R-1: a Set whose earlier children executed in previous runs is
+        still complete, which a queue-scoped check cannot see).
+      * THE QUEUE decides LIVENESS (whether waiting can still pay off inside THIS run).
+
+    A child that is unfinished on disk and ABSENT from the queue is treated as LIVE-but-not-here,
+    which resolves to RECONSIDER and then, when nothing else is runnable, to the drain path's honest
+    terminal labelling. That is the conservative direction: the run ends rather than spins, and the
+    orchestrator is never retired on a Set that is not done.
+
+    `terminal_states`/`success_states` are INJECTED rather than imported because each host owns its
+    own copy of those sets (they are byte-identical today, but this module must not pick a side for
+    them; that is a different plan's decision). Passing them keeps this decision host-neutral.
+
+    DECIDES ONLY: no status write, no transition, no file touched.
+    """
+
+    decision = evaluate_set_retirement(repo, setid)
+    if decision.eligible:
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_RETIRE,
+            reason="",
+            detail=decision.detail,
+            eligibility=decision,
+        )
+
+    if decision.reason == RETIRE_REFUSED_NO_CHILDREN:
+        # TERMINATE, not RECONSIDER. A Set with no children on disk will not grow one during a run,
+        # and retirement is gated on children being executed, so waiting cannot pay off.
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_TERMINATE,
+            reason=ORCH_REASON_NO_CHILDREN,
+            detail=decision.detail,
+            eligibility=decision,
+        )
+
+    if decision.reason == RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS:
+        # TERMINATE. The orchestrator's own child table declares a row resolving to no plan (the
+        # `rununify` case, whose row token is literally `03+`). Authoring the missing child is a
+        # HUMAN act outside any run, so no amount of waiting inside this run changes the answer.
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_TERMINATE,
+            reason=ORCH_REASON_UNAUTHORED_CHILD_ROWS,
+            detail=decision.detail,
+            unauthored_rows=decision.unauthored_rows,
+            eligibility=decision,
+        )
+
+    if decision.reason == RETIRE_REFUSED_NO_ORCHESTRATOR:
+        # TERMINATE. The dispatching item claims to BE this Set's orchestrator, so a Set that resolves
+        # without one means the selector could not be read as a Set at all (child 01's pinned-resolve
+        # cost, carried in `resolution_note`). Refuse terminally and say which, rather than retrying a
+        # resolution that will fail identically every iteration.
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_TERMINATE,
+            reason=ORCH_REASON_NO_ORCHESTRATOR,
+            detail=decision.detail,
+            eligibility=decision,
+        )
+
+    # RETIRE_REFUSED_UNFINISHED_CHILDREN: the ONE refusal that can still clear inside this run, and
+    # the one whose premature terminal write is the defect this plan exists to fix. Split it THREE
+    # ways, on whether THIS RUN can still change the answer.
+    #
+    # RECONSIDER IS GATED ON ACTIONABILITY, NOT MERELY ON "NOT DEAD", and that gate is what makes the
+    # outcome spin-free. It was added after MEASURING the spin rather than reasoning about it: with the
+    # naive rule (reconsider whenever no child is terminally dead) a scripted `run_queue` over a Set
+    # whose unfinished child was ON DISK but ABSENT FROM THE QUEUE dispatched the orchestrator 201
+    # times without terminating, and the existing drain path could not catch it because the drain is
+    # reached only when NOTHING is selectable while this orchestrator remained selectable forever.
+    # (E-03/OQ-01: the maintainer's instruction was to verify the existing net FIRST and add a
+    # termination only if it did not cover the case. It did not.)
+    #
+    # SO: a child counts as ACTIONABLE only when it is IN THIS RUN'S QUEUE in a non-terminal state,
+    # because that is precisely the condition under which the run will still act on it. Waiting is then
+    # bounded, for a reason that follows from the scheduler rather than from hope: `queue_sort_key`
+    # ranks `dependency_depth` FIRST and `dependency_depth` treats every non-orchestrator member of a
+    # Set as a prerequisite of its orchestrator, so an actionable child is always dispatched BEFORE the
+    # orchestrator is re-dispatched. Each iteration therefore either advances that child or gives it a
+    # terminal status, and the second flips this decision to TERMINATE. Neither branch repeats forever.
+    by_id = {str(entry.get("id6")): entry for entry in queue}
+    dead: list[tuple[str, str]] = []
+    actionable: list[tuple[str, str]] = []
+    stranded: list[tuple[str, str]] = []
+    for child_id6, disk_status in decision.unfinished:
+        entry = by_id.get(child_id6)
+        if entry is None:
+            # Unfinished on disk and not in this run at all. Nothing this run does can finish it.
+            stranded.append((child_id6, disk_status))
+            continue
+        run_status = str(entry.get("status") or "")
+        if run_status in terminal_states and run_status not in success_states:
+            dead.append((child_id6, run_status))
+        elif run_status in terminal_states:
+            # A TERMINAL SUCCESS that is still not `executed` ON DISK. `EXECUTION_SUCCESS_STATES`
+            # admits `substantially-complete` for dependency-edge purposes, but retirement accepts
+            # ONLY `executed` (spec R-2, deliberately narrower). The run is done with this child, so
+            # waiting cannot help: stranded, not actionable.
+            stranded.append((child_id6, f"{run_status} in run, {disk_status} on disk"))
+        else:
+            actionable.append((child_id6, run_status or disk_status))
+
+    if dead:
+        listed = ", ".join(f"{i} ({s})" for i, s in dead)
+        rest = actionable + stranded
+        also = f"; {len(rest)} other child(ren) are also unfinished" if rest else ""
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_TERMINATE,
+            reason=ORCH_REASON_DEAD_CHILDREN,
+            detail=(
+                f"Set {decision.setid!r} can never complete in this run: child(ren) {listed} "
+                f"reached a non-success terminal state, so they cannot become "
+                f"{SET_RETIREMENT_DONE_STATUS}{also}"
+            ),
+            unfinished=tuple(dead) + tuple(rest),
+            eligibility=decision,
+        )
+
+    if actionable:
+        listed = ", ".join(f"{i} ({s})" for i, s in actionable)
+        return OrchestratorDispatch(
+            outcome=ORCH_DISPATCH_RECONSIDER,
+            reason=ORCH_REASON_UNFINISHED_CHILDREN,
+            detail=(
+                f"Set {decision.setid!r} has {len(actionable)} child(ren) not yet "
+                f"{SET_RETIREMENT_DONE_STATUS} that THIS RUN will still act on: {listed}. Left "
+                "RECONSIDERABLE (no status written), so this orchestrator is re-tested on a later "
+                "iteration once they complete"
+            ),
+            unfinished=tuple(actionable) + tuple(stranded),
+            eligibility=decision,
+        )
+
+    listed = ", ".join(f"{i} ({s})" for i, s in stranded)
+    return OrchestratorDispatch(
+        outcome=ORCH_DISPATCH_TERMINATE,
+        reason=ORCH_REASON_CHILDREN_NOT_IN_RUN,
+        detail=(
+            f"Set {decision.setid!r} has {len(stranded)} child(ren) not yet "
+            f"{SET_RETIREMENT_DONE_STATUS} that this run will NOT act on: {listed}. Nothing in this "
+            "run can finish them, so waiting would repeat this decision unchanged; run them (or the "
+            "whole Set) and the orchestrator is retired then"
+        ),
+        unfinished=tuple(stranded),
+        eligibility=decision,
+    )
+
+
+def dispatch_orchestrator_item(
+    repo: Path,
+    run_dir: Path,
+    state: MutableMapping[str, Any],
+    item: MutableMapping[str, Any],
+    *,
+    actor: str,
+    terminal_states: Container[str],
+    success_states: Container[str],
+    terminal_status: str = "dependency-blocked",
+) -> OrchestratorDispatch:
+    """PERFORM the retire/reconsider/terminate outcome for one `orchestrate` item. BOTH HOSTS.
+
+    This is the function `aw oc run` and `aw agy run` both call in place of an agent turn, and sharing
+    the OUTCOME (not merely the DECISION) is the point of spec R-10 as `pgq326` E-07 reads it: E-04
+    makes agy DECIDE `orchestrate`, and without a shared performer agy would still have to grow its own
+    branch, which is the second copy the anti-re-fork discipline forbids.
+
+    WHAT IT DOES, per outcome:
+
+      * RETIRE     - call `ipd_lifecycle.retire_orchestrator` (child 02's transition), passing the
+                     eligibility verdict so the transition VALIDATES the same decision rather than
+                     recomputing a possibly-different one. On success the item becomes `executed` and
+                     an `orchestrator-finalized` event is written. On REFUSAL the outcome is rewritten
+                     to TERMINATE with reason `finalize-refused`, never to RECONSIDER: `rh5tt6` proves
+                     a refusal can be structural, and retrying it every iteration would SPIN, which is
+                     the one regression worse than the bug this plan fixes.
+      * RECONSIDER - write NO status. The item stays `queued` and a later iteration re-tests it.
+      * TERMINATE  - write `terminal_status` with the SPECIFIC reason, so the record never claims an
+                     unmet dependency it cannot name (the `5e4sb6` defect).
+
+    THE EVENT NAME `orchestrator-deferred` IS KEPT for continuity with the 28 already on disk, but its
+    `reason` now carries one of the `ORCH_REASON_*` values instead of collapsing four distinct facts
+    into one message. `terminated` says plainly which of the two dispositions the record got, so a
+    reader need not infer it from the status.
+
+    Returns the (possibly rewritten) dispatch decision. Does NOT save state: the caller owns that, as
+    it owns the surrounding loop.
+    """
+    from agent_workflows import ipd_lifecycle as _lifecycle
+
+    setid = str(item.get("setid") or "")
+    id6 = str(item.get("id6") or "")
+    decision = decide_orchestrator_dispatch(
+        repo,
+        setid,
+        id6,
+        list(state.get("queue") or []),
+        terminal_states=terminal_states,
+        success_states=success_states,
+    )
+
+    if decision.outcome == ORCH_DISPATCH_RETIRE:
+        eligibility = decision.eligibility
+        plan_path: Path | None = None
+        with contextlib.suppress(Exception):
+            membership = read_set_membership(repo, setid)
+            if membership.orchestrator is not None:
+                plan_path = membership.orchestrator.path
+        result = None
+        if plan_path is not None:
+            result = _lifecycle.retire_orchestrator(
+                repo,
+                plan_path,
+                actor,
+                setid=setid,
+                run_id=str(state.get("run_id") or "") or None,
+                children=[m.id6 for m in read_set_membership(repo, setid).children],
+                eligibility=eligibility,
+                apply=True,
+            )
+        if result is not None and result.exit_code == 0:
+            item["status"] = "executed"
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "orchestrator-finalized",
+                    "id6": id6,
+                    "setid": setid,
+                    "reason": ORCH_DISPATCH_RETIRE,
+                    "detail": decision.detail,
+                },
+            )
+            return decision
+        # The transition REFUSED (or the orchestrator's own file could not be located). TERMINATE:
+        # a refusal here is structural, so retrying it on the next iteration would spin forever.
+        why = (
+            result.message
+            if result is not None
+            else f"the orchestrator plan file for Set {setid!r} could not be located on disk"
+        )
+        decision = decision._replace(
+            outcome=ORCH_DISPATCH_TERMINATE,
+            reason=ORCH_REASON_FINALIZE_REFUSED,
+            detail=f"retirement transition refused: {why}",
+        )
+
+    if decision.outcome == ORCH_DISPATCH_RECONSIDER:
+        # WRITE NO STATUS. The item stays `queued`, exactly as one skipped by the inner selection pass
+        # does, so it is RE-SELECTED when its children complete. Recording the deferral is still
+        # required: an unlabelled item with no event would be indistinguishable from one never reached.
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "orchestrator-deferred",
+                "id6": id6,
+                "setid": setid,
+                "reason": decision.reason,
+                "detail": decision.detail,
+                "terminated": False,
+                "unfinished_children": [list(pair) for pair in decision.unfinished],
+            },
+        )
+        return decision
+
+    item["status"] = terminal_status
+    # The flat list keeps its existing shape (`list[str]`) for every existing consumer, and it is now
+    # NON-EMPTY whenever a child is nameable, which is the `5e4sb6` fix: its event carried
+    # `unfinished_children: []` and its summary still read "dependency-blocked (unmet dependencies)".
+    item["unsatisfied_dependencies"] = [
+        f"executed:{child}" for child, _st in decision.unfinished
+    ]
+    item["unsatisfied_dependency_reasons"] = {
+        f"executed:{child}": f"child {child} is {st or 'unfinished'}"
+        for child, st in decision.unfinished
+    }
+    # The typed cause, additive, so a consumer need not parse prose to learn WHICH refusal happened.
+    item["orchestrator_refusal_reason"] = decision.reason
+    item["orchestrator_refusal_detail"] = decision.detail
+    append_jsonl(
+        run_dir / "events.jsonl",
+        {
+            "at": utc_now(),
+            "event": "orchestrator-deferred",
+            "id6": id6,
+            "setid": setid,
+            "reason": decision.reason,
+            "detail": decision.detail,
+            "terminated": True,
+            "status": terminal_status,
+            "unfinished_children": [list(pair) for pair in decision.unfinished],
+            "unauthored_rows": list(decision.unauthored_rows),
+        },
+    )
+    return decision

@@ -643,6 +643,14 @@ class WrapperTests(unittest.TestCase):
         # verdict survives the process that made it. One new `save_state(run_dir, state)` in
         # `oc_runipd`; the Antigravity twin DELEGATES to it and therefore adds none of its own.
         ("oc_runipd", "save_state"): 1,
+        # orchretire-03 (`pgq326`) E-07: `aw agy run` gained the ORCHESTRATOR DISPATCH BRANCH it never
+        # had. Before it, `agy_runipd` had no `orchestrate` handling at all and its queue loop called
+        # `execute_item` unconditionally, so an approved orchestrator was AGENT-EXECUTED. The branch
+        # persists the outcome, hence one new `save_state(run_dir, state)` in `agy_runipd`. This is a
+        # NEW CALLER, which is exactly what this table is for: no existing call site was rewritten, and
+        # the retire/reconsider/terminate logic itself is the SHARED `dispatch_orchestrator_item`
+        # rather than a second copy in this module.
+        ("agy_runipd", "save_state"): 1,
     }
 
     def call_sites(self, runner: str, name: str) -> int:

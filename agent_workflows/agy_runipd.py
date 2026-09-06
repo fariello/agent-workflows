@@ -118,6 +118,36 @@ from agent_workflows.plan_readiness import is_plan_review_approved
 # The `as <same-name>` form marks these as an intentional RE-EXPORT so an autoformatter cannot strip
 # the ones this module does not itself call; `ruff` removed 6 such re-exports here on a previous
 # change's first attempt and only a symmetry test caught it.
+# orchretire-03 (`pgq326`) E-04/E-07 EXTENDS this seam with the ACTION DECISION and the ORCHESTRATOR
+# DISPATCH OUTCOME. This module previously defined its OWN `determine_action` and had NO `action_for`
+# at all, so measured at HEAD `844d195c`: `agy.determine_action('approved')` returned `'execute'` where
+# `oc.action_for('orchestrator','approved')` returned `'orchestrate'`, and `aw agy run` would have
+# AGENT-EXECUTED an approved orchestrator. Both hosts now bind these SAME objects (spec `77tr3o` R-10);
+# `tests/test_orchestrator_retirement.py` asserts it by object identity, so a re-forked copy fails.
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_RECONSIDER as ORCH_DISPATCH_RECONSIDER,
+)
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_RETIRE as ORCH_DISPATCH_RETIRE,
+)
+from agent_workflows.runner_shared import (
+    ORCH_DISPATCH_TERMINATE as ORCH_DISPATCH_TERMINATE,
+)
+from agent_workflows.runner_shared import (
+    OrchestratorDispatch as OrchestratorDispatch,
+)
+from agent_workflows.runner_shared import (
+    action_for as action_for,
+)
+from agent_workflows.runner_shared import (
+    decide_orchestrator_dispatch as decide_orchestrator_dispatch,
+)
+from agent_workflows.runner_shared import (
+    determine_action as determine_action,
+)
+from agent_workflows.runner_shared import (
+    dispatch_orchestrator_item as dispatch_orchestrator_item,
+)
 from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
@@ -289,6 +319,12 @@ from agent_workflows.oc_runipd import (
 from agent_workflows.oc_runipd import (
     DEPENDENCY_FATAL_RULES as DEPENDENCY_FATAL_RULES,
     _artifact_owners as _artifact_owners,
+    # orchretire-03 (`pgq326`) E-04: the `- Kind:` reader, IMPORTED not re-forked. The shared
+    # `action_for` reads `kind` to detect an orchestrator, and this module had no way to supply it, so
+    # its queue entries carried no `kind` and every plan derived `execute`. The reader stays in
+    # `oc_runipd` because moving it means moving `_KIND_RE` and the whole front-matter reader family
+    # with it, which is `cnwy8g`'s job; what matters here is that there is ONE definition.
+    _read_kind as _read_kind,
     _read_item_dependencies as _read_item_dependencies,
     cascade_dependency_blocked as cascade_dependency_blocked,
     dependency_depth as dependency_depth,
@@ -1344,6 +1380,22 @@ def validate_manifest(manifest: dict[str, Any]) -> None:
     )
 
 
+def _plan_kind(path: Path) -> str | None:
+    """The plan's `- Kind:` value, read from disk. orchretire-03 (`pgq326`) E-04.
+
+    A small reader rather than a `PlanRecord` field, because `818uru` PINNED this driver's record type
+    as distinct from oc's and explicitly forbade adding oc's `kind` field to it
+    (`tests/test_runner_shared.py::DiscoverPlansRecordTypeTests`); unifying the two is a later
+    reconciliation. The parsing itself is NOT duplicated: it delegates to the one shared `_read_kind`.
+    Returns None when the file is unreadable, which makes `action_for` fall back to `determine_action`
+    -- the pre-`pgq326` behavior, and the safe direction (a plan is agent-handled, never silently
+    retired)."""
+    try:
+        return _read_kind(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+
 def build_dynamic_manifest(
     repo: Path, discovered: dict[str, PlanRecord]
 ) -> dict[str, Any]:
@@ -1357,6 +1409,11 @@ def build_dynamic_manifest(
             "status": rec.status,
             "order": rec.order,
             "dependencies": rec.dependencies,
+            # orchretire-03 (`pgq326`) E-04: `kind` carried through the manifest so the SHARED
+            # `action_for` can see it. Read from the plan file HERE rather than from `rec.kind`, because
+            # this driver's `PlanRecord` deliberately has no `kind` field (see `_plan_kind`). Without
+            # this key every plan derived `execute` and an approved orchestrator was AGENT-EXECUTED.
+            "kind": _plan_kind(rec.path),
             # bkclose (zhr6mc) E-01: carried through the manifest, symmetric with `oc_runipd`.
             "from_backlog": rec.from_backlog,
         }
@@ -1526,11 +1583,10 @@ def expand_selectors(
     return expanded
 
 
-def determine_action(status: str) -> str:
-    norm = (status or "").lower().strip()
-    if norm in ("to-review", "draft"):
-        return "review"
-    return "execute"
+# orchretire-03 (`pgq326`) E-04: the local `determine_action` that lived here is DELETED, not kept as a
+# wrapper. It was a re-fork of oc's, and the divergence that mattered was not in its body but in what sat
+# NEXT to it: oc also had `action_for`, and this module did not, so the two hosts derived different
+# actions for the same plan. Both names are now imported from `runner_shared` at the top of this module.
 
 
 # revsweep 76gsmv E-03: the `--action` vocabulary spec 25kzda 2.1 declares, in PARITY with the oc
@@ -1728,7 +1784,11 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 except Exception:
                     st = None
             st = st or "approved"
-            preflight_items.append((id6, st, determine_action(st)))
+            # orchretire-03 (`pgq326`) E-04: the SAME `action_for` the queue builder uses, read from the
+            # same manifest, so the `--action` legality preflight and the dispatch cannot disagree about
+            # an orchestrator's action. `determine_action` here (the pre-`pgq326` code) told the operator
+            # an orchestrator's next action was `execute`.
+            preflight_items.append((id6, st, action_for(plan_info.get("kind"), st)))
         enforce_requested_action(requested_action, preflight_items)
 
     # runflags-01 (`uyeko5`) E-02: the SAME call site the opencode driver has, from the SAME shared
@@ -1799,7 +1859,16 @@ def initialize_run(args: argparse.Namespace) -> Path:
             except Exception:
                 pass
 
-        action = determine_action(status or "approved")
+        # orchretire-03 (`pgq326`) E-04: Kind + Status decide the action, through the SHARED `action_for`.
+        # A draft/to-review orchestrator still takes `review` (its artifact must be review-complete
+        # whichever way the Set is driven); only a past-review orchestrator becomes `orchestrate`, which
+        # this driver's dispatch loop now ACTS on (E-07) instead of spending an agent turn.
+        kind = plan.get("kind")
+        if kind is None and p_path is not None:
+            # A hand-written manifest predating the `kind` key: read the plan file rather than silently
+            # deriving `execute` for an orchestrator. Same manifest-then-file fallback `from_backlog` uses.
+            kind = _plan_kind(p_path)
+        action = action_for(kind, status or "approved")
         queue.append(
             {
                 "position": position,
@@ -1807,6 +1876,10 @@ def initialize_run(args: argparse.Namespace) -> Path:
                 "setid": setid,
                 "configured_file": plan["file"],
                 "dependencies": plan.get("dependencies", []),
+                # orchretire-03 (`pgq326`) E-04: the plan's `- Kind:`, frozen on the queue entry so a
+                # RESUME re-derives the same action, and so the durable record shows which items the
+                # runner treated as orchestrators.
+                "kind": kind,
                 # 8guhs0 E-04: the plan's numeric Order, frozen as a TIEBREAKER only (see
                 # `queue_sort_key`). Additive; an older run directory lacking the key still sorts.
                 "order": plan.get("order"),
@@ -4150,6 +4223,31 @@ def run_queue(
 
         recovery = bool(runnable.pop("recovery_next", False))
         update_execution_order(state, runnable)
+        # orchretire-03 (`pgq326`) E-07: THE DISPATCH BRANCH THAT ACTS ON `orchestrate`, which sharing the
+        # DECIDER (E-04) does not accomplish on its own. Verified at HEAD `844d195c`: the token
+        # `orchestrate` appeared nowhere in this module outside the unrelated `orchestrate_isolation`
+        # import, `execute_item` derived only `is_review = action == "review"`, and this loop called
+        # `execute_item` UNCONDITIONALLY. So without this branch `aw agy run` spends a full agent turn
+        # AUTHORING against an approved orchestrator whose coordination role the runner has superseded --
+        # and every object-identity parity test on the decider still PASSES, because the decider was never
+        # the missing piece. Proven by sabotage: removing this branch fails the agy dispatch tests while
+        # the decider-identity assertion keeps passing.
+        #
+        # The OUTCOME is the SAME shared function `oc_runipd` calls, never a second copy: `pgq326`'s gate
+        # forbids forking the retire/reconsider/terminate logic into this module, and the anti-re-fork
+        # discipline `2r306y`/`818uru` established is what makes a fix to it reach both hosts.
+        if runnable.get("action") == "orchestrate":
+            dispatch_orchestrator_item(
+                Path(state["repo"]),
+                run_dir,
+                state,
+                runnable,
+                actor=driver_actor(state),
+                terminal_states=TERMINAL_STATES,
+                success_states=EXECUTION_SUCCESS_STATES,
+            )
+            save_state(run_dir, state)
+            continue
         # runstop 1qxuke: the set now in flight, recorded BEFORE the turn so a stop requested during
         # it is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
