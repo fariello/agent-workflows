@@ -8449,6 +8449,43 @@ def _highlight_matches(text: str, rx: re.Pattern, term: Term) -> str:
     return rx.sub(lambda m: term.colorize(m.group(0), "bold", "yellow"), text)
 
 
+def _highlight_filename_matches(
+    rel_p: str, query_tokens: Sequence[str], term: Term
+) -> str:
+    """Highlight matching portions in the filename in bold orange-yellow (256 color 214)."""
+    if not term.color or not query_tokens:
+        return rel_p
+    dir_part, filename = os.path.split(rel_p)
+    if not filename:
+        return rel_p
+
+    valid_tokens: set[str] = set()
+    for tok in query_tokens:
+        if not tok or not isinstance(tok, str):
+            continue
+        cleaned = tok.strip()
+        if not cleaned:
+            continue
+        valid_tokens.add(cleaned)
+        base = os.path.basename(cleaned)
+        if base and base != cleaned:
+            valid_tokens.add(base)
+
+    if not valid_tokens:
+        return rel_p
+
+    sorted_tokens = sorted(valid_tokens, key=len, reverse=True)
+    pattern = re.compile("|".join(re.escape(t) for t in sorted_tokens), re.IGNORECASE)
+
+    highlighted_fn = pattern.sub(
+        lambda m: term.color256(m.group(0), 214, bold=True), filename
+    )
+    if dir_part:
+        sep = "" if dir_part.endswith("/") else "/"
+        return f"{dir_part}{sep}{highlighted_fn}"
+    return highlighted_fn
+
+
 def _run_noun_verb(
     args: argparse.Namespace,
     term: Term,
@@ -8521,6 +8558,14 @@ def _find_type_records(
     """Find and format matching records for a given artifact type. Returns (lines, paths)."""
     from agent_workflows import selectors as sel_mod
 
+    highlight_tokens = list(selectors_list)
+    if getattr(args, "id", None):
+        highlight_tokens.append(args.id)
+    if getattr(args, "set", None):
+        highlight_tokens.append(args.set)
+    if getattr(args, "topic", None):
+        highlight_tokens.append(args.topic)
+
     if artifact_type == "plans":
         from agent_workflows import plans_index as pi
 
@@ -8575,7 +8620,8 @@ def _find_type_records(
                 rel_p = str(full_p.relative_to(repo_root.resolve()))
             except Exception:
                 rel_p = str(e.path)
-            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {rel_p}")
+            disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
+            lines.append(f"{status_txt}  {id6_txt}  {set_txt}  {disp_p}")
             paths.append(rel_p)
         return lines, paths
 
@@ -8635,7 +8681,8 @@ def _find_type_records(
                 rel_p = str(full_p.relative_to(repo_root.resolve()))
             except Exception:
                 rel_p = str(e.path)
-            lines.append(f"{status_txt}  {id6_txt}  {rel_p}{summary}")
+            disp_p = _highlight_filename_matches(rel_p, highlight_tokens, term)
+            lines.append(f"{status_txt}  {id6_txt}  {disp_p}{summary}")
             paths.append(rel_p)
         return lines, paths
 
@@ -8662,7 +8709,8 @@ def _find_type_records(
             rel = str(p)
         status_txt = term.status_256(status, width=12)
         id6_txt = term.color256(id6, 39, bold=True) if term.color else id6
-        lines.append(f"{status_txt}  {id6_txt}  {rel}")
+        disp_p = _highlight_filename_matches(rel, highlight_tokens, term)
+        lines.append(f"{status_txt}  {id6_txt}  {disp_p}")
         paths.append(rel)
     return lines, paths
 

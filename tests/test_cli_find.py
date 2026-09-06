@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 from agent_workflows import cli
+from agent_workflows.term import Term
 
 
 def _run_cli(argv: list[str]) -> tuple[int, str, str]:
@@ -79,6 +81,54 @@ class TestCliFindPaths(unittest.TestCase):
         paths = data["data"]["paths"]
         self.assertTrue(len(paths) >= 1)
         self.assertTrue(any("v8xdz4" in p for p in paths))
+
+    def test_highlight_filename_matches_helper(self):
+        term_color = Term(color=True)
+        term_plain = Term(color=False)
+        path = ".aw/records/plans/pending/20260904-runbypass-01-ki6tom-remove.ipd.md"
+
+        # Plain mode returns identical string
+        self.assertEqual(
+            cli._highlight_filename_matches(path, ["ki6tom"], term_plain),
+            path,
+        )
+
+        # Empty tokens returns identical string
+        self.assertEqual(
+            cli._highlight_filename_matches(path, [], term_color),
+            path,
+        )
+
+        # Color mode highlights match in filename in bold orange-yellow (214)
+        highlighted = cli._highlight_filename_matches(path, ["ki6tom"], term_color)
+        expected_match = "\033[1;38;5;214mki6tom\033[0m"
+        self.assertIn(expected_match, highlighted)
+        self.assertTrue(highlighted.startswith(".aw/records/plans/pending/"))
+        # Directory portion must not contain the escape code
+        dir_part = highlighted[: len(".aw/records/plans/pending/")]
+        self.assertEqual(dir_part, ".aw/records/plans/pending/")
+
+    def test_find_highlights_matching_portions_in_color_mode(self):
+        old_force = os.environ.get("FORCE_COLOR")
+        try:
+            os.environ["FORCE_COLOR"] = "1"
+            rc, out, err = _run_cli(["find", "ki6tom", "25kzda"])
+            self.assertEqual(rc, 0)
+            # ki6tom and 25kzda should appear highlighted in bold orange-yellow (214)
+            self.assertIn("\033[1;38;5;214mki6tom\033[0m", out)
+            self.assertIn("\033[1;38;5;214m25kzda\033[0m", out)
+        finally:
+            if old_force is None:
+                os.environ.pop("FORCE_COLOR", None)
+            else:
+                os.environ["FORCE_COLOR"] = old_force
+
+    def test_find_no_color_flag_suppresses_color(self):
+        rc, out, err = _run_cli(["find", "--no-color", "ki6tom", "25kzda"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("\033[", out)
+        self.assertIn("ki6tom", out)
+        self.assertIn("25kzda", out)
 
 
 if __name__ == "__main__":
