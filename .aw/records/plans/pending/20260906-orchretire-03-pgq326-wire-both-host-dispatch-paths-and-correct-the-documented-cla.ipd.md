@@ -6,17 +6,19 @@
 - Scope: Wire child 01's predicate and child 02's transition into BOTH hosts' dispatch, replace the single terminal-status write with the reconsiderable-versus-dead distinction (spec `77tr3o` R-7, R-8), give the agy runner the `orchestrate` action it lacks via SHARED code rather than a copy (R-10), make the four refusal reasons distinguishable in the durable record (R-9), and correct the false `AGENTS.md` self-finalization claim (R-11). It does NOT change the eligibility predicate (child 01) or the transition (child 02), and it does NOT touch the general `dependency-blocked`-is-terminal defect for ORDINARY items, which is `nueip1`.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/engine.py, AGENTS.md, tests/test_orchestrator_retirement.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:5942n7, executed:ueg5cf
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 3
 - Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pgq326
+- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-301..PR-305 fixed, Readiness go-pending-approval
 
 - 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-301..PR-305 all FIXED, no deferrals, no open questions. This plan's OWN review (the earlier entry below was a cross-plan edit made while reviewing 84j8d7, not a review of this plan), and the E-07 added then was re-reviewed here on the same footing as the rest. PR-301 (MED, and the one most likely to have wasted an executor's time): two line citations were inherited stale from kxkc04 and point ~1100 lines from the code they name. The skip-and-reconsider precedent is at `oc_runipd.py:6936-6940`, not `:5829-5833` (worktree-isolation prose), and the drain path is at `:6954`, not `:5847`; both corrected, and the gate now instructs the executor to re-locate a symbol by name rather than implement against whatever sits at a stale offset. PR-302 (MED): E-05 located the AGENTS.md text in `agents_managed_sections` "near engine.py:1146"; it is a string literal at `:1207` inside `agents_pointer_prose` (`:1058`), while `agents_managed_sections` (`:1502`) merely wraps that prose, so the executor would have edited the wrong function. PR-303 (MED): RECONSIDER was specified as "write no status", which is necessary and NOT sufficient, because selection still requires `dependency_status` satisfied and `cascade_dependency_blocked` (`:4039`) runs at the top of every iteration (`:6916`) and can relabel the item deliberately left `queued`; "not terminal" and "reachable again" are different properties and only the second fixes the bug. PR-304 (MED): the AGENTS.md correction had no requirement tying each new assertion to a test, and its neighbouring "Do NOT raise ... orchestrator finalization" instruction would have kept forbidding reports of the cases the mechanism deliberately refuses. PR-305 (LOW): the 95-vs-21 suite figure is stale (re-measured 155 vs 43), and two runner test modules an executor might reach for are outside Scope-Paths. Self-review disclosure in the review record.

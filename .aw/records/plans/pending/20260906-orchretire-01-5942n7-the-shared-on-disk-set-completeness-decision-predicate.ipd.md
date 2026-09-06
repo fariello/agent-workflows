@@ -6,17 +6,19 @@
 - Scope: Build ONE shared, host-neutral predicate in `runner_shared.py` that decides whether a Set is retirement-eligible, reading the PLANS TREE rather than a run queue, and returning a typed reason for every refusal. Implements spec `77tr3o` R-1, R-2, R-3, R-9, R-10. It DECIDES ONLY and performs no transition (child 02 owns that) and touches no dispatch site (child 03 owns that). It does NOT change `_set_children_all_executed`'s callers, does NOT alter `EXECUTION_SUCCESS_STATES` (spec Section 4), and does NOT touch the `dependency-blocked` write.
 - Scope-Paths: agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 1
 - Highest E allocated: 04
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 5942n7
+- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-101..PR-105 fixed, Readiness go-pending-approval
 
 - 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-101..PR-105 all FIXED, no deferrals, no open questions. E-01/E-02's expected outcomes were re-measured by actually calling `selectors.resolve` + `ipd_lint.parse` for every live Set and match exactly. The substantive finding is PR-101 (HIGH): E-03 parsed the child table as if orchestrators shared one column layout, and they do not. Measured across all five live orchestrators, the five layouts share only the FIRST column and `rununify` has NO `Id` column at all, so a parser keyed on a named header either crashes or vacuously passes on the one Set the check exists for; `rununify` also carries a `last` row token the plan never mentioned alongside `03+`. PR-102 (HIGH): the declared-vs-resolved comparison had no stated direction, and `runprofile` has SIX children on disk against five declared rows (`kgpptv`, Order 6), so a symmetric rule would refuse a legitimately-extended Set forever. PR-103 (MEDIUM): F-4 asserted `nna8yz` "carries `substantially-complete` today", but its PLAN FILE carries `Status: approved` and the value exists only in a run `state.json`; since this predicate reads the plans tree, the guard needed restating as defense against a value from another caller. PR-104 (MEDIUM): the status test was a denylist of known-bad values rather than an `executed`-only allowlist. PR-105 (MEDIUM): the gate lacked the scope-fence/commit wording and, more importantly, never stated the asymmetric failure direction that is the design's whole basis. Self-review disclosure in the review record.

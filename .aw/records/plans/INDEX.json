@@ -4577,7 +4577,7 @@
     "path": "pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
     "plan_id": "84j8d7",
     "set_id": "orchretire",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4587,7 +4587,7 @@
     "path": "pending/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md",
     "plan_id": "5942n7",
     "set_id": "orchretire",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4597,7 +4597,7 @@
     "path": "pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
     "plan_id": "ueg5cf",
     "set_id": "orchretire",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4607,6 +4607,16 @@
     "path": "pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md",
     "plan_id": "pgq326",
     "set_id": "orchretire",
+    "status": "approved"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md",
+    "plan_id": "mn3gwr",
+    "set_id": "verifygap",
     "status": "to-review"
   },
   {

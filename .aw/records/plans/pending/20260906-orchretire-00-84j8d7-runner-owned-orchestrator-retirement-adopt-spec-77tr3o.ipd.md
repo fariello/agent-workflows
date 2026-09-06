@@ -6,17 +6,19 @@
 - Scope: ORCHESTRATOR - authors NO product code. Coordinates the three children that adopt spec `77tr3o`: the shared on-disk eligibility predicate (01), the runner-owned retirement transition resolving the E/V and receipt gates (02), and the both-host dispatch wiring plus the documentation correction (03). Owns the child sequence, the whole-Set completion criteria, and the cross-IPD validation. Its own execution work is E-01 only (whole-Set verification). Explicitly EXCLUDES the general `dependency-blocked`-is-terminal defect for ordinary items (`nueip1`), the `EXECUTION_SUCCESS_STATES` dependency-edge defect, the `aw set executed` worker-role bypass, and actually retiring the four currently-stuck orchestrators.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 84j8d7
+- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-001..PR-005 fixed, Readiness go-pending-approval
 
 - 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-001..PR-005 all FIXED, no deferrals, no open questions. Every load-bearing measurement re-verified independently at HEAD 46da9b40 (0 orchestrator-finalized vs 28 deferred across 103 run records and 15 distinct id6s; the 2026-08-24 gate predating the 2026-08-27 rollup; AGENTS.md:42 generated from engine.py:1207). PR-001 (HIGH) is the substantive one and was fixed in its OWNING plan pgq326 as new E-07/V-07: criterion 5 and child 03's E-04 specified only the SHARED ACTION DECIDER, but agy has no dispatch branch that reads `orchestrate` at all, so the Set could have shipped with V-04's object-identity assertion passing while `aw agy run` still spent an agent turn agent-executing an orchestrator, which is precisely the failure spec R-10 forbids. Also fixed: the recursive self-retirement note invited discharging this plan by the very rollup that SKIPS the E/V checkpoint, which would have marked the Set verified without performing E-01 (PR-002, HIGH); the gate carried no scope fence, honesty rule, or commit contract (PR-003, MEDIUM); "real run" overpromised what OQ-01 actually licenses (PR-004, MEDIUM); and the fourth refusal cause was not required evidence (PR-005, MEDIUM). Self-review disclosure carried in the review record: the reviewer authored these plans in the same session.

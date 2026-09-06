@@ -6,17 +6,19 @@
 - Scope: Make a runner-owned retirement transition that actually works, resolving spec `77tr3o` R-5 (the E/V pre-transition requirement) and R-6 (the receipt requirement) EXPLICITLY rather than by bypass, and writing an honest terminal history entry per R-4. THE R-5 SHAPE IS DECIDED, not left to the executor: the maintainer chose a SEPARATE runner-owned rollup transition and ruled `ipd_lint.py` out of bounds, so this plan adds a transition and does NOT teach the honesty checker any exception. Consumes child 01's predicate; it performs the transition and does NOT decide eligibility itself. It does NOT touch either runner's dispatch branch (child 03), does NOT relax any gate for CHILD plans, and adds NO path by which an ordinary plan can reach `executed` without evidence.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:5942n7
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ueg5cf
+- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-201..PR-204 fixed, Readiness go-pending-approval
 
 - 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-201..PR-204 all FIXED, no deferrals, no open questions. This is the Set's highest-risk plan because it deliberately OPENS a lifecycle gate, and the review was conducted on that basis: every claim re-verified plus a hunt for ways the opened gate could reach an ordinary plan. Three HIGH findings, all from reading `ipd_lifecycle.py` rather than the plan's account of it. PR-201: the worker-role refusal is NOT inheritable, because `worker_role_active` is called in the CLI wrappers `run_begin` (`:2223`) and `run_finalize` (`:2403`) and NOT inside `finalize()` (exactly two call sites in the module), so a new transition function starts with NO role guard and a managed worker could create lifecycle authority through it; added E-06/V-06 to close it. PR-202: E-01's "every other gate" named five gates while `finalize` performs at least nine, omitting the exclusive finalize LOCK (`:303`), the two-phase transaction JOURNAL (`:130-143`), EARLY CRASH RECOVERY (`:1744-1760`) and the idempotent pre-commit rollback (`:1632`), so a drift test built to the short list would pass while the rollup silently ran lockless and journal-less inside a live runner in a shared checkout. PR-203: gating the route on `Kind: orchestrator` alone makes it retire whatever it is pointed at, and `action_for` returns `orchestrate` from `reviewed` onward, so the transition must require child 01's eligibility verdict itself. PR-204 (MED): the receipt also carries `base_head`, the baseline the whole scope delta is computed from (`:1355-1364`), so "no receipt" silently means "no scope reconciliation" and that consequence must be stated and asserted rather than discovered. Self-review disclosure in the review record.

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 207 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 208 Sets; the full manifest is INDEX.json.
 
 ## orchretire
 
@@ -10,6 +10,10 @@ Showing the 40 most-recent of 207 Sets; the full manifest is INDEX.json.
 - `5942n7` [pending] 01 pending/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md
 - `ueg5cf` [pending] 02 pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
 - `pgq326` [pending] 03 pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md
+
+## verifygap
+
+- `mn3gwr` [pending] 01 pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md
 
 ## runprofile
 
@@ -194,10 +198,6 @@ Showing the 40 most-recent of 207 Sets; the full manifest is INDEX.json.
 ## findidx
 
 - `e32j35` [superseded] 01 superseded/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md
-
-## fullauto
-
-- `97df1z` [executed] 01 executed/20260829-fullauto-01-97df1z-structured-readiness-field-replaces-prose-matching-in-the-fu.ipd.md
 
 ## (singletons: no Set)
 
