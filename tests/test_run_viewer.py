@@ -1496,11 +1496,11 @@ class RunsRepairHelpTests(TestCase):
     def test_format_step_duration(self):
         self.assertEqual(run_viewer.format_step_duration(None), "-")
         self.assertEqual(run_viewer.format_step_duration(-5.0), "-")
-        self.assertEqual(run_viewer.format_step_duration(0), "00h00m00s")
-        self.assertEqual(run_viewer.format_step_duration(45), "00h00m45s")
-        self.assertEqual(run_viewer.format_step_duration(1167), "00h19m27s")
-        self.assertEqual(run_viewer.format_step_duration(10479), "02h54m39s")
-        self.assertEqual(run_viewer.format_step_duration(97676), "1d 03h07m56s")
+        self.assertEqual(run_viewer.format_step_duration(0), "00:00:00")
+        self.assertEqual(run_viewer.format_step_duration(45), "00:00:45")
+        self.assertEqual(run_viewer.format_step_duration(1167), "00:19:27")
+        self.assertEqual(run_viewer.format_step_duration(10479), "02:54:39")
+        self.assertEqual(run_viewer.format_step_duration(97676), "1d 03:07:56")
 
     def test_extract_step_elapsed(self):
         # 1. Empty or non-existent attempts
@@ -1524,7 +1524,7 @@ class RunsRepairHelpTests(TestCase):
         }
         sec, text = run_viewer.extract_step_elapsed(item)
         self.assertEqual(sec, 1167.0)
-        self.assertEqual(text, "00h19m27s")
+        self.assertEqual(text, "00:19:27")
 
         # 3. Multiple attempts (e.g. interrupted + retry)
         item_multi = {
@@ -1543,7 +1543,7 @@ class RunsRepairHelpTests(TestCase):
         }
         sec_m, text_m = run_viewer.extract_step_elapsed(item_multi)
         self.assertEqual(sec_m, 600.0 + 630.0)
-        self.assertEqual(text_m, "00h20m30s")
+        self.assertEqual(text_m, "00:20:30")
 
         # 4. In-flight attempt (running / live)
         now_mock = datetime(2026, 9, 5, 21, 30, 0, tzinfo=timezone.utc)
@@ -1559,7 +1559,7 @@ class RunsRepairHelpTests(TestCase):
             item_live, is_live=True, now=now_mock
         )
         self.assertEqual(sec_live, 859.0)
-        self.assertEqual(text_live, "00h14m19s")
+        self.assertEqual(text_live, "00:14:19")
 
     def test_render_steps_table_elapsed_column(self):
         term = Term(color=False)
@@ -1573,7 +1573,7 @@ class RunsRepairHelpTests(TestCase):
             stem="20260905-test-01-step01",
             attempts_count=1,
             elapsed_seconds=1167.0,
-            elapsed_str="00h19m27s",
+            elapsed_str="00:19:27",
         )
         st2 = run_viewer.StepSummary(
             position=2,
@@ -1590,13 +1590,13 @@ class RunsRepairHelpTests(TestCase):
 
         tbl = run_viewer.render_steps_table([st1, st2], term)
         self.assertIn("Elapsed", tbl)
-        self.assertIn("00h19m27s", tbl)
+        self.assertIn("00:19:27", tbl)
         self.assertIn("-", tbl)
 
         # In short mode, Elapsed should NOT appear
         tbl_short = run_viewer.render_steps_table([st1, st2], term, short=True)
         self.assertNotIn("Elapsed", tbl_short)
-        self.assertNotIn("00h19m27s", tbl_short)
+        self.assertNotIn("00:19:27", tbl_short)
 
     def test_render_step_details_includes_elapsed(self):
         term = Term(color=False)
@@ -1610,7 +1610,7 @@ class RunsRepairHelpTests(TestCase):
             stem="20260905-test-01-step01",
             attempts_count=1,
             elapsed_seconds=1167.0,
-            elapsed_str="00h19m27s",
+            elapsed_str="00:19:27",
         )
         details = run_viewer.render_step_details([st], term)
-        self.assertTrue(any("elapsed: 00h19m27s" in d for d in details))
+        self.assertTrue(any("elapsed: 00:19:27" in d for d in details))

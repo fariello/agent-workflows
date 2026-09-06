@@ -170,7 +170,7 @@ def format_duration(seconds: float | None) -> str:
 
 
 def format_step_duration(seconds: float | None) -> str:
-    """Format step duration seconds into 'Nd HHhMMmSSs' (e.g. '00h19m27s', '1d 02h15m30s')."""
+    """Format step duration seconds into 'HH:MM:SS' or 'Nd HH:MM:SS' if >= 24h."""
     if seconds is None or seconds < 0:
         return "-"
     total_secs = int(round(seconds))
@@ -178,8 +178,8 @@ def format_step_duration(seconds: float | None) -> str:
     hrs, rem = divmod(rem, 3600)
     mins, secs = divmod(rem, 60)
     if days > 0:
-        return f"{days}d {hrs:02d}h{mins:02d}m{secs:02d}s"
-    return f"{hrs:02d}h{mins:02d}m{secs:02d}s"
+        return f"{days}d {hrs:02d}:{mins:02d}:{secs:02d}"
+    return f"{hrs:02d}:{mins:02d}:{secs:02d}"
 
 
 def _parse_iso_timestamp_utc(val: Any) -> datetime | None:
