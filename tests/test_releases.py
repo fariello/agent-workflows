@@ -184,6 +184,12 @@ class ReleaseQueryPrimitiveTests(unittest.TestCase):
         rec = releases.get_release(self.root, "2.0.0")
         self.assertIsNotNone(rec)
         self.assertEqual(rec.id6, "aaaaaa")
+        rec_tag = releases.get_release(self.root, "v2.0.0")
+        self.assertIsNotNone(rec_tag)
+        self.assertEqual(rec_tag.id6, "aaaaaa")
+        # resolve_release resolves version strings and tags as well
+        self.assertEqual(releases.resolve_release(self.root, "2.0.0"), rec.path)
+        self.assertEqual(releases.resolve_release(self.root, "v2.0.0"), rec.path)
 
     def test_get_release_by_filename(self) -> None:
         name = "20251201-bbbbbb-01-bbbbbb-1-0-0.release.md"

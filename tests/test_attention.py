@@ -1113,6 +1113,55 @@ class AttentionFilteringTests(unittest.TestCase):
         self.assertTrue(att.matches_blocking(item_blk, filters_ver))
         self.assertFalse(att.matches_blocking(item_nonblk, filters_ver))
 
+        # Tag/number normalization: 'v2.0.0' matches '2.0.0' and vice versa
+        filters_tag = att.parse_blocking_filters(["v2.0.0"])
+        self.assertTrue(att.matches_blocking(item_blk, filters_tag))
+        item_blk_tag = att.Item(
+            "3",
+            "p3.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            blocks_release="v2.0.0",
+        )
+        self.assertTrue(att.matches_blocking(item_blk_tag, filters_ver))
+        self.assertTrue(att.matches_blocking(item_blk_tag, filters_tag))
+
+        # 'next' matches any release blocker regardless of tag/number
+        filters_next = att.parse_blocking_filters(["next"])
+        self.assertTrue(att.matches_blocking(item_blk, filters_next))
+        self.assertTrue(att.matches_blocking(item_blk_tag, filters_next))
+        item_blk_next = att.Item(
+            "4",
+            "p4.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            blocks_release="next",
+        )
+        self.assertTrue(att.matches_blocking(item_blk_next, filters_next))
+        item_blk_id6 = att.Item(
+            "5",
+            "p5.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            blocks_release="f33nrj",
+        )
+        self.assertTrue(att.matches_blocking(item_blk_id6, filters_next))
+        self.assertFalse(att.matches_blocking(item_nonblk, filters_next))
+
+        item_dash = att.Item(
+            "6", "p6.md", "plans", "approved", A.READY, None, None, blocks_release="-"
+        )
+        self.assertFalse(att.matches_blocking(item_dash, filters_next))
+
         filters_bool_true = att.parse_blocking_filters(["true"])
         self.assertTrue(att.matches_blocking(item_blk, filters_bool_true))
         self.assertFalse(att.matches_blocking(item_nonblk, filters_bool_true))
@@ -1321,6 +1370,55 @@ class AttentionFilteringTests(unittest.TestCase):
             self.assertEqual(len(data_all["items"]), 2)
             ids = {it["id"] for it in data_all["items"]}
             self.assertEqual(ids, {"aaaaaa", "cccccc"})
+
+    def test_research_blocks_release_frontmatter_vs_body(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            research_dir = root / ".aw" / "records" / "research"
+            research_dir.mkdir(parents=True)
+
+            # Research doc with blocks-release in frontmatter
+            r1 = (
+                "---\n"
+                "id: res001\n"
+                "status: todo\n"
+                "blocks-release: next\n"
+                "---\n\n"
+                "# Real research blocker\n"
+            )
+            (research_dir / "20260901-test-01-res001-real.md").write_text(
+                r1, encoding="utf-8"
+            )
+
+            # Research doc with quoted - Blocks-Release: in body (like 27rjro)
+            r2 = (
+                "---\n"
+                "id: res002\n"
+                "status: todo\n"
+                "---\n\n"
+                "# Prompt quoting an IPD\n\n"
+                "```markdown\n"
+                "- Blocks-Release: next\n"
+                "```\n"
+            )
+            (research_dir / "20260901-test-02-res002-quote.md").write_text(
+                r2, encoding="utf-8"
+            )
+
+            items, _drift = att.scan(root)
+            item_map = {it.id: it for it in items}
+            self.assertEqual(item_map["res001"].blocks_release, "next")
+            self.assertIsNone(item_map["res002"].blocks_release)
+
+            blockers = att.release_blockers(items, root)
+            blocker_ids = {it.id for it in blockers}
+            self.assertIn("res001", blocker_ids)
+            self.assertNotIn("res002", blocker_ids)
+
+            # Filtering by -b next matches res001 but not res002
+            filters = att.parse_blocking_filters(["next"])
+            self.assertTrue(att.matches_blocking(item_map["res001"], filters, root))
+            self.assertFalse(att.matches_blocking(item_map["res002"], filters, root))
 
 
 if __name__ == "__main__":

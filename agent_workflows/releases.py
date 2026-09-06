@@ -151,6 +151,20 @@ def resolve_release(repo_root: Path, value: str) -> Optional[Path]:
             m = _ID_RE.search(p.read_text(encoding="utf-8"))
             if m and m.group(1) == value:
                 return p
+    val_clean = value.lstrip("v")
+    matching_ver = []
+    for p in d.rglob("*.release.md"):
+        try:
+            txt = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = _VERSION_RE.search(txt)
+        if m:
+            ver = m.group(1).strip()
+            if ver == value or ver.lstrip("v") == val_clean:
+                matching_ver.append(p)
+    if len(matching_ver) == 1:
+        return matching_ver[0]
     return None
 
 
@@ -316,7 +330,9 @@ def get_release(repo_root: Path, selector: str) -> Optional[ReleaseRecord]:
     # 2. Version string / filename / stem (the verb's own convenience selectors).
     records = list_releases(repo_root)
     for rec in records:
-        if rec.version == selector:
+        if rec.version and (
+            rec.version == selector or rec.version.lstrip("v") == selector.lstrip("v")
+        ):
             return rec
     for rec in records:
         name = rec.path.name
@@ -348,6 +364,10 @@ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]
     planned = resolve_release(repo_root, "next")
     next_is_this = planned is not None and Path(planned) == Path(rec.path)
     accepted = {rec.id6} if rec.id6 else set()
+    if rec.version:
+        accepted.add(rec.version)
+        accepted.add(f"v{rec.version}")
+        accepted.add(rec.version.lstrip("v"))
     if next_is_this:
         accepted.add("next")
     out: List[Dict[str, Any]] = []
@@ -357,7 +377,11 @@ def get_release_blockers(repo_root: Path, selector: str) -> List[Dict[str, Any]]
             # The Item reader does not populate `blocks_release` for every tree; fall back to the
             # file the shared scan already validated (same paths `release_blockers` probed).
             declared = _declared_blocks_release(repo_root, it.path)
-        if declared is None or declared not in accepted:
+        if declared is None:
+            continue
+        if next_is_this:
+            pass
+        elif declared not in accepted and declared.lstrip("v") not in accepted:
             continue
         out.append(
             {
@@ -381,10 +405,24 @@ def _declared_blocks_release(repo_root: Path, rel_path: str) -> Optional[str]:
         Path(repo_root) / ".aw" / "records" / rel_path,
     ):
         try:
-            if base.is_file():
-                m = _ITEM_BLOCKS_RELEASE_RE.search(base.read_text(encoding="utf-8"))
-                if m:
-                    return m.group(1)
+            if not base.is_file():
+                continue
+            text = base.read_text(encoding="utf-8")
+            if ".research" in base.name or "/research/" in str(base):
+                from agent_workflows import research_contract
+
+                data = research_contract.parse_frontmatter(text)
+                if data:
+                    v = (
+                        data.get("blocks-release")
+                        or data.get("blocks_release")
+                        or data.get("Blocks-Release")
+                    )
+                    return str(v).strip() if v else None
+                return None
+            m = _ITEM_BLOCKS_RELEASE_RE.search(text)
+            if m:
+                return m.group(1)
         except OSError:
             continue
     return None

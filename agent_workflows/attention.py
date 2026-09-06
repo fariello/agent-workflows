@@ -855,6 +855,12 @@ def _research_record(
     # Shared sort key unchanged.
     pr_val = data.get("priority")
     pr = str(pr_val) if pr_val not in (None, "") else None
+    br_val = (
+        data.get("blocks-release")
+        or data.get("blocks_release")
+        or data.get("Blocks-Release")
+    )
+    br = str(br_val).strip() if br_val not in (None, "") else None
     d_kind, d_text = _extract_detail(text)
     rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
@@ -867,6 +873,7 @@ def _research_record(
         None,
         lha,
         priority=pr,
+        blocks_release=br,
         detail_kind=d_kind,
         detail_text=d_text,
         readiness=rd,
@@ -1163,13 +1170,22 @@ def matches_blocking(
             if not is_blk:
                 return True
         elif is_blk:
-            if tok in (raw_blk, resolved_ver):
+            tok_clean = tok.lstrip("v")
+            raw_clean = raw_blk.lstrip("v")
+            res_clean = resolved_ver.lstrip("v")
+            plan_clean = planned_ver.lstrip("v")
+
+            if tok == "next":
+                # 'next' shows what's blocking the next release regardless of tag/number
                 return True
-            if tok == "next" and (
-                raw_blk in ("next", planned_id, planned_ver)
-                or resolved_ver == planned_ver
-            ):
+            if tok in (raw_blk, resolved_ver) or tok_clean in (raw_clean, res_clean):
                 return True
+            if plan_clean and tok_clean == plan_clean:
+                if raw_blk in ("next", planned_id) or raw_clean == plan_clean:
+                    return True
+            if planned_id and tok == planned_id:
+                if raw_blk in ("next", planned_id) or raw_clean == plan_clean:
+                    return True
     return False
 
 
@@ -1235,13 +1251,17 @@ def release_blockers(items: List[Item], repo_root: Path) -> List[Item]:
     for it in items:
         if it.attention_class in (A.DONE, A.PARKED):
             continue
-        for base in (repo_root / it.path, repo_root / ".aw" / "records" / it.path):
-            try:
-                if base.is_file() and rx.search(base.read_text(encoding="utf-8")):
-                    out.append(it)
-                    break
-            except OSError:
-                continue
+        if it.blocks_release and it.blocks_release != "-":
+            out.append(it)
+            continue
+        if it.blocks_release is None and it.tree in ("specs", "plans", "backlog"):
+            for base in (repo_root / it.path, repo_root / ".aw" / "records" / it.path):
+                try:
+                    if base.is_file() and rx.search(base.read_text(encoding="utf-8")):
+                        out.append(it)
+                        break
+                except OSError:
+                    continue
     return out
 
 
@@ -1429,6 +1449,9 @@ def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> s
                 desc = _releases.describe_planned_release(repo_root)
                 if desc and desc[1] and desc[1] != "?":
                     return desc[1]
+            rec = _releases.get_release(repo_root, val)
+            if rec and rec.version:
+                return rec.version
         except Exception:
             pass
     return val
