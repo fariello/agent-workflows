@@ -1,11 +1,12 @@
 - Id: kxkc04
-- Status: graduated
+- Status: done
 - Set: depblock
 - Priority: high
 - Work-Kind: bug
 - Summary: an orchestrator deferred early can never finalize later in the same run: the deferral path writes a terminal status instead of leaving it queued
 
 ## Workflow history
+- 2026-09-06 done (aw set): FIXED and PROVEN IN PRODUCTION. All four orchretire plans are executed (5942n7, ueg5cf, pgq326, 84j8d7), each carrying From-Backlog: kxkc04. The proof is a real run, not a test: run-20260906T222302Z-2985274 retired orchestrator 84j8d7 to executed in 6s for $0.00 and ZERO tokens, spending no agent turn, and the ledger now records orchestrator-finalized=1 - the FIRST successful orchestrator rollup in 100+ runs against the 28 orchestrator-deferred measured when this item was filed. The addendum's warning was also vindicated in production: the first attempt correctly REFUSED and rolled back (finalize-refused, a transient pre-commit failure) leaving 84j8d7 intact at approved, which is exactly the TERMINATE-not-retry behavior the original 'leave it queued' prescription would have hung on. Sibling nueip1 (dependency-blocked is terminal, never revisited) stays open and separate.
 - 2026-09-06 graduated (aw set): Graduated into spec 77tr3o (approved by maintainer attestation) and plan Set 'orchretire': orchestrator 84j8d7, children 5942n7 (shared on-disk eligibility predicate), ueg5cf (runner-owned transition resolving the E/V + receipt gates), pgq326 (both-host dispatch wiring + AGENTS.md correction). All four carry From-Backlog: kxkc04 and From-Spec: 77tr3o; all four report aw ipd lint conforming with a full E/V bijection. An addendum was appended to this item first, because the original prescription ('leave it queued') would have HUNG the finalize-refused case: measured 0 orchestrator-finalized vs 28 orchestrator-deferred across 102 runs, so the rollup has never once worked, and rh5tt6 shows a structural refusal that must TERMINATE rather than be retried. Sibling nueip1 stays open and separate.
 - 2026-09-05 created (aw backlog): an orchestrator deferred early can never finalize later in the same run: the deferral path writes a terminal status instead of leaving it queued
 

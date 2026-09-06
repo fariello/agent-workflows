@@ -1607,6 +1607,69 @@ def _reconciliation_history_note(reasons: Dict[str, str], acks: Dict[str, str]) 
     return "Scope reconciliation - " + "; ".join(bits)
 
 
+def classify_commit_refusal(
+    repo_root: Path, git_stderr: str, staged: Sequence[str]
+) -> Optional[str]:
+    """Name a commit failure caused by something OTHER than this transaction, or None.
+
+    WHY THIS EXISTS (measured 2026-09-06, run `run-20260906T222302Z-2985274`). Orchestrator `84j8d7`
+    was fully eligible for retirement, the transition ran, and its lifecycle commit was rejected by
+    `pre-commit` with `local-leaks ... Failed - files were modified by this hook` while that hook's own
+    output said `No local leaks found.` The refusal was recorded as the generic `finalize-refused`, so
+    the operator could not tell an eligibility problem from an unrelated one, and the honest retry was
+    invisible. The actual cause was a CONCURRENT AGENT writing an unrelated plan file inside
+    `pre-commit`'s stash/restore window: pre-commit stashes unstaged changes, runs the hooks, and
+    compares tree state afterwards, so a co-worker's write during that window is attributed to
+    whichever hook happened to be running. `local-leaks` was an innocent bystander (it is
+    `always_run: true, pass_filenames: false`, exits nonzero only on real findings, and its only file
+    write is behind `--fix`, which the hook never passes).
+
+    This DIAGNOSES only. The caller still fails closed and still rolls back; the point is that the
+    recorded reason names a transient, unrelated cause and says a retry is safe, instead of implying
+    the plan or its Set was at fault. Returns a human-readable cause, or None when the failure is not
+    recognizably foreign (in which case the caller keeps its existing generic message: an unrecognized
+    failure must NEVER be reported as a benign race).
+    """
+    text = git_stderr or ""
+    owned = {str(p) for p in staged}
+
+    # pre-commit's own signature for "the tree changed under me". Its wording is stable across
+    # versions; match the distinctive half rather than the full sentence.
+    hook_modified = "files were modified by this hook" in text
+    if not hook_modified:
+        return None
+
+    # A hook that legitimately REWRITES an owned path (a formatter fixing our own file) is NOT a
+    # foreign cause: the correct response there is to re-stage and retry, which the operator does by
+    # re-running. Only claim a foreign cause when a path OUTSIDE the staged set is dirty.
+    rc, out, _err = _git(repo_root, ["status", "--porcelain", "--untracked-files=no"])
+    if rc != 0:
+        return None
+    foreign: List[str] = []
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        entry = line[3:].strip()
+        if " -> " in entry:
+            entry = entry.split(" -> ", 1)[1].strip()
+        if entry and entry not in owned:
+            foreign.append(entry)
+    if not foreign:
+        return None
+
+    shown = ", ".join(sorted(foreign)[:4])
+    more = "" if len(foreign) <= 4 else f" (+{len(foreign) - 4} more)"
+    return (
+        "the pre-commit hooks reported the working tree changed while they ran, and "
+        f"{len(foreign)} dirty path(s) outside this transaction's staged set are present: "
+        f"{shown}{more}. That is the signature of a CONCURRENT WRITER (another agent or a running "
+        "driver) editing a file inside pre-commit's stash/restore window, not a problem with this "
+        "plan or its Set. Nothing was committed and the transaction rolled back cleanly, so a RETRY "
+        "is safe once the tree settles. Note the hook named in the pre-commit output is whichever one "
+        "was running when the tree changed; it is not necessarily the cause."
+    )
+
+
 def _lifecycle_commit_exists(
     repo_root: Path, pre_head: str, plan_id: str
 ) -> Optional[str]:
@@ -2490,8 +2553,12 @@ def _finalize_transaction(
     if lifecycle_commit is None:
         if cur_head == pre_head:
             # No lifecycle commit: pure pre-commit failure -> rollback.
+            # Diagnose a FOREIGN cause (a concurrent writer inside pre-commit's stash window) so the
+            # recorded reason does not imply this plan or its Set was at fault. Still fails closed.
+            foreign = classify_commit_refusal(repo_root, err, stage)
+            base = f"lifecycle commit did not happen (git rc={rc}: {err.strip()})"
             return _rollback_and_return(
-                f"lifecycle commit did not happen (git rc={rc}: {err.strip()})",
+                f"{base}\nDIAGNOSIS: {foreign}" if foreign else base,
                 EXIT_CANNOT_RUN,
             )
         # HEAD moved but not via our marker: ambiguous -> unknown-outcome (fail closed).
