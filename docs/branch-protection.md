@@ -21,7 +21,7 @@ The `attention-check` job in `.github/workflows/tests.yml` runs the SAME shipped
 diverge. It fails the job (blocks the merge) on any finding for:
 
 - `aw specs check` - the spec status/gate/history contract;
-- `aw attention --check` - the cross-tree attention view;
+- `aw next --check` - the cross-tree attention view (`aw attention` is an alias of `aw next`);
 - `aw check plans` - plan (IPD) conformance;
 - `aw check releases` - release-record conformance.
 

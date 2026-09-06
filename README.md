@@ -47,7 +47,8 @@ config file (under `~/.config/agent-workflows/`, never in your home directory ro
 aw setup                # asks where your repos are, discovers them, installs, teaches
 aw install all          # later: install or update every configured repo
 aw list-repos           # see each repo's installed version and currency
-aw attention            # on-demand board of what needs attention across records
+aw next                 # on-demand board of what to work on next across records
+aw next -o depth        # order it so a prerequisite comes before what depends on it
 aw ipd board            # board of your plan/IPD readiness Status, grouped by lifecycle
 aw ipd set approved <id> # transition plan status (or aw set approved <id>)
 aw check plans names    # check plan/IPD filenames match convention

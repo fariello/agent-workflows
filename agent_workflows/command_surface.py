@@ -92,6 +92,21 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--no-color",),
         exit_contract=(0, 2),
     ),
+    # worksequence i6015i E-01: `next` is now the CANONICAL cross-tree view (declared below with
+    # command_class="read"); `attention`, `att` and `todo` are its aliases. All four share ONE parser,
+    # so `--format`/`--check`/`--long`/`--details` reach every spelling. `todo` was previously a
+    # SEPARATE parser accepting only `--all` (its `--format json` failed outright), which is why its
+    # legacy_flags now match the shared set rather than the narrower one it used to have.
+    CommandDeclaration(
+        command="attention",
+        command_class="alias",
+        human_recipe="board",
+        agent_record_kind="result",
+        mutation_gate="none",
+        empty_error_renderer="delegated",
+        legacy_flags=("--format", "--check", "--agent", "--all", "--long"),
+        canonical_command="next",
+    ),
     CommandDeclaration(
         command="att",
         command_class="alias",
@@ -100,7 +115,7 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         mutation_gate="none",
         empty_error_renderer="delegated",
         legacy_flags=("--agent", "--format"),
-        canonical_command="attention",
+        canonical_command="next",
     ),
     CommandDeclaration(
         command="todo",
@@ -109,8 +124,8 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="delegated",
-        legacy_flags=("--agent",),
-        canonical_command="attention",
+        legacy_flags=("--agent", "--format", "--check", "--all"),
+        canonical_command="next",
     ),
     CommandDeclaration(
         command="sanitize",
@@ -191,14 +206,24 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         legacy_flags=("--agent", "--include-untracked", "--include-executed", "--all"),
         exit_contract=(0, 1, 2),
     ),
+    # worksequence i6015i E-01/E-04: the canonical cross-tree view. Renamed from `attention` (kept as
+    # an alias above, together with `att` and `todo`) and given `--order-by`, which is what makes the
+    # name `next` true rather than aspirational.
     CommandDeclaration(
-        command="attention",
+        command="next",
         command_class="read",
         human_recipe="board",
         agent_record_kind="result",
         mutation_gate="none",
         empty_error_renderer="shared_empty_result",
-        legacy_flags=("--format", "--check", "--agent", "--all", "--long"),
+        legacy_flags=(
+            "--format",
+            "--check",
+            "--agent",
+            "--all",
+            "--long",
+            "--order-by",
+        ),
         exit_contract=(0, 1, 2),
     ),
     # --- Project Family ---

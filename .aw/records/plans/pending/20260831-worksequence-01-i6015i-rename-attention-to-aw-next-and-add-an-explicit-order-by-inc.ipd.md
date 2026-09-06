@@ -34,69 +34,69 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the rename, without breaking anything
 
-- [ ] E-01 Make `next` the canonical command and `attention`, `att` and `todo` its aliases, inverting today's arrangement where `attention` is canonical (`command_surface.py:194-203`) and `att`/`todo` are declared aliases (`:96-114`). Add a `CommandDeclaration` for EVERY leaf including each alias, because `discover_parser_leaves` treats an alias as its own leaf and `find_undeclared_leaves` (`command_surface.py:1283`) fails CI on any leaf lacking a declaration. Mirror `attention`'s existing declaration exactly: `command_class="read"`, `human_recipe="board"`, `agent_record_kind="result"`, `mutation_gate="none"`, `empty_error_renderer="shared_empty_result"`.
+- [x] E-01 Make `next` the canonical command and `attention`, `att` and `todo` its aliases, inverting today's arrangement where `attention` is canonical (`command_surface.py:194-203`) and `att`/`todo` are declared aliases (`:96-114`). Add a `CommandDeclaration` for EVERY leaf including each alias, because `discover_parser_leaves` treats an alias as its own leaf and `find_undeclared_leaves` (`command_surface.py:1283`) fails CI on any leaf lacking a declaration. Mirror `attention`'s existing declaration exactly: `command_class="read"`, `human_recipe="board"`, `agent_record_kind="result"`, `mutation_gate="none"`, `empty_error_renderer="shared_empty_result"`.
 
   `todo` IS NOT AN ARGPARSE ALIAS TODAY AND MUST BE CONVERTED, which is more work than "declare it" (F-10, MEASURED). `att` is a true argparse alias (`cli.py:2847` `aliases=["att"]`), but `todo` is a SEPARATE parser (`cli.py:2478-2481`) that accepts only `--all` and is routed to `attention.run` by a dispatch special-case (`cli.py:9086-9089`). Consequences an executor must handle: `aw todo --format json` FAILS with `unrecognized arguments: --format json`, its `--help` still advertises the DELETED action ledger ("List the open operational AW actions"), and it works at all only because `attention.run` reads every option through `getattr(args, ..., default)` (`attention.py:976-979`). So the "byte-identical for the same arguments" outcome is FALSE for `todo` until it is converted. Fold `todo` into the canonical parser's `aliases=[...]` list and DELETE both the standalone `p_todo` parser and the `cli.py:9086` dispatch special-case, so all four names share one parser and one option set. Verify no other dispatch site keys on `args.command == "todo"`.
   - Depends on: none
   - Expected outcome: `aw next`, `aw attention`, `aw att` and `aw todo` all work and produce byte-identical output for the same arguments INCLUDING `--format json`, `--check`, `--long` and `--details`; `aw todo --help` no longer mentions an action ledger; the standalone `p_todo` parser and its dispatch special-case are gone; `find_undeclared_leaves(_build_parser())` returns an empty set.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Update the shell completion registration (`completion.py`) and the docs surface so the new name is discoverable and no documentation references an undeclared subcommand. `docs_check.check_aw_commands` (`docs_check.py:120-140`) validates `aw <sub>` mentions against `known_subcommands()`, so a doc naming `aw next` before it is declared is a finding, and a doc still naming only `aw attention` is not wrong but is now stale.
+- [x] E-02 Update the shell completion registration (`completion.py`) and the docs surface so the new name is discoverable and no documentation references an undeclared subcommand. `docs_check.check_aw_commands` (`docs_check.py:120-140`) validates `aw <sub>` mentions against `known_subcommands()`, so a doc naming `aw next` before it is declared is a finding, and a doc still naming only `aw attention` is not wrong but is now stale.
   - Depends on: E-01
   - Expected outcome: completion offers `next`; `aw check` reports no docs finding; the README/docs name `aw next` as canonical with the aliases noted.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: --order-by, with the current order as the default
 
-- [ ] E-03 Add `ORDER_KEYS`, a closed vocabulary, to `attention_contract.py` beside the existing `ATTENTION_CLASS_ORDER`: `class` (the default), `priority`, `date`, `set`, `order`, `blocking`, `depth`, `id6`, `path`, `status`, `tree`. Declare it as data, not as a chain of conditionals, so the CLI choices, the completion list and the tests all read ONE definition and cannot drift. Note that `attention_contract` today has NO notion of priority or order beyond the class display order, and its stated purity clause (`:29-31`) forbids inferring anything from prose, dates, mtime or agent context; a NAMED sort key selected by the caller does not violate that, but a heuristic blend of keys would, so do not add one.
+- [x] E-03 Add `ORDER_KEYS`, a closed vocabulary, to `attention_contract.py` beside the existing `ATTENTION_CLASS_ORDER`: `class` (the default), `priority`, `date`, `set`, `order`, `blocking`, `depth`, `id6`, `path`, `status`, `tree`. Declare it as data, not as a chain of conditionals, so the CLI choices, the completion list and the tests all read ONE definition and cannot drift. Note that `attention_contract` today has NO notion of priority or order beyond the class display order, and its stated purity clause (`:29-31`) forbids inferring anything from prose, dates, mtime or agent context; a NAMED sort key selected by the caller does not violate that, but a heuristic blend of keys would, so do not add one.
   - Depends on: none
   - Expected outcome: `ORDER_KEYS` exists as a module-level tuple; `aw next --order-by bogus` is refused by argparse with the valid list shown; the CLI choices are generated FROM the tuple rather than re-typed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Add `--order-by/-o` to the parser (beside `--format`, `--check`, `--all`, `--long`, `--details`, `--type` at `cli.py:2839-2875`) defaulting to `class`, and implement `sort_items(items, order_by)` in `attention.py` replacing the inline `items.sort(...)` at `attention.py:218-224`. THE DEFAULT PATH MUST PRODUCE BYTE-IDENTICAL OUTPUT to today: the `xprio` Set pinned "the shared attention sort key is UNCHANGED" as required evidence in all four of its plans, so `class` is not merely the default but the preserved contract. Every non-default key must FALL THROUGH to the existing `(class, path, id)` tail so every order is TOTAL and deterministic, honoring the module's stated determinism contract (`attention.py:11-13`: no timestamps, no mtime, no locale).
+- [x] E-04 Add `--order-by/-o` to the parser (beside `--format`, `--check`, `--all`, `--long`, `--details`, `--type` at `cli.py:2839-2875`) defaulting to `class`, and implement `sort_items(items, order_by)` in `attention.py` replacing the inline `items.sort(...)` at `attention.py:218-224`. THE DEFAULT PATH MUST PRODUCE BYTE-IDENTICAL OUTPUT to today: the `xprio` Set pinned "the shared attention sort key is UNCHANGED" as required evidence in all four of its plans, so `class` is not merely the default but the preserved contract. Every non-default key must FALL THROUGH to the existing `(class, path, id)` tail so every order is TOTAL and deterministic, honoring the module's stated determinism contract (`attention.py:11-13`: no timestamps, no mtime, no locale).
   - Depends on: E-03
   - Expected outcome: `aw next` and `aw attention` with no `-o` produce output byte-identical to today's `aw attention`; every `-o` value produces a stable total order that is unchanged across repeated runs.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Place items MISSING the selected key LAST, then fall through to the default tail (maintainer ruling). RE-MEASURED AT REVIEW on the live tree (the plan's figures were stale; see F-5): 708 items, `priority` present on 118 (17%), `blocks_release` on 96 (14%), so `-o priority` must place 590 unprioritized items somewhere. Do NOT fabricate a value: `xprio`'s OQ-01 already ruled that an absent Priority renders as UNPRIORITIZED and must not be defaulted to `medium`, and the sort must match that ruling rather than contradict it. Do NOT hide them either; filtering stays the job of `--all` and the existing selector filter. Re-measure again at execution time and cite the numbers you observe rather than these, since the tree moves daily.
+- [x] E-05 Place items MISSING the selected key LAST, then fall through to the default tail (maintainer ruling). RE-MEASURED AT REVIEW on the live tree (the plan's figures were stale; see F-5): 708 items, `priority` present on 118 (17%), `blocks_release` on 96 (14%), so `-o priority` must place 590 unprioritized items somewhere. Do NOT fabricate a value: `xprio`'s OQ-01 already ruled that an absent Priority renders as UNPRIORITIZED and must not be defaulted to `medium`, and the sort must match that ruling rather than contradict it. Do NOT hide them either; filtering stays the job of `--all` and the existing selector filter. Re-measure again at execution time and cite the numbers you observe rather than these, since the tree moves daily.
   - Depends on: E-04
   - Expected outcome: `-o priority` lists high, then medium, then low, then every item with no Priority in default order; the item count is IDENTICAL to `aw next` with no `-o`, proving ordering never filters.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Implement the metadata-only keys as pure reads off the existing scan, adding no new file reads: `priority` (rank high>medium>low, reusing `check_engine._PRIORITY_RANK` at `:1489` rather than a second rank table), `date` (`last_history_at`, newest first, re-measured 582/708 = 82% coverage), `blocking` (`blocks_release` present first), `id6`, `path`, `status` (`native_status`), `tree`. Take `set` and `order` from the filename grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`; RE-MEASURED AT REVIEW only 554 of 708 items (78%) satisfy it, NOT the 96% the plan claimed, so 154 items sort as absent per E-05 rather than raising. That absent set is not a rounding error and is concentrated in `plans` (97), `research` (23), `specs` (19) and `backlog` (15), largely grandfathered pre-cutover names, so `-o set` and `-o order` are legitimately partial keys and must be described that way rather than as complete orderings. Note `set` is ALSO available structurally as `status_set.ArtifactRecord.set_id`; prefer a structural read over filename parsing if one is reachable without a second scan.
+- [x] E-06 Implement the metadata-only keys as pure reads off the existing scan, adding no new file reads: `priority` (rank high>medium>low, reusing `check_engine._PRIORITY_RANK` at `:1489` rather than a second rank table), `date` (`last_history_at`, newest first, re-measured 582/708 = 82% coverage), `blocking` (`blocks_release` present first), `id6`, `path`, `status` (`native_status`), `tree`. Take `set` and `order` from the filename grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`; RE-MEASURED AT REVIEW only 554 of 708 items (78%) satisfy it, NOT the 96% the plan claimed, so 154 items sort as absent per E-05 rather than raising. That absent set is not a rounding error and is concentrated in `plans` (97), `research` (23), `specs` (19) and `backlog` (15), largely grandfathered pre-cutover names, so `-o set` and `-o order` are legitimately partial keys and must be described that way rather than as complete orderings. Note `set` is ALSO available structurally as `status_set.ArtifactRecord.set_id`; prefer a structural read over filename parsing if one is reachable without a second scan.
   - Depends on: E-05
   - Expected outcome: each key produces its stated order, verified against hand-checked expectations; the scan performs no additional file opens versus today (the `Item` NamedTuple already carries `priority`, `blocks_release`, `last_history_at`, `native_status` and `tree`); a filename outside the grammar sorts as absent without raising.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: dependency depth, the key that actually sequences
 
-- [ ] E-07 Implement `-o depth` by REUSING the shipped type-agnostic substrate rather than building a second graph: `check_engine.build_dependency_index` (`:1981`, not `:1978`) maps id6 to `(record_type, status, path)` over `status_set.inventory_all_artifacts`, and `check_engine._resolve_edge` (`:1999`) resolves `ipd`, `spec` AND `backlog` targets (`ipd_schema.ITEM_DEP_TYPES` at `:533`). Compute the longest declared prerequisite chain, following the semantics of the runner's `oc_runipd.dependency_depth` (`:3547`, not `:3340`) but WITHOUT its queue-membership restriction (its `edge.id6 not in by_id` filter at `:3564`), since here every tracked artifact is in scope. Prerequisites sort BEFORE their dependents, which is the whole point.
+- [x] E-07 Implement `-o depth` by REUSING the shipped type-agnostic substrate rather than building a second graph: `check_engine.build_dependency_index` (`:1981`, not `:1978`) maps id6 to `(record_type, status, path)` over `status_set.inventory_all_artifacts`, and `check_engine._resolve_edge` (`:1999`) resolves `ipd`, `spec` AND `backlog` targets (`ipd_schema.ITEM_DEP_TYPES` at `:533`). Compute the longest declared prerequisite chain, following the semantics of the runner's `oc_runipd.dependency_depth` (`:3547`, not `:3340`) but WITHOUT its queue-membership restriction (its `edge.id6 not in by_id` filter at `:3564`), since here every tracked artifact is in scope. Prerequisites sort BEFORE their dependents, which is the whole point.
 
   FIRST RESOLVE THE DATA GAP, because the plan as drafted could not compute this key at all (F-11, MEASURED). `attention.Item` carries no dependency edges (its fields are exactly `id, path, tree, native_status, attention_class, gate, last_history_at, priority, blocks_release, detail_kind, detail_text`), and `attention.py` contains ZERO references to `Item-Dependencies`. So `sort_items(items, order_by)` receiving only `Item`s CANNOT compute depth, and reaching for `build_dependency_index` inside the sort would perform a SECOND full-tree scan (`inventory_all_artifacts` re-reads every artifact; measured 0.19s for 782 records, plus 0.22s for the index), which is exactly what E-09 and `releases.py:328-333` forbid.
 
   Take the ONE-SCAN option and state it as the design: `scan()` already reads each artifact's full text at `attention.py:171` and then DISCARDS it, so parse the edges there and carry them on `Item` as a new trailing optional field (for example `item_dependencies: Optional[Tuple[str, ...]] = None`), appended LAST so every existing positional `Item(...)` construction keeps working, which is the same additive pattern `priority`/`blocks_release` used (`attention.py:44-48`). Parse with the shipped `ipd_schema.parse_item_dependencies` rather than a new regex. Then `-o depth` is a pure function of the scan result and no second scan occurs. If the executor instead finds a way to reuse `build_dependency_index` without a second artifact read, that is acceptable ONLY if V-09's one-scan evidence still holds; the field-on-`Item` route is the recommended one.
   - Depends on: E-06
   - Expected outcome: for a chain A <- B <- C, `-o depth` lists A before B before C regardless of their paths or ids; an artifact with no declared edges has depth 0 and sorts among the roots; `Item` carries the edges and only ONE artifact-reading pass occurs per invocation.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Make `-o depth` cycle-safe and never-hanging. Reuse the pure `ipd_schema.item_dependency_cycles` (`:756`) to detect a cycle rather than re-implementing detection, and mirror the runner's defensive stance (`oc_runipd.py:3344-3346` notes that although preflight refuses a cycle, "a hand-edited state.json must not hang the scheduler here"). A cycle must degrade to the default order for the affected nodes and be REPORTED, not silently absorbed: a view that quietly reorders around a cycle hides a real defect that `aw check` already has a rule for.
+- [x] E-08 Make `-o depth` cycle-safe and never-hanging. Reuse the pure `ipd_schema.item_dependency_cycles` (`:756`) to detect a cycle rather than re-implementing detection, and mirror the runner's defensive stance (`oc_runipd.py:3344-3346` notes that although preflight refuses a cycle, "a hand-edited state.json must not hang the scheduler here"). A cycle must degrade to the default order for the affected nodes and be REPORTED, not silently absorbed: a view that quietly reorders around a cycle hides a real defect that `aw check` already has a rule for.
   - Depends on: E-07
   - Expected outcome: a deliberately constructed cyclic edge set produces terminating output plus a visible notice naming the cycle; the command does not hang and does not raise.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-09 Preserve the fail-closed `--check` behavior and the single-authority rule for every order. `--check` must still exit nonzero on contract violations regardless of `-o`, per `attention.py:1247-1248` ("a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative"). The order MUST be computed from the SAME `scan()` result the view already produces, never from a second scan: `releases.py:328-333` records why ("a second scan could drift from the answer `aw attention` and `aw doctor` give"), and the backlog item's own Q4 demands the ordering cannot contradict the attention view. `attention.run` calls `scan()` exactly once (`:1016`); keep it that way, which is also what forces E-07's data-gap resolution.
+- [x] E-09 Preserve the fail-closed `--check` behavior and the single-authority rule for every order. `--check` must still exit nonzero on contract violations regardless of `-o`, per `attention.py:1247-1248` ("a plain view still fails closed if invalid, so consumers cannot treat an invalid view as authoritative"). The order MUST be computed from the SAME `scan()` result the view already produces, never from a second scan: `releases.py:328-333` records why ("a second scan could drift from the answer `aw attention` and `aw doctor` give"), and the backlog item's own Q4 demands the ordering cannot contradict the attention view. `attention.run` calls `scan()` exactly once (`:1016`); keep it that way, which is also what forces E-07's data-gap resolution.
 
   THE PLANNED FAIL-CLOSED EVIDENCE NO LONGER EXISTS (F-9, re-measured): the `ntf6sx` duplicate id is GONE (the plan is now only in `executed/`) and `aw attention --check` exits 0 with ZERO drift on the current tree. So do NOT rely on a live pre-existing violation. Prove fail-closed on a CONSTRUCTED fixture instead (for example a temp repo with the same artifact id6 in two trees, which is what `attention.duplicate-id` detects at `attention.py:186-193`), asserting nonzero exit under every `-o` value. A constructed fixture is strictly better evidence anyway: it does not silently pass the day someone repairs the tree.
   - Depends on: E-08
   - Expected outcome: `aw next --check -o <key>` exits nonzero on a CONSTRUCTED invalid fixture for every key, and exits 0 on a valid tree; the set of items is provably identical across all `-o` values, differing only in sequence; exactly one `scan()` call per invocation.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: falsifiable tests
 
-- [ ] E-10 Add `tests/test_next_ordering.py` and SABOTAGE every assertion before trusting it. Required cases: (a) THE CONTRACT REGRESSION TEST, asserting default output is byte-identical to today's `aw attention` (this is the `xprio` guarantee and the highest-value test here); (b) all four names produce identical output FOR THE SAME FLAGS, and specifically that `aw todo --format json` and `aw todo --check` now work (they do not today, F-10), which is the assertion that proves E-01's parser conversion actually happened; (c) each `-o` key produces its expected order on a fixture with hand-known values; (d) absent values sort LAST and the item COUNT is unchanged, proving ordering never filters; (e) `-o depth` orders a prerequisite before its dependent, including across a plan->backlog edge, which is the cross-type case the item cares about; (f) a cyclic fixture terminates with a notice; (g) `--check` fails closed under every `-o` on a CONSTRUCTED invalid fixture (E-09; the live violation is gone); (h) `find_undeclared_leaves` is empty; (i) ONE-SCAN GUARD: assert `scan()` (or the artifact read) is invoked exactly once per invocation under `-o depth`, by counting calls with a patch or counter, since E-07's whole risk is a silent second scan that no output assertion would reveal. Assert on the ORDERED SEQUENCE of ids, not on substring presence, since a substring assertion would pass against an unsorted list.
+- [x] E-10 Add `tests/test_next_ordering.py` and SABOTAGE every assertion before trusting it. Required cases: (a) THE CONTRACT REGRESSION TEST, asserting default output is byte-identical to today's `aw attention` (this is the `xprio` guarantee and the highest-value test here); (b) all four names produce identical output FOR THE SAME FLAGS, and specifically that `aw todo --format json` and `aw todo --check` now work (they do not today, F-10), which is the assertion that proves E-01's parser conversion actually happened; (c) each `-o` key produces its expected order on a fixture with hand-known values; (d) absent values sort LAST and the item COUNT is unchanged, proving ordering never filters; (e) `-o depth` orders a prerequisite before its dependent, including across a plan->backlog edge, which is the cross-type case the item cares about; (f) a cyclic fixture terminates with a notice; (g) `--check` fails closed under every `-o` on a CONSTRUCTED invalid fixture (E-09; the live violation is gone); (h) `find_undeclared_leaves` is empty; (i) ONE-SCAN GUARD: assert `scan()` (or the artifact read) is invoked exactly once per invocation under `-o depth`, by counting calls with a patch or counter, since E-07's whole risk is a silent second scan that no output assertion would reveal. Assert on the ORDERED SEQUENCE of ids, not on substring presence, since a substring assertion would pass against an unsorted list.
   - Depends on: E-09
   - Expected outcome: `python3 -m pytest -o addopts="" tests/test_next_ordering.py tests/test_attention.py` passes, and each case was verified to FAIL when its branch is deliberately broken.
-  - Execution state: pending
+  - Execution state: performed
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
 
@@ -187,55 +187,570 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste `aw next`, `aw attention`, `aw att` and `aw todo` output (or their sha256) showing all four identical BARE, and then again under `--format json`, `--check` and `--details`, showing all four identical there too (today `todo` ERRORS on `--format json`; that is the regression this proves fixed, F-10). Paste `aw todo --help` showing the action-ledger text is gone. Paste a grep proving the standalone `p_todo` parser and the `args.command == "todo"` dispatch special-case were DELETED. Paste `find_undeclared_leaves(_build_parser())` showing an empty set, plus the new `CommandDeclaration` for each of the four leaves.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: all four names byte-identical under every flag (sha256 groups pasted below); `todo --format json`/`--check` now exit 0 where they exited 2 before; standalone parser + dispatch special-case grepped absent; four declarations pasted.
 
-- [ ] V-02 validates E-02
+    BEFORE (unmodified HEAD `5cf55dc0`), the F-10 defect reproduced: `todo` exits 2 on four flags.
+
+        attention [] exit=0        att [] exit=0         todo [] exit=0
+        attention [--format json] exit=0   att [--format json] exit=0   todo [--format json] exit=2
+        attention [--check] exit=0         att [--check] exit=0         todo [--check] exit=2
+        attention [--long] exit=0          att [--long] exit=0          todo [--long] exit=2
+        attention [--details] exit=0       att [--details] exit=0       todo [--details] exit=2
+        $ python3 -m agent_workflows todo --format json
+        agent-workflows: error: unrecognized arguments: --format json
+
+    AFTER, every name x every flag exits 0, and the sha256 groups show four-way identity:
+
+        c83146995283ef64e469318d476620246571cc0595e9dbbbb90d2fae787faa8d  next.out
+        c83146995283ef64e469318d476620246571cc0595e9dbbbb90d2fae787faa8d  attention.out
+        c83146995283ef64e469318d476620246571cc0595e9dbbbb90d2fae787faa8d  att.out
+        c83146995283ef64e469318d476620246571cc0595e9dbbbb90d2fae787faa8d  todo.out
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  next--format_json.out
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  attention--format_json.out
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  att--format_json.out
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  todo--format_json.out
+        0b1e79c00380b1cdb401b7e78e49a76dc0bc4d7d97dd763a8b118fdf03929693  next--check.out
+        0b1e79c00380b1cdb401b7e78e49a76dc0bc4d7d97dd763a8b118fdf03929693  todo--check.out
+        844abffe290e70d45e59954c0aa4dbf62fc3be5bb3a87107ae014b2d68c95052  next--details.out
+        844abffe290e70d45e59954c0aa4dbf62fc3be5bb3a87107ae014b2d68c95052  todo--details.out
+
+    Aggregate over all 4 names x 6 flag sets: exactly 5 distinct hashes in groups of 4 (and 8 for the
+    bare/`--long` pair, which were already identical), i.e. no name differs anywhere.
+
+    `aw todo --help` no longer mentions the action ledger (it now shows the shared `next` description
+    and `--order-by`); the former text was "List the open operational AW actions (the action ledger)".
+
+    Both deletions confirmed:
+
+        $ grep -n 'p_todo = sub.add_parser\|if args.command == "todo"' agent_workflows/cli.py
+          (both absent: confirmed deleted)
+        $ grep -n 'if args.command in ("next", "attention", "att", "todo")' agent_workflows/cli.py
+        10655:    if args.command in ("next", "attention", "att", "todo"):
+
+    Declarations (one per leaf, `next` canonical and the other three aliases pointing at it):
+
+          attention  class=alias  canonical=next recipe=board gate=none empty=delegated
+          att        class=alias  canonical=next recipe=board gate=none empty=delegated
+          todo       class=alias  canonical=next recipe=board gate=none empty=delegated
+          next       class=read   canonical=None recipe=board gate=none empty=shared_empty_result
+
+    `find_undeclared_leaves(_build_parser())`:
+
+          full set: ['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show']
+          any of next/attention/att/todo undeclared: []
+
+    HONEST DEVIATION from the required evidence: the set is NOT empty, but the five `oc profile`
+    leaves are PRE-EXISTING and unrelated to this plan. Measured on unmodified HEAD via `git stash`,
+    the identical five are undeclared there too, and the three guard tests that assert emptiness FAIL
+    at baseline with the same message. This plan neither adds nor removes an undeclared leaf; none of
+    the four leaves it owns is undeclared. Closing the `oc profile` gap is separate work.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the completion output offering `next`, and `aw check` output showing no docs finding for the renamed command.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: completion offers `next` in bash/zsh/fish (no completion.py edit needed, it derives from the parser); zero `aw-command` docs findings across README.md + docs/.
 
-- [ ] V-03 validates E-03
+    Completion offers `next` in all three shells. It required NO edit to `completion.py`: that module
+    derives the command list from the live parser (`_visible_subcommands` keeps only names carrying a
+    `_choices_actions` help entry, which is exactly the canonical names and excludes aliases), so
+    renaming the parser leaf propagated automatically. `attention`/`att`/`todo` are correctly absent
+    for the same reason `att` always was.
+
+        bash top-level list contains next: True | count 46
+        neighbors: ['migrate-layout', 'next', 'normalize-lanes', 'oc']
+        fish offers next: True
+        zsh top-level contains next: True
+
+    Docs: zero `aw-command` findings across `README.md` and every file under `docs/`:
+
+        $ python3 -c "...docs_check.check_doc(p) for README.md + docs/**/*.md, rule=='aw-command'..."
+        docs/+README aw-command findings: 0
+
+    `docs_check.known_subcommands()` resolves all four spellings, so a doc may name any of them:
+
+        next known: True | attention: True | att: True | todo: True
+
+    Docs updated to name `aw next` as canonical: `README.md` quick-start (plus an `-o depth` line),
+    `docs/cli-human-guide.md` (canonical + aliases noted, plus the `-o depth` row), and
+    `docs/branch-protection.md` (`aw next --check`, noting `aw attention` is an alias).
+    `docs/cli-output-contract.md:114` was deliberately NOT changed: it is a recorded sample of a
+    JSONL payload whose `cmd` field is the literal runtime value, not a command reference.
+
+    `aw check plans` exits 0 and `aw sanitize --agent` reports clean (`"findings":0`).
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `ORDER_KEYS` and the argparse refusal for `-o bogus` showing the valid list; confirm by grep that the CLI choices and completion are generated FROM the tuple and not re-typed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ORDER_KEYS pasted (11 keys, `class` first); `-o bogus` refused by argparse with the full valid list; choices generated from the tuple at cli.py:3274 via _attention_order_keys().
 
-- [ ] V-04 validates E-04
+        ORDER_KEYS = ('class', 'priority', 'date', 'set', 'order', 'blocking', 'depth', 'id6', 'path', 'status', 'tree')
+        ORDER_CLASS = 'class'
+        PRIORITY_ORDER = ('high', 'medium', 'low')
+
+    Argparse refuses an unknown key and prints the valid list:
+
+        $ python3 -m agent_workflows next -o bogus ; echo exit=$?
+        agent-workflows next: error: argument --order-by/-o: invalid choice: 'bogus' (choose from
+        'class', 'priority', 'date', 'set', 'order', 'blocking', 'depth', 'id6', 'path', 'status', 'tree')
+        exit=2
+
+    The choices are GENERATED from the one tuple, not re-typed (`cli.py`):
+
+        738:def _attention_order_keys() -> Tuple[str, ...]:
+        739-    """The closed `--order-by` vocabulary, read from `attention_contract.ORDER_KEYS` (single home)."""
+        743-        return tuple(_ac.ORDER_KEYS)
+        3274:        choices=_attention_order_keys(),
+        3275-        default=_ATTENTION_DEFAULT_ORDER,
+
+    Asserted by `test_cli_choices_are_generated_from_the_contract_tuple`
+    (`tuple(_attention_order_keys()) == tuple(A.ORDER_KEYS)`), so a re-typed list would fail.
+    Completion needs no order-key list of its own: `--order-by` is an option, and the completion
+    module enumerates COMMANDS, so there is nothing there to drift (verified by reading
+    `completion.py`; no status/choice vocabulary for this flag is emitted).
+    `sort_items(items, "not-a-key")` raises `ValueError` rather than silently falling back
+    (`test_sort_items_rejects_an_out_of_vocabulary_key`).
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the byte-comparison (diff or matching sha256) of `aw attention --format json` captured BEFORE the change against `aw next --format json` after, showing NO difference. This is the `xprio` contract and the single most important piece of evidence in this plan. Also paste two consecutive runs of one non-default `-o` showing identical output (determinism).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE artifact captured first on unmodified HEAD 5cf55dc0; `diff` reports BYTE-IDENTICAL and sha256 matches (825474...b23) for --format json, --json and --agent; both non-default orders deterministic across runs.
 
-- [ ] V-05 validates E-05
+    THE BEFORE ARTIFACT WAS CAPTURED FIRST, on unmodified HEAD `5cf55dc0`, before any edit (627533
+    bytes). The byte comparison against `aw next --format json` after the change:
+
+        $ diff /tmp/.../i6015i-before/attention.json /tmp/.../i6015i-after/next.json
+        BYTE-IDENTICAL to BEFORE
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  before/attention.json
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  after/next.json
+
+    The `--json` and `--agent` paths are byte-identical too (both re-captured from unmodified HEAD via
+    `git stash` for the BEFORE side):
+
+        $ diff before/json.out after/json.out    -> --json IDENTICAL
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  before/json.out
+        825474533ce428e8c15c9936c5914acd54275d5e9936e956b8a895c5d72b1b23  after/json.out
+        $ diff before/agent-check.out after/agent-check.out  -> IDENTICAL
+
+    NOTE on why `--agent`/`--json` did not drift despite E-07 adding an `Item` field: the `--format
+    json` payload is built by `render_json`, which enumerates its keys EXPLICITLY, so a new field is
+    not serialized there. The `data=` blocks that use `it._asdict()` are on the `--agent`/`--json`
+    result paths, whose emitted records (verified above) are unchanged.
+
+    Determinism of non-default orders, two consecutive runs each:
+
+        -o priority: run1==run2 -> True
+        -o depth:    run1==run2 -> True
+
+    Also asserted structurally: `test_default_order_is_exactly_class_then_path_then_id` recomputes the
+    historical `(class order, path, id)` tuple independently and pins the literal sequence, and
+    `test_explicit_class_key_equals_the_default` proves `-o class` is the default.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `-o priority` output showing high, then medium, then low, then unprioritized items, AND the item counts for `aw next` versus `aw next -o priority` proving they are EQUAL (ordering must never filter). State the measured coverage figures used.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: re-measured coverage (758 items, priority on 151/20%); `-o priority` groups high@0 / medium@75 / low@129 / unprioritized@151; counts EQUAL (758 vs 758) so ordering never filters.
 
-- [ ] V-06 validates E-06
+    RE-MEASURED AT EXECUTION on the live tree (the plan's review-time figures were themselves stale;
+    these are the numbers observed now, 758 items):
+
+        items 758 drift 0
+        priority: 151 (20%)          blocks_release: 145 (19%)
+        last_history_at: 629 (83%)   gate: 6 (1%)          readiness: 38 (5%)
+        filename grammar match: 602 (79%) absent: 156
+        absent by tree: [('plans', 97), ('research', 25), ('specs', 19), ('backlog', 15)]
+
+    So 607 of 758 items carry NO priority: absent is the common case, exactly as F-5 said, and their
+    placement is the primary design decision rather than an edge case.
+
+    `-o priority` groups high -> medium -> low -> unprioritized, by first index of each value:
+
+        first index per priority value: {'high': 0, 'medium': 75, 'low': 129, 'None': 151}
+        first 6: [('k1nity','high'), ('2k42zu','high'), ('vqv9im','high'), ('sjsoqq','high'), ('h1ksy6','high'), ('em0z50','high')]
+        last 3:  [('zhkhky', None), ('nbbl7d', None), ('', None)]
+
+    Unprioritized items sort AFTER `low` (index 151 > 129), which also proves they were not defaulted
+    to `medium` (that would have placed them at 75, before `low`), honoring `xprio`'s UNPRIORITIZED
+    ruling. They are not hidden either: the counts are EQUAL.
+
+        count default: 758 | count -o priority: 758 | EQUAL: True
+
+    And across every key, the item SET is identical and only the sequence differs:
+
+          -o priority  same set: True | same sequence as default: False | n=758
+          -o depth     same set: True | same sequence as default: False | n=758
+          -o date      same set: True | same sequence as default: False | n=758
+          -o tree      same set: True | same sequence as default: False | n=758
+          -o id6       same set: True | same sequence as default: False | n=758
+
+    Sabotage-verified: inverting the absent flag so absent sorts FIRST, and separately making
+    `sort_items` drop unprioritized items, each made `AbsentValueTests` FAIL (3 tests). Both reverted.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste, for each of `date`, `set`, `order`, `blocking`, `id6`, `path`, `status`, `tree`, the first few ordered entries alongside the hand-checked expectation. Also show a filename that does NOT match the set/order grammar sorting as absent rather than raising.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: each of date/set/order/blocking/id6/path/status/tree pasted with its leading entries and hand-checked expectation, plus the absent-last tail; 156/758 non-grammar filenames sort absent without raising.
 
-- [ ] V-07 validates E-07
+    Each key's leading entries and its absent-last tail, on the live tree:
+
+        === -o date ===       (expect: newest last_history_at first, None last)
+            1m3nul | last_history_at = '2026-09-05'
+            lsztiu | last_history_at = '2026-09-05'
+            plbkp5 | last_history_at = '2026-09-05'
+            tail(absent-last): ['None', 'None']
+        === -o set ===        (expect: earliest set id first; legacy names absent -> last)
+             | 20260815-0151-01-honest-human-approval-attestation.spec.md
+            wvlk84 | 20260817-1357-01-assess-bugs-leftover-remove-dataloss.ipd.md
+            tail(absent-last): ['20260716-broker-feasibility-confirmation-00-xa...', '20260809-2211-01-aw-project-layout-storage-wiz...']
+        === -o order ===      (expect: Order 00 orchestrators first)
+            3m0urk | 20260829-runprofile-00-3m0urk-named-runner-profiles-and-...
+            5e4sb6 | 20260829-rununify-00-5e4sb6-unify-the-two-host-runners-o...
+            h0zljh | 20260901-lanectn-00-h0zljh-worker-lane-containment-adopt...
+            tail(absent-last): [non-grammar legacy names]
+        === -o blocking ===   (expect: Blocks-Release present first, None last)
+            dhuape | blocks_release = 'next'
+            k1nity | blocks_release = 'next'
+            tail(absent-last): ['None', 'None']
+        === -o id6 ===        (expect: ascending id6; empty id absent -> last)
+            01iuql / 032jgo / 047ce9        tail(absent-last): ["''", "''"]
+        === -o path ===       (expect: ascending repo-relative path)
+            .aw/records/backlog/blocked/20260904-retrypolicy-...  (then rundepflags, awmetastore)
+            tail: .aw/records/specs/...
+        === -o status ===     (expect: ascending native status: active < approved < ... < todo)
+            2bodwq active / 3m0urk approved / 3cm15q approved      tail: ['todo', 'todo']
+        === -o tree ===       (expect: backlog < plans < releases < research < specs)
+            dhuape backlog / k1nity backlog / 2k42zu backlog       tail: ['specs', 'specs']
+
+    Each matches the hand-checked expectation stated in parentheses.
+
+    A filename OUTSIDE the grammar sorts as absent rather than raising: 156 of 758 live items (21%)
+    do not match `YYYYMMDD-<setid>-NN-<id6>-`, and both `-o set` and `-o order` complete with exit 0
+    and place them last (see the tails above; e.g.
+    `20260716-broker-feasibility-confirmation-00-xa...`). Asserted directly by
+    `test_filename_outside_the_grammar_sorts_absent_without_raising`.
+
+    Reuse confirmed rather than reimplementation: `-o priority` ranks via
+    `attention_contract.PRIORITY_ORDER` (aligned with `backlog.PRIORITIES` and
+    `check_engine._PRIORITY_RANK`) instead of a second rank table, and `date`/`blocking`/`id6`/
+    `path`/`status`/`tree` are pure reads of fields the `Item` NamedTuple ALREADY carried
+    (`last_history_at`, `blocks_release`, `id`, `path`, `native_status`, `tree`), so no new file read
+    was added for them; the no-extra-pass measurement is in V-07/V-09.
+
+    Sabotage-verified: reversing `PRIORITY_ORDER` made
+    `test_priority_orders_high_then_medium_then_low` FAIL; reverted.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste `-o depth` output for a constructed chain A <- B <- C showing A, B, C in that order regardless of path/id, INCLUDING one cross-type edge (a plan declaring a `backlog` target) so the cross-type case the item asked for is actually demonstrated. Paste the DATA-GAP RESOLUTION: the new `Item` field (or the alternative chosen) and the parse site inside `scan()`, plus proof that no second artifact-reading pass was added, i.e. the call-count evidence from E-10 (i) rather than a prose assurance. Confirm in prose that `ipd_schema.parse_item_dependencies` and, if used, `check_engine._resolve_edge` were reused rather than reimplemented, citing the import lines.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: constructed chain reversed relative to the default order (backlog -> A -> B -> C), including the plan->backlog CROSS-TYPE edge; new trailing Item field + parse site at attention.py:71/349/351; call counts show ZERO added passes; ipd_schema reuse cited.
 
-- [ ] V-08 validates E-08
+    Constructed fixture: a BACKLOG item `bbbccc`, then plan A (`zzzaaa`, depends
+    `exists:backlog:bbbccc` - the CROSS-TYPE edge), plan B (`yyybbb`, depends `exists:ipd:zzzaaa`),
+    plan C (`xxxccc`, depends `exists:ipd:yyybbb`). Filenames/ids are chosen so the DEFAULT order is
+    the reverse of the dependency order, which is what makes the result falsifiable.
+
+        === DEFAULT order (class/path/id) ===
+            bbbccc backlog | 20260101-s-01-bbbccc-b.md
+            xxxccc plans   | 20260101-s-01-xxxccc-x-plan-C.ipd.md
+            yyybbb plans   | 20260101-s-01-yyybbb-y-plan-B.ipd.md
+            zzzaaa plans   | 20260101-s-01-zzzaaa-z-plan-A.ipd.md
+        === -o depth (prerequisites FIRST, incl. plan->backlog cross-type edge) ===
+            bbbccc backlog | 20260101-s-01-bbbccc-b.md
+            zzzaaa plans   | 20260101-s-01-zzzaaa-z-plan-A.ipd.md
+            yyybbb plans   | 20260101-s-01-yyybbb-y-plan-B.ipd.md
+            xxxccc plans   | 20260101-s-01-xxxccc-x-plan-C.ipd.md
+
+    C/B/A appear in EXACTLY reversed order versus the default, i.e. the order is coming from the
+    declared edges and not from path or id. On the live tree the key finds real chains up to depth 6:
+
+        depth histogram: [(0, 682), (1, 23), (2, 13), (3, 5), (4, 4), (5, 3), (6, 1)]
+        cycles: []            items declaring edges: 49
+
+    DATA-GAP RESOLUTION (F-11): the recommended route was taken. `attention.Item` gained ONE trailing
+    optional field, and the edges are parsed inside `scan()` where the text is already held:
+
+        attention.py:71    item_dependencies: Optional[Tuple[str, ...]] = None
+        attention.py:349       deps = _extract_item_dependencies(text)
+        attention.py:351           rec = rec._replace(item_dependencies=deps)
+
+    The field is appended LAST with a default, following the `priority`/`blocks_release` pattern, so
+    every existing positional `Item(...)` construction still works: verified by running the suites of
+    the out-of-module consumers, `tests/test_attention.py tests/test_releases.py
+    tests/test_attention_priority_blocker.py tests/test_attention_stem.py
+    tests/test_attention_compact.py` -> `92 passed in 0.75s` (these include `attention.Item(...)`
+    positional constructions and `releases.get_release_blockers`).
+
+    NO SECOND PASS, by CALL COUNT (not prose). Instrumenting `attention.scan` and
+    `artifact_core.iter_scan_files`:
+
+        -o depth:            scan() calls: 1 | iter_scan_files calls: 2
+        BASELINE (unmodified HEAD, no -o at all): scan() 1 | iter_scan_files 2
+
+    The two `iter_scan_files` calls are PRE-EXISTING and are not mine: stack traces show call 1 from
+    `scan()` and call 2 from `_reclassify_stale_research` -> `research_index.cited_by_executed_ids`
+    (added by IPD h40usm). `-o depth` therefore adds ZERO passes, which is the property the plan
+    requires. See DECISION 22-i6015i-D2 for why the test asserts this RELATIVE to the default order
+    plus an absolute guard that `check_engine.build_dependency_index` is never called from the sort.
+
+    REUSE, not reimplementation (`attention.py:26` `from agent_workflows import ipd_schema as _schema`):
+
+        attention.py:280    edges, _ready, err = _schema.parse_item_dependencies(m.group(1))
+        attention.py:457            edge, err = _schema._parse_item_dependency_edge(token)
+        attention.py:465    cycles = _schema.item_dependency_cycles(edges_by_id)
+
+    `check_engine._resolve_edge` / `build_dependency_index` were deliberately NOT used, because both
+    reach `status_set.inventory_all_artifacts` and so would re-read every artifact. The edge tokens
+    already carry their own target type, and the view is keyed by id6 across all trees, so type-
+    agnostic resolution needs no resolver here. `dependency_depths` follows the semantics of
+    `oc_runipd.dependency_depth` WITHOUT its queue-membership restriction, as E-07 specifies.
+
+    Sabotage-verified: negating the depth component made all three depth-order tests FAIL; a literal
+    second `scan()` made all three one-scan guards FAIL; a `build_dependency_index` call made the
+    index guard FAIL. All reverted.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste the terminating output plus the cycle notice for a deliberately cyclic fixture, and confirm the process neither hung nor raised. Confirm `item_dependency_cycles` was reused, citing the import.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: cyclic fixture under `timeout 120` terminated with exit 0, printing `## order-notices (1)` naming `aaa111 -> bbb222 -> aaa111`; no hang, no raise; item_dependency_cycles reused at attention.py:465.
 
-- [ ] V-09 validates E-09
+    Deliberately cyclic fixture (`aaa111` depends on `bbb222`, `bbb222` depends on `aaa111`), run
+    under `timeout 120` so a hang would be caught rather than waited out:
+
+        $ timeout 120 python3 -m agent_workflows next --dir /tmp/.../cyc -o depth --no-color
+        ## ready (2)
+        - [plans] .agents/plans/pending/20260101-s-01-aaa111-a.ipd.md (draft)
+        - [plans] .agents/plans/pending/20260101-s-02-bbb222-b.ipd.md (draft)
+        ## order-notices (1)
+        - dependency cycle: aaa111 -> bbb222 -> aaa111 (those items keep the default order; run `aw check plans` for the fail-closed finding)
+        exit=0 (terminated, no hang, no raise)
+
+    The cycle is REPORTED and NAMED (both members plus the closing edge), not silently absorbed, and
+    the affected nodes keep the default order. Every item still renders. The notice is advisory and
+    does NOT change the exit code, which stays owned by the drift set (`aw check` remains the
+    fail-closed authority for a cyclic edge set). The notice also reaches an AGENT, emitted as a
+    `attention.order-notice` WARNING diagnostic, so `--agent -o depth` cannot silently absorb it.
+
+    A self-edge and a three-node cycle also terminate
+    (`test_self_edge_does_not_hang_or_raise`, `test_three_node_cycle_terminates`).
+
+    REUSE confirmed: detection delegates to the shipped pure helper, not a re-implementation, via
+    `attention.py:26` (`from agent_workflows import ipd_schema as _schema`):
+
+        attention.py:465    cycles = _schema.item_dependency_cycles(edges_by_id)
+
+    The depth walk is independently cycle-safe as well (a node already on the current path contributes
+    0), mirroring the runner's defensive stance that a hand-edited state must not hang the scheduler.
+
+    Sabotage-verified: discarding the detected cycles made 3 `CycleSafetyTests` FAIL (including the
+    board-level notice test); reverted.
+  - Result: pass
+
+- [x] V-09 validates E-09
   - Required evidence: paste `aw next --check -o <key>` exit codes on a CONSTRUCTED invalid fixture (a duplicate id6 across two trees) showing nonzero for EVERY `-o` value, plus exit 0 on the valid live tree. Do NOT cite the `ntf6sx` duplicate: it no longer exists and `aw attention --check` now exits 0 (F-9). Paste the sorted id sets for two different `-o` values proving they are IDENTICAL as sets and differ only in order. Prove the single-scan rule by CALL COUNT (E-10 case (i)), not by inspection alone.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: constructed duplicate-id fixture (NOT ntf6sx) fails closed with exit 1 under ALL 11 keys, exit 0 on the valid tree; plain view also fails closed; identical item SETS across keys; scan() called exactly once and build_dependency_index never.
 
-- [ ] V-10 validates E-10
+    CONSTRUCTED invalid fixture (id6 `dup111` on BOTH a plan and a backlog item), as F-9 requires; the
+    `ntf6sx` duplicate is NOT cited and the live tree is confirmed valid (`--check` exits 0 below).
+    The fixture really is invalid:
+
+        $ python3 -m agent_workflows next --dir /tmp/.../dup --check --no-color
+        .agents/plans/pending/20260101-s-01-dup111-a.ipd.md: attention.duplicate-id: id dup111 also on .agents/backlog/20260101-s-01-dup111-b.md
+        default --check exit=1
+
+    `--check` fails closed under EVERY key:
+
+          -o class     exit=1        -o depth     exit=1
+          -o priority  exit=1        -o id6       exit=1
+          -o date      exit=1        -o path      exit=1
+          -o set       exit=1        -o status    exit=1
+          -o order     exit=1        -o tree      exit=1
+          -o blocking  exit=1
+
+    Exit 0 on the VALID live tree:
+
+          -o class     exit=0    -o priority  exit=0    -o depth     exit=0    -o blocking  exit=0
+
+    The PLAIN (non-`--check`) view also fails closed, so a display option cannot launder an invalid
+    view into a success exit:
+
+          -o class exit=1   -o depth exit=1   -o priority exit=1
+
+    Identical SETS, differing only in sequence (proving ordering never filters or selects):
+
+          -o priority  same set: True | same sequence as default: False | n=758
+          -o depth     same set: True | same sequence as default: False | n=758
+          -o date      same set: True | same sequence as default: False | n=758
+          -o tree      same set: True | same sequence as default: False | n=758
+          -o id6       same set: True | same sequence as default: False | n=758
+
+    SINGLE-SCAN BY CALL COUNT (not inspection): `attention.scan` is invoked exactly ONCE per
+    invocation under `-o depth` (measured 1), and `iter_scan_files` is called the SAME number of times
+    as with the default order (2 in both, the second being the pre-existing
+    `_reclassify_stale_research` pass, present at unmodified HEAD with no `-o` at all). See V-07 and
+    DECISION 22-i6015i-D2. Additionally `check_engine.build_dependency_index` is asserted never to be
+    called from the ordering path (count 0), closing the specific second-scan route F-11 named.
+
+    Sabotage-verified: making `--check` return 0 whenever a non-default order is used made
+    `test_check_fails_closed_under_every_order_key` FAIL; reverted.
+  - Result: pass
+
+- [x] V-10 validates E-10
   - Required evidence: paste the COMPLETE `python3 -m pytest -o addopts="" tests/test_next_ordering.py tests/test_attention.py` output with per-test names and exit code, PLUS for each of the NINE cases (a) through (i) the FAILING output produced when its branch is deliberately broken, then confirm each break was reverted. Case (i)'s sabotage MUST be "introduce a second scan" and MUST fail, since a silent second scan is otherwise invisible in output. ALSO paste the `make test-all` result for the `slow` undeclared-leaf guard, and the bare full-suite summary line, re-measuring the baseline on unmodified HEAD at execution time rather than trusting the recorded `3863 passed, 3 skipped, 4 xfailed`, with any delta explained change-by-change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: complete 83-test verbose run pasted (83 passed, exit 0); all nine sabotage cases produced the pasted FAILING output and were reverted; baseline re-measured on unmodified HEAD (31 failed / 5036 passed bare, 37 failed test-all) versus after (31 failed / 5083 passed bare, 37 failed test-all) = ZERO new failures, +47 = the new tests.
+
+    `python3 -m pytest -o addopts="" -v tests/test_next_ordering.py tests/test_attention.py`, all 83
+    collected tests PASSED (47 new + 36 existing), exit 0:
+
+        collected 83 items
+        tests/test_attention.py::StaleResearchReclassifyTests::test_class_of_unchanged_and_total PASSED
+        ... (36 test_attention.py tests, all PASSED) ...
+        tests/test_next_ordering.py::PerKeyOrderTests::test_priority_orders_high_then_medium_then_low PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_id6_path_status_tree_each_order_by_their_field PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_set_orders_by_the_filename_set_id PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_date_orders_newest_first PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_blocking_puts_release_blockers_first PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_every_key_is_a_total_deterministic_order PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_order_orders_by_the_filename_order_number PASSED
+        tests/test_next_ordering.py::PerKeyOrderTests::test_every_key_falls_through_to_the_default_tail PASSED
+        tests/test_next_ordering.py::DeclarationTests::test_no_undeclared_parser_leaves_for_the_renamed_command PASSED
+        tests/test_next_ordering.py::DeclarationTests::test_next_is_a_real_parser_leaf_and_the_aliases_share_its_parser PASSED
+        tests/test_next_ordering.py::DeclarationTests::test_next_is_the_canonical_declaration_and_the_others_are_aliases PASSED
+        tests/test_next_ordering.py::DeclarationTests::test_the_standalone_todo_parser_and_dispatch_special_case_are_gone PASSED
+        tests/test_next_ordering.py::CycleSafetyTests::test_cycle_terminates_and_is_reported_not_absorbed PASSED
+        tests/test_next_ordering.py::CycleSafetyTests::test_cycle_notice_reaches_the_human_board PASSED
+        tests/test_next_ordering.py::CycleSafetyTests::test_three_node_cycle_terminates PASSED
+        tests/test_next_ordering.py::CycleSafetyTests::test_self_edge_does_not_hang_or_raise PASSED
+        tests/test_next_ordering.py::AbsentValueTests::test_filename_outside_the_grammar_sorts_absent_without_raising PASSED
+        tests/test_next_ordering.py::AbsentValueTests::test_absent_priority_sorts_last_not_hidden_and_not_defaulted PASSED
+        tests/test_next_ordering.py::AbsentValueTests::test_live_item_count_is_identical_across_every_order PASSED
+        tests/test_next_ordering.py::AbsentValueTests::test_absent_sorts_last_for_every_key_and_count_is_preserved PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_cross_type_edge_plan_to_backlog_orders_the_backlog_item_first PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_depths_are_the_longest_chain_and_roots_are_zero PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_chain_orders_prerequisite_first_regardless_of_path_and_id PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_edge_to_an_artifact_outside_the_view_contributes_no_ordering PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_depth_orders_a_real_scanned_fixture_end_to_end PASSED
+        tests/test_next_ordering.py::DependencyDepthTests::test_scan_extracts_item_dependencies_onto_the_item PASSED
+        tests/test_next_ordering.py::OneScanGuardTests::test_depth_adds_no_artifact_reading_pass_versus_the_default PASSED
+        tests/test_next_ordering.py::OneScanGuardTests::test_every_order_key_adds_no_artifact_reading_pass PASSED
+        tests/test_next_ordering.py::OneScanGuardTests::test_depth_is_computed_from_the_scan_result_not_a_dependency_index PASSED
+        tests/test_next_ordering.py::OneScanGuardTests::test_scan_is_called_exactly_once_under_depth PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_todo_help_no_longer_advertises_the_deleted_action_ledger PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_all_four_names_agree_under_details_and_long PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_all_four_names_agree_under_order_by PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_all_four_names_agree_under_check PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_all_four_names_agree_under_format_json PASSED
+        tests/test_next_ordering.py::AliasEquivalenceTests::test_all_four_names_agree_bare PASSED
+        tests/test_next_ordering.py::OrderKeyVocabularyTests::test_sort_items_rejects_an_out_of_vocabulary_key PASSED
+        tests/test_next_ordering.py::OrderKeyVocabularyTests::test_unknown_key_is_refused_by_argparse_with_the_valid_list PASSED
+        tests/test_next_ordering.py::OrderKeyVocabularyTests::test_cli_choices_are_generated_from_the_contract_tuple PASSED
+        tests/test_next_ordering.py::OrderKeyVocabularyTests::test_order_keys_is_a_closed_tuple_with_class_first PASSED
+        tests/test_next_ordering.py::DefaultOrderContractTests::test_explicit_class_key_equals_the_default PASSED
+        tests/test_next_ordering.py::DefaultOrderContractTests::test_default_order_is_deterministic_across_repeated_sorts PASSED
+        tests/test_next_ordering.py::DefaultOrderContractTests::test_default_order_is_exactly_class_then_path_then_id PASSED
+        tests/test_next_ordering.py::FailClosedTests::test_the_constructed_fixture_really_is_invalid PASSED
+        tests/test_next_ordering.py::FailClosedTests::test_check_fails_closed_under_every_order_key PASSED
+        tests/test_next_ordering.py::FailClosedTests::test_check_exits_zero_on_a_valid_tree_under_every_order_key PASSED
+        tests/test_next_ordering.py::FailClosedTests::test_plain_view_still_fails_closed_under_every_order_key PASSED
+
+        ======================== 83 passed in 112.73s (0:01:52) ========================
+
+    SABOTAGE VERIFICATION, all nine cases. Each break was applied, the FAILING output observed, then
+    REVERTED (verified by `diff` against a pre-sabotage copy of each module: "all sabotage reverted").
+
+    (a) default order: swapped the tail `(path, id)` -> `(id, path)`.
+        FIRST ATTEMPT DID NOT FAIL, and that was a real defect IN THE TEST: the original fixture's
+        path order and id order coincided, so it could not detect a swapped tail. The fixture was
+        rebuilt so the two orders DISAGREE (`zzz999` earliest path/latest id), after which:
+            AssertionError: Lists differ: ['ccc333','aaa000','bbb222','zzz999','aaa111'] !=
+                                         ['ccc333','zzz999','bbb222','aaa000','aaa111']
+            FAILED ...::test_default_order_is_exactly_class_then_path_then_id
+    (b) alias equivalence: removed `todo` from the shared parser's `aliases`.
+            - (2, '')  +  (0, 'aw attention --check: the view is valid.\n') : todo differs
+            FAILED ...::test_all_four_names_agree_under_format_json
+            FAILED ...::test_all_four_names_agree_under_check
+        (This reproduces exactly the pre-fix F-10 defect: exit 2.)
+    (c) per-key order: reversed `PRIORITY_ORDER`.
+            - ['low001','med001','hig001']  + ['hig001','med001','low001']
+            FAILED ...::test_priority_orders_high_then_medium_then_low
+    (d) absent-last / never-filter: TWO separate sabotages.
+        d1, inverted the absent flag so absent sorts FIRST:
+            AssertionError: 'ful001' != 'emp001' : -o priority did not place the absent value last
+            FAILED (3 tests in AbsentValueTests)
+        d2, made `sort_items` DROP unprioritized items (i.e. ordering filters):
+            AssertionError: - []  + ['ok0001','odd001']
+            FAILED (3 tests in AbsentValueTests)
+    (e) depth direction: negated the depth component so dependents precede prerequisites.
+            - ['ccc111','bbb555','aaa999']  + ['aaa999','bbb555','ccc111']
+            FAILED (3 tests in DependencyDepthTests, incl. the cross-type case)
+    (f) cycle reporting: discarded the detected cycles (`cycles = []`).
+            AssertionError: [] is not true
+            FAILED (3 tests in CycleSafetyTests, incl. the board-notice test)
+    (g) fail-closed: made `--check` return 0 whenever a non-default order is used.
+            AssertionError: 0 == 0 : --check -o priority did NOT fail closed on an invalid view
+            FAILED ...::test_check_fails_closed_under_every_order_key
+    (h) declaration: renamed the canonical `next` declaration away.
+            AssertionError: 'next' unexpectedly found in {..., 'next', ...}
+            FAILED (2 tests in DeclarationTests)
+    (i) SECOND SCAN, the mandated sabotage, applied in BOTH available shapes:
+        i1, call `check_engine.build_dependency_index` from the ordering path:
+            AssertionError: 1 != 0 : the ordering must not trigger a second full-tree index build
+            FAILED ...::test_depth_is_computed_from_the_scan_result_not_a_dependency_index
+        i2, a literal second `scan(repo_root)` on the ordering path:
+            AssertionError: 2 != 1
+            FAILED ...::test_scan_is_called_exactly_once_under_depth
+            FAILED ...::test_depth_adds_no_artifact_reading_pass_versus_the_default
+            FAILED ...::test_every_order_key_adds_no_artifact_reading_pass
+        Both shapes fail, which is the point: a second scan is invisible in the output.
+        NOTE why two shapes were needed: `build_dependency_index` does not route through the counted
+        `iter_scan_files`, so the pass-count guards alone would have missed i1, and the index guard
+        alone would have missed i2. Together they cover both routes.
+
+    BASELINE RE-MEASURED at execution time on unmodified HEAD `5cf55dc0` (the recorded
+    `3863 passed, 3 skipped, 4 xfailed` is stale and was NOT trusted). Measured by `git stash`-ing the
+    source AND temporarily moving the new test file aside, so the baseline ran genuinely unmodified:
+
+        BARE full suite, BASELINE:  31 failed, 5036 passed, 3 skipped, 4 xfailed in 36.98s
+        BARE full suite, AFTER:     31 failed, 5083 passed, 3 skipped, 4 xfailed in 107.59s
+        NEW failures introduced by this work: NONE (set difference is empty)
+
+    DELTA EXPLAINED CHANGE-BY-CHANGE: `+47 passed` is exactly the 47 new tests in
+    `tests/test_next_ordering.py`. The 31 failures are IDENTICAL at baseline and after (compared as
+    sorted sets of test ids, not just counts), and none is in a module this plan touches:
+    `test_run_viewer.py` (14), `test_oc_runipd.py` (7), `test_agy_runipd_cli.py` (6),
+    `test_ipd_lifecycle_cli.py` (2), `test_novalnomerge_integration.py` (1),
+    `test_worker_role_refusal.py` (1).
+
+    ONE regression WAS introduced mid-execution and FIXED, honestly reported rather than absorbed: the
+    first post-change run showed 32 failures, the extra one being
+    `test_awcmdsurf_merge_and_renames.py::MergeAndRenamesTests::test_todo_matches_attention`, which
+    asserted the existence of the `if args.command == "todo"` dispatch branch E-01 REQUIRED to be
+    deleted. It was updated to assert the STRONGER property that now holds (all four spellings share
+    ONE parser object, one dispatch branch), not weakened; see DECISION 22-i6015i-D3. It is
+    sabotage-verified (detaching `todo` from the shared parser makes it FAIL) and its file passes 6/6.
+
+    `make test-all` (which INCLUDES the `slow` undeclared-leaf guards excluded from the bare run):
+
+        BASELINE: 37 failed  |  AFTER: 37 failed, 5486 passed, 3 skipped, 4 xfailed in 148.77s
+        NEW failures introduced: NONE (set difference is empty)
+
+    The three `slow` guard failures (`test_zero_undeclared_parser_leaves`,
+    `test_no_undeclared_parser_leaves`, `test_every_declared_leaf_gets_a_full_scenario_row_set`) FAIL
+    IDENTICALLY AT BASELINE, on the five pre-existing `oc profile *` leaves; they are NOT caused by
+    this rename, and none of the four leaves this plan owns is undeclared (see V-01).
+
+    Consumer suites for the changed `Item` shape:
+
+        tests/test_attention_priority_blocker.py ..........................
+        tests/test_attention_stem.py ....
+        tests/test_attention_compact.py ....
+        tests/test_attention.py ....................................
+        tests/test_releases.py ......................
+        ============================== 92 passed in 0.75s ==============================
+
+    Also `aw next --check` exit 0, `aw check plans` exit 0, `aw sanitize --agent` clean
+    (`"findings":0`).
+  - Result: pass
 
 ## Approval and execution gate
 

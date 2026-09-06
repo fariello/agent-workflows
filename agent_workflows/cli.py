@@ -324,10 +324,12 @@ _DESCRIPTIONS = {
         "Remove the entry matching the given repo path or entry (exact or glob) from the "
         "never-install exclude list. Returns nonzero if nothing matched."
     ),
-    "todo": (
-        "List the open operational AW actions (the action ledger). --all includes "
-        "non-open (completed/dismissed) actions; --agent prints machine-readable output."
-    ),
+    # worksequence i6015i E-01: the `todo` entry here was DELETED. It described the action ledger that
+    # setupmarker removed, and `todo` is now an argparse ALIAS of the canonical `next`. An alias shares
+    # the SAME parser object as its canonical name, so `_apply_descriptions` (which walks every
+    # `choices` key) would let whichever alias it visited LAST overwrite the canonical description for
+    # all four spellings. Declaring only the canonical `next` key is therefore both the smaller change
+    # and the correct one: every spelling shows the one authored description.
     "show": (
         "Inspect a record or action and print its full content. Resolves the given selector as a "
         "RECORDS artifact first (an id6 like pp6y76, a set id, a filename fragment, or a status, "
@@ -347,12 +349,21 @@ _DESCRIPTIONS = {
         "journal. Moves/copies records to the chosen backend and updates the registry "
         "policy. Recoverable on failure; --dry-run previews."
     ),
-    "attention": (
-        "Read-only cross-tree attention view mapping every tracked .agents artifact's native "
-        "status onto a ready/active/blocked/done/parked class. Prints a board (or --format "
-        "json). --check fails closed on an invalid view (CI gate); --agent for machine output. "
-        "Alias: 'aw att'. --all reveals the hidden done/parked groups."
+    # worksequence i6015i E-01/E-04: `next` is the canonical name; the three historical spellings are
+    # aliases of it. `--order-by` is what makes the name honest: without it the view is a SET sorted
+    # by (class, path, id), which is not an answer to "in what order".
+    "next": (
+        "Read-only cross-tree view of what to work on, mapping every tracked records artifact's "
+        "native status onto a ready/active/blocked/done/parked class. Prints a board (or --format "
+        "json). --order-by/-o selects the sort: the default 'class' is the historical class/path/id "
+        "order, and 'depth' sequences declared dependencies so a prerequisite comes before its "
+        "dependents. Items lacking the selected key sort LAST; ordering never filters. --check fails "
+        "closed on an invalid view (CI gate); --agent for machine output. --all reveals the hidden "
+        "done/parked groups. Aliases: 'aw attention', 'aw att', 'aw todo'."
     ),
+    # The `attention` and `att` keys are deliberately absent for the same reason as `todo` (see the
+    # note above): they are aliases sharing the canonical parser object, so declaring them here would
+    # only race to overwrite the `next` description.
     "backlog": (
         "Owner verbs for the attention-visible backlog tier (records/backlog): 'new' creates a "
         "committed/uncommitted backlog item, 'set' transitions its status (open/blocked/parked/done) "
@@ -715,6 +726,23 @@ def _add_commit_flags(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Do NOT offer to commit the change this command made.",
     )
+
+
+# worksequence i6015i E-03/E-04: the `aw next --order-by` choices come from the ONE contract tuple.
+# Imported lazily inside the helper (not at module import) to keep the CLI module's import graph
+# unchanged, and falling back to the bare default keeps `--help` buildable even if the contract module
+# cannot be imported (a broken install must not make the whole parser unbuildable).
+_ATTENTION_DEFAULT_ORDER = "class"
+
+
+def _attention_order_keys() -> Tuple[str, ...]:
+    """The closed `--order-by` vocabulary, read from `attention_contract.ORDER_KEYS` (single home)."""
+    try:
+        from agent_workflows import attention_contract as _ac
+
+        return tuple(_ac.ORDER_KEYS)
+    except Exception:
+        return (_ATTENTION_DEFAULT_ORDER,)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -2790,10 +2818,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "path", help="Repo path or entry to remove from the exclude list."
     )
 
-    p_todo = sub.add_parser(
-        "todo", parents=[common], help="List operational AW actions."
-    )
-    p_todo.add_argument("--all", action="store_true", help="Include non-open actions.")
+    # worksequence i6015i E-01: the standalone `todo` parser was DELETED here. It accepted only
+    # `--all`, so `aw todo --format json` / `--check` / `--long` / `--details` failed with
+    # "unrecognized arguments", and its help still advertised the action ledger deleted by
+    # setupmarker. `todo` is now a true argparse alias of the canonical `next` parser below, so it
+    # shares that parser's full option set.
 
     p_show = sub.add_parser(
         "show",
@@ -3204,11 +3233,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Non-interactive; auto-confirm all prompts (leftovers defaults to defer).",
     )
 
+    # worksequence i6015i E-01: `next` is the CANONICAL name and `attention`/`att`/`todo` are its
+    # aliases (the relationship is inverted from the original, where `attention` was canonical). All
+    # four names share ONE parser and therefore ONE option set, which is what makes them byte-
+    # equivalent for the same arguments. `todo` used to be a SEPARATE parser accepting only `--all`,
+    # routed here by a dispatch special-case, so `aw todo --format json` FAILED and its `--help` still
+    # advertised the long-deleted action ledger; folding it in here deletes both defects at once.
     p_attention = sub.add_parser(
-        "attention",
-        aliases=["att"],
+        "next",
+        aliases=["attention", "att", "todo"],
         parents=[common],
-        help="Read-only cross-tree attention view (board or JSON to stdout); --check fails closed. Alias: 'aw att'.",
+        help="Read-only cross-tree view of what to work on (board or JSON to stdout); --order-by sequences it, --check fails closed. Aliases: 'aw attention', 'aw att', 'aw todo'.",
     )
     p_attention.add_argument(
         "--dir", default=None, help="Repo root (default: current directory)."
@@ -3226,6 +3261,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_attention.add_argument(
         "--all", action="store_true", help="Show done/parked groups in the board."
+    )
+    # worksequence i6015i E-04: the `choices` are GENERATED from the single contract tuple
+    # (attention_contract.ORDER_KEYS) rather than re-typed here, so the CLI, the completion list and
+    # the tests cannot drift. The default is `class`, the historical (class, path, id) order, which is
+    # what keeps the default output byte-identical to the pre-rename `aw attention` (the `xprio`
+    # contract). Every other order is an explicit opt-in.
+    p_attention.add_argument(
+        "--order-by",
+        "-o",
+        dest="order_by",
+        choices=_attention_order_keys(),
+        default=_ATTENTION_DEFAULT_ORDER,
+        help=(
+            "Sort the view by this key (default: %(default)s, the historical class/path/id order). "
+            "'depth' sequences declared dependencies so a prerequisite precedes its dependents. "
+            "Items lacking the selected key sort LAST; ordering never filters."
+        ),
     )
     p_attention.add_argument(
         "--long",
@@ -10239,11 +10291,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
         if subcmd == "exclude":
             return _run_config_exclude(args, term)
         return _show_family_help(parser, "config", "aw config show", term, context)
-    if args.command == "todo":
-        # awcmdsurf Order 04 (item 32/D5): `todo` is an alias of `attention` (the cross-tree board).
-        from agent_workflows import attention as att
-
-        return att.run(args)
+    # worksequence i6015i E-01: the `args.command == "todo"` special-case was DELETED. `todo` is now
+    # a real argparse alias of `next`, so argparse sets `args.command` to the spelling the user typed
+    # and the single `next`/`attention`/`att`/`todo` dispatch below handles all four names.
     if args.command == "show":
         return _run_show(args, term, context=context)
     if args.command == "record-history":
@@ -10600,7 +10650,9 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
     if args.command == "path":
         return _run_path(args, term)
 
-    if args.command in ("attention", "att"):
+    # worksequence i6015i E-01: `next` is canonical; `attention`/`att`/`todo` are its aliases. All
+    # four spellings route to the one implementation, so they are byte-equivalent for equal arguments.
+    if args.command in ("next", "attention", "att", "todo"):
         from agent_workflows import attention as att
 
         return att.run(args)

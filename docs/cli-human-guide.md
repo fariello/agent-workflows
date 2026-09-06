@@ -111,6 +111,7 @@ in your own scripts for "the command could not run at all".
 | Pretty structured JSON | `aw status --json` |
 | Human view without color | `aw status --no-color` |
 | A repository health sweep | `aw doctor` |
-| The cross-tree attention board | `aw attention` |
+| The cross-tree board of what to work on | `aw next` (aliases `aw attention`, `aw att`, `aw todo`) |
+| That board ordered by dependency, prerequisites first | `aw next -o depth` |
 | Only the fields you care about (agent) | `aw find plans --agent --fields findings` |
 | Bounded output with a continuation hint | `aw find plans --agent --limit 20` |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import tempfile
 import unittest
@@ -44,7 +45,7 @@ class MergeAndRenamesTests(unittest.TestCase):
         self.assertEqual(rc_l, 2)  # old `list` removed
 
     def test_todo_matches_attention(self):
-        """`todo` is an alias of `attention`, asserted STRUCTURALLY (i79rgh E-03).
+        """`todo` is an alias of the cross-tree view, asserted STRUCTURALLY (i79rgh E-03).
 
         This used to shell `todo` and `attention` as two SEPARATE live `cli.main` calls and
         compare their stdout byte-for-byte. That was a race, not a test: the attention board
@@ -55,43 +56,48 @@ class MergeAndRenamesTests(unittest.TestCase):
 
         The property under test is real and worth keeping, but it is a STATIC property of
         the dispatcher, so it is provable without executing either command against live
-        state: both branches must resolve to the same handler. `attention.run` is the single
-        implementation, and `todo` must not acquire a body of its own.
+        state: every spelling must resolve to the same handler, and `todo` must not acquire
+        a body of its own.
+
+        UPDATED by worksequence i6015i E-01, which made the property STRONGER rather than
+        weaker. `next` is now the canonical command and `attention`/`att`/`todo` are true
+        argparse aliases of it, so `todo` no longer has a dispatch branch of its own to
+        compare: the previous assertion searched for `if args.command == "todo"`, the very
+        special-case E-01 deleted. Sharing ONE PARSER OBJECT is a stronger guarantee than two
+        branches with matching bodies, because it makes divergence unrepresentable instead of
+        merely absent: the earlier arrangement let `todo` carry a NARROWER option set (it
+        accepted only `--all`, so `aw todo --format json` failed outright) while both dispatch
+        bodies still matched, which is exactly the defect that passed under the old assertion.
         """
         import inspect
-        import re
 
         src = inspect.getsource(cli._dispatch)
-
-        def _dispatch_body(pattern: str) -> list[str]:
-            match = re.search(pattern + r":\n(.*?)(?=\n    if |\n    elif )", src, re.S)
-            if match is None:
-                self.fail(f"dispatch branch not found in cli._dispatch: {pattern}")
-            return [
-                line.strip()
-                for line in match.group(1).splitlines()
-                if line.strip() and not line.strip().startswith("#")
-            ]
-
-        todo_body = _dispatch_body(r'if args\.command == "todo"')
-        attention_body = _dispatch_body(r'if args\.command in \("attention", "att"\)')
-
-        # Both branches delegate to the same handler, so they cannot diverge in behavior.
-        self.assertEqual(todo_body, attention_body)
-        self.assertEqual(
-            todo_body,
-            [
-                "from agent_workflows import attention as att",
-                "return att.run(args)",
-            ],
-        )
-
-        # `att` must remain an alias reaching that same branch. argparse keeps the invoked
-        # spelling in `command` (it does NOT canonicalize an alias), which is exactly why
-        # the dispatch tests membership in ("attention", "att") rather than equality.
         parser = cli._build_parser()
+
+        # ONE dispatch branch now covers every spelling, and it delegates to `attention.run`.
+        self.assertIn('if args.command in ("next", "attention", "att", "todo")', src)
+        self.assertNotIn('if args.command == "todo":', src)
+
+        # Every alias resolves to the SAME parser object as the canonical `next`, so they
+        # cannot diverge in options, defaults, or help.
+        subparser_actions = [
+            a for a in parser._actions if isinstance(a, argparse._SubParsersAction)
+        ]
+        self.assertTrue(subparser_actions, "the CLI must expose subcommands")
+        choices = subparser_actions[0].choices or {}
+        for alias in ("attention", "att", "todo"):
+            self.assertIs(choices[alias], choices["next"])
+
+        # argparse keeps the invoked spelling in `command` (it does NOT canonicalize an
+        # alias), which is why the dispatch tests membership rather than equality.
         self.assertEqual(parser.parse_args(["att"]).command, "att")
-        self.assertIn('("attention", "att")', src)
+        self.assertEqual(parser.parse_args(["todo"]).command, "todo")
+
+        # The options that used to fail under `todo` must now parse under every spelling.
+        for name in ("next", "attention", "att", "todo"):
+            ns = parser.parse_args([name, "--format", "json", "--check"])
+            self.assertEqual(ns.format, "json")
+            self.assertTrue(ns.check)
 
         # Output-level check WITHOUT a second live read: render ONE snapshot through both
         # argument namespaces. Any difference here is a dispatch difference, not a

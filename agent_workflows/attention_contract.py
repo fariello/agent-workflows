@@ -60,6 +60,48 @@ ATTENTION_UMBRELLA: Tuple[str, ...] = (READY, ACTIVE, BLOCKED)
 
 
 # --------------------------------------------------------------------------------------
+# The closed ordering vocabulary for `aw next --order-by` (worksequence i6015i, E-03)
+# --------------------------------------------------------------------------------------
+
+# The CLOSED set of sort keys `aw next -o/--order-by` accepts. Declared as DATA here (one home) so
+# the CLI `choices`, the shell completion list and the tests all read this tuple instead of each
+# re-typing a list that would then drift.
+#
+# WHY THE DEFAULT IS `class` AND NOT `depth`: the `xprio` Set pinned "the shared attention sort key
+# is UNCHANGED (priority not added to the sort tuple)" as required evidence in all four of its
+# plans. Making `class` (the historical `(class, path, id)` tuple) the default and every other order
+# an explicit opt-in is what keeps that contract LITERALLY true rather than merely approximately so.
+#
+# PURITY (see the mapping-purity clause above): a caller NAMING one of these keys does not violate
+# this module's purity, because the selection is explicit and the key is a single declared field. A
+# HEURISTIC BLEND of keys would violate it (it would infer importance from context and be
+# unexplainable to the user), so this vocabulary deliberately contains no composite/scored key.
+#
+# Every key is a PARTIAL order on its own: the items that carry no value for the selected key sort
+# LAST, and every key falls through to the `(class, path, id)` default tail so the resulting order is
+# TOTAL and deterministic. Ordering NEVER filters; selection stays the job of the filter flags.
+ORDER_CLASS = "class"
+ORDER_KEYS: Tuple[str, ...] = (
+    ORDER_CLASS,  # the DEFAULT: the historical (class order, path, id) tuple
+    "priority",  # high > medium > low, then unprioritized
+    "date",  # last_history_at, newest first
+    "set",  # Set id from the filename grammar
+    "order",  # Order number from the filename grammar
+    "blocking",  # items carrying Blocks-Release first
+    "depth",  # declared dependency depth: prerequisites BEFORE dependents
+    "id6",  # the stable 6-char handle
+    "path",  # repo-relative POSIX path
+    "status",  # native status
+    "tree",  # records tree / artifact type
+)
+
+# The priority ranks used by `-o priority`. DERIVED from one shared vocabulary rather than forked:
+# `backlog.PRIORITIES` is the enum and `check_engine._PRIORITY_RANK` is the existing rank; this maps
+# the rank into DESCENDING sort position (high first) without introducing a second rank table.
+PRIORITY_ORDER: Tuple[str, ...] = ("high", "medium", "low")
+
+
+# --------------------------------------------------------------------------------------
 # Tree policy inventory (spec Section 6/8.6; OQ3/OQ8 resolved)
 # --------------------------------------------------------------------------------------
 

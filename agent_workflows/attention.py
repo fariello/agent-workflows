@@ -51,6 +51,24 @@ class Item(NamedTuple):
     readiness: Optional[str] = None
     oqs: int = 0
     rqs: int = 0
+    # worksequence i6015i E-07: the artifact's DECLARED `Item-Dependencies` edges, in canonical token
+    # form, so `aw next -o depth` can sequence prerequisites before dependents.
+    #
+    # WHY THE FIELD LIVES HERE rather than being looked up when sorting: `scan()` already holds each
+    # artifact's full text (it reads it once and then discards it), whereas a sort-time lookup would
+    # have to call `check_engine.build_dependency_index`, which re-reads EVERY artifact through
+    # `status_set.inventory_all_artifacts`. That second full-tree pass is exactly what the
+    # single-authority rule forbids (see `releases.py`: "a second scan could drift from the answer
+    # `aw attention` and `aw doctor` give"), and it would be INVISIBLE in the output, so no assertion
+    # on what the command prints could catch it. Extracting the edges during the one existing pass
+    # keeps the order a pure function of the same scan result the view itself renders.
+    #
+    # Appended LAST with a default, matching the pattern `priority`/`blocks_release` used, so every
+    # existing positional `Item(...)` construction (including the ones in the test suite and in
+    # `releases.get_release_blockers`' callers) keeps working unchanged. `None` means "no
+    # Item-Dependencies field present"; an empty tuple means the field was present and declared no
+    # edges (`none`), a distinction `-o depth` does not need but which costs nothing to preserve.
+    item_dependencies: Optional[Tuple[str, ...]] = None
 
 
 _OQ_SECTION_RE = re.compile(
@@ -240,6 +258,31 @@ def _history_section_lines(text: str) -> List[str]:
     return out
 
 
+# worksequence i6015i E-07: the `- Item-Dependencies:` front-matter bullet. Only the bullet is matched
+# here; the VALUE grammar is parsed by `ipd_schema.parse_item_dependencies`, the shipped authority for
+# this field, rather than by a second regex that would drift from it.
+_ITEM_DEPS_RE = re.compile(r"(?m)^-[ \t]*Item-Dependencies:[ \t]*(.+?)[ \t]*$")
+
+
+def _extract_item_dependencies(text: str) -> Optional[Tuple[str, ...]]:
+    """The artifact's declared `Item-Dependencies` edges in canonical token form, or None.
+
+    Returns None when the field is ABSENT, and a (possibly empty) tuple when it is present. Reuses
+    `ipd_schema.parse_item_dependencies` so the edge grammar, the `none`/`unresolved` sentinels, the
+    accepted target types (`ipd`/`spec`/`backlog`) and the canonical token spelling all come from the
+    one owning module. A malformed value yields an empty tuple rather than raising: this is a pure
+    READ on a display/ordering path, and the fail-closed contract violation for a bad edge already
+    belongs to `aw check`, which must stay the single authority for that finding. Pure.
+    """
+    m = _ITEM_DEPS_RE.search(text)
+    if m is None:
+        return None
+    edges, _ready, err = _schema.parse_item_dependencies(m.group(1))
+    if err:
+        return ()
+    return tuple(e.canonical() for e in edges)
+
+
 def _plans_id(text: str) -> Optional[str]:
     for line in text.split("\n"):
         s = line.strip()
@@ -298,6 +341,15 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
         if rec is None:
             continue
 
+        # worksequence i6015i E-07: extract the declared dependency edges HERE, while `text` is still
+        # in hand, so `-o depth` needs no second artifact-reading pass. Applied uniformly to every
+        # tracked type rather than inside the five per-tree `_*_record` builders: the field's grammar is
+        # type-agnostic (`ipd_schema.ITEM_DEP_TYPES` accepts `ipd`/`spec`/`backlog` TARGETS) and one
+        # call site cannot drift from four others.
+        deps = _extract_item_dependencies(text)
+        if deps is not None:
+            rec = rec._replace(item_dependencies=deps)
+
         if rec.id:
             if rec.id in seen_ids:
                 drift.append(
@@ -328,15 +380,230 @@ def scan(repo_root: Path) -> Tuple[List[Item], List[core.Drift]]:
     # canonical `todo` at the scanner, so a legacy `intake` doc is handled identically here.)
     items = _reclassify_stale_research(repo_root, items)
 
-    items.sort(
-        key=lambda it: (
+    # worksequence i6015i E-04: the default order is unchanged. `sort_items` with the default key
+    # reproduces exactly the `(class order, path, id)` tuple this line always used, which is what makes
+    # `aw next` byte-identical to the pre-rename `aw attention`.
+    items = sort_items(items)
+    drift.sort(key=lambda d: (d.location, d.rule))
+    return items, drift
+
+
+# --------------------------------------------------------------------------------------
+# Ordering (worksequence i6015i, E-04 .. E-08)
+# --------------------------------------------------------------------------------------
+
+# The filename grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>`, from which `-o set` and `-o order` read.
+# MEASURED at execution time on this tree: 602 of 758 items (79%) match it; 156 do not, concentrated in
+# plans (97), research (25), specs (19) and backlog (15), largely grandfathered pre-cutover names. So
+# `set` and `order` are legitimately PARTIAL keys, and a non-matching name sorts as absent (E-05)
+# instead of raising.
+_NAME_GRAMMAR_RE = re.compile(
+    r"^\d{8}-(?P<setid>[A-Za-z0-9]+)-(?P<order>\d{2})-[0-9a-z]{6}-"
+)
+
+# `-o priority` ranks high > medium > low. DERIVED from the one shared vocabulary
+# (`attention_contract.PRIORITY_ORDER`, itself aligned with `backlog.PRIORITIES` and
+# `check_engine._PRIORITY_RANK`) rather than a second hardcoded rank table, which is the mistake
+# `ipd_schema` recorded when a duplicated status copy desynced.
+_PRIORITY_SORT_RANK = {name: i for i, name in enumerate(A.PRIORITY_ORDER)}
+
+# The sentinel for "this item has no value for the selected key". Sorting is done on a
+# `(absent_flag, value, default_tail...)` tuple, where `absent_flag` is 1 for a missing value, so
+# absent items land LAST under EVERY key without their value ever being compared (which also avoids
+# comparing None with str on Python 3).
+_ABSENT = 1
+_PRESENT = 0
+
+
+def _name_grammar_fields(path: str) -> Tuple[Optional[str], Optional[int]]:
+    """(set_id, order) parsed from an artifact's FILENAME, or (None, None) when it does not match."""
+    m = _NAME_GRAMMAR_RE.match(path.rsplit("/", 1)[-1])
+    if m is None:
+        return None, None
+    try:
+        return m.group("setid"), int(m.group("order"))
+    except ValueError:  # pragma: no cover - the regex already pins two digits
+        return m.group("setid"), None
+
+
+def dependency_depths(items: Sequence[Item]) -> Tuple[Dict[str, int], List[List[str]]]:
+    """Longest declared prerequisite chain ending at each item, plus any cycles found.
+
+    Returns ``(depth_by_id6, cycles)``. Depth 0 means the item declares no prerequisite that is
+    itself present in the view, so roots sort first and a dependent always follows what it depends
+    on: the ordering the work must actually be done in (spec 25kzda 5.4 rule 4, and the same
+    direction `oc_runipd.queue_sort_key` puts `dependency_depth` first in).
+
+    Type-agnostic BY CONSTRUCTION: the edges carry their own target type, and this view holds plans,
+    specs, backlog items, research and releases together keyed by id6, so a plan declaring a
+    `backlog` target orders against that backlog item without any per-type special case. It differs
+    from the runner's `dependency_depth` in exactly one way, deliberately: the runner restricts edges
+    to QUEUE MEMBERS (`edge.id6 not in by_id` is skipped) because its queue is homogeneous IPDs,
+    whereas here every tracked artifact is in scope.
+
+    Cycle-safe and non-recursive-on-the-caller's-behalf: a node already on the current path
+    contributes 0 rather than recursing forever, so a hand-edited cyclic edge set cannot hang the
+    view. Cycles are DETECTED and returned so the caller can REPORT them (E-08) instead of silently
+    reordering around a real defect that `aw check` has its own rule for. Pure.
+    """
+    # Only edges whose target is IN THE VIEW can order the view; an edge to an artifact outside it
+    # (or a typo'd id6) is a leaf and contributes no ordering, exactly as an out-of-queue edge does
+    # for the runner.
+    present: Dict[str, Item] = {it.id: it for it in items if it.id}
+    edges_by_id: Dict[str, List[str]] = {}
+    for it in items:
+        if not it.id:
+            continue
+        targets: List[str] = []
+        for token in it.item_dependencies or ():
+            edge, err = _schema._parse_item_dependency_edge(token)
+            if err or edge is None:
+                continue
+            if edge.id6 in present and edge.id6 != it.id:
+                targets.append(edge.id6)
+        edges_by_id[it.id] = sorted(set(targets))
+
+    # Cycle detection is DELEGATED to the shipped pure helper rather than re-implemented here.
+    cycles = _schema.item_dependency_cycles(edges_by_id)
+    in_cycle = {node for cyc in cycles for node in cyc}
+
+    depths: Dict[str, int] = {}
+
+    def _depth(node: str, on_path: frozenset) -> int:
+        if node in on_path:
+            return 0
+        cached = depths.get(node)
+        if cached is not None:
+            return cached
+        best = 0
+        for target in edges_by_id.get(node, ()):
+            best = max(best, 1 + _depth(target, on_path | {node}))
+        # Only memoize a value computed off the recursion path, so a cycle cannot poison the cache
+        # for nodes reached through it.
+        if not (on_path & in_cycle) and node not in in_cycle:
+            depths[node] = best
+        return best
+
+    out: Dict[str, int] = {}
+    for node in sorted(edges_by_id):
+        out[node] = _depth(node, frozenset())
+    return out, cycles
+
+
+def _order_key(it: Item, order_by: str, depths: Optional[Dict[str, int]]) -> Tuple:
+    """The PRIMARY sort component for one item under ``order_by``.
+
+    Every branch returns ``(absent_flag, value)`` where ``absent_flag`` is `_ABSENT` for an item that
+    carries no value for this key, which is what places it LAST (maintainer ruling: absent is never
+    hidden and never defaulted, matching the `xprio` ruling that an absent Priority renders as
+    UNPRIORITIZED rather than being defaulted to `medium`). Values are made directly comparable
+    (ints/strs, never None), so no branch can raise a TypeError on a mixed comparison.
+    """
+    if order_by == "priority":
+        rank = _PRIORITY_SORT_RANK.get((it.priority or "").lower())
+        # PRIORITY_ORDER is high-first, so its index is already the descending position.
+        return (_PRESENT, rank) if rank is not None else (_ABSENT, 0)
+    if order_by == "date":
+        # Newest first: ISO dates sort lexicographically, so reverse the string order by negating
+        # via a descending comparison on the inverted key. Using the raw string with a reversed
+        # comparator would flip the whole tuple, so invert only this component.
+        return (
+            (_PRESENT, _invert_str(it.last_history_at))
+            if it.last_history_at
+            else (_ABSENT, "")
+        )
+    if order_by == "set":
+        set_id, _order = _name_grammar_fields(it.path)
+        return (_PRESENT, set_id) if set_id else (_ABSENT, "")
+    if order_by == "order":
+        _set_id, order = _name_grammar_fields(it.path)
+        return (_PRESENT, order) if order is not None else (_ABSENT, 0)
+    if order_by == "blocking":
+        # Release blockers first, then everything else. `blocks_release` is the DECLARED gate field.
+        return (_PRESENT, it.blocks_release) if it.blocks_release else (_ABSENT, "")
+    if order_by == "depth":
+        if depths is None:
+            return (_ABSENT, 0)
+        return (_PRESENT, depths.get(it.id, 0)) if it.id else (_ABSENT, 0)
+    if order_by == "id6":
+        return (_PRESENT, it.id) if it.id else (_ABSENT, "")
+    if order_by == "path":
+        return (_PRESENT, it.path) if it.path else (_ABSENT, "")
+    if order_by == "status":
+        return (_PRESENT, it.native_status) if it.native_status else (_ABSENT, "")
+    if order_by == "tree":
+        return (_PRESENT, it.tree) if it.tree else (_ABSENT, "")
+    # `class` (the default) adds no primary component; the default tail alone decides.
+    return ()
+
+
+def _invert_str(value: str) -> Tuple[int, ...]:
+    """Map a string to a key that sorts in DESCENDING order under an ascending sort.
+
+    Used by `-o date` so the newest `last_history_at` comes first WITHOUT reversing the whole sort
+    tuple (which would also reverse the default `(class, path, id)` tail and so break determinism
+    expectations). Negating each code point is exact and locale-free, honoring this module's stated
+    determinism contract (no locale, no timestamps).
+    """
+    return tuple(-ord(ch) for ch in value)
+
+
+def sort_items(items: Sequence[Item], order_by: str = A.ORDER_CLASS) -> List[Item]:
+    """Return ``items`` ordered by ``order_by``. Never filters: the result is a PERMUTATION.
+
+    The DEFAULT (`class`) reproduces the historical `(class order, path, id)` tuple exactly, byte for
+    byte, because that order is a pinned contract (`xprio`) and not merely a default. Every other key
+    prepends its own component and then FALLS THROUGH to that same tail, so every order is TOTAL and
+    stable across runs, with no timestamps, mtime or locale involved.
+
+    `-o depth` needs the whole item set to compute a graph, so the depths are computed ONCE here
+    rather than per comparison. Cycles are reported through `sort_items_with_notices`; this function
+    keeps the plain signature for callers that only want the order.
+    """
+    ordered, _notices = sort_items_with_notices(items, order_by)
+    return ordered
+
+
+def sort_items_with_notices(
+    items: Sequence[Item], order_by: str = A.ORDER_CLASS
+) -> Tuple[List[Item], List[str]]:
+    """`sort_items` plus any human-facing notices the ordering produced (E-08).
+
+    A notice is currently emitted only for a dependency CYCLE under `-o depth`. A cycle degrades to
+    the default order for the affected nodes and is REPORTED rather than silently absorbed, because a
+    view that quietly reorders around a cycle hides a defect `aw check` has a rule for. Notices are
+    advisory and never change the exit code, which stays owned by the drift set.
+    """
+    if order_by not in A.ORDER_KEYS:
+        # An out-of-vocabulary key cannot reach here through the CLI (argparse `choices` refuses it),
+        # so this is a programming error rather than user input; fail loudly instead of silently
+        # falling back to an order the caller did not ask for.
+        raise ValueError(
+            "unknown order key {0!r}; valid keys: {1}".format(
+                order_by, ", ".join(A.ORDER_KEYS)
+            )
+        )
+
+    notices: List[str] = []
+    depths: Optional[Dict[str, int]] = None
+    if order_by == "depth":
+        depths, cycles = dependency_depths(items)
+        for cyc in cycles:
+            notices.append(
+                "dependency cycle: "
+                + " -> ".join(cyc)
+                + " (those items keep the default order; run `aw check plans` for the fail-closed finding)"
+            )
+
+    def key(it: Item) -> Tuple:
+        return (
+            _order_key(it, order_by, depths),
             A.ATTENTION_CLASS_ORDER.index(it.attention_class),
             it.path,
             it.id,
         )
-    )
-    drift.sort(key=lambda d: (d.location, d.rule))
-    return items, drift
+
+    return sorted(items, key=key), notices
 
 
 def _reclassify_stale_research(repo_root: Path, items: List[Item]) -> List[Item]:
@@ -1606,6 +1873,17 @@ def run(args) -> int:
         sys.stderr.write(f"aw attention: could not run: {exc}\n")
         return 2
 
+    # worksequence i6015i E-04/E-09: apply the requested ORDER to the items the ONE existing scan
+    # produced. Read through `getattr` with the contract default, matching how every other option on
+    # this path is read, so a narrower caller (a test harness, or an alias parser) still works.
+    #
+    # ORDERING IS APPLIED AFTER the filters below, deliberately: sorting first and filtering second
+    # would give the same sequence but would sort rows that are about to be discarded. The set of items
+    # is decided ONLY by the filters, never by the order, which is what makes "ordering never filters"
+    # true by construction rather than by assertion.
+    order_by = getattr(args, "order_by", None) or A.ORDER_CLASS
+    order_notices: List[str] = []
+
     type_filters = parse_type_filters(getattr(args, "types", None))
     if type_filters:
         items = [it for it in items if it.tree in type_filters]
@@ -1680,6 +1958,11 @@ def run(args) -> int:
             d for d in drift if (repo_root / d.location).resolve() in selected_paths
         ]
 
+    # Re-order the (possibly filtered) items. `scan()` already returned them in the default order, so
+    # for `-o class` this is a no-op re-sort of an already-sorted list and the output is unchanged.
+    if order_by != A.ORDER_CLASS:
+        items, order_notices = sort_items_with_notices(items, order_by)
+
     fmt = getattr(args, "format", None)
 
     if check:
@@ -1732,7 +2015,20 @@ def run(args) -> int:
         exit_code = core.drift_exit_code(drift)
         status = "clean" if exit_code == 0 else "findings"
         summary = f"{len(items)} attention item(s)"
-        diagnostics = [
+        # worksequence i6015i E-08: an ordering notice must reach an AGENT too, not only the human
+        # board, or `--agent -o depth` would silently absorb a cycle. Emitted as a WARNING diagnostic
+        # so it is visible without affecting the exit code (which `core.drift_exit_code(drift)` above
+        # has already decided from the drift set alone).
+        notice_diagnostics = [
+            Diagnostic(
+                location=str(repo_root),
+                rule="attention.order-notice",
+                detail=notice,
+                severity="warning",
+            )
+            for notice in order_notices
+        ]
+        diagnostics = notice_diagnostics + [
             Diagnostic(
                 location=d.location,
                 rule=d.rule,
@@ -1859,6 +2155,19 @@ def run(args) -> int:
                 board += f"- {ident}: {w.rule}: {detail}\n"
                 if fix.strip():
                     board += f"    Fix: {fix.strip()}\n"
+
+        # worksequence i6015i E-08: surface an ordering notice (currently a dependency cycle under
+        # `-o depth`) VISIBLY rather than absorbing it. Advisory only: it never affects the exit code,
+        # which stays owned by the drift set, because the fail-closed finding for a cyclic edge set
+        # belongs to `aw check`, not to a display option.
+        if order_notices:
+            oc_header = f"order-notices ({len(order_notices)})"
+            if colored:
+                board += term.color256(oc_header, 214, bold=True) + "\n"
+            else:
+                board += f"## {oc_header}\n"
+            for notice in order_notices:
+                board += f"- {notice}\n"
 
         footer_lines: list[str] = []
         has_hidden = (

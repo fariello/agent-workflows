@@ -127,7 +127,10 @@ class CommandSurfaceDeclarationsTests(unittest.TestCase):
                 "list-repos",
                 "show",
                 "record-history",
-                "attention",
+                # worksequence i6015i E-01: the canonical cross-tree view is now `next`; `attention`
+                # (with `att`/`todo`) is an ALIAS of it and so is covered by the alias branch above,
+                # which requires `delegated`. This entry follows the READ leaf, not the old name.
+                "next",
                 "project status",
                 "config exclude list",
                 "find",
