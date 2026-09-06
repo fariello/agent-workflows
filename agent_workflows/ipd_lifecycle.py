@@ -1699,6 +1699,482 @@ def _rollback_precommit(repo_root: Path, journal: Dict[str, Any]) -> Tuple[bool,
     )
 
 
+def _early_recovery_result(
+    repo_root: Path, plan_path: Path, evidence: Dict[str, Any]
+) -> Optional[FinalizeResult]:
+    """EARLY CRASH RECOVERY, shared by `finalize` and `retire_orchestrator` (Order 3xh53a).
+
+    Resolve the plan id from whatever path resolved (a committed-incomplete plan lives in
+    ``executed/``, where precheck/begin do not apply) and resume/rollback a prior interrupted
+    transaction BEFORE any fresh precheck. Returns a `FinalizeResult` when the caller must STOP and
+    return it; None when there is nothing to recover and the caller should proceed.
+
+    EXTRACTED rather than duplicated (orchretire-02 `ueg5cf`). The rollup transition must perform
+    this same recovery, and OQ-01's accepted cost of a second transition path is that the two can
+    DRIFT; sharing the one implementation removes this gate from the drift surface entirely instead of
+    relying on a test to notice a copy going stale.
+
+    A PRE-COMMIT phase deliberately returns None: the plan is still in its origin directory, and the
+    transaction's own resume-rollback (in `_finalize_transaction`) handles it.
+    """
+    from agent_workflows import ipd_lint as _lint0
+
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    early_id = (_lint0.parse(plan_text).meta_fields.get("Id") or "").strip()
+    if not early_id:
+        return None
+    journal = read_finalize_journal(repo_root, early_id)
+    if journal is None:
+        return None
+    phase = journal.get("phase")
+    if phase == PHASE_COMMITTED_INCOMPLETE:
+        try:
+            acquire_finalize_lock(repo_root, early_id)
+        except TransactionLockError as exc:
+            return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
+        try:
+            return _resume_post_commit(repo_root, journal, early_id, evidence)
+        finally:
+            release_finalize_lock(repo_root)
+    if phase == PHASE_UNKNOWN_OUTCOME:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"finalize journal for {early_id} is in unknown-outcome (ambiguous prior "
+            f"attempt); resolve manually and clear "
+            f"{finalize_journal_path(repo_root, early_id)}.",
+            evidence,
+            tuple(journal.get("findings", ())),
+        )
+    return None
+
+
+# --------------------------------------------------------------------------------------
+# The RUNNER-OWNED ORCHESTRATOR ROLLUP RETIREMENT (orchretire-02 `ueg5cf`; spec `77tr3o` R-4/R-5/R-6)
+#
+# WHY A SEPARATE TRANSITION EXISTS AT ALL, and why `ipd_lint.py` was deliberately NOT touched.
+#
+# Under `aw oc|agy run` an Order-0 orchestrator is NEVER agent-executed: the runner itself enforces
+# the ordering, the isolation and the per-child merge gate that the orchestrator's own `E-*`/`V-*`
+# items describe. So those items are, by design, performed by NOBODY. Two gates on the main
+# `finalize` path are therefore unpassable for it, and both are structural rather than incidental:
+#
+#   1. the `pre-transition` E/V checkpoint (`ipd_lint.check_checkpoint`) requires EVERY `E-*`
+#      `performed` and EVERY `V-*` `pass` with nonempty evidence, UNCONDITIONALLY; and
+#   2. `finalize_precheck` requires a `begin` receipt, which nothing ever mints for a plan no agent
+#      executes.
+#
+# Measured consequence: across 102 durable run records, `orchestrator-finalized` fired 0 times and
+# `orchestrator-deferred` fired 28 times across 15 orchestrators. The rollup has never once worked.
+#
+# SPEC `77tr3o` OQ-1 offered two shapes and THE MAINTAINER CHOSE (b), THIS ONE: a separate
+# runner-owned transition. He REJECTED (a), teaching `ipd_lint.py` a `Kind: orchestrator` exemption,
+# for a stated reason: a safety check that learns one narrow exception is how it quietly stops
+# protecting anything, because a later reader sees the exception and widens it. `ipd_lint.py` is
+# consequently OUT OF BOUNDS for this plan and its diff is asserted EMPTY by
+# `tests/test_orchestrator_retirement.py`. DO NOT "simplify" this into the linter exemption that was
+# rejected, and do not merge it back into `finalize`: if you believe (a) is better, raise it with the
+# maintainer rather than substituting your judgement for his.
+#
+# HE ALSO ACCEPTED THE COST EXPLICITLY: two transition paths CAN DRIFT. Two things manage that. The
+# gates that can be SHARED are shared as code (`_early_recovery_result`, `acquire_finalize_lock`,
+# `_refresh_plans_index_fail_loud`, `_finalize_transaction`, `_complete_after_commit`), so they are
+# not on the drift surface at all; and `ROLLUP_SHARED_GATES` / `ROLLUP_OMITTED_GATES` below name the
+# full gate set explicitly so a test can FAIL when one path gains a gate the other lacks.
+# --------------------------------------------------------------------------------------
+
+#: The gates the rollup transition performs, SHARED with the main `finalize` path. Named explicitly
+#: (not derived by inspection) so `tests/test_orchestrator_retirement.py` can assert the two paths
+#: agree, and so a reviewer can read the contract without re-deriving it from control flow.
+#:
+#: THIS ENUMERATION IS LONGER THAN IT LOOKS, and the length is the point. An earlier draft of this
+#: plan listed five gates (status legality, the plan move, the index refresh, the commit, the
+#: post-transition lint); `finalize` performs at least nine. A drift test built from the short list
+#: would have PASSED while the rollup silently ran with no exclusive lock, no transaction journal and
+#: no crash recovery, inside a live runner sharing this checkout with other agents.
+ROLLUP_SHARED_GATES: Tuple[str, ...] = (
+    # A worker-role process may not create lifecycle authority (wtiso-03 `rchpms` E-05). NOT
+    # inherited: `worker_role_active` is checked in the CLI wrappers `run_begin`/`run_finalize`, not
+    # inside `finalize()`, so this path had to check it itself. See E-06.
+    "worker-role-refusal",
+    # Non-empty actor and message (`finalize` :1730-1737): an unattributed terminal record is not a
+    # record.
+    "actor-and-message-required",
+    # EARLY CRASH RECOVERY: resume or roll back a prior interrupted transaction BEFORE anything else
+    # (`_early_recovery_result`, shared code).
+    "early-crash-recovery",
+    # The EXCLUSIVE finalize writer lock over the shared plans tree (`acquire_finalize_lock`),
+    # released in a `finally:`. Mandatory here, not optional: the rollup runs INSIDE a live runner
+    # that may be finalizing a child concurrently, in a checkout shared with other agents.
+    "exclusive-finalize-lock",
+    # The two-phase transaction JOURNAL (prepared -> mutating -> ready-to-commit ->
+    # committed-incomplete -> complete) with idempotent pre-commit rollback
+    # (`_finalize_transaction`, `_rollback_precommit`), shared code.
+    "transaction-journal",
+    # Status legality: the plan must not ALREADY be terminal
+    # (`ipd_schema.checkpoint_allows_status('pre-transition', ...)`).
+    "status-legality",
+    # The plan file move into `executed/` (`status_set.apply_status_change`).
+    "plan-move",
+    # The FAIL-LOUD owned plans-index refresh, which re-runs `--check` and RAISES if it did not
+    # converge (`_refresh_plans_index_fail_loud`), so a stale index is a transaction failure.
+    "plans-index-refresh-fail-loud",
+    # The single PATH-SCOPED lifecycle commit over exactly `owned_paths` (never `git add -A`).
+    "path-scoped-lifecycle-commit",
+    # `post-transition` lint on the committed plan, INCLUDING the terminal attribution rule
+    # (`_check_terminal_attribution`), which is what forces the honest history entry of E-04.
+    "post-transition-lint",
+)
+
+#: The gates the rollup DELIBERATELY does not perform, each with the reason. A gate may appear here
+#: ONLY with a justification; that is the whole discipline this pair of tuples enforces.
+ROLLUP_OMITTED_GATES: Dict[str, str] = {
+    "pre-transition-ev-checkpoint": (
+        "THE ONE DELIBERATE DIFFERENCE, and the entire reason this transition exists. The "
+        "`pre-transition` checkpoint requires every `E-*` performed and every `V-*` evidenced. Under "
+        "`aw run` an orchestrator's items are performed by NOBODY (the runner supersedes its "
+        "coordination role), so the requirement is unsatisfiable by construction rather than "
+        "unsatisfied by neglect. Spec `77tr3o` R-5, resolved by the maintainer to shape (b): skip the "
+        "checkpoint HERE, in one narrowly-gated place, rather than teach `ipd_lint.py` an exemption "
+        "that a later reader would widen. Every OTHER `pre-transition` structural check still runs "
+        "via the `post-transition` lint after the commit, and the E/V requirement is untouched for "
+        "CHILD plans, which this route refuses outright."
+    ),
+    "begin-receipt-requirement": (
+        "Spec `77tr3o` R-6. An orchestrator has no `begin` receipt BY CONSTRUCTION: nothing calls "
+        "`aw ipd begin` for a plan no agent executes, which is the literal refusal measured today "
+        "('no begin receipt for rh5tt6'). The rollup does not require one and MINTS NONE, so no "
+        "artifact is left behind claiming an execution that did not happen."
+    ),
+    "scope-delta-reconciliation": (
+        "A CONSEQUENCE of omitting the receipt, stated rather than discovered. `finalize_precheck` "
+        "reads `base_head` FROM the receipt (:1355-1364) and that is the baseline the entire scope "
+        "delta is computed against (`_changed_path_sources`), plus the receipt's frozen "
+        "`scope_paths`. No receipt therefore means no scope reconciliation. That is SAFE here only "
+        "because a rollup makes NO code edits at all: its only changed paths are the lifecycle "
+        "artifacts the transaction itself owns. The rollup does not merely ASSUME that - "
+        "`_assert_rollup_touched_only_owned_paths` VERIFIES it before committing and refuses if the "
+        "orchestrator's own file was edited, so the property that makes dropping `base_head` safe is "
+        "checked rather than trusted."
+    ),
+}
+
+#: The refusal reasons `retire_orchestrator` can return, as a typed vocabulary (the same discipline
+#: child 01 applied to `RetirementDecision.reason`: a caller must not have to string-match prose).
+ROLLUP_REFUSED_NOT_ORCHESTRATOR = "not-an-orchestrator"
+ROLLUP_REFUSED_SET_INELIGIBLE = "set-ineligible"
+ROLLUP_REFUSED_ALREADY_TERMINAL = "already-terminal"
+ROLLUP_REFUSED_WORKER_ROLE = "worker-role"
+ROLLUP_REFUSED_UNOWNED_EDIT = "unowned-edit-to-plan"
+
+
+def rollup_history_message(
+    *,
+    setid: str,
+    run_id: Optional[str],
+    children: Sequence[str],
+) -> str:
+    """The HONEST terminal history summary for a retired orchestrator (spec `77tr3o` R-4).
+
+    It must say three things and must NOT say a fourth:
+      * that the plan was RETIRED as a rollup step of a runner Set completion, not executed;
+      * the RUN ID that retired it (so the durable run record can be found); and
+      * the CHILDREN whose execution justified it (the actual evidence).
+    It must NOT claim the orchestrator's own `E-*`/`V-*` items were performed, because under
+    `aw run` they were not. The word "retired" is deliberately first; a reader skimming history sees
+    the nature of the transition before its justification.
+
+    There is NO wording to preserve: the existing string in `oc_runipd.finalize_orchestrator`
+    ("Orchestrator rollup: all children of set X executed ...") has never once been written to a
+    plan, because the transition it belongs to has never succeeded. Note that string also overstated
+    the case, asserting "all children of set X executed" without naming them.
+
+    PARENTHESIS-FREE BY CONTRACT, in the ACTOR the caller pairs with this message. The terminal
+    history line is `- <date> <status> (<actor>): <msg>` and `ipd_lint._HISTORY_ATTRIB_RE` captures
+    the actor with `\\(([^)]*)\\)`, so a parenthesized actor MISPARSES and the attribution lint then
+    fails. Today's `--actor "aw oc run (orchestrator rollup)"` is exactly that bug (F-4); the actor
+    must therefore be rendered `key=value`-style as `driver_actor` already does. The MESSAGE may
+    contain parentheses safely (it is the trailing capture), but the actor may not.
+    """
+    named = ", ".join(children) if children else "none"
+    run_part = f"run {run_id}" if run_id else "an unrecorded run"
+    return (
+        f"RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an "
+        f"agent: every child of Set {setid} reached executed, so the runner ({run_part}) retired "
+        f"this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner "
+        f"superseded them by enforcing the ordering, the isolation and the per-child merge gate. "
+        f"Justifying children: {named}."
+    )
+
+
+def _assert_rollup_touched_only_owned_paths(
+    repo_root: Path, plan_rel: str
+) -> Optional[str]:
+    """Refuse if the orchestrator's own plan file is DIRTY before the rollup mutates anything.
+
+    THE PROPERTY THIS DEFENDS, per `ROLLUP_OMITTED_GATES['scope-delta-reconciliation']`. Dropping the
+    receipt drops `base_head`, hence the whole scope delta. That is safe only because a rollup makes
+    no code edits, so its only changed paths are the lifecycle artifacts the transaction owns. This
+    verifies the one part of that which could be false: someone (an agent mid-edit, a human) having
+    uncommitted changes to the very plan the rollup is about to rewrite and commit. Committing that
+    would sweep another party's work into a lifecycle commit and attribute it to the runner.
+
+    Deliberately NARROW. It does NOT inspect the rest of the working tree, because in a shared
+    checkout a co-worker's unrelated dirty file is expected, is not the rollup's business, and is
+    exactly what `_working_tree_path_is_owned` already declines to judge on the main path. Returns a
+    refusal string, or None when clean.
+    """
+    rc, out, _err = _git(repo_root, ["status", "--porcelain", "--", plan_rel])
+    if rc != 0:
+        return None  # not a git repo / git unavailable: the commit step reports authoritatively
+    dirty = [ln for ln in out.splitlines() if ln.strip()]
+    if not dirty:
+        return None
+    return (
+        f"the orchestrator's own plan file {plan_rel} has UNCOMMITTED changes "
+        f"({'; '.join(s.strip() for s in dirty)}). A rollup makes no code edits, so it performs no "
+        "scope reconciliation (it has no begin receipt and therefore no base_head to diff against); "
+        "committing a dirty plan file would sweep someone else's in-flight edit into a lifecycle "
+        "commit and attribute it to the runner. Land or set that edit aside and re-run."
+    )
+
+
+def retire_orchestrator(
+    repo_root: Path,
+    plan_path: Path,
+    actor: str,
+    *,
+    setid: str,
+    run_id: Optional[str] = None,
+    children: Sequence[str] = (),
+    eligibility=None,
+    apply: bool = False,
+    fault_injection: Optional[str] = None,
+    env: Optional[Mapping[str, str]] = None,
+) -> FinalizeResult:
+    """RETIRE an Order-0 orchestrator as a runner rollup step (spec `77tr3o` R-4/R-5/R-6).
+
+    THIS IS NOT `finalize` WITH A GATE REMOVED, it is a narrower transition for a plan the main path
+    structurally cannot serve. It performs every gate in :data:`ROLLUP_SHARED_GATES` and omits
+    exactly those in :data:`ROLLUP_OMITTED_GATES`, each for a recorded reason.
+
+    IT IS GATED ON TWO INDEPENDENT FACTS, and requiring both is the point:
+
+      * ``Kind: orchestrator``. A `Kind: child` plan is REFUSED outright, so this route cannot be
+        aimed at an ordinary plan at all and adds NO path by which one reaches `executed` without
+        evidence.
+      * The Set is ELIGIBLE per child 01's `runner_shared.evaluate_set_retirement`, re-checked HERE
+        rather than trusted from the caller. Kind alone is NOT authority: `oc_runipd.action_for`
+        returns `orchestrate` from `reviewed` onward, so a Kind-only route would retire whatever it
+        was pointed at and the only thing preventing a premature retirement would be a caller
+        remembering to ask. Defense in depth is cheap; the failure it prevents (asserting a
+        completion that never happened) is the one this Set must never cause. Pass ``eligibility`` to
+        reuse a decision the caller already computed; it is VALIDATED, not trusted, and a
+        non-eligible verdict refuses.
+
+    ``apply=False`` (the default) is a dry run: every gate is evaluated and NOTHING is mutated.
+
+    ``env`` defaults to ``os.environ`` and exists so the worker-role refusal is testable without
+    mutating global process state, mirroring `worker_role_active`'s own design.
+    """
+    from agent_workflows import ipd_lint as _lint
+    from agent_workflows import ipd_schema as _schema
+    from agent_workflows import runner_shared as _rs
+    from agent_workflows import status_set as _ss
+
+    evidence: Dict[str, Any] = {"transition": "orchestrator-rollup", "setid": setid}
+
+    # --- GATE: worker role. FIRST, before selector resolution, any other gate, or any mutation, so a
+    # refused invocation has NO side effect (E-06). The refusal is NOT inherited from the CLI
+    # wrappers: `worker_role_active` is called in `run_begin` (:2223) and `run_finalize` (:2403), NOT
+    # in `finalize()`, so a new transition function starts with no role guard whatsoever and a
+    # managed worker could otherwise create lifecycle authority through it.
+    if worker_role_active(os.environ if env is None else env):
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"{LIFECYCLE_ROLE_ERROR} (refused: orchestrator rollup retirement). The runner "
+            "performs this transition from the coordinator role; a worker-role process must not.",
+            evidence,
+            (ROLLUP_REFUSED_WORKER_ROLE,),
+        )
+
+    # --- GATE: actor required (mirrors `finalize` :1730-1737). The message is DERIVED here rather
+    # than passed in, because R-4 fixes what it must say; there is no caller-supplied wording to
+    # validate.
+    if not actor or not actor.strip():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            "orchestrator rollup retirement requires a non-empty --actor.",
+            evidence,
+        )
+    actor = actor.strip()
+    if "(" in actor or ")" in actor:
+        # F-4: `ipd_lint._HISTORY_ATTRIB_RE` captures the actor as `\\(([^)]*)\\)`, so a
+        # parenthesized actor misparses and the attribution lint fails AFTER the commit, i.e. in the
+        # committed-incomplete state. Refuse BEFORE mutating anything instead. Today's
+        # `--actor "aw oc run (orchestrator rollup)"` is exactly this bug.
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"actor {actor!r} contains a parenthesis. The terminal history line is "
+            "'- <date> <status> (<actor>): <msg>' and the attribution lint captures the actor with "
+            "'\\(([^)]*)\\)', so a parenthesized actor misparses and post-transition lint would fail "
+            "AFTER the commit. Render qualifiers as key=value (see oc_runipd.driver_actor).",
+            evidence,
+        )
+    if not plan_path.is_file():
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"plan file not found: {plan_path}", evidence
+        )
+
+    try:
+        plan_text = plan_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN, None, f"cannot read plan: {exc}", evidence
+        )
+    meta = _lint.parse(plan_text).meta_fields
+    plan_id = (meta.get("Id") or "").strip()
+    if not plan_id:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"plan {plan_path} has no '- Id:' handle.",
+            evidence,
+        )
+    evidence["plan_id"] = plan_id
+
+    # --- GATE: Kind must be `orchestrator`. Reads `Kind` first and falls back to `Order == 0` for
+    # the 74 legacy plans in this repo that carry `Order: 0` with no `Kind:` bullet (the same rule
+    # child 01's `SetMember.is_orchestrator` applies, kept consistent deliberately).
+    kind = (meta.get("Kind") or "").strip()
+    raw_order = (meta.get("Order") or "").strip()
+    is_orchestrator = (
+        kind == _schema.KIND_ORCHESTRATOR if kind else raw_order in ("0", "00")
+    )
+    if not is_orchestrator:
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: {plan_id} is not an orchestrator (Kind={kind or '<absent>'!r}, "
+            f"Order={raw_order or '<absent>'!r}). The rollup retirement exists ONLY for an Order-0 "
+            "plan whose E-*/V-* items the runner supersedes; an ordinary plan must earn `executed` "
+            "through `aw ipd finalize`, with its evidence.",
+            evidence,
+            (ROLLUP_REFUSED_NOT_ORCHESTRATOR,),
+        )
+
+    # --- GATE: status legality. `pre-transition`'s own coarse rule (`checkpoint_allows_status`):
+    # the plan must not ALREADY be terminal. Shared as the same predicate, not a re-listed tuple.
+    status = (meta.get("Status") or "").strip()
+    if not _schema.checkpoint_allows_status("pre-transition", status):
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: {plan_id} carries Status {status!r}, which is already terminal; there is "
+            "nothing to retire.",
+            evidence,
+            (ROLLUP_REFUSED_ALREADY_TERMINAL,),
+        )
+
+    # --- GATE: the Set must be ELIGIBLE. Re-checked here even when the caller supplies a verdict.
+    decision = eligibility
+    if decision is None:
+        decision = _rs.evaluate_set_retirement(repo_root, setid)
+    evidence["eligibility"] = {
+        "eligible": bool(getattr(decision, "eligible", False)),
+        "reason": getattr(decision, "reason", "<no reason>"),
+        "detail": getattr(decision, "detail", ""),
+        "unfinished": list(getattr(decision, "unfinished", ()) or ()),
+        "unauthored_rows": list(getattr(decision, "unauthored_rows", ()) or ()),
+    }
+    if not getattr(decision, "eligible", False):
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: Set {setid!r} is not retirement-eligible "
+            f"({getattr(decision, 'reason', 'unknown')}): "
+            f"{getattr(decision, 'detail', '')}",
+            evidence,
+            (ROLLUP_REFUSED_SET_INELIGIBLE,),
+        )
+
+    # --- GATE: early crash recovery, via the SAME shared helper `finalize` uses.
+    early = _early_recovery_result(repo_root, plan_path, evidence)
+    if early is not None:
+        return early
+
+    # --- The scope-delta consequence, ASSERTED rather than assumed (see ROLLUP_OMITTED_GATES).
+    plan_rel = _repo_relative(repo_root, plan_path)
+    unowned = _assert_rollup_touched_only_owned_paths(repo_root, plan_rel)
+    if unowned is not None:
+        return FinalizeResult(
+            EXIT_FINDINGS,
+            None,
+            f"REFUSED: {unowned}",
+            evidence,
+            (ROLLUP_REFUSED_UNOWNED_EDIT,),
+        )
+
+    # The honest R-4 record. Children default to the eligibility decision's own evidence, so the
+    # named children are the ones the predicate actually verified rather than a caller's assertion.
+    justifying = list(children) or [
+        m.id6 for m in _rs.read_set_membership(repo_root, setid).children
+    ]
+    message = rollup_history_message(setid=setid, run_id=run_id, children=justifying)
+    evidence["history_message"] = message
+    evidence["shared_gates"] = list(ROLLUP_SHARED_GATES)
+    evidence["omitted_gates"] = dict(ROLLUP_OMITTED_GATES)
+
+    if not apply:
+        return FinalizeResult(
+            EXIT_OK,
+            None,
+            f"rollup retirement gates PASSED for orchestrator {plan_id} of Set {setid} "
+            f"({len(justifying)} executed child(ren)); re-run with apply=True to perform it.",
+            evidence,
+            (),
+        )
+
+    rec = _ss.read_artifact_record(plan_path, repo_root)
+    if rec is None:
+        return FinalizeResult(
+            EXIT_CANNOT_RUN,
+            None,
+            f"could not read plan record for {plan_path}.",
+            evidence,
+        )
+
+    # --- GATE: the EXCLUSIVE finalize writer lock, then the SAME journaled two-phase transaction the
+    # main path runs (`_finalize_transaction` performs the journal, the plan move, the fail-loud index
+    # refresh, the path-scoped commit and the post-transition lint). Taking the same lock is
+    # mandatory, not defensive: this runs inside a live runner that may be finalizing a child at the
+    # same moment, in a checkout shared with other agents.
+    try:
+        acquire_finalize_lock(repo_root, plan_id)
+    except TransactionLockError as exc:
+        return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
+    try:
+        return _finalize_transaction(
+            repo_root,
+            plan_path,
+            plan_rel,
+            plan_id,
+            rec,
+            actor,
+            message,
+            evidence,
+            fault_injection,
+        )
+    finally:
+        release_finalize_lock(repo_root)
+
+
 def finalize(
     repo_root: Path,
     plan_path: Path,
@@ -1741,40 +2217,12 @@ def finalize(
         )
 
     # --- Early recovery: a prior interrupted/committed-incomplete transaction (Order 3xh53a). ---
-    # Resolve the plan id from whatever path resolved (a committed-incomplete plan lives in
-    # executed/, where precheck/begin do not apply), and resume/rollback BEFORE the fresh precheck.
-    from agent_workflows import ipd_lint as _lint0
-
-    _early_id = (
-        _lint0.parse(plan_path.read_text(encoding="utf-8")).meta_fields.get("Id") or ""
-    ).strip()
-    if _early_id:
-        _early_journal = read_finalize_journal(repo_root, _early_id)
-        if _early_journal is not None:
-            _phase = _early_journal.get("phase")
-            if _phase == PHASE_COMMITTED_INCOMPLETE:
-                try:
-                    acquire_finalize_lock(repo_root, _early_id)
-                except TransactionLockError as exc:
-                    return FinalizeResult(EXIT_CANNOT_RUN, None, str(exc), evidence)
-                try:
-                    return _resume_post_commit(
-                        repo_root, _early_journal, _early_id, evidence
-                    )
-                finally:
-                    release_finalize_lock(repo_root)
-            if _phase == PHASE_UNKNOWN_OUTCOME:
-                return FinalizeResult(
-                    EXIT_CANNOT_RUN,
-                    None,
-                    f"finalize journal for {_early_id} is in unknown-outcome (ambiguous prior "
-                    f"attempt); resolve manually and clear "
-                    f"{finalize_journal_path(repo_root, _early_id)}.",
-                    evidence,
-                    tuple(_early_journal.get("findings", ())),
-                )
-            # pre-commit phases fall through: the plan is still pending, precheck + the transaction's
-            # own resume-rollback handle it.
+    # EXTRACTED into `_early_recovery_result` (orchretire-02 `ueg5cf` E-01/E-02) so the runner-owned
+    # rollup transition performs the IDENTICAL recovery, shared by construction rather than by a
+    # second copy that could drift from this one.
+    early = _early_recovery_result(repo_root, plan_path, evidence)
+    if early is not None:
+        return early
 
     exit_code, msg, evidence, findings = finalize_precheck(repo_root, plan_path)
     if exit_code != EXIT_OK:
