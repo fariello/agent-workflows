@@ -2274,35 +2274,14 @@ def expand_selectors(
         "review",
         "to-review",
     ):
-        expanded: list[str] = []
-        seen: set[str] = set()
-
-        def _needs_review(p_info: dict[str, Any]) -> bool:
-            st = str(p_info.get("status", "")).lower().strip()
-            f_str = str(p_info.get("file", ""))
-            is_non_pending = (
-                "/executed/" in f_str
-                or "/superseded/" in f_str
-                or "/not-executed/" in f_str
-                or "/reusable/" in f_str
-            )
-            return st == "to-review" and not is_non_pending
-
-        # 1. Walk sets in manifest in defined order
-        for setid, group in sets.items():
-            for id6 in group.get("order", []):
-                p = plans.get(id6, {})
-                if _needs_review(p):
-                    if id6 not in seen:
-                        expanded.append(id6)
-                        seen.add(id6)
-
-        # 2. Standalone plans in manifest
-        for id6, p in plans.items():
-            if id6 not in seen:
-                if _needs_review(p):
-                    expanded.append(id6)
-                    seen.add(id6)
+        # revsweep-02 (`6ypimw`) E-02: THE SHARED membership test, replacing a `_needs_review` closure
+        # that was a VERBATIM duplicate of agy's and that tested `status == "to-review"` while
+        # `determine_action` (below) routed `to-review` AND `draft` to `review`. Spec 25kzda 2.4a
+        # property 2 requires membership to BE the Section 3 dispatch table, implemented ONCE, "so an
+        # item the table routes to review and an item the sweep selects are the same set BY
+        # CONSTRUCTION". The shared function derives the answer from `run_selection_policy`'s action
+        # table and reads plan text only for `draft` candidates, failing safe to NOT-swept.
+        expanded = runner_shared.sweep_review_candidates(manifest, repo=repo)
 
         if not expanded:
             # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message stays the same string
@@ -2660,6 +2639,52 @@ def initialize_run(args: argparse.Namespace) -> Path:
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
+    # revsweep-02 (`6ypimw`) E-04: SPEC 25kzda 2.5a's DRAFT ADMISSION GATE, here and not later. Spec
+    # 2.5a places it "after resolution, BEFORE any lease or session, so a batch cannot stop to ask
+    # halfway through", and this is that seam: the run directory does not exist yet, no lease is held,
+    # no session is open, so an exclusion leaves nothing durable to reconcile.
+    #
+    # IT EXCLUDES, IT NEVER REFUSES. Unlike the mixed-type gate below, an ungated complete draft is
+    # withheld and the REST of the queue proceeds (spec 2.5a bullet 4): a mixed selection means the
+    # operator's intent is unclear, whereas the remaining items' intent is not in doubt. So this
+    # REBINDS `queue_ids` rather than raising.
+    #
+    # ONLY STATUS SELECTORS CAN REACH IT IN PRACTICE, and that is spec 2.5a bullet 2's rule ("a draft
+    # named EXPLICITLY by path or id6 is admitted without gating; the operator named it, asking is
+    # noise"), implemented by `_selection_is_status_sweep` rather than by trusting the token spelling.
+    if runner_shared.is_status_selector(args.selectors):
+        queue_ids, draft_verdict = runner_shared.enforce_draft_admission_gate(
+            manifest,
+            queue_ids,
+            repo=repo,
+            allow_drafts=bool(getattr(args, "allow_drafts", False)),
+            interactive=runner_shared.is_interactive_run(args),
+            host="oc",
+            selector=" ".join(str(s) for s in args.selectors),
+        )
+        if not queue_ids:
+            # EVERY selected item was an ungated draft, so nothing remains to run. This composes the
+            # existing rules rather than inventing a third: 2.5a excludes the drafts WITHOUT failing
+            # the run, and the selector's OWN empty branch already decides what an empty result means.
+            # Freezing an empty queue instead would create a run directory, a report, and a ledger for
+            # zero work, which is durable state an operator then has to reconcile. The exclusion notice
+            # has already been printed, so the operator knows WHY it is empty.
+            #
+            # EACH SELECTOR KEEPS ITS OWN EMPTY SEMANTICS, deliberately: `reviews` raises
+            # `EmptyStatusSelection` (spec 2.4a property 3 makes it a success that exits 0), while
+            # `all` raises the plain `DriverError` it has always raised (exit 2). Collapsing the two
+            # into one would silently change `all`'s established exit code, which no spec amendment
+            # authorizes and which a caller may well depend on.
+            raise (
+                EmptyStatusSelection(
+                    "No items in 'to-review' state found in repository"
+                )
+                if runner_shared.is_review_selector(args.selectors)
+                else DriverError("No actionable pending IPDs found in repository")
+            )
+    else:
+        draft_verdict = None
+
     # 8guhs0 E-02: FAIL CLOSED on an invalid dependency graph BEFORE any host session starts (and
     # before the run directory exists, so a refused run leaves no durable state to reconcile). The
     # rules and their severities are the SHARED evaluator's; see `enforce_dependency_preflight`.
@@ -2879,6 +2904,24 @@ def initialize_run(args: argparse.Namespace) -> Path:
             **mixed_verdict.record.as_dict(),
         },
     )
+    # revsweep-02 (`6ypimw`) E-04: spec 2.5a's last bullet - the draft counts, the preview, the
+    # response-or-flag, and the resulting ADMITTED SET recorded in the run ledger. The record is the
+    # one `run_selection_policy` RETURNED, on the same return-not-write convention `MixedTypeRecord`
+    # established, and re-deriving the counts here would be a second implementation of them. Without
+    # this there is no durable evidence of which drafts an `--allow-drafts` run waved through.
+    if draft_verdict is not None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "draft-admission-gate",
+                "gate_applied": draft_verdict.gate_applied,
+                "reason": draft_verdict.reason,
+                "excluded_complete": list(draft_verdict.excluded_complete),
+                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
+                **draft_verdict.record.as_dict(),
+            },
+        )
     write_report(run_dir, state)
     # runorder (prpipy) E-04: announce the order the run will EXECUTE in, ALWAYS, and warn loudly
     # when it diverges from what was requested. Here and not in `run_queue`, because this is where
@@ -7026,6 +7069,8 @@ SELECTOR TYPES:
               backlog items are not reachable by any selector yet. Matching nothing is a
               success and exits 0, because a repository with nothing awaiting review is
               the healthy state. 'aw oc review' is the spelled form of this sweep.
+              A COMPLETE 'draft' is in this sweep only with --allow-drafts (the draft
+              admission gate); an INCOMPLETE draft is never admitted, by any flag.
   - all:      Every actionable pending IPD in the repository
 
 AUTOMATIC STATUS ROUTING:

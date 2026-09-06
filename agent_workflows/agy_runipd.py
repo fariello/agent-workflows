@@ -1368,33 +1368,11 @@ def expand_selectors(
         "review",
         "to-review",
     ):
-        expanded: list[str] = []
-        seen: set[str] = set()
-
-        def _needs_review(p_info: dict[str, Any]) -> bool:
-            st = str(p_info.get("status", "")).lower().strip()
-            f_str = str(p_info.get("file", ""))
-            is_non_pending = (
-                "/executed/" in f_str
-                or "/superseded/" in f_str
-                or "/not-executed/" in f_str
-                or "/reusable/" in f_str
-            )
-            return st == "to-review" and not is_non_pending
-
-        for _setid, group in sets.items():
-            for id6 in group.get("order", []):
-                p = plans.get(id6, {})
-                if _needs_review(p):
-                    if id6 not in seen:
-                        expanded.append(id6)
-                        seen.add(id6)
-
-        for id6, p in plans.items():
-            if id6 not in seen:
-                if _needs_review(p):
-                    expanded.append(id6)
-                    seen.add(id6)
+        # revsweep-02 (`6ypimw`) E-02, the SAME shared function the opencode host calls, which is the
+        # entire point: the closure this replaces was a verbatim duplicate of oc's (they diffed to one
+        # loop-variable hunk), so fixing one host's `status == "to-review"` test would have left THIS
+        # one wrong. The oc twin carries the full note; spec 25kzda 2.4a property 2 is the rule.
+        expanded = runner_shared.sweep_review_candidates(manifest, repo=repo)
 
         if not expanded:
             # revsweep 76gsmv E-04: spec 25kzda 2.4a property 3. The message string is unchanged;
@@ -1668,6 +1646,36 @@ def initialize_run(args: argparse.Namespace) -> Path:
 
     queue_ids = expand_selectors(manifest, args.selectors, repo=repo)
 
+    # revsweep-02 (`6ypimw`) E-04: spec 25kzda 2.5a's draft admission gate, the SAME shared call the
+    # opencode host makes, at the same seam (after resolution, before any run directory, lease, or
+    # session). Not optional symmetry: a gate wired into one runner only is how `--full-auto` came to
+    # mean opt-in on one host and opt-out on the other. The oc twin carries the full note, including
+    # why this rebinds `queue_ids` instead of raising.
+    if runner_shared.is_status_selector(args.selectors):
+        queue_ids, draft_verdict = runner_shared.enforce_draft_admission_gate(
+            manifest,
+            queue_ids,
+            repo=repo,
+            allow_drafts=bool(getattr(args, "allow_drafts", False)),
+            interactive=runner_shared.is_interactive_run(args),
+            host="agy",
+            selector=" ".join(str(s) for s in args.selectors),
+        )
+        if not queue_ids:
+            # Same composition as the oc twin (which carries the full note): 2.5a excludes without
+            # failing the run, and each selector keeps ITS OWN empty semantics - `reviews` exits 0 per
+            # spec 2.4a property 3, `all` keeps the exit-2 error it has always raised. No empty run
+            # directory is frozen either way.
+            raise (
+                EmptyStatusSelection(
+                    "No items in 'to-review' state found in repository"
+                )
+                if runner_shared.is_review_selector(args.selectors)
+                else DriverError("No actionable pending IPDs found in repository")
+            )
+    else:
+        draft_verdict = None
+
     # 8guhs0 E-02 (symmetric with oc_runipd): FAIL CLOSED on an invalid dependency graph BEFORE any
     # host session starts, and before the run directory exists. The rules and their severities are
     # the SHARED evaluator's; there is no runner-local dependency policy.
@@ -1864,6 +1872,22 @@ def initialize_run(args: argparse.Namespace) -> Path:
             **mixed_verdict.record.as_dict(),
         },
     )
+    # revsweep-02 (`6ypimw`) E-04: spec 2.5a's ledger record, identical to the oc host's. The oc twin
+    # carries the full note (return-not-write convention, and why the admitted set is the load-bearing
+    # field).
+    if draft_verdict is not None:
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "draft-admission-gate",
+                "gate_applied": draft_verdict.gate_applied,
+                "reason": draft_verdict.reason,
+                "excluded_complete": list(draft_verdict.excluded_complete),
+                "skipped_incomplete": list(draft_verdict.skipped_incomplete),
+                **draft_verdict.record.as_dict(),
+            },
+        )
     write_report(run_dir, state)
     # runorder (prpipy) E-07: the SAME announcement the OpenCode driver emits, from the SAME shared
     # function, before the first child session. Not optional polish: `queue_sort_key` is shared, so
@@ -4298,6 +4322,8 @@ SELECTOR TYPES:
               backlog items are not reachable by any selector yet. Matching nothing is a
               success and exits 0, because a repository with nothing awaiting review is
               the healthy state. 'aw agy review' is the spelled form of this sweep.
+              A COMPLETE 'draft' is in this sweep only with --allow-drafts (the draft
+              admission gate); an INCOMPLETE draft is never admitted, by any flag.
   - all:      All actionable pending IPDs in the repository
 
 EXAMPLE, the review sweep (the most frequent invocation):

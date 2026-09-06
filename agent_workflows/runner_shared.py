@@ -914,6 +914,215 @@ def describe_unresolved_plan_selector(repo: Path | None, sel_str: str) -> str:
     return f"No IPD plan, Set, or file matching '{sel_str}' found under .aw/records/plans/."
 
 
+# ==================================================================================================
+# revsweep-02 (`6ypimw`) E-02: THE `reviews` SWEEP'S MEMBERSHIP, ONCE (spec 25kzda 2.4a property 2)
+# ==================================================================================================
+#
+# WHAT THIS REPLACES. Each host runner's `expand_selectors` carried its OWN `_needs_review` closure,
+# and the two were VERBATIM duplicates (they diffed to one hunk: a `setid`/`_setid` loop variable).
+# Both tested `status == "to-review"`, while `determine_action` routed `to-review` AND `draft` to
+# `review`, so the sweep and the router disagreed and a complete draft named EXPLICITLY was reviewed
+# while the SAME draft was silently absent from the sweep. Two copies is what made the divergence
+# survivable: a one-sided fix leaves the other host wrong.
+#
+# THE POLICY IS NOT HERE. `run_selection_policy.needs_review` decides; this function only ASSEMBLES
+# the inputs that predicate cannot see, because it is pure by design and the manifest cannot answer
+# authoring completeness.
+#
+# WHY THE FILE READ IS HERE AND WHY IT IS BOUNDED. `build_dynamic_manifest` stores only `set`, `file`,
+# `status`, `order`, `dependencies`, `kind`, and `from_backlog` - no plan TEXT - while
+# `ipd_authoring.authoring_placeholders_resolved` needs text. So the CALLER must read it, and reads
+# ONLY the `draft`-status candidates the dispatch table says need the answer (asked through
+# `review_depends_on_completeness`, so the "which rows need content" rule stays in one place too).
+# Every other status is answered by the table alone and costs no I/O.
+#
+# IT FAILS SAFE, WHICH IS THE HALF THAT MATTERS. `expand_selectors`'s `repo` is `Path | None = None`
+# and the sweep branch never used it, so an absent repo or an unreadable file must yield "not swept"
+# rather than crashing or optimistically including. An optimistic include would sweep an incomplete
+# stub into a review turn, which is exactly what spec 3.2's draft split exists to prevent.
+
+
+#: The STATUS selector spellings both hosts accept. Named once so the sweep branch, the draft gate's
+#: applicability test, and any future status selector cannot drift apart.
+STATUS_SELECTOR_TOKENS: frozenset = frozenset({"reviews", "review", "to-review", "all"})
+
+#: The subset that is the needs-review sweep specifically (spec 2.4a: "`review` and `to-review` are
+#: accepted spellings of `reviews`").
+REVIEW_SELECTOR_TOKENS: frozenset = frozenset({"reviews", "review", "to-review"})
+
+
+def is_status_selector(selectors: Any) -> bool:
+    """True when the selection was reached through a STATUS selector rather than a named item.
+
+    THIS IS WHAT MAKES SPEC 2.5a's BULLET 2 REAL: "a draft named EXPLICITLY by path or id6 is admitted
+    without gating. The operator named it; asking is noise." Only the status sweeps (`reviews`, `all`)
+    admit a draft the operator did not name, so only they are gated. Derived from the SAME token set
+    the sweep branches match on, so the gate cannot apply to a spelling the sweep does not accept (or
+    fail to apply to one it does).
+    """
+
+    tokens = [str(s).strip().lower() for s in (selectors or [])]
+    return len(tokens) == 1 and tokens[0] in STATUS_SELECTOR_TOKENS
+
+
+def is_review_selector(selectors: Any) -> bool:
+    """True for the needs-review sweep specifically (`reviews`/`review`/`to-review`), not `all`.
+
+    The two status selectors differ in what an EMPTY result MEANS: spec 2.4a property 3 makes an empty
+    `reviews` a SUCCESS that exits 0 ("a repository with nothing awaiting review is the healthy
+    state"), while `all` has always raised the plain error that exits 2. Keeping them distinguishable
+    is what lets the draft gate empty a selection without silently changing `all`'s exit code.
+    """
+
+    tokens = [str(s).strip().lower() for s in (selectors or [])]
+    return len(tokens) == 1 and tokens[0] in REVIEW_SELECTOR_TOKENS
+
+
+def plan_authoring_complete(repo: Path | None, rel_or_abs_file: str) -> bool | None:
+    """The deterministic authoring-completeness answer for ONE plan file, or `None` if unknowable.
+
+    CONSUMES `ipd_authoring.authoring_placeholders_resolved`, the shipped anchored check that the
+    `check.ipd-draft-ready-to-review` rule already uses; a second heuristic here would let the nudge
+    and the sweep disagree about the same draft.
+
+    `None` (not `False`) when the repo is absent or the file cannot be read, so a caller can tell
+    "incomplete" from "not determined". Both exclude, but only one is a fact about the plan.
+    """
+
+    if repo is None or not str(rel_or_abs_file or "").strip():
+        return None
+    try:
+        from agent_workflows import ipd_authoring
+
+        path = Path(rel_or_abs_file)
+        if not path.is_absolute():
+            path = Path(repo) / path
+        return ipd_authoring.authoring_placeholders_resolved(
+            path.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def manifest_entry_needs_review(
+    plan_info: dict[str, Any],
+    *,
+    repo: Path | None = None,
+    spec_type: str = "ipd",
+) -> bool:
+    """Whether ONE manifest plan entry is in the `reviews` sweep. THE single membership test.
+
+    ``spec_type`` is threaded through to the pure predicate rather than hardcoded at its call, so
+    widening discovery to specs (`5slbpi`) does not have to reopen this function. It defaults to
+    `"ipd"` because that is all `discover_plans` can produce today.
+    """
+
+    from agent_workflows import run_selection_policy as _policy
+
+    status = str(plan_info.get("status", "")).lower().strip()
+    file_str = str(plan_info.get("file", ""))
+    complete: bool | None = None
+    if _policy.review_depends_on_completeness(spec_type, status):
+        # The ONLY branch that touches the filesystem, and only for the rows the table says need it.
+        complete = plan_authoring_complete(repo, file_str)
+    return _policy.needs_review(
+        spec_type,
+        status,
+        authoring_complete=complete,
+        file_path=file_str,
+    )
+
+
+def sweep_review_candidates(
+    manifest: dict[str, Any],
+    *,
+    repo: Path | None = None,
+) -> list[str]:
+    """The `reviews` sweep, in manifest Set order then standalone order. Shared by both hosts.
+
+    Returns the id6 list; the CALLER decides what an empty result means (both hosts raise
+    `EmptyStatusSelection`, which spec 2.4a property 3 makes a success that exits 0).
+    """
+
+    plans = manifest.get("plans", {})
+    sets = manifest.get("sets", {})
+    expanded: list[str] = []
+    seen: set[str] = set()
+    # DECIDED ONCE PER PLAN, memoized, because the two walks below visit a set member twice and the
+    # decision can involve a FILE READ (the draft rows). Without this a repository with N drafts pays
+    # 2N reads for N answers, and the answers could in principle differ if the file changed between
+    # them - a selection that is not even self-consistent.
+    decided: dict[str, bool] = {}
+
+    def _needs(id6: str) -> bool:
+        if id6 not in decided:
+            decided[id6] = manifest_entry_needs_review(plans.get(id6, {}), repo=repo)
+        return decided[id6]
+
+    # 1. Walk sets in manifest in defined order.
+    for _setid, group in sets.items():
+        for id6 in group.get("order", []):
+            if id6 in seen:
+                continue
+            if _needs(id6):
+                expanded.append(id6)
+                seen.add(id6)
+
+    # 2. Standalone plans in manifest.
+    for id6 in plans:
+        if id6 in seen:
+            continue
+        if _needs(id6):
+            expanded.append(id6)
+            seen.add(id6)
+
+    return expanded
+
+
+def sweep_draft_candidates(
+    manifest: dict[str, Any],
+    *,
+    repo: Path | None = None,
+    spec_type: str = "ipd",
+) -> list[Any]:
+    """Every `draft` item a STATUS selector can REACH, each with its completeness answer.
+
+    The input to spec 2.5a's admission gate (`run_selection_policy.decide_draft_admission`). Built
+    here rather than in the pure module for the same reason the completeness read is: it needs the
+    manifest and the filesystem.
+
+    SCOPED TO THE MANIFEST, NOT TO THE RESOLVED QUEUE, and that distinction is the subtle one. An
+    INCOMPLETE draft is deliberately NOT a member of the `reviews` sweep (the dispatch table skips it),
+    so it never appears in the resolved queue - yet spec 2.5a REQUIRES it to be reported: its preview
+    ends "Also skipping 1 incomplete draft (findings will be reported)", and bullet 1 makes the skip a
+    findings report rather than silence. Gathering candidates from the resolved queue would drop
+    exactly the items the operator most needs told about. This is only ever called for a status
+    selector, which sweeps the whole repository, so the manifest IS the reachable set.
+
+    Terminal-directory entries are excluded: a `draft` status inside `executed/` is a
+    directory/status mismatch, which spec 3.2 makes a red abort rather than an admission question.
+    """
+
+    from agent_workflows import run_selection_policy as _policy
+
+    candidates: list[Any] = []
+    for id6, info in manifest.get("plans", {}).items():
+        status = str(info.get("status", "")).lower().strip()
+        if not _policy.review_depends_on_completeness(spec_type, status):
+            continue
+        file_str = str(info.get("file", ""))
+        if _policy.is_in_terminal_directory(file_str):
+            continue
+        candidates.append(
+            _policy.DraftCandidate(
+                identity=id6,
+                spec_type=spec_type,
+                complete=plan_authoring_complete(repo, file_str),
+            )
+        )
+    return sorted(candidates, key=lambda c: c.identity)
+
+
 def validate_manifest(
     manifest: dict[str, Any],
     *,
@@ -1024,14 +1233,12 @@ class RunPolicyFlag(NamedTuple):
 RESUME_REFUSE = "refuse"
 RESUME_NONE_DEFAULT = "none-default"
 
-#: Spec 25kzda 2.1's EIGHT policy flags, in the order the spec's grammar block lists them.
+#: Spec 25kzda 2.1's NINE policy flags, in the order the spec's grammar block lists them.
 #:
-#: `--allow-drafts` is deliberately ABSENT. It is a spec 2.1 flag (added to the spec 2026-09-04, after
-#: this surface was designed) but its gate is spec 2.5a and is owned by `revsweep-02` (`6ypimw`),
-#: which registers it alongside the pure `--allow-drafts` policy it also writes. Registering it here
-#: as a refusal would collide with that plan on the same parser lines for no gain: it is not one of
-#: the eight this surface owns, and `tests/test_run_flag_surface.py` records the exclusion so a reader
-#: comparing this table against spec 2.1 does not think it was forgotten.
+#: `--allow-drafts` JOINED THIS TABLE with `revsweep-02` (`6ypimw`), which implemented spec 2.5a's
+#: draft admission gate. `uyeko5` deliberately left it out (it owned the other eight and registering a
+#: ninth as a refusal would have collided on these lines for no gain); it is registered here now that
+#: its BEHAVIOR ships, which is this table's own rule - a flag never parses and silently does nothing.
 RUN_POLICY_FLAGS: tuple = (
     RunPolicyFlag(
         flag="--allow-mixed",
@@ -1043,6 +1250,21 @@ RUN_POLICY_FLAGS: tuple = (
             "Acknowledge that the selection spans MORE THAN ONE work-item type, unattended. "
             "Acknowledges type mixing ONLY: every status, approval, prompt-verifiability, scope, "
             "and safety gate still applies"
+        ),
+    ),
+    RunPolicyFlag(
+        flag="--allow-drafts",
+        dest="allow_drafts",
+        kind="bool",
+        implemented=True,
+        owner="run_selection_policy.decide_draft_admission",
+        help=(
+            "Admit COMPLETE draft items reached through a status selector (`reviews`/`all`), "
+            "promoting them to 'to-review' and reviewing them in this run. It CANNOT admit an "
+            "INCOMPLETE draft: a draft that fails the deterministic authoring-completeness check is "
+            "skipped with findings at every setting of this flag. It waives no other gate - a "
+            "promoted draft still faces the approval gate. A draft named EXPLICITLY by id6 or path "
+            "needs no flag"
         ),
     ),
     RunPolicyFlag(
@@ -1394,6 +1616,165 @@ def enforce_mixed_type_gate(
         # The refusal TEXT is `run_selection_policy`'s, verbatim from the spec, never recomposed here.
         raise DriverError(verdict.message or verdict.reason)
     return verdict
+
+
+#: The shipped lane prompt's timeout, reused so the two prompts in this package cannot disagree about
+#: how long a run may wait for a human. `_lane_reclaim_prompt` uses 10s in both runners.
+GATE_PROMPT_TIMEOUT: float = 10.0
+
+
+def prompt_for_gate_phrase(
+    question: str,
+    *,
+    timeout: float = GATE_PROMPT_TIMEOUT,
+    stdin: Any = None,
+    stderr: Any = None,
+) -> str | None:
+    """Ask ONE gate question, honoring the SAME HARD CONSTRAINTS the shipped lane prompt does.
+
+    THE HAZARD THIS FUNCTION IS SHAPED BY, because getting it wrong is expensive and silent: these
+    runs are non-interactive by design and usually unattended. Both runners hand the child process
+    `stdin=subprocess.DEVNULL` expressly because "a nested `aw` sees the operator's TTY, believes it
+    may prompt, and blocks on input() forever", and that comment records a MEASURED 1h49m wedge. So a
+    bare blocking `input()` in the queue-build path could hang an overnight run with no output
+    explaining why. Neither runner calls `input()` anywhere, and this function does not either.
+
+    THE CONSTRAINTS, all four load-bearing and all inherited from `_lane_reclaim_prompt`:
+
+    * NO TTY, NO PROMPT. Both stdin and stderr must be a real TTY. The caller normally establishes
+      this through :func:`is_interactive_run` (which also honors the operator's `--unattended`
+      declaration); the check is repeated here so this function is safe called directly.
+    * IT NEVER BLOCKS. `select` with a bounded timeout, never a plain read.
+    * AN UNANSWERED PROMPT FALLS THROUGH, returning `None` so the caller takes its automatic
+      decision. For an exact-phrase gate `None` is REFUSED by
+      :func:`run_selection_policy.is_confirmation_accepted`, so a timeout can only ever produce the
+      same outcome as the unattended path - it can never grant an admission.
+    * THE AUTOMATIC DECISION IS THE AUTHORITY. This only front-runs it.
+
+    Returns the raw typed line (the caller does the exact-phrase comparison, so the phrase has ONE
+    definition), or `None` when there was no prompt or no answer.
+    """
+
+    import select
+
+    stream_in = sys.stdin if stdin is None else stdin
+    stream_err = sys.stderr if stderr is None else stderr
+    for target in (stream_in, stream_err):
+        if target is None:
+            return None
+        if not (getattr(target, "isatty", None) and target.isatty()):
+            return None
+    print(question, end="", file=stream_err, flush=True)
+    try:
+        ready, _w, _x = select.select([stream_in], [], [], timeout)
+    except Exception:
+        print(file=stream_err)
+        return None
+    if not ready:
+        print(
+            "\n  (no answer in {0}s; taking the automatic decision)".format(timeout),
+            file=stream_err,
+        )
+        return None
+    try:
+        return stream_in.readline()
+    except Exception:
+        return None
+
+
+def enforce_draft_admission_gate(
+    manifest: dict,
+    queue_ids: Any,
+    *,
+    repo: Path | None,
+    allow_drafts: bool,
+    interactive: bool,
+    host: str,
+    selector: str,
+    response: Any = None,
+    prompt: Any = None,
+) -> tuple:
+    """CALL spec 25kzda 2.5a's draft admission gate and act on its verdict. Both hosts, one seam.
+
+    Returns ``(kept_queue_ids, verdict)``. The gate EXCLUDES items; it never refuses the run (see
+    :func:`run_selection_policy.decide_draft_admission` for why that asymmetry with the mixed-type
+    gate is deliberate), so the returned queue is the original minus any withheld complete draft.
+
+    THE INTERACTIVE HALF IS IMPLEMENTED, FENCED (the plan's E-04 option (a)). Spec 2.5a requires the
+    exact phrase `run drafts` in an interactive terminal, and rather than declaring that unreachable
+    on this driver, the prompt follows the shipped `_lane_reclaim_prompt` precedent exactly: it needs
+    a real TTY on BOTH streams, it never blocks, and an unanswered prompt falls through to the
+    automatic decision. That automatic decision is EXCLUDE-and-proceed, which is bit-for-bit the
+    unattended no-flag outcome, so a timeout cannot silently admit a draft. `--allow-drafts` remains
+    the unattended half. No `input()` is added to either runner.
+
+    ``response`` short-circuits the prompt (tests, and any caller that already has an answer).
+    ``prompt`` overrides the prompt function, so the TTY fence itself is testable.
+    """
+
+    from agent_workflows import run_selection_policy
+
+    candidates = sweep_draft_candidates(manifest, repo=repo)
+    ids = list(queue_ids)
+    draft_ids = {c.identity for c in candidates}
+    remaining_count = len([i for i in ids if i not in draft_ids])
+
+    answer = response
+    if answer is None and interactive and any(c.complete for c in candidates):
+        # Only prompt when there is something to admit, and only after the preview is composed by the
+        # pure module, so the operator is shown the same text the ledger records.
+        preview = run_selection_policy.decide_draft_admission(
+            candidates,
+            interactive=False,
+            allow_drafts=True,
+            remaining_count=remaining_count,
+            host=host,
+            selector=selector,
+        ).record.preview
+        asker = prompt if prompt is not None else prompt_for_gate_phrase
+        answer = asker(
+            "{0}\nType '{1}' to admit them, anything else to skip them: ".format(
+                preview, run_selection_policy.DRAFTS_CONFIRM_PHRASE
+            )
+        )
+
+    verdict = run_selection_policy.decide_draft_admission(
+        candidates,
+        interactive=interactive,
+        allow_drafts=allow_drafts,
+        response=answer,
+        remaining_count=remaining_count,
+        host=host,
+        selector=selector,
+    )
+    if verdict.gate_applied:
+        # Print the preview whether admitted or excluded: an operator must be able to see WHICH
+        # drafts a run promoted, and (on the exclusion path) that something was withheld.
+        print(verdict.record.preview, file=sys.stderr)
+    if verdict.message:
+        # The exclusion NOTICE is `run_selection_policy`'s, verbatim from spec 2.5a, never recomposed
+        # here. Printed, NOT raised: this gate excludes items and the rest of the queue proceeds.
+        print(verdict.message, file=sys.stderr)
+    if verdict.skipped_incomplete:
+        # spec 2.5a bullet 1: an incomplete draft is a skip WITH FINDINGS at every flag setting.
+        # Naming them is the "findings will be reported" half; silence would look like an omission.
+        print(
+            "  incomplete draft(s) skipped (never admissible, no flag admits them): {0}".format(
+                ", ".join(verdict.skipped_incomplete)
+            ),
+            file=sys.stderr,
+        )
+    # ADMIT, not merely permit. An admitted draft has to ENTER the queue, because the sweep never put
+    # it there: membership excludes a draft until this gate admits it (`needs_review` is handed
+    # `authoring_complete` and answers False for an unadmitted one), which is exactly what makes the
+    # question a real gate rather than a formality. Appended in manifest order after the swept items,
+    # and de-duplicated so a selector that already resolved the draft explicitly cannot double it.
+    withheld = set(verdict.excluded_complete)
+    kept = [i for i in ids if i not in withheld]
+    for identity in verdict.admitted:
+        if identity not in kept:
+            kept.append(identity)
+    return kept, verdict
 
 
 def evaluate_unverifiable_admission(args: Any) -> Any:
