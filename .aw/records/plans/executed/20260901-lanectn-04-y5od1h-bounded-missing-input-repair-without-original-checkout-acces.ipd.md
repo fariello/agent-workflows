@@ -8,16 +8,16 @@
 - Item-Dependencies: executed:lhmrhx, executed:nna8yz
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 4
 - Highest E allocated: 06
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: y5od1h
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: y5od1h verified (set lanectn, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/worktree_lease.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-06 executed (aw oc run, opencode/its_direct/pt3-claude-opus-5-1m-us): E-01..E-06 performed (E-03 discharged by WITHDRAWAL, no secret vocabulary added), V-01..V-06 pass with five sabotage runs. Host-neutral cycle in `lane_containment.py`; both drivers wired identically. FOUR DECISIONS recorded, of which two matter: prerequisite `nna8yz` is `executed` but on an UNMERGED lane, and I proceeded because its only cited consumer (R3.4's manifest revision) was withdrawn by `R3.3a`, so this plan imports nothing from it; and `wtiso_gate`'s two missing-input stubs were LEFT RAISING for `604wra`, whose measured ownership table claims those bodies and whose scope fence (not mine) includes that module. TWO SELF-INFLICTED PROBLEMS DISCLOSED: I initially edited the MAIN CHECKOUT by absolute path instead of my lane (captured, path-scoped-reverted, re-applied in-lane; a co-worker's staged deletion left untouched), and my first wiring placement broke `test_runner_stop.py::PollWiringTests` by widening a character-distance window it asserts - fixed by MOVING my call after the poll in both drivers rather than relaxing the sibling's bound.
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 2 further findings, SR-001, SR-002 (both FIXED; also amended by the R3.3a withdrawal), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.
