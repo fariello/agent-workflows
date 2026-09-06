@@ -3052,7 +3052,7 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     """Return an operator-facing reason ``dep``'s review blocks its dependents, else None.
 
     revgate Order 03 (7nkcgp) E-01/E-02. Delegates ENTIRELY to
-    ``review_findings.plan_gating_blocks``, the ONE shared predicate, which both host runners, the
+    ``review_findings.subject_gating_blocks``, the ONE shared predicate, which both host runners, the
     `aw check` evaluator, and the `/exec-set` Set compiler consume. This function re-implements no
     severity comparison and holds no threshold of its own, so the four surfaces cannot drift.
 
@@ -3065,7 +3065,7 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     try:
         from agent_workflows import review_findings as _rf
 
-        blocks = _rf.plan_gating_blocks(repo, dep)
+        blocks = _rf.subject_gating_blocks(repo, dep)
     except Exception:
         return None
     if not blocks:

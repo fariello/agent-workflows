@@ -478,7 +478,7 @@ def _repo_root_for_plans_dir(plans_dir: Path) -> Path:
 def _findings_gate_reason(plans_dir: Path, plan_id6: str) -> Optional[str]:
     """Reason ``plan_id6`` is a findings gate for `/exec-set`, or None.
 
-    revgate Order 03 (7nkcgp) E-07. Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the
+    revgate Order 03 (7nkcgp) E-07. Delegates ENTIRELY to ``review_findings.subject_gating_blocks``, the
     SAME shared predicate both host runners and `aw check` consume, so the Set compiler cannot drift
     from them. Never raises: a repo with no reviews tree, no config, or an unimportable module yields
     None, which preserves the pre-Order-03 behavior exactly.
@@ -486,7 +486,9 @@ def _findings_gate_reason(plans_dir: Path, plan_id6: str) -> Optional[str]:
     try:
         from agent_workflows import review_findings as _rf
 
-        blocks = _rf.plan_gating_blocks(_repo_root_for_plans_dir(plans_dir), plan_id6)
+        blocks = _rf.subject_gating_blocks(
+            _repo_root_for_plans_dir(plans_dir), plan_id6
+        )
     except Exception:
         return None
     if not blocks:

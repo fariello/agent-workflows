@@ -313,7 +313,7 @@ class SubjectFieldIndexTests(_RepoCase):
         """The corpus-level invariant that keeps the contrast case above hypothetical.
 
         Measured over the REAL repository rather than a fixture: a single unmigrated record would make
-        its plan's gating findings invisible, and (via `plan_gating_blocks` case (b)) a MALFORMED one
+        its plan's gating findings invisible, and (via `subject_gating_blocks` case (b)) a MALFORMED one
         would block that plan's approval with no override.
         """
         repo_root = Path(__file__).resolve().parent.parent

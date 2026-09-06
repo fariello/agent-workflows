@@ -796,6 +796,12 @@ class GatingBlock(NamedTuple):
     ``kind`` is ``"finding"`` (a real unresolved gating row) or ``"malformed"`` (a review artifact
     that exists but cannot be parsed, so its findings cannot be checked). ``finding_id`` and
     ``severity`` are the empty string for the malformed case, where no row could be read.
+
+    ``plan_id6`` KEEPS ITS PLAN-FLAVOURED NAME DELIBERATELY, decided in revsweep ``wpomxa`` when that
+    plan renamed :func:`subject_gating_blocks`. It holds the SUBJECT's id6 whatever the subject's type,
+    so the word is imprecise; it is left alone because renaming a public attribute of a returned record
+    is a wider change than the predicate rename the maintainer ruled in, reaching every construction
+    site and any consumer reading the attribute. Read it as "the reviewed artifact's id6".
     """
 
     plan_id6: str
@@ -817,18 +823,18 @@ class GatingBlock(NamedTuple):
         )
 
 
-def plan_gating_blocks(
-    repo_root, plan_id6: str, threshold: Optional[str] = None
+def subject_gating_blocks(
+    repo_root, subject_id6: str, threshold: Optional[str] = None
 ) -> Tuple[GatingBlock, ...]:
-    """Every recorded reason ``plan_id6``'s review blocks its dependents, in deterministic order.
+    """Every recorded reason ``subject_id6``'s review blocks its dependents, in deterministic order.
 
-    THE PREDICATE IS ARTIFACT-NEUTRAL DESPITE ITS PLAN-ONLY NAME, and the mismatch is deliberate
-    rather than an oversight. Since revsweep ``eyh1fu`` the record names its subject with
-    ``- Subject-Id:``/``- Subject-Type:``, so this function answers the question for ANY reviewable
-    artifact: it matches the id6 against whatever the record declares as its subject and never
-    consults the type. The ``plan``-flavoured NAME and the ``plan_id6`` PARAMETER are left for
-    ``wpomxa`` (`revsweep-05`), which owns the rename and depends on ``executed:eyh1fu``; renaming
-    them here would collide with that plan and reach into four modules this one never touches.
+    THE PREDICATE IS ARTIFACT-NEUTRAL AND SO IS ITS NAME, since revsweep ``wpomxa`` (`revsweep-05`)
+    renamed it from ``plan_gating_blocks``. Since revsweep ``eyh1fu`` the record names its subject
+    with ``- Subject-Id:``/``- Subject-Type:``, so this function answers the question for ANY
+    reviewable artifact: it matches the id6 against whatever the record declares as its subject and
+    never consults the type. ``subject`` is deliberately the SAME word the record's own field uses, so
+    one concept keeps one name across the field, the parameter, and the predicate. The parameter stays
+    POSITIONAL-compatible because four of the five call sites pass positionally.
 
     An EMPTY tuple means "nothing recorded blocks dependents", which is the answer for an artifact with
     no review artifact at all. The three failure modes deliberately MIRROR Order 02's
@@ -861,7 +867,7 @@ def plan_gating_blocks(
     if thr in ("off", ""):
         return ()  # (c) disabled outright: do no work at all.
 
-    wanted = (plan_id6 or "").strip()
+    wanted = (subject_id6 or "").strip()
     if not wanted:
         return ()
 
@@ -911,16 +917,9 @@ def plan_gating_blocks(
     return tuple(out)
 
 
-def plan_blocks_dependents(
-    repo_root, plan_id6: str, threshold: Optional[str] = None
-) -> bool:
-    """True iff ``plan_id6`` carries a recorded reason NOT to satisfy an ``executed:`` edge.
-
-    ARTIFACT-NEUTRAL despite the plan-only name, for the reason its delegate records: the subject field
-    it reads through is neutral since revsweep ``eyh1fu``, and the rename belongs to ``wpomxa``.
-
-    The boolean convenience over :func:`plan_gating_blocks` for a caller that needs only the verdict.
-    A caller that must TELL THE OPERATOR WHY should use :func:`plan_gating_blocks` instead; a block
-    whose message does not name its cause is the failure mode this Set exists to remove.
-    """
-    return bool(plan_gating_blocks(repo_root, plan_id6, threshold))
+# NO BOOLEAN CONVENIENCE WRAPPER LIVES HERE, deliberately. `plan_blocks_dependents` used to, a one
+# line `return bool(subject_gating_blocks(...))`; revsweep `wpomxa` DELETED it on the maintainer's
+# 2026-09-04 ruling after re-verifying it had ZERO callers, no direct test, and no `__all__` entry.
+# A caller that needs only a verdict should write `bool(subject_gating_blocks(...))` at the call site,
+# because a caller that must TELL THE OPERATOR WHY needs the tuple anyway, and a block whose message
+# does not name its cause is the failure mode this Set exists to remove.

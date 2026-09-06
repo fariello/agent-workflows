@@ -2062,14 +2062,14 @@ _REVIEW_DEP_BLOCKED_RULE = "check.ipd-dependency-findings-blocked"
 def _findings_blocks_for(repo_root: Path, dep_id6: str, threshold: Optional[str]):
     """The shared predicate's verdict for one dependency target, or `()` when it does not block.
 
-    Delegates ENTIRELY to ``review_findings.plan_gating_blocks``, the SAME function both host runners
+    Delegates ENTIRELY to ``review_findings.subject_gating_blocks``, the SAME function both host runners
     consume, so `aw check` and a live run cannot disagree about what blocks. This function
     re-implements no severity comparison, holds no threshold default, and never raises.
     """
     try:
         from agent_workflows import review_findings as _rf
 
-        return _rf.plan_gating_blocks(repo_root, dep_id6, threshold)
+        return _rf.subject_gating_blocks(repo_root, dep_id6, threshold)
     except Exception:
         return ()
 

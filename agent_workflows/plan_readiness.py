@@ -443,7 +443,7 @@ def approval_refusals(
        :func:`is_plan_review_approved` uses: a valid field is authoritative and prose is never read;
        an ABSENT field falls back to prose; an OUT-OF-VOCAB field refuses outright with no fallback,
        because absence means "no signal recorded" while a bad value means "the signal is corrupt".
-    2. THE TYPED REVIEW ARTIFACT, via ``review_findings.plan_gating_blocks``, reused UNCHANGED so the
+    2. THE TYPED REVIEW ARTIFACT, via ``review_findings.subject_gating_blocks``, reused UNCHANGED so the
        one severity comparison (``review_findings.is_gating``) is not forked - there is an explicit
        anti-fork guard test at ``tests/test_review_findings_gate.py``. An ABSENT review artifact is
        SILENT, not blocking, which is that function's documented contract and is required for safety
@@ -506,7 +506,7 @@ def approval_refusals(
         try:
             from agent_workflows import review_findings as _rf
 
-            for block in _rf.plan_gating_blocks(repo_root, id6_match.group(1)):
+            for block in _rf.subject_gating_blocks(repo_root, id6_match.group(1)):
                 refusals.append(
                     "the typed review artifact records an unresolved gating finding: {0}".format(
                         block.describe()

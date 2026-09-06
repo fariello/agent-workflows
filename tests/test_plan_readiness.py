@@ -733,7 +733,7 @@ class ApprovalRefusalsTests(unittest.TestCase):
         text = _plan(history=APPROVE_REVISIONS)
         p = self._write(text)
         with mock.patch(
-            "agent_workflows.review_findings.plan_gating_blocks", return_value=()
+            "agent_workflows.review_findings.subject_gating_blocks", return_value=()
         ) as spy:
             PR.approval_refusals(p.parent, p, text)
         self.assertEqual(spy.call_count, 1)
@@ -756,7 +756,8 @@ class ApprovalRefusalsTests(unittest.TestCase):
         text = _plan(history=APPROVE_REVISIONS)
         p = self._write(text)
         with mock.patch(
-            "agent_workflows.review_findings.plan_gating_blocks", return_value=(block,)
+            "agent_workflows.review_findings.subject_gating_blocks",
+            return_value=(block,),
         ):
             refusals = PR.approval_refusals(
                 p.parent, p, text, allow_open_questions=True

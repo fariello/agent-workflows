@@ -294,14 +294,14 @@ class SharedPredicateTests(_RepoCase):
     def test_predicate_is_defined_once_in_a_non_runner_module(self):
         """One definition, in `review_findings`, consumed by both hosts and by check_engine."""
         self.assertEqual(
-            rf.plan_gating_blocks.__module__, "agent_workflows.review_findings"
+            rf.subject_gating_blocks.__module__, "agent_workflows.review_findings"
         )
         # Both driver wrappers exist and are thin delegates (no severity logic of their own).
         for name, drv in DRIVERS:
             with self.subTest(driver=name):
                 self.assertTrue(hasattr(drv, "_findings_block_reason"))
                 src = _src(drv)
-                self.assertIn("plan_gating_blocks", src)
+                self.assertIn("subject_gating_blocks", src)
                 # The severity comparison must NOT be reimplemented in a runner.
                 self.assertNotIn("_SEVERITY_RANK", src)
 

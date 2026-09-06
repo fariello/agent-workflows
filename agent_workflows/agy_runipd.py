@@ -2006,7 +2006,7 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
 
     revgate Order 03 (7nkcgp) E-02. The MIRROR of ``oc_runipd._findings_block_reason``, and
     deliberately a thin one: all logic lives in the ONE shared predicate
-    ``review_findings.plan_gating_blocks``, so the two hosts cannot diverge and the gate is not
+    ``review_findings.subject_gating_blocks``, so the two hosts cannot diverge and the gate is not
     evadable by switching host. This wrapper exists only because neither runner imports the other (the
     duplication the in-flight `rununify` Set exists to fix); it holds no threshold and no severity
     comparison of its own.
@@ -2014,7 +2014,7 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     try:
         from agent_workflows import review_findings as _rf
 
-        blocks = _rf.plan_gating_blocks(repo, dep)
+        blocks = _rf.subject_gating_blocks(repo, dep)
     except Exception:
         return None
     if not blocks:
