@@ -4253,6 +4253,16 @@
     "date": "2026-09-01",
     "disposition": "executed",
     "kind": "child",
+    "order": 6,
+    "path": "executed/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md",
+    "plan_id": "604wra",
+    "set_id": "lanectn",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md",
     "plan_id": "429f30",
@@ -4516,16 +4526,6 @@
     "order": 5,
     "path": "pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md",
     "plan_id": "xdr83v",
-    "set_id": "lanectn",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md",
-    "plan_id": "604wra",
     "set_id": "lanectn",
     "status": "approved"
   },

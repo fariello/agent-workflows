@@ -70,7 +70,7 @@ Showing the 40 most-recent of 206 Sets; the full manifest is INDEX.json.
 - `lhmrhx` [executed] 03 executed/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md
 - `y5od1h` [executed] 04 executed/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md
 - `xdr83v` [pending] 05 pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md
-- `604wra` [pending] 06 pending/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md
+- `604wra` [executed] 06 executed/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md
 
 ## ocvariant
 

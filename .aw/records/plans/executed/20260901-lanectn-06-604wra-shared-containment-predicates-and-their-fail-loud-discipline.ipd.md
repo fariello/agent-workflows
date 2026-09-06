@@ -8,16 +8,16 @@
 - Item-Dependencies: executed:lhmrhx, executed:y5od1h
 - From-Spec: 7ckptx
 - Blocks-Release: next
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: lanectn
 - Order: 6
 - Highest E allocated: 04
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 604wra
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: 604wra verified (set lanectn, attempt 1). [Scope reconciliation - out-of-scope tests/test_missing_input_repair.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_wtiso_adversarial.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_wtiso_taxonomy_freeze.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified agent_workflows/agy_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified agent_workflows/oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-06 executed (opencode/its_direct/pt3-claude-opus-5-1m-us, run-20260905T211011Z-3780617 pos 11): all 4 E-items performed, all 4 V-items pass with pasted evidence and product-level sabotage for V-02/V-03/V-04. Prerequisites CHECKED not assumed: `y5od1h` and `lhmrhx` both in `executed/` and all 19 of their symbols verified present in this lane before editing. FOUR THINGS A REVIEWER SHOULD KNOW. (1) E-01 found NO forked function or class: the AST survey resolved all 32 rule symbols to exactly 1 definition each. The consolidation it DID make is a string-level one - the stable code `AW_MISSING_INPUT` was retyped inside `MISSING_INPUT_TOKEN_FORM`, so renaming the code would have left the worker's PROMPT publishing the old spelling and the escape hatch would have failed silently. (2) E-04's instruction was NOT followable as written and the divergence is recorded (D3): it asked each stale label to name the superseding `lanectn` child, but all three named owner phases (`qcqhj7`, `rchpms`, `2c122z`) are RETIRED and four of the five left-raising predicates have NO successor at all, so inventing one would have been fabricated provenance; each label now states its phase, retirement, what DID land, and plainly says when nothing supersedes it. (3) Three predicates were implemented as DELEGATIONS rather than new logic, per `y5od1h`'s handoff note and R6.1; only `check_permission_deadline` is new, and its docstring states the honest limit that it is a pure predicate over a recorded stream and NOT a live bound (`PERMISSION_TIMEOUT` still ships at 0). (4) The bare suite has 35 PRE-EXISTING failures at this lane's HEAD, not zero as the plan expected; I characterized all 35 before editing and the failing node-id set is IDENTICAL after (0 new, 0 fixed). 17 are caused by the driver exporting `AW_EXECUTION_ROLE=worker` into the turn, and 18 by lane-absent `.aw/records/runs/` plus a real `attention.duplicate-id` in committed backlog data (`2k42zu` in both `graduated/` and `done/`) - both worth a maintainer's attention and neither this plan's to fix.
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-01 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED; round 2 is a DISCLOSED SELF-REVIEW (I authored this plan, so it is weaker evidence than round 1, which was independent and performed by codex/gpt-5). Round 1's PR-* findings were all resolved and moved to FIXED in the typed review record; round 2 then found 1 further findings, SR-002 (FIXED), of which four across the Set were defects I INTRODUCED while fixing round 1. Round 2 is appended to the plan-specific typed review record.
