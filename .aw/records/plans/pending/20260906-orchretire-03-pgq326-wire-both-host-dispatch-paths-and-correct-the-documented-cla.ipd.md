@@ -9,7 +9,7 @@
 - Status: to-review
 - Set: orchretire
 - Order: 3
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: pgq326
 - From-Backlog: kxkc04
@@ -17,6 +17,7 @@
 
 ## Workflow history
 
+- 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): Cross-plan revision applied while reviewing orchestrator 84j8d7 (finding PR-001, HIGH, fixed in this owning plan per the reviewer's cross-plan rule). Added E-07/V-07: sharing the action decider (E-04) makes agy DECIDE `orchestrate` but agy has no branch that READS it (`orchestrate` absent from `agy_runipd.py`; `:2973` derives only `is_review`; `:4138` calls `execute_item` unconditionally), so E-04 alone would ship a decider whose value agy ignores while V-04's object-identity assertion still passed. Watermark advanced to 07. No other content altered; this plan's own review is separate and has not been performed.
 - 2026-09-06 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored complete from approved spec 77tr3o. The agy asymmetry was verified by comparing module attributes and calling both action deciders, not by grep alone.
 - 2026-09-06 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
 
@@ -54,6 +55,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `agy` and `oc` return the SAME action for the same (kind, status) pair, verified by asserting the two call the same object rather than by comparing outputs alone.
   - Execution state: pending
 
+- [ ] E-07 Add the agy DISPATCH BRANCH that acts on the `orchestrate` action, which sharing the decider does NOT accomplish. E-04 makes agy DECIDE `orchestrate`; agy then IGNORES it. Verified at HEAD `844d195c`: the token `orchestrate` appears nowhere in `agy_runipd.py` outside the unrelated `orchestrate_isolation` import, `execute_item` derives only `is_review = action == "review"` (`:2973`), and the queue loop calls `execute_item` unconditionally (`:4138`). So without this item E-04 ships a decider returning a value into a host that spends an agent turn anyway, which is the very failure spec R-10 exists to prevent, and V-04's object-identity assertion would still PASS. Route agy's `orchestrate` items through the SAME shared retire/reconsider/terminate outcome E-01 and E-02 build for oc; do not fork a second copy of that logic into `agy_runipd.py`.
+  - Depends on: E-01, E-02, E-04
+  - Expected outcome: an approved orchestrator dispatched by `aw agy run` is retired, reconsidered, or terminated by the shared path with NO agent turn and no `execute_item` call, matching oc's outcome and not merely oc's decision.
+  - Execution state: pending
+
 - [ ] E-05 Correct the false claim in the managed AGENTS.md block (spec R-11). `AGENTS.md:42` states an orchestrator "self-finalizes once every child of its Set reached `executed` ... so an Order-0 parent in the queue is correct and needs no human step" and instructs agents NOT to raise orchestrator finalization. That was never true: 0 successes in 102 runs. EDIT THE GENERATOR, not the rendered file: the text lives in `engine.py`'s `agents_managed_sections` (the paragraph near `engine.py:1146`), and a hand-edit to `AGENTS.md` is overwritten on the next install. Regenerate via the merge helper, and state the NEW behavior without a new overstatement (say what the runner does, and that a Set with unauthored children is deliberately not retired).
   - Depends on: E-01, E-04
   - Expected outcome: the managed block describes behavior that the tests in E-06 actually demonstrate, and a re-render is idempotent.
@@ -89,8 +95,9 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 2. E-02 typed, distinguishable refusal reasons in the durable record.
 3. E-03 verify the drain path terminates a dead Set.
 4. E-04 shared action decider, giving agy `orchestrate`.
-5. E-05 correct the generator-owned AGENTS.md claim.
-6. E-06 both-host end-to-end tests.
+5. E-07 agy's dispatch branch that ACTS on that action (E-04 alone leaves it ignored).
+6. E-05 correct the generator-owned AGENTS.md claim.
+7. E-06 both-host end-to-end tests.
 
 ## Deferred / out of scope (with reason)
 
@@ -140,7 +147,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-04 validates E-04
-  - Required evidence: paste a Python session asserting `agy.<action decider> is oc.<action decider>` (the same object, proving shared code rather than parity by coincidence) and showing both return `orchestrate` for an approved orchestrator. Paste an agy queue entry showing it carries `kind`.
+  - Required evidence: paste a Python session asserting `agy.<action decider> is oc.<action decider>` (the same object, proving shared code rather than parity by coincidence) and showing both return `orchestrate` for an approved orchestrator. Paste an agy queue entry showing it carries `kind`. This item proves the DECISION only; the dispatched OUTCOME is V-07's, and this item must NOT be read as establishing host parity on its own.
   - Observed evidence:
   - Result: pending
 
@@ -151,6 +158,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-06 validates E-06
   - Required evidence: paste the bare suite summary. Then paste a SABOTAGE per host: revert agy's action decision to `determine_action` and show the agy test FAILS; reinstate the terminal-status write and show the reconsideration test FAILS. Both are required because a one-host fix passes every oc-only test.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste an `aw agy run` dispatch of an approved orchestrator over a synthetic Set showing the DISPATCHED OUTCOME (retired, reconsidered, or terminated) with NO agent turn: show that `execute_item` was not called and no session/prompt artifact was written for that item. Then paste a SABOTAGE proving this is not the decider test in disguise: leave the shared decider returning `orchestrate` but REMOVE agy's dispatch branch, and show V-04's identity assertion still PASSES while this item's test FAILS. That contrast is the whole point of separating the two.
   - Observed evidence:
   - Result: pending
 
@@ -165,6 +177,10 @@ general `dependency-blocked` defect here, and do NOT change `EXECUTION_SUCCESS_S
 deliberately deferred and widening this child would make the Set unreviewable. Edit the AGENTS.md
 GENERATOR in `engine.py`, never the rendered file. `finalize-refused` is TERMINATE, not RECONSIDER;
 getting that backwards produces an infinite retry loop, which is the one regression worse than the bug.
+E-04 AND E-07 ARE BOTH REQUIRED and neither substitutes for the other: E-04 makes agy DECIDE
+`orchestrate`, E-07 makes agy ACT on it. Shipping E-04 alone leaves agy agent-executing orchestrators
+exactly as it does today while every parity test passes, so do not treat V-04 as evidence of host
+symmetry. Route agy through the SHARED outcome path; do not fork a second copy into `agy_runipd.py`.
 PASTE ACTUAL OUTPUT for every `V-*`, including the sabotages. State the end-to-end coverage limit
 honestly at finalize rather than implying a full unattended proof. OQ-01 is yours to answer empirically
 via E-03.

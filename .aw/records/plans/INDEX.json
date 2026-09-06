@@ -4570,6 +4570,46 @@
     "status": "reviewed"
   },
   {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
+    "plan_id": "84j8d7",
+    "set_id": "orchretire",
+    "status": "reviewed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md",
+    "plan_id": "5942n7",
+    "set_id": "orchretire",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
+    "plan_id": "ueg5cf",
+    "set_id": "orchretire",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md",
+    "plan_id": "pgq326",
+    "set_id": "orchretire",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
