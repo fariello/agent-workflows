@@ -3813,6 +3813,16 @@
     "date": "2026-08-29",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md",
+    "plan_id": "p0l1to",
+    "set_id": "runprofile",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
+    "kind": "child",
     "order": 1,
     "path": "executed/20260829-runstale-01-ssk6nf-read-time-liveness-projection-aw-runs-must-not-report-a-dead.ipd.md",
     "plan_id": "ssk6nf",
@@ -4396,16 +4406,6 @@
     "order": 0,
     "path": "pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
     "plan_id": "3m0urk",
-    "set_id": "runprofile",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md",
-    "plan_id": "p0l1to",
     "set_id": "runprofile",
     "status": "approved"
   },
