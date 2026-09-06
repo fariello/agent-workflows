@@ -3,8 +3,8 @@
 - Date: 2026-09-06
 - Kind: child
 - Concern: `finalize_orchestrator` (`oc_runipd.py:773-796`) has NEVER once succeeded. Measured across all 102 durable run records: `orchestrator-finalized` fired 0 times, `orchestrator-deferred` fired 28 times across 15 distinct orchestrators. It was born broken: the gated terminal transition landed `99760832` (2026-08-24) and `finalize_orchestrator` was written `801dd28a` (2026-08-27), three days later, against a gate that already refused it. Two gates block it and both are structural, not incidental. FIRST, it shells to `aw ipd set executed`, which requires a `begin` receipt; an orchestrator is never agent-executed so nothing ever calls `aw ipd begin` for it and no receipt can exist. SECOND, with a receipt present (verified by writing one, then deleting it) the `pre-transition` checkpoint refuses on six `IPD-S404` findings because `check_checkpoint` (`ipd_lint.py:694-725`) requires every `E-*` performed and every `V-*` evidenced UNCONDITIONALLY, and `grep -c orchestrator agent_workflows/ipd_lint.py` is 0 so the linter has no orchestrator concept at all. That is the contradiction: the honesty gate demands evidence for items that, under `aw run`, are by design performed by nobody.
-- Scope: Make a runner-owned retirement transition that actually works, resolving spec `77tr3o` R-5 (the E/V pre-transition requirement) and R-6 (the receipt requirement) EXPLICITLY rather than by bypass, and writing an honest terminal history entry per R-4. Consumes child 01's predicate; it performs the transition and does NOT decide eligibility itself. It does NOT touch either runner's dispatch branch (child 03), does NOT relax any gate for CHILD plans, and adds NO path by which an ordinary plan can reach `executed` without evidence.
-- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/ipd_lint.py, agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
+- Scope: Make a runner-owned retirement transition that actually works, resolving spec `77tr3o` R-5 (the E/V pre-transition requirement) and R-6 (the receipt requirement) EXPLICITLY rather than by bypass, and writing an honest terminal history entry per R-4. THE R-5 SHAPE IS DECIDED, not left to the executor: the maintainer chose a SEPARATE runner-owned rollup transition and ruled `ipd_lint.py` out of bounds, so this plan adds a transition and does NOT teach the honesty checker any exception. Consumes child 01's predicate; it performs the transition and does NOT decide eligibility itself. It does NOT touch either runner's dispatch branch (child 03), does NOT relax any gate for CHILD plans, and adds NO path by which an ordinary plan can reach `executed` without evidence.
+- Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:5942n7
 - Status: to-review
 - Readiness: go-pending-approval
@@ -33,14 +33,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: resolve the two gates
 
-- [ ] E-01 DECIDE and record which of spec R-5's two permitted shapes this Set implements, then state the reason in this plan's Workflow history before writing code. The two are: (a) teach `check_checkpoint` a `Kind: orchestrator` + runner-rollup exemption scoped to THIS transition; or (b) add a distinct runner-owned rollup transition that does not route through the E/V checkpoint while keeping every other gate. Weigh them on the criterion the spec sets: no new route by which a CHILD plan reaches `executed` without evidence. Record the rejected option and why.
+- [ ] E-01 Add the SEPARATE runner-owned rollup transition (spec R-5, shape (b), decided by the maintainer 2026-09-06). It MUST NOT route through the `pre-transition` E/V checkpoint, and it MUST still perform every other gate the main path performs: status legality, the plan move, the plans-index refresh fail-loud, the path-scoped lifecycle commit, and post-transition lint. It MUST refuse for anything that is not `Kind: orchestrator`, so the route cannot be aimed at an ordinary plan at all. Add a comment naming spec `77tr3o` R-5 and OQ-1, stating that `ipd_lint.py` was deliberately left untouched and why, so a later reader does not "simplify" this into the linter exemption that was rejected.
   - Depends on: none
-  - Expected outcome: a written decision in this plan naming the chosen shape and the reason, so a reviewer can judge the choice rather than infer it from the diff.
+  - Expected outcome: retiring an eligible orchestrator produces none of the six `IPD-S404` findings, and pointing the same route at a `Kind: child` plan is REFUSED regardless of that plan's state.
   - Execution state: pending
 
-- [ ] E-02 Implement the chosen E/V resolution. If (a), the exemption MUST test `Kind: orchestrator` AND a runner-rollup caller signal, so a human running `aw ipd finalize` by hand on an orchestrator still faces the normal E/V requirement (the agent-driven path is unchanged, per spec Scope). If (b), the new transition MUST still perform: status legality, the plan move, the plans-index refresh, the path-scoped lifecycle commit, and post-transition lint. Whichever is chosen, add a comment at the site naming spec `77tr3o` R-5 and stating the honesty rule, because a future reader must not over-generalize the exemption.
+- [ ] E-02 Pin the accepted cost of shape (b): TWO PATHS CAN DRIFT. Write a test that asserts the rollup transition performs the same gate set as the main finalize MINUS the E/V checkpoint, enumerated explicitly rather than by inspection, so a future change that adds a gate to one path and not the other FAILS. The maintainer accepted drift as the known risk of this shape; this E-item is what makes that risk detectable instead of latent.
   - Depends on: E-01
-  - Expected outcome: retiring `rh5tt6` no longer produces the six `IPD-S404` findings, while a CHILD plan with unperformed E-items is still refused identically to today.
+  - Expected outcome: a test that names each shared gate and fails if the rollup path stops performing one, and which would have caught a gate added to `finalize` alone.
   - Execution state: pending
 
 - [ ] E-03 Resolve the receipt requirement (spec R-6) explicitly: either the rollup transition does not require a `begin` receipt, or the runner mints one as part of the rollup. Do NOT silently reuse the child-plan receipt path, which is what fails today. If a receipt is minted, it must be recognizable as a rollup receipt rather than an execution receipt, so it cannot be mistaken for evidence that an agent executed the orchestrator.
@@ -96,7 +96,7 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Scope check
 
-- Over-scope: `ipd_lint.py` is in `Scope-Paths` but is touched ONLY if E-01 chooses shape (a). If (b) is chosen it must be left unmodified, and the finalize record must say so rather than leaving an unexplained in-scope-unmodified path.
+- Over-scope: none. `ipd_lint.py` was REMOVED from `Scope-Paths` when the maintainer resolved OQ-01 to shape (b); it is now explicitly out of bounds rather than conditionally in, so V-01 requires an empty diff for it as positive evidence that the rejected shape was not taken.
 - Under-scope: nothing here is reachable from a real run until child 03 wires the dispatch sites.
 
 ## Required tests / validation
@@ -105,28 +105,28 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Spec / documentation sync
 
-Implements spec `77tr3o` R-4, R-5, R-6. If E-01 chooses shape (a), the `ipd-spec` documentation of the `pre-transition` checkpoint must record the orchestrator exemption, because a checkpoint that silently exempts a Kind is exactly the kind of undocumented special case this repo's own linter discipline exists to prevent.
+Implements spec `77tr3o` R-4, R-5, R-6. The `ipd-spec` documentation of the `pre-transition` checkpoint needs NO change, which is a direct consequence of the maintainer's shape-(b) ruling: the checkpoint's rule is untouched and exempts nothing, so there is no special case to document. The new rollup transition itself must be documented where the lifecycle verbs are described, stating plainly that it is runner-owned, orchestrator-only, and skips the E/V checkpoint because under `aw run` those items are performed by nobody.
 
 ## Open questions
 
 ### OQ-01: linter exemption (a) or a separate rollup transition (b)?
 
 - Blocking: no
-- Status: open
-- Owner: executor
-- Resolution or deferral rationale: DELIBERATELY LEFT to execution, per spec `77tr3o` OQ-1, which states both are defensible and the choice needs the code in front of the decider. It is NOT blocking because the spec supplies the binding constraint that makes either answer safe: no new route by which a child plan reaches `executed` without evidence. E-01 requires the decision and its reason to be RECORDED, so the reviewer judges a stated choice rather than reverse-engineering it. Escalate to the maintainer only if both shapes turn out to violate the constraint, which would mean the requirement itself needs revisiting.
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED 2026-09-06 by the MAINTAINER, asked directly rather than deferred to execution: shape (b), a SEPARATE runner-owned rollup transition, and `ipd_lint.py` is out of bounds. His reasoning for rejecting (a): a safety check that learns one narrow exception is how it quietly stops protecting anything, because a later reader sees the exception and widens it. He accepted the known cost of (b) explicitly, that two transition paths can drift, which is why E-02 exists to make that drift detectable rather than latent. Recorded here in full because the rejected option and its reason are what a future reader needs; the decision is no longer the executor's to make.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: quote the decision paragraph added to this plan's Workflow history, naming the chosen shape, the rejected one, and the reason, and state explicitly how the choice satisfies "no new route by which a child plan reaches executed without evidence".
+  - Required evidence: paste a successful retirement of a synthetic complete Set showing NO `IPD-S404` findings. Paste `git diff --stat agent_workflows/ipd_lint.py` showing it is EMPTY, proving the rejected shape (a) was not taken. Paste the rollup route REFUSING a `Kind: child` plan, and separately paste a CHILD plan still being refused by the normal `finalize` with the same `IPD-S404` findings it produces today. All four are required: the first shows the gate opened where intended, the rest show it did not open anywhere else.
   - Observed evidence:
   - Result: pending
 
 - [ ] V-02 validates E-02
-  - Required evidence: paste a successful retirement of a synthetic complete Set showing NO `IPD-S404` findings, AND paste a CHILD plan with unperformed E-items still being refused with the same findings it produces today. Both are required: the first shows the gate opened where intended, the second shows it did not open anywhere else.
+  - Required evidence: paste the drift test and its passing output, showing it enumerates the shared gates by name. Then paste a SABOTAGE: remove one gate (e.g. the plans-index refresh) from the rollup path only, and show the test FAILS naming that gate. A drift test that only passes proves nothing about the drift it exists to catch.
   - Observed evidence:
   - Result: pending
 
@@ -154,11 +154,12 @@ EXECUTION CONTRACT. Stay inside `Scope-Paths`; both runners' dispatch branches a
 03 owns them). You MUST NOT add any path by which an ordinary plan reaches `executed` without evidence,
 and V-02/V-05 exist to prove you did not. Do not weaken the CHILD-plan gates, do not touch
 `EXECUTION_SUCCESS_STATES` or `TERMINAL_STATES`, and do not incidentally "fix" the `aw set executed`
-worker-role bypass. Record the E-01 decision BEFORE writing the code it governs. PASTE ACTUAL OUTPUT for
-every `V-*`. If `ipd_lint.py` ends up unmodified because you chose shape (b), say so explicitly at
-finalize with a `--scope-reason` rather than leaving an unexplained in-scope-unmodified path. OQ-01 is
-deliberately open and is yours to decide and record; escalate only if both shapes violate the
-no-new-route constraint.
+worker-role bypass. `agent_workflows/ipd_lint.py` IS OUT OF BOUNDS: OQ-01 is RESOLVED by the maintainer
+to shape (b), so do NOT teach the honesty checker any exception, and do not "simplify" the separate
+transition into one. If you come to believe shape (a) is better, STOP and raise it rather than
+substituting your judgement for the maintainer's; he rejected it for a stated reason. PASTE ACTUAL
+OUTPUT for every `V-*`, including the E-02 sabotage, and include the empty `ipd_lint.py` diff V-01
+requires as positive evidence.
 
 POST-GATE LIFECYCLE. Do not claim done or move this plan until every `V-*` is verified with concrete
 pasted evidence and `aw ipd lint --phase pre-transition` reports conforming; the transition is performed

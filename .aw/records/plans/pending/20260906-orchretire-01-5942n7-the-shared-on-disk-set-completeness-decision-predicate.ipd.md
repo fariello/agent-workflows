@@ -105,7 +105,7 @@ Spec `77tr3o` R-1/R-2/R-3/R-9/R-10 are implemented here; no spec text changes. `
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: RESOLVED from spec `77tr3o` OQ-2, which explicitly permits a conservative refusal when the answer is unclear, and from the measured shape of the real data: `5e4sb6`'s row token is `03+`, so exact numeric parsing is impossible in the one case that matters. E-03 therefore treats any non-numeric or open-ended token, and any unparseable table, as "declares more children than exist" and refuses. This can only produce a FALSE REFUSAL (an orchestrator lingers, the status quo), never a false retirement, so the failure direction is safe.
+- Resolution or deferral rationale: RESOLVED, and CONFIRMED BY THE MAINTAINER 2026-09-06 when asked directly (spec `77tr3o` OQ-2). He chose TABLE PARSING over the alternative of requiring an explicit "child set complete" field on every orchestrator, because the field would have to be backfilled everywhere before the check could be trusted, and until then an unbackfilled parent would be indistinguishable from an incomplete one. He accepted the acknowledged weakness: the table is prose and `5e4sb6`'s row token is literally `03+`, so exact numeric parsing is impossible in the one case that matters. E-03 therefore treats any non-numeric or open-ended token, and any unparseable table, as "declares more children than exist" and refuses. This can only produce a FALSE REFUSAL (an orchestrator lingers, the status quo), never a false retirement, so the failure direction is safe by construction.
 
 ## Validation and cross-check (verify before reporting done)
 

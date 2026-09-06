@@ -48,7 +48,7 @@ Children are SEQUENTIAL, not parallel: 02 consumes 01's predicate, 03 wires both
 | Order | Id | Child | Depends on |
 |-------|----|-------|------------|
 | 01 | `5942n7` | The shared on-disk Set-completeness decision predicate. Reads the PLANS TREE, not the run queue, so a run that completes only the Set's LAST outstanding child still sees a complete Set. Returns a typed reason per refusal. Refuses a Set whose child table declares unauthored rows (the `rununify` case). Implements R-1, R-2, R-3, R-9, R-10. | none |
-| 02 | `ueg5cf` | The runner-owned retirement transition. Resolves the two structural gates EXPLICITLY: the `pre-transition` E/V requirement (R-5) and the `begin` receipt requirement (R-6), and writes the honest terminal history entry (R-4). Decides nothing; consumes 01. | 01 |
+| 02 | `ueg5cf` | The runner-owned retirement transition. Resolves the two structural gates EXPLICITLY: the `pre-transition` E/V requirement (R-5) and the `begin` receipt requirement (R-6), and writes the honest terminal history entry (R-4). R-5's shape is DECIDED by the maintainer, not the executor: a SEPARATE rollup transition, with `ipd_lint.py` out of bounds, plus a drift test pinning the shared gate set. Decides nothing; consumes 01. | 01 |
 | 03 | `pgq326` | Both-host dispatch wiring. Replaces the single terminal-status write with retire/reconsider/terminate (R-7, R-8), makes the four refusal reasons distinguishable (R-9), gives the agy runner the `orchestrate` action it entirely lacks via SHARED code (R-10), and corrects the false AGENTS.md claim via its generator (R-11). | 01, 02 |
 
 THE SET IS FULLY AUTHORED: every row above resolves to an existing plan file. This is stated explicitly
@@ -121,13 +121,16 @@ lane-environment failures, 35 measured on `xdr83v`'s lane).
 - Blocking: no
 - Status: resolved
 - Owner: none
-- Resolution or deferral rationale: RESOLVED as no, with the limit stated. A genuine unattended run over
-  a real Set costs hours and hundreds of dollars (the observed run was 13h42m and $341.65), so requiring
-  one as a completion gate would stall the fix indefinitely. A scripted run over a synthetic Set
-  exercises the same dispatch path and is the evidence criterion 1 accepts. This mirrors the precedent
-  recorded in `i452hf`, which closed noting that a real end-to-end unattended proof "needs an actual
-  run" and was deliberately not held for one. The honest limit is carried into the Set's finalize record
-  rather than hidden.
+- Resolution or deferral rationale: RESOLVED as no, and CONFIRMED BY THE MAINTAINER 2026-09-06 when
+  asked directly, choosing the scripted rehearsal WITH the limit stated openly over either requiring a
+  real run first or filing a follow-up item to confirm it later. A genuine unattended run over a real Set
+  costs hours and hundreds of dollars (the observed run was 13h42m and $341.65), so requiring one as a
+  completion gate would stall the fix indefinitely. A scripted run over a synthetic Set exercises the
+  same dispatch path and is the evidence criterion 1 accepts. This mirrors the precedent recorded in
+  `i452hf`, which closed noting that a real end-to-end unattended proof "needs an actual run" and was
+  deliberately not held for one. The honest limit MUST be carried into the Set's finalize record rather
+  than hidden, which is the condition attached to the answer. As this plan's own gate section notes, this
+  orchestrator becomes the natural first real-world test once its children land.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

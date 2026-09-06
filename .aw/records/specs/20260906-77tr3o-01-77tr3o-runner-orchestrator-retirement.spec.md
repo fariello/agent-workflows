@@ -14,7 +14,7 @@
 
 ## Workflow history
 
-- 2026-09-06 approved (aw specs, --by-human): Maintainer directed this graduation in-session and supplied the design contract himself: the orchestrator serves the AGENT-DRIVEN path; 'aw oc|agy run' is more rigorous and renders it null-and-void; the runner must retire it as executed as a final step of Set completion so it does not linger; the status/message must make clear it was executed as that final rollup step; and it must fire even when the current run completed only the LAST outstanding child rather than all of them. He confirmed the diagnosis and answered 'Yes please' to graduating kxkc04 into a spec plus review-ready plans.
+- 2026-09-06 note (aw specs): OQ-1 and OQ-2 RESOLVED by the maintainer 2026-09-06, both recorded in Section 5 with the rejected option and its reason. OQ-1: shape (b), a SEPARATE runner-owned rollup transition; ipd_lint.py is NOT to be modified, because teaching the honesty checker a narrow exception is how it stops protecting anything. Accepted cost: two paths can drift, so the rollup must keep every gate except the E/V checkpoint and a test must pin that. OQ-2: parse the orchestrator's own Child IPDs table and refuse on any unresolved row; no new metadata field, so nothing needs backfilling; any non-numeric or unparseable row (5e4sb6's is literally '03+') must refuse, whose worst case is a false refusal (status quo) not a false retirement. Child ueg5cf reworked accordingly: ipd_lint.py dropped from its Scope-Paths and its OQ-01 closed.
 ## 1. Why this exists
 
 An Order-0 orchestrator IPD coordinates a Set: it owns the child table, the sequencing, and the
@@ -213,14 +213,24 @@ so the asymmetry is known in passing but unfixed.
 
 ## 5. Open questions
 
-- OQ-1 (R-5, for the graduating plan): linter exemption versus a separate rollup transition. Both are
-  defensible. An exemption keeps ONE transition path but teaches the honesty linter a special case that
-  a future reader could over-generalize. A separate transition keeps the linter pure but risks drifting
-  from the gates the main path enforces. Decide with the code in front of you and state the reason. The
-  binding constraint either way: no new route by which a CHILD plan reaches `executed` without
-  evidence.
-- OQ-2 (R-3): how "the child set is fully authored" is determined. Candidates: parse the orchestrator's
-  `## Child IPDs` table and require every declared row to resolve to a plan; or require an explicit
-  metadata assertion. Table parsing is fragile (`5e4sb6`'s row is literally `03+`), an explicit field
-  is reliable but must be backfilled for existing orchestrators. Not blocking: a conservative refusal
-  when the answer is unclear satisfies R-3.
+Both were put to the maintainer 2026-09-06 and both are RESOLVED. They are retained here with their
+answers rather than deleted, because the rejected option and the reason for rejecting it are the part a
+future reader needs.
+
+- OQ-1 (R-5) RESOLVED 2026-09-06 by the maintainer: shape (b), A SEPARATE RUNNER-OWNED ROLLUP
+  TRANSITION. `ipd_lint.py` is NOT to be modified; the honesty checker keeps refusing anything without
+  evidence, unconditionally and with no Kind-aware special case. REJECTED: shape (a), the linter
+  exemption, because a safety check that learns one narrow exception is how it quietly stops protecting
+  anything -- a later reader sees the exception and widens it. ACCEPTED COST, stated so it is designed
+  for rather than discovered: two transition paths CAN DRIFT, so the rollup transition must keep every
+  gate the main path applies except the E/V checkpoint (status legality, the plan move, the plans-index
+  refresh, the path-scoped lifecycle commit, post-transition lint), and a test must pin that it does.
+- OQ-2 (R-3) RESOLVED 2026-09-06 by the maintainer: PARSE THE ORCHESTRATOR'S OWN `## Child IPDs` TABLE
+  and refuse when any declared row does not resolve to a plan. No new metadata field, so no existing
+  orchestrator needs backfilling before the check can be relied on. REJECTED: requiring an explicit
+  "child set complete" assertion, because it would have to be added to every existing orchestrator
+  first, and an unbackfilled parent would then be indistinguishable from an incomplete one. ACKNOWLEDGED
+  WEAKNESS: the table is prose and `5e4sb6`'s row token is literally `03+`, so the parser MUST treat any
+  non-numeric, open-ended, or unparseable row as "declares more children than exist" and refuse. The
+  failure direction is safe by construction: the worst case is a FALSE REFUSAL, in which an orchestrator
+  lingers exactly as it does today, never a false retirement.

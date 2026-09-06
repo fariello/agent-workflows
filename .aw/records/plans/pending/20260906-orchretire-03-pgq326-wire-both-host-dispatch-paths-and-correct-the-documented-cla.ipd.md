@@ -117,9 +117,9 @@ Implements spec `77tr3o` R-7, R-8, R-9, R-10, R-11. E-05 corrects the managed AG
 ### OQ-01: does the drain path already terminate an orchestrator left reconsiderable with dead children?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: executor
-- Resolution or deferral rationale: NOT blocking because E-03 is written to answer it empirically and to add the termination if the answer is no, so neither outcome stalls execution. It is recorded as a question rather than an assumption precisely because `kxkc04` warns against assuming it ("Verify that explicitly rather than assuming it"), and because the consequence of being wrong is a hung unattended run, which is worse than the lingering orchestrator this Set exists to fix.
+- Resolution or deferral rationale: THE APPROACH IS RESOLVED by the maintainer 2026-09-06; the empirical answer is still E-03's to obtain. Asked whether to verify the existing drain path or add a dedicated reconsideration cap regardless, he chose VERIFY FIRST and add a termination ONLY IF the existing net does not cover this case, explicitly to avoid building a second mechanism that duplicates a job something else already does. So E-03 keeps its two-branch shape and must REPORT which branch it took. It is not blocking because either branch proceeds; it remains a question rather than an assumption because `kxkc04` warns against assuming it ("Verify that explicitly rather than assuming it") and because being wrong means a hung unattended run, which is worse than the lingering orchestrator this Set fixes.
 
 ## Validation and cross-check (verify before reporting done)
 
