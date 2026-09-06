@@ -6,18 +6,18 @@
 - Scope: Make a runner-owned retirement transition that actually works, resolving spec `77tr3o` R-5 (the E/V pre-transition requirement) and R-6 (the receipt requirement) EXPLICITLY rather than by bypass, and writing an honest terminal history entry per R-4. THE R-5 SHAPE IS DECIDED, not left to the executor: the maintainer chose a SEPARATE runner-owned rollup transition and ruled `ipd_lint.py` out of bounds, so this plan adds a transition and does NOT teach the honesty checker any exception. Consumes child 01's predicate; it performs the transition and does NOT decide eligibility itself. It does NOT touch either runner's dispatch branch (child 03), does NOT relax any gate for CHILD plans, and adds NO path by which an ordinary plan can reach `executed` without evidence.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/runner_shared.py, tests/test_orchestrator_retirement.py
 - Item-Dependencies: executed:5942n7
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 2
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: ueg5cf
-- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: ueg5cf verified (set orchretire, attempt 1). [Scope reconciliation - in-scope-unmodified agent_workflows/runner_shared.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-201..PR-204 fixed, Readiness go-pending-approval
 

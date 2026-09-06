@@ -4460,6 +4460,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
+    "plan_id": "ueg5cf",
+    "set_id": "orchretire",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4593,16 +4603,6 @@
     "date": "2026-09-06",
     "disposition": "pending",
     "kind": "child",
-    "order": 2,
-    "path": "pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md",
-    "plan_id": "ueg5cf",
-    "set_id": "orchretire",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
     "order": 3,
     "path": "pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md",
     "plan_id": "pgq326",
@@ -4614,10 +4614,20 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
+    "plan_id": "7wei1o",
+    "set_id": "runsverify",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md",
     "plan_id": "mn3gwr",
     "set_id": "verifygap",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-08-07",

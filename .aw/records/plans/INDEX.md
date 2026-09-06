@@ -2,14 +2,18 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 208 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 209 Sets; the full manifest is INDEX.json.
 
 ## orchretire
 
 - `84j8d7` [pending] 00 pending/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md
 - `5942n7` [executed] 01 executed/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md
-- `ueg5cf` [pending] 02 pending/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
+- `ueg5cf` [executed] 02 executed/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
 - `pgq326` [pending] 03 pending/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md
+
+## runsverify
+
+- `7wei1o` [pending] 01 pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md
 
 ## verifygap
 
@@ -194,10 +198,6 @@ Showing the 40 most-recent of 208 Sets; the full manifest is INDEX.json.
 ## coauthor
 
 - `a5ni7v` [executed] 01 executed/20260829-coauthor-01-a5ni7v-installed-agent-contract-must-state-the-checkout-is-shared-a.ipd.md
-
-## findidx
-
-- `e32j35` [superseded] 01 superseded/20260829-findidx-01-e32j35-aw-find-resolves-selectors-index-first-with-a-fail-safe-file.ipd.md
 
 ## (singletons: no Set)
 
