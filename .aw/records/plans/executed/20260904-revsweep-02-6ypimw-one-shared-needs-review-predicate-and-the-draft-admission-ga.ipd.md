@@ -6,18 +6,18 @@
 - Scope: Replace the two duplicated `_needs_review` closures with ONE shared predicate derived from the dispatch table, and implement spec 2.5a's draft admission gate on top of it. Three deliverables: the shared predicate, the gate's pure policy (preview, confirmation, refusal) beside the mixed-type gate it is modeled on, and the runner wiring that calls both. EXCLUDES cross-type discovery, so the predicate is structured to accept a type but ships knowing only IPDs (`5slbpi` widens it); excludes the review record's shape (`eyh1fu`); excludes every other spec 2.1 flag (`uyeko5`); excludes changing what a review turn DOES.
 - Scope-Paths: agent_workflows/run_selection_policy.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_run_selection_policy.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:76gsmv
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: revsweep
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6ypimw
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 - Blocks-Release: next
 - From-Spec: 25kzda
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): aw oc run self-finalize: 6ypimw verified (set revsweep, attempt 1). [Scope reconciliation - out-of-scope tests/test_run_flag_surface.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified tests/test_agy_runipd_cli.py: declared-but-unmodified (auto-acknowledged by aw oc run); in-scope-unmodified tests/test_oc_runipd.py: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-05 approved (aw set): status set to approved
 
 - 2026-09-04 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1 at HEAD `d03316d8`: APPROVE WITH REVISIONS APPLIED; PR-001..PR-006, all FIXED in place, zero deferred, zero open. Target plan committed and unchanged at `0ee800f4`, so the pre-review snapshot was correctly skipped. `aw ipd lint` conforming at `--phase author` and again at `--phase review-finalize`. EVERY CENTRAL MEASUREMENT HELD, verified independently: `_needs_review` tests `st == "to-review"` (`oc_runipd.py:2252-2261`) while `determine_action` routes `to-review` AND `draft` to review (`:2409-2415`); the two selector branches diff to exactly one hunk plus comments (the `setid`/`_setid` loop variable), so F-2's verbatim-duplicate claim is exact; `all`'s `actionable_statuses` does contain `draft` (`:2286-2292`), corroborating that the divergence is accidental; every `run_selection_policy` primitive citation is correct; and `decide` still has ZERO callers. TWO FINDINGS WOULD HAVE PRODUCED AN UNSHIPPABLE OR UNSAFE RESULT. PR-001 (BLOCKER): E-03/E-04 require spec 2.5a's interactive `run drafts` prompt, but THIS DRIVER IS NON-INTERACTIVE BY DESIGN and may have no safe surface for one. It calls `input()` nowhere; it hands children `stdin=subprocess.DEVNULL` expressly because a nested prompt "blocks on input() forever", with a MEASURED 1h49m wedge recorded inline (`:832-835`); and the single shipped prompt is fenced by hard constraints (global disable, real TTY on both stdin and stderr, never blocks, unanswered falls through to the automatic decision). A naive blocking prompt in the queue-build path could wedge an unattended run; an unfenced one is dead code. E-04 now forces an explicit, stated choice between the fenced precedent and honest flag-only with an `aw specs note` amendment, and forbids a bare `input()` outright. PR-002 (BLOCKER): E-02's "take completeness as an INPUT" has no data source, because `authoring_placeholders_resolved` needs plan TEXT while the manifest carries only set/file/status/order/dependencies/kind/from_backlog, and `expand_selectors`'s `repo` parameter is OPTIONAL and unused in the sweep branch. Unhandled that is a crash on a `None` repo or an optimistic include that sweeps up stubs, the exact failure F-5 exists to prevent; E-02 now requires reading only draft candidates and failing SAFE to not-swept. ALSO: PR-003 pinned the gate's call site to `initialize_run` beside the existing fail-closed `enforce_dependency_preflight`, since "before the queue is frozen" named no site and the runners have several plausible ones; PR-004 required the ledger facts to be RETURNED not written, following `MixedTypeRecord`'s explicit convention, so E-03 cannot break the module's stated purity; PR-005 corrected two stale measurements (the policy suite is `65 passed`, not 26; `to-review` plans are 3, not 1, because this Set is generating them) and required re-measurement rather than quoting; PR-006 corrected the `default=None` rationale, since the shipped `--full-auto` on resume OVERWRITES the frozen option when passed, so the property to prove is that an OMITTED flag preserves state, not that a passed one is refused. Four decisions recorded (D-1..D-4), all reversible. Review record: `.aw/records/reviews/20260904-revsweep-02-6ypimw-one-shared-needs-review-predicate-and-the-draft-admission-gate.review.md`.
@@ -36,24 +36,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove the divergence, then remove its cause
 
-- [ ] E-01 Write the failing-first DIVERGENCE TEST before touching either runner: assert that for every plan status, membership in the `reviews` sweep equals "the dispatch table gives this status a review action". It MUST FAIL at current HEAD on the `draft` case, for BOTH hosts, because that is the bug.
+- [x] E-01 Write the failing-first DIVERGENCE TEST before touching either runner: assert that for every plan status, membership in the `reviews` sweep equals "the dispatch table gives this status a review action". It MUST FAIL at current HEAD on the `draft` case, for BOTH hosts, because that is the bug.
   Drive it from the dispatch routing rather than from a hand-written status list, so the property survives a future status addition. This test is worth more than the refactor below: the refactor removes today's divergence, the test prevents tomorrow's.
   - Depends on: none
   - Expected outcome: one property test, failing at HEAD on `draft` for both hosts. Paste the failure.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Extract ONE shared needs-review predicate and DELETE both closures. Put it where the selection policy already lives (`run_selection_policy.py`), not in a runner: the module is already the declared home of per-type status-to-action tables (`_IPD_ACTIONS:126`, `_SPEC_ACTIONS:140`, `_ACTION_TABLES:175`) and is already pure, which is what makes it testable without a host.
+- [x] E-02 Extract ONE shared needs-review predicate and DELETE both closures. Put it where the selection policy already lives (`run_selection_policy.py`), not in a runner: the module is already the declared home of per-type status-to-action tables (`_IPD_ACTIONS:126`, `_SPEC_ACTIONS:140`, `_ACTION_TABLES:175`) and is already pure, which is what makes it testable without a host.
   DERIVE MEMBERSHIP FROM THE ACTION TABLE, do not restate it. The predicate is "the table gives this (type, status) a review action", so `ACTION_REVIEW` is the single source of truth and the `to-review`-only string comparison disappears rather than being corrected. A corrected copy would still be a copy.
   MIND THE ONE THING THE TABLES DELIBERATELY OMIT: `_IPD_ACTIONS` excludes `draft` and `reviewed` ON PURPOSE (`:127-131`), because those rows branch on content completeness, `--full-auto`, or `--action`, which the pure module cannot see. So the predicate MUST take the completeness answer as an INPUT rather than computing it, and `ACTION_UNDETERMINED` must not be silently treated as "needs review". The completeness input comes from `ipd_authoring.authoring_placeholders_resolved` (`:122-133`), which is the existing anchored, conservative check the `check.ipd-draft-ready-to-review` rule already uses; do NOT write a second completeness heuristic.
   SOLVE THE DATA PROBLEM AT THE CALL SITE, WHICH THE PLAN DID NOT ADDRESS (F-11). `authoring_placeholders_resolved` takes PLAN TEXT, and the caller has none: `build_dynamic_manifest` (`oc_runipd.py:2205-2232`) stores only `set`, `file`, `status`, `order`, `dependencies`, `kind`, and `from_backlog`, so `expand_selectors`'s manifest cannot answer completeness without reading files. So the CALLER must read each candidate draft's text and pass the answer in, keeping the predicate pure. Two consequences to handle explicitly: (a) `expand_selectors`'s `repo` parameter is `Path | None = None` and the sweep branch currently never uses it, so completeness must fail SAFE (treat as INCOMPLETE, i.e. not swept) when `repo` is absent or the file is unreadable, never crash and never optimistically include; (b) read ONLY the `draft`-status candidates, not the whole corpus, since the other statuses are answered by the table alone.
   PRESERVE THE TERMINAL-DIRECTORY EXCLUSION that both closures perform (`/executed/`, `/superseded/`, `/not-executed/`, `/reusable/`): it is not redundant with status, because a directory and status can disagree and spec 3.2 makes that mismatch a red abort rather than a review.
   - Depends on: E-01
   - Expected outcome: one predicate, both closures deleted, E-01 passing on both hosts; a grep shows no second membership test; completeness is an input, not a recomputation; a missing `repo` or unreadable file yields NOT-swept rather than a crash or an optimistic include; only draft candidates are read; the terminal-directory exclusion survives.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the draft admission gate
 
-- [ ] E-03 Implement spec 2.5a's gate as PURE POLICY beside the mixed-type gate, in the same module and the same shape: a preview naming the drafts, an exact-phrase confirmation (`run drafts`), a flag path (`--allow-drafts`), and the verbatim `[RUN-DRAFTS-EXCLUDED]` refusal from spec 2.5a.
+- [x] E-03 Implement spec 2.5a's gate as PURE POLICY beside the mixed-type gate, in the same module and the same shape: a preview naming the drafts, an exact-phrase confirmation (`run drafts`), a flag path (`--allow-drafts`), and the verbatim `[RUN-DRAFTS-EXCLUDED]` refusal from spec 2.5a.
   REUSE, DO NOT REIMPLEMENT. `is_confirmation_accepted` (`:543`) already implements exact-phrase matching with no case folding and no synonyms, `render_action_preview` (`:474`) already renders aligned per-type counts, and `Verdict` (`:266`) is already the typed return. Generalize those rather than adding a parallel set; a second confirmation implementation is how `y` eventually gets accepted somewhere.
   RETURN THE LEDGER FACTS, DO NOT WRITE THEM, mirroring `MixedTypeRecord` (`:235-248`), whose docstring states the module "RETURNS them; it does not write them" because writing needs a live run's ledger store. Spec 2.5a requires the draft counts, preview, response-or-flag, and admitted set to be recorded; produce them as a typed record here and let E-04 persist them, which is also what keeps this item pure.
   KEEP IT PURE: the module takes no TTY and no filesystem, and its docstring records that the caller performs the prompt and hands the typed response in, "which is what makes every branch testable". Do not break that to make wiring easier.
@@ -61,9 +61,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO IMPLEMENT THE COMBINED CASE: when a selection is both mixed-type and draft-admitting, BOTH previews print together and BOTH confirmations are collected in ONE interaction before any work starts. That is the maintainer's actual requirement (front-load every question); collecting them serially across two prompts, or asking the second after the first item ran, defeats it.
   - Depends on: E-02
   - Expected outcome: the gate exists as pure policy reusing the shipped primitives; both asymmetries implemented and commented with their reasons; the combined mixed-plus-draft case collects both confirmations in one interaction; the refusal text matches spec 2.5a verbatim.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Wire the gate into BOTH runners at the single point where the queue is built, BEFORE it is frozen and before any lease or session, passing the real TTY state and the flag. The call site is `initialize_run`, immediately after `expand_selectors` and beside the existing fail-closed `enforce_dependency_preflight` (`oc_runipd.py:2553-2566`, agy `:1570`), which is already the "refuse before any durable state" seam.
+- [x] E-04 Wire the gate into BOTH runners at the single point where the queue is built, BEFORE it is frozen and before any lease or session, passing the real TTY state and the flag. The call site is `initialize_run`, immediately after `expand_selectors` and beside the existing fail-closed `enforce_dependency_preflight` (`oc_runipd.py:2553-2566`, agy `:1570`), which is already the "refuse before any durable state" seam.
   REGISTER `--allow-drafts` ON BOTH HOSTS' `run`/`start` parsers, and on `resume` with `default=None` following the existing pattern (`--full-auto` is re-declared that way at `oc_runipd.py:6168-6170` so an omitted flag cannot clobber frozen state; the `start` declaration is at `:6093-6095`). Persist the typed record E-03 returns (admitted set, counts, preview, response-or-flag) into the run ledger via the existing `events.jsonl` append seam, as spec 2.5a requires.
   DECIDE THE INTERACTIVE PATH HONESTLY, AND THIS IS THE ITEM'S REAL DESIGN DECISION (F-10). Spec 2.5a says an interactive terminal must require the typed phrase `run drafts`, but THIS DRIVER IS NON-INTERACTIVE BY DESIGN and the codebase says so in the imperative: the child process is given `stdin=subprocess.DEVNULL` expressly because "a nested `aw` sees the operator's TTY, believes it may prompt, and blocks on input() forever", with a MEASURED consequence recorded inline ("a finalize wedged 1h49m this way", `oc_runipd.py:832-835`). The driver calls `input()` NOWHERE. The one shipped prompt, `_lane_reclaim_prompt` (`:1614-1628`), is fenced by HARD CONSTRAINTS its own docstring states: a global disable flag, BOTH `stdin` and `stderr` must be a real TTY, an unanswered prompt falls through to the automatic decision rather than blocking, and "the content-based decision is the authority; this only front-runs it".
   SO CHOOSE ONE AND STATE IT, rather than implementing a prompt that either wedges a run or is dead code. (a) FOLLOW THE `_lane_reclaim_prompt` PRECEDENT exactly: prompt only with a real TTY on both streams, honor the disable flag, never block, and on no answer fall through to the SAFE automatic decision, which for this gate is EXCLUDE-and-proceed (identical to the unattended no-flag path, so a timeout cannot silently admit a draft). (b) SHIP FLAG-ONLY, treating every run as unattended, and record that spec 2.5a's interactive half is deliberately unimplemented on this surface with the wedge measurement as the reason. Do NOT implement a bare blocking `input()` under any circumstances.
@@ -72,13 +72,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   A HONEST LIMIT TO RECORD, not to fix: with IPD-only discovery there are no specs in the queue, so the COMBINED mixed-plus-draft path cannot be triggered by any real invocation yet. Prove it at the seam (constructed classification) and state plainly that it is proven correct and not proven fired, exactly as `uyeko5` V-02 is required to do for the mixed gate. Do not let a green test imply a live combined gate.
   - Depends on: E-03
   - Expected outcome: `--allow-drafts` parses on both hosts and on resume with `default=None`; the gate is called once per host in `initialize_run` before any durable state; the ledger records the admission facts; the interactive path is EITHER TTY-fenced-and-non-blocking per the shipped precedent OR explicitly flag-only with the spec amended, and which one is stated; no bare `input()` exists; the mixed-type call site is not duplicated; the untriggerable combined path is stated as such.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Make the predicate's SIGNATURE type-aware while its KNOWLEDGE stays IPD-only, so `5slbpi` widens coverage without reopening this work. The predicate accepts a type and consults `_ACTION_TABLES`, which already carries a `spec` table; discovery still enumerates only plans, because `runner_shared.discover_plans` walks only the two plans trees.
+- [x] E-05 Make the predicate's SIGNATURE type-aware while its KNOWLEDGE stays IPD-only, so `5slbpi` widens coverage without reopening this work. The predicate accepts a type and consults `_ACTION_TABLES`, which already carries a `spec` table; discovery still enumerates only plans, because `runner_shared.discover_plans` walks only the two plans trees.
   DO NOT ADD SPEC DISCOVERY HERE and do not pretend to. The gap is a real one (`5slbpi` owns it) and a predicate that accepts `spec` while nothing can supply one must SAY SO at its definition, so a later reader does not conclude cross-type sweeping works. Do NOT add `--type` either; that is `uyeko5`'s and spec 2.2/2.3's.
   - Depends on: E-04
   - Expected outcome: the predicate takes a type and answers correctly for `spec` when handed one directly; discovery is unchanged and documented as IPD-only; no `--type` flag is added; the limit is stated at the definition rather than implied.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,33 +169,148 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the property test FAILING at pre-change HEAD, with the failure naming the `draft` divergence for BOTH hosts, then passing after. Paste the test showing membership is compared against the DISPATCH ROUTING rather than a hand-written status list, since that is the property that survives a future status addition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: MEASURED AT HEAD `8ba6cdc8` (the lane's base commit) in the lane checkout. THE TEST FAILED FIRST, on the `draft` case, on BOTH hosts, with the policy module reverted (`git stash`) and only the test present:
+    ```
+    E  AssertionError: spec 25kzda 2.4a property 2 violated on host 'oc': the `reviews` sweep and the dispatch table disagree. swept-but-not-routed=[], ROUTED-BUT-NOT-SWEPT=['draft']
+    E  AssertionError: spec 25kzda 2.4a property 2 violated on host 'agy': the `reviews` sweep and the dispatch table disagree. swept-but-not-routed=[], ROUTED-BUT-NOT-SWEPT=['draft']
+    E  AssertionError: assert set() == {'dr0001'}     # the complete-draft sweep test, both hosts
+    FAILED tests/test_run_selection_policy.py::test_sweep_membership_equals_dispatch_routing_for_every_status[oc]
+    FAILED tests/test_run_selection_policy.py::test_sweep_membership_equals_dispatch_routing_for_every_status[agy]
+    FAILED tests/test_run_selection_policy.py::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[oc]
+    FAILED tests/test_run_selection_policy.py::test_a_complete_draft_is_swept_and_an_incomplete_one_is_not[agy]
+    ======================= 4 failed, 65 deselected in 0.28s =======================
+    ```
+    The failure names `draft` and NOTHING ELSE, which is the load-bearing fact: every other status already agreed, so a test written against `to-review` alone would have passed against the bug. PASSING AFTER:
+    ```
+    tests/test_run_selection_policy.py ......                                [100%]
+    ======================= 6 passed, 79 deselected in 0.35s =======================
+    ```
+    MEMBERSHIP IS COMPARED AGAINST THE DISPATCH ROUTING, not a hand-written status list (`tests/test_run_selection_policy.py:626`):
+    ```
+    if driver.determine_action(status) == "review" and bucket == "pending":
+        routed_to_review.add(id6)
+    ```
+    The fixture iterates `plans.RECOGNIZED` (all 9 statuses), so a status added later is covered without editing the test, and the property fails until the predicate agrees.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste a grep proving exactly ONE membership predicate exists and BOTH `_needs_review` closures are DELETED (paste the before-grep too, showing two). Paste the predicate showing membership derives from `ACTION_REVIEW` in the action table rather than a `to-review` string comparison. Paste the predicate answering correctly for a complete AND an incomplete draft, with completeness coming from `authoring_placeholders_resolved` and NOT a new heuristic. Paste evidence that `ACTION_UNDETERMINED` is NOT treated as needs-review. Paste evidence the terminal-directory exclusion survives.
     PASTE THE FAIL-SAFE PROOF FOR THE DATA PROBLEM (F-11): `expand_selectors` called with `repo=None` and with an unreadable plan file, each yielding the draft NOT swept, with no exception raised. An optimistic include here would sweep up stubs, which is the failure F-5 exists to prevent. Show that only `draft`-status candidates are read from disk.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BEFORE - two closures, one per host (`grep -n "def _needs_review" agent_workflows/oc_runipd.py agent_workflows/agy_runipd.py` at HEAD `8ba6cdc8`):
+    ```
+    agent_workflows/oc_runipd.py:2280:        def _needs_review(p_info: dict[str, Any]) -> bool:
+    agent_workflows/agy_runipd.py:1374:        def _needs_review(p_info: dict[str, Any]) -> bool:
+    ```
+    Both bodies ended `return st == "to-review" and not is_non_pending`. AFTER - ZERO definitions remain anywhere in the package:
+    ```
+    $ grep -rn "def _needs_review" agent_workflows/
+    AFTER: zero definitions
+    ```
+    (`grep -rn "_needs_review" agent_workflows/` now returns only 4 explanatory COMMENTS.) ONE membership predicate exists, and the sweep has ONE implementation shared by both hosts:
+    ```
+    agent_workflows/run_selection_policy.py:542:def needs_review(
+    agent_workflows/runner_shared.py:971:def manifest_entry_needs_review(
+    agent_workflows/runner_shared.py:1000:def sweep_review_candidates(
+    ```
+    Both runners now call the same line: `expanded = runner_shared.sweep_review_candidates(manifest, repo=repo)`.
+    MEMBERSHIP DERIVES FROM `ACTION_REVIEW`, not from a string comparison (`run_selection_policy.py:569-571`):
+    ```
+    norm = (status or "").strip().lower() or None
+    action = _action_for(spec_type, norm)
+    if action == ACTION_REVIEW:
+        return True
+    ```
+    `test_membership_derives_from_the_action_table_not_a_status_comparison` asserts this as a PROPERTY over every row of every shipped table, so a corrected copy of the old comparison would fail it.
+    COMPLETENESS COMES FROM THE EXISTING ANCHORED CHECK, not a new heuristic (`runner_shared.plan_authoring_complete`): `return ipd_authoring.authoring_placeholders_resolved(path.read_text(...))`. A complete draft answers True and a real `aw ipd scaffold` body answers False, asserted in `test_a_complete_draft_is_swept_and_an_incomplete_one_is_not`.
+    `ACTION_UNDETERMINED` IS NOT TREATED AS NEEDS-REVIEW (`test_undetermined_is_not_treated_as_needs_review`): `reviewed` is undetermined and answers False even when `authoring_complete=True` is passed; a draft with completeness `None` answers False; an unknown status answers False.
+    THE TERMINAL-DIRECTORY EXCLUSION SURVIVES (`test_the_terminal_directory_exclusion_survives`): all four of `/executed/`, `/superseded/`, `/not-executed/`, `/reusable/` answer False even at `to-review` and even for a complete draft, while `/pending/` answers True.
+    FAIL-SAFE PROOF FOR THE DATA PROBLEM (F-11), `test_completeness_fails_safe_when_it_cannot_be_determined`: `plan_authoring_complete(None, ...)` -> `None`; a missing file -> `None`; an empty path -> `None`; a DIRECTORY where a file was expected -> `None`; and `manifest_entry_needs_review(draft_entry, repo=None)` -> False. No exception is raised in any case and no optimistic include occurs.
+    ONLY DRAFT CANDIDATES ARE READ (`test_only_draft_candidates_are_read_from_disk`): with four plans at `to-review`/`draft`/`approved`/`reviewed`, the spy records exactly `['b-draft.ipd.md']`. That test also caught a REAL redundant read (the set walk and the standalone walk each decided the same plan), fixed by memoizing the decision per plan.
+    ```
+    $ python3 -m pytest tests/test_run_selection_policy.py tests/test_run_flag_surface.py
+    174 passed in 3.20s
+    ```
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the exact phrase `run drafts` accepted and `y`/empty REJECTED. Paste the `[RUN-DRAFTS-EXCLUDED]` refusal beside spec 2.5a's text, character for character. Paste evidence the shipped primitives were REUSED (the confirmation and preview functions are the existing ones, generalized, not new copies) and that `decide` did not acquire a second override, which its own docstring forbids. Paste BOTH asymmetries: an incomplete draft skipped-with-findings at every flag setting, and an ungated complete draft excluded while the rest proceeds. Paste the combined mixed-plus-draft case collecting both confirmations in ONE interaction.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: EXACT PHRASE REQUIRED, reflex answers REJECTED (`test_the_exact_phrase_is_required_and_reflex_answers_are_rejected`): `run drafts` (and `run drafts\n`) admits; each of `y`, `yes`, `Y`, `""`, `run`, `run draft`, `run drafts please`, and `None` leaves `admitted == ()` and `excluded_complete == ("c0","c1")`.
+    THE REFUSAL IS THE SPEC'S TEXT CHARACTER FOR CHARACTER, compared against the SPEC FILE itself rather than a transcription (`test_the_exclusion_notice_is_the_specs_text_character_for_character` reads `.aw/records/specs/20260826-0718-01-...spec.md`, extracts 2.5a's last `text` block, and asserts equality with `DRAFTS_EXCLUDED_TEMPLATE`):
+    ```
+    [RUN-DRAFTS-EXCLUDED] Selection included <count> complete draft item(s), excluded because --allow-drafts was absent. <remaining> item(s) proceeded. To include them, run: aw <host> run <selector> --allow-drafts
+    ```
+    THE PREVIEW IS BYTE-IDENTICAL TO SPEC 2.5a's EXAMPLE, rendered by the SHARED renderer (`test_the_preview_is_byte_identical_to_the_specs_own_example`, also read from the spec file):
+    ```
+    Selection includes complete drafts that will be promoted to to-review:
+      IPDs:  2 (2 draft -> to-review -> review)
+      Specs: 1 (1 draft -> to-review -> review)
+    Also skipping 1 incomplete draft (findings will be reported).
+    ```
+    THE SHIPPED PRIMITIVES WERE REUSED, NOT COPIED (`test_the_gate_reuses_the_shipped_primitives_rather_than_copying_them`): `decide_draft_admission`'s source contains `is_confirmation_accepted` and `render_drafts_preview`'s contains `render_action_preview`; the matcher is ONE function parameterized by `phrase=` (`is_confirmation_accepted("run mixed", phrase="run drafts")` is False), and `render_action_preview` gained `header=`/`action_labels=` keywords whose defaults leave every existing caller byte-identical.
+    `decide` DID NOT ACQUIRE A SECOND OVERRIDE, which its own docstring forbids: `"allow_drafts" not in inspect.signature(pol.decide).parameters`, `Verdict.WAIVES == ("type-mixing",)` unchanged, and the new `DraftVerdict.WAIVES == ("draft-admission",)` mirrors it.
+    ASYMMETRY 1 (incomplete draft never admitted): `test_asymmetry_one_...` drives all four (interactive x allow_drafts) combinations, including `interactive=True, allow_drafts=True, response="run drafts"`; `i0` is never in `admitted` and is always in `skipped_incomplete`. With ONLY an incomplete draft the gate does not apply (`gate_applied is False`) yet the skip is still REPORTED - never an abort, never an error.
+    ASYMMETRY 2 (excluded, run proceeds): `test_asymmetry_two_...` asserts `DraftVerdict` has NO `proceed` attribute at all (`assert not hasattr(verdict, "proceed")`), the notice says `2 complete draft item(s)` and `3 item(s) proceeded`, and it does NOT contain `No work started.` - the mixed-type refusal's phrase. Observed end-to-end in `test_an_ungated_complete_draft_is_excluded_and_the_rest_proceeds`: the queue after exclusion is exactly `["rev003"]`, the ordinary `to-review` plan, and stderr carries `1 item(s) proceeded`.
+    COMBINED CASE, BOTH CONFIRMATIONS IN ONE INTERACTION (`test_the_combined_case_collects_both_confirmations_in_one_interaction`): `decide_selection_gates` takes BOTH responses as inputs (which is what makes one interaction possible at all), `combined_preview` contains both `Mixed work-item selection:` and the drafts header, and the two answers are independent (the mixed phrase alone admits no draft; the drafts phrase alone does not make the mixed gate proceed). LABELED HONESTLY: proven correct at the seam, NOT proven fired - see V-04.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste `--allow-drafts` in `--help` for BOTH hosts and on `resume` with `default=None`, plus a resume with the flag omitted showing the frozen value survived. Paste the ledger record carrying the admitted set, counts, preview, and response-or-flag, and show the RUNNER wrote it from the record the pure module returned. Paste the call site proving the gate runs in `initialize_run` BEFORE any run directory, lease, or session exists.
     STATE WHICH INTERACTIVE RESOLUTION APPLIED AND PROVE IT SAFE (F-10), which is the load-bearing safety evidence for this item. If FENCED: paste a non-TTY invocation producing NO prompt, an unanswered prompt falling through to EXCLUDE (never blocking), and a grep showing no bare `input()` was added to either runner. If FLAG-ONLY: paste the `aw specs note` amendment recording that 2.5a's interactive half has no reachable surface on these drivers. A prompt that can block an unattended run fails this item outright, given the measured 1h49m wedge behind the driver's `stdin=DEVNULL` decision.
     Paste a grep proving the mixed-type `decide` call site was NOT duplicated, and STATE whether `uyeko5` had landed its call site. STATE PLAINLY, as a limitation and not a success, that the combined mixed-plus-draft path cannot be triggered by any real invocation yet (IPD-only discovery, no `--type`), so it is proven correct and NOT proven fired.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `--allow-drafts` PARSES ON BOTH HOSTS, on `start` and on `resume` with `default=None`, with a negation:
+    ```
+    oc  start  default= False  negation= True
+    oc  resume default= None   negation= True
+    agy start  default= False  negation= True
+    agy resume default= None   negation= True
+    ```
+    It appears in `--help` on both hosts (`[--allow-drafts | --no-allow-drafts]` in the usage line) and its help text states the limit an operator needs (`test_the_allow_drafts_help_states_that_it_cannot_admit_an_incomplete_draft` asserts `COMPLETE`, `INCOMPLETE`, and `waives no other gate` are all present). AN OMITTED FLAG ON RESUME DOES NOT CLOBBER FROZEN STATE (F-12's actual property): `apply_run_policy_flags_on_resume({"options": {"allow_drafts": True}}, all-None args)` returns False and leaves the value True.
+    THE GATE IS CALLED FROM `initialize_run` ON BOTH HOSTS, proven by AST rather than substring (this module's comments mention the gate repeatedly, so `assertIn` would pass on prose): `runner_shared.enforce_draft_admission_gate` is in the set of unparsed call targets for both, and the shared function's source contains `decide_draft_admission`.
+    IT RUNS BEFORE ANY DURABLE STATE (`test_the_gate_runs_before_any_run_directory_lease_or_session_exists`): the call appears in the slice of `initialize_run` BEFORE `run_dir = state_root`, and AFTER `expand_selectors`. Verified live: the exclusion path leaves NO `.aw/records/runs` directory at all.
+    THE LEDGER RECORDS ALL FOUR SPEC-2.5a FACTS, written by the RUNNER from the record the pure module returned (real `events.jsonl` line from an `oc` run with `--allow-drafts`):
+    ```json
+    {"event": "draft-admission-gate", "gate_applied": true,
+     "reason": "complete draft promotion acknowledged by --allow-drafts (and only that: the approval gate a promoted draft still has to pass is unaffected)",
+     "draft_counts": {"ipd": 1}, "admitted": ["drf001"], "excluded_complete": [],
+     "skipped_incomplete": ["drf002"], "response_or_flag": "--allow-drafts",
+     "preview": "Selection includes complete drafts that will be promoted to to-review:\n  IPDs: 1 (1 draft -> to-review -> review)\nAlso skipping 1 incomplete draft (findings will be reported)."}
+    ```
+    `test_the_ledger_record_is_the_pure_modules_own` additionally asserts `run_selection_policy`'s source contains neither `append_jsonl` nor `events.jsonl`, so the module returns and never writes.
+    INTERACTIVE RESOLUTION: OPTION (a), THE FENCED PROMPT (decision D1 in the register). Spec 2.5a's interactive half IS implemented, so NO spec amendment was needed and none was made. PROVEN SAFE, which is the load-bearing evidence for this item (`test_no_bare_input_was_added_and_the_prompt_cannot_block`): (1) an AST walk of `runner_shared`, `oc_runipd`, AND `agy_runipd` finds ZERO bare `input()` calls; (2) a non-TTY yields NO prompt and the fake stream's `readline` (which raises if called) is never reached; (3) with a TTY but no data the bounded `select` returns and the function returns `None` rather than blocking; (4) `is_confirmation_accepted(None, phrase="run drafts")` is False, so the fall-through verdict EXCLUDES (`admitted == ()`, `excluded_complete == ("c0",)`) - bit-for-bit the unattended no-flag outcome, so a timeout can never admit a draft. `test_the_interactive_phrase_admits_drafts_through_the_wired_seam` proves the phrase reaches the wired seam, is asked EXACTLY ONCE, and that `y` does not admit.
+    THE MIXED-TYPE CALL SITE WAS NOT DUPLICATED (`test_the_mixed_type_call_site_was_not_duplicated`): `run_selection_policy.decide(` appears exactly ONCE in the package, in `runner_shared`, and ZERO times in either runner; each runner's `initialize_run` contains exactly one `enforce_mixed_type_gate` and one `enforce_draft_admission_gate`. `uyeko5` HAD ALREADY LANDED its call site (`runner_shared.enforce_mixed_type_gate`, called from both hosts at HEAD `8ba6cdc8`), so per E-04's instruction this plan ADDED BESIDE it and did not touch it.
+    THE COMBINED MIXED-PLUS-DRAFT PATH CANNOT BE TRIGGERED BY ANY REAL INVOCATION YET, stated as a LIMITATION and not a success (`test_the_combined_path_is_proven_correct_and_NOT_proven_fired`): discovery is IPD-only and `--type` is absent from `start` and `resume` on both hosts, so no selection can contain two types; the test also asserts NEITHER runner calls `decide_selection_gates`, precisely BECAUSE it cannot fire. It is PROVEN CORRECT AT THE SEAM, NOT PROVEN FIRED.
+    TWO REAL DEFECTS WERE FOUND BY PROBING THE WIRED COMMAND rather than reading it, both recorded as decisions and both now regression-tested: (D2) excluding every item froze an EMPTY run directory, now resolved by each selector raising its OWN established empty error (`reviews` exit 0 with no run created; `all` exit 2, unchanged); and (D3) gathering draft candidates from the resolved queue silently dropped incomplete drafts, erasing the spec-mandated findings line.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the predicate's signature accepting a type, and paste it answering correctly for a `spec` handed to it directly. Paste evidence discovery is UNCHANGED and that the IPD-only limit is stated AT THE DEFINITION, not merely in this plan. Confirm no `--type` flag was added. Then both driver suites, `tests/test_run_selection_policy.py`, and the bare full suite with counts, compared against your own pre-change measurement.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE SIGNATURE TAKES A TYPE (`run_selection_policy.py:542`):
+    ```
+    def needs_review(spec_type, status, *, authoring_complete=None, file_path=None) -> bool
+    ```
+    and consults `_ACTION_TABLES`, which already carries `spec`. IT ANSWERS CORRECTLY FOR A SPEC HANDED TO IT DIRECTLY (`test_the_predicate_answers_for_a_spec_handed_to_it_directly`): `("spec","to-review")` True; `("spec","draft", complete=True)` True; `("spec","draft", complete=False)` False; `("spec","approved")` False (spec 3.3 routes that to `plan`, not review); `("spec","implemented")` False.
+    THE IPD-ONLY LIMIT IS STATED AT THE DEFINITION, not merely in this plan, and that is ASSERTED (`test_the_ipd_only_limit_is_stated_at_the_definition_and_discovery_is_unchanged` requires the docstring to contain `IPD-ONLY`/`IPD-only` AND to name `5slbpi` as the owner of the gap). The docstring says plainly that nothing in the package can currently hand it a spec.
+    DISCOVERY IS UNCHANGED: the same test asserts `runner_shared.discover_plans`'s source contains no `specs`, and no `--type` flag was added (`test_the_combined_path_is_proven_correct_and_NOT_proven_fired` checks `--type` is absent from `start` and `resume` on both hosts).
+    SUITES, run BARE from the PRIMARY lane checkout at HEAD `8ba6cdc8` (no `-n0`, no second `-q`, no `-p no:randomly`):
+    ```
+    $ python3 -m pytest tests/test_run_selection_policy.py tests/test_run_flag_surface.py
+    174 passed in 3.20s
+    ```
+    `tests/test_run_selection_policy.py` alone: 85 passed (pre-change baseline measured by me at this HEAD: 65 passed - the plan's F-4 figure, confirmed).
+    FULL SUITE, BARE, compared against MY OWN pre-change measurement at the same HEAD. The lane exports `AW_EXECUTION_ROLE=worker`, which by itself refuses runner lifecycle verbs, so both measurements are reported in both environments:
+    ```
+    WITH the lane's AW_EXECUTION_ROLE=worker:
+      before: 31 failed, 4858 passed, 3 skipped, 4 xfailed
+      after:  31 failed, 4897 passed, 3 skipped, 4 xfailed
+    WITHOUT it (env -u AW_EXECUTION_ROLE):
+      before: 14 failed, 4875 passed, 3 skipped, 4 xfailed
+      after:  14 failed, 4914 passed, 3 skipped, 4 xfailed
+    ```
+    `diff` of the sorted FAILED sets before and after is EMPTY in both environments: the failure set is IDENTICAL and every failure is pre-existing (17 are caused by the lane's worker role; the remaining 14, mostly `tests/test_run_viewer.py`, fail at HEAD without my changes too). Net effect: +39 passing tests, zero new failures.
+    `aw check plans`: baseline 25 findings, after 29. The 4 added findings are all `check.scope-drift` ON THIS PLAN, because `tests/test_run_flag_surface.py` is outside the declared `Scope-Paths`. That edit was REQUIRED and is justified in decision D4: the file's own `DECLARED_BUT_NOT_OWNED_HERE` entry named THIS plan (`6ypimw`) as `--allow-drafts`'s owner, and its `test_the_owned_set_is_the_eight_this_plan_claims` hardcoded a count of 8 that a ninth flag necessarily falsifies. It is carried at finalize with `--scope-reason`; `tests/test_oc_runipd.py` and `tests/test_agy_runipd_cli.py` were declared but not modified and are carried with `--scope-ack`. NOT claimed as passing.
+  - Result: pass
 
 ## Approval and execution gate
 

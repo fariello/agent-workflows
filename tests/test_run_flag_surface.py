@@ -28,8 +28,10 @@ own test home (`tests/test_runner_shared.py`).
 from __future__ import annotations
 
 import argparse
+import ast
 import re
 import unittest
+from unittest import mock
 
 from agent_workflows import agy_runipd, oc_runipd, runner_shared
 from tests.support import REPO_ROOT
@@ -50,11 +52,15 @@ SPEC_PATH = (
 #: An exclusion must be NAMED here to pass `test_every_flag_the_spec_declares_is_accounted_for`;
 #: silence is a failure. That is deliberate: an unexplained gap between the spec and the code is
 #: exactly the state this file exists to make impossible.
+#:
+#: `--allow-drafts` WAS excluded here and no longer is: `revsweep-02` (`6ypimw`) implemented spec 2.5a's
+#: draft admission gate and registered the flag in this table, so it is now one of the flags this
+#: surface owns. The exclusion was removed rather than kept as a stale comment, because an exclusion
+#: that names an owner who has since landed reads as an unbuilt feature.
 DECLARED_BUT_NOT_OWNED_HERE = {
     "--type": "spec 2.2/2.3 multi-type selection; needs the whole per-type dispatch table, not a flag",
     "--action": "revsweep-01 (`76gsmv`) registers it with its per-type legality refusal",
     "--json": "output shape, not policy; exists on `status` today and is not a `run` policy flag",
-    "--allow-drafts": "spec 2.5a draft admission gate, owned by revsweep-02 (`6ypimw`)",
 }
 
 
@@ -151,17 +157,28 @@ class SpecFlagListTests(unittest.TestCase):
             f"flag(s) registered here are NOT in spec 2.1's grammar: {invented}",
         )
 
-    def test_the_owned_set_is_the_eight_this_plan_claims(self):
-        """The plan's own count, re-derived rather than trusted."""
-        self.assertEqual(len(runner_shared.RUN_POLICY_FLAGS), 8)
+    def test_the_owned_set_is_every_declared_flag_this_surface_claims(self):
+        """The count, DERIVED from the spec rather than hardcoded.
+
+        It asserted a literal `8` and had to be edited when `revsweep-02` (`6ypimw`) registered a
+        ninth (`--allow-drafts`, whose spec 2.5a behavior now ships). A literal count is a
+        maintenance tax that teaches the next author to edit the number to match the code, which is
+        the habit this whole file exists to break. So the expected count is now the SPEC's own
+        declaration minus the explicitly excluded flags, and the uniqueness assertions are derived
+        from that. A flag added to spec 2.1 and to nothing else still fails
+        `test_every_flag_the_spec_declares_is_accounted_for`; this one no longer fails for merely
+        having grown.
+        """
+        expected = self.spec_grammar_flags() - set(DECLARED_BUT_NOT_OWNED_HERE)
+        self.assertEqual(set(runner_shared.RUN_POLICY_FLAGS_BY_FLAG), expected)
         self.assertEqual(
             len({row.flag for row in runner_shared.RUN_POLICY_FLAGS}),
-            8,
+            len(runner_shared.RUN_POLICY_FLAGS),
             "duplicate flag",
         )
         self.assertEqual(
             len({row.dest for row in runner_shared.RUN_POLICY_FLAGS}),
-            8,
+            len(runner_shared.RUN_POLICY_FLAGS),
             "duplicate dest",
         )
 
@@ -1098,3 +1115,666 @@ class FullAutoEndToEndBehaviorTests(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class DraftAdmissionGateWiringTests(unittest.TestCase):
+    """revsweep-02 (`6ypimw`) E-04: spec 25kzda 2.5a's gate is CALLED on BOTH hosts, at the right seam.
+
+    WHY THIS CLASS EXISTS RATHER THAN TRUSTING THE POLICY TESTS. `tests/test_run_selection_policy.py`
+    proves the gate DECIDES correctly; it cannot prove anything CALLS it. That distinction is not
+    hypothetical here: the mixed-type gate of spec 2.5 shipped fully built and fully tested with ZERO
+    callers, so a green policy suite coexisted with a gate that never ran. The assertions below drive
+    `initialize_run` on a real repository holding a complete draft.
+
+    THE SAFETY-CRITICAL ASSERTION IS
+    :meth:`test_no_bare_input_was_added_and_the_prompt_cannot_block`. These runs are unattended by
+    design and a wedge is silent and open-ended: both runners hand children `stdin=DEVNULL` precisely
+    because a nested prompt "blocks on input() forever", with a measured 1h49m wedge recorded inline.
+    """
+
+    COMPLETE_DRAFT = """# IPD: complete draft probe
+
+- Date: 2026-09-05
+- Kind: child
+- Concern: a real concern sentence, so no anchored placeholder remains.
+- Scope: a real scope sentence.
+- Scope-Paths: src/
+- Item-Dependencies: none
+- Status: draft
+- Set: probe
+- Order: {order}
+- Highest E allocated: 01
+- Author: test
+- Id: {id6}
+
+## Workflow history
+- 2026-09-05 draft (test): created.
+
+## Goal
+
+A real goal sentence.
+
+## Detailed Implementation Checklist (TODO)
+
+### Task group 1: probe
+
+- [ ] E-01 Do one observable thing.
+  - Depends on: none
+  - Expected outcome: the observable thing happened.
+  - Execution state: pending
+
+## Validation and cross-check (verify before reporting done)
+
+- [ ] V-01 validates E-01
+  - Required evidence: the observable thing, pasted.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: small
+- Cohesion rationale: one concern.
+
+Real gate prose.
+"""
+
+    def make_repo(
+        self,
+        root,
+        *,
+        with_to_review: bool = True,
+        stub_deps: bool = False,
+        with_stub: bool = True,
+    ):
+        """A repo with ONE complete draft, ONE incomplete (real scaffold) draft, and by default one
+        ordinary `to-review` plan.
+
+        The `to-review` plan is what makes "the rest of the queue PROCEEDS" observable at all: with
+        only drafts in the tree an exclusion empties the selection, which is a different (and also
+        tested) outcome. `with_to_review=False` produces that drafts-only tree deliberately.
+        """
+        import subprocess
+
+        from agent_workflows import ipd_authoring
+
+        repo = root / "repo"
+        pending = repo / ".aw" / "records" / "plans" / "pending"
+        pending.mkdir(parents=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.invalid"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(cmd, cwd=repo, check=True)
+        (repo / ".gitignore").write_text(".aw/records/runs/\n", encoding="utf-8")
+        (pending / "20260905-probe-01-drf001-complete.ipd.md").write_text(
+            self.COMPLETE_DRAFT.format(id6="drf001", order=1), encoding="utf-8"
+        )
+        stub = (
+            ipd_authoring.build_skeleton(
+                kind="child",
+                title="stub",
+                author="test",
+                when="2026-09-05",
+                set_name="probe",
+                order=2,
+                plan_id="drf002",
+            )
+            if with_stub
+            else None
+        )
+        if stub is not None and stub_deps:
+            # `all` (unlike `reviews`) selects an INCOMPLETE draft into the queue, where the shipped
+            # dependency preflight then refuses the whole run over the scaffold's `unresolved`
+            # sentinel. That refusal is PRE-EXISTING behavior at HEAD and not this gate's business, so
+            # a test about the gate resolves the sentinel to keep the two failures from being
+            # conflated. The draft stays INCOMPLETE by every other placeholder.
+            stub = stub.replace(
+                "- Item-Dependencies: unresolved", "- Item-Dependencies: none"
+            )
+        if stub is not None:
+            (pending / "20260905-probe-02-drf002-stub.ipd.md").write_text(
+                stub, encoding="utf-8"
+            )
+        if with_to_review:
+            (pending / "20260905-probe-03-rev003-ordinary.ipd.md").write_text(
+                self.COMPLETE_DRAFT.format(id6="rev003", order=3).replace(
+                    "- Status: draft", "- Status: to-review"
+                ),
+                encoding="utf-8",
+            )
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+        return repo
+
+    def initialize(self, runner: str, argv: list, **repo_kw):
+        """`initialize_run` on that repo; returns (state, ledger events, stderr text)."""
+        import contextlib
+        import io
+        import json
+        import tempfile
+        from pathlib import Path as _P
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = self.make_repo(_P(td), **repo_kw)
+            args = _parse(runner, ["start", *argv, "--repo", str(repo)])
+            args.prepare_only = True
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                run_dir = _MODULES[runner].initialize_run(args)
+            state = runner_shared.load_state(run_dir)
+            events = [
+                json.loads(line)
+                for line in (run_dir / "events.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+            return state, events, err.getvalue()
+
+    def gate_event(self, events: list):
+        found = [e for e in events if e.get("event") == "draft-admission-gate"]
+        self.assertEqual(len(found), 1, f"expected exactly one gate event, got {found}")
+        return found[0]
+
+    def queue_ids(self, state: dict) -> list:
+        return [item["id6"] for item in state["queue"]]
+
+    def test_the_gate_is_called_from_initialize_run_on_both_hosts(self):
+        import ast
+        import inspect
+
+        # AST, not a substring: this module's comments mention the gate repeatedly, so a naive
+        # `assertIn` would pass on prose alone.
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                source = inspect.getsource(_MODULES[runner].initialize_run)
+                called = {
+                    ast.unparse(node.func)
+                    for node in ast.walk(ast.parse(source.strip()))
+                    if isinstance(node, ast.Call)
+                }
+                self.assertIn(
+                    "runner_shared.enforce_draft_admission_gate",
+                    called,
+                    "the draft gate has no call site on this host",
+                )
+        shared = inspect.getsource(runner_shared.enforce_draft_admission_gate)
+        self.assertIn("decide_draft_admission", shared)
+
+    def test_the_gate_runs_before_any_run_directory_lease_or_session_exists(self):
+        """Spec 2.5a: after resolution, BEFORE any lease or session. So an exclusion leaves nothing
+        durable to reconcile, exactly like the dependency preflight beside it."""
+        import inspect
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                source = inspect.getsource(_MODULES[runner].initialize_run)
+                before_run_dir = source.split("run_dir = state_root")[0]
+                self.assertIn("enforce_draft_admission_gate", before_run_dir)
+                # ... and after resolution, since it needs the resolved queue.
+                self.assertLess(
+                    before_run_dir.index("expand_selectors"),
+                    before_run_dir.index("enforce_draft_admission_gate"),
+                )
+
+    def test_an_ungated_complete_draft_is_excluded_and_the_rest_proceeds(self):
+        """Spec 2.5a bullet 4, END TO END, and the asymmetry with the mixed-type refusal: the run is
+        NOT refused. `initialize_run` returns normally and the queue keeps its other items."""
+        from agent_workflows import run_selection_policy
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                state, events, err = self.initialize(runner, ["reviews"])
+                self.assertNotIn("drf001", self.queue_ids(state))
+                # THE ASYMMETRY, OBSERVED: the ordinary `to-review` plan still runs. A mixed-type
+                # refusal would have started nothing at all.
+                self.assertEqual(self.queue_ids(state), ["rev003"])
+                event = self.gate_event(events)
+                self.assertEqual(event["excluded_complete"], ["drf001"])
+                self.assertEqual(event["admitted"], [])
+                self.assertIn(run_selection_policy.RUN_DRAFTS_EXCLUDED, err)
+                self.assertIn("1 item(s) proceeded", err)
+                # The incomplete draft is skipped with findings, not admitted, not an abort.
+                self.assertEqual(event["skipped_incomplete"], ["drf002"])
+                self.assertNotIn("drf002", self.queue_ids(state))
+
+    def test_allow_drafts_admits_the_complete_draft_on_both_hosts(self):
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                state, events, _err = self.initialize(
+                    runner, ["reviews", "--allow-drafts"]
+                )
+                self.assertIn("drf001", self.queue_ids(state))
+                event = self.gate_event(events)
+                self.assertEqual(event["admitted"], ["drf001"])
+                self.assertEqual(event["response_or_flag"], "--allow-drafts")
+                self.assertEqual(event["draft_counts"], {"ipd": 1})
+                self.assertTrue(event["preview"])
+                # NEVER the incomplete one, at any flag setting (spec 2.5a bullet 1).
+                self.assertEqual(event["skipped_incomplete"], ["drf002"])
+                self.assertNotIn("drf002", self.queue_ids(state))
+
+    def test_the_ledger_record_is_the_pure_modules_own(self):
+        """Spec 2.5a's last bullet, and the return-not-write convention `MixedTypeRecord` set: the
+        RUNNER persists the record the policy module returned; the module writes nothing."""
+        import inspect
+
+        from agent_workflows import run_selection_policy
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                _state, events, _err = self.initialize(
+                    runner, ["reviews", "--allow-drafts"]
+                )
+                event = self.gate_event(events)
+                for key in ("draft_counts", "preview", "response_or_flag", "admitted"):
+                    self.assertIn(key, event)
+        source = inspect.getsource(run_selection_policy)
+        self.assertNotIn(
+            "append_jsonl", source, "the policy module must not write the ledger"
+        )
+        self.assertNotIn("events.jsonl", source)
+
+    def test_a_draft_named_explicitly_is_admitted_without_gating(self):
+        """Spec 2.5a bullet 2: "the operator named it; asking is noise." So no gate event at all."""
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                state, events, _err = self.initialize(runner, ["drf001"])
+                self.assertIn("drf001", self.queue_ids(state))
+                self.assertEqual(
+                    [e for e in events if e.get("event") == "draft-admission-gate"], []
+                )
+
+    def test_no_bare_input_was_added_and_the_prompt_cannot_block(self):
+        """THE SAFETY ASSERTION. A prompt that can block an unattended run fails this outright.
+
+        Four properties, each one of `_lane_reclaim_prompt`'s HARD CONSTRAINTS:
+        no bare `input()`; no TTY means NO prompt; an unanswered prompt falls through rather than
+        blocking; and the fall-through decision is EXCLUDE, identical to the unattended no-flag path,
+        so a timeout can never silently admit a draft.
+        """
+        import inspect
+
+        for module in (runner_shared, oc_runipd, agy_runipd):
+            with self.subTest(module=module.__name__):
+                tree = ast.parse(inspect.getsource(module))
+                bare_input = [
+                    node
+                    for node in ast.walk(tree)
+                    if isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "input"
+                ]
+                self.assertEqual(
+                    bare_input,
+                    [],
+                    f"{module.__name__} calls input(); a nested prompt wedges an unattended run",
+                )
+
+        class _NotTTY:
+            def isatty(self):
+                return False
+
+            def readline(self):  # pragma: no cover - must never be reached
+                raise AssertionError("read attempted without a TTY")
+
+        # NO TTY -> NO PROMPT, and nothing is read.
+        self.assertIsNone(
+            runner_shared.prompt_for_gate_phrase("q", stdin=_NotTTY(), stderr=_NotTTY())
+        )
+
+        class _TTYNoData:
+            def isatty(self):
+                return True
+
+            def fileno(self):
+                return 0
+
+            def readline(self):  # pragma: no cover - must never be reached
+                raise AssertionError("blocked on a read after a timeout")
+
+            def write(self, _text):
+                return 0
+
+            def flush(self):
+                return None
+
+        # An unanswered prompt FALLS THROUGH (bounded by `select`), returning None rather than
+        # blocking. Timeout 0 makes the bound observable without waiting.
+        self.assertIsNone(
+            runner_shared.prompt_for_gate_phrase(
+                "q", timeout=0, stdin=_TTYNoData(), stderr=_TTYNoData()
+            )
+        )
+        # ... and None is REFUSED by the exact-phrase matcher, so the fall-through outcome is EXCLUDE,
+        # bit-for-bit the unattended no-flag outcome.
+        from agent_workflows import run_selection_policy
+
+        self.assertFalse(
+            run_selection_policy.is_confirmation_accepted(
+                None, phrase=run_selection_policy.DRAFTS_CONFIRM_PHRASE
+            )
+        )
+        verdict = run_selection_policy.decide_draft_admission(
+            [run_selection_policy.DraftCandidate("c0", "ipd", True)],
+            interactive=True,
+            response=None,
+        )
+        self.assertEqual(verdict.admitted, ())
+        self.assertEqual(verdict.excluded_complete, ("c0",))
+
+    def test_the_interactive_phrase_admits_drafts_through_the_wired_seam(self):
+        """The interactive half is IMPLEMENTED (fenced), not declared unreachable: the exact phrase
+        reaches the shared call site and admits, while a reflex answer does not."""
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "drf001": {
+                    "set": "probe",
+                    "file": "x.ipd.md",
+                    "status": "draft",
+                    "order": 1,
+                    "dependencies": [],
+                },
+            },
+            "sets": {"probe": {"order": ["drf001"]}},
+        }
+        asked: list = []
+
+        def fake_prompt(question, **_kw):
+            asked.append(question)
+            return "run drafts\n"
+
+        with mock.patch.object(
+            runner_shared, "plan_authoring_complete", return_value=True
+        ):
+            kept, verdict = runner_shared.enforce_draft_admission_gate(
+                manifest,
+                ["drf001"],
+                repo=None,
+                allow_drafts=False,
+                interactive=True,
+                host="oc",
+                selector="reviews",
+                prompt=fake_prompt,
+            )
+        self.assertEqual(kept, ["drf001"])
+        self.assertEqual(verdict.admitted, ("drf001",))
+        self.assertEqual(len(asked), 1, "spec 2.5a: asked ONCE, before any work")
+        self.assertIn("run drafts", asked[0])
+
+        with mock.patch.object(
+            runner_shared, "plan_authoring_complete", return_value=True
+        ):
+            kept_bad, verdict_bad = runner_shared.enforce_draft_admission_gate(
+                manifest,
+                ["drf001"],
+                repo=None,
+                allow_drafts=False,
+                interactive=True,
+                host="oc",
+                selector="reviews",
+                prompt=lambda _q, **_kw: "y\n",
+            )
+        self.assertEqual(kept_bad, [])
+        self.assertEqual(verdict_bad.excluded_complete, ("drf001",))
+
+    def test_the_mixed_type_call_site_was_not_duplicated(self):
+        """`uyeko5` owns `decide`'s call site. Two owners of one call site is a conflict at best."""
+        import inspect
+
+        for module in (runner_shared, oc_runipd, agy_runipd):
+            source = inspect.getsource(module)
+            with self.subTest(module=module.__name__):
+                self.assertEqual(
+                    source.count("run_selection_policy.decide("),
+                    1 if module is runner_shared else 0,
+                    "the mixed-type gate must have exactly ONE call site, in shared code",
+                )
+        for runner in BOTH:
+            body = inspect.getsource(_MODULES[runner].initialize_run)
+            with self.subTest(runner=runner):
+                self.assertEqual(body.count("enforce_mixed_type_gate"), 1)
+                self.assertEqual(body.count("enforce_draft_admission_gate"), 1)
+
+    def test_completeness_fails_safe_when_it_cannot_be_determined(self):
+        """F-11's hazard: the manifest carries no plan TEXT, so the caller must read it - and an
+        absent repo or an unreadable file must yield NOT-swept, never a crash and never an optimistic
+        include (which would sweep an incomplete stub into a review turn)."""
+        import tempfile
+        from pathlib import Path as _P
+
+        self.assertIsNone(runner_shared.plan_authoring_complete(None, "any.ipd.md"))
+        with tempfile.TemporaryDirectory() as td:
+            root = _P(td)
+            self.assertIsNone(
+                runner_shared.plan_authoring_complete(root, "missing.ipd.md")
+            )
+            self.assertIsNone(runner_shared.plan_authoring_complete(root, ""))
+            (root / "adir.ipd.md").mkdir()
+            self.assertIsNone(
+                runner_shared.plan_authoring_complete(root, "adir.ipd.md")
+            )
+        entry = {
+            "set": "s",
+            "file": ".aw/records/plans/pending/x-drf001-x.ipd.md",
+            "status": "draft",
+        }
+        # repo=None: not determined -> NOT swept.
+        self.assertFalse(runner_shared.manifest_entry_needs_review(entry, repo=None))
+
+    def test_only_draft_candidates_are_read_from_disk(self):
+        """The read is BOUNDED: every other status is answered by the action table alone."""
+        reads: list = []
+        real = runner_shared.plan_authoring_complete
+
+        def spy(repo, rel):
+            reads.append(rel)
+            return real(repo, rel)
+
+        manifest = {
+            "schema_version": 1,
+            "plans": {
+                "aaa001": {
+                    "set": "s",
+                    "file": "a-to-review.ipd.md",
+                    "status": "to-review",
+                    "order": 1,
+                    "dependencies": [],
+                },
+                "bbb002": {
+                    "set": "s",
+                    "file": "b-draft.ipd.md",
+                    "status": "draft",
+                    "order": 2,
+                    "dependencies": [],
+                },
+                "ccc003": {
+                    "set": "s",
+                    "file": "c-approved.ipd.md",
+                    "status": "approved",
+                    "order": 3,
+                    "dependencies": [],
+                },
+                "ddd004": {
+                    "set": "s",
+                    "file": "d-reviewed.ipd.md",
+                    "status": "reviewed",
+                    "order": 4,
+                    "dependencies": [],
+                },
+            },
+            "sets": {"s": {"order": ["aaa001", "bbb002", "ccc003", "ddd004"]}},
+        }
+        with mock.patch.object(runner_shared, "plan_authoring_complete", spy):
+            swept = runner_shared.sweep_review_candidates(manifest, repo=None)
+        self.assertEqual(swept, ["aaa001"])  # the draft is not determined -> excluded
+        self.assertEqual(reads, ["b-draft.ipd.md"], "only the draft candidate was read")
+
+    def test_the_allow_drafts_help_states_that_it_cannot_admit_an_incomplete_draft(
+        self,
+    ):
+        """An operator reads `--help` and never reads an IPD, so the limit must be there."""
+        row = runner_shared.RUN_POLICY_FLAGS_BY_FLAG["--allow-drafts"]
+        self.assertIn("COMPLETE", row.help)
+        self.assertIn("INCOMPLETE", row.help)
+        self.assertIn("waives no other gate", row.help)
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                self.assertIn(
+                    "--allow-drafts", _subparser(runner, "start").format_help()
+                )
+
+    def test_an_omitted_allow_drafts_on_resume_does_not_clobber_the_frozen_value(self):
+        """F-12's actual property: an OMITTED flag preserves frozen state (that is what
+        `default=None` buys). A PASSED flag legitimately overwrites, as shipped `--full-auto` does."""
+        state = {"options": {"allow_drafts": True}}
+        resume_args = argparse.Namespace(
+            **{row.dest: None for row in runner_shared.RUN_POLICY_FLAGS}
+        )
+        self.assertFalse(
+            runner_shared.apply_run_policy_flags_on_resume(state, resume_args)
+        )
+        self.assertIs(state["options"]["allow_drafts"], True)
+
+    def test_allow_drafts_is_frozen_at_queue_build_on_both_hosts(self):
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                state, _events, _err = self.initialize(
+                    runner, ["reviews", "--allow-drafts"]
+                )
+                self.assertIs(state["options"]["allow_drafts"], True)
+                state, _events, _err = self.initialize(runner, ["reviews"])
+                self.assertIs(state["options"]["allow_drafts"], False)
+
+    def test_the_combined_path_is_proven_correct_and_NOT_proven_fired(self):
+        """THE HONEST LIMIT, as an assertion rather than a comment (F-8).
+
+        Spec 2.5a bullet 5's combined mixed-plus-draft interaction is implemented and tested at the
+        seam, but NO real invocation can trigger it: discovery is IPD-only and neither host registers
+        `--type`, so no selection can contain two types. A later plan that adds `--type` will have to
+        update this test, which is the point - the limit becomes visible rather than silently outgrown.
+        """
+        from agent_workflows import run_selection_policy
+
+        self.assertTrue(hasattr(run_selection_policy, "decide_selection_gates"))
+        for runner in BOTH:
+            for sub in ("start", "resume"):
+                with self.subTest(runner=runner, subcommand=sub):
+                    self.assertNotIn("--type", _option_strings(runner, sub))
+        # And nothing in either runner calls the combined entry point, precisely BECAUSE it cannot
+        # fire; asserting that keeps the claim honest instead of implying a live combined gate.
+        import inspect
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                self.assertNotIn(
+                    "decide_selection_gates",
+                    inspect.getsource(_MODULES[runner]),
+                )
+
+    def test_excluding_every_item_starts_no_run_and_exits_zero(self):
+        """FOUND BY PROBING THE WIRED COMMAND, not by reading it, and it would have shipped as a
+        durable-state bug: when the ONLY selected item is an ungated draft, the queue is empty.
+
+        The right answer composes two spec rules instead of inventing a third: 2.5a excludes the draft
+        WITHOUT failing the run, and 2.4a property 3 makes an empty status selection a SUCCESS that
+        starts no run and exits 0. Freezing an empty queue would have created a run directory, a
+        report, and a ledger for zero work - state an operator then has to reconcile - while raising a
+        plain error would have contradicted 2.5a's "it does not fail the run".
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), with_to_review=False)
+                    args = _parse(runner, ["start", "reviews", "--repo", str(repo)])
+                    args.prepare_only = True
+                    err = io.StringIO()
+                    with contextlib.redirect_stderr(err):
+                        with self.assertRaises(_MODULES[runner].EmptyStatusSelection):
+                            _MODULES[runner].initialize_run(args)
+                    # The operator is told WHY it was empty, not left guessing.
+                    self.assertIn("[RUN-DRAFTS-EXCLUDED]", err.getvalue())
+                    # And nothing durable was created.
+                    self.assertFalse((repo / ".aw" / "records" / "runs").exists())
+
+    def test_the_all_selector_keeps_its_own_exit_2_when_the_gate_empties_it(self):
+        """Each status selector keeps ITS OWN empty semantics; the gate must not homogenize them.
+
+        `reviews` empty is a SUCCESS (spec 2.4a property 3: "a repository with nothing awaiting review
+        is the healthy state"), while `all` empty has always been the exit-2 error. Collapsing the two
+        would silently change `all`'s established exit code, which no spec amendment authorizes.
+        """
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with tempfile.TemporaryDirectory() as td:
+                    # ONLY the complete draft: `all` keeps an INCOMPLETE draft in its queue
+                    # (pre-existing behavior, out of this gate's scope), so leaving the stub in place
+                    # would make the queue non-empty for a reason unrelated to the gate.
+                    repo = self.make_repo(_P(td), with_to_review=False, with_stub=False)
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(
+                        err
+                    ):
+                        rc = _MODULES[runner].main(
+                            ["start", "all", "--repo", str(repo), "--prepare-only"]
+                        )
+                    self.assertEqual(rc, 2, "`all` empty must stay exit 2")
+                    self.assertIn("No actionable pending IPDs", err.getvalue())
+                    # The operator still learns WHY, and no run was created.
+                    self.assertIn("[RUN-DRAFTS-EXCLUDED]", err.getvalue())
+                    self.assertFalse((repo / ".aw" / "records" / "runs").exists())
+
+    def test_the_all_selector_also_admits_drafts_through_the_gate(self):
+        """Spec 2.5a names BOTH status selectors (`reviews` or `all`), so `all` is gated too - and
+        `all`'s membership already includes `draft`, so this is where an ungated promotion would have
+        slipped through unnoticed."""
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                state, events, _err = self.initialize(
+                    runner, ["all", "--allow-drafts"], stub_deps=True
+                )
+                ids = self.queue_ids(state)
+                self.assertIn("drf001", ids)
+                self.assertEqual(
+                    len([i for i in ids if i == "drf001"]),
+                    1,
+                    "an admitted draft must not be enqueued twice",
+                )
+                self.assertEqual(self.gate_event(events)["admitted"], ["drf001"])
+                state, _events, _err = self.initialize(runner, ["all"], stub_deps=True)
+                self.assertNotIn("drf001", self.queue_ids(state))
+
+    def test_that_empty_selection_exits_zero_through_main(self):
+        """`EmptyStatusSelection` is only correct because `main` maps it to exit 0 (spec 2.4a property
+        3). Asserted through `main` so the composition is proven, not assumed."""
+        import contextlib
+        import io
+        import tempfile
+        from pathlib import Path as _P
+
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                with tempfile.TemporaryDirectory() as td:
+                    repo = self.make_repo(_P(td), with_to_review=False)
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(
+                        err
+                    ):
+                        rc = _MODULES[runner].main(
+                            ["start", "reviews", "--repo", str(repo), "--prepare-only"]
+                        )
+                    self.assertEqual(rc, 0, err.getvalue())
+                    self.assertIn("Nothing awaiting review", out.getvalue())
+                    self.assertFalse((repo / ".aw" / "records" / "runs").exists())

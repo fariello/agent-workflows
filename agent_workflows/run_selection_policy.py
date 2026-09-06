@@ -467,11 +467,131 @@ def resolve_selection(
 
 
 # --------------------------------------------------------------------------------------------------
+# revsweep-02 (`6ypimw`) E-02/E-05: THE ONE needs-review PREDICATE (spec 25kzda 2.4a property 2)
+# --------------------------------------------------------------------------------------------------
+#
+# WHY IT LIVES HERE AND WHY THERE IS EXACTLY ONE. Spec 2.4a property 2 is normative: an item is in the
+# `reviews` sweep IF AND ONLY IF Section 3's dispatch table gives it a review action at its current
+# status, and "there is exactly one implementation of that predicate, shared by every host and by the
+# preview". That rule exists because the repository already paid for its absence: each host runner's
+# `expand_selectors` carried its OWN `_needs_review` closure testing `status == "to-review"`, while
+# `determine_action` routed `to-review` AND `draft` to `review`. So a complete draft named EXPLICITLY
+# was reviewed and the SAME draft was silently absent from the sweep, and because the closure was
+# duplicated VERBATIM in both runners (differing only in a loop variable name), fixing one host would
+# have left the other wrong.
+#
+# MEMBERSHIP IS DERIVED, NOT RESTATED. The predicate asks `_action_for` - the same function the
+# preview uses - whether the row's action is :data:`ACTION_REVIEW`. A corrected copy of the
+# `to-review` string comparison would still be a copy, and the next status added would diverge again.
+#
+# THE ONE THING STATUS CANNOT ANSWER, so it is an INPUT and never a guess: `_IPD_ACTIONS` and
+# `_SPEC_ACTIONS` deliberately OMIT `draft`, because spec 3.2/3.3 split a draft on a deterministic
+# AUTHORING-COMPLETENESS check (incomplete -> skip with findings, complete -> promote and review), and
+# completeness is CONTENT. The caller supplies the answer (from `ipd_authoring
+# .authoring_placeholders_resolved`, the shipped anchored check the `check.ipd-draft-ready-to-review`
+# rule already uses); a second completeness heuristic here would make the nudge and the sweep disagree
+# about the same draft. Absent that input a draft is NOT swept, which is the fail-safe direction.
+#
+# `ACTION_UNDETERMINED` IS NOT "NEEDS REVIEW". `reviewed` is also undetermined (it branches on
+# `--full-auto`/`--action`), so treating undetermined as review-worthy would sweep up plans that are
+# past review entirely. Only the `draft` row consults the completeness input; every other undetermined
+# row answers False.
+
+
+#: The DISPOSITION directories whose contents are past (or outside) the pending lifecycle. Checked in
+#: ADDITION to status, never instead of it: a directory and a `- Status:` line CAN disagree, and spec
+#: 3.2 makes that mismatch a red abort rather than a review, so an item in a terminal directory must
+#: not be swept into a review turn no matter what its front matter claims. Both deleted `_needs_review`
+#: closures performed exactly this check; it is preserved here rather than dropped as redundant.
+TERMINAL_DIRECTORY_SEGMENTS: Tuple[str, ...] = (
+    "/executed/",
+    "/superseded/",
+    "/not-executed/",
+    "/reusable/",
+)
+
+
+def is_in_terminal_directory(file_path: object) -> bool:
+    """True when a repository-relative (or absolute) artifact path sits in a terminal disposition."""
+
+    text = str(file_path or "").replace("\\", "/")
+    if not text:
+        return False
+    if not text.startswith("/"):
+        text = "/" + text
+    return any(seg in text for seg in TERMINAL_DIRECTORY_SEGMENTS)
+
+
+def review_depends_on_completeness(
+    spec_type: Optional[str], status: Optional[str]
+) -> bool:
+    """True when this (type, status) row's review answer needs the COMPLETENESS input.
+
+    Exposed so a caller can read plan TEXT for exactly the candidates that need it and no others.
+    The alternative - the caller hardcoding `status == "draft"` - would put a second copy of the
+    dispatch table's one content-dependent row at the call site, which is the shape of defect this
+    whole module exists to remove. Today only `draft` qualifies, on both the `ipd` and `spec` tables.
+    """
+
+    norm = (status or "").strip().lower()
+    if norm != "draft":
+        return False
+    return spec_type in _ACTION_TABLES
+
+
+def needs_review(
+    spec_type: Optional[str],
+    status: Optional[str],
+    *,
+    authoring_complete: Optional[bool] = None,
+    file_path: object = None,
+) -> bool:
+    """THE needs-review predicate (spec 25kzda 2.4a property 2). One implementation, both hosts.
+
+    ``spec_type`` is a spec 2.2 canonical type name (`ipd`, `spec`, ...). TYPE-AWARE BY SIGNATURE AND
+    IPD-ONLY BY REACH (E-05): the tables consulted include `spec`, so handed a spec this answers
+    correctly, but NOTHING IN THE PACKAGE CAN CURRENTLY HAND IT ONE - `runner_shared.discover_plans`
+    walks only the two plans trees and neither host registers `--type`, so every live caller passes
+    `"ipd"`. That gap is real and is owned by `5slbpi` (cross-type discovery); it is stated HERE, at
+    the definition, so a later reader does not conclude from this signature that cross-type sweeping
+    works.
+
+    ``authoring_complete`` answers the ONE question status cannot (see the section note above). It is
+    consulted only for the rows :func:`review_depends_on_completeness` names. `None` means "not
+    determined", and an undetermined draft is NOT swept: an unreadable file or an absent repo must
+    fail toward excluding an item, never toward promoting a stub through `to-review`.
+
+    ``file_path`` applies the terminal-directory exclusion when supplied.
+    """
+
+    if file_path is not None and is_in_terminal_directory(file_path):
+        return False
+    norm = (status or "").strip().lower() or None
+    action = _action_for(spec_type, norm)
+    if action == ACTION_REVIEW:
+        return True
+    if action == ACTION_UNDETERMINED and review_depends_on_completeness(
+        spec_type, norm
+    ):
+        # spec 3.2/3.3's draft split, decided by the caller's deterministic completeness check.
+        # `bool(None)` is False on purpose: undetermined completeness excludes.
+        return bool(authoring_complete)
+    # Every other ACTION_UNDETERMINED row (notably `reviewed`) answers False. Treating undetermined
+    # as review-worthy is the failure mode that would sweep up plans already past review.
+    return False
+
+
+# --------------------------------------------------------------------------------------------------
 # E-02: the action preview
 # --------------------------------------------------------------------------------------------------
 
 
-def render_action_preview(classification: Classification) -> str:
+def render_action_preview(
+    classification: Classification,
+    *,
+    header: str = "Mixed work-item selection:",
+    action_labels: Optional[Mapping[str, str]] = None,
+) -> str:
     """Render the sorted count + action preview in spec 25kzda 2.5's exact shape::
 
         Mixed work-item selection:
@@ -481,15 +601,24 @@ def render_action_preview(classification: Classification) -> str:
 
     Deterministic: type order is :data:`SPEC_TYPE_ORDER` and action order is
     :data:`ACTION_ORDER`, so two renders of the same selection are byte-identical.
+
+    ``header`` and ``action_labels`` GENERALIZE this one renderer for spec 2.5a's draft preview,
+    whose header differs and whose breakdown reads `2 draft -> to-review -> review` rather than
+    `2 review`. Both default to spec 2.5's wording, so every existing caller is unchanged. A SECOND
+    renderer was the alternative and was rejected: the alignment rule, the type order, the action
+    order, and the untyped-tail line would then exist twice and drift once.
     """
 
     if not classification.counts:
-        return "Mixed work-item selection:\n  (nothing selected)"
+        return header + "\n  (nothing selected)"
 
+    labels = dict(action_labels or {})
     width = max(len(c.label) + 1 for c in classification.counts) + 1
-    lines = ["Mixed work-item selection:"]
+    lines = [header]
     for c in classification.counts:
-        breakdown = ", ".join("{0} {1}".format(n, action) for action, n in c.by_action)
+        breakdown = ", ".join(
+            "{0} {1}".format(n, labels.get(action, action)) for action, n in c.by_action
+        )
         lines.append(
             "  {0}{1} ({2})".format((c.label + ":").ljust(width), c.total, breakdown)
         )
@@ -540,18 +669,25 @@ def queue_digest(classification: Classification) -> str:
 # --------------------------------------------------------------------------------------------------
 
 
-def is_confirmation_accepted(response: Optional[str]) -> bool:
-    """True only for the EXACT phrase `run mixed` (spec 2.5, first bullet).
+def is_confirmation_accepted(
+    response: Optional[str], *, phrase: str = CONFIRM_PHRASE
+) -> bool:
+    """True only for the EXACT confirmation phrase (spec 2.5 first bullet; 2.5a for `run drafts`).
 
     Surrounding whitespace is stripped, because a terminal read includes the newline the operator
     pressed; nothing else is normalized. Case is NOT folded and no synonym is accepted, so `y`,
     `yes`, `Y`, an empty response, `run`, and `run mixed types` are all rejected. The point of an
     exact phrase is that it cannot be produced by a reflex keystroke.
+
+    ``phrase`` PARAMETERIZES the expected phrase rather than admitting a second implementation for
+    spec 2.5a's `run drafts`. That matters more than it looks: a parallel matcher is precisely how
+    `y` eventually becomes acceptable SOMEWHERE, since the two copies are then free to relax
+    independently. Default unchanged, so every existing caller keeps spec 2.5's phrase.
     """
 
     if response is None:
         return False
-    return response.strip() == CONFIRM_PHRASE
+    return response.strip() == phrase
 
 
 def render_refusal(
@@ -680,3 +816,380 @@ def decide(
         response_or_flag=None,
         refuse=True,
     )
+
+
+# --------------------------------------------------------------------------------------------------
+# revsweep-02 (`6ypimw`) E-03: THE DRAFT ADMISSION GATE (spec 25kzda 2.5a)
+# --------------------------------------------------------------------------------------------------
+#
+# WHAT IT DECIDES AND WHY IT IS A SEPARATE FUNCTION. Promoting a `draft` to `to-review` is a lifecycle
+# WRITE the operator did not literally name, so spec 2.5a admits a complete draft reached through a
+# STATUS selector (`reviews`/`all`) only through an explicit acknowledgement - and, like the Section
+# 2.5 mixed-type gate, asks it ONCE after resolution and BEFORE any lease or session, so a batch never
+# stops to ask halfway through.
+#
+# NOT A PARAMETER ON `decide`. `Verdict.WAIVES` and `decide`'s docstring record that `allow_mixed` is
+# deliberately the ONLY override that predicate accepts, "so this predicate can never become the place
+# another gate is waived". Bolting `--allow-drafts` on would break exactly that property, so this is a
+# SIBLING decision function that reuses `decide`'s primitives (`is_confirmation_accepted`,
+# `render_action_preview`) rather than its signature.
+#
+# TWO ASYMMETRIES ARE DELIBERATE, and both are spec 2.5a's. They look like inconsistencies and will
+# invite a "simplification", so each is commented at its branch with the reason.
+
+#: Spec 4.2 finding code for the unattended exclusion. A cross-artifact contract string; do NOT rename.
+RUN_DRAFTS_EXCLUDED = "RUN-DRAFTS-EXCLUDED"
+
+#: Transcribed CHARACTER-FOR-CHARACTER from spec 25kzda 2.5a's "Exact refusal" block. `<count>`,
+#: `<remaining>`, `<host>`, and `<selector>` are the substitution points; do not recompose the wording.
+#: Note this text says the drafts were EXCLUDED and that other items PROCEEDED - it is not a
+#: "No work started." refusal, because this gate excludes items rather than refusing the run.
+DRAFTS_EXCLUDED_TEMPLATE = (
+    "[RUN-DRAFTS-EXCLUDED] Selection included <count> complete draft item(s), excluded because "
+    "--allow-drafts was absent. <remaining> item(s) proceeded. To include them, run: "
+    "aw <host> run <selector> --allow-drafts"
+)
+
+#: The exact phrase an interactive operator must type (spec 2.5a). `y` and an empty response are
+#: rejected, by the same matcher spec 2.5's phrase uses.
+DRAFTS_CONFIRM_PHRASE = "run drafts"
+
+ALLOW_DRAFTS_FLAG = "--allow-drafts"
+
+#: The draft preview's header and its per-action label, both transcribed from spec 2.5a's example
+#: block (`IPDs:  2 (2 draft -> to-review -> review)`).
+DRAFTS_PREVIEW_HEADER = (
+    "Selection includes complete drafts that will be promoted to to-review:"
+)
+DRAFTS_ACTION_LABELS: Mapping[str, str] = {
+    ACTION_REVIEW: "draft -> to-review -> review"
+}
+
+
+class DraftAdmissionRecord(NamedTuple):
+    """The four facts spec 25kzda 2.5a's last bullet requires in the run ledger.
+
+    RETURNED, NEVER WRITTEN, exactly as :class:`MixedTypeRecord` is and for the same reason: writing
+    needs a live run's ledger store, which this pure module has no business holding. The runner
+    persists this; that seam is also what makes an `--allow-drafts` run auditable, since without it
+    there is no durable evidence of which drafts were waved through.
+
+    * ``draft_counts``     - complete-draft counts per spec type, as {spec_type: count}.
+    * ``preview``          - the rendered preview the operator saw (or would have seen); "" when the
+                             gate did not apply, because there was nothing to preview.
+    * ``response_or_flag`` - the literal typed response, or ``--allow-drafts``, or ``None``.
+    * ``admitted``         - the identities of the drafts actually admitted (empty when excluded).
+    """
+
+    draft_counts: Mapping[str, int]
+    preview: str
+    response_or_flag: Optional[str]
+    admitted: Tuple[str, ...]
+
+    def as_dict(self) -> Dict[str, object]:
+        """A JSON-ready mapping, for a caller appending to the run ledger."""
+        return {
+            "draft_counts": dict(self.draft_counts),
+            "preview": self.preview,
+            "response_or_flag": self.response_or_flag,
+            "admitted": list(self.admitted),
+        }
+
+
+class DraftCandidate(NamedTuple):
+    """One `draft`-status item the caller resolved, with the completeness answer it read.
+
+    ``identity`` is whatever the caller uses to name the item (an id6 for the runners). ``complete``
+    is the deterministic authoring-completeness answer, `None` when it could not be determined -
+    which is treated as INCOMPLETE, the fail-safe direction.
+    """
+
+    identity: str
+    spec_type: Optional[str]
+    complete: Optional[bool]
+
+
+class DraftVerdict(NamedTuple):
+    """The outcome of the draft admission gate.
+
+    ``admitted`` are the identities that may proceed to a review turn; ``excluded_complete`` are the
+    complete drafts the gate withheld; ``skipped_incomplete`` are the drafts spec 2.5a's first bullet
+    keeps out at EVERY flag setting. ``message`` carries the verbatim `RUN-DRAFTS-EXCLUDED` text on an
+    unattended exclusion and is `None` otherwise. There is NO `proceed` field, deliberately: this gate
+    can never refuse a run (see the asymmetry note in :func:`decide_draft_admission`).
+    """
+
+    admitted: Tuple[str, ...]
+    excluded_complete: Tuple[str, ...]
+    skipped_incomplete: Tuple[str, ...]
+    gate_applied: bool
+    reason: str
+    code: Optional[str]
+    message: Optional[str]
+    record: DraftAdmissionRecord
+
+    #: The EXHAUSTIVE set of gates `--allow-drafts` satisfies (spec 2.1: "It waives no other gate").
+    #: Mirrors `Verdict.WAIVES` so neither flag can quietly become a general override seam. In
+    #: particular a promoted draft still faces the approval gate, unchanged.
+    WAIVES = ("draft-admission",)
+
+
+def render_drafts_preview(
+    classification: Classification,
+    *,
+    incomplete_count: int = 0,
+) -> str:
+    """Spec 2.5a's draft preview, rendered by the SAME renderer spec 2.5's preview uses::
+
+        Selection includes complete drafts that will be promoted to to-review:
+          IPDs:  2 (2 draft -> to-review -> review)
+          Specs: 1 (1 draft -> to-review -> review)
+        Also skipping 1 incomplete draft (findings will be reported).
+
+    The trailing incomplete line is spec 2.5a's own, and it is printed because an operator deciding
+    whether to admit drafts must see that some drafts CANNOT be admitted; omitting it would let them
+    read the count as complete.
+    """
+
+    text = render_action_preview(
+        classification,
+        header=DRAFTS_PREVIEW_HEADER,
+        action_labels=DRAFTS_ACTION_LABELS,
+    )
+    if incomplete_count:
+        text += "\nAlso skipping {0} incomplete draft{1} (findings will be reported).".format(
+            incomplete_count, "" if incomplete_count == 1 else "s"
+        )
+    return text
+
+
+def render_drafts_exclusion(
+    *,
+    excluded_count: int,
+    remaining_count: int,
+    host: str = "<host>",
+    selector: str = "<selector>",
+) -> str:
+    """Spec 2.5a's VERBATIM exclusion notice with its substitution points filled in."""
+
+    return (
+        DRAFTS_EXCLUDED_TEMPLATE.replace("<count>", str(excluded_count))
+        .replace("<remaining>", str(remaining_count))
+        .replace("<host>", host)
+        .replace("<selector>", selector)
+    )
+
+
+def _draft_classification(candidates: Sequence[DraftCandidate]) -> Classification:
+    """A Classification over the COMPLETE drafts only, so the shared renderer can count them."""
+
+    items = [
+        ClassifiedItem(
+            path=Path(c.identity),
+            spec_type=c.spec_type,
+            resolver_type=None,
+            status="draft",
+            action=ACTION_REVIEW,
+        )
+        for c in candidates
+        if c.complete
+    ]
+    return Classification(
+        items=tuple(items),
+        counts=_counts_for(items),
+        untyped=tuple(i.path for i in items if i.spec_type is None),
+    )
+
+
+def decide_draft_admission(
+    candidates: Sequence[DraftCandidate],
+    *,
+    interactive: bool,
+    allow_drafts: bool = False,
+    response: Optional[str] = None,
+    remaining_count: int = 0,
+    host: str = "<host>",
+    selector: str = "<selector>",
+) -> DraftVerdict:
+    """Decide which `draft` items a STATUS selector may admit (spec 25kzda 2.5a).
+
+    PURE: no TTY, no filesystem, no ledger. The caller performs the prompt (if it has any way to) and
+    hands the typed ``response`` in, which is what makes every branch testable - the same discipline
+    :func:`decide` follows.
+
+    ``candidates`` are the `draft`-status items the caller RESOLVED, each already carrying its
+    deterministic completeness answer. ``remaining_count`` is how many NON-draft items are in the
+    queue, used only to fill spec 2.5a's `<remaining>` substitution honestly.
+
+    THE FIRST DELIBERATE ASYMMETRY (spec 2.5a bullet 1): an INCOMPLETE draft is a SKIP WITH FINDINGS
+    at EVERY setting of every flag. `--allow-drafts` cannot admit one, and it is never an abort,
+    because one unfinished draft must not deny review to the finished items beside it, and never an
+    error, because `draft` is a legitimate resting state. It does not even reach the gate.
+
+    THE SECOND DELIBERATE ASYMMETRY (spec 2.5a bullet 4): an ungated COMPLETE draft is EXCLUDED and
+    the REST OF THE QUEUE PROCEEDS. That differs from :func:`decide`'s mixed-type refusal, which
+    starts no work at all, and the difference is intentional rather than an oversight: a MIXED
+    selection means the operator's intent is genuinely unclear, so starting any work risks doing the
+    wrong thing, whereas an ungated draft is ONE item's admission and the remaining items' intent is
+    not in doubt. Refusing the whole run would punish the clear items for the unclear one. Do NOT
+    "fix" this into a uniform rule; that is why :class:`DraftVerdict` has no `proceed` field at all.
+    """
+
+    incomplete = tuple(sorted(c.identity for c in candidates if not c.complete))
+    complete = tuple(sorted(c.identity for c in candidates if c.complete))
+    classification = _draft_classification(candidates)
+    draft_counts = {c.spec_type: c.total for c in classification.counts}
+
+    def _verdict(
+        admitted: Tuple[str, ...],
+        excluded: Tuple[str, ...],
+        reason: str,
+        gate_applied: bool,
+        response_or_flag: Optional[str],
+        preview: str = "",
+        message: Optional[str] = None,
+    ) -> DraftVerdict:
+        return DraftVerdict(
+            admitted=admitted,
+            excluded_complete=excluded,
+            skipped_incomplete=incomplete,
+            gate_applied=gate_applied,
+            reason=reason,
+            code=RUN_DRAFTS_EXCLUDED if message else None,
+            message=message,
+            record=DraftAdmissionRecord(
+                draft_counts=draft_counts,
+                preview=preview,
+                response_or_flag=response_or_flag,
+                admitted=admitted,
+            ),
+        )
+
+    if not complete:
+        # Nothing to gate. Note the incomplete drafts are still REPORTED (they are in
+        # `skipped_incomplete`), because spec 2.5a requires their findings, not their silence.
+        return _verdict(
+            (),
+            (),
+            "no complete draft in the selection; the draft admission gate does not apply",
+            gate_applied=False,
+            response_or_flag=None,
+        )
+
+    preview = render_drafts_preview(classification, incomplete_count=len(incomplete))
+
+    if allow_drafts:
+        return _verdict(
+            complete,
+            (),
+            "complete draft promotion acknowledged by {0} (and only that: the approval gate a "
+            "promoted draft still has to pass is unaffected)".format(ALLOW_DRAFTS_FLAG),
+            gate_applied=True,
+            response_or_flag=ALLOW_DRAFTS_FLAG,
+            preview=preview,
+        )
+
+    if interactive and is_confirmation_accepted(response, phrase=DRAFTS_CONFIRM_PHRASE):
+        return _verdict(
+            complete,
+            (),
+            "complete draft promotion acknowledged by the exact phrase {0!r}".format(
+                DRAFTS_CONFIRM_PHRASE
+            ),
+            gate_applied=True,
+            response_or_flag=response,
+            preview=preview,
+        )
+
+    # EXCLUDE-AND-PROCEED, both interactively (phrase absent or wrong) and unattended (flag absent).
+    # See the second asymmetry above: this is not a refusal and must never become one.
+    return _verdict(
+        (),
+        complete,
+        "complete draft(s) excluded: {0}".format(
+            "the exact phrase {0!r} was not given".format(DRAFTS_CONFIRM_PHRASE)
+            if interactive
+            else "{0} was not present on the original command".format(ALLOW_DRAFTS_FLAG)
+        ),
+        gate_applied=True,
+        response_or_flag=response if interactive else None,
+        preview=preview,
+        message=render_drafts_exclusion(
+            excluded_count=len(complete),
+            remaining_count=remaining_count,
+            host=host,
+            selector=selector,
+        ),
+    )
+
+
+class CombinedGateVerdict(NamedTuple):
+    """Spec 2.5a bullet 5: BOTH gates decided in ONE interaction, before any work starts.
+
+    ``mixed`` is :func:`decide`'s verdict and ``drafts`` is :func:`decide_draft_admission`'s.
+    ``proceed`` is the mixed gate's alone, because the draft gate excludes items and never refuses a
+    run (the asymmetry documented on :func:`decide_draft_admission`).
+
+    WHY THE COMBINATION IS ITS OWN FUNCTION rather than two calls at the call site: spec 2.5a requires
+    the two previews printed TOGETHER and both confirmations collected in ONE interaction, since
+    "front-loading every question is the point; a second prompt after the first item has run defeats
+    it". Two independent calls sequenced by a caller is exactly how the second question drifts later
+    in the run, so the ordering is encoded here once.
+    """
+
+    proceed: bool
+    mixed: Verdict
+    drafts: DraftVerdict
+
+    @property
+    def combined_preview(self) -> str:
+        """Both previews, mixed first, joined by a blank line; only the parts that applied."""
+        parts = [
+            p
+            for p in (
+                self.mixed.record.action_preview if self.mixed.gate_applied else "",
+                self.drafts.record.preview,
+            )
+            if p
+        ]
+        return "\n\n".join(parts)
+
+
+def decide_selection_gates(
+    classification: Classification,
+    draft_candidates: Sequence[DraftCandidate],
+    *,
+    interactive: bool,
+    allow_mixed: bool = False,
+    allow_drafts: bool = False,
+    mixed_response: Optional[str] = None,
+    drafts_response: Optional[str] = None,
+    remaining_count: int = 0,
+    host: str = "<host>",
+    selector: str = "<selector>",
+) -> CombinedGateVerdict:
+    """Decide spec 2.5's and 2.5a's gates TOGETHER, in one interaction (spec 2.5a bullet 5).
+
+    Both responses are taken as INPUTS, which is what makes "one interaction" achievable at all: a
+    caller that had to call one gate, print, prompt, then call the other could not collect both
+    answers before either decision. Pure, like everything else in this module.
+    """
+
+    mixed = decide(
+        classification,
+        interactive=interactive,
+        allow_mixed=allow_mixed,
+        response=mixed_response,
+        host=host,
+        selector=selector,
+    )
+    drafts = decide_draft_admission(
+        draft_candidates,
+        interactive=interactive,
+        allow_drafts=allow_drafts,
+        response=drafts_response,
+        remaining_count=remaining_count,
+        host=host,
+        selector=selector,
+    )
+    return CombinedGateVerdict(proceed=mixed.proceed, mixed=mixed, drafts=drafts)
