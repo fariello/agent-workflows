@@ -4350,6 +4350,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-04",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 5,
+    "path": "executed/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md",
+    "plan_id": "wpomxa",
+    "set_id": "revsweep",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4526,16 +4536,6 @@
     "order": 4,
     "path": "pending/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md",
     "plan_id": "5slbpi",
-    "set_id": "revsweep",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-04",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 5,
-    "path": "pending/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md",
-    "plan_id": "wpomxa",
     "set_id": "revsweep",
     "status": "approved"
   },
