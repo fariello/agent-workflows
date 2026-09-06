@@ -88,6 +88,8 @@ class StepSummary:
     verify_cost: float | None = None
     verify_tokens: dict[str, int] = field(default_factory=dict)
     is_live: bool = False
+    elapsed_seconds: float | None = None
+    elapsed_str: str | None = None
 
     @property
     def is_projected(self) -> bool:
@@ -165,6 +167,72 @@ def format_duration(seconds: float | None) -> str:
     days = int(hrs // 24)
     rem_hrs = int(hrs % 24)
     return f"{days}d {rem_hrs}h {rem_mins:02d}m {rem_secs:02d}s"
+
+
+def format_step_duration(seconds: float | None) -> str:
+    """Format step duration seconds into 'Nd HHhMMmSSs' (e.g. '00h19m27s', '1d 02h15m30s')."""
+    if seconds is None or seconds < 0:
+        return "-"
+    total_secs = int(round(seconds))
+    days, rem = divmod(total_secs, 86400)
+    hrs, rem = divmod(rem, 3600)
+    mins, secs = divmod(rem, 60)
+    if days > 0:
+        return f"{days}d {hrs:02d}h{mins:02d}m{secs:02d}s"
+    return f"{hrs:02d}h{mins:02d}m{secs:02d}s"
+
+
+def _parse_iso_timestamp_utc(val: Any) -> datetime | None:
+    if not val or not isinstance(val, str):
+        return None
+    try:
+        cleaned = val.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(cleaned)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def extract_step_elapsed(
+    item: dict[str, Any],
+    *,
+    is_live: bool = False,
+    fallback_end: datetime | None = None,
+    now: datetime | None = None,
+) -> tuple[float | None, str | None]:
+    """Extract cumulative elapsed duration for a queue item across its attempts.
+
+    For finished attempts, computes (ended_at - started_at).
+    For in-flight attempts, computes (now - started_at) if running/live.
+    Returns (elapsed_seconds, elapsed_str) or (None, None) if not run.
+    """
+    attempts = item.get("attempts") or []
+    if not attempts:
+        return None, None
+
+    now_dt = now or datetime.now(timezone.utc)
+    total_sec = 0.0
+    has_timing = False
+
+    for att in attempts:
+        if not isinstance(att, dict):
+            continue
+        st = _parse_iso_timestamp_utc(att.get("started_at"))
+        et = _parse_iso_timestamp_utc(att.get("ended_at") or att.get("interrupted_at"))
+        if st and et:
+            has_timing = True
+            total_sec += max(0.0, (et - st).total_seconds())
+        elif st and not et:
+            has_timing = True
+            end_point = now_dt if is_live else (fallback_end or now_dt)
+            total_sec += max(0.0, (end_point - st).total_seconds())
+
+    if not has_timing:
+        return None, None
+
+    return total_sec, format_step_duration(total_sec)
 
 
 def inspect_run_pid_and_runtime(
@@ -812,6 +880,12 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                     step_v_toks,
                 ) = extract_step_usage(item, run_dir)
 
+                step_el_sec, step_el_str = extract_step_elapsed(
+                    item,
+                    is_live=(holder != HOLDER_NONE),
+                    fallback_end=_parse_iso_timestamp_utc(updated_at),
+                )
+
                 steps.append(
                     StepSummary(
                         position=pos,
@@ -834,6 +908,8 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
                         exec_tokens=step_e_toks,
                         verify_cost=step_v_cost,
                         verify_tokens=step_v_toks,
+                        elapsed_seconds=step_el_sec,
+                        elapsed_str=step_el_str,
                     )
                 )
 
@@ -1365,6 +1441,7 @@ def render_steps_table(
             "Item",
             "Action",
             "Attempts",
+            "Elapsed",
             "Cost",
             "Total Tok",
             "Verified",
@@ -1374,6 +1451,7 @@ def render_steps_table(
             "left",
             "left",
             "left",
+            "right",
             "right",
             "right",
             "right",
@@ -1393,6 +1471,7 @@ def render_steps_table(
         )
 
         att_disp = str(step.attempts_count) if step.attempts_count else "-"
+        elapsed_disp = step.elapsed_str or "-"
         cost_disp = f"${step.cost:.2f}" if step.cost is not None else "-"
         tok_disp = (
             format_tokens(step.tokens.get("total", 0))
@@ -1445,6 +1524,7 @@ def render_steps_table(
                     item_disp,
                     step.action,
                     att_disp,
+                    elapsed_disp,
                     cost_disp,
                     tok_disp,
                     v_disp,
@@ -1474,6 +1554,12 @@ def render_step_details(steps: list[StepSummary], term: Term) -> list[str]:
                 term.color256(f"  * summary: {sum_text}", 245)
                 if getattr(term, "color", False)
                 else f"  * summary: {sum_text}"
+            )
+        if step.elapsed_str and step.elapsed_str != "-":
+            details.append(
+                term.color256(f"  * elapsed: {step.elapsed_str}", 245)
+                if getattr(term, "color", False)
+                else f"  * elapsed: {step.elapsed_str}"
             )
         if step.cost is not None:
             if step.verify_cost is not None:

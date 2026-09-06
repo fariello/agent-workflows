@@ -37,6 +37,7 @@ import io
 import json
 import tempfile
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase
 
@@ -1491,3 +1492,125 @@ class RunsRepairHelpTests(TestCase):
             self.assertEqual(
                 before, (run_dir / "state.json").read_text(encoding="utf-8")
             )
+
+    def test_format_step_duration(self):
+        self.assertEqual(run_viewer.format_step_duration(None), "-")
+        self.assertEqual(run_viewer.format_step_duration(-5.0), "-")
+        self.assertEqual(run_viewer.format_step_duration(0), "00h00m00s")
+        self.assertEqual(run_viewer.format_step_duration(45), "00h00m45s")
+        self.assertEqual(run_viewer.format_step_duration(1167), "00h19m27s")
+        self.assertEqual(run_viewer.format_step_duration(10479), "02h54m39s")
+        self.assertEqual(run_viewer.format_step_duration(97676), "1d 03h07m56s")
+
+    def test_extract_step_elapsed(self):
+        # 1. Empty or non-existent attempts
+        sec, text = run_viewer.extract_step_elapsed({})
+        self.assertIsNone(sec)
+        self.assertIsNone(text)
+
+        sec, text = run_viewer.extract_step_elapsed({"attempts": []})
+        self.assertIsNone(sec)
+        self.assertIsNone(text)
+
+        # 2. Single finished attempt
+        item = {
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "started_at": "2026-09-05T21:10:20Z",
+                    "ended_at": "2026-09-05T21:29:47Z",
+                }
+            ]
+        }
+        sec, text = run_viewer.extract_step_elapsed(item)
+        self.assertEqual(sec, 1167.0)
+        self.assertEqual(text, "00h19m27s")
+
+        # 3. Multiple attempts (e.g. interrupted + retry)
+        item_multi = {
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "started_at": "2026-09-05T20:00:00+00:00",
+                    "interrupted_at": "2026-09-05T20:10:00+00:00",
+                },
+                {
+                    "attempt": 2,
+                    "started_at": "2026-09-05T20:15:00+00:00",
+                    "ended_at": "2026-09-05T20:25:30+00:00",
+                },
+            ]
+        }
+        sec_m, text_m = run_viewer.extract_step_elapsed(item_multi)
+        self.assertEqual(sec_m, 600.0 + 630.0)
+        self.assertEqual(text_m, "00h20m30s")
+
+        # 4. In-flight attempt (running / live)
+        now_mock = datetime(2026, 9, 5, 21, 30, 0, tzinfo=timezone.utc)
+        item_live = {
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "started_at": "2026-09-05T21:15:41Z",
+                }
+            ]
+        }
+        sec_live, text_live = run_viewer.extract_step_elapsed(
+            item_live, is_live=True, now=now_mock
+        )
+        self.assertEqual(sec_live, 859.0)
+        self.assertEqual(text_live, "00h14m19s")
+
+    def test_render_steps_table_elapsed_column(self):
+        term = Term(color=False)
+        st1 = run_viewer.StepSummary(
+            position=1,
+            id6="step01",
+            setid="test",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="20260905-test-01-step01",
+            attempts_count=1,
+            elapsed_seconds=1167.0,
+            elapsed_str="00h19m27s",
+        )
+        st2 = run_viewer.StepSummary(
+            position=2,
+            id6="step02",
+            setid="test",
+            action="execute",
+            status="queued",
+            configured_file="",
+            stem="20260905-test-02-step02",
+            attempts_count=0,
+            elapsed_seconds=None,
+            elapsed_str=None,
+        )
+
+        tbl = run_viewer.render_steps_table([st1, st2], term)
+        self.assertIn("Elapsed", tbl)
+        self.assertIn("00h19m27s", tbl)
+        self.assertIn("-", tbl)
+
+        # In short mode, Elapsed should NOT appear
+        tbl_short = run_viewer.render_steps_table([st1, st2], term, short=True)
+        self.assertNotIn("Elapsed", tbl_short)
+        self.assertNotIn("00h19m27s", tbl_short)
+
+    def test_render_step_details_includes_elapsed(self):
+        term = Term(color=False)
+        st = run_viewer.StepSummary(
+            position=1,
+            id6="step01",
+            setid="test",
+            action="execute",
+            status="executed",
+            configured_file="",
+            stem="20260905-test-01-step01",
+            attempts_count=1,
+            elapsed_seconds=1167.0,
+            elapsed_str="00h19m27s",
+        )
+        details = run_viewer.render_step_details([st], term)
+        self.assertTrue(any("elapsed: 00h19m27s" in d for d in details))
