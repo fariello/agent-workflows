@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 212 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 213 Sets; the full manifest is INDEX.json.
+
+## attorder
+
+- `8ldrlx` [pending] 01 pending/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md
 
 ## hostdefault
 
@@ -195,10 +199,6 @@ Showing the 40 most-recent of 212 Sets; the full manifest is INDEX.json.
 ## ackme8
 
 - `w0ln4q` [executed] 01 executed/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
-
-## bkclose
-
-- `zhr6mc` [executed] 01 executed/20260829-bkclose-01-zhr6mc-the-runner-closes-a-backlog-item-when-it-executes-the-last-p.ipd.md
 
 ## (singletons: no Set)
 

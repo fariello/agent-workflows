@@ -4594,6 +4594,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md",
+    "plan_id": "8ldrlx",
+    "set_id": "attorder",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
     "plan_id": "tm2cz8",
     "set_id": "hostdefault",
