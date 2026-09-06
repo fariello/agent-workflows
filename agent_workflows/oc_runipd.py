@@ -45,6 +45,13 @@ from agent_workflows import (
 # instructions, which is why the drivers already embed their other critical safeguards.
 from agent_workflows import reporting_contract
 
+# runprofile Order 01 (`f2mrsw`): the named-runner-profile schema, store, and RESOLVER. Imported as a
+# module (not symbol-by-symbol) so this driver cannot fork profile parsing or precedence, which
+# runprofile-03 (`3cm15q`) execution contract item 2 forbids: "Use their resolver; do not fork profile
+# parsing/storage inside oc_runipd.py". Module-level import also lets a test monkeypatch
+# `runner_profiles.store_path` and have this driver see it.
+from agent_workflows import runner_profiles
+
 # wtiso-07 (1o4eif): the OPTIONAL hardened OS-sandbox profile. Imported for the dispatch
 # seam in `run_opencode` only; when no `execution_profile` is requested the default launch
 # is byte-for-byte unchanged and nothing in this module is invoked.
@@ -794,9 +801,23 @@ def driver_actor(state: dict[str, Any]) -> str:
 
     Kept parenthesis-free: the terminal history line is `- <date> <status> (<actor>): <msg>`, and
     the attribution lint's actor capture (`\\(...[^)]*...\\)`) would misparse a parenthesized actor,
-    so the model is rendered as `model=<model>` (no nested parens)."""
-    model = (state.get("options", {}) or {}).get("model")
-    return f"aw oc run model={model}" if model else "aw oc run"
+    so the model is rendered as `model=<model>` (no nested parens).
+
+    runprofile-03 (`3cm15q`) E-03: the resolved VARIANT and the applied PROFILE join the model, so the
+    plan's terminal history line attributes the work to the exact launch identity that did it rather
+    than to a model name that two different variants share. Same parenthesis-free rule, same
+    `key=value` shape, and each part is omitted when absent so an existing run's actor string is
+    byte-identical. No credentials: these are identifiers only."""
+    options = state.get("options", {}) or {}
+    model = options.get("model")
+    parts = [f"model={model}"] if model else []
+    variant = options.get("variant")
+    if variant:
+        parts.append(f"variant={variant}")
+    applied_profile = (options.get("launch_profile") or {}).get("applied")
+    if applied_profile:
+        parts.append(f"profile={applied_profile}")
+    return "aw oc run " + " ".join(parts) if parts else "aw oc run"
 
 
 def begin_baseline_env(isolated: bool) -> dict[str, str]:
@@ -2595,7 +2616,80 @@ Plan Documents (IPDs) in this repository.
 """
 
 
+def resolve_launch_profile(args: argparse.Namespace) -> runner_profiles.ResolvedLaunch:
+    """Resolve THIS run's OpenCode launch identity once, before any durable side effect (E-02).
+
+    Delegates the whole precedence decision to the Order-01 resolver
+    (:func:`agent_workflows.runner_profiles.resolve`, executed plan `f2mrsw`) rather than forking
+    profile parsing here, which this plan's execution contract item 2 requires. Precedence, highest
+    first, is that resolver's: `explicit --model/--variant/--agent > named profile > per-runner
+    default profile > host default`, applied PER FIELD, so `--variant high` on top of a profile does
+    not drop the profile's model (the "direct override replaces whole profile" failure mode).
+
+    `runner="oc"` is passed rather than `generic=True`: this is the OpenCode host command, so the
+    runner is already known and must never be re-guessed from `default_runner` (that is Order 04's
+    host-neutral dispatch, explicitly out of scope here).
+
+    Every failure raises :class:`DriverError`, and this function is called BEFORE the run directory
+    is created, so an unknown/wrong-runner/malformed configuration leaves NO run id, directory,
+    events, or partial state. An ABSENT store is NOT a failure: `load()` returns an empty config with
+    `present=False`, which resolves to the host default and preserves current behavior exactly
+    (DECISION 18-3cm15q-D3).
+    """
+
+    requested = getattr(args, "profile", None)
+    try:
+        cfg = runner_profiles.load()
+        return runner_profiles.resolve(
+            cfg,
+            runner="oc",
+            profile=requested,
+            model=getattr(args, "model", None),
+            variant=getattr(args, "variant", None),
+            agent=getattr(args, "agent", None),
+        )
+    except runner_profiles.RunnerProfileError as exc:
+        # Typed at the boundary, so the operator gets the resolver's exact diagnostic (which names the
+        # known profiles, or the offending field) with the driver's exit-2 contract.
+        raise DriverError(f"runner profile: {exc}") from exc
+
+
+def launch_profile_record(
+    resolved: runner_profiles.ResolvedLaunch,
+) -> dict[str, Any]:
+    """The durable `options.launch_profile` provenance object (E-03).
+
+    Records WHICH configuration produced this run's launch and WHERE each field came from, so an
+    operator reading `state.json` months later can distinguish an explicit flag from a named profile,
+    a per-runner default, and the host default. `config_digest` is what makes a later edit to
+    `runner-profiles.json` detectable rather than invisible.
+
+    Contains NO credentials: only the model/variant/agent identifiers, the profile names, and the
+    store path. `runner_profiles` stores no secrets by construction (its schema admits only
+    `runner`/`model`/`variant`/`agent`/`validate`).
+    """
+
+    return {
+        "requested": resolved.requested_profile,
+        "applied": resolved.applied_profile,
+        "runner": resolved.runner,
+        "config_source": resolved.config_source,
+        "config_present": resolved.config_present,
+        "config_digest": resolved.config_digest,
+        "model": resolved.model,
+        "variant": resolved.variant,
+        "agent": resolved.agent,
+        "provenance": dict(resolved.provenance),
+    }
+
+
 def initialize_run(args: argparse.Namespace) -> Path:
+    # runprofile-03 (`3cm15q`) E-02: FIRST statement in the function, deliberately. The launch
+    # identity is decided before the repository is even validated, so no ordering change can later
+    # slip a durable write (run dir at `run_dir.mkdir`, events, state.json) ahead of a refusal. A
+    # malformed or unknown profile therefore exits nonzero having created nothing.
+    resolved_launch = resolve_launch_profile(args)
+
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
         try:
@@ -2854,9 +2948,19 @@ def initialize_run(args: argparse.Namespace) -> Path:
         "session_turn_counts": {},
         "options": {
             "opencode": getattr(args, "opencode", "opencode"),
-            "model": getattr(args, "model", None),
-            "variant": getattr(args, "variant", None),
-            "agent": getattr(args, "agent", None),
+            # runprofile-03 (`3cm15q`) E-03: the RESOLVED launch, not the raw flags. These three keys
+            # keep their existing names and meaning (`run_opencode` and every other reader are
+            # untouched), but their VALUE now comes from the single Order-01 resolution above, so a
+            # named or default profile reaches every turn through the path the bare flags always used.
+            # With no profile configured `resolved_launch` returns the flags verbatim, so an existing
+            # invocation freezes byte-identical state.
+            "model": resolved_launch.model,
+            "variant": resolved_launch.variant,
+            "agent": resolved_launch.agent,
+            # The provenance snapshot. Authoritative for "which configuration created this run";
+            # frozen here ONCE and never re-resolved, which is what makes a later edit to
+            # `runner-profiles.json` unable to change an existing run (E-04).
+            "launch_profile": launch_profile_record(resolved_launch),
             "auto": getattr(args, "auto", True),
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
@@ -2931,6 +3035,52 @@ def initialize_run(args: argparse.Namespace) -> Path:
     return run_dir
 
 
+def render_launch_identity(state: dict[str, Any]) -> str:
+    """One human line naming the run's frozen launch identity and WHERE each field came from (E-03).
+
+    Shared by `write_report` and `print_status` so the two can never describe the same run
+    differently. Reads only frozen state, never the profile store, so it renders the same string
+    before and after `runner-profiles.json` is edited.
+
+    Renders the provenance in parentheses per field, which is what lets an operator distinguish the
+    four cases the plan requires them to tell apart: `explicit` (a flag), `profile` (the profile named
+    with `as`), `default-profile` (the per-runner default), and `host-default` (nothing was
+    configured, so no argument is passed and OpenCode chooses).
+    """
+
+    options = state.get("options", {}) or {}
+    lp = options.get("launch_profile") or {}
+    provenance = lp.get("provenance") or {}
+
+    def field(label: str, value: Any) -> str | None:
+        if not value:
+            # An absent model/variant/agent is a DELIBERATE "pass no argument"; say so rather than
+            # printing an empty value that reads like missing data.
+            return f"{label}=(host default)" if label == "model" else None
+        src = provenance.get(label)
+        return f"{label}={value}" + (f" ({src})" if src else "")
+
+    parts = [
+        p
+        for p in (
+            field("model", options.get("model")),
+            field("variant", options.get("variant")),
+            field("agent", options.get("agent")),
+        )
+        if p
+    ]
+    requested, applied = lp.get("requested"), lp.get("applied")
+    if requested:
+        parts.append(f"profile={requested} (requested)")
+    elif applied:
+        parts.append(f"profile={applied} (default)")
+    if not lp:
+        # A run created before this field existed, or by a path that froze no snapshot. Say that
+        # plainly instead of implying the identity is unknown.
+        parts.append("profile=(none recorded)")
+    return "; ".join(parts) if parts else "(host defaults)"
+
+
 def write_report(run_dir: Path, state: dict[str, Any]) -> None:
     counts: dict[str, int] = {}
     for item in state["queue"]:
@@ -2945,6 +3095,10 @@ def write_report(run_dir: Path, state: dict[str, Any]) -> None:
         f"- Set sessions: `{json.dumps(state.get('set_sessions', {}), sort_keys=True)}`",
         f"- Counts: `{json.dumps(counts, sort_keys=True)}`",
         "- Pushed: no (required; verify independently in outcomes)",
+        # runprofile-03 (`3cm15q`) E-03: the launch identity in the report an operator actually reads,
+        # so "which model produced this run" needs no `state.json` archaeology. Appended as its own
+        # line ABOVE the table so the table's column contract is unchanged.
+        f"- Launch: {render_launch_identity(state)}",
         "",
         "| # | id6 | Set | Action | Status | Verify | Attempts | Last session |",
         "|---:|---|---|---|---|---|---:|---|",
@@ -7107,6 +7261,27 @@ def print_status(run_dir: Path) -> None:
     runner_shared.print_status(run_dir, driver_label="opencode")
 
 
+def print_launch_identity(run_dir: Path) -> None:
+    """Print the run's frozen launch identity beneath the status table (E-03).
+
+    A SEPARATE function rather than a line inside `print_status`, deliberately: `test_runner_shared`
+    asserts that each host's `print_status` renders BYTE-IDENTICALLY to the shared definition it wraps
+    (measured: adding the line there fails with "oc_runipd.print_status diverged from the shared
+    definition"). That parity guard exists so the two runners' status output cannot drift, so the
+    profile line is emitted by the CALL SITES that want it instead of by the wrapper.
+
+    OpenCode-specific on purpose: `--variant` is an OpenCode flag and the Agy runner has no typed
+    equivalent yet, which this plan explicitly defers. `--json` status is untouched, since it dumps
+    `state.json` verbatim and already carries `options.launch_profile`.
+    """
+
+    try:
+        print(f"Launch: {render_launch_identity(load_state(run_dir))}")
+    except Exception:
+        # Never let a status read fail over a cosmetic line; the table is the contract.
+        pass
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="runipd",
@@ -7134,6 +7309,31 @@ AUTOMATIC STATUS ROUTING:
   - to-review: Runs OpenCode with `/plan-review <plan_path>` to review and improve the plan.
                All reviews in a run share the same OpenCode session for continuity.
   - approved:  Executes the plan step-by-step according to the execution runbook.
+
+LAUNCH IDENTITY (model / variant / agent):
+  Give it directly, or name a saved profile with the `as` clause:
+
+    aw oc run SELECTOR --model google/gemini-3.7-flash --variant high
+    aw oc run as gem SELECTOR
+
+  The `as <profile>` clause is POSITIONAL: it must come first, immediately after
+  `run` (or `start`), and the very next token is always the profile name. So a
+  profile may safely be named `status` or `all` without shadowing a command, and a
+  profile-like token WITHOUT `as` is still just a selector.
+  Manage profiles with `aw oc profile`.
+
+  Precedence is per field, highest first:
+    explicit --model/--variant/--agent  >  the named profile  >  the configured
+    default profile for this runner  >  OpenCode's own default (no argument passed)
+  So `--variant high` on top of a profile overrides ONLY the variant and keeps the
+  profile's model.
+
+  The resolution is FROZEN when the run is created and recorded in state.json
+  (`options.launch_profile`, with per-field provenance). Every turn of the run,
+  including the independent verifier turn and every resumed turn, uses that frozen
+  identity; editing or deleting the profile afterwards cannot change a run in flight.
+
+  To use the LITERAL selector `as`, end the options first: `aw oc run -- as`.
 """,
         epilog="""EXAMPLES:
   # Review EVERYTHING awaiting review, in one shared session (the review sweep).
@@ -7148,6 +7348,12 @@ AUTOMATIC STATUS ROUTING:
 
   # Execute an approved plan:
   runipd 5ahblp
+
+  # Execute using a saved launch profile (model + variant + agent):
+  runipd as gem 5ahblp
+
+  # Same launch, spelled out directly:
+  runipd 5ahblp --model google/gemini-3.7-flash --variant high
 
   # Execute multiple sets and plans in sequence:
   runipd v6zie5 unifyfileio ipdgates execset
@@ -7204,13 +7410,18 @@ AUTOMATIC STATUS ROUTING:
     )
     start.add_argument(
         "--model",
-        help="Exact provider/model identifier for OpenCode (e.g. 'anthropic/claude-3-7-sonnet')",
+        help="Exact provider/model identifier for OpenCode (e.g. 'anthropic/claude-3-7-sonnet'). "
+        "Overrides the model of a profile named with 'as', leaving its other fields intact",
     )
     start.add_argument(
         "--variant",
-        help="Model variant / reasoning effort for OpenCode (e.g. 'high', 'medium', 'low', 'minimal')",
+        help="Model variant / reasoning effort for OpenCode (e.g. 'high', 'medium', 'low', "
+        "'minimal'). Overrides only the variant of a profile named with 'as'",
     )
-    start.add_argument("--agent", help="Primary OpenCode agent name")
+    start.add_argument(
+        "--agent",
+        help="Primary OpenCode agent name. Overrides only the agent of a profile named with 'as'",
+    )
     start.add_argument(
         "--auto",
         action=argparse.BooleanOptionalAction,
@@ -7451,6 +7662,77 @@ def install_stop_triggers(run_dir: Path) -> dict[str, str]:
     return status
 
 
+class ProfileClauseError(DriverError):
+    """The `as PROFILE` clause was malformed (missing, repeated, or misplaced).
+
+    A DriverError subclass so `main`'s existing handler renders it on stderr and exits 2 without a
+    run directory ever being created; runprofile-03 (`3cm15q`) E-01/E-02 require a malformed
+    invocation to cost the operator nothing durable.
+    """
+
+
+def extract_profile_clause(argv: list[str]) -> tuple[list[str], str | None]:
+    """Split a FIXED `as PROFILE` clause off the front of a start argv (E-01).
+
+    Returns `(argv_without_the_clause, profile_or_None)`. This is the whole grammar, and it is
+    DELIBERATELY POSITIONAL rather than a scan for the word `as`:
+
+      - `as` is recognized ONLY in the one fixed position, the token immediately after an implicit
+        start (`aw oc run as gem SELECTOR`) or an explicit `start` (`aw oc run start as gem SEL`).
+      - The token immediately after that `as` is ALWAYS the profile name, and every later token is a
+        selector or option. So a profile may be named `status` or `--help` without shadowing
+        anything, which is exactly the "alias named status" failure mode the plan's findings table
+        requires protection against: no configured name can ever become a command, because the
+        command position is decided BEFORE any configuration is read.
+      - A profile-like token WITHOUT `as` stays a selector, so existing invocations are untouched.
+      - A LITERAL `as` selector is reachable via the conventional end-of-options marker,
+        `aw oc run -- as` (DECISION 18-3cm15q-D2). `--` also terminates the clause scan, so nothing
+        after it is ever read as grammar.
+
+    Raises :class:`ProfileClauseError` for a missing profile (`run as`), or for a repeated or
+    misplaced clause (`run as gem as gem`, `run SEL as gem`), naming the exact usage. A MISPLACED
+    clause must fail rather than be silently treated as a selector: `aw oc run 3cm15q as gem` looks
+    like it requests a profile, and running it under the host default instead would launch the wrong
+    model with no diagnostic at all.
+    """
+
+    usage = (
+        "usage: aw oc run as <profile> [SELECTOR ...]   (the 'as' clause comes FIRST, "
+        "immediately after 'run'/'start'; use 'aw oc run -- as' for a literal 'as' selector)"
+    )
+
+    # Only an explicit leading `start` is stepped over; `main` has not yet prepended one.
+    head: list[str] = []
+    rest = list(argv)
+    if rest and rest[0] == "start":
+        head.append(rest.pop(0))
+
+    profile: str | None = None
+    if rest and rest[0] == "as":
+        if len(rest) < 2:
+            raise ProfileClauseError(f"'as' requires a profile name. {usage}")
+        candidate = rest[1]
+        if candidate == "--":
+            raise ProfileClauseError(f"'as' requires a profile name. {usage}")
+        profile = candidate
+        rest = rest[2:]
+
+    # A SECOND or MISPLACED `as` anywhere in the remaining tokens is an error, not a selector. The
+    # scan stops at `--`, which makes everything after it literal.
+    for token in rest:
+        if token == "--":
+            break
+        if token == "as":
+            detail = (
+                "the 'as' clause may appear only once"
+                if profile is not None
+                else "the 'as' clause must come FIRST, before any selector"
+            )
+            raise ProfileClauseError(f"misplaced 'as': {detail}. {usage}")
+
+    return head + rest, profile
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
@@ -7461,6 +7743,11 @@ def main(argv: list[str] | None = None) -> int:
     # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
     # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
     # of the operator's intent, so a test asserts the bare form is not rewritten (in both drivers).
+    # KEEP THIS AS AN INLINE SET LITERAL. `test_runner_stop_triggers` asserts structurally, by regexing
+    # `subcommands = \{(.*?)\}` in BOTH drivers' sources, that `"stop"` is listed here; hoisting the set
+    # into a module constant makes that guard silently unmatchable (measured: it fails with
+    # "unexpectedly None"). The guard is worth more than the deduplication, because it is what stops
+    # `stop <run-id>` from being rewritten into `start stop <run-id>` in one driver only.
     subcommands = {
         "start",
         "resume",
@@ -7472,11 +7759,60 @@ def main(argv: list[str] | None = None) -> int:
         "-v",
         "--version",
     }
+
+    # runprofile-03 (`3cm15q`) E-01: strip the FIXED `as PROFILE` clause BEFORE the shim and before
+    # argparse, because `as gem` is grammar rather than selectors and `start`'s `nargs="+"` would
+    # otherwise swallow both tokens as selector names. Ordered FIRST so the clause is recognized in
+    # the implicit form (`run as gem SEL`) as well as the explicit one (`run start as gem SEL`).
+    # `resume`/`status`/`report`/`stop` never carry the clause: `extract_profile_clause` only
+    # inspects the first token, which for those is the subcommand itself, so their routing is
+    # untouched (asserted by test).
+    # The clause is parsed OUTSIDE the big `try` below (that block needs `run_dir`, which does not
+    # exist yet), so its refusal is rendered here: stderr + exit 2, the same contract every other
+    # `DriverError` gets, rather than an uncaught traceback.
+    profile_request: str | None = None
+    if argv and (argv[0] not in subcommands or argv[0] == "start"):
+        try:
+            argv, profile_request = extract_profile_clause(argv)
+        except ProfileClauseError as exc:
+            print(f"runipd: {exc}", file=sys.stderr)
+            return 2
+
     if argv and argv[0] not in subcommands:
         argv = ["start"] + argv
+    elif not argv and profile_request is not None:
+        # `run as gem` with no selector: argparse must see `start` so it reports the missing
+        # selector in its own words rather than printing top-level help.
+        argv = ["start"]
 
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # runprofile-03 (`3cm15q`) E-01: carry the extracted clause on the namespace, so every downstream
+    # consumer reads it from ONE place (`args.profile`) exactly as it reads `--model`/`--variant`.
+    # Set unconditionally, including to None, so `getattr(args, "profile", None)` is never a silent
+    # AttributeError-shaped default on the resume/status/report namespaces.
+    # Only OVERWRITE when this invocation actually carried a clause. A namespace that already supplies
+    # a profile (a future parser-declared `--profile`, or a caller building its own namespace) must not
+    # be silently cleared to None, which would make the refusal below unreachable.
+    if profile_request is not None or not getattr(args, "profile", None):
+        setattr(args, "profile", profile_request)
+
+    # E-04: a resumed run uses the identity FROZEN at creation, so naming a profile on resume cannot be
+    # honored. Refuse LOUDLY rather than accept-and-ignore: the operator who typed `as gem` believes
+    # the resumed turns will use `gem`, and silently continuing under the original model is exactly the
+    # "alias edited before resume silently changes models" failure this plan exists to prevent. Not
+    # reachable through the shipped shim (the clause is scanned for `start` only), so this is a
+    # belt-and-braces guard that keeps a later shim change from creating that silent misfire.
+    named_profile = getattr(args, "profile", None)
+    if named_profile is not None and getattr(args, "command", None) != "start":
+        print(
+            f"runipd: a profile ('as {named_profile}') cannot be named on "
+            f"'{args.command}': the launch identity is frozen when the run is created. "
+            f"Resume uses the original profile; start a NEW run to launch with a different one.",
+            file=sys.stderr,
+        )
+        return 2
 
     if not getattr(args, "command", None):
         parser.print_help()
@@ -7500,6 +7836,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"State directory: {run_dir}")
             if args.prepare_only:
                 print_status(run_dir)
+                # runprofile-03 (`3cm15q`) E-03: `--prepare-only` exists so an operator can inspect
+                # what a run WILL do before it launches, so the model/variant it will launch with
+                # belongs here more than anywhere else.
+                print_launch_identity(run_dir)
                 return 0
             # runstop 71vjbn: armed only now, because a handler needs the run dir to record into.
             install_stop_triggers(run_dir)
@@ -7516,6 +7856,7 @@ def main(argv: list[str] | None = None) -> int:
                 # holds for `--agent`, which this driver does not expose (it forwards to a child).
                 return 0
             print_status(run_dir)
+            print_launch_identity(run_dir)
             print(render_runs_pointer(load_state(run_dir)))
             return 0
         if args.command == "report":
@@ -7553,6 +7894,13 @@ def main(argv: list[str] | None = None) -> int:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["stall_timeout"] = args.stall_timeout
                 save_state(run_dir, state)
+            # runprofile-03 (`3cm15q`) E-04: an EXPLICIT `--variant` on resume still overrides, which
+            # is the shipped behavior of plan `429f30` and is preserved deliberately (DECISION
+            # 18-3cm15q-D1). What must NEVER happen is resume RE-RESOLVING the profile: nothing here
+            # calls `runner_profiles.load()`, so editing, deleting, or repointing the profile after run
+            # creation cannot alter this run. The frozen `options.launch_profile` snapshot is left
+            # untouched on purpose, so it keeps recording what CREATED the run; an operator override
+            # is visible as a divergence between it and the live `options.variant`.
             if getattr(args, "variant", None) is not None:
                 state = load_state(run_dir)
                 state.setdefault("options", {})["variant"] = args.variant

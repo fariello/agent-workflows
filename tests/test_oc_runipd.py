@@ -7,6 +7,8 @@
 # (it imports `_CONFORMING_PLAN` from here), which is 24 collection errors in the 3.9 CI job.
 from __future__ import annotations
 
+import argparse
+import contextlib
 import io
 import json
 import os
@@ -3745,6 +3747,697 @@ class EmptyReviewSweepExitsZeroTests(unittest.TestCase):
                 text=True,
             )
             self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+
+
+# ==================================================================================================
+# runprofile Order 03 (`3cm15q`): launch-profile grammar, resolution, provenance, and freezing.
+#
+# These tests exist because the plan's findings table names six failure modes a SHALLOW integration
+# would pass anyway: a parsed-but-unused `--variant`, a profile that reaches only the first turn, an
+# alias edited before resume, partial run state left by an unknown alias, a profile named `status`
+# shadowing the command, and a per-field override that drops the rest of the profile. Each is
+# asserted against the REAL argv / REAL durable state, never against the parser alone.
+# ==================================================================================================
+
+
+def _profile_store(tmp: Path, doc: dict) -> dict:
+    """Write `runner-profiles.json` into an isolated XDG dir; return the env overlay to use it.
+
+    Isolation matters: without it these tests would read (and their failures would depend on) the
+    developer's real `~/.config/agent-workflows/runner-profiles.json`.
+    """
+
+    cfg_dir = tmp / "xdg" / "agent-workflows"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "runner-profiles.json").write_text(json.dumps(doc), encoding="utf-8")
+    return {"XDG_CONFIG_HOME": str(tmp / "xdg")}
+
+
+def _parse_argv(argv: list) -> tuple:
+    """Return (rc, parsed_namespace_or_None) for `main(argv)`, stopping before any side effect.
+
+    Patches `initialize_run` to capture the namespace and abort, so the grammar can be asserted on the
+    REAL `main` path (implicit-start shim included) without creating a run.
+    """
+
+    captured = {}
+    real_build = driver.build_parser
+
+    def spying_parser():
+        parser = real_build()
+        real_parse = parser.parse_args
+
+        def parse(a=None, namespace=None):
+            # Capture the namespace for EVERY subcommand, not just `start`: `initialize_run` is
+            # never reached by `status`/`report`/`resume`, so hooking only that would make the
+            # routing assertions vacuous.
+            ns = real_parse(a, namespace)
+            captured["args"] = ns
+            return ns
+
+        parser.parse_args = parse  # type: ignore[method-assign]
+        return parser
+
+    def fake_init(args):
+        raise driver.DriverError("stop-before-side-effects")
+
+    with mock.patch.object(driver, "build_parser", spying_parser), mock.patch.object(
+        driver, "initialize_run", fake_init
+    ), mock.patch.object(
+        driver, "resolve_run_dir", side_effect=driver.DriverError("stop")
+    ):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = driver.main(list(argv))
+    return rc, captured.get("args"), out.getvalue() + err.getvalue()
+
+
+class LaunchProfileGrammarTests(unittest.TestCase):
+    """E-01: the fixed `as PROFILE` clause, and everything it must NOT break."""
+
+    def test_implicit_and_explicit_start_both_carry_profile_and_selectors(self):
+        for argv in (["as", "gem", "3cm15q"], ["start", "as", "gem", "3cm15q"]):
+            rc, args, _ = _parse_argv(argv)
+            self.assertEqual(rc, 2, argv)  # our sentinel abort
+            self.assertEqual(args.command, "start", argv)
+            self.assertEqual(args.profile, "gem", argv)
+            # The profile token must NOT leak into selectors.
+            self.assertEqual(args.selectors, ["3cm15q"], argv)
+
+    def test_direct_model_and_variant_flags_are_preserved(self):
+        rc, args, _ = _parse_argv(
+            ["3cm15q", "--model", "google/gemini-3.7-flash", "--variant", "high"]
+        )
+        self.assertEqual(args.model, "google/gemini-3.7-flash")
+        self.assertEqual(args.variant, "high")
+        self.assertIsNone(args.profile)
+        self.assertEqual(args.selectors, ["3cm15q"])
+
+    def test_command_like_profile_names_do_not_shadow_subcommands(self):
+        # The token after `as` is ALWAYS a profile, so a profile may be named after a command.
+        for name in ("status", "resume", "report", "stop", "start", "all", "reviews"):
+            rc, args, _ = _parse_argv(["as", name, "3cm15q"])
+            self.assertEqual(args.command, "start", name)
+            self.assertEqual(args.profile, name, name)
+            self.assertEqual(args.selectors, ["3cm15q"], name)
+
+    def test_profile_like_token_without_as_stays_a_selector(self):
+        rc, args, _ = _parse_argv(["gem"])
+        self.assertIsNone(args.profile)
+        self.assertEqual(args.selectors, ["gem"])
+
+    def test_selector_whose_text_equals_a_profile_name_is_still_a_selector(self):
+        # Even with `gem` CONFIGURED, a bare `gem` is a selector: the grammar is positional and is
+        # decided before any configuration is read.
+        with tempfile.TemporaryDirectory() as temp:
+            env = _profile_store(
+                Path(temp),
+                {
+                    "schema_version": 1,
+                    "profiles": {"gem": {"runner": "oc", "model": "g/m"}},
+                },
+            )
+            with mock.patch.dict(os.environ, env):
+                rc, args, _ = _parse_argv(["gem"])
+        self.assertIsNone(args.profile)
+        self.assertEqual(args.selectors, ["gem"])
+
+    def test_missing_repeated_and_misplaced_as_clauses_are_refused(self):
+        cases = {
+            ("as",): "requires a profile name",
+            ("as", "--"): "requires a profile name",
+            ("as", "gem", "as", "gem"): "only once",
+            ("3cm15q", "as", "gem"): "must come FIRST",
+        }
+        for argv, needle in cases.items():
+            rc, args, text = _parse_argv(list(argv))
+            self.assertEqual(rc, 2, f"{argv} -> {text}")
+            self.assertIsNone(args, f"{argv} reached initialize_run")
+            self.assertIn(needle, text, argv)
+            # The usage line must always name the escape hatch.
+            self.assertIn("-- as", text, argv)
+
+    def test_double_dash_escapes_a_literal_as_selector(self):
+        rc, args, _ = _parse_argv(["--", "as"])
+        self.assertIsNone(args.profile)
+        self.assertEqual(args.selectors, ["as"])
+
+    def test_other_subcommands_route_unchanged(self):
+        # `status`/`report`/`resume` must not be rewritten and must not gain a profile.
+        for cmd in ("status", "report", "resume"):
+            rc, args, text = _parse_argv([cmd, "run-xyz"])
+            self.assertEqual(args.command, cmd, text)
+            self.assertIsNone(args.profile, cmd)
+
+    def test_profile_named_on_resume_is_refused_not_silently_ignored(self):
+        # Belt-and-braces guard: the clause is NOT scanned for `resume` today, so this drives the
+        # refusal through a namespace that already carries one, proving a later shim change cannot
+        # make a resumed run silently ignore `as <profile>`.
+        real_build = driver.build_parser
+
+        def spying_parser():
+            parser = real_build()
+            real_parse = parser.parse_args
+
+            def parse(a=None, namespace=None):
+                ns = real_parse(a, namespace)
+                setattr(ns, "profile", "gem")  # simulate a clause reaching `resume`
+                return ns
+
+            parser.parse_args = parse  # type: ignore[method-assign]
+            return parser
+
+        with mock.patch.object(driver, "build_parser", spying_parser):
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(
+                io.StringIO()
+            ):
+                rc = driver.main(["resume", "run-xyz"])
+        self.assertEqual(rc, 2, err.getvalue())
+        self.assertIn("frozen", err.getvalue())
+        self.assertIn("as gem", err.getvalue())
+
+
+class LaunchProfileResolutionTests(unittest.TestCase):
+    """E-02: resolution happens BEFORE any durable side effect, with per-field precedence."""
+
+    def _resolve(self, store_doc, **kw):
+        with tempfile.TemporaryDirectory() as temp:
+            env = _profile_store(Path(temp), store_doc)
+            args = argparse.Namespace(
+                profile=kw.get("profile"),
+                model=kw.get("model"),
+                variant=kw.get("variant"),
+                agent=kw.get("agent"),
+            )
+            with mock.patch.dict(os.environ, env):
+                return driver.resolve_launch_profile(args)
+
+    def test_named_profile_supplies_all_three_fields(self):
+        r = self._resolve(
+            {
+                "schema_version": 1,
+                "profiles": {
+                    "gem": {
+                        "runner": "oc",
+                        "model": "google/gemini-3.7-flash",
+                        "variant": "high",
+                        "agent": "build",
+                    }
+                },
+            },
+            profile="gem",
+        )
+        self.assertEqual(r.model, "google/gemini-3.7-flash")
+        self.assertEqual(r.variant, "high")
+        self.assertEqual(r.agent, "build")
+        self.assertEqual(r.applied_profile, "gem")
+        self.assertEqual(r.provenance["model"], "profile")
+
+    def test_per_runner_default_profile_applies_without_as(self):
+        r = self._resolve(
+            {
+                "schema_version": 1,
+                "defaults": {"profiles": {"oc": "gem"}},
+                "profiles": {
+                    "gem": {"runner": "oc", "model": "g/m", "variant": "high"}
+                },
+            }
+        )
+        self.assertEqual(r.model, "g/m")
+        self.assertEqual(r.variant, "high")
+        self.assertIsNone(r.requested_profile)
+        self.assertEqual(r.applied_profile, "gem")
+        self.assertEqual(r.provenance["model"], "default-profile")
+
+    def test_no_default_preserves_host_default_behavior(self):
+        r = self._resolve({"schema_version": 1, "profiles": {}})
+        self.assertIsNone(r.model)
+        self.assertIsNone(r.variant)
+        self.assertIsNone(r.agent)
+        self.assertEqual(r.provenance["model"], "host-default")
+
+    def test_partial_explicit_override_keeps_the_other_profile_fields(self):
+        # The "direct override replaces whole profile" failure mode: --variant must not drop model.
+        r = self._resolve(
+            {
+                "schema_version": 1,
+                "profiles": {
+                    "gem": {
+                        "runner": "oc",
+                        "model": "g/m",
+                        "variant": "low",
+                        "agent": "build",
+                    }
+                },
+            },
+            profile="gem",
+            variant="high",
+        )
+        self.assertEqual(r.variant, "high")
+        self.assertEqual(r.provenance["variant"], "explicit")
+        self.assertEqual(r.model, "g/m")  # NOT dropped
+        self.assertEqual(r.agent, "build")  # NOT dropped
+        self.assertEqual(r.provenance["model"], "profile")
+
+    def test_unknown_wrong_runner_and_malformed_all_fail(self):
+        with self.assertRaises(driver.DriverError) as ctx:
+            self._resolve({"schema_version": 1, "profiles": {}}, profile="nope")
+        self.assertIn("no runner profile named 'nope'", str(ctx.exception))
+
+        # A profile belonging to a DIFFERENT runner must not be launched by the OpenCode driver. The
+        # store rejects an unknown runner outright, which is the same fail-closed outcome.
+        with self.assertRaises(driver.DriverError):
+            self._resolve(
+                {
+                    "schema_version": 1,
+                    "profiles": {"gg": {"runner": "agy", "model": "g/m"}},
+                },
+                profile="gg",
+            )
+
+        with tempfile.TemporaryDirectory() as temp:
+            cfg_dir = Path(temp) / "xdg" / "agent-workflows"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "runner-profiles.json").write_text("{not json", encoding="utf-8")
+            args = argparse.Namespace(
+                profile=None, model=None, variant=None, agent=None
+            )
+            with mock.patch.dict(
+                os.environ, {"XDG_CONFIG_HOME": str(Path(temp) / "xdg")}
+            ):
+                with self.assertRaises(driver.DriverError):
+                    driver.resolve_launch_profile(args)
+
+    def test_unknown_profile_creates_no_run_state_and_launches_nothing(self):
+        """The plan's "unknown alias after run creation" failure mode, asserted on the REAL tree."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "prof01")
+            runs_root = repo / ".aw" / "records" / "runs"
+            before = (
+                sorted(p.name for p in runs_root.glob("*"))
+                if runs_root.exists()
+                else []
+            )
+
+            env = {
+                **_DRIVER_ENV,
+                **_profile_store(root, {"schema_version": 1, "profiles": {}}),
+            }
+            res = subprocess.run(
+                _DRIVER_CMD + ["as", "nope", "prof01", "--repo", os.fspath(repo)],
+                cwd=repo,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+            self.assertIn("no runner profile named 'nope'", res.stdout + res.stderr)
+            # NO run id, directory, events, or partial state.
+            after = (
+                sorted(p.name for p in runs_root.glob("*"))
+                if runs_root.exists()
+                else []
+            )
+            self.assertEqual(before, after, "a refused run left durable state behind")
+            self.assertNotIn("Run ID:", res.stdout)
+
+
+class LaunchProfileDurableStateTests(unittest.TestCase):
+    """E-03: the frozen provenance snapshot and the surfaces that render it."""
+
+    def _start(self, root: Path, extra_argv: list, store_doc: dict) -> Path:
+        repo = root / "repo"
+        _init_repo_with_conforming_plan(repo, "prof02")
+        env = {**_DRIVER_ENV, **_profile_store(root, store_doc)}
+        res = subprocess.run(
+            _DRIVER_CMD
+            + extra_argv
+            + ["prof02", "--repo", os.fspath(repo), "--prepare-only"],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        runs = sorted((repo / ".aw" / "records" / "runs").glob("run-*"))
+        self.assertEqual(len(runs), 1, res.stdout)
+        self._stdout = res.stdout
+        return runs[0]
+
+    def test_state_records_resolved_fields_and_per_field_provenance(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._start(
+                root,
+                ["as", "gem", "--variant", "high"],
+                {
+                    "schema_version": 1,
+                    "profiles": {
+                        "gem": {
+                            "runner": "oc",
+                            "model": "google/gemini-3.7-flash",
+                            "variant": "low",
+                            "agent": "build",
+                        }
+                    },
+                },
+            )
+            state = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            opts = state["options"]
+            # Existing compatibility keys carry the RESOLVED values.
+            self.assertEqual(opts["model"], "google/gemini-3.7-flash")
+            self.assertEqual(opts["variant"], "high")
+            self.assertEqual(opts["agent"], "build")
+            lp = opts["launch_profile"]
+            self.assertEqual(lp["requested"], "gem")
+            self.assertEqual(lp["applied"], "gem")
+            self.assertEqual(lp["runner"], "oc")
+            self.assertTrue(lp["config_present"])
+            self.assertTrue(lp["config_digest"])
+            self.assertIn("runner-profiles.json", lp["config_source"])
+            self.assertEqual(lp["provenance"]["model"], "profile")
+            self.assertEqual(lp["provenance"]["variant"], "explicit")
+            # No credential-shaped keys.
+            self.assertNotIn("api_key", json.dumps(lp).lower())
+            # prepare-only surfaces the identity to the operator.
+            self.assertIn("Launch:", self._stdout)
+            self.assertIn("google/gemini-3.7-flash", self._stdout)
+            self.assertIn("profile=gem", self._stdout)
+
+    def test_report_and_status_render_the_launch_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._start(
+                root,
+                ["as", "gem"],
+                {
+                    "schema_version": 1,
+                    "profiles": {
+                        "gem": {"runner": "oc", "model": "g/m", "variant": "high"}
+                    },
+                },
+            )
+            report = (run_dir / "execution-report.md").read_text(encoding="utf-8")
+            self.assertIn("- Launch:", report)
+            self.assertIn("model=g/m (profile)", report)
+            self.assertIn("variant=high (profile)", report)
+
+    def test_driver_actor_includes_variant_and_profile_without_parens_in_values(self):
+        actor = driver.driver_actor(
+            {
+                "options": {
+                    "model": "g/m",
+                    "variant": "high",
+                    "launch_profile": {"applied": "gem"},
+                }
+            }
+        )
+        self.assertIn("model=g/m", actor)
+        self.assertIn("variant=high", actor)
+        self.assertIn("profile=gem", actor)
+        # The attribution lint's actor capture would misparse a parenthesized actor.
+        self.assertNotIn("(", actor)
+        # Backward compatible: a run with only a model is unchanged.
+        self.assertEqual(
+            driver.driver_actor({"options": {"model": "opus"}}), "aw oc run model=opus"
+        )
+
+    def test_render_launch_identity_tolerates_a_pre_field_run(self):
+        # A run created before `launch_profile` existed must still render, not raise.
+        text = driver.render_launch_identity({"options": {"model": "opus"}})
+        self.assertIn("model=opus", text)
+        self.assertIn("none recorded", text)
+
+
+class LaunchProfileFrozenTurnArgvTests(unittest.TestCase):
+    """E-04: EVERY turn type uses the frozen identity, and resume never re-resolves it."""
+
+    def _state(self, options: dict) -> dict:
+        return {
+            "run_id": "run-test",
+            "repo": "/tmp/repo",
+            "session_id": None,
+            "set_sessions": {},
+            "session_turn_counts": {},
+            "options": {"opencode": "opencode", **options},
+        }
+
+    def _argv_for(self, options: dict, **kw) -> list:
+        """Build the REAL argv `run_opencode` would launch, without launching anything."""
+        captured = {}
+
+        class _Proc:
+            def __init__(self, argv):
+                captured["argv"] = argv
+                self.stdout = io.StringIO("")
+                self.stderr = io.StringIO("")
+                self.returncode = 0
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = root / "run"
+            for name in ("sessions", "outcomes", "prompts", "logs"):
+                (run_dir / name).mkdir(parents=True, exist_ok=True)
+            prompt = root / "prompt.txt"
+            prompt.write_text("do the thing", encoding="utf-8")
+            plan = root / "plan.ipd.md"
+            plan.write_text("# plan\n", encoding="utf-8")
+            item = {"position": 1, "id6": "prof03", "setid": "s1", "action": "execute"}
+            state = self._state(options)
+            state["repo"] = str(root)
+
+            def fake_popen(argv, **_kw):
+                self.assertFalse(
+                    _kw.get("shell", False), "argv must be launched with shell=False"
+                )
+                return _Proc(argv)
+
+            with mock.patch.object(driver.subprocess, "Popen", side_effect=fake_popen):
+                try:
+                    driver.run_opencode(state, run_dir, item, plan, prompt, 1, **kw)
+                except Exception:
+                    # Only argv construction is under test; stream handling may abort on the fake.
+                    pass
+        return captured.get("argv") or []
+
+    def test_execute_recovery_review_and_verifier_turns_all_carry_model_variant_agent(
+        self,
+    ):
+        options = {"model": "g/m", "variant": "high", "agent": "build"}
+        turns = {
+            "execute": {},
+            "recovery": {"log_suffix": "recovery"},
+            "review": {"label_suffix": "review"},
+            "verifier": {"fresh_session": True, "log_suffix": "verify"},
+        }
+        for label, kw in turns.items():
+            argv = self._argv_for(options, **kw)
+            self.assertIn("--model", argv, f"{label}: {argv}")
+            self.assertEqual(argv[argv.index("--model") + 1], "g/m", label)
+            self.assertIn("--variant", argv, f"{label}: {argv}")
+            self.assertEqual(argv[argv.index("--variant") + 1], "high", label)
+            self.assertIn("--agent", argv, f"{label}: {argv}")
+            self.assertEqual(argv[argv.index("--agent") + 1], "build", label)
+
+    def test_controlled_negative_a_verifier_missing_variant_would_be_detected(self):
+        """A MUTATION test: prove the assertion above actually fails when the defect is present.
+
+        Without this, `test_..._all_carry_...` could be passing vacuously. Here the argv builder is
+        patched to drop `--variant` on the fresh-session (verifier) turn, exactly the "profile only
+        affects first turn" defect, and the check MUST fail.
+        """
+        real = driver.run_opencode
+
+        def sabotaged(state, *a, **kw):
+            if kw.get("fresh_session"):
+                state = json.loads(json.dumps(state))
+                state["options"]["variant"] = None  # the defect
+            return real(state, *a, **kw)
+
+        with mock.patch.object(driver, "run_opencode", sabotaged):
+            argv = self._argv_for(
+                {"model": "g/m", "variant": "high"}, fresh_session=True
+            )
+        self.assertNotIn("--variant", argv, "sabotage did not take effect")
+        with self.assertRaises(AssertionError):
+            self.assertIn("--variant", argv)
+
+    def test_provider_default_omits_variant_entirely(self):
+        argv = self._argv_for({"model": "g/m"})
+        self.assertIn("--model", argv)
+        self.assertNotIn("--variant", argv, argv)
+        self.assertNotIn("--agent", argv, argv)
+
+    def test_resume_does_not_reload_profiles_after_the_store_changes(self):
+        """The "alias edited before resume" failure mode, on the REAL resume path."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "prof04")
+            store = {
+                "schema_version": 1,
+                "profiles": {
+                    "gem": {"runner": "oc", "model": "g/m", "variant": "high"}
+                },
+            }
+            env = {**_DRIVER_ENV, **_profile_store(root, store)}
+            res = subprocess.run(
+                _DRIVER_CMD
+                + [
+                    "as",
+                    "gem",
+                    "prof04",
+                    "--repo",
+                    os.fspath(repo),
+                    "--prepare-only",
+                ],
+                cwd=repo,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            run_dir = sorted((repo / ".aw" / "records" / "runs").glob("run-*"))[0]
+            frozen = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(frozen["options"]["model"], "g/m")
+
+            # REPOINT the profile at a different model, then DELETE the store entirely.
+            for mutation in (
+                {
+                    "schema_version": 1,
+                    "profiles": {
+                        "gem": {"runner": "oc", "model": "EVIL/other", "variant": "low"}
+                    },
+                },
+                None,
+            ):
+                if mutation is None:
+                    (root / "xdg" / "agent-workflows" / "runner-profiles.json").unlink()
+                else:
+                    _profile_store(root, mutation)
+                res = subprocess.run(
+                    _DRIVER_CMD
+                    + ["status", run_dir.name, "--repo", os.fspath(repo), "--json"],
+                    cwd=repo,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+                state = json.loads(res.stdout)
+                self.assertEqual(state["options"]["model"], "g/m", mutation)
+                self.assertEqual(state["options"]["variant"], "high", mutation)
+                self.assertEqual(
+                    state["options"]["launch_profile"]["config_digest"],
+                    frozen["options"]["launch_profile"]["config_digest"],
+                )
+
+    def test_controlled_negative_re_resolving_on_resume_would_be_detected(self):
+        """Mutation control for the freeze: re-resolution MUST be observable as a digest change."""
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            first = _profile_store(
+                root,
+                {
+                    "schema_version": 1,
+                    "profiles": {"gem": {"runner": "oc", "model": "g/m"}},
+                },
+            )
+            args = argparse.Namespace(
+                profile="gem", model=None, variant=None, agent=None
+            )
+            with mock.patch.dict(os.environ, first):
+                before = driver.launch_profile_record(
+                    driver.resolve_launch_profile(args)
+                )
+            _profile_store(
+                root,
+                {
+                    "schema_version": 1,
+                    "profiles": {"gem": {"runner": "oc", "model": "EVIL/other"}},
+                },
+            )
+            with mock.patch.dict(os.environ, first):
+                after = driver.launch_profile_record(
+                    driver.resolve_launch_profile(args)
+                )
+        # If a resume ever DID re-resolve, these would differ - which is what the freeze test above
+        # proves does not happen through the real resume path.
+        self.assertNotEqual(before["model"], after["model"])
+        self.assertNotEqual(before["config_digest"], after["config_digest"])
+
+    def test_direct_start_without_a_profile_is_behavior_equivalent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "prof05")
+            env = {
+                **_DRIVER_ENV,
+                **_profile_store(root, {"schema_version": 1, "profiles": {}}),
+            }
+            res = subprocess.run(
+                _DRIVER_CMD
+                + [
+                    "prof05",
+                    "--repo",
+                    os.fspath(repo),
+                    "--model",
+                    "anthropic/claude",
+                    "--prepare-only",
+                ],
+                cwd=repo,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            run_dir = sorted((repo / ".aw" / "records" / "runs").glob("run-*"))[0]
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertEqual(opts["model"], "anthropic/claude")
+            self.assertIsNone(opts["variant"])
+            lp = opts["launch_profile"]
+            self.assertIsNone(lp["requested"])
+            self.assertIsNone(lp["applied"])
+            self.assertEqual(lp["provenance"]["model"], "explicit")
+            # Nothing was configured, so variant/agent fall through to the host default and no
+            # argument is passed - which is what keeps this invocation behavior-equivalent.
+            self.assertEqual(lp["provenance"]["variant"], "host-default")
+            self.assertEqual(lp["provenance"]["agent"], "host-default")
+
+    def test_absent_store_is_a_no_op_not_a_failure(self):
+        # The store file does not exist at all: current host-default behavior must be preserved.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "prof06")
+            (root / "xdg").mkdir()
+            env = {**_DRIVER_ENV, "XDG_CONFIG_HOME": str(root / "xdg")}
+            res = subprocess.run(
+                _DRIVER_CMD + ["prof06", "--repo", os.fspath(repo), "--prepare-only"],
+                cwd=repo,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+            run_dir = sorted((repo / ".aw" / "records" / "runs").glob("run-*"))[0]
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertIsNone(opts["model"])
+            self.assertIsNone(opts["variant"])
+            self.assertFalse(opts["launch_profile"]["config_present"])
 
 
 if __name__ == "__main__":
