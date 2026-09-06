@@ -6,18 +6,18 @@
 - Scope: ORCHESTRATOR - authors NO product code. Coordinates the three children that adopt spec `77tr3o`: the shared on-disk eligibility predicate (01), the runner-owned retirement transition resolving the E/V and receipt gates (02), and the both-host dispatch wiring plus the documentation correction (03). Owns the child sequence, the whole-Set completion criteria, and the cross-IPD validation. Its own execution work is E-01 only (whole-Set verification). Explicitly EXCLUDES the general `dependency-blocked`-is-terminal defect for ordinary items (`nueip1`), the `EXECUTION_SUCCESS_STATES` dependency-edge defect, the `aw set executed` worker-role bypass, and actually retiring the four currently-stuck orchestrators.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: orchretire
 - Order: 0
 - Highest E allocated: 01
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 84j8d7
-- Approval: 2026-09-06, recorded via aw ipd set: status set to approved
 - From-Backlog: kxkc04
 - From-Spec: 77tr3o
 
 ## Workflow history
+- 2026-09-06 executed (aw oc run): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set orchretire reached executed, so the runner (run run-20260906T222606Z-2987341) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: 5942n7, ueg5cf, pgq326.
 - 2026-09-06 approved (aw set): status set to approved
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: PR-001..PR-005 fixed, Readiness go-pending-approval
 
