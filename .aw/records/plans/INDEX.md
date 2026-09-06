@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 210 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 211 Sets; the full manifest is INDEX.json.
 
 ## hostdefault
 
@@ -19,6 +19,10 @@ Showing the 40 most-recent of 210 Sets; the full manifest is INDEX.json.
 ## runsverify
 
 - `7wei1o` [pending] 01 pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md
+
+## streamfmt
+
+- `mm6wuz` [pending] 01 pending/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md
 
 ## verifygap
 
@@ -194,11 +198,6 @@ Showing the 40 most-recent of 210 Sets; the full manifest is INDEX.json.
 ## bklgrad
 
 - `v58bvy` [executed] 01 executed/20260829-bklgrad-01-v58bvy-backlog-graduated-status-plus-the-graduate-implement-execute.ipd.md
-
-## cfgverbs
-
-- `75ov5j` [executed] 01 executed/20260829-cfgverbs-01-75ov5j-cli-verbs-aw-config-get-set-and-show-with-typed-schema-regis.ipd.md
-- `k99n3m` [executed] 02 executed/20260829-cfgverbs-02-k99n3m-cli-verbs-aw-config-add-remove-show-var-and-is-in-with-conf.ipd.md
 
 ## (singletons: no Set)
 

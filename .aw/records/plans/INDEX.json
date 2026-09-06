@@ -4640,6 +4640,16 @@
     "status": "approved"
   },
   {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md",
+    "plan_id": "mm6wuz",
+    "set_id": "streamfmt",
+    "status": "to-review"
+  },
+  {
     "date": "2026-08-07",
     "disposition": "superseded",
     "kind": "child",
