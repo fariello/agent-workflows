@@ -8,7 +8,7 @@
 - Scope: Add a NON-TERMINAL `integration-deferred` status and the maintainer-approved three-rung ladder on top of the shared integration module child 02 creates: rung 1 defer-and-re-attempt while other work exists, rung 2 a doubly-bounded poll when nothing else is dispatchable, rung 3 a timeout-bounded operator ask suppressed without a TTY, then and only then terminal `integration-blocked`. Every re-attempt routes through the existing merge-and-revalidate gate. A separate `--integration-retry-limit` budget, never the correction budget.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:6sb3yu
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: integpath
 - Order: 3
@@ -19,6 +19,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-07 to-review (aw set): status set to to-review
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-301..PR-306, five FIXED, PR-301 (BLOCKER) left OPEN and escalated to OQ-04 (Blocking: yes); Readiness no-go pending that answer
 
 - 2026-09-06 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `5wdoze`, whose three-rung design the maintainer approved on 2026-09-05 and which this plan implements rather than redesigns. Re-verified at HEAD `a4279302` rather than trusted, since the item is from 2026-09-05 and both runners churned heavily: `integration-blocked` IS still in `TERMINAL_STATES` (`oc_runipd.py:301-319`), `integration-deferred` does NOT exist as a status anywhere, `dirty_tree_overlap` still runs only at integration time, and the dispatch loop's `runnable is None` condition (the trigger rung 2 needs) is still computed at `oc_runipd.py:7024`. ONE CORRECTION TO A POSSIBLE MISREADING recorded so the executor does not skip work believing it done: `grep integration_deferred` DOES return hits in both runners (`oc_runipd.py:6493-6495`, `agy_runipd.py:3804-3806`), but those write a diagnostic REASON STRING into the attempt/item record while the status still goes terminal; they are not a partial ladder. The item's cited evidence that the four lanes merged clean is now HISTORICAL: all four branches are deleted and all four plans sit in `executed/`, recovered by hand last session, so this plan reproduces the condition synthetically instead of pointing at live lanes. Item-Dependencies declares `executed:6sb3yu` because the ladder must be written ONCE in the shared module child 02 extracts; writing it before that extraction would mean writing it twice into two already-drifted copies.

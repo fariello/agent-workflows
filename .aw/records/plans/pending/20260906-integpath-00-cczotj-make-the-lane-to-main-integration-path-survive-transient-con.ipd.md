@@ -8,7 +8,7 @@
 - Scope: ORCHESTRATOR - authors NO product code AND holds no verification work of its own. Its execution work is ORCHESTRATION ONLY: sequence the five children and confirm the backlog ledger is discharged by them. The whole-Set verification and the residuals walkthrough MOVED to child 05 (`3v7wo6`) by maintainer ruling on OQ-04 (2026-09-07, option (b)), because an orchestrator's E/V items are skipped by the runner's rollup and would have been marked complete unperformed. Children carry every implementation. This plan owns the child table, the sequencing decision, the anti-regression contract every child inherits, and the Set completion criteria. It explicitly EXCLUDES relaxing any refusal: every child makes a refusal SURVIVABLE or VISIBLE, never absent.
 - Scope-Paths: .aw/records/plans/pending, .aw/records/walkthroughs, tests
 - Item-Dependencies: none
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: integpath
 - Order: 0
@@ -19,6 +19,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-07 to-review (aw set): status set to to-review
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-009, seven FIXED, PR-002 (BLOCKER) left OPEN and escalated to OQ-04 (Blocking: yes); Readiness no-go pending that answer. The verdict token is stated explicitly because `plan_readiness.newest_verdict` reads the newest REVIEW record's first verdict token and, when a record states none, falls back to a negative-readiness scan; an earlier wording of this line omitted the token and so was classified NEGATIVE, which `tests/test_plan_readiness.py::ApprovalGateRealCorpusTests` correctly flagged as a false refusal of a live pending plan.
 
 - 2026-09-06 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored as the orchestrator for the four `integdefer` backlog items, on the maintainer's ruling to shape them as ONE Set with the hook fix FIRST. All four children are authored and lint-conforming BEFORE this orchestrator was completed, which is deliberate: an orchestrator whose child table names rows that resolve to no plan REFUSES retirement (`runner_shared.evaluate_set_retirement` reports `unauthored-child-rows`), and the `rununify` Set is currently stuck in exactly that state with rows `03+` and `last` unauthored. So this Set has no placeholder rows. EVERY BACKLOG CLAIM WAS RE-VERIFIED at HEAD rather than trusted, since the items are from 2026-09-05 and both runners churned heavily; two item claims were found FALSE and are corrected in the children rather than propagated: `rnl3b7`'s headline explanation that `76gsmv` passed the hook because git chose rename detection (all four commits are `R0xx` renames of identical shape and the hook handles `R` explicitly), and `yocdq4`'s ordering note that `txc9l1` blocks this work (it has since executed). The four lanes all four items cite as live evidence are GONE, so every child reproduces its condition synthetically. FRESH EVIDENCE THE ITEMS COULD NOT HAVE HAD: `mm6wuz` stranded $39.42 with three lanes on 2026-09-06, which is `yocdq4`'s predicted orphaning measured in the wild.

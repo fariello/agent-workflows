@@ -9,7 +9,7 @@
 - Scope: Add a re-integration verb on both hosts to re-attempt integration for a named verified lane with NO agent turn, routed through the existing merge-and-revalidate gate; then make `resume` call it automatically, BEFORE an item is ever eligible for re-dispatch, so finished work is merged rather than reproduced. Build the verb first, then have resume call it. TWO SPELLINGS, ONE IMPLEMENTATION (OQ-04 resolved 2026-09-07, option (c)): the driver subcommand `aw <host> run integrate <id6>` is the implementation, and a thin `cli.py` host-noun alias `aw <host> integrate <id6>` delegates to it so the verb is discoverable to an operator recovering stranded work.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/cli.py, agent_workflows/command_surface.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_stop_triggers.py, tests/test_cli_conformance_matrix.py
 - Item-Dependencies: executed:51vw4y
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: integpath
 - Order: 4
@@ -20,6 +20,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-07 to-review (aw set): status set to to-review
 
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-401..PR-408, seven FIXED, PR-403 (BLOCKER) left OPEN and escalated to OQ-04 (`Blocking: yes`); Readiness no-go pending that answer
 
