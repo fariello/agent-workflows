@@ -1,11 +1,12 @@
 - Id: rnl3b7
-- Status: open
+- Status: graduated
 - Set: integdefer
 - Priority: high
 - Work-Kind: bug
 - Summary: the executed-transition pre-commit gate has no merge-aware path, so it refuses every legitimate integration of an already-finalized lane
 
 ## Workflow history
+- 2026-09-07 graduated (aw set): Graduated to plan 29wvmj (integpath-01): teach the executed-transition gate to recognize a legitimate lane merge via in-tree evidence. NOTE: this item's headline claim that 76gsmv passed the hook because git chose rename detection was measured FALSE (all four commits are R0xx renames of identical shape and the hook handles R explicitly at :118 with -M at :108); the plan omits that instruction and records the real reason as a deferred open question rather than guessing.
 - 2026-09-05 created (aw backlog): the executed-transition pre-commit gate has no merge-aware path, so it refuses every legitimate integration of an already-finalized lane
 
 THE DEFECT. The `ipd-executed-transition-gate` pre-commit hook

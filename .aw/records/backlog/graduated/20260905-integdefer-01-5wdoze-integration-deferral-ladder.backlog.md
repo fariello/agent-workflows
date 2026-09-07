@@ -1,5 +1,5 @@
 - Id: 5wdoze
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: integdefer
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: a refused lane integration is terminal on first attempt: add the defer/poll/ask ladder so transient dirt in main does not permanently block a verified lane
 
 ## Workflow history
+- 2026-09-07 graduated (aw set): Graduated to plans 6sb3yu (integpath-02, the shared extraction seam) and 51vw4y (integpath-03, the three-rung deferral ladder). Provenance also recorded on orchestrator cczotj. Closed by 51vw4y, which delivers the ladder.
 - 2026-09-05 created (aw backlog): a refused lane integration is terminal on first attempt: add the defer/poll/ask ladder so transient dirt in main does not permanently block a verified lane
 
 MEASURED INCIDENT. Run `run-20260905T050043Z-639569` (34 items, 7h40m, \$165.90). Four items

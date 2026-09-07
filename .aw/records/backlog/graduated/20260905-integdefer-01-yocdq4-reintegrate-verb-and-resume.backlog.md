@@ -1,5 +1,5 @@
 - Id: yocdq4
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: integdefer
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: no way to re-integrate a verified lane without a full agent re-run, and resume re-dispatches finished work instead of merging it: add aw <host> integrate and call it from resume
 
 ## Workflow history
+- 2026-09-07 graduated (aw set): Graduated to plan rl67b0 (integpath-04): add aw <host> integrate and make resume merge finished lanes instead of re-dispatching them. NOTE: this item's ordering note said txc9l1 blocks the work; txc9l1 has since executed and its concern is complementary (it acts at dispatch, this acts before dispatch).
 - 2026-09-05 created (aw backlog): no way to re-integrate a verified lane without a full agent re-run, and resume re-dispatches finished work instead of merging it: add aw <host> integrate and call it from resume
 
 TWO DEFECTS, ONE FIX.
