@@ -6,14 +6,16 @@
 - Scope: In `agent_workflows/render_stream.py` and `agent_workflows/agy_runipd.py`, replace the unaligned bullet `• ` for `text` events with the padded `◈ think: ` prefix (ASCII `~ think:`), and remove the redundant leading status glyph gutter (`✓ `) from tool lines so they begin directly with their aligned tool prefix (`❯ bash:`, `☑ todo:`, `✎ edit:`). Update golden transcripts and unit tests across both hosts.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/agy_runipd.py, tests/test_render_stream.py, tools/ipdrunner/test_runagy.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
 - Set: streamfx
 - Order: 1
 - Highest E allocated: 03
 - Author: antigravity/gemini-2.5-pro
 - Id: tlou48
+- Approval: 2026-09-07, human ("approved"): approved by user: Yes. Post haste.
 
 ## Workflow history
+- 2026-09-07 approved (aw set, --by-human): approved by user: Yes. Post haste.
 
 - 2026-09-07 to-review (antigravity/gemini-2.5-pro): Completed review-ready IPD aligning think prefix and removing redundant status glyphs.
 - 2026-09-07 draft (antigravity/gemini-2.5-pro): created.
