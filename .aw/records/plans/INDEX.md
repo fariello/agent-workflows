@@ -43,7 +43,7 @@ Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
 
 ## streamfmt
 
-- `mm6wuz` [pending] 01 pending/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md
+- `mm6wuz` [executed] 01 executed/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md
 
 ## sysproto
 
