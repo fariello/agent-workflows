@@ -6,7 +6,7 @@
 - Scope: The tree state, the mechanism that reproduces it in every managed repo, and the statements about it. IN: adding the four paths to the framework-owned `.aw/.gitignore`; `git rm --cached` them in the SAME commit; extending the INSTALLER's `.aw/.gitignore` template and its back-fill list so a fresh install and every already-managed repo inherit the ignore (F-7, carried from child 01's review as PR-008); registering `stale-index` in `check_engine.RULE_REGISTRY` and splitting MISSING from PRESENT-BUT-STALE at the two emitters; reconciling the doctor consumers; correcting the FOUR documents that assert or imply the manifests are committed (the three named plus the shipped installer TEMPLATE, F-8). OUT: the commit-path-set removal (child 01, a declared dependency); any change to `aw index` regeneration itself; the broader repo-local-untracked question (backlog `hsixiz`).
 - Scope-Paths: .aw/.gitignore, .aw/records/plans/INDEX.json, .aw/records/plans/INDEX.md, .aw/records/research/INDEX.json, .aw/records/research/INDEX.md, agent_workflows/plans_index.py, agent_workflows/research_index.py, agent_workflows/check_engine.py, agent_workflows/doctor.py, agent_workflows/engine.py, .aw/records/plans/README.md, .aw/records/research/README.md, CONTRIBUTING.md, .aw/system/workflows/templates/agents-docs-research-README.md, tests/test_plans_index.py, tests/test_research_index.py, tests/test_doctor_remediations.py, tests/test_engine_install.py
 - Item-Dependencies: executed:4r0qp1
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: idxuntrack
 - Order: 2
@@ -14,8 +14,10 @@
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: ila6vl
 - Id: yvvf98
+- Approval: 2026-09-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-07 approved (aw set): status set to approved
 - 2026-09-06 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-009 (8 fixed, PR-009 deferred). Carried child 01's PR-008 as F-7: the change would not have reached any managed repo (installer template + back-fill unscoped). Resolved OQ-01 from the layout.json registry precedent. Reproduced the ueg5cf merge failure and its fix.
 - 2026-09-06 to-review (aw set): Authored and ready for critique: aw ipd lint conforming, E-01..E-05 with a V-* bijection, every V-item demanding pasted evidence including two mutation checks, and the one genuinely open question (OQ-01, missing-manifest severity) left open with its decision criteria stated rather than pre-empted.
 

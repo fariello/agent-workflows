@@ -6,7 +6,7 @@
 - Scope: Every commit-path-set contributor for a generated manifest, plus one choke-point backstop, plus the tests that pin both halves. IN: dropping the manifest paths from `owned_paths` (`ipd_lifecycle.finalize`), from the `aw set` self-commit path list and `_index_paths_for_types`, from the TWO `cli.py` group/rename aggregation sites that actually perform the `MutationResult.index_paths` commit (which covers `plans_refs`, `research_refs` and `artifact_rename` at one place), from `artifact_rename`'s dead contribution, and from the two `*_archive` shard-move `touched` lists; correcting the `MutationResult` docstring that documents the removed contract; adding an ignored-path guard in `git_commit_helper.offer_commit` so a MISSED site degrades to "manifest not committed" instead of "nothing committed"; keeping every REGENERATION call untouched; retargeting the tests that actually assert a manifest was committed. OUT: `.gitignore`, `git rm --cached`, the `check.stale-index` semantics decision, the installer `.gitignore` TEMPLATE gap (child 02, see Deferred), and the three documents (all child 02); any change to WHEN a manifest is regenerated; the broader dead-code cleanup inside `artifact_rename`'s unreachable auto-index blocks.
 - Scope-Paths: agent_workflows/ipd_lifecycle.py, agent_workflows/status_set.py, agent_workflows/artifact_rename.py, agent_workflows/cli.py, agent_workflows/plans_refs.py, agent_workflows/research_refs.py, agent_workflows/plans_archive.py, agent_workflows/research_archive.py, agent_workflows/git_commit_helper.py, tests/test_auto_index_on_mutation.py, tests/test_selfcommit_adoption.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: idxuntrack
 - Order: 1
@@ -14,8 +14,10 @@
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Backlog: ila6vl
 - Id: 4r0qp1
+- Approval: 2026-09-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-07 approved (aw set): status set to approved
 - 2026-09-06 reviewed (aw set): plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 (10 fixed, PR-008 deferred to child 02). Re-swept commit-path contributors backward from every commit gateway: 4 authored -> 8 real, one of the 4 dead code. Measured that git add of an ignored path stages NOTHING and loses the artifact's commit.
 - 2026-09-06 to-review (aw set): Authored and ready for critique: aw ipd lint conforming, E-01..E-05 with a V-* bijection, every V-item demanding pasted evidence, no TODO placeholders, and OQ-01 resolved from repository evidence rather than deferred to the maintainer.
 

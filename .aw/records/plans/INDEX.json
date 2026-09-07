@@ -4617,7 +4617,7 @@
     "path": "pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md",
     "plan_id": "kgpptv",
     "set_id": "runprofile",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-05",
@@ -4627,7 +4627,7 @@
     "path": "pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md",
     "plan_id": "8fhjjc",
     "set_id": "skilldigest",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4657,7 +4657,7 @@
     "path": "pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md",
     "plan_id": "4r0qp1",
     "set_id": "idxuntrack",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4667,7 +4667,7 @@
     "path": "pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md",
     "plan_id": "yvvf98",
     "set_id": "idxuntrack",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
