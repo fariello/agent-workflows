@@ -2544,7 +2544,30 @@ def _finalize_transaction(
         f"lifecycle({plan_id}): finalize {plan_id} -> executed\n\n{message}\n\n"
         f"Executed by {actor} via aw ipd finalize."
     )
-    rc, _out, err = _git(repo_root, ["commit", "-m", commit_msg, "--", *stage])
+    # ISOLATED COMMIT (isocommit). Committing in the SHARED tree lets `pre-commit` stash the whole
+    # working tree, run the hooks, then restore the stash OVER anything a peer wrote meanwhile,
+    # DESTROYING that write (measured 2026-09-06; it is what made retirement of `84j8d7` refuse with a
+    # reason that had nothing to do with its Set). `commit_isolated` runs the SAME hooks in a private
+    # detached worktree and then advances this branch under a compare-and-swap, so the shared tree is
+    # never stashed and a concurrent writer cannot be clobbered by US.
+    #
+    # WHY THE JOURNAL/CLASSIFY MACHINERY BELOW STILL WORKS UNCHANGED: it classifies by OBSERVED
+    # repository state in `repo_root` (HEAD moved + our `lifecycle(<id>)` subject marker), and the CAS
+    # ref update makes exactly that observable. So the transaction's phases, rollback, and
+    # committed-incomplete resume are unaffected; only WHERE the commit is produced changed.
+    from agent_workflows import commit_lock as _clock
+
+    _iso = _clock.commit_isolated(repo_root, stage, message=commit_msg)
+    if _iso.status == _clock.ISO_COMMITTED:
+        rc, err = 0, ""
+    else:
+        # Preserve the shape the classification below expects: a nonzero rc plus stderr-ish text.
+        rc, err = 1, _iso.detail
+        if _iso.status == _clock.ISO_RACED:
+            # A peer commit landed between our snapshot and the ref move. Our work is preserved as a
+            # reachable commit (named in the detail) and the branch was NOT moved, so rolling back is
+            # correct and loses nothing.
+            err = f"{_iso.detail} [isolated commit preserved: {_iso.commit}]"
 
     # --- CLASSIFY the commit boundary by OBSERVED repository state (E-03). ---
     lifecycle_commit = _lifecycle_commit_exists(repo_root, pre_head, plan_id)
