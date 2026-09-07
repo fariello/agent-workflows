@@ -159,6 +159,12 @@ from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
 )
 from agent_workflows.runner_shared import (
+    spec_impacts_for_queue as spec_impacts_for_queue,
+)
+from agent_workflows.runner_shared import (
+    declared_spec_paths as declared_spec_paths,
+)
+from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
 )
 from agent_workflows.runner_shared import (

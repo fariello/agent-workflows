@@ -2,11 +2,18 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 220 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 221 Sets; the full manifest is INDEX.json.
 
 ## depreview
 
 - `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
+
+## orchprobe
+
+- `yeh7gc` [pending] 00 pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md
+- `r2i1b1` [pending] 01 pending/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md
+- `8tgg6g` [pending] 02 pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md
+- `m7gvuz` [pending] 03 pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md
 
 ## streamfx
 
@@ -201,10 +208,6 @@ Showing the 40 most-recent of 220 Sets; the full manifest is INDEX.json.
 - `kaygwo` [superseded] 03 superseded/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
 - `k7o7el` [superseded] 04 superseded/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
 - `7f7782` [superseded] 05 superseded/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
-
-## exittbl
-
-- `bds6nd` [executed] 01 executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
 
 ## (singletons: no Set)
 

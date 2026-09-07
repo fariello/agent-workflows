@@ -1449,6 +1449,56 @@ def format_duration(seconds: float | None) -> str:
     return f"{days}d {rem_h}h {rem_m:02d}m {rem_s:02d}s"
 
 
+def format_spec_impact_announcement(
+    impacts: list[dict[str, Any]],
+    pal: Palette | None = None,
+) -> list[str]:
+    """Announce, BEFORE the run starts, which queued plans declare they will change a SPEC.
+
+    WHY THIS EXISTS (maintainer request 2026-09-07). A plan's `- Scope-Paths:` is its declared
+    allowlist of files it may touch, and the finalize gate already reconciles the real change set
+    against it. But nothing SURFACED a spec edit to the operator: `aw oc run` printed the run order and
+    nothing else, so "this run will rewrite an approved specification" was discoverable only by opening
+    each plan. A spec is the contract other plans are reviewed against, so an unnoticed spec edit is the
+    single highest-leverage change a run can make, and it was the least visible.
+
+    The related policy decision, recorded here because it explains the shape: an IPD MAY edit a spec.
+    Plan `51vw4y` measured the alternative and found it a dead end, since the flag table it must extend
+    is spec-governed while the plan had no spec-edit authority, leaving no route that did not either
+    edit an approved spec or weaken a shipped contract test. Specs are living contracts, so the answer
+    is to let plans amend them and make the amendment LOUD rather than to forbid it and have the two
+    drift apart.
+
+    ``impacts`` is a list of ``{"id6", "setid", "specs": [path, ...]}`` dicts, already computed by the
+    caller from each queued item's declared scope. Pure: builds and returns lines, prints nothing.
+    """
+    if pal is None:
+        pal = Palette(False)
+    touching = [i for i in impacts if i.get("specs")]
+    if not touching:
+        return []
+
+    total = sum(len(i.get("specs") or []) for i in touching)
+    lines: list[str] = [
+        pal(
+            f"SPEC CHANGES: {len(touching)} queued plan(s) declare edits to {total} specification "
+            "file(s).",
+            "bold",
+            "yellow",
+        ),
+        pal(
+            "  A spec is the contract other plans are reviewed against, so review these first.",
+            "dim",
+        ),
+    ]
+    for item in touching:
+        id6 = item.get("id6") or "?"
+        setid = item.get("setid") or "?"
+        for path in item.get("specs") or []:
+            lines.append(pal(f"    {id6} ({setid}) -> {path}", "yellow"))
+    return lines
+
+
 def format_run_order_announcement(
     rationale: dict[str, Any],
     pal: Palette | None = None,

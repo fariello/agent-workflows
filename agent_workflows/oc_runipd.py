@@ -71,6 +71,7 @@ from agent_workflows.plan_readiness import (
     is_plan_review_approved,
 )
 from agent_workflows.render_stream import (
+    format_spec_impact_announcement,
     _ANSI_CODES,
     _ANSI_RESET,
     _ANSI_STRIP_RE,
@@ -152,6 +153,12 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     ID6_RE as ID6_RE,
+)
+from agent_workflows.runner_shared import (
+    spec_impacts_for_queue as spec_impacts_for_queue,
+)
+from agent_workflows.runner_shared import (
+    declared_spec_paths as declared_spec_paths,
 )
 from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
@@ -4090,6 +4097,16 @@ def announce_run_order(
     pal = Palette(should_color(out))
     for line in format_run_order_announcement(rationale, pal=pal):
         print(line, file=out)
+    # specvis: surface DECLARED spec edits before the run starts. A spec is the contract other plans
+    # are reviewed against, so a run that rewrites one is the highest-leverage thing it can do and was
+    # previously invisible unless the operator opened every plan.
+    try:
+        _impacts = spec_impacts_for_queue(Path(state["repo"]), state.get("queue", []))
+        for line in format_spec_impact_announcement(_impacts, pal=pal):
+            print(line, file=out)
+    except Exception:
+        # Advisory only: never let a missing announcement stop a run from starting.
+        pass
     append_jsonl(
         run_dir / "events.jsonl",
         {

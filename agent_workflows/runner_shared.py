@@ -227,6 +227,61 @@ def _run_git(repo: Path, args: list[str]) -> tuple[int, str, str]:
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def declared_spec_paths(text: str) -> list[str]:
+    """The SPEC files a plan's `- Scope-Paths:` says it will change, in declared order.
+
+    A spec is identified by the `.spec.md` type facet of the uniform artifact-naming grammar, not by
+    directory, so a spec is still recognized if the records tree is relocated. `grandfathered` and an
+    empty value yield `[]`.
+    """
+    m = re.search(r"^- Scope-Paths:[ \t]*(.+)$", text, re.M)
+    if not m:
+        return []
+    raw = m.group(1).strip()
+    if not raw or raw.lower() in ("grandfathered", "none"):
+        return []
+    out: list[str] = []
+    for part in raw.split(","):
+        p = part.strip()
+        if p.endswith(".spec.md"):
+            out.append(p)
+    return out
+
+
+def spec_impacts_for_queue(
+    repo: Path, queue: "Sequence[Mapping[str, Any]]"
+) -> list[dict]:
+    """Per queued item, the spec files it DECLARES it will change (for the pre-run announcement).
+
+    Reads each item's plan file from disk rather than trusting anything cached in run state, so the
+    announcement reflects the plan as it stands at dispatch. An unreadable plan is skipped rather than
+    failing the run: this is an advisory surface, and refusing to start a run because an announcement
+    could not be built would be a worse failure than a missing line of output.
+    """
+    impacts: list[dict] = []
+    for item in queue:
+        raw = item.get("path") or item.get("plan_path") or ""
+        if not raw:
+            continue
+        p = Path(raw)
+        if not p.is_absolute():
+            p = repo / p
+        try:
+            text = p.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        specs = declared_spec_paths(text)
+        if specs:
+            impacts.append(
+                {
+                    "id6": item.get("id6"),
+                    "setid": item.get("setid"),
+                    "specs": specs,
+                }
+            )
+    return impacts
+
+
 def conflicted_paths(repo: Path) -> list[str]:
     """The paths git left in the UNMERGED (``U``) state by a failed merge, sorted.
 
