@@ -27,12 +27,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as att
 from agent_workflows import attention_contract as A
+from agent_workflows import cli
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -176,12 +178,36 @@ class AliasEquivalenceTests(unittest.TestCase):
 
     NAMES = ("next", "attention", "att", "todo")
 
+    def setUp(self) -> None:
+        """Keep alias equivalence checks independent of the large live record tree.
+
+        These tests compare the aliases with one another; they do not need the
+        repository's thousands of records. Scanning that tree for every alias and
+        option combination made this small parser-contract test dominate the default
+        parallel suite, particularly when several suite runs shared a checkout.
+        """
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(
+            self.root / ".aw/records/plans/pending/20260101-s-01-aaa111-a.ipd.md",
+            _plan("aaa111"),
+        )
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
     def _run(self, *argv):
-        return subprocess.run(
-            [sys.executable, "-m", "agent_workflows", *argv],
-            cwd=str(REPO_ROOT),
-            capture_output=True,
-            text=True,
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            try:
+                returncode = cli.main([argv[0], "--dir", str(self.root), *argv[1:]])
+            except SystemExit as exc:
+                returncode = exc.code
+        return SimpleNamespace(
+            returncode=returncode,
+            stdout=stdout.getvalue(),
+            stderr=stderr.getvalue(),
         )
 
     def test_all_four_names_agree_bare(self):
