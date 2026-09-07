@@ -256,8 +256,7 @@ class AgyEventRenderTests(unittest.TestCase):
         plain = render_stream._strip_ansi(rendered)
         self.assertEqual(
             plain,
-            render_stream.EVENT_PREFIXES["subagent"].ljust(self.pad)
-            + "2 subagents done",
+            render_stream.EVENT_PREFIXES["child"].ljust(self.pad) + "2 children done",
         )
 
 

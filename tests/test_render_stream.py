@@ -323,10 +323,10 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         self.assertEqual(
             render_stream.EVENT_PREFIX_PAD, render_stream.event_prefix_pad(True)
         )
-        # The longest label today is `↳ subagent:` at 11 codepoints, hence a pad of 12. Asserted as
+        # The longest labels today are 8 codepoints, hence a pad of 9. Asserted as
         # a MEASUREMENT of the table, so adding a longer label moves both sides together.
-        self.assertEqual(max(len(p) for p in render_stream.EVENT_PREFIXES.values()), 11)
-        self.assertEqual(render_stream.EVENT_PREFIX_PAD, 12)
+        self.assertEqual(max(len(p) for p in render_stream.EVENT_PREFIXES.values()), 8)
+        self.assertEqual(render_stream.EVENT_PREFIX_PAD, 9)
 
     def test_the_pad_follows_the_table_when_the_table_changes(self):
         """The derivation is LIVE: lengthen the table and the pad must follow."""
@@ -367,6 +367,33 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         self.assertEqual(
             len(render_stream._strip_ansi(rendered)),
             render_stream.event_prefix_pad(True),
+        )
+        self.assertEqual(rendered, "\u2022 tool:  ")
+
+    def test_unmapped_tool_renders_with_tool_prefix_and_names_tool(self):
+        line = render_stream.render_event(
+            '{"type":"tool_use","part":{"tool":"ask_question",'
+            '"state":{"status":"completed","title":"Pick branch"}}}',
+            render_stream.Palette(False),
+        )
+        assert line is not None
+        pad = render_stream.event_prefix_pad(True)
+        self.assertEqual(
+            line,
+            "\u2022 tool:".ljust(pad) + "ask_question: Pick branch",
+        )
+
+    def test_task_renders_with_child_prefix(self):
+        line = render_stream.render_event(
+            '{"type":"tool_use","part":{"tool":"task",'
+            '"state":{"status":"completed","title":"explore the codebase"}}}',
+            render_stream.Palette(False),
+        )
+        assert line is not None
+        pad = render_stream.event_prefix_pad(True)
+        self.assertEqual(
+            line,
+            "\u21b3 child:".ljust(pad) + "explore the codebase",
         )
 
     def test_the_invariant_BITES_when_a_longer_prefix_is_added_without_the_pad(self):
@@ -414,7 +441,7 @@ class EventPrefixAlignmentTests(unittest.TestCase):
             for kind, label in render_stream.EVENT_PREFIXES.items()
             if unicodedata.east_asian_width(label[0]) == "A"
         }
-        self.assertEqual(ambiguous, {"read", "write", "diag", "reason", "think"})
+        self.assertEqual(ambiguous, {"read", "write", "diag", "think", "tool"})
         for kind, label in render_stream.EVENT_PREFIXES_ASCII.items():
             with self.subTest(kind=kind):
                 # `"N"` (Narrow) or `"Na"` (Narrow, the ASCII-range class) both render single-width;
@@ -425,6 +452,20 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         self.assertEqual(
             render_stream.event_prefix_pad(False), render_stream.event_prefix_pad(True)
         )
+
+    def test_child_and_tool_prefixes_present_and_aligned(self):
+        self.assertIn("child", render_stream.EVENT_PREFIXES)
+        self.assertIn("child", render_stream.EVENT_PREFIXES_ASCII)
+        self.assertEqual(render_stream.EVENT_PREFIXES["child"], "\u21b3 child:")
+        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["child"], "\u21b3 child:")
+        self.assertIn("tool", render_stream.EVENT_PREFIXES)
+        self.assertIn("tool", render_stream.EVENT_PREFIXES_ASCII)
+        self.assertEqual(render_stream.EVENT_PREFIXES["tool"], "\u2022 tool:")
+        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["tool"], "- tool:")
+        self.assertNotIn("reason", render_stream.EVENT_PREFIXES)
+        self.assertNotIn("subagent", render_stream.EVENT_PREFIXES)
+        pad = render_stream.event_prefix_pad(True)
+        self.assertEqual(pad, 9)
 
     def test_think_prefix_present_and_aligned(self):
         self.assertIn("think", render_stream.EVENT_PREFIXES)
@@ -1076,13 +1117,10 @@ class VerbosityTierTests(unittest.TestCase):
         self.assertIn("'clean'", driver_src)
         self.assertNotIn("'quiet'", driver_src)
 
-    def test_reason_is_reserved_and_has_no_producer(self):
-        """F-12: there is no reasoning event, so nothing may emit the reserved prefix."""
-        self.assertIn("reason", render_stream.EVENT_PREFIXES)
-        self.assertNotIn("reason", _code_text(render_stream.render_event))
-        # The reservation is DOCUMENTED rather than silently unreachable, which is what stops a
-        # future reader from advertising a flag whose effect cannot occur.
-        self.assertIn("RESERVED", inspect.getsource(render_stream))
+    def test_reason_is_retired_and_think_is_the_sole_thought_prefix(self):
+        """streamfx (xs19dk) E-01: reason is retired into think; think is the canonical prefix."""
+        self.assertNotIn("reason", render_stream.EVENT_PREFIXES)
+        self.assertIn("think", render_stream.EVENT_PREFIXES)
 
 
 class StatuslineUnitTests(unittest.TestCase):

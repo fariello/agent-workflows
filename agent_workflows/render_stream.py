@@ -101,7 +101,7 @@ def _strip_ansi(text: str) -> str:
 # `EVENT_PREFIX_PAD` is computed in CODEPOINTS (`len`), so the payload column is exact only for
 # glyphs a terminal renders SINGLE-WIDTH. Measured with `unicodedata.east_asian_width`, five of
 # the ten glyphs are `"A"` (AMBIGUOUS, i.e. terminal-dependent and commonly double-width in a
-# CJK-configured terminal): `◀` U+25C0, `▶` U+25B6, `◇` U+25C7, `◈` U+25C8. The other five
+# CJK-configured terminal): `◀` U+25C0, `▶` U+25B6, `◇` U+25C7, `◈` U+25C8, `•` U+2022. The other five
 # (`✎` U+270E, `⌕` U+2315, `☑` U+2611, `↳` U+21B3, `❯` U+276F) are `"N"` (Narrow). So do NOT
 # claim every glyph is single-width: it is false for five of them, and on a terminal that
 # resolves Ambiguous to two columns exactly those five rows shift by one column.
@@ -109,13 +109,6 @@ def _strip_ansi(text: str) -> str:
 # narrow ASCII ones and is selected by the same `use_unicode` flag `format_statusline_lines`
 # already threads for its box-drawing characters. A TRUE display-width helper (a wcwidth-style
 # 0/1/2 table) is deliberately NOT built here; see the plan's deferred list.
-#
-# `reason` IS RESERVED AND CURRENTLY UNREACHABLE. Measured over 98,401 events in 380 session
-# logs, the event `type` vocabulary is exactly `text`, `tool_use`, `step_start`, `step_finish`
-# and `error`: there is no reasoning/thinking event, and every `"reasoning"` string in those
-# logs is the integer `"reasoning":0` token-count field inside `step_finish`. The prefix is kept
-# in the table so the alignment invariant covers it if a host later emits one, and nothing in
-# `render_event` produces it today.
 EVENT_PREFIXES: dict[str, str] = {
     "read": "\u25c0 read:",  # ◀  EAW=A (see width policy above)
     "write": "\u25b6 write:",  # ▶  EAW=A
@@ -123,10 +116,10 @@ EVENT_PREFIXES: dict[str, str] = {
     "find": "\u2315 find:",  # ⌕  EAW=N
     "todo": "\u2611 todo:",  # ☑  EAW=N
     "diag": "\u25c7 diag:",  # ◇  EAW=A
-    "reason": "\u25c8 reason:",  # ◈  EAW=A (RESERVED: no producer today)
     "think": "\u25c8 think:",  # ◈  EAW=A
-    "subagent": "\u21b3 subagent:",  # ↳  EAW=N
+    "child": "\u21b3 child:",  # ↳  EAW=N
     "bash": "\u276f bash:",  # ❯  EAW=N
+    "tool": "\u2022 tool:",  # •  EAW=A
 }
 
 #: The narrow-safe table (E-09). ONLY the Ambiguous glyphs are substituted; the five Narrow
@@ -140,10 +133,10 @@ EVENT_PREFIXES_ASCII: dict[str, str] = {
     "find": "\u2315 find:",
     "todo": "\u2611 todo:",
     "diag": "! diag:",
-    "reason": "~ reason:",
     "think": "~ think:",
-    "subagent": "\u21b3 subagent:",
+    "child": "\u21b3 child:",
     "bash": "\u276f bash:",
+    "tool": "- tool:",
 }
 
 
@@ -215,10 +208,8 @@ def format_event_prefix(
     table = event_prefix_table(use_unicode)
     label = table.get(kind)
     if label is None:
-        # An unmapped tool keeps the grammar rather than falling out of alignment: bullet, name,
-        # colon, then the same derived pad.
-        bullet = STATUS_GLYPHS["other"] if use_unicode else STATUS_GLYPHS_ASCII["other"]
-        label = f"{bullet} {kind}:"
+        # An unmapped tool falls back to the canonical "tool" prefix
+        label = table["tool"]
     padded = label.ljust(event_prefix_pad(use_unicode))
     if pal is None or not pal.enabled:
         return padded
@@ -545,7 +536,7 @@ TOOL_PREFIX_KIND: dict[str, str] = {
     "grep": "find",
     "glob": "find",
     "todowrite": "todo",
-    "task": "subagent",
+    "task": "child",
 }
 
 #: Tools suppressed at the DEFAULT verbosity tier (level 0), surfaced at `-v` (level 1).
@@ -629,7 +620,7 @@ def render_event(
         if tool in VERBOSE_ONLY_TOOLS and verbosity < 1:
             return None
 
-        kind = TOOL_PREFIX_KIND.get(tool, tool)
+        kind = TOOL_PREFIX_KIND.get(tool, "tool")
         payload: str | None = None
         extra_lines: list[str] = []
 
@@ -682,6 +673,15 @@ def render_event(
             payload = _one_line(title, 160)
         else:
             payload = _one_line(payload, 200)
+
+        if kind == "tool":
+            if payload:
+                if not payload.startswith(f"{tool}:") and not payload.startswith(
+                    f"{tool} "
+                ):
+                    payload = f"{tool}: {payload}"
+            else:
+                payload = str(tool)
 
         if verbosity >= 2:
             metadata = state.get("metadata")

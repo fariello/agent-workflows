@@ -475,7 +475,7 @@ def agy_prefix_kind(tool_name: str, params: dict[str, Any] | None = None) -> str
         return "bash"
     if "Query" in params or "Pattern" in params:
         return "find"
-    return tool_name
+    return "tool"
 
 
 def render_agy_event(
@@ -609,7 +609,7 @@ def render_agy_event(
             subagent = step.get("subagent_info") or {}
             subagents = subagent.get("subagents", [])
             count = len(subagents) if isinstance(subagents, list) else 1
-            noun = "subagent" if count == 1 else "subagents"
+            noun = "child" if count == 1 else "children"
             status = _AGY_STATE_TO_STATUS.get(state, "")
             if status in ("error", "failed"):
                 prefix_style = "red"
@@ -618,7 +618,7 @@ def render_agy_event(
             else:
                 prefix_style = "bold"
             return (
-                format_event_prefix("subagent", pal, use_unicode, style=prefix_style)
+                format_event_prefix("child", pal, use_unicode, style=prefix_style)
                 + f"{count} {noun} {state.lower()}"
             )
 
