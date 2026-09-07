@@ -39,7 +39,8 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        self.assertEqual(line, "\u2022 Reading the plan.")
+        pad = render_stream.event_prefix_pad(True)
+        self.assertEqual(line, "\u25c8 think:".ljust(pad) + "Reading the plan.")
         self.assertNotIn("\033[", line)
 
     def test_tool_use_renders_tool_and_title(self):
@@ -49,12 +50,10 @@ class RenderEventUnitTests(unittest.TestCase):
             self.plain,
         )
         assert line is not None
-        # streamfmt (mm6wuz) E-01: the tool-class prefix is now padded to the DERIVED column, and
-        # the per-status glyph is KEPT ahead of it (OQ-01), so the two axes stay separable.
         pad = render_stream.event_prefix_pad(True)
         self.assertEqual(
             line,
-            "\u2713 " + "\u276f bash:".ljust(pad) + "git status --short",
+            "\u276f bash:".ljust(pad) + "git status --short",
         )
 
     def test_tool_use_derives_title_from_input_when_missing(self):
@@ -70,7 +69,7 @@ class RenderEventUnitTests(unittest.TestCase):
         pad = render_stream.event_prefix_pad(True)
         self.assertEqual(
             line,
-            "\u2026 " + "\u25c0 read:".ljust(pad) + '{"path": "a.py"}',
+            "\u25c0 read:".ljust(pad) + '{"path": "a.py"}',
         )
 
     def test_step_start_and_blank_are_suppressed(self):
@@ -236,10 +235,10 @@ class GoldenByteIdenticalTests(unittest.TestCase):
         pad = render_stream.event_prefix_pad(True)
         expected = "\n".join(
             [
-                "\u2022 Reading the plan.",
-                "\u2026 " + "\u276f bash:".ljust(pad) + "git status",
-                "\u2713 " + "\u276f bash:".ljust(pad) + "git status",
-                "\u2717 " + "\u270e edit:".ljust(pad) + "patch failed",
+                "\u25c8 think:".ljust(pad) + "Reading the plan.",
+                "\u276f bash:".ljust(pad) + "git status",
+                "\u276f bash:".ljust(pad) + "git status",
+                "\u270e edit:".ljust(pad) + "patch failed",
                 "a stray non-json log line",
             ]
         )
@@ -406,8 +405,8 @@ class EventPrefixAlignmentTests(unittest.TestCase):
                 [],
             )
 
-    def test_the_four_ambiguous_glyphs_are_substituted_in_the_narrow_table(self):
-        """E-09: only the four East-Asian-Ambiguous glyphs are swapped, and per-key length holds."""
+    def test_the_five_ambiguous_glyphs_are_substituted_in_the_narrow_table(self):
+        """E-09: only the five East-Asian-Ambiguous glyphs are swapped, and per-key length holds."""
         import unicodedata
 
         ambiguous = {
@@ -415,7 +414,7 @@ class EventPrefixAlignmentTests(unittest.TestCase):
             for kind, label in render_stream.EVENT_PREFIXES.items()
             if unicodedata.east_asian_width(label[0]) == "A"
         }
-        self.assertEqual(ambiguous, {"read", "write", "diag", "reason"})
+        self.assertEqual(ambiguous, {"read", "write", "diag", "reason", "think"})
         for kind, label in render_stream.EVENT_PREFIXES_ASCII.items():
             with self.subTest(kind=kind):
                 # `"N"` (Narrow) or `"Na"` (Narrow, the ASCII-range class) both render single-width;
@@ -426,6 +425,14 @@ class EventPrefixAlignmentTests(unittest.TestCase):
         self.assertEqual(
             render_stream.event_prefix_pad(False), render_stream.event_prefix_pad(True)
         )
+
+    def test_think_prefix_present_and_aligned(self):
+        self.assertIn("think", render_stream.EVENT_PREFIXES)
+        self.assertIn("think", render_stream.EVENT_PREFIXES_ASCII)
+        self.assertEqual(render_stream.EVENT_PREFIXES["think"], "\u25c8 think:")
+        self.assertEqual(render_stream.EVENT_PREFIXES_ASCII["think"], "~ think:")
+        pad = render_stream.event_prefix_pad(True)
+        self.assertEqual(len("\u25c8 think:".ljust(pad)), pad)
 
     def test_the_width_policy_limitation_is_documented_in_code(self):
         """The plan's FIRST warning: the false 'all glyphs are single-width' claim must not return."""
@@ -469,7 +476,7 @@ class TodoTransitionTests(unittest.TestCase):
         return line
 
     def _payload(self, line):
-        head = "\u2713 " + "\u2611 todo:".ljust(self.pad)
+        head = "\u2611 todo:".ljust(self.pad)
         self.assertTrue(line.startswith(head), line)
         return line[len(head) :]
 
@@ -696,7 +703,7 @@ class EditWritePayloadTests(unittest.TestCase):
         self.pad = render_stream.event_prefix_pad(True)
 
     def _payload(self, line, kind):
-        head = "\u2713 " + render_stream.EVENT_PREFIXES[kind].ljust(self.pad)
+        head = render_stream.EVENT_PREFIXES[kind].ljust(self.pad)
         self.assertTrue(line.startswith(head), line)
         return line[len(head) :]
 

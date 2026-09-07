@@ -107,7 +107,7 @@ class AgyEventRenderTests(unittest.TestCase):
         plain_active = render_stream._strip_ansi(active_rendered)
         self.assertTrue(
             plain_active.startswith(
-                "\u2026 " + render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
+                render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
             ),
             plain_active,
         )
@@ -134,9 +134,7 @@ class AgyEventRenderTests(unittest.TestCase):
         self.assertIn("1.25s", done_rendered)
         plain_done = render_stream._strip_ansi(done_rendered)
         self.assertTrue(
-            plain_done.startswith(
-                "\u2713 " + render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
-            ),
+            plain_done.startswith(render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)),
             plain_done,
         )
 
@@ -183,9 +181,7 @@ class AgyEventRenderTests(unittest.TestCase):
         plain = render_stream._strip_ansi(rendered)
         self.assertIn("agent_workflows/x.py", plain)
         self.assertTrue(
-            plain.startswith(
-                "\u2713 " + render_stream.EVENT_PREFIXES["write"].ljust(self.pad)
-            ),
+            plain.startswith(render_stream.EVENT_PREFIXES["write"].ljust(self.pad)),
             plain,
         )
 
@@ -210,9 +206,7 @@ class AgyEventRenderTests(unittest.TestCase):
         plain = render_stream._strip_ansi(shown)
         self.assertIn("a/c.py", plain)
         self.assertTrue(
-            plain.startswith(
-                "\u2713 " + render_stream.EVENT_PREFIXES["read"].ljust(self.pad)
-            ),
+            plain.startswith(render_stream.EVENT_PREFIXES["read"].ljust(self.pad)),
             plain,
         )
 
@@ -240,9 +234,7 @@ class AgyEventRenderTests(unittest.TestCase):
         self.assertIsNotNone(rendered)
         plain = render_stream._strip_ansi(rendered)
         self.assertTrue(
-            plain.startswith(
-                "\u2713 " + render_stream.EVENT_PREFIXES["edit"].ljust(self.pad)
-            ),
+            plain.startswith(render_stream.EVENT_PREFIXES["edit"].ljust(self.pad)),
             plain,
         )
         self.assertNotIn("(+", plain)
@@ -264,8 +256,7 @@ class AgyEventRenderTests(unittest.TestCase):
         plain = render_stream._strip_ansi(rendered)
         self.assertEqual(
             plain,
-            "\u2713 "
-            + render_stream.EVENT_PREFIXES["subagent"].ljust(self.pad)
+            render_stream.EVENT_PREFIXES["subagent"].ljust(self.pad)
             + "2 subagents done",
         )
 

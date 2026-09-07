@@ -99,13 +99,13 @@ def _strip_ansi(text: str) -> str:
 #
 # WIDTH POLICY, stated here because it is the one thing about this table that is NOT exact.
 # `EVENT_PREFIX_PAD` is computed in CODEPOINTS (`len`), so the payload column is exact only for
-# glyphs a terminal renders SINGLE-WIDTH. Measured with `unicodedata.east_asian_width`, four of
-# the nine glyphs are `"A"` (AMBIGUOUS, i.e. terminal-dependent and commonly double-width in a
+# glyphs a terminal renders SINGLE-WIDTH. Measured with `unicodedata.east_asian_width`, five of
+# the ten glyphs are `"A"` (AMBIGUOUS, i.e. terminal-dependent and commonly double-width in a
 # CJK-configured terminal): `◀` U+25C0, `▶` U+25B6, `◇` U+25C7, `◈` U+25C8. The other five
 # (`✎` U+270E, `⌕` U+2315, `☑` U+2611, `↳` U+21B3, `❯` U+276F) are `"N"` (Narrow). So do NOT
-# claim every glyph is single-width: it is false for four of them, and on a terminal that
-# resolves Ambiguous to two columns exactly those four rows shift by one column.
-# `EVENT_PREFIXES_ASCII` (E-09) is the bounded fix: it substitutes the four Ambiguous glyphs for
+# claim every glyph is single-width: it is false for five of them, and on a terminal that
+# resolves Ambiguous to two columns exactly those five rows shift by one column.
+# `EVENT_PREFIXES_ASCII` (E-09) is the bounded fix: it substitutes the Ambiguous glyphs for
 # narrow ASCII ones and is selected by the same `use_unicode` flag `format_statusline_lines`
 # already threads for its box-drawing characters. A TRUE display-width helper (a wcwidth-style
 # 0/1/2 table) is deliberately NOT built here; see the plan's deferred list.
@@ -124,11 +124,12 @@ EVENT_PREFIXES: dict[str, str] = {
     "todo": "\u2611 todo:",  # ☑  EAW=N
     "diag": "\u25c7 diag:",  # ◇  EAW=A
     "reason": "\u25c8 reason:",  # ◈  EAW=A (RESERVED: no producer today)
+    "think": "\u25c8 think:",  # ◈  EAW=A
     "subagent": "\u21b3 subagent:",  # ↳  EAW=N
     "bash": "\u276f bash:",  # ❯  EAW=N
 }
 
-#: The narrow-safe table (E-09). ONLY the four Ambiguous glyphs are substituted; the five Narrow
+#: The narrow-safe table (E-09). ONLY the Ambiguous glyphs are substituted; the five Narrow
 #: ones are already exact, so replacing them would lose information for no width gain. The
 #: substitutions are 1:1 codepoint swaps, so both tables have identical per-key lengths and
 #: therefore the same derived pad.
@@ -140,6 +141,7 @@ EVENT_PREFIXES_ASCII: dict[str, str] = {
     "todo": "\u2611 todo:",
     "diag": "! diag:",
     "reason": "~ reason:",
+    "think": "~ think:",
     "subagent": "\u21b3 subagent:",
     "bash": "\u276f bash:",
 }
@@ -598,7 +600,8 @@ def render_event(
         text = _one_line(text, 400)
         if not text:
             return None
-        return pal("\u2022 ", "cyan") + text
+        prefix = format_event_prefix("think", pal, use_unicode, style="cyan")
+        return f"{prefix}{text}"
     if etype == "error":
         # streamfmt (mm6wuz) E-04: this branch DID NOT EXIST, so a real observed event
         # (`{"type":"error","error":{"name":"UnknownError","data":{"message":"The operation timed
@@ -617,15 +620,8 @@ def render_event(
         if not message:
             message = str(err.get("message") or "")
         body = f"{name}: {message}" if message else name
-        # The same two-column status gutter every tool line carries, so an error line's payload
-        # lands in the SAME column as everything else rather than two columns left of it.
-        glyph_char, _ = _status_glyph_char("error", use_unicode)
-        return (
-            pal(glyph_char, "red")
-            + " "
-            + format_event_prefix("diag", pal, use_unicode, style="red")
-            + pal(_one_line(body, 300), "red")
-        )
+        prefix = format_event_prefix("diag", pal, use_unicode, style="red")
+        return prefix + pal(_one_line(body, 300), "red")
     if etype == "tool_use":
         state = part.get("state") or {}
         tool = part.get("tool") or "tool"
@@ -703,14 +699,14 @@ def render_event(
                         )
                     )
 
-        glyph_char, glyph_color = _status_glyph_char(status, use_unicode)
-        # OQ-01 (resolved, see STATUS_GLYPHS): the per-status glyph is KEPT and precedes the
-        # tool-class prefix in a constant-width two-column gutter, so both axes are visible and
-        # the payload column stays fixed. Both glyph sets are single codepoint, so the gutter
-        # width does not depend on which is chosen.
-        glyph = pal(glyph_char, glyph_color)
-        prefix = format_event_prefix(kind, pal, use_unicode)
-        head = f"{glyph} {prefix}{payload}" if payload else f"{glyph} {prefix}".rstrip()
+        if status in ("error", "failed"):
+            prefix_style = "red"
+        elif status in ("running", "pending", "in_progress"):
+            prefix_style = "yellow"
+        else:
+            prefix_style = "bold"
+        prefix = format_event_prefix(kind, pal, use_unicode, style=prefix_style)
+        head = f"{prefix}{payload}" if payload else prefix.rstrip()
         if extra_lines:
             return "\n".join([head, *extra_lines])
         return head

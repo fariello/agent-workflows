@@ -572,13 +572,15 @@ def render_agy_event(
             # file-mutating, and `agy_prefix_kind` maps them to different kinds only by a name
             # heuristic), so discarding the name would lose information the oc stream never had.
             summary = f"{tool_name}: {_one_line(cmd, 120)}" if cmd else str(tool_name)
-            glyph_char, glyph_color = _status_glyph_char(
-                _AGY_STATE_TO_STATUS.get(state, ""), use_unicode
-            )
+            status = _AGY_STATE_TO_STATUS.get(state, "")
+            if status in ("error", "failed"):
+                prefix_style = "red"
+            elif status in ("running", "pending", "in_progress"):
+                prefix_style = "yellow"
+            else:
+                prefix_style = "bold"
             head = (
-                pal(glyph_char, glyph_color)
-                + " "
-                + format_event_prefix(kind, pal, use_unicode)
+                format_event_prefix(kind, pal, use_unicode, style=prefix_style)
                 + summary
             )
             if state == "DONE":
@@ -608,13 +610,15 @@ def render_agy_event(
             subagents = subagent.get("subagents", [])
             count = len(subagents) if isinstance(subagents, list) else 1
             noun = "subagent" if count == 1 else "subagents"
-            glyph_char, glyph_color = _status_glyph_char(
-                _AGY_STATE_TO_STATUS.get(state, ""), use_unicode
-            )
+            status = _AGY_STATE_TO_STATUS.get(state, "")
+            if status in ("error", "failed"):
+                prefix_style = "red"
+            elif status in ("running", "pending", "in_progress"):
+                prefix_style = "yellow"
+            else:
+                prefix_style = "bold"
             return (
-                pal(glyph_char, glyph_color)
-                + " "
-                + format_event_prefix("subagent", pal, use_unicode)
+                format_event_prefix("subagent", pal, use_unicode, style=prefix_style)
                 + f"{count} {noun} {state.lower()}"
             )
 
