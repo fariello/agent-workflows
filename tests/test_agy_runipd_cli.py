@@ -998,5 +998,98 @@ class AgyEmptyReviewSweepTests(unittest.TestCase):
             self.assertEqual(rc, 2, out.getvalue() + err.getvalue())
 
 
+class AgyVerbosityFlagTests(unittest.TestCase):
+    """streamfmt (mm6wuz) E-06/V-06: `-v` parses IDENTICALLY to the oc driver.
+
+    The property under test is PARITY, so every case here mirrors
+    `tests/test_oc_runipd_cli.py::VerbosityFlagTests`. A leading `-v` used to be swallowed by the
+    implicit-start `subcommands` set in this driver too; both drivers' sets were changed together
+    because `tests/test_runner_stop_triggers.py` regexes both source files.
+    """
+
+    def _parse(self, argv):
+        return agy_runipd.build_parser().parse_args(argv)
+
+    def test_start_parses_every_spelling_in_both_positions(self):
+        for argv, expected in (
+            (["start", "sel"], 0),
+            (["start", "sel", "-v"], 1),
+            (["start", "sel", "-vv"], 2),
+            (["start", "sel", "--verbose"], 1),
+            (["start", "sel", "--verbose", "--verbose"], 2),
+            (["start", "-v", "sel"], 1),
+            (["start", "-vv", "sel"], 2),
+            (["start", "--verbose", "sel"], 1),
+        ):
+            with self.subTest(argv=argv):
+                args = self._parse(argv)
+                self.assertEqual(args.verbosity, expected)
+                self.assertEqual(args.selectors, ["sel"])
+
+    def test_resume_parses_every_spelling_and_defaults_to_none(self):
+        self.assertIsNone(self._parse(["resume", "run-x"]).verbosity)
+        for argv, expected in (
+            (["resume", "run-x", "-v"], 1),
+            (["resume", "run-x", "-vv"], 2),
+            (["resume", "-v", "run-x"], 1),
+            (["resume", "--verbose", "--verbose", "run-x"], 2),
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(self._parse(argv).verbosity, expected)
+
+    def test_the_two_drivers_parse_the_flag_identically(self):
+        from agent_workflows import oc_runipd
+
+        for argv in (
+            ["start", "sel", "-v"],
+            ["start", "-vv", "sel"],
+            ["start", "sel", "--verbose"],
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(
+                    agy_runipd.build_parser().parse_args(argv).verbosity,
+                    oc_runipd.build_parser().parse_args(argv).verbosity,
+                )
+
+    def test_the_flags_are_forwarded_verbatim_through_the_aw_wrapper(self):
+        for argv in (["-v", "somesetid"], ["somesetid", "-vv"]):
+            with self.subTest(argv=argv):
+                with mock.patch.object(agy_runipd, "main", return_value=0) as m:
+                    cli.main(["agy", "run", *argv])
+                m.assert_called_once_with(argv)
+
+    def test_the_flag_appears_in_help_for_start_and_resume(self):
+        import argparse as _ap
+
+        parser = agy_runipd.build_parser()
+        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
+        for cmd in ("start", "resume"):
+            with self.subTest(cmd=cmd):
+                text = sub.choices[cmd].format_help()
+                self.assertIn("--verbose", text)
+
+    def test_verbosity_is_frozen_and_honored_on_resume(self):
+        with tempfile.TemporaryDirectory() as td:
+            run_dir = Path(td) / "run-agy-verbosity"
+            run_dir.mkdir(parents=True)
+            state = {
+                "run_id": "run-agy-verbosity",
+                "repo": td,
+                "created_at": "2026-09-06T00:00:00+00:00",
+                "updated_at": "2026-09-06T00:00:00+00:00",
+                "options": {"output_mode": "clean", "verbosity": 2},
+                "queue": [],
+            }
+            (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+            agy_runipd.run_queue(run_dir, retry_incomplete=False, verbosity=None)
+            reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(reloaded["options"]["verbosity"], 2)
+
+            agy_runipd.run_queue(run_dir, retry_incomplete=False, verbosity=1)
+            reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(reloaded["options"]["verbosity"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

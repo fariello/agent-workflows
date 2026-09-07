@@ -93,6 +93,139 @@ def _strip_ansi(text: str) -> str:
     return _ANSI_STRIP_RE.sub("", text)
 
 
+# ---------------------------------------------------------------------------------------------
+# streamfmt (mm6wuz) E-01/E-09: the canonical fixed-width event prefix grammar.
+# ---------------------------------------------------------------------------------------------
+#
+# WIDTH POLICY, stated here because it is the one thing about this table that is NOT exact.
+# `EVENT_PREFIX_PAD` is computed in CODEPOINTS (`len`), so the payload column is exact only for
+# glyphs a terminal renders SINGLE-WIDTH. Measured with `unicodedata.east_asian_width`, four of
+# the nine glyphs are `"A"` (AMBIGUOUS, i.e. terminal-dependent and commonly double-width in a
+# CJK-configured terminal): `◀` U+25C0, `▶` U+25B6, `◇` U+25C7, `◈` U+25C8. The other five
+# (`✎` U+270E, `⌕` U+2315, `☑` U+2611, `↳` U+21B3, `❯` U+276F) are `"N"` (Narrow). So do NOT
+# claim every glyph is single-width: it is false for four of them, and on a terminal that
+# resolves Ambiguous to two columns exactly those four rows shift by one column.
+# `EVENT_PREFIXES_ASCII` (E-09) is the bounded fix: it substitutes the four Ambiguous glyphs for
+# narrow ASCII ones and is selected by the same `use_unicode` flag `format_statusline_lines`
+# already threads for its box-drawing characters. A TRUE display-width helper (a wcwidth-style
+# 0/1/2 table) is deliberately NOT built here; see the plan's deferred list.
+#
+# `reason` IS RESERVED AND CURRENTLY UNREACHABLE. Measured over 98,401 events in 380 session
+# logs, the event `type` vocabulary is exactly `text`, `tool_use`, `step_start`, `step_finish`
+# and `error`: there is no reasoning/thinking event, and every `"reasoning"` string in those
+# logs is the integer `"reasoning":0` token-count field inside `step_finish`. The prefix is kept
+# in the table so the alignment invariant covers it if a host later emits one, and nothing in
+# `render_event` produces it today.
+EVENT_PREFIXES: dict[str, str] = {
+    "read": "\u25c0 read:",  # ◀  EAW=A (see width policy above)
+    "write": "\u25b6 write:",  # ▶  EAW=A
+    "edit": "\u270e edit:",  # ✎  EAW=N
+    "find": "\u2315 find:",  # ⌕  EAW=N
+    "todo": "\u2611 todo:",  # ☑  EAW=N
+    "diag": "\u25c7 diag:",  # ◇  EAW=A
+    "reason": "\u25c8 reason:",  # ◈  EAW=A (RESERVED: no producer today)
+    "subagent": "\u21b3 subagent:",  # ↳  EAW=N
+    "bash": "\u276f bash:",  # ❯  EAW=N
+}
+
+#: The narrow-safe table (E-09). ONLY the four Ambiguous glyphs are substituted; the five Narrow
+#: ones are already exact, so replacing them would lose information for no width gain. The
+#: substitutions are 1:1 codepoint swaps, so both tables have identical per-key lengths and
+#: therefore the same derived pad.
+EVENT_PREFIXES_ASCII: dict[str, str] = {
+    "read": "< read:",
+    "write": "> write:",
+    "edit": "\u270e edit:",
+    "find": "\u2315 find:",
+    "todo": "\u2611 todo:",
+    "diag": "! diag:",
+    "reason": "~ reason:",
+    "subagent": "\u21b3 subagent:",
+    "bash": "\u276f bash:",
+}
+
+
+def event_prefix_table(use_unicode: bool = True) -> dict[str, str]:
+    """The prefix table for the requested width policy (E-09)."""
+    return EVENT_PREFIXES if use_unicode else EVENT_PREFIXES_ASCII
+
+
+def event_prefix_pad(use_unicode: bool = True) -> int:
+    """The payload column offset, DERIVED from the prefix table rather than hardcoded.
+
+    Deliberately computed instead of written as the literal `12`: a hardcoded constant is correct
+    only until a longer label is added, and then it is silently wrong in a way no test notices.
+    """
+    table = event_prefix_table(use_unicode)
+    return max(len(p) for p in table.values()) + 1
+
+
+#: The pad for the default (Unicode) table, exposed as a module constant for callers that want it
+#: without re-deriving. It is DERIVED, not written out; `event_prefix_pad()` is the definition.
+EVENT_PREFIX_PAD = event_prefix_pad(True)
+
+#: Per-status glyphs. `✓` and `✗` are Narrow; `…` (U+2026) and `•` (U+2022) are AMBIGUOUS, so the
+#: narrow-safe table substitutes them for the same reason the four prefix glyphs are substituted.
+#: OQ-01 (resolved): the status glyph is KEPT ALONGSIDE the tool-class prefix in a fixed
+#: two-column gutter, rather than replaced by it. The two encode ORTHOGONAL axes (outcome versus
+#: tool class) and a status conveyed only by COLOR would be invisible in a non-TTY transcript,
+#: which is exactly where the 40 measured `error` tool events matter most. A constant-width
+#: gutter keeps the payload column fixed, so alignment is unaffected by the merge.
+STATUS_GLYPHS: dict[str, str] = {
+    "completed": "\u2713",
+    "error": "\u2717",
+    "running": "\u2026",
+    "other": "\u2022",
+}
+STATUS_GLYPHS_ASCII: dict[str, str] = {
+    "completed": "+",
+    "error": "x",
+    "running": ".",
+    "other": "-",
+}
+
+
+def _status_glyph_char(status: str, use_unicode: bool = True) -> tuple[str, str]:
+    """Return ``(glyph, color)`` for a tool status, in the requested width policy."""
+    table = STATUS_GLYPHS if use_unicode else STATUS_GLYPHS_ASCII
+    if status == "completed":
+        return table["completed"], "green"
+    if status in ("error", "failed"):
+        return table["error"], "red"
+    if status in ("running", "pending", "in_progress"):
+        return table["running"], "yellow"
+    return table["other"], "gray"
+
+
+def format_event_prefix(
+    kind: str,
+    pal: Palette | None = None,
+    use_unicode: bool = True,
+    style: str = "bold",
+) -> str:
+    """Render one padded, optionally colored event prefix.
+
+    PADDING IS COMPUTED ON THE UNCOLORED TEXT and the ANSI escape is applied afterwards, because
+    `len()` of a colorized string counts the invisible escape bytes and would leave every colored
+    line short by exactly the escape length. `_strip_ansi` is the ANSI-aware measurement helper
+    used by the tests that pin this invariant.
+    """
+    table = event_prefix_table(use_unicode)
+    label = table.get(kind)
+    if label is None:
+        # An unmapped tool keeps the grammar rather than falling out of alignment: bullet, name,
+        # colon, then the same derived pad.
+        bullet = STATUS_GLYPHS["other"] if use_unicode else STATUS_GLYPHS_ASCII["other"]
+        label = f"{bullet} {kind}:"
+    padded = label.ljust(event_prefix_pad(use_unicode))
+    if pal is None or not pal.enabled:
+        return padded
+    # Color the LABEL only; the trailing spaces stay outside the escape so a terminal that
+    # mishandles a reset mid-run cannot paint the gutter.
+    tail = padded[len(label) :]
+    return pal(label, style) + tail
+
+
 def _one_line(text: str, limit: int = 200) -> str:
     """Collapse whitespace/newlines to a single line and clip to ``limit`` chars."""
     collapsed = " ".join(text.split())
@@ -114,13 +247,44 @@ def format_tokens(n: int | float) -> str:
 
 
 class StreamTracker:
-    """Tracks cumulative usage metrics across streamed events in a run."""
+    """Tracks cumulative usage metrics across streamed events in a run.
+
+    LIFETIME, because two of the fields below are only correct if you know it: ONE tracker is
+    constructed per driver INVOCATION (`oc_runipd.run_queue`) and passed to every queue item's
+    turn, so everything accumulated here is RUN-SCOPED unless something resets it.
+
+    * ``input_tokens``/``output_tokens``/``cache_tokens``/``cost`` are deliberately run-scoped
+      totals (the statusline and the end-of-run summary both read them that way).
+    * ``modified_files`` is likewise a RUN-SCOPED set, read by ``render_run_summary_table``'s
+      banner ("Files touched: N"), which is a per-run report (streamfmt E-08).
+    * ``todos`` is PER-TURN state and MUST be reset by ``begin_turn()`` at each turn start.
+      Without that reset, the first ``todowrite`` of queue item 2 is diffed against item 1's
+      final list and renders a transition that never happened. This only shows up on a
+      multi-item queue, which is the normal case for `aw oc run all`.
+    """
 
     def __init__(self) -> None:
         self.input_tokens: int = 0
         self.output_tokens: int = 0
         self.cache_tokens: int = 0
         self.cost: float = 0.0
+        # streamfmt (mm6wuz) E-02: the PREVIOUS todowrite item list for this TURN, used to compute
+        # transitions. Items are the host's own dicts: `{content, status, priority}`.
+        self.todos: list[dict[str, Any]] = []
+        # streamfmt (mm6wuz) E-03/E-08: every path an `edit` or `write` touched in this RUN.
+        self.modified_files: set[str] = set()
+
+    def begin_turn(self) -> None:
+        """Reset PER-TURN state at the start of an agent turn (E-02).
+
+        Only ``todos`` is reset. Token/cost totals and ``modified_files`` are run-scoped by
+        design, so resetting them here would erase the run's own accounting.
+        """
+        self.todos = []
+
+    def note_modified_file(self, path: str) -> None:
+        if path:
+            self.modified_files.add(path)
 
     def update(
         self,
@@ -135,13 +299,290 @@ class StreamTracker:
         self.cost += cost
 
 
+def todo_items_from_state(state: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """Extract the todo item list from a ``todowrite`` tool state (E-02).
+
+    READS ``metadata.todos``, NOT ``state.title``. Measured over 984 real `todowrite` events,
+    `title` is only ever the string `"<N> todos"` (top values `0 todos` x164, `1 todos` x124,
+    `4 todos` x110), i.e. it carries a count and nothing else, while `metadata.todos` is the full
+    item list with keys exactly `{content, status, priority}` (`metadata.truncated` was `False` in
+    982 of 982 cases). `input.todos` carries the same list (0 length mismatches over 981 paired
+    samples), so it is the FALLBACK for a metadata-less event rather than the primary source.
+
+    Returns None when neither source is present, so the caller can degrade instead of inventing
+    an empty list (which would render a bogus "initialized 0 tasks").
+    """
+    for container_key in ("metadata", "input"):
+        container = state.get(container_key)
+        if isinstance(container, dict):
+            todos = container.get("todos")
+            if isinstance(todos, list):
+                return [t for t in todos if isinstance(t, dict)]
+    return None
+
+
+def _todo_title(item: dict[str, Any]) -> str:
+    return _one_line(str(item.get("content") or ""), 60)
+
+
+def format_todo_transition(
+    prev: list[dict[str, Any]] | None,
+    curr: list[dict[str, Any]],
+) -> str:
+    """Format the state TRANSITION between two todo lists (E-02).
+
+    HANDLES THE FOUR REAL STATUS VALUES the corpus contains, so this cannot raise or misreport on
+    live input: `completed` (3,438 occurrences), `pending` (3,246), `in_progress` (837) and
+    `cancelled` (4). `cancelled` is counted as NEITHER done nor active: a cancelled task was not
+    accomplished, so folding it into "done" would inflate progress.
+
+    ALSO HANDLES ZERO AND MANY ACTIVE TASKS. The count of `in_progress` items per event is NOT
+    always 1 (measured 1 x797, 0 x169, 2 x10, 3 x4, 4 x2), so a format assuming exactly one
+    active task is wrong for 185 of 984 events. Zero active renders `no active task`; multiple
+    active render as a comma-joined list.
+
+    ``prev`` of None means "no tracker was supplied", so no transition can be computed and a
+    SNAPSHOT is rendered instead of a fabricated transition.
+    """
+    total = len(curr)
+    done = sum(1 for t in curr if t.get("status") == "completed")
+    cancelled = sum(1 for t in curr if t.get("status") == "cancelled")
+    pending = sum(1 for t in curr if t.get("status") == "pending")
+    active = [_todo_title(t) for t in curr if t.get("status") == "in_progress"]
+
+    if active:
+        active_part = "active " + ", ".join(f'"{t}"' for t in active)
+    else:
+        active_part = "no active task"
+
+    if prev is None:
+        return f"{total} tasks ({done} done, {len(active)} active)"
+
+    if total == 0:
+        return "0 tasks"
+
+    if not prev:
+        head = f"initialized {total} tasks ({len(active)} active, {pending} pending"
+        if cancelled:
+            head += f", {cancelled} cancelled"
+        return head + ")"
+
+    if done == total:
+        return f"all {total} tasks completed"
+
+    prev_status = {
+        str(t.get("content") or ""): t.get("status")
+        for t in prev
+        if isinstance(t, dict)
+    }
+    newly_completed = [
+        _todo_title(t)
+        for t in curr
+        if t.get("status") == "completed"
+        and prev_status.get(str(t.get("content") or "")) != "completed"
+    ]
+    counter = f"[{done}/{total} done]"
+    if newly_completed:
+        finished = ", ".join(f'"{t}"' for t in newly_completed)
+        return f"{counter}: completed {finished} -> {active_part}"
+    return f"{counter}: {active_part}"
+
+
+def _relativize_path(raw: str, repo_root: str | Path | None = None) -> str:
+    """Render a file path repo-relative when it is inside the repo (E-03).
+
+    Both `metadata.filediff.file` (edit) and `metadata.filepath` (write) are ABSOLUTE in the
+    corpus. An absolute path is noisier to read and is also what `aw sanitize --agent` flags if it
+    ever reaches a shared artifact, so it is relativized against the repo root when one is known
+    and against the process cwd otherwise. A path outside both is left as-is rather than
+    truncated, because a wrong-looking short path is worse than an honest long one.
+    """
+    if not raw:
+        return raw
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        return raw
+    roots: list[Path] = []
+    if repo_root:
+        roots.append(Path(repo_root))
+    try:
+        roots.append(Path.cwd())
+    except OSError:
+        pass
+    for root in roots:
+        try:
+            return candidate.relative_to(root).as_posix()
+        except ValueError:
+            continue
+    return raw
+
+
+def format_edit_payload(
+    state: dict[str, Any],
+    repo_root: str | Path | None = None,
+) -> str | None:
+    """Format an `edit` tool payload as ``<path> (+A, -D)`` (E-03).
+
+    `filediff` EXISTS ON `edit` ONLY. Measured over every `filediff` occurrence in the corpus
+    (4,685 dict-valued instances, 4,663 of them on the `edit` tool and ZERO on any other tool),
+    `state.metadata.filediff` is a dict with keys exactly `{file, patch, additions, deletions}`
+    and `additions`/`deletions` are `int` in 4,685 of 4,685 cases (no string coercion needed).
+    """
+    metadata = state.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    diff = metadata.get("filediff")
+    if not isinstance(diff, dict):
+        return None
+    path = _relativize_path(str(diff.get("file") or ""), repo_root)
+    adds = diff.get("additions")
+    dels = diff.get("deletions")
+    if isinstance(adds, int) and isinstance(dels, int):
+        stat = f" (+{adds}, -{dels})"
+    else:
+        stat = ""
+    return f"{path}{stat}" if path else None
+
+
+def format_write_payload(
+    state: dict[str, Any],
+    repo_root: str | Path | None = None,
+) -> str | None:
+    """Format a `write` tool payload as ``<path> (new file|overwrote, N lines)`` (E-03).
+
+    `write` HAS NO `filediff` AND NO LINE COUNT, so nothing here may read one. Measured over 480
+    completed `write` events, `state.metadata` keys are exactly
+    `{diagnostics, filepath, exists, truncated}` and `metadata.filediff` was `None` in 480 of 480.
+    The line count is therefore DERIVED from `input.content`, and the new-versus-overwrite word
+    comes from `metadata.exists` (measured `False` x465, `True` x15). With no `input.content` the
+    path renders with NO count, because guessing one would print a confident wrong number.
+    """
+    metadata = state.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    inp = state.get("input")
+    inp = inp if isinstance(inp, dict) else {}
+    raw_path = str(metadata.get("filepath") or inp.get("filePath") or "")
+    if not raw_path:
+        return None
+    path = _relativize_path(raw_path, repo_root)
+    word = "overwrote" if metadata.get("exists") else "new file"
+    content = inp.get("content")
+    if isinstance(content, str):
+        lines = len(content.splitlines())
+        return f"{path} ({word}, {lines} lines)"
+    return f"{path} ({word})"
+
+
+def format_read_payload(
+    state: dict[str, Any],
+    repo_root: str | Path | None = None,
+) -> str | None:
+    """Format a `read` tool payload as ``<path> (lines A-B of T)`` (E-04, verbose tier).
+
+    THERE IS NO BYTE SIZE ANYWHERE in a read payload: measured over 2,110 `read` events, zero
+    carry any `bytes`/`size`/`byteSize` field. The available context is the LINE RANGE, from
+    `metadata.display.lineStart`/`lineEnd`/`totalLines` (present on 2,103 of 2,103 read events
+    that carry a display block) with `input.offset`/`limit` as the fallback (both present on 1,543
+    of 2,110, neither on 509).
+    """
+    metadata = state.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    inp = state.get("input")
+    inp = inp if isinstance(inp, dict) else {}
+    display = metadata.get("display")
+    display = display if isinstance(display, dict) else {}
+    raw_path = str(display.get("path") or inp.get("filePath") or "")
+    if not raw_path:
+        return None
+    path = _relativize_path(raw_path, repo_root)
+    start = display.get("lineStart")
+    end = display.get("lineEnd")
+    total = display.get("totalLines")
+    if isinstance(start, int) and isinstance(end, int):
+        span = f" (lines {start}-{end}"
+        span += f" of {total})" if isinstance(total, int) else ")"
+        return f"{path}{span}"
+    offset = inp.get("offset")
+    limit = inp.get("limit")
+    if isinstance(offset, int) and isinstance(limit, int):
+        return f"{path} (lines {offset}-{offset + limit})"
+    return path
+
+
+def format_find_payload(tool: str, state: dict[str, Any]) -> str:
+    """Format a `grep`/`glob` payload with its hit count (E-04, verbose tier).
+
+    THE TWO TOOLS USE DIFFERENT FIELD NAMES: `grep` reports `metadata.matches` (47 events) and
+    `glob` reports `metadata.count` (21 events). A single lookup would silently render no count
+    for one of them, so both are read and the first present one wins.
+    """
+    metadata = state.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    inp = state.get("input")
+    inp = inp if isinstance(inp, dict) else {}
+    query = str(inp.get("pattern") or inp.get("query") or "")
+    hits = metadata.get("matches")
+    if not isinstance(hits, int):
+        hits = metadata.get("count")
+    head = f"{tool} {query}".strip() if query else tool
+    if isinstance(hits, int):
+        noun = "hit" if hits == 1 else "hits"
+        return f"{head} ({hits} {noun})"
+    return head
+
+
+#: Tool name -> prefix key in `EVENT_PREFIXES`. A tool NOT listed here keeps its own name as the
+#: label (see `format_event_prefix`), so a newly introduced host tool still renders in grammar.
+#: Measured tool mix over 27,673 `tool_use` events: `bash` 19,289 (69.7%), `edit` 4,721 (17.1%),
+#: `read` 2,110 (7.6%), `todowrite` 984 (3.6%), `write` 488 (1.8%), `grep` 47, `glob` 21, `task` 11.
+TOOL_PREFIX_KIND: dict[str, str] = {
+    "bash": "bash",
+    "edit": "edit",
+    "write": "write",
+    "read": "read",
+    "grep": "find",
+    "glob": "find",
+    "todowrite": "todo",
+    "task": "subagent",
+}
+
+#: Tools suppressed at the DEFAULT verbosity tier (level 0), surfaced at `-v` (level 1).
+#:
+#: THE REASON IS SIGNAL, NOT VOLUME, and it must not be misstated as flood control. Measured
+#: across 380 sessions and 27,673 `tool_use` events, `read`+`grep`+`glob` are 7.9% of tool calls
+#: (median 3 per session, mean 5.7, max 53) while `bash`, which the default tier KEEPS, is 69.7%
+#: (median 28, max 219) and `text` narration is 41.7% of all rendered lines. Hiding 7.9% while
+#: keeping 69.7% cannot be described as reducing flooding. The defensible reason is that a read or
+#: a glob does not CHANGE the repository and so is low-signal for an operator watching for
+#: effects, whereas `bash`, `edit` and `write` are the mutating operations.
+VERBOSE_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
+
+
 def render_event(
     raw_line: str,
     pal: Palette,
     tracker: StreamTracker | None = None,
+    verbosity: int = 0,
+    use_unicode: bool = True,
+    repo_root: str | Path | None = None,
 ) -> str | None:
     """Translate one raw JSONL event from `opencode run --format json` into a
     concise, colored terminal line.
+
+    VERBOSITY TIERS (streamfmt mm6wuz E-04):
+
+    * ``verbosity=0`` (default): narration, `bash`, `edit`/`write` with their stats, todo
+      transitions, subagent lifecycle, and errors. `read`/`grep`/`glob` are SUPPRESSED (see
+      `VERBOSE_ONLY_TOOLS` for why, which is signal and not volume).
+    * ``verbosity=1`` (`-v`): additionally surfaces `read` with its LINE RANGE and `find`
+      (`grep`/`glob`) with its hit count.
+    * ``verbosity=2`` (`-vv`): additionally surfaces the `filediff.patch` hunk for an edit and the
+      `metadata.diagnostics` payload.
+
+    ``quiet`` IS NOT A TIER HERE. `output_mode == "quiet"` is implemented by the CALL SITE, which
+    simply does not call this function (`oc_runipd.py`'s stream loop branches `raw`/`clean` and
+    falls through for `quiet`). Adding a second suppression path inside the renderer would give
+    the same policy two owners that could disagree.
     """
     line = raw_line.rstrip("\n")
     if not line.strip():
@@ -158,27 +599,121 @@ def render_event(
         if not text:
             return None
         return pal("\u2022 ", "cyan") + text
+    if etype == "error":
+        # streamfmt (mm6wuz) E-04: this branch DID NOT EXIST, so a real observed event
+        # (`{"type":"error","error":{"name":"UnknownError","data":{"message":"The operation timed
+        # out."}}}`) rendered as `None` and the operator saw nothing at all. It is rendered at
+        # EVERY verbosity level, deliberately and without a tier check: an error is the one event
+        # class that must never be filtered by a display preference.
+        err = event.get("error")
+        err = err if isinstance(err, dict) else {}
+        name = str(err.get("name") or "error")
+        data = err.get("data")
+        message = ""
+        if isinstance(data, dict):
+            message = str(data.get("message") or "")
+        elif isinstance(data, str):
+            message = data
+        if not message:
+            message = str(err.get("message") or "")
+        body = f"{name}: {message}" if message else name
+        # The same two-column status gutter every tool line carries, so an error line's payload
+        # lands in the SAME column as everything else rather than two columns left of it.
+        glyph_char, _ = _status_glyph_char("error", use_unicode)
+        return (
+            pal(glyph_char, "red")
+            + " "
+            + format_event_prefix("diag", pal, use_unicode, style="red")
+            + pal(_one_line(body, 300), "red")
+        )
     if etype == "tool_use":
         state = part.get("state") or {}
         tool = part.get("tool") or "tool"
         status = state.get("status") or ""
-        title = state.get("title") or ""
-        if not title:
-            inp = state.get("input")
-            if isinstance(inp, dict):
-                title = _one_line(json.dumps(inp, sort_keys=True), 120)
-        title = _one_line(title, 160)
-        if status == "completed":
-            glyph = pal("\u2713", "green")
-        elif status in ("error", "failed"):
-            glyph = pal("\u2717", "red")
-        elif status in ("running", "pending", "in_progress"):
-            glyph = pal("\u2026", "yellow")
+        if tool in VERBOSE_ONLY_TOOLS and verbosity < 1:
+            return None
+
+        kind = TOOL_PREFIX_KIND.get(tool, tool)
+        payload: str | None = None
+        extra_lines: list[str] = []
+
+        if tool == "edit":
+            payload = format_edit_payload(state, repo_root)
+            if tracker is not None:
+                metadata = state.get("metadata")
+                if isinstance(metadata, dict):
+                    diff = metadata.get("filediff")
+                    if isinstance(diff, dict) and diff.get("file"):
+                        tracker.note_modified_file(
+                            _relativize_path(str(diff["file"]), repo_root)
+                        )
+            if verbosity >= 2:
+                metadata = state.get("metadata")
+                if isinstance(metadata, dict):
+                    diff = metadata.get("filediff")
+                    if isinstance(diff, dict) and isinstance(diff.get("patch"), str):
+                        for hunk in diff["patch"].splitlines():
+                            extra_lines.append(
+                                pal("      " + _one_line(hunk, 200), "dim")
+                            )
+        elif tool == "write":
+            payload = format_write_payload(state, repo_root)
+            if tracker is not None:
+                metadata = state.get("metadata")
+                metadata = metadata if isinstance(metadata, dict) else {}
+                if metadata.get("filepath"):
+                    tracker.note_modified_file(
+                        _relativize_path(str(metadata["filepath"]), repo_root)
+                    )
+        elif tool == "read":
+            payload = format_read_payload(state, repo_root)
+        elif tool in ("grep", "glob"):
+            payload = format_find_payload(tool, state)
+        elif tool == "todowrite":
+            todos = todo_items_from_state(state)
+            if todos is not None:
+                prev = None if tracker is None else list(tracker.todos)
+                payload = format_todo_transition(prev, todos)
+                if tracker is not None:
+                    tracker.todos = [dict(t) for t in todos]
+
+        if payload is None:
+            title = state.get("title") or ""
+            if not title:
+                inp = state.get("input")
+                if isinstance(inp, dict):
+                    title = _one_line(json.dumps(inp, sort_keys=True), 120)
+            payload = _one_line(title, 160)
         else:
-            glyph = pal("\u2022", "gray")
-        label = pal(f"{tool}", "bold")
-        body = f": {title}" if title else ""
-        return f"{glyph} {label}{body}"
+            payload = _one_line(payload, 200)
+
+        if verbosity >= 2:
+            metadata = state.get("metadata")
+            if isinstance(metadata, dict):
+                diagnostics = metadata.get("diagnostics")
+                if diagnostics:
+                    extra_lines.append(
+                        pal(
+                            "      "
+                            + _one_line(
+                                json.dumps(diagnostics, sort_keys=True, default=str),
+                                200,
+                            ),
+                            "dim",
+                        )
+                    )
+
+        glyph_char, glyph_color = _status_glyph_char(status, use_unicode)
+        # OQ-01 (resolved, see STATUS_GLYPHS): the per-status glyph is KEPT and precedes the
+        # tool-class prefix in a constant-width two-column gutter, so both axes are visible and
+        # the payload column stays fixed. Both glyph sets are single codepoint, so the gutter
+        # width does not depend on which is chosen.
+        glyph = pal(glyph_char, glyph_color)
+        prefix = format_event_prefix(kind, pal, use_unicode)
+        head = f"{glyph} {prefix}{payload}" if payload else f"{glyph} {prefix}".rstrip()
+        if extra_lines:
+            return "\n".join([head, *extra_lines])
+        return head
     if etype == "step_finish":
         tok_dict = part.get("tokens") or {}
         cost_raw = part.get("cost")
@@ -1416,6 +1951,18 @@ def render_run_summary_table(
         f"Tokens: {tot_tok_str} (In: {tot_in_str} │ Out: {tot_out_str} │ Cache: {tot_cache_str})"
     )
     b_line2 = f"Progress: {prog_bar} ({status_summary_str})"
+    # streamfmt (mm6wuz) E-08: the NAMED READER for `StreamTracker.modified_files`. The set is
+    # RUN-SCOPED (one tracker per invocation, shared by every queue item), and this banner is a
+    # per-RUN report, so the scopes match. It is appended to the progress line rather than added as
+    # a statusline column because the live 4-line box is byte-pinned by
+    # `test_format_statusline_user_example_box_layout`, so a column there is a wider change than it
+    # looks. Rendered ONLY when the tracker observed at least one touched file, so a run with no
+    # edits (or a caller passing no tracker) is byte-identical to before.
+    if tracker is not None:
+        touched = len(getattr(tracker, "modified_files", ()) or ())
+        if touched:
+            noun = "file" if touched == 1 else "files"
+            b_line2 += f"   Files touched: {touched} {noun}"
 
     banner_plain = [
         _strip_ansi(b_title),

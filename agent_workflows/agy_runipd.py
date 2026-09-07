@@ -71,6 +71,13 @@ from agent_workflows.render_stream import (
     _ANSI_CODES as _ANSI_CODES,
     _ANSI_STRIP_RE as _ANSI_STRIP_RE,
     _STATUS_COLOR as _STATUS_COLOR,
+    # streamfmt (mm6wuz) E-06: the SHARED aligned prefix grammar and status glyphs, so the two hosts
+    # put their payloads in the same column and a prefix added to the shared table reaches both.
+    # Imported, never re-declared, for the same reason `Palette` is (see the note above).
+    StreamTracker as StreamTracker,
+    format_event_prefix as format_event_prefix,
+    _relativize_path as _relativize_path,
+    _status_glyph_char as _status_glyph_char,
 )
 
 # runorder (prpipy) E-07: an intentional RE-EXPORT, in the `as <same-name>` form this module uses for
@@ -419,9 +426,86 @@ OUTPUT_MODES = ("clean", "quiet", "raw")
 # stopped at this module's border.
 
 
-def render_agy_event(raw_line: str, pal: Palette) -> str | None:
+#: streamfmt (mm6wuz) E-06: agy's `ACTIVE`/`DONE`/`ERROR` step states mapped onto the status
+#: vocabulary `render_stream._status_glyph_char` already understands, so ONE glyph table serves both
+#: hosts. `FAILED` is included because `render_agy_event` has always accepted it beside `ERROR`.
+_AGY_STATE_TO_STATUS: dict[str, str] = {
+    "ACTIVE": "running",
+    "DONE": "completed",
+    "ERROR": "error",
+    "FAILED": "error",
+}
+
+#: agy tool name (and, as a fallback, its PARAMETER NAMES) -> shared prefix kind.
+#:
+#: NAME-BASED AND THEREFORE A HEURISTIC, stated plainly because it cannot be measured: there is not
+#: one agy event in this repository's session corpus (measured: zero `"event":"step_update"` lines
+#: across all 380 logs; every log is OpenCode), so unlike the oc mapping this table is derived from
+#: the tool names the driver's own prompt text and parameter handling reference, not from observed
+#: traffic. A tool it does not recognize falls back to its parameter shape and then to its own name
+#: as the label, so an unmapped tool still renders in grammar and in column.
+_AGY_TOOL_PREFIX_KIND: dict[str, str] = {
+    "run_command": "bash",
+    "write_to_file": "write",
+    "replace_file_content": "edit",
+    "edit_file": "edit",
+    "view_file": "read",
+    "read_file": "read",
+    "view_code_item": "read",
+    "list_dir": "find",
+    "grep_search": "find",
+    "codebase_search": "find",
+    "find_by_name": "find",
+    "glob_file_search": "find",
+}
+
+
+def agy_prefix_kind(tool_name: str, params: dict[str, Any] | None = None) -> str:
+    """Map an agy tool onto a shared prefix kind (E-06).
+
+    Falls back to the PARAMETER SHAPE when the name is unknown (`CommandLine` implies a command,
+    `Query`/`Pattern` imply a search), and finally to the tool's own name, which
+    `format_event_prefix` renders as `• <name>:` in the same column.
+    """
+    kind = _AGY_TOOL_PREFIX_KIND.get(tool_name)
+    if kind:
+        return kind
+    params = params or {}
+    if "CommandLine" in params or "command" in params or "cmd" in params:
+        return "bash"
+    if "Query" in params or "Pattern" in params:
+        return "find"
+    return tool_name
+
+
+def render_agy_event(
+    raw_line: str,
+    pal: Palette,
+    *,
+    verbosity: int = 0,
+    use_unicode: bool = True,
+    repo_root: str | Path | None = None,
+    tracker: StreamTracker | None = None,
+) -> str | None:
     """Translate one raw JSONL event from `agy --output-format stream-json` into a
     concise, colored terminal line.
+
+    streamfmt (mm6wuz) E-06. Tool lines now use the SHARED aligned prefix grammar
+    (`render_stream.format_event_prefix`), so `aw agy run` and `aw oc run` put their payloads in the
+    same column and a prefix added to the shared table reaches both hosts.
+
+    WHAT IS NOT REACHABLE HERE, stated rather than claimed away. The agy schema is NOT the OpenCode
+    schema: its fields are `event`/`step_update.state`/`step_update.tool_info.parameters` with
+    `ACTIVE`/`DONE`/`ERROR` states and parameter names `CommandLine`/`Query`/`AbsolutePath`/
+    `TargetFile`/`Pattern`. There is NO `filediff` equivalent and no additions/deletions anywhere, so
+    an agy edit line CANNOT carry `(+A, -D)` and does not pretend to; it carries the repo-relative
+    path instead of the bare basename it used to show. There is likewise no `todowrite` event, so no
+    todo transition is computed and `tracker` is accepted only so a caller can thread ONE object to
+    both renderers. `duration_seconds` IS agy-only and is preserved.
+
+    The new parameters are KEYWORD-ONLY WITH DEFAULTS because `tools/ipdrunner/runagy.py` re-exports
+    every module attribute, so an existing two-argument `render_agy_event(line, pal)` call through
+    that shim must keep working unchanged.
     """
     line = raw_line.rstrip("\n")
     if not line.strip():
@@ -457,6 +541,12 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             tool_info = step.get("tool_info") or {}
             tool_name = tool_info.get("name") or step.get("tool_name") or "tool"
             params = tool_info.get("parameters") or {}
+            kind = agy_prefix_kind(str(tool_name), params)
+            # streamfmt (mm6wuz) E-06: the same tier rule the oc renderer applies. A read or a
+            # search does not change the repository, so it is suppressed at the default tier and
+            # surfaced at `-v`.
+            if kind in ("read", "find") and verbosity < 1:
+                return None
             cmd = ""
             if "CommandLine" in params:
                 cmd = str(params["CommandLine"])
@@ -467,24 +557,48 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             elif "Query" in params:
                 cmd = f"grep {params['Query']}"
             elif "AbsolutePath" in params:
-                cmd = Path(str(params["AbsolutePath"])).name
+                # Was `Path(...).name`, a BARE BASENAME, which told an operator `runner_shared.py`
+                # was touched without saying which of several trees it lived in. Repo-relative is
+                # both more informative and what the leak-sanitizer prefers over an absolute path.
+                cmd = _relativize_path(str(params["AbsolutePath"]), repo_root)
             elif "TargetFile" in params:
-                cmd = Path(str(params["TargetFile"])).name
+                cmd = _relativize_path(str(params["TargetFile"]), repo_root)
             elif "Pattern" in params:
                 cmd = str(params["Pattern"])
 
-            summary = f": {_one_line(cmd, 120)}" if cmd else ""
-            if state == "ACTIVE":
-                glyph = pal("\u2026", "yellow")
-                return f"{glyph} {pal(tool_name, 'bold')}{summary}"
-            elif state == "DONE":
-                glyph = pal("\u2713", "green")
+            # THE AGY TOOL NAME IS KEPT in the payload, unlike the oc renderer which drops `bash`
+            # in favor of `❯ bash:`. The reason is that agy's tool names are host-specific and NOT
+            # recoverable from the class prefix (`write_to_file` and `replace_file_content` are both
+            # file-mutating, and `agy_prefix_kind` maps them to different kinds only by a name
+            # heuristic), so discarding the name would lose information the oc stream never had.
+            summary = f"{tool_name}: {_one_line(cmd, 120)}" if cmd else str(tool_name)
+            glyph_char, glyph_color = _status_glyph_char(
+                _AGY_STATE_TO_STATUS.get(state, ""), use_unicode
+            )
+            head = (
+                pal(glyph_char, glyph_color)
+                + " "
+                + format_event_prefix(kind, pal, use_unicode)
+                + summary
+            )
+            if state == "DONE":
+                # `duration_seconds` is AGY-ONLY (the oc stream has no per-tool duration) and is
+                # preserved deliberately.
                 dur = step.get("duration_seconds")
-                dur_str = f" ({dur:.2f}s)" if dur is not None else ""
-                return f"{glyph} {pal(tool_name, 'bold')}{summary}{pal(dur_str, 'dim')}"
-            elif state in ("ERROR", "FAILED"):
-                glyph = pal("\u2717", "red")
-                return f"{glyph} {pal(tool_name, 'bold')}{summary}"
+                if dur is not None:
+                    head += pal(f" ({dur:.2f}s)", "dim")
+            if verbosity >= 2 and params:
+                # The only extra detail the agy schema affords at `-vv`. There is NO `filediff`
+                # equivalent and no diagnostics payload, so the oc renderer's diff hunks and
+                # Pyright entries are simply NOT REACHABLE here; the raw parameters are.
+                head += "\n" + pal(
+                    "      "
+                    + _one_line(json.dumps(params, sort_keys=True, default=str), 200),
+                    "dim",
+                )
+            if state in ("ACTIVE", "DONE", "ERROR", "FAILED"):
+                return head
+            return None
 
         if step_type == "agent_response" and state == "DONE":
             return None
@@ -494,10 +608,15 @@ def render_agy_event(raw_line: str, pal: Palette) -> str | None:
             subagents = subagent.get("subagents", [])
             count = len(subagents) if isinstance(subagents, list) else 1
             noun = "subagent" if count == 1 else "subagents"
-            glyph = (
-                pal("\u2713", "green") if state == "DONE" else pal("\u2026", "yellow")
+            glyph_char, glyph_color = _status_glyph_char(
+                _AGY_STATE_TO_STATUS.get(state, ""), use_unicode
             )
-            return f"{glyph} {count} {noun} {state.lower()}"
+            return (
+                pal(glyph_char, glyph_color)
+                + " "
+                + format_event_prefix("subagent", pal, use_unicode)
+                + f"{count} {noun} {state.lower()}"
+            )
 
     return None
 
@@ -1928,6 +2047,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
             ),
             "no_verify": getattr(args, "no_verify", False),
             "output_mode": getattr(args, "output_mode", "clean"),
+            # streamfmt (mm6wuz) E-06: the live-stream detail tier, frozen beside `output_mode`,
+            # mirroring the oc twin so a resume can honor it.
+            "verbosity": getattr(args, "verbosity", 0) or 0,
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
             "self_finalize": getattr(args, "self_finalize", True),
@@ -2674,6 +2796,8 @@ def run_agy_turn(
         argv.append("--continue")
 
     output_mode = options.get("output_mode", "clean")
+    # streamfmt (mm6wuz) E-06: read from the FROZEN run options, the same path `output_mode` takes.
+    verbosity = int(options.get("verbosity") or 0)
     pal = Palette(should_color(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
@@ -2941,7 +3065,12 @@ def run_agy_turn(
                         sys.stdout.write(raw_line)
                         sys.stdout.flush()
                     elif output_mode == "clean":
-                        rendered = render_agy_event(raw_line, pal)
+                        rendered = render_agy_event(
+                            raw_line,
+                            pal,
+                            verbosity=verbosity,
+                            repo_root=agent_dir,
+                        )
                         if rendered is not None:
                             statusline.write_event(rendered)
                 # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
@@ -4078,15 +4207,30 @@ def _record_deliberate_stop(
 
 
 def run_queue(
-    run_dir: Path, retry_incomplete: bool = False, output_mode: str | None = None
+    run_dir: Path,
+    retry_incomplete: bool = False,
+    output_mode: str | None = None,
+    verbosity: int | None = None,
 ) -> int:
     state = load_state(run_dir)
     # bkclose (zhr6mc) E-06, symmetric with `oc_runipd`: publish the live ledger for the shutdown
     # report BEFORE any turn starts. NO `signal.signal` registration: it is owned by `runstop` Phase 5
     # (`71vjbn`) and guarded by four executed plans (see the ownership note in `oc_runipd`).
     register_signal_report(run_dir, state)
-    if output_mode is not None:
-        state.setdefault("options", {})["output_mode"] = output_mode
+    # streamfmt (mm6wuz) E-06, the MIRROR of the oc twin: both display options are written through
+    # ONE `save_state`, because that call site count is pinned per runner by
+    # `tests/test_runner_shared.py::WrapperTests::test_no_call_site_was_rewritten`. `None` means the
+    # operator did not pass the flag, so the frozen value stands.
+    display_options = {
+        key: value
+        for key, value in (
+            ("output_mode", output_mode),
+            ("verbosity", None if verbosity is None else int(verbosity)),
+        )
+        if value is not None
+    }
+    if display_options:
+        state.setdefault("options", {}).update(display_options)
         save_state(run_dir, state)
     reconcile_interrupted(run_dir, state)
     if requeue_interrupted(run_dir, state):
@@ -4435,7 +4579,10 @@ def render_continuation_hint(
     return "\n".join(lines)
 
 
-def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
+def _add_output_mode_flags(
+    sub_parser: argparse.ArgumentParser,
+    verbosity_default: int | None = 0,
+) -> None:
     group = sub_parser.add_mutually_exclusive_group()
     group.add_argument(
         "--quiet",
@@ -4452,6 +4599,19 @@ def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
         help="Stream the child agent's raw JSON events verbatim",
     )
     sub_parser.set_defaults(output_mode="clean")
+    # streamfmt (mm6wuz) E-06: the MIRROR of the oc twin, so `aw agy run -v` and `aw oc run -v` parse
+    # identically. Outside the mutually exclusive group for the same reason: `--raw`/`--quiet` choose
+    # WHICH renderer runs, `-v` tunes how much the `clean` renderer shows. `verbosity_default` is `0`
+    # on `start` and `None` on `resume`, so an omitted flag on resume leaves the frozen tier alone.
+    sub_parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        action="count",
+        default=verbosity_default,
+        help="Increase live stream detail: -v also shows reads and searches, -vv also shows raw "
+        "tool parameters. Ignored under --raw/--quiet.",
+    )
 
 
 # rununify 02 (`818uru`) E-06: one-line wrapper over the shared `print_status`, supplying THIS host's
@@ -4667,7 +4827,7 @@ AUTOMATIC STATUS ROUTING:
         metavar="N",
         help="Override maximum consecutive non-isolated turns per session before starting a fresh session",
     )
-    _add_output_mode_flags(resume)
+    _add_output_mode_flags(resume, verbosity_default=None)
 
     # status
     status = sub.add_parser(
@@ -4775,6 +4935,13 @@ def main(argv: list[str] | None = None) -> int:
     # `stop <run-id> --now` would be rewritten to `start stop <run-id> --now`, i.e. it would LAUNCH a
     # run with the literal selector `stop`. That is a silent misfire in the exact opposite direction
     # of the operator's intent, so a test asserts the bare form is not rewritten (in both drivers).
+    #
+    # streamfmt (mm6wuz) E-06 / OQ-02 (resolved): `"-v"` and `"--version"` USED TO BE LISTED HERE and
+    # were REMOVED, in lockstep with the oc twin. `-v` now means `--verbose`, and while it sat in this
+    # set a LEADING `-v` was treated as a subcommand and never prefixed with `start`. The removed
+    # `--version` entry guarded a flag NEITHER driver registers. THE TWO DRIVERS' SETS MUST STAY
+    # IDENTICAL: `tests/test_runner_stop_triggers.py` regexes `subcommands = \{(.*?)\}` out of BOTH
+    # source files, so a one-sided edit here is exactly the divergence that guard exists to catch.
     subcommands = {
         "start",
         "resume",
@@ -4783,8 +4950,6 @@ def main(argv: list[str] | None = None) -> int:
         "stop",
         "-h",
         "--help",
-        "-v",
-        "--version",
     }
     if argv and argv[0] not in subcommands:
         argv = ["start"] + argv
@@ -4822,6 +4987,9 @@ def main(argv: list[str] | None = None) -> int:
 
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
+        # streamfmt (mm6wuz) E-06: `None` on `resume` when the flag was omitted, so an omitted `-v`
+        # does not clobber the frozen tier.
+        verbosity = getattr(args, "verbosity", None)
 
         if args.command == "status":
             if getattr(args, "json", False):
@@ -4878,6 +5046,7 @@ def main(argv: list[str] | None = None) -> int:
                     run_dir,
                     retry_incomplete=args.retry_incomplete,
                     output_mode=output_mode,
+                    verbosity=verbosity,
                 )
 
         raise DriverError(f"Unsupported command: {args.command}")

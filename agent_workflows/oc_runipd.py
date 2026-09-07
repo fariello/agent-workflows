@@ -3003,6 +3003,9 @@ def initialize_run(args: argparse.Namespace) -> Path:
             "auto": getattr(args, "auto", True),
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
+            # streamfmt (mm6wuz) E-05: the live-stream detail tier, frozen beside `output_mode`
+            # because it is the same kind of setting and a resume must be able to honor it.
+            "verbosity": getattr(args, "verbosity", 0) or 0,
             "stall_timeout": getattr(args, "stall_timeout", DEFAULT_STALL_TIMEOUT),
             "full_auto": full_auto,
             "validate": getattr(args, "validate", False),
@@ -5341,6 +5344,9 @@ def run_opencode(
     argv = _apply_execution_profile(state, item, argv, agent_dir, work_dir)
 
     output_mode = options.get("output_mode", "clean")
+    # streamfmt (mm6wuz) E-05: read from the FROZEN run options (not from `args`), which is the same
+    # path `output_mode` takes, so a resume honors the tier the run was created or resumed with.
+    verbosity = int(options.get("verbosity") or 0)
     pal = Palette(should_color(sys.stdout))
     log_path = attempt_log_path(run_dir, item, attempt_no, suffix=log_suffix)
 
@@ -5446,6 +5452,14 @@ def run_opencode(
     run_start_mono = state.get("_invocation_start_mono")
     if run_start_mono is None:
         run_start_mono = time.monotonic()
+
+    # streamfmt (mm6wuz) E-02: reset PER-TURN tracker state at the turn boundary. One
+    # `StreamTracker` serves the whole invocation (`run_queue` constructs it once and passes it to
+    # every item), so without this the first `todowrite` of queue item 2 would be diffed against
+    # item 1's FINAL list and render a transition that never happened. Only the per-turn todo state
+    # is cleared: token/cost totals and `modified_files` are run-scoped by design.
+    if tracker is not None:
+        tracker.begin_turn()
 
     with log_path.open("w", encoding="utf-8") as log:
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
@@ -5707,7 +5721,13 @@ def run_opencode(
                         sys.stdout.write(line)
                         sys.stdout.flush()
                     elif output_mode == "clean":
-                        rendered = render_event(line, pal, tracker=tracker)
+                        rendered = render_event(
+                            line,
+                            pal,
+                            tracker=tracker,
+                            verbosity=verbosity,
+                            repo_root=agent_dir,
+                        )
                         if rendered is not None:
                             statusline.write_event(rendered)
                 # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
@@ -6895,7 +6915,10 @@ def _record_deliberate_stop(
 
 
 def run_queue(
-    run_dir: Path, retry_incomplete: bool, output_mode: str | None = None
+    run_dir: Path,
+    retry_incomplete: bool,
+    output_mode: str | None = None,
+    verbosity: int | None = None,
 ) -> int:
     state = load_state(run_dir)
     # bkclose (zhr6mc) E-06: publish the live ledger for the shutdown report BEFORE any turn starts,
@@ -6904,8 +6927,25 @@ def run_queue(
     # note on `signal_report_callback`). `register_signal_report` is called again after each state
     # reload so the report never runs off a stale snapshot.
     register_signal_report(run_dir, state)
-    if output_mode is not None:
-        state.setdefault("options", {})["output_mode"] = output_mode
+    # streamfmt (mm6wuz) E-05: a resume may RE-CHOOSE the display tier, exactly as it may re-choose
+    # `output_mode`. `None` means the operator did not pass the flag, so the frozen value is left
+    # alone; `argparse` supplies `default=0` on `start`, so a bare `start` freezes 0.
+    #
+    # BOTH SETTINGS SHARE ONE `save_state` CALL deliberately. This used to be a bare
+    # `if output_mode is not None: ...; save_state(...)` and adding a second such block would add a
+    # second `save_state` CALL SITE, which `tests/test_runner_shared.py::WrapperTests::
+    # test_no_call_site_was_rewritten` counts and pins per runner. Writing both display options in
+    # one persist is also simply correct: they are set together on the same resume.
+    display_options = {
+        key: value
+        for key, value in (
+            ("output_mode", output_mode),
+            ("verbosity", None if verbosity is None else int(verbosity)),
+        )
+        if value is not None
+    }
+    if display_options:
+        state.setdefault("options", {}).update(display_options)
         save_state(run_dir, state)
     reconcile_interrupted(run_dir, state)
     if requeue_interrupted(run_dir, state):
@@ -7287,7 +7327,10 @@ def render_continuation_hint(
     return "\n".join(lines)
 
 
-def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
+def _add_output_mode_flags(
+    sub_parser: argparse.ArgumentParser,
+    verbosity_default: int | None = 0,
+) -> None:
     group = sub_parser.add_mutually_exclusive_group()
     group.add_argument(
         "--quiet",
@@ -7304,6 +7347,27 @@ def _add_output_mode_flags(sub_parser: argparse.ArgumentParser) -> None:
         help="Stream the child agent's raw JSON events verbatim (legacy behavior)",
     )
     sub_parser.set_defaults(output_mode="clean")
+    # streamfmt (mm6wuz) E-05: verbosity TIERS within the default `clean` stream, which is why this
+    # is NOT part of the mutually exclusive group above: `--raw`/`--quiet` choose WHICH renderer
+    # runs, `-v` tunes how much the `clean` renderer shows. Deliberately NOT registered in
+    # `runner_shared.RUN_POLICY_FLAGS`: that table is the closed flag list spec `25kzda` 2.1
+    # declares and `tests/test_run_flag_surface.py` asserts against the spec file, so adding a
+    # display flag there would fail `test_no_owned_flag_is_absent_from_the_spec`. This is a display
+    # flag, exactly like the `--quiet`/`--raw` pair it sits beside.
+    #
+    # `verbosity_default` is `0` on `start` (a bare run freezes tier 0) and `None` on `resume`, so an
+    # OMITTED flag on resume leaves the frozen value untouched rather than silently resetting it to
+    # 0. That is the same `None`-means-absent convention `runner_shared.apply_run_policy_flags_on_resume`
+    # uses for the policy flags.
+    sub_parser.add_argument(
+        "-v",
+        "--verbose",
+        dest="verbosity",
+        action="count",
+        default=verbosity_default,
+        help="Increase live stream detail: -v also shows reads and searches (with line ranges "
+        "and hit counts), -vv also shows diff hunks and diagnostics. Ignored under --raw/--quiet.",
+    )
 
 
 # rununify 02 (`818uru`) E-06: one-line wrapper over the shared `print_status`, supplying THIS host's
@@ -7607,7 +7671,7 @@ LAUNCH IDENTITY (model / variant / agent):
         "--variant",
         help="Override model variant / reasoning effort for OpenCode",
     )
-    _add_output_mode_flags(resume)
+    _add_output_mode_flags(resume, verbosity_default=None)
 
     status = sub.add_parser(
         "status",
@@ -7801,6 +7865,16 @@ def main(argv: list[str] | None = None) -> int:
     # into a module constant makes that guard silently unmatchable (measured: it fails with
     # "unexpectedly None"). The guard is worth more than the deduplication, because it is what stops
     # `stop <run-id>` from being rewritten into `start stop <run-id>` in one driver only.
+    #
+    # streamfmt (mm6wuz) E-05 / OQ-02 (resolved): `"-v"` and `"--version"` USED TO BE LISTED HERE and
+    # were REMOVED. `-v` now means `--verbose` on `start` and `resume`, and while it sat in this set a
+    # LEADING `-v` was treated as a subcommand and never prefixed with `start`, so `aw oc run -v SEL`
+    # failed with `invalid choice: 'SEL'` while `aw oc run -vv SEL` (not in the set) failed
+    # differently with `unrecognized arguments: -vv`. The reservation also guarded a `--version` flag
+    # NEITHER driver registers (measured: `parse_args(["--version"])` exits 2 with
+    # `unrecognized arguments`), so it protected nothing. If a real `--version` is ever added, add
+    # BOTH tokens back to BOTH drivers together and give `--verbose` the long spelling only; the two
+    # sets must stay IDENTICAL because the structural test regexes both source files.
     subcommands = {
         "start",
         "resume",
@@ -7809,8 +7883,6 @@ def main(argv: list[str] | None = None) -> int:
         "stop",
         "-h",
         "--help",
-        "-v",
-        "--version",
     }
 
     # runprofile-03 (`3cm15q`) E-01: strip the FIXED `as PROFILE` clause BEFORE the shim and before
@@ -7900,6 +7972,9 @@ def main(argv: list[str] | None = None) -> int:
                 return run_queue(run_dir, retry_incomplete=False)
         run_dir = resolve_run_dir(args.repo, args.run_id)
         output_mode = getattr(args, "output_mode", None)
+        # streamfmt (mm6wuz) E-05: `None` on `resume` when the flag was omitted (see
+        # `_add_output_mode_flags`), so an omitted `-v` does not clobber the frozen tier.
+        verbosity = getattr(args, "verbosity", None)
         if args.command == "status":
             if getattr(args, "json", False):
                 state = load_state(run_dir)
@@ -7972,6 +8047,7 @@ def main(argv: list[str] | None = None) -> int:
                     run_dir,
                     retry_incomplete=args.retry_incomplete,
                     output_mode=output_mode,
+                    verbosity=verbosity,
                 )
         raise DriverError(f"Unsupported command: {args.command}")
     except KeyboardInterrupt as exc:

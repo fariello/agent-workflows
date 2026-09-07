@@ -14,10 +14,31 @@ sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
 import runagy as driver  # noqa: E402
 
+# streamfmt (mm6wuz) E-11: the SHARED prefix grammar, imported from its owner rather than reached
+# through the shim, because the shim re-exports the driver's own attributes and `agy_runipd` imports
+# individual names from `render_stream` (it does not bind the module).
+from agent_workflows import render_stream  # noqa: E402
+
 
 class AgyEventRenderTests(unittest.TestCase):
+    """Renderer assertions for `render_agy_event`, driven through the `runagy.py` re-export shim.
+
+    THIS MODULE IS OUTSIDE THE BARE SUITE. `pyproject.toml` sets `testpaths = ["tests"]`, so a bare
+    `python3 -m pytest` never collects `tools/`, and a green bare run is NOT evidence for anything
+    here. Run it explicitly:
+
+        python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k AgyEventRender
+
+    Note also that `AgyExecutionLifecycleTests` in this same file is ALREADY RED at HEAD for reasons
+    unrelated to rendering (measured `10 failed, 10 passed` whole-module), so a whole-module run
+    cannot distinguish a rendering regression from that pre-existing failure. Narrow with `-k`.
+    """
+
     def setUp(self):
         self.pal = driver.Palette(True)
+        # streamfmt (mm6wuz) E-06/E-11: the payload column, DERIVED from the shared prefix table
+        # rather than a hand-counted literal, so a pad change does not require editing this file.
+        self.pad = render_stream.event_prefix_pad(True)
 
     def test_render_init(self):
         line = json.dumps(
@@ -81,6 +102,15 @@ class AgyEventRenderTests(unittest.TestCase):
         self.assertIsNotNone(active_rendered)
         self.assertIn("run_command", active_rendered)
         self.assertIn("pytest tests/ -v", active_rendered)
+        # streamfmt (mm6wuz) E-06: the line now carries the SHARED `❯ bash:` class prefix, and its
+        # payload begins at the derived column, so agy and oc streams align with each other.
+        plain_active = render_stream._strip_ansi(active_rendered)
+        self.assertTrue(
+            plain_active.startswith(
+                "\u2026 " + render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
+            ),
+            plain_active,
+        )
 
         done_line = json.dumps(
             {
@@ -99,7 +129,145 @@ class AgyEventRenderTests(unittest.TestCase):
         )
         done_rendered = driver.render_agy_event(done_line, self.pal)
         self.assertIsNotNone(done_rendered)
+        # `duration_seconds` is AGY-ONLY (the oc stream has no per-tool duration) and E-06 preserves
+        # it deliberately; it is not something the shared format replaced.
         self.assertIn("1.25s", done_rendered)
+        plain_done = render_stream._strip_ansi(done_rendered)
+        self.assertTrue(
+            plain_done.startswith(
+                "\u2713 " + render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
+            ),
+            plain_done,
+        )
+
+    def test_the_old_two_argument_call_signature_still_works(self):
+        """E-06: the new parameters are KEYWORD-ONLY WITH DEFAULTS.
+
+        `runagy.py` re-exports every module attribute, so operator code calling
+        `render_agy_event(line, pal)` positionally must keep working unchanged.
+        """
+        line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "ACTIVE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "run_command",
+                        "parameters": {"CommandLine": "ls"},
+                    },
+                },
+            }
+        )
+        rendered = driver.render_agy_event(line, self.pal)
+        self.assertIsNotNone(rendered)
+        self.assertIn("ls", rendered)
+
+    def test_a_target_file_renders_repo_relative_not_as_a_bare_basename(self):
+        """E-06: `Path(...).name` used to discard the directory entirely."""
+        line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "write_to_file",
+                        "parameters": {"TargetFile": "/repo/agent_workflows/x.py"},
+                    },
+                },
+            }
+        )
+        rendered = driver.render_agy_event(line, self.pal, repo_root="/repo")
+        self.assertIsNotNone(rendered)
+        plain = render_stream._strip_ansi(rendered)
+        self.assertIn("agent_workflows/x.py", plain)
+        self.assertTrue(
+            plain.startswith(
+                "\u2713 " + render_stream.EVENT_PREFIXES["write"].ljust(self.pad)
+            ),
+            plain,
+        )
+
+    def test_a_read_is_suppressed_at_the_default_tier_and_shown_at_v(self):
+        """E-06: the same tier rule the oc renderer applies, for the same reason."""
+        line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "view_file",
+                        "parameters": {"AbsolutePath": "/repo/a/c.py"},
+                    },
+                },
+            }
+        )
+        self.assertIsNone(driver.render_agy_event(line, self.pal, repo_root="/repo"))
+        shown = driver.render_agy_event(line, self.pal, repo_root="/repo", verbosity=1)
+        self.assertIsNotNone(shown)
+        plain = render_stream._strip_ansi(shown)
+        self.assertIn("a/c.py", plain)
+        self.assertTrue(
+            plain.startswith(
+                "\u2713 " + render_stream.EVENT_PREFIXES["read"].ljust(self.pad)
+            ),
+            plain,
+        )
+
+    def test_an_agy_edit_line_carries_no_diff_stats_because_the_host_emits_none(self):
+        """E-06: what is NOT reachable here, asserted rather than merely claimed.
+
+        The agy schema has NO `filediff` and no additions/deletions anywhere, so an agy edit line
+        cannot carry `(+A, -D)`. Pinning the ABSENCE stops a future author from "restoring parity"
+        by inventing numbers the host never sent.
+        """
+        line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "replace_file_content",
+                        "parameters": {"TargetFile": "/repo/a.py"},
+                    },
+                },
+            }
+        )
+        rendered = driver.render_agy_event(line, self.pal, repo_root="/repo")
+        self.assertIsNotNone(rendered)
+        plain = render_stream._strip_ansi(rendered)
+        self.assertTrue(
+            plain.startswith(
+                "\u2713 " + render_stream.EVENT_PREFIXES["edit"].ljust(self.pad)
+            ),
+            plain,
+        )
+        self.assertNotIn("(+", plain)
+        self.assertNotIn("-0)", plain)
+
+    def test_the_subagent_line_uses_the_shared_prefix(self):
+        line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "subagent",
+                    "subagent_info": {"subagents": ["a", "b"]},
+                },
+            }
+        )
+        rendered = driver.render_agy_event(line, self.pal)
+        self.assertIsNotNone(rendered)
+        plain = render_stream._strip_ansi(rendered)
+        self.assertEqual(
+            plain,
+            "\u2713 "
+            + render_stream.EVENT_PREFIXES["subagent"].ljust(self.pad)
+            + "2 subagents done",
+        )
 
 
 class AgyParserAndDiscoveryTests(unittest.TestCase):
