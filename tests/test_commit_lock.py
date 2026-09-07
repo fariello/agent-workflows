@@ -207,5 +207,19 @@ def test_documents_that_foreign_writers_are_out_of_scope() -> None:
     Claiming otherwise would be the dangerous kind of wrong, so the module must say so.
     """
     doc = commit_lock.__doc__ or ""
-    assert "CANNOT make the race impossible" in doc
-    assert "not a guarantee" in doc
+    assert "HONEST LIMIT" in doc
+    assert "do not police other tools" in doc
+
+
+def test_documents_that_the_lock_alone_does_not_stop_a_writer_being_clobbered() -> None:
+    """The correction that matters most, pinned so it cannot regress into an overclaim.
+
+    The first version of this module implied the writer lock fixed the measured data loss. It does
+    NOT: a peer that merely EDITS a file takes no lock, so serializing committers cannot protect it.
+    Only `commit_isolated` (keeping pre-commit's stash out of the shared tree) fixes that. A reader who
+    believes the lock is sufficient will reintroduce the bug, so the docstring must say plainly which
+    mechanism does what.
+    """
+    doc = commit_lock.__doc__ or ""
+    assert "does NOT protect a plain WRITER" in doc
+    assert "commit_isolated" in doc

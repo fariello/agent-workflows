@@ -480,36 +480,31 @@ def offer_commit(
                 "nothing to commit: requested paths have no staged changes",
             )
 
-        # --- Path-scoped commit (never --no-verify, never push). ---
-        rc, out, err = _git(
-            repo_root, ["commit", "-m", full_message, "--", *our_staged]
-        )
-        if rc != 0:
-            _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
-            msg = err.strip() or out.strip() or "git commit exited non-zero"
-            # Name a foreign cause when the failure was a peer writing inside the hook window, so the
-            # operator is not told to fix something in their own change set.
-            try:
-                from agent_workflows.ipd_lifecycle import classify_commit_refusal
+        # --- Path-scoped commit, performed in an ISOLATED worktree. ---
+        # Never --no-verify, never push. The isolation is what protects a CONCURRENT WRITER:
+        # committing here would let pre-commit stash the SHARED tree and then restore over a peer's
+        # in-flight edit, destroying it (measured). `commit_isolated` runs the SAME hooks in a private
+        # worktree instead, and advances the branch under a compare-and-swap.
+        iso = _lock.commit_isolated(repo_root, our_staged, message=full_message)
 
-                foreign = classify_commit_refusal(repo_root, msg, our_staged)
-            except Exception:
-                foreign = None
-            detail = f"git commit failed: {msg}"
-            if foreign:
-                detail = f"{detail}\nDIAGNOSIS: {foreign}"
-            elif not _held:
-                detail = (
-                    f"{detail}\nNOTE: the shared aw writer lock could not be taken, so this commit "
-                    "ran unserialized and may have raced a peer verb; a retry is safe."
-                )
-            return CommitOutcome(STATUS_ERROR, None, tuple(our_staged), detail)
+        if iso.status == _lock.ISO_COMMITTED:
+            return CommitOutcome(
+                STATUS_COMMITTED,
+                iso.commit,
+                tuple(our_staged),
+                f"committed {len(our_staged)} path(s) as {iso.commit}",
+            )
 
-        rc, head, _err = _git(repo_root, ["rev-parse", "HEAD"])
-        sha = head.strip() if rc == 0 else None
-        return CommitOutcome(
-            STATUS_COMMITTED,
-            sha,
-            tuple(our_staged),
-            f"committed {len(our_staged)} path(s) as {sha}",
-        )
+        # Every non-success path leaves the caller's staging as it was found, then reports honestly.
+        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *our_staged])
+        if iso.status == _lock.ISO_NOTHING:
+            return CommitOutcome(
+                STATUS_NOTHING_TO_COMMIT, None, (), f"nothing to commit: {iso.detail}"
+            )
+        detail = f"git commit failed: {iso.detail}"
+        if not _held:
+            detail = (
+                f"{detail}\nNOTE: the shared aw writer lock could not be taken, so this commit ran "
+                "unserialized against peer aw verbs; a retry is safe."
+            )
+        return CommitOutcome(STATUS_ERROR, None, tuple(our_staged), detail)

@@ -17,12 +17,23 @@ the write is GONE: not in ``git stash``, not in pre-commit's patch file. Observe
 That is strictly worse than a failed commit, and it is exactly the class of harm the shared-checkout
 rules in ``AGENTS.md`` exist to prevent ("uncommitted changes you did not create are NOT yours").
 
-THE FIX AND ITS HONEST LIMIT. Serializing our OWN self-committing verbs removes the agent-vs-agent
-collision, which is the case that actually bites in this repo (two drivers plus interactive agents in
-one checkout). It CANNOT make the race impossible: a human running ``git commit`` by hand, an editor
-writing on save, or any tool outside this package is not holding this lock. The stash window belongs
-to pre-commit's design. So this module narrows a real, measured window; it is not a guarantee, and
-callers must keep failing closed rather than assuming exclusivity.
+TWO DISTINCT MECHANISMS LIVE HERE, and conflating them is exactly the mistake this paragraph exists
+to prevent (it was made once, in this module's first version):
+
+* :func:`writer_lock` serializes COMMITTER against COMMITTER. It stops two ``aw`` verbs from
+  interleaving their commits. It does NOT protect a plain WRITER, because a peer that merely edits a
+  file takes no lock and never could: requiring every file write in the repo to acquire a commit lock
+  is not feasible. So the lock alone does NOT fix the data loss described above, and claiming
+  otherwise was wrong.
+* :func:`commit_isolated` is the actual fix for the data loss. It performs the commit in a throwaway
+  DETACHED worktree, so pre-commit stashes and restores THERE and the shared tree is never touched.
+  The committer therefore stops endangering writers, which is the only workable direction: the
+  committer is the one party that can be made to cooperate.
+
+HONEST LIMIT of both. A human running ``git commit`` by hand in the shared tree still stashes it, and
+two writers editing the same file still clobber each other (ordinary concurrent editing, not this
+bug). These remove OUR verbs as a CAUSE of the loss; they do not police other tools, so callers must
+keep failing closed rather than assuming exclusivity.
 
 WHY NOT ``--no-verify``. Bypassing the hooks does avoid the stash entirely (verified), but the hooks
 are the repo's leak/secret/lifecycle gates. Trading enforcement for concurrency is not a fix.
@@ -43,7 +54,7 @@ import os
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, NamedTuple, Optional
 
 # The lock file is SHARED with `ipd_lifecycle.finalize_lock_path`. Kept as a literal here rather than
 # imported to avoid a module cycle (`ipd_lifecycle` -> `git_commit_helper` -> here); a test asserts
@@ -108,6 +119,177 @@ def _write_lock(lock: Path, payload: Dict[str, Any]) -> None:
         except OSError:
             pass
         raise
+
+
+class IsolatedCommitResult(NamedTuple):
+    """Outcome of :func:`commit_isolated`.
+
+    ``status`` is one of ``committed``, ``nothing-to-commit``, ``hook-rejected``, ``raced``, or
+    ``error``. ``commit`` is the new sha on success. ``detail`` is operator-facing.
+    """
+
+    status: str
+    commit: Optional[str]
+    detail: str
+
+
+ISO_COMMITTED = "committed"
+ISO_NOTHING = "nothing-to-commit"
+ISO_HOOK_REJECTED = "hook-rejected"
+ISO_RACED = "raced"
+ISO_ERROR = "error"
+
+
+def _git(repo_root: Path, args: list) -> tuple:
+    """Delegate to the canonical git runner (kept as one definition, not a second copy)."""
+    from agent_workflows.git_commit_helper import _git as _shared
+
+    return _shared(repo_root, args)
+
+
+def commit_isolated(
+    repo_root: Path,
+    paths: list,
+    *,
+    message: str,
+    branch: Optional[str] = None,
+) -> IsolatedCommitResult:
+    """Commit ``paths`` WITHOUT letting ``pre-commit`` stash the shared working tree.
+
+    THE DEFECT THIS ACTUALLY FIXES, which the writer lock alone does NOT. ``pre-commit`` stashes
+    unstaged changes in the tree it runs in, executes the hooks, then restores the stash OVER whatever
+    is on disk. Any peer WRITE during that window is destroyed. A writer lock cannot help, because the
+    peer is not committing: it is merely editing a file, and requiring every file write in the repo to
+    take a commit lock is not feasible. So the COMMITTER must stop endangering writers, since the
+    committer is the only party that can be made to cooperate.
+
+    HOW: snapshot HEAD into a throwaway DETACHED worktree, copy in only our paths, and run the real
+    ``git commit`` (hooks and all) THERE. pre-commit then stashes and restores inside that private
+    worktree, where nothing else is writing, so the shared tree is never touched. Finally advance the
+    branch ref with a COMPARE-AND-SWAP.
+
+    ALL FOUR PROPERTIES WERE MEASURED before this was written, not assumed:
+
+    * A peer write during the window SURVIVES (the shared tree is untouched).
+    * The hooks STILL RUN and STILL GATE: a deliberately failing hook rejected the commit and nothing
+      landed. This is emphatically NOT ``--no-verify`` in disguise.
+    * Only our paths enter the commit; a peer's dirty file is not swept in.
+    * A blind ``update-ref`` WOULD discard a peer commit that landed meanwhile, so the ref update is a
+      CAS (``git update-ref <ref> <new> <expected-old>``), which fails loudly on a stale expectation
+      instead of overwriting. That hazard is real: it was reproduced.
+
+    THE HONEST RESIDUE. Two writers can still clobber each other directly (that is ordinary
+    concurrent editing, not this bug), and a hand-run ``git commit`` in the shared tree still stashes
+    it. This removes OUR verbs as a cause of the loss; it does not police other tools.
+    """
+    rel = [str(p) for p in paths if str(p).strip()]
+    if not rel:
+        return IsolatedCommitResult(ISO_NOTHING, None, "no paths requested")
+
+    rc, head, err = _git(repo_root, ["rev-parse", "HEAD"])
+    if rc != 0:
+        return IsolatedCommitResult(
+            ISO_ERROR, None, f"cannot resolve HEAD: {err.strip()}"
+        )
+    base = head.strip()
+
+    if branch is None:
+        rc, cur, _e = _git(repo_root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+        branch = cur.strip() if rc == 0 and cur.strip() else None
+    if not branch:
+        return IsolatedCommitResult(
+            ISO_ERROR,
+            None,
+            "HEAD is detached; refusing to guess a branch to advance (commit directly instead)",
+        )
+    ref = f"refs/heads/{branch}"
+
+    import shutil
+    import tempfile
+
+    wt = Path(tempfile.mkdtemp(prefix=".aw-isocommit-", dir=str(repo_root.parent)))
+    try:
+        # `--detach` is REQUIRED: git refuses a second worktree on a branch already checked out
+        # elsewhere (measured: "fatal: 'main' is already used by worktree at ..."). So we commit
+        # detached and move the ref ourselves, under CAS.
+        rc, _o, err = _git(
+            repo_root, ["worktree", "add", "-q", "--detach", str(wt), base]
+        )
+        if rc != 0:
+            return IsolatedCommitResult(
+                ISO_ERROR, None, f"could not create isolated worktree: {err.strip()}"
+            )
+
+        # Mirror our paths (content or deletion) into the isolated worktree.
+        staged_any = False
+        for r in rel:
+            src = repo_root / r
+            dst = wt / r
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                staged_any = True
+            elif dst.exists():
+                dst.unlink()  # propagate a deletion
+                staged_any = True
+        if not staged_any:
+            return IsolatedCommitResult(
+                ISO_NOTHING, None, "requested paths do not exist in the working tree"
+            )
+
+        rc, _o, err = _git(wt, ["add", "--", *rel])
+        if rc != 0:
+            return IsolatedCommitResult(
+                ISO_ERROR, None, f"git add failed in isolated worktree: {err.strip()}"
+            )
+        rc, out, _e = _git(wt, ["diff", "--cached", "--name-only"])
+        if rc == 0 and not out.strip():
+            return IsolatedCommitResult(
+                ISO_NOTHING, None, "requested paths have no staged changes"
+            )
+
+        # The REAL commit, hooks included, in a worktree nothing else writes to.
+        rc, out, err = _git(wt, ["commit", "-m", message, "--", *rel])
+        if rc != 0:
+            combined = (out + "\n" + err).strip()
+            return IsolatedCommitResult(
+                ISO_HOOK_REJECTED,
+                None,
+                f"commit rejected in isolated worktree (hooks ran): {combined}",
+            )
+
+        rc, new_head, err = _git(wt, ["rev-parse", "HEAD"])
+        if rc != 0:
+            return IsolatedCommitResult(
+                ISO_ERROR, None, f"cannot resolve isolated commit: {err.strip()}"
+            )
+        new = new_head.strip()
+
+        # CAS the branch forward. A peer commit landing since our snapshot makes this FAIL rather
+        # than silently discarding their work.
+        rc, _o, err = _git(repo_root, ["update-ref", ref, new, base])
+        if rc != 0:
+            return IsolatedCommitResult(
+                ISO_RACED,
+                new,
+                (
+                    f"another commit landed on {branch} while this one was being prepared, so the "
+                    f"branch was NOT moved (the work is preserved as commit {new[:12]}; cherry-pick "
+                    f"or retry). git said: {err.strip()}"
+                ),
+            )
+
+        # The shared index still holds our staged copy from the caller's `git add`; drop it so the
+        # tree reads clean for our paths. The file CONTENT on disk already matches the new commit.
+        _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel])
+        return IsolatedCommitResult(
+            ISO_COMMITTED, new, f"committed {len(rel)} path(s) as {new[:12]}"
+        )
+    finally:
+        _git(repo_root, ["worktree", "remove", "--force", str(wt)])
+        if wt.exists():
+            shutil.rmtree(wt, ignore_errors=True)
+        _git(repo_root, ["worktree", "prune"])
 
 
 def try_acquire(repo_root: Path, *, owner: str) -> bool:
