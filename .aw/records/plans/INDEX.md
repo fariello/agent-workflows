@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 213 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
 
 ## attorder
 
 - `8ldrlx` [executed] 01 executed/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md
+
+## attorderfix
+
+- `03zubf` [pending] 01 pending/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md
 
 ## hostdefault
 
@@ -195,10 +199,6 @@ Showing the 40 most-recent of 213 Sets; the full manifest is INDEX.json.
 ## timefmt
 
 - `rhszxj` [executed] 01 executed/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md
-
-## ackme8
-
-- `w0ln4q` [executed] 01 executed/20260829-ackme8-01-w0ln4q-add-aw-releases-owner-verb-to-inspect-and-list-release-recor.ipd.md
 
 ## (singletons: no Set)
 
