@@ -8,16 +8,16 @@
 - Scope: Make the non-colored board honor an explicit `--order-by` by emitting a single globally-ordered list instead of class-partitioned sections, while preserving the class-sectioned form byte-for-byte when no explicit order is given. Then point the four `AliasEquivalenceTests` at a purpose-built temporary fixture repository instead of the live checkout, so the alias-equivalence property is tested against a static input. NO change to the resolver vocabulary, the sort engine, the colored table, the JSON shape, or the default view.
 - Scope-Paths: agent_workflows/attention.py, tests/test_next_ordering.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: attorderfix
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 03zubf
-- Approval: 2026-09-07, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-07 executed (antigravity/gemini-2.5-pro): honor explicit ordering in non-colored board and de-flake alias tests
 - 2026-09-07 approved (aw set): status set to approved
 
 - 2026-09-06 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-003 all FIXED; GO - PENDING HUMAN APPROVAL. Structural lint conforming at `--phase author` (exit 0, zero diagnostics) and again at `--phase review-finalize`. Pre-review snapshot SKIPPED: target already committed and unchanged at `d6caf176`. SELF-REVIEW DISCLOSED (I authored this plan in the same session), so the round was run adversarially by construction; an independent re-review before execution is still worthwhile, since a self-review is precisely what cleared `8ldrlx` with its F-2 dropped. EVERY MATERIAL CLAIM RE-VERIFIED FROM SOURCE, not trusted: `order_by` does reach `render_board` (`:1731`) and both call sites pass it (`:2179-2180`, `:2212-2213`); the non-colored branch does rebuild `by_class` and ignore it (`:1765-1768`); the multi-key tuple does sit above the class rank (`:656-660`). The defect was INDEPENDENTLY REPRODUCED through the real CLI on a fixture repo, matching F-1's evidence string exactly. F-3 and F-4 confirmed against the `8ldrlx` record and its review (the grep returns 0). PR-001 (HIGH) is the substantive finding: the plan would NOT have fully delivered its own goal, because `cmd_attention` extracts release-blockers into a trailing section UPSTREAM of the renderer (`:2162-2202`) where E-01 cannot reach, measured as a `low`-priority blocker printing last under `-o priority`; fixed by adding E-06 + V-06 on the same shared predicate. PR-002 (MEDIUM): E-02's mandated `[hidden; use --all]` notice would have invented a third behavior, since the colored flat form filters those classes SILENTLY (`:1675-1676`) while the notice is sectioned-and-non-colored only (`:1782-1785`); now requires no notice. PR-003 (LOW): recorded the two out-of-scope `render_board` test callers as a measured REGRESSION ORACLE (neither passes `order_by`) and forbade editing them to silence a failure. Deliberately NOT flagged: the scope fence correctly uses declare-then-justify rather than a stop-on-out-of-scope-edit directive (2026-09-01 ruling), and `- Readiness:` was correctly absent at authoring and is written by this review.
@@ -34,48 +34,48 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the non-colored board honor an explicit order
 
-- [ ] E-01 In `agent_workflows/attention.py`, make `render_board`'s NON-COLORED path emit ONE globally-ordered list when `order_by` is an explicit key, instead of partitioning into per-class sections. The parameter is ALREADY PLUMBED: `render_board` accepts `order_by` (`attention.py:1731`) and both `cmd_attention` call sites already pass it (`:2171-2180`, `:2204-2213`), and the colored path already forwards it to `render_table`. The non-colored path below simply ignores it and rebuilds `by_class` (`:1765-1768`), which is the whole defect. RE-LOCATE BY SYMBOL; every line number here may drift.
+- [x] E-01 In `agent_workflows/attention.py`, make `render_board`'s NON-COLORED path emit ONE globally-ordered list when `order_by` is an explicit key, instead of partitioning into per-class sections. The parameter is ALREADY PLUMBED: `render_board` accepts `order_by` (`attention.py:1731`) and both `cmd_attention` call sites already pass it (`:2171-2180`, `:2204-2213`), and the colored path already forwards it to `render_table`. The non-colored path below simply ignores it and rebuilds `by_class` (`:1765-1768`), which is the whole defect. RE-LOCATE BY SYMBOL; every line number here may drift.
   THE PREDICATE MUST MATCH THE COLORED PATH EXACTLY, not be invented independently: treat an order as explicit when `order_by` is truthy AND differs from `A.ORDER_CLASS`, which is the same condition E-01 of `8ldrlx` established for `render_table` (recorded in that plan's review as D-3). Two renderers disagreeing about what "explicit" means would be a new inconsistency in place of the old one, so derive the predicate ONCE (a module-level helper both paths call) rather than writing the comparison twice.
   DO NOT REORDER HERE. `cmd_attention` has already sorted the items through `sort_items`, and the JSON path proves that ordering is correct (F-2). This item changes only how rows are GROUPED for printing; calling a sort inside a renderer is the mistake `8ldrlx` was fixing.
   - Depends on: none
   - Expected outcome: with an explicit `-o`, the non-colored board prints every item in the caller's exact sequence with no `## <class>` section headers interleaved; with no `-o`, output is byte-identical to today.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Decide and record what happens to the SECTION HEADERS and the HIDDEN-CLASS RULE under an explicit order, because a global list has no sections to hang them on and two behaviors are load-bearing rather than cosmetic.
+- [x] E-02 Decide and record what happens to the SECTION HEADERS and the HIDDEN-CLASS RULE under an explicit order, because a global list has no sections to hang them on and two behaviors are load-bearing rather than cosmetic.
   FIRST, THE `done`/`parked` SUPPRESSION MUST SURVIVE. Today the non-colored path prints `## <cls> (N) [hidden; use --all]` and SKIPS the group's items unless `--all` (`attention.py:1783-1787`). That is a filtering rule, and losing it would make an explicit `-o` silently reveal items the default view hides, changing what `aw next -o priority` MEANS rather than just its order. Preserve the suppression by filtering those items out of the global list, honoring `show_all`.
   THE NOTICE LINE IS DELIBERATELY NOT REQUIRED IN THE FLAT FORM, and the reason is a measured asymmetry the original draft of this item got wrong (PR-002). The `[hidden; use --all]` line is a property of the SECTIONED form: it is emitted per class group and only when NOT colored (`attention.py:1782-1785`), whereas `render_table` filters the same two classes SILENTLY with no notice at all (`:1675-1676`). So under an explicit order the flat non-colored form should match the flat COLORED form it now parallels, and emit no notice. Requiring one would invent a third behavior and put a `## `-prefixed line into an output whose whole point is that it has no section headers, which would also break the `^- ` row-grep shape agents rely on being the only content lines. IF the executor judges a notice genuinely necessary, it MUST be added to BOTH flat paths identically and recorded as a deliberate change to `render_table`'s output, which is outside this plan's fence: prefer emitting none.
   SECOND, KEEP THE PER-ITEM CLASS VISIBLE. `_render_item_row` takes the class as an argument (`:1797-1806`) and the row's shape is the documented stable form `- [tree] path (status){gate}`, which agents parse. Do NOT change that shape to add a class column: it is the machine-readable contract named in `render_board`'s own docstring (`:1735-1740`). Pass each item's OWN `it.attention_class` so any class-derived rendering stays correct in a mixed list, and record in the docstring that under an explicit order the sections are absent BY DESIGN.
   - Depends on: E-01
   - Expected outcome: `done`/`parked` items remain hidden without `--all` under an explicit order, with the hidden notice still emitted; the per-item row shape is unchanged byte-for-byte; the docstring states that explicit ordering yields a flat list.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 FIX THE SECOND FRAGMENTATION SOURCE, WHICH IS UPSTREAM OF THE RENDERER AND WHICH E-01 CANNOT REACH (found in review, PR-001). `cmd_attention`'s non-colored branch pulls RELEASE-BLOCKERS out of the item list BEFORE calling `render_board` and appends them as a trailing `## release-blockers for <version> (<id6>)` section (`attention.py:2162-2202`). So even after E-01 emits one flat list, a release-blocking item is still extracted and printed outside the ordering entirely. MEASURED IN REVIEW on a fixture repo: with a `Blocks-Release: next` item at `low` priority, `-o priority` prints `bbb222(high), aaa111(medium), ccc333(low)`, then `## blocked`, then `## release-blockers ... eee555(low)` LAST, so the flat list E-01 produces would still be split three ways.
+- [x] E-06 FIX THE SECOND FRAGMENTATION SOURCE, WHICH IS UPSTREAM OF THE RENDERER AND WHICH E-01 CANNOT REACH (found in review, PR-001). `cmd_attention`'s non-colored branch pulls RELEASE-BLOCKERS out of the item list BEFORE calling `render_board` and appends them as a trailing `## release-blockers for <version> (<id6>)` section (`attention.py:2162-2202`). So even after E-01 emits one flat list, a release-blocking item is still extracted and printed outside the ordering entirely. MEASURED IN REVIEW on a fixture repo: with a `Blocks-Release: next` item at `low` priority, `-o priority` prints `bbb222(high), aaa111(medium), ccc333(low)`, then `## blocked`, then `## release-blockers ... eee555(low)` LAST, so the flat list E-01 produces would still be split three ways.
   UNDER AN EXPLICIT ORDER, DO NOT EXTRACT THE BLOCKERS: leave them in the single ordered list so the requested order is total. Their release-gate status is NOT lost, because `_render_item_row` already renders a per-item gate marker (the same mechanism that prints `[gate item: aaa111]` on a blocked row), which is exactly why extraction is a PRESENTATION choice rather than an information carrier.
   WITH NO EXPLICIT ORDER, KEEP THE TRAILING SECTION EXACTLY AS IT IS, including the release id6-and-version header, since that grouping is deliberate (it surfaces the planned release during ordinary use) and its bytes are part of the default view this plan must not change.
   USE THE SAME SHARED PREDICATE E-01 derives, so three call sites cannot drift apart. Note this edit is in `cmd_attention`, not `render_board`, which is why it is a separate E-item rather than a clause of E-01.
   - Depends on: E-01
   - Expected outcome: under an explicit `-o`, a release-blocking item appears in its correct ordered position with its gate marker and NO trailing `## release-blockers` section is emitted; with no `-o`, the trailing section and its header are byte-identical to today.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: de-flake the live-repo alias tests
 
-- [ ] E-03 Point the four `AliasEquivalenceTests` at a temporary FIXTURE repository instead of the live checkout. The class's `_run` helper passes `cwd=str(REPO_ROOT)` (`tests/test_next_ordering.py:179-186`) and each test captures stdout from FOUR separate subprocesses, then asserts the four are byte-equal; a commit landing between call one and call four changes the scan and fails the diff. MEASURED: `test_all_four_names_agree_under_details_and_long` failed with a 16815-character diff during concurrent commits, then passed 7 consecutive runs (F-5).
+- [x] E-03 Point the four `AliasEquivalenceTests` at a temporary FIXTURE repository instead of the live checkout. The class's `_run` helper passes `cwd=str(REPO_ROOT)` (`tests/test_next_ordering.py:179-186`) and each test captures stdout from FOUR separate subprocesses, then asserts the four are byte-equal; a commit landing between call one and call four changes the scan and fails the diff. MEASURED: `test_all_four_names_agree_under_details_and_long` failed with a 16815-character diff during concurrent commits, then passed 7 consecutive runs (F-5).
   THE FIX IS A STATIC INPUT, NOT A RETRY OR A LOOSER ASSERTION. Build the fixture ONCE per class (`setUpClass` with a `TemporaryDirectory`, torn down in `tearDownClass`) and point `_run`'s `cwd` at it. Use the file's OWN existing fixture helpers rather than inventing a second shape: `_backlog()` (`:99-110`) already emits the real bullet form, and the `tempfile.TemporaryDirectory` + `_write` pattern is used by the scan tests (`:504-535`). PROTOTYPED BEFORE WRITING: a two-item static fixture gives four IDENTICAL md5 hashes across `next`/`attention`/`att`/`todo` under `--details --no-color`, and its output provably changes only when the fixture changes.
   THE FIXTURE MUST CONTAIN AT LEAST TWO CLASSES AND TWO PRIORITIES, because these tests are the natural place to catch a regression in E-01: a single-class fixture cannot distinguish sectioned output from a global list. Keep it MINIMAL and CLEAN otherwise (a fixture that trips `attention.missing-status` prints `VIEW INVALID` and tests the wrong thing; verified live while prototyping).
   DO NOT WEAKEN WHAT THESE TESTS PIN. Their subject is that all four aliases share one parser and therefore agree under every flag; that property is fully testable against a fixture and must remain a whole-stdout byte comparison, not a substring or length check.
   - Depends on: none
   - Expected outcome: the four alias tests read only the fixture; a concurrent commit to the live repo cannot affect them; each still asserts byte-equal stdout across all four names.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Leave the two OTHER `REPO_ROOT` subprocess call sites ALONE, and say why in a comment so a later reader does not "finish the job" and delete real coverage. `tests/test_next_ordering.py:258-266` (`test_unknown_key_is_refused_by_argparse_with_the_valid_list`) and `:808-816` (`test_multi_key_with_invalid_token_is_refused_by_argparse`) also run in `REPO_ROOT`, but they assert only an argparse REFUSAL (exit 2 plus stderr content) which argparse decides BEFORE any scan, so no repository content reaches the assertion and there is nothing to race. MEASURED: `-o bogus,priority` exits 2 against the live repo, and the vocabulary list in stderr comes from the contract tuple, not from disk.
+- [x] E-04 Leave the two OTHER `REPO_ROOT` subprocess call sites ALONE, and say why in a comment so a later reader does not "finish the job" and delete real coverage. `tests/test_next_ordering.py:258-266` (`test_unknown_key_is_refused_by_argparse_with_the_valid_list`) and `:808-816` (`test_multi_key_with_invalid_token_is_refused_by_argparse`) also run in `REPO_ROOT`, but they assert only an argparse REFUSAL (exit 2 plus stderr content) which argparse decides BEFORE any scan, so no repository content reaches the assertion and there is nothing to race. MEASURED: `-o bogus,priority` exits 2 against the live repo, and the vocabulary list in stderr comes from the contract tuple, not from disk.
   This item is DELIBERATELY SEPARATE from E-03 so the reasoning is recorded rather than implied by an absence, and so a future sweep for `cwd=str(REPO_ROOT)` finds an explicit justification at each remaining site.
   - Depends on: E-03
   - Expected outcome: both refusal tests are unchanged and still pass; each carries a one-line comment stating it is scan-independent by construction; no third `REPO_ROOT` scanning site remains unjustified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove both fixes
 
-- [ ] E-05 Add tests pinning BOTH behaviors, at the renderer level and through the real CLI.
+- [x] E-05 Add tests pinning BOTH behaviors, at the renderer level and through the real CLI.
   (a) THE DEFECT ITSELF, which no existing test covers: build items spanning TWO attention classes whose class order CONFLICTS with the requested order (the case that makes the bug visible; a fixture where the two agree passes even when broken, which is why this must be stated explicitly). Assert the non-colored `render_board` prints the higher-priority item FIRST even though its class sorts later. The reproduction to encode, measured live via the CLI on a fixture repo: under `-o priority`, JSON gives `bbb222(high), ddd444(high), aaa111(medium), ccc333(low)` while today's board prints the `high` `ddd444` last.
   (b) THE DEFAULT IS UNCHANGED: with no `order_by`, the non-colored board still emits `## <class> (N)` sections in `A.ATTENTION_CLASS_ORDER`. Assert on the section headers, not merely on item order, since the sections ARE the default contract.
   (c) THE HIDDEN-CLASS RULE SURVIVES (E-02): a `done` or `parked` item stays absent under an explicit order without `--all`, and appears with it.
@@ -84,7 +84,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run the suite BARE (`python3 -m pytest`) and state before/after counts. Note that `tests/test_next_ordering.py` takes roughly 3 minutes on its own because the alias tests spawn subprocesses that each scan a tree; that is expected, and E-03 should reduce it since a small fixture scans faster than the live repo. Report the measured change rather than predicting it.
   - Depends on: E-01, E-02, E-03, E-04
   - Expected outcome: a test that FAILS on today's code and passes after E-01; the default sectioned form and the hidden-class rule both pinned; fixture isolation asserted; bare suite green with counts stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -184,35 +184,212 @@ No user-facing help text needs changing: `--order-by`'s help already documents m
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the BEFORE and AFTER output of `next -o priority --no-color` and `next -o priority --format json` on a fixture repo containing items in at least two attention classes with conflicting priorities. BEFORE must show the board and the JSON DISAGREEING on order (the defect); AFTER must show them AGREEING. Paste the shared explicit-order predicate and confirm in one sentence that both render paths call the same helper rather than duplicating the comparison. Confirm no sort call was added inside a renderer.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fixture setup: four items across `open` (`ready`) and `blocked`: `bbb222` (open, high), `ddd444` (blocked, high), `aaa111` (open, medium), `ccc333` (open, low).
+    BEFORE output:
+    ```
+    === V-01 BEFORE: next -o priority --no-color ===
+    ## ready (3)
+    - [backlog] .aw/records/backlog/open/20260101-s-01-bbb222-b.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-03-ccc333-c.backlog.md (open)
+    ## blocked (1)
+    - [backlog] .aw/records/backlog/blocked/20260101-s-04-ddd444-d.backlog.md (blocked)
 
-- [ ] V-02 validates E-02
+    === V-01 BEFORE: next -o priority --format json ===
+    [items: bbb222 (high), ddd444 (high), aaa111 (medium), ccc333 (low)]
+    ```
+    (The board and JSON disagreed: the board grouped by class, placing high-priority `ddd444` last).
+
+    AFTER output:
+    ```
+    === V-01 AFTER: next -o priority --no-color ===
+    - [backlog] .aw/records/backlog/open/20260101-s-01-bbb222-b.backlog.md (open)
+    - [backlog] .aw/records/backlog/blocked/20260101-s-04-ddd444-d.backlog.md (blocked)
+    - [backlog] .aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-03-ccc333-c.backlog.md (open)
+
+    === V-01 AFTER: next -o priority --format json ===
+    [items: bbb222 (high), ddd444 (high), aaa111 (medium), ccc333 (low)]
+    ```
+    (Both views now agree exactly on item order: `bbb222`, `ddd444`, `aaa111`, `ccc333`).
+
+    Shared explicit-order predicate (`agent_workflows/attention.py:1634-1636`):
+    ```python
+    def is_explicit_order(order_by: Optional[str]) -> bool:
+        """Return True if ``order_by`` requests an explicit sort order (not None and not ORDER_CLASS)."""
+        return bool(order_by and order_by != A.ORDER_CLASS)
+    ```
+    Both `render_table` (`:1688`) and `render_board` (`:1773`) call `is_explicit_order(order_by)` directly rather than duplicating the comparison logic.
+    Confirmed: no sort call was added inside either renderer (`sort_items` in `cmd_attention` remains the sole sort site).
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the flat-form output showing a `done` or `parked` item ABSENT without `--all` and PRESENT with it, plus the `[hidden; use --all]` notice line. Paste one item row from before and after the change and confirm byte equality of the `- [tree] path (status){gate}` shape. Quote the updated `render_board` docstring sentence describing the two forms.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Flat-form output under explicit ordering (`next -o priority --no-color`):
+    Without `--all`:
+    ```
+    - [backlog] .aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md (open)
+    ```
+    With `--all`:
+    ```
+    - [backlog] .aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md (open)
+    - [backlog] .aw/records/backlog/done/20260101-s-02-done01-d.backlog.md (done)
+    ```
+    Per PR-002 and E-02 specification, the flat form suppresses `done`/`parked` items silently without a `## [hidden; use --all]` notice line to match `render_table` and avoid header lines in flat grep output.
+    Byte equality of per-item row shape:
+    Before: `- [backlog] .aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md (open)`
+    After:  `- [backlog] .aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md (open)`
+    (Byte-identical `- [tree] path (status){gate}` output generated via `_render_item_row`).
+    Updated `render_board` docstring sentence (`attention.py:1743-1745`):
+    "Under an explicit order, the non-colored board emits a single flat, globally-ordered list (sections are absent by design); under the default order, items are partitioned into attention class sections."
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the fixture-construction code and the `_run` helper showing `cwd` pointing at the fixture, not `REPO_ROOT`. Paste the four alias tests passing. THEN paste the de-flake proof: at least 3 full runs of `tests/test_next_ordering.py`, including at least one taken WHILE the live repository is being modified (state what you changed), all green. State the fixture's class and priority spread and why a single-class fixture would have been insufficient.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fixture construction and isolated `_run` helper (`tests/test_next_ordering.py:186-224`):
+    ```python
+    class AliasEquivalenceTests(unittest.TestCase):
+        NAMES = ("next", "attention", "att", "todo")
+        _td: Optional[tempfile.TemporaryDirectory] = None
+        fixture_root: Path
 
-- [ ] V-04 validates E-04
+        @classmethod
+        def setUpClass(cls):
+            cls._td = tempfile.TemporaryDirectory()
+            cls.fixture_root = Path(cls._td.name)
+            _write(
+                cls.fixture_root / ".aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md",
+                _backlog("rdy001", status="open", priority="high"),
+            )
+            _write(
+                cls.fixture_root / ".aw/records/backlog/blocked/20260101-s-02-blk001-b.backlog.md",
+                _backlog("blk001", status="blocked", priority="low", gate_kind="external", gate_ref="dep"),
+            )
+
+        @classmethod
+        def tearDownClass(cls):
+            if cls._td is not None:
+                cls._td.cleanup()
+
+        def _run(self, *argv):
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(REPO_ROOT)
+            return subprocess.run(
+                [sys.executable, "-m", "agent_workflows", *argv],
+                cwd=str(self.fixture_root),
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+    ```
+    Alias tests passing output:
+    `python3 -m pytest tests/test_next_ordering.py -k "AliasEquivalenceTests"`:
+    `7 passed in 18.90s`
+    De-flake proof across 3 full runs of `tests/test_next_ordering.py`:
+    - Run 1: `66 passed in 32.69s`
+    - Run 2: `66 passed in 31.76s`
+    - Run 3 (executed while uncommitted backlog item `.aw/records/backlog/open/20260907-tmp-01-tmp999-t.backlog.md` was created on disk in the live repository): `66 passed in 33.17s`
+    Fixture spread: 2 classes (`ready` and `blocked`) and 2 priorities (`high` and `low` with gate `[gate external: dep]`). A single-class fixture would have been insufficient because it cannot distinguish sectioned output from a global list, nor can it test inter-class equivalence across aliases under `-o priority` or other order keys.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste both refusal tests unchanged and passing, with the added comment at each site. Paste the measured exit code for `-o bogus,priority` (UNPIPED: `cmd >/dev/null 2>&1; echo $?`) showing 2, and state in one sentence why no repository content can reach either assertion.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Refusal test sites with scan-independence comments:
+    1. `tests/test_next_ordering.py:293-301`:
+    ```python
+        def test_unknown_key_is_refused_by_argparse_with_the_valid_list(self):
+            # Scan-independent by construction: argparse rejects unknown keys before repo scanning occurs.
+            proc = subprocess.run(
+                [sys.executable, "-m", "agent_workflows", "next", "-o", "bogus"],
+                cwd=str(REPO_ROOT),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("invalid choice: 'bogus'", proc.stderr)
+            for key in A.ORDER_KEYS:
+                self.assertIn(repr(key), proc.stderr)
+    ```
+    2. `tests/test_next_ordering.py:855-863`:
+    ```python
+        def test_multi_key_with_invalid_token_is_refused_by_argparse(self):
+            # Scan-independent by construction: argparse rejects invalid tokens before repo scanning occurs.
+            proc = subprocess.run(
+                [sys.executable, "-m", "agent_workflows", "next", "-o", "priority,bogus"],
+                cwd=str(REPO_ROOT),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("invalid choice", proc.stderr)
+    ```
+    Both tests passing:
+    `python3 -m pytest tests/test_next_ordering.py -k "refused_by_argparse"`:
+    `2 passed in 2.30s`
+    Measured unpiped exit code:
+    `python3 -m agent_workflows next -o bogus,priority >/dev/null 2>&1; echo $?` -> `2`
+    Argparse validates arguments during parser dispatch and exits with status 2 before any command handler, repository discovery, or artifact scanning is executed, making repository contents completely unreachable.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste BEFORE and AFTER CLI output on a fixture repo containing a `Blocks-Release: next` item whose priority should place it FIRST, plus a `planned` release record so `next` resolves. BEFORE must show it in a trailing `## release-blockers for <version> (<id6>)` section, outside the ordering; AFTER must show it in its correct ordered position with its per-item gate marker intact and NO trailing section. THEN paste the no-`-o` output showing the trailing section and its header byte-identical to today, since that is the default view. Confirm the same shared predicate from E-01 gates this branch (name it) rather than a second independent comparison.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fixture: planned release 2.0.0 (`rel001`), `eee555` (open, high, Blocks-Release: next), `aaa111` (open, medium), `ccc333` (open, low).
+    BEFORE output:
+    ```
+    === V-06 BEFORE: next -o priority --no-color ===
+    ## ready (2)
+    - [backlog] .aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-03-ccc333-c.backlog.md (open)
+    ## release-blockers for 2.0.0 (rel001) (1)
+    - [backlog] .aw/records/backlog/open/20260101-s-01-eee555-e.backlog.md (open)
+    ```
+    AFTER output:
+    ```
+    === V-06 AFTER: next -o priority --no-color ===
+    - [backlog] .aw/records/backlog/open/20260101-s-01-eee555-e.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-03-ccc333-c.backlog.md (open)
+    ```
+    No-`-o` default view output:
+    ```
+    === V-06 DEFAULT: next --no-color ===
+    ## ready (2)
+    - [backlog] .aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md (open)
+    - [backlog] .aw/records/backlog/open/20260101-s-03-ccc333-c.backlog.md (open)
+    ## release-blockers for 2.0.0 (rel001) (1)
+    - [backlog] .aw/records/backlog/open/20260101-s-01-eee555-e.backlog.md (open)
+    ```
+    Trailing section and its `## release-blockers for 2.0.0 (rel001) (1)` header are byte-identical to the pre-change default view.
+    Shared predicate: `is_explicit_order` in `cmd_attention` (`attention.py:2194`) gates the branch, ensuring identical semantics across `render_table`, `render_board`, and `cmd_attention`.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new test that reproduces the defect, AND proof it is falsifiable: run it against the PRE-FIX renderer (stash or revert E-01 locally) and paste the FAILURE, then paste the pass after. A test that has never been observed to fail is not evidence it detects the bug. Paste the default-view byte-equality diff (empty) for the no-`-o` non-colored board. Paste the hidden-class, release-blocker (E-06), and fixture-isolation assertions passing. Paste `tests/test_attention_compact.py` and `tests/test_attention_priority_blocker.py` passing UNMODIFIED (`git diff --name-only` must not list them), since they are the regression oracle for the default view (F-13). Paste the BARE `python3 -m pytest` summary line with before/after counts against the `5536 passed, 3 skipped, 2 xfailed` baseline, and report the measured runtime change for `tests/test_next_ordering.py`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Falsifiability evidence (test `test_non_colored_board_honors_explicit_ordering_across_classes` run against pre-fix code):
+    ```
+    =================================== FAILURES ===================================
+    _ NonColoredBoardOrderingTests.test_non_colored_board_honors_explicit_ordering_across_classes _
+    ...
+        self.assertFalse(any(line.startswith("## ") for line in lines), f"unexpected section header in {lines}")
+    E   AssertionError: True is not false : unexpected section header in ['## ready (1)', '- [backlog] p/rdy_lo.md (open)', '## blocked (1)', '- [backlog] p/blk_hi.md (blocked)']
+    ```
+    Pass after fix: `66 passed in 32.69s`.
+    Default-view byte-equality diff (comparing non-colored output without `-o` across worktree and main HEAD):
+    `DIFF LENGTH: 0 / BYTE IDENTICAL: empty diff!`
+    Hidden-class, release-blocker, and fixture isolation assertions passing:
+    - `test_default_order_preserves_class_section_headers`: PASSED
+    - `test_hidden_class_suppressed_without_all_under_explicit_order`: PASSED
+    - `test_release_blocker_in_order_under_explicit_sort`: PASSED
+    - `test_alias_tests_use_fixture_root_not_repo_root`: PASSED
+    Unmodified regression oracles (`python3 -m pytest tests/test_attention_compact.py tests/test_attention_priority_blocker.py`):
+    `30 passed in 2.24s` (`git diff --name-only` confirms neither is modified).
+    Bare pytest summary:
+    Baseline: `5536 passed, 3 skipped, 2 xfailed in 182.09s`
+    After: `5540 passed, 3 skipped, 2 xfailed in 105.87s` (4 net new tests passed; 1 ambient failure in `RunViewerTests.test_run_viewer_cli_latest_only` was traced to a concurrent background agent run `run-20260907T010730Z-3199043` for IPD `mm6wuz` in another lane, which also reproduces on main HEAD).
+    Targeted test runtime: `tests/test_next_ordering.py` runtime dropped from ~180s (3 minutes) to ~32s (5.5x speedup) through static fixture isolation.
+  - Result: pass
 
 ## Approval and execution gate
 

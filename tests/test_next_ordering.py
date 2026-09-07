@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Optional
 
 from agent_workflows import artifact_core as core
 from agent_workflows import attention as att
@@ -96,14 +98,26 @@ def _plan(id6: str, deps: str = "none", status: str = "draft") -> str:
     )
 
 
-def _backlog(id6: str, status: str = "open") -> str:
+def _backlog(
+    id6: str,
+    status: str = "open",
+    priority: str = "medium",
+    gate_kind: Optional[str] = None,
+    gate_ref: Optional[str] = None,
+) -> str:
     """A backlog item in the shape the tree actually uses: leading `- Id:`/`- Status:` bullets and no
     `#` heading (verified against a live record under `.aw/records/backlog/open/`)."""
+    gate_lines = ""
+    if status == "blocked":
+        gk = gate_kind or "external"
+        gr = gate_ref or "ticket-123"
+        gate_lines = f"- Gate-Kind: {gk}\n- Gate-Ref: {gr}\n"
     return (
         f"- Id: {id6}\n"
         f"- Status: {status}\n"
         "- Set: s\n"
-        "- Priority: medium\n"
+        f"- Priority: {priority}\n"
+        f"{gate_lines}"
         "- Work-Kind: chore\n"
         "- Summary: a fixture backlog item\n\n"
         "## Workflow history\n- 2026-08-08 created (aw backlog): a fixture backlog item\n"
@@ -175,11 +189,42 @@ class AliasEquivalenceTests(unittest.TestCase):
     """(b) All four names share one parser, so they agree under every flag."""
 
     NAMES = ("next", "attention", "att", "todo")
+    _td: Optional[tempfile.TemporaryDirectory] = None
+    fixture_root: Path
+
+    @classmethod
+    def setUpClass(cls):
+        cls._td = tempfile.TemporaryDirectory()
+        cls.fixture_root = Path(cls._td.name)
+        _write(
+            cls.fixture_root
+            / ".aw/records/backlog/open/20260101-s-01-rdy001-r.backlog.md",
+            _backlog("rdy001", status="open", priority="high"),
+        )
+        _write(
+            cls.fixture_root
+            / ".aw/records/backlog/blocked/20260101-s-02-blk001-b.backlog.md",
+            _backlog(
+                "blk001",
+                status="blocked",
+                priority="low",
+                gate_kind="external",
+                gate_ref="dep",
+            ),
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._td is not None:
+            cls._td.cleanup()
 
     def _run(self, *argv):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(REPO_ROOT)
         return subprocess.run(
             [sys.executable, "-m", "agent_workflows", *argv],
-            cwd=str(REPO_ROOT),
+            cwd=str(self.fixture_root),
+            env=env,
             capture_output=True,
             text=True,
         )
@@ -239,6 +284,20 @@ class AliasEquivalenceTests(unittest.TestCase):
         self.assertNotIn("operational AW actions", proc.stdout)
         self.assertIn("--order-by", proc.stdout)
 
+    def test_alias_tests_use_fixture_root_not_repo_root(self):
+        """Assert AliasEquivalenceTests exercises an isolated fixture directory, not REPO_ROOT (E-03, E-05(d))."""
+        self.assertNotEqual(self.fixture_root, REPO_ROOT)
+        self.assertTrue(self.fixture_root.exists())
+        items, _ = att.scan(self.fixture_root)
+        classes = {it.attention_class for it in items}
+        priorities = {it.priority for it in items}
+        self.assertGreaterEqual(
+            len(classes), 2, f"expected at least 2 classes, got {classes}"
+        )
+        self.assertGreaterEqual(
+            len(priorities), 2, f"expected at least 2 priorities, got {priorities}"
+        )
+
 
 class OrderKeyVocabularyTests(unittest.TestCase):
     """E-03: the vocabulary is closed, declared once, and refused when unknown."""
@@ -256,6 +315,7 @@ class OrderKeyVocabularyTests(unittest.TestCase):
         self.assertEqual(tuple(_attention_order_keys()), tuple(A.ORDER_KEYS))
 
     def test_unknown_key_is_refused_by_argparse_with_the_valid_list(self):
+        # Scan-independent by construction: argparse rejects unknown keys before repo scanning occurs.
         proc = subprocess.run(
             [sys.executable, "-m", "agent_workflows", "next", "-o", "bogus"],
             cwd=str(REPO_ROOT),
@@ -806,6 +866,7 @@ class MultiAttributeOrderingTests(unittest.TestCase):
         self.assertEqual(args.order_by, "priority,status,id6")
 
     def test_multi_key_with_invalid_token_is_refused_by_argparse(self):
+        # Scan-independent by construction: argparse rejects invalid tokens before repo scanning occurs.
         proc = subprocess.run(
             [sys.executable, "-m", "agent_workflows", "next", "-o", "priority,bogus"],
             cwd=str(REPO_ROOT),
@@ -1028,6 +1089,179 @@ class TableSortPreservationTests(unittest.TestCase):
         lines = [line for line in clean.splitlines() if line.strip()]
         self.assertIn("spec01", lines[1])
         self.assertIn("bklg01", lines[2])
+
+
+class NonColoredBoardOrderingTests(unittest.TestCase):
+    """Pin explicit ordering in non-colored render_board and cmd_attention (E-01, E-02, E-05, E-06)."""
+
+    def test_non_colored_board_honors_explicit_ordering_across_classes(self):
+        """The defect itself (E-05(a)): items in conflicting classes must sort by the requested order.
+
+        Class order has 'ready' before 'blocked'. Here item 'blk_hi' is in 'blocked' with 'high' priority,
+        while 'rdy_lo' is in 'ready' with 'low' priority. Under '-o priority', 'blk_hi' must print FIRST.
+        """
+        item_rdy = _item(
+            "rdy_lo",
+            "p/rdy_lo.md",
+            tree="backlog",
+            attention_class=A.READY,
+            priority="low",
+        )
+        item_blk = _item(
+            "blk_hi",
+            "p/blk_hi.md",
+            tree="backlog",
+            attention_class=A.BLOCKED,
+            priority="high",
+        )
+        items = [item_blk, item_rdy]  # already sorted by priority
+
+        out = att.render_board(
+            items, [], show_all=True, term=att.T.Term(color=False), order_by="priority"
+        )
+        lines = [line for line in out.splitlines() if line.strip()]
+        # The flat output must contain no section headers, and blk_hi must precede rdy_lo
+        self.assertFalse(
+            any(line.startswith("## ") for line in lines),
+            f"unexpected section header in {lines}",
+        )
+        self.assertEqual(len(lines), 2)
+        self.assertIn("blk_hi", lines[0])
+        self.assertIn("rdy_lo", lines[1])
+
+    def test_default_order_preserves_class_section_headers(self):
+        """Default order (no -o or class) keeps ## <class> (N) section headers (E-05(b))."""
+        item_rdy = _item(
+            "rdy01",
+            "backlog/rdy.md",
+            tree="backlog",
+            attention_class=A.READY,
+            priority="low",
+        )
+        item_blk = _item(
+            "blk01",
+            "backlog/blk.md",
+            tree="backlog",
+            attention_class=A.BLOCKED,
+            priority="high",
+        )
+        items = [item_blk, item_rdy]
+
+        out = att.render_board(
+            items,
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+            order_by=A.ORDER_CLASS,
+        )
+        self.assertIn("## ready (1)", out)
+        self.assertIn("## blocked (1)", out)
+
+    def test_hidden_class_suppressed_without_all_under_explicit_order(self):
+        """Done/parked items are suppressed without show_all under explicit order, no notice line (E-02, E-05(c))."""
+        item_rdy = _item(
+            "rdy01",
+            "p/rdy01.md",
+            tree="backlog",
+            attention_class=A.READY,
+            priority="high",
+        )
+        item_done = _item(
+            "done01",
+            "p/done01.md",
+            tree="backlog",
+            attention_class=A.DONE,
+            priority="high",
+        )
+        items = [item_rdy, item_done]
+
+        # Without show_all: done01 must be suppressed, and no notice line emitted in flat form
+        out = att.render_board(
+            items, [], show_all=False, term=att.T.Term(color=False), order_by="priority"
+        )
+        lines = [line for line in out.splitlines() if line.strip()]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("rdy01", lines[0])
+        self.assertNotIn("done01", out)
+        self.assertNotIn("hidden; use --all", out)
+
+        # With show_all: done01 must be present
+        out_all = att.render_board(
+            items, [], show_all=True, term=att.T.Term(color=False), order_by="priority"
+        )
+        lines_all = [line for line in out_all.splitlines() if line.strip()]
+        self.assertEqual(len(lines_all), 2)
+        self.assertIn("rdy01", out_all)
+        self.assertIn("done01", out_all)
+
+    def test_release_blocker_in_order_under_explicit_sort(self):
+        """Release blockers stay in single ordered list without trailing section under explicit order (E-06, E-05(e))."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _write(
+                root
+                / ".aw/records/releases/planned/20260101-rel-01-rel001-r.release.md",
+                (
+                    "# Release 2.0.0\n\n- Status: planned\n- Id: rel001\n- Version: 2.0.0\n\n"
+                    "## Workflow history\n- 2026-08-08 planned (r): planned\n"
+                ),
+            )
+            # eee555 is high priority and blocks-release; aaa111 is medium priority
+            _write(
+                root / ".aw/records/backlog/open/20260101-s-01-eee555-e.backlog.md",
+                (
+                    "- Id: eee555\n- Status: open\n- Set: s\n- Priority: high\n- Blocks-Release: next\n"
+                    "- Work-Kind: chore\n- Summary: blocker\n\n## Workflow history\n- 2026-08-08 created (aw backlog): e\n"
+                ),
+            )
+            _write(
+                root / ".aw/records/backlog/open/20260101-s-02-aaa111-a.backlog.md",
+                (
+                    "- Id: aaa111\n- Status: open\n- Set: s\n- Priority: medium\n"
+                    "- Work-Kind: chore\n- Summary: normal\n\n## Workflow history\n- 2026-08-08 created (aw backlog): a\n"
+                ),
+            )
+            subprocess.run(["git", "init"], cwd=str(root), capture_output=True)
+
+            # Explicit order: eee555 must come first in a flat list with no ## release-blockers section
+            p_exp = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "next",
+                    "--dir",
+                    str(root),
+                    "-o",
+                    "priority",
+                    "--no-color",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(p_exp.returncode, 0)
+            lines_exp = [line for line in p_exp.stdout.splitlines() if line.strip()]
+            self.assertNotIn("## release-blockers", p_exp.stdout)
+            self.assertEqual(len(lines_exp), 2)
+            self.assertIn("eee555", lines_exp[0])
+            self.assertIn("aaa111", lines_exp[1])
+
+            # Default order (no -o): trailing ## release-blockers section must appear
+            p_def = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "agent_workflows",
+                    "next",
+                    "--dir",
+                    str(root),
+                    "--no-color",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(p_def.returncode, 0)
+            self.assertIn("## release-blockers", p_def.stdout)
 
 
 if __name__ == "__main__":

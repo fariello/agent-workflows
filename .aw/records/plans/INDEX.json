@@ -4462,6 +4462,16 @@
   {
     "date": "2026-09-06",
     "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md",
+    "plan_id": "03zubf",
+    "set_id": "attorderfix",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
     "kind": "orchestrator",
     "order": 0,
     "path": "executed/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md",
@@ -4618,16 +4628,6 @@
     "plan_id": "8fhjjc",
     "set_id": "skilldigest",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md",
-    "plan_id": "03zubf",
-    "set_id": "attorderfix",
-    "status": "approved"
   },
   {
     "date": "2026-09-06",

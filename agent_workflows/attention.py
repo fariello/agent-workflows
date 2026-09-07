@@ -1631,6 +1631,11 @@ def _render_table_row(
     return row_line
 
 
+def is_explicit_order(order_by: Optional[str]) -> bool:
+    """Return True if ``order_by`` requests an explicit sort order (not None and not ORDER_CLASS)."""
+    return bool(order_by and order_by != A.ORDER_CLASS)
+
+
 def render_table(
     items: List[Item],
     drift: List[core.Drift],
@@ -1680,7 +1685,7 @@ def render_table(
     if not visible:
         return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
 
-    if not (order_by and order_by != A.ORDER_CLASS):
+    if not is_explicit_order(order_by):
 
         def _sort_key(it: Item) -> Tuple:
             type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
@@ -1735,7 +1740,9 @@ def render_board(
     When ``term`` is colored (a real TTY / FORCE_COLOR), the human view renders the columnar
     table (Status, Type, Blocking, Priority, Readiness, OQs, RQs, Artifact Set / ID). When color is OFF
     (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
-    ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape.
+    ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape. Under an
+    explicit order, the non-colored board emits a single flat, globally-ordered list (sections are
+    absent by design); under the default order, items are partitioned into attention class sections.
     """
     if term is None:
         term = T.Term(color=False)
@@ -1762,6 +1769,32 @@ def render_board(
         for d in drift:
             lines.append(f"  ! {d.location}: {d.rule}: {d.detail}")
         lines.append("")
+
+    if is_explicit_order(order_by):
+        # Under an explicit order, emit ONE globally-ordered list instead of class-partitioned sections.
+        # Items were already sorted upstream by cmd_attention; do not re-sort here.
+        # Preserve the done/parked suppression unless show_all is True.
+        if not show_all:
+            visible = [
+                it for it in items if it.attention_class not in (A.DONE, A.PARKED)
+            ]
+        else:
+            visible = list(items)
+
+        for it in visible:
+            lines.append(
+                _render_item_row(
+                    it,
+                    it.attention_class,
+                    term,
+                    colored,
+                    long,
+                    details=details,
+                    gate_in_header=False,
+                )
+            )
+        return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
+
     by_class: Dict[str, List[Item]] = {}
     for it in items:
         by_class.setdefault(it.attention_class, []).append(it)
@@ -2160,46 +2193,64 @@ def run(args) -> int:
         details = getattr(args, "details", False)
 
         if not colored:
-            blockers = release_blockers(items, repo_root)
-            blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
-            main_items = [
-                it
-                for it in items
-                if (repo_root / it.path).resolve() not in blocker_keys
-            ]
+            if is_explicit_order(order_by):
+                board = render_board(
+                    items,
+                    drift,
+                    show_all=show_all,
+                    term=term,
+                    long=long,
+                    details=details,
+                    legend=False,
+                    repo_root=repo_root,
+                    order_by=order_by,
+                )
+            else:
+                blockers = release_blockers(items, repo_root)
+                blocker_keys = {(repo_root / it.path).resolve() for it in blockers}
+                main_items = [
+                    it
+                    for it in items
+                    if (repo_root / it.path).resolve() not in blocker_keys
+                ]
 
-            board = render_board(
-                main_items,
-                drift,
-                show_all=show_all,
-                term=term,
-                long=long,
-                details=details,
-                legend=False,
-                repo_root=repo_root,
-                order_by=order_by,
-            )
-            if blockers:
-                # Name the release the blockers gate (id6 + version), not just a count, so the
-                # planned release is visible during ordinary tool use - not only a hidden record.
-                try:
-                    from agent_workflows import releases as _releases
+                board = render_board(
+                    main_items,
+                    drift,
+                    show_all=show_all,
+                    term=term,
+                    long=long,
+                    details=details,
+                    legend=False,
+                    repo_root=repo_root,
+                    order_by=order_by,
+                )
+                if blockers:
+                    # Name the release the blockers gate (id6 + version), not just a count, so the
+                    # planned release is visible during ordinary tool use - not only a hidden record.
+                    try:
+                        from agent_workflows import releases as _releases
 
-                    _rel = _releases.describe_planned_release(repo_root)
-                except Exception:
-                    _rel = None
-                _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
-                rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
-                board += f"## {rel_header}\n"
-                # Render each blocker in the SAME compact columnar form as active/ready/blocked
-                # (not a raw absolute path), so the section reads consistently with the board.
-                for it in blockers:
-                    board += (
-                        _render_item_row(
-                            it, it.attention_class, term, colored, long, details=details
+                        _rel = _releases.describe_planned_release(repo_root)
+                    except Exception:
+                        _rel = None
+                    _rel_label = f" for {_rel[1]} ({_rel[0]})" if _rel else ""
+                    rel_header = f"release-blockers{_rel_label} ({len(blockers)})"
+                    board += f"## {rel_header}\n"
+                    # Render each blocker in the SAME compact columnar form as active/ready/blocked
+                    # (not a raw absolute path), so the section reads consistently with the board.
+                    for it in blockers:
+                        board += (
+                            _render_item_row(
+                                it,
+                                it.attention_class,
+                                term,
+                                colored,
+                                long,
+                                details=details,
+                            )
+                            + "\n"
                         )
-                        + "\n"
-                    )
         else:
             board = render_board(
                 items,
