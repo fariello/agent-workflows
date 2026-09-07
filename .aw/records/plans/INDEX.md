@@ -2,11 +2,15 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 219 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 220 Sets; the full manifest is INDEX.json.
 
 ## depreview
 
 - `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
+
+## streamfx
+
+- `tlou48` [pending] 01 pending/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md
 
 ## attorder
 
@@ -200,10 +204,6 @@ Showing the 40 most-recent of 219 Sets; the full manifest is INDEX.json.
 ## exittbl
 
 - `bds6nd` [executed] 01 executed/20260830-exittbl-01-bds6nd-formatted-exit-summary-table-for-runner-with-metrics-and-sig.ipd.md
-
-## hostcap
-
-- `mjx7ne` [executed] 01 executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
 
 ## (singletons: no Set)
 
