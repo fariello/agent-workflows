@@ -10,7 +10,7 @@ Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
 
 ## attorderfix
 
-- `03zubf` [pending] 01 pending/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md
+- `03zubf` [executed] 01 executed/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md
 
 ## hostdefault
 
