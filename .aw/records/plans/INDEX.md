@@ -10,7 +10,7 @@ Showing the 40 most-recent of 220 Sets; the full manifest is INDEX.json.
 
 ## streamfx
 
-- `tlou48` [pending] 01 pending/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md
+- `tlou48` [executed] 01 executed/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md
 
 ## attorder
 

@@ -4520,6 +4520,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-07",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md",
+    "plan_id": "tlou48",
+    "set_id": "streamfx",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -4788,16 +4798,6 @@
     "plan_id": "03ie04",
     "set_id": "depreview",
     "status": "to-review"
-  },
-  {
-    "date": "2026-09-07",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md",
-    "plan_id": "tlou48",
-    "set_id": "streamfx",
-    "status": "approved"
   },
   {
     "date": "2026-08-07",
