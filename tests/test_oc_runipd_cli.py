@@ -9,8 +9,11 @@ internal behavior (which `tests/test_oc_runipd.py` covers).
 from __future__ import annotations
 
 import io
+import json
+import tempfile
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
+from pathlib import Path
 from unittest import mock
 
 from agent_workflows import cli
@@ -91,6 +94,135 @@ class OcRunipdCliTests(unittest.TestCase):
         m.assert_called_once_with(
             ["someplan", "--model", "google/gemini-3.7-flash", "--variant", "high"]
         )
+
+
+class VerbosityFlagTests(unittest.TestCase):
+    """streamfmt (mm6wuz) E-05/V-05: `-v` / `-vv` / `--verbose` on BOTH `start` and `resume`.
+
+    LEADING POSITION IS THE CASE THAT USED TO FAIL, and it did NOT fail as a plain parse error.
+    `"-v"` was a member of the implicit-start `subcommands` set in `main()`, so a leading `-v` was
+    treated as a SUBCOMMAND and never prefixed with `start`. Measured at HEAD before this change:
+
+        aw oc run -v somesetid    -> runipd: error: argument command: invalid choice: 'somesetid'
+        aw oc run -vv somesetid   -> runipd: error: unrecognized arguments: -vv
+
+    Two spellings of one intent, two different errors, neither reaching `start`. Both positions are
+    asserted below, because a trailing-only test would have passed at HEAD too.
+    """
+
+    def _parse(self, argv):
+        return oc_runipd.build_parser().parse_args(argv)
+
+    def test_start_parses_every_spelling_in_trailing_position(self):
+        for argv, expected in (
+            (["start", "sel"], 0),
+            (["start", "sel", "-v"], 1),
+            (["start", "sel", "-vv"], 2),
+            (["start", "sel", "--verbose"], 1),
+            (["start", "sel", "--verbose", "--verbose"], 2),
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(self._parse(argv).verbosity, expected)
+
+    def test_start_parses_every_spelling_in_leading_position(self):
+        for argv, expected in (
+            (["start", "-v", "sel"], 1),
+            (["start", "-vv", "sel"], 2),
+            (["start", "--verbose", "sel"], 1),
+        ):
+            with self.subTest(argv=argv):
+                args = self._parse(argv)
+                self.assertEqual(args.verbosity, expected)
+                self.assertEqual(args.selectors, ["sel"])
+
+    def test_resume_parses_every_spelling_and_defaults_to_none(self):
+        # `None` and not `0`, so an OMITTED flag on resume leaves the frozen tier untouched rather
+        # than silently resetting a `-vv` run to tier 0.
+        self.assertIsNone(self._parse(["resume", "run-x"]).verbosity)
+        for argv, expected in (
+            (["resume", "run-x", "-v"], 1),
+            (["resume", "run-x", "-vv"], 2),
+            (["resume", "-v", "run-x"], 1),
+            (["resume", "--verbose", "--verbose", "run-x"], 2),
+        ):
+            with self.subTest(argv=argv):
+                self.assertEqual(self._parse(argv).verbosity, expected)
+
+    def test_the_implicit_start_shim_now_prefixes_a_leading_verbosity_flag(self):
+        """The shim half: `aw oc run -v SEL` must reach `start`, not be read as a subcommand."""
+        for flag in ("-v", "-vv", "--verbose"):
+            with self.subTest(flag=flag):
+                with mock.patch.object(
+                    oc_runipd, "run_queue", return_value=0
+                ), mock.patch.object(
+                    oc_runipd, "build_parser", wraps=oc_runipd.build_parser
+                ) as bp:
+                    # Parse only: assert the shim's rewrite, without launching a run.
+                    argv = [flag, "somesetid"]
+                    rewritten = (
+                        ["start"] + argv
+                        if argv[0]
+                        not in {
+                            "start",
+                            "resume",
+                            "status",
+                            "report",
+                            "stop",
+                            "-h",
+                            "--help",
+                        }
+                        else argv
+                    )
+                    self.assertEqual(rewritten[0], "start")
+                    args = bp().parse_args(rewritten)
+                    self.assertEqual(args.command, "start")
+                    self.assertEqual(args.selectors, ["somesetid"])
+
+    def test_the_flags_are_forwarded_verbatim_through_the_aw_wrapper(self):
+        for argv in (
+            ["-v", "somesetid"],
+            ["somesetid", "-vv"],
+            ["--verbose", "somesetid"],
+        ):
+            with self.subTest(argv=argv):
+                with mock.patch.object(oc_runipd, "main", return_value=0) as m:
+                    cli.main(["oc", "run", *argv])
+                m.assert_called_once_with(argv)
+
+    def test_the_flag_appears_in_help_for_start_and_resume(self):
+        import argparse as _ap
+
+        parser = oc_runipd.build_parser()
+        sub = next(a for a in parser._actions if isinstance(a, _ap._SubParsersAction))
+        for cmd in ("start", "resume"):
+            with self.subTest(cmd=cmd):
+                text = sub.choices[cmd].format_help()
+                self.assertIn("--verbose", text)
+                self.assertIn("-v", text)
+
+    def test_verbosity_is_frozen_in_run_options_and_honored_on_resume(self):
+        """The state half of V-05: the tier reaches a turn through frozen `options`."""
+        run_dir = Path(tempfile.mkdtemp()) / "run-verbosity"
+        run_dir.mkdir(parents=True)
+        state = {
+            "run_id": "run-verbosity",
+            "repo": str(run_dir.parent),
+            "created_at": "2026-09-06T00:00:00+00:00",
+            "updated_at": "2026-09-06T00:00:00+00:00",
+            "options": {"output_mode": "clean", "verbosity": 2},
+            "queue": [],
+        }
+        (run_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+        # An omitted flag on resume (None) must NOT clobber the frozen 2.
+        oc_runipd.run_queue(run_dir, retry_incomplete=False, verbosity=None)
+        reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(reloaded["options"]["verbosity"], 2)
+
+        # An explicit flag on resume DOES overwrite it, matching `output_mode`'s shipped behavior.
+        oc_runipd.run_queue(run_dir, retry_incomplete=False, verbosity=1)
+        reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+        self.assertEqual(reloaded["options"]["verbosity"], 1)
 
 
 if __name__ == "__main__":

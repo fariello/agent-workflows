@@ -739,8 +739,15 @@ class BothDriversWireLevel3Tests(unittest.TestCase):
         )
         self.assertNotIn("render_event", observe_line)
         # The observe call must precede the output-mode branch in the loop.
+        #
+        # streamfmt (mm6wuz) E-05: the render call gained keyword arguments (`verbosity=`,
+        # `repo_root=`) and is now written across several lines, so the old exact-string index on
+        # `rendered = render_event(line, pal, tracker=tracker)` no longer matched and this test failed
+        # with `ValueError: substring not found`. Anchored on the assignment PREFIX instead, which is
+        # what the ordering claim actually depends on and which does not re-break every time an
+        # argument is added.
         observe_at = oc_src.index("if checkpoint_observer.observe(line)")
-        render_at = oc_src.index("rendered = render_event(line, pal, tracker=tracker)")
+        render_at = oc_src.index("rendered = render_event(")
         self.assertLess(
             observe_at,
             render_at,

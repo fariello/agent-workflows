@@ -1008,6 +1008,24 @@ class ImplicitStartShimTests(unittest.TestCase):
                 f"`stop <run-id> --now` would be rewritten to `start stop <run-id> --now`",
             )
 
+    #: The shim's subcommand set, RE-DECLARED here so the control test below can evaluate the shim
+    #: the way `main` does without importing a module constant that deliberately does not exist (see
+    #: the KEEP-THIS-INLINE comment in both drivers).
+    #:
+    #: streamfmt (mm6wuz) E-12: `"-v"` and `"--version"` were REMOVED from this copy in lockstep with
+    #: both drivers. Keeping them here while the drivers dropped them would leave this test passing
+    #: while asserting a set the code does not have, which is worse than no test:
+    #: `test_the_inline_copy_matches_both_drivers` now pins the two together.
+    SHIM_SUBCOMMANDS = {
+        "start",
+        "resume",
+        "status",
+        "report",
+        "stop",
+        "-h",
+        "--help",
+    }
+
     def test_a_plain_selector_is_still_implicitly_started(self):
         # The CONTROL: adding `stop` to the set must not break the shim for ordinary selectors, which
         # is the whole reason the shim exists.
@@ -1015,21 +1033,73 @@ class ImplicitStartShimTests(unittest.TestCase):
             parser = module.build_parser()
             # The shim's own behavior, evaluated the way `main` evaluates it.
             argv = ["someset"]
-            subcommands_ok = argv[0] not in {
-                "start",
-                "resume",
-                "status",
-                "report",
-                "stop",
-                "-h",
-                "--help",
-                "-v",
-                "--version",
-            }
-            self.assertTrue(subcommands_ok, module.__name__)
+            self.assertTrue(argv[0] not in self.SHIM_SUBCOMMANDS, module.__name__)
             args = parser.parse_args(["start", *argv])
             self.assertEqual(args.command, "start")
             self.assertEqual(args.selectors, ["someset"])
+
+    def test_the_inline_copy_matches_both_drivers(self):
+        """streamfmt (mm6wuz) E-12: this file's copy of the set must DESCRIBE the drivers' sets.
+
+        Without this, the copy above can drift from the code and every assertion built on it keeps
+        passing while testing a set that no longer exists. Both drivers are parsed with the SAME
+        regex `test_stop_is_listed_in_both_shims_subcommand_sets` uses, so the guard cannot be
+        satisfied by hoisting the set into a constant.
+        """
+        import ast
+        import re
+
+        parsed = {}
+        for name in ("oc_runipd.py", "agy_runipd.py"):
+            source = (REPO_ROOT / "agent_workflows" / name).read_text(encoding="utf-8")
+            block = re.search(r"subcommands = (\{.*?\})", source, re.S)
+            self.assertIsNotNone(block, name)
+            assert block is not None
+            parsed[name] = ast.literal_eval(block.group(1))
+        self.assertEqual(
+            parsed["oc_runipd.py"],
+            parsed["agy_runipd.py"],
+            "the two drivers' implicit-start subcommand sets have DIVERGED",
+        )
+        self.assertEqual(parsed["oc_runipd.py"], self.SHIM_SUBCOMMANDS)
+        # `stop` is still there (the property the sibling structural test owns), restated as a
+        # positive so a set that lost it fails HERE too rather than only there.
+        self.assertIn("stop", parsed["oc_runipd.py"])
+
+    def test_a_leading_verbose_flag_is_now_prefixed_with_start(self):
+        """streamfmt (mm6wuz) E-05/E-12 / OQ-02: the behavior the `-v` removal changes.
+
+        BEFORE, measured at HEAD: `-v` was a member of the set, so `aw oc run -v somesetid` was NOT
+        prefixed with `start` and failed with `argument command: invalid choice: 'somesetid'`, while
+        `aw oc run -vv somesetid` (not in the set) failed differently with
+        `unrecognized arguments: -vv`. Two spellings of the same intent, two different errors, and
+        neither reached `start`. AFTER, both are ordinary flags and both are implicitly started.
+        """
+        for module in (oc, agy):
+            for flag in ("-v", "-vv", "--verbose"):
+                with self.subTest(module=module.__name__, flag=flag):
+                    argv = [flag, "somesetid"]
+                    self.assertNotIn(
+                        argv[0],
+                        self.SHIM_SUBCOMMANDS,
+                        "a leading verbosity flag must not be treated as a subcommand",
+                    )
+                    args = module.build_parser().parse_args(["start", *argv])
+                    self.assertEqual(args.command, "start")
+                    self.assertEqual(args.selectors, ["somesetid"])
+                    self.assertEqual(args.verbosity, 2 if flag == "-vv" else 1)
+
+    def test_neither_driver_registers_the_version_flag_the_removed_entry_guarded(self):
+        """OQ-02's evidence, pinned: `--version` was reserved and never implemented.
+
+        If a real `--version` is added later, this test fails and is the place to record that BOTH
+        tokens must go back into BOTH drivers' sets together.
+        """
+        for module in (oc, agy):
+            with self.subTest(module=module.__name__):
+                with self.assertRaises(SystemExit) as ctx:
+                    module.build_parser().parse_args(["--version"])
+                self.assertEqual(ctx.exception.code, 2)
 
 
 class StopVerbSurfaceTests(unittest.TestCase):
