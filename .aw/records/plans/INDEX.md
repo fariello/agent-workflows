@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 219 Sets; the full manifest is INDEX.json.
+
+## depreview
+
+- `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
 
 ## attorder
 
@@ -22,6 +26,11 @@ Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
 - `4r0qp1` [pending] 01 pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md
 - `yvvf98` [pending] 02 pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md
 
+## integearn
+
+- `32ij2j` [pending] 01 pending/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md
+- `xtklpd` [pending] 02 pending/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md
+
 ## integpath
 
 - `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
@@ -40,6 +49,10 @@ Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
 ## runsverify
 
 - `7wei1o` [pending] 01 pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md
+
+## scopeattr
+
+- `h9cn0y` [pending] 01 pending/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md
 
 ## streamfmt
 
@@ -191,18 +204,6 @@ Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
 ## hostcap
 
 - `mjx7ne` [executed] 01 executed/20260830-hostcap-01-mjx7ne-extend-the-shipped-sandbox-capability-contract-with-the-runn.ipd.md
-
-## locksafe
-
-- `y6mfgo` [executed] 01 executed/20260830-locksafe-01-y6mfgo-one-cross-platform-file-lock-via-filelock-replacing-every-ra.ipd.md
-
-## runmixed
-
-- `6lu3rq` [executed] 01 executed/20260830-runmixed-01-6lu3rq-the-mixed-type-confirmation-gate-and-the-runner-facing-selec.ipd.md
-
-## runtrail
-
-- `m73aet` [executed] 01 executed/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md
 
 ## (singletons: no Set)
 

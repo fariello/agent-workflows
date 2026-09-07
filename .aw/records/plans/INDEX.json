@@ -4647,7 +4647,7 @@
     "path": "pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
     "plan_id": "tm2cz8",
     "set_id": "hostdefault",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4682,12 +4682,32 @@
   {
     "date": "2026-09-06",
     "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md",
+    "plan_id": "32ij2j",
+    "set_id": "integearn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md",
+    "plan_id": "xtklpd",
+    "set_id": "integearn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md",
     "plan_id": "cczotj",
     "set_id": "integpath",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-09-06",
@@ -4727,7 +4747,7 @@
     "path": "pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md",
     "plan_id": "rl67b0",
     "set_id": "integpath",
-    "status": "draft"
+    "status": "to-review"
   },
   {
     "date": "2026-09-06",
@@ -4744,9 +4764,29 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md",
+    "plan_id": "h9cn0y",
+    "set_id": "scopeattr",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md",
     "plan_id": "eqzd0h",
     "set_id": "sysproto",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-07",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md",
+    "plan_id": "03ie04",
+    "set_id": "depreview",
     "status": "to-review"
   },
   {

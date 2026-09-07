@@ -9,17 +9,19 @@
   REGISTERING A ROW IS NOT INERT, WHICH THIS PLAN'S ORIGINAL SCOPE UNDERSTATED. `canonical_runner` is the WRITE-TIME gate for the whole store (`parse_profile` at `:517`, `_validate_referential_integrity` at `:564`, `set_default_runner` at `:884`), so the row makes `runner: agy` and `default_runner: agy` newly STORABLE. Measured at review: both dispatch routes then refuse at `adapter_for` with exit 2 and never launch the wrong host, so the fail-closed guarantee survives; but the operator-visible consequence is that a store can now hold a configuration nothing can run. E-04 and E-07 make that refusal, and its accuracy, an explicit deliverable rather than an assumption.
 - Scope-Paths: agent_workflows/runner_profiles.py, agent_workflows/run_dispatch.py, agent_workflows/runner_profile_wizard.py, tests/test_runner_profiles.py, tests/test_run_dispatch.py, tests/test_runner_profiles_e2e.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: hostdefault
 - Order: 1
 - Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: tm2cz8
+- Approval: 2026-09-07, recorded via aw ipd set: status set to approved
 - From-Backlog: h7qsje
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-07 approved (aw set): status set to approved
 
 - 2026-09-06 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-501..PR-510. Reviewed at HEAD `aeb71ca2`; `aw ipd lint --phase author` conformed before semantic review and `--phase review-finalize` after. SELF-REVIEW disclosure: the same session authored this plan. The plan's THESIS was independently re-verified and holds: the prototype was rebuilt from scratch in an isolated worktree and `resolve(runner="oc").validate` is `False`/`shipped-default` while `resolve(runner="agy").validate` is `True`/`shipped-default`, `defaults.validate: false` still beats the row on agy, an `agy` profile omitting `validate` inherits `True` while one saying `validate: false` resolves `False`/`profile`, and a profile carrying `variant` is refused per row. What review CHANGED is that three of the plan's own measurements were wrong or incomplete, each in the direction of understating the work. FIRST, the blast radius is SIX tests, not five: `tests/test_runner_profiles_e2e.py` is `pytest.mark.slow` and the mandated bare suite DESELECTS it, so the authored measurement could not see it, and naming the path directly reports `no tests ran`. SECOND, the authored baseline is stale and HEAD is NOT clean, so the plan's stated pass criterion was unmeetable as written. THIRD, registering the row makes `default_runner: agy` newly WRITABLE, which reaches `adapter_for` through a route the plan never named; both routes were driven live and both refuse exit 2 without launching, so the guarantee holds, but it now has to be proven. Two new E-items were added (E-07 for four in-code prose statements that assert a one-host registry, two of them outside the authored Scope-Paths; E-08 for the explicit-`variant`/`agent` hole the row makes reachable), and two authoring traps were measured and forbidden in place: defining the retained constant from the registry raises `NameError` at import, and a `NamedTuple` annotation does not type-check, so `validate_default="yes"` is accepted and truthy. Scope-Paths grew from four to six. No product code was modified by this review; the prototype was reverted and its worktree removed.
 
