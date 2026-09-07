@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 216 Sets; the full manifest is INDEX.json.
 
 ## attorder
 
@@ -22,6 +22,14 @@ Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
 - `4r0qp1` [pending] 01 pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md
 - `yvvf98` [pending] 02 pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md
 
+## integpath
+
+- `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
+- `29wvmj` [pending] 01 pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
+- `6sb3yu` [pending] 02 pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
+- `51vw4y` [pending] 03 pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
+- `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
+
 ## orchretire
 
 - `84j8d7` [executed] 00 executed/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md
@@ -36,6 +44,10 @@ Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
 ## streamfmt
 
 - `mm6wuz` [pending] 01 pending/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md
+
+## sysproto
+
+- `eqzd0h` [pending] 01 pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md
 
 ## verifygap
 
@@ -191,14 +203,6 @@ Showing the 40 most-recent of 214 Sets; the full manifest is INDEX.json.
 ## runtrail
 
 - `m73aet` [executed] 01 executed/20260830-runtrail-01-m73aet-immutable-aw-run-and-aw-item-commit-trailers-on-the-shipped.ipd.md
-
-## sessrot
-
-- `jb6vys` [executed] 01 executed/20260830-sessrot-01-jb6vys-rotate-sessions-after-max-items-per-session-to-prevent-conte.ipd.md
-
-## timefmt
-
-- `rhszxj` [executed] 01 executed/20260830-timefmt-01-rhszxj-elapsed-time-formatting-in-statusbar-and-resume-starting-tim.ipd.md
 
 ## (singletons: no Set)
 

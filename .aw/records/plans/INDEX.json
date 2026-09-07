@@ -4672,6 +4672,56 @@
   {
     "date": "2026-09-06",
     "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md",
+    "plan_id": "cczotj",
+    "set_id": "integpath",
+    "status": "draft"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md",
+    "plan_id": "29wvmj",
+    "set_id": "integpath",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md",
+    "plan_id": "6sb3yu",
+    "set_id": "integpath",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md",
+    "plan_id": "51vw4y",
+    "set_id": "integpath",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md",
+    "plan_id": "rl67b0",
+    "set_id": "integpath",
+    "status": "draft"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
     "kind": "child",
     "order": 1,
     "path": "pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
@@ -4688,6 +4738,16 @@
     "plan_id": "mm6wuz",
     "set_id": "streamfmt",
     "status": "approved"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md",
+    "plan_id": "eqzd0h",
+    "set_id": "sysproto",
+    "status": "to-review"
   },
   {
     "date": "2026-08-07",
