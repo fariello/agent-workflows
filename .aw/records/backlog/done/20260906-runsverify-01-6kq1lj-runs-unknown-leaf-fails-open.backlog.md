@@ -1,5 +1,5 @@
 - Id: 6kq1lj
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: runsverify
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw runs with an unrecognized leaf name silently degrades into a run-id search and exits 0: a mistyped or not-yet-built subcommand reports success having done nothing
 
 ## Workflow history
+- 2026-09-07 done (aw set): Handed off to plan 7wei1o (approved, carries the same Blocks-Release: next), which refuses an unresolvable aw runs target instead of silently degrading into a run-id search and exiting 0. Closing per maintainer decision 2026-09-07: the release gate is PRESERVED via the From-Backlog handoff, so nothing is dropped by closing the item. Clears check.orphaned-live-blocker.
 - 2026-09-06 created (aw backlog): aw runs with an unrecognized leaf name silently degrades into a run-id search and exits 0: a mistyped or not-yet-built subcommand reports success having done nothing
 
 THE DEFECT. `aw runs` supports two shapes at once: `aw runs <leaf> <target>` (nine read-only

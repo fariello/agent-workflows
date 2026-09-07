@@ -1,5 +1,5 @@
 - Id: h7qsje
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: verifygap
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: the per-profile validate tri-state shipped in f2mrsw but no runner reads it, so the measured Opus-off/Gemini-on split is still an per-invocation flag the operator must remember
 
 ## Workflow history
+- 2026-09-07 done (aw set): Handed off to plan tm2cz8 (approved, carries the same Blocks-Release: next), which moves the verification default into the per-host runner registry, with ybkmzp (to-review) wiring the resolved decision into both drivers. Note mn3gwr, the earlier carrier, is superseded. Closing per maintainer decision 2026-09-07: the release gate is PRESERVED via the From-Backlog handoff. Clears check.orphaned-live-blocker.
 - 2026-09-06 created (aw backlog): the per-profile validate tri-state shipped in f2mrsw but no runner reads it, so the measured Opus-off/Gemini-on split is still an per-invocation flag the operator must remember
 
 THE GAP, and it is a WIRING gap rather than a design question. Executed plan `f2mrsw`
