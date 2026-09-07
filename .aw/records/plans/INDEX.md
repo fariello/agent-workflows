@@ -8,6 +8,15 @@ Showing the 40 most-recent of 221 Sets; the full manifest is INDEX.json.
 
 - `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
 
+## integpath
+
+- `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
+- `29wvmj` [pending] 01 pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
+- `6sb3yu` [pending] 02 pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
+- `51vw4y` [pending] 03 pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
+- `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
+- `3v7wo6` [pending] 05 pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md
+
 ## orchprobe
 
 - `yeh7gc` [pending] 00 pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md
@@ -42,14 +51,6 @@ Showing the 40 most-recent of 221 Sets; the full manifest is INDEX.json.
 
 - `32ij2j` [pending] 01 pending/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md
 - `xtklpd` [pending] 02 pending/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md
-
-## integpath
-
-- `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
-- `29wvmj` [pending] 01 pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
-- `6sb3yu` [pending] 02 pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
-- `51vw4y` [pending] 03 pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
-- `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
 
 ## orchretire
 

@@ -4812,6 +4812,16 @@
   {
     "date": "2026-09-07",
     "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md",
+    "plan_id": "3v7wo6",
+    "set_id": "integpath",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-07",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md",
