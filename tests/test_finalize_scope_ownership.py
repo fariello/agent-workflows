@@ -452,25 +452,34 @@ class BeginFinalizeConsistencyTests(_ScopeOwnershipBase):
 
 
 class CommittedHalfResidualGapTests(_ScopeOwnershipBase):
-    """E-06: the KNOWN RESIDUAL GAP (F9), pinned so it cannot be mistaken for fixed."""
+    """The residual gap `a8eufb` named is now CLOSED (scopeattr `h9cn0y` E-02).
 
-    def test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation(self):
-        """DOCUMENTED LIMITATION, not a feature: pins post-fix behavior that MUST be INVERTED.
+    THIS CLASS WAS DELIBERATELY INVERTED, NOT DELETED. Its previous single test,
+    ``test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation``, pinned the
+    post-scopeattrib-Order-01 behavior and its own docstring instructed the follow-up: "pins post-fix
+    behavior that MUST be INVERTED ... Do NOT delete this test to make that fix pass; invert it."
+    Backlog `a8eufb` records the same assignment by name ("`h9cn0y` also owns inverting the
+    characterization test"). The inversion below keeps the original's SAME-IDENTITY measurement,
+    because that measurement is now the positive evidence that COHESION rather than authorship did
+    the work.
+    """
 
-        Follow-up that must invert this test: backlog item `a8eufb`
-        (scopeattrib, 'finalize still demands a scope reason for a CONCURRENT agent's COMMITTED
-        out-of-scope path'). Do NOT delete this test to make that fix pass; invert it.
+    def test_committed_half_of_a_coworker_is_now_disregarded_gap_CLOSED(self):
+        """The INVERSION of the former documented limitation. Closes `a8eufb`'s step (3).
 
-        scopeattrib Order 01 fixed the WORKING-TREE half of the attribution union only. When a
-        concurrent agent COMMITS its unrelated out-of-scope file instead of leaving it dirty, the
-        path enters the COMMITTED half, which this plan deliberately does not filter, so finalize
-        STILL demands a --scope-reason for work the finalizing plan never touched. In a repo where
-        concurrent agents commit to one branch continuously this is common, not exotic.
+        A concurrent agent COMMITS an unrelated out-of-scope file instead of leaving it dirty. Before
+        `h9cn0y` the path entered the unfiltered COMMITTED half and finalize demanded a
+        ``--scope-reason`` for work the finalizing plan never touched, which in a repo where agents
+        commit to one branch continuously is common rather than exotic, and which wrote a FALSE claim
+        into the plan's permanent record.
 
-        The test also demonstrates WHY git authorship cannot rescue the committed half: the
-        co-worker commit here is authored under the SAME user.name/user.email as the executor's, so
-        an ``%an``-based filter would look like a fix and do nothing. A future implementer needs a
-        real per-path or per-commit ownership record (see `a8eufb`).
+        It is now DISREGARDED, because the co-worker's commit touched NO path this plan declared, so
+        it is not cohesive with this execution's commits.
+
+        THE SAME-IDENTITY ASSERTION IS RETAINED FROM THE ORIGINAL and is the point of the test: the
+        co-worker's commit shares the executor's ``user.name``/``user.email``, so an ``%an``-based
+        filter would look like a fix and do nothing. This test therefore also proves the fix does not
+        secretly depend on authorship.
         """
         plan = self._plan()
         self._begin(plan)
@@ -485,33 +494,350 @@ class CommittedHalfResidualGapTests(_ScopeOwnershipBase):
             ["agent_workflows/other_agents_file.py"],
         )
 
-        # SAME-IDENTITY condition: authorship cannot discriminate the two commits.
+        # SAME-IDENTITY condition, retained: authorship cannot discriminate the two commits, so
+        # whatever excludes the co-worker's path below, it is provably not an authorship lookup.
         identities = set(
             _git_out(self.root, ["log", "--format=%an|%ae", "-2"]).splitlines()
         )
         self.assertEqual(
             len(identities),
             1,
-            f"the limitation requires ONE shared identity; got {identities}",
+            f"the test requires ONE shared identity; got {identities}",
         )
 
         audit = self._audit(plan)
-        # STILL refused: this is the declared bound, and a SUCCESS here would mean E-02 leaked
-        # into the committed half and the no-weakening proof is invalid.
+        # NO LONGER REFUSED: the co-worker's commit is not cohesive with this plan's territory.
         self.assertEqual(
             audit["out_of_scope_paths"],
-            ["agent_workflows/other_agents_file.py"],
-            "residual gap: the committed half is intentionally NOT ownership-filtered",
+            [],
+            "a concurrent agent's committed out-of-scope path must not demand a reason",
         )
-        self.assertEqual(audit["disregarded_unowned_paths"], [])
+        # Excluded VISIBLY, in the one existing evidence channel.
+        self.assertEqual(
+            audit["disregarded_unowned_paths"],
+            ["agent_workflows/other_agents_file.py"],
+        )
         self.assertIn("agent_workflows/other_agents_file.py", audit["committed_paths"])
 
         result = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
-        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
-        self.assertTrue(
-            any("agent_workflows/other_agents_file.py" in f for f in result.findings)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
         )
-        self.assertTrue(plan.is_file(), "plan left unmoved by the residual gap")
+        self.assertTrue(
+            self._executed_path(plan).is_file(),
+            "the plan should now finalize without justifying another agent's commit",
+        )
+
+
+class CommittedHalfAttributionTests(_ScopeOwnershipBase):
+    """scopeattr `h9cn0y` E-04: the COMMITTED half is attributed by COMMIT COHESION.
+
+    The mechanism, stated once so each test below can be read against it: a commit is one atomic act
+    by one actor, so a commit that touched a path this plan DECLARED is this execution's commit and
+    every path in it is attributable to this execution; a commit that touched NO declared path is not.
+    Authorship is useless here (all actors share one git identity) and the run record is unreachable
+    from finalize, so the commit boundary is the only evidence available.
+
+    All of these arrange the foreign commits in THE SAME TREE the finalize then runs in, which is the
+    in-place / hand-finalize shape that actually misfires. The isolated-lane shape is already correct
+    and is pinned separately in ``tests/test_finalize_isolated_commit.py``.
+    """
+
+    def test_committed_path_inside_scope_paths_behaves_exactly_as_today(self):
+        """CASE 1 of 3. A declared path is in scope whether committed or not; nothing changed here."""
+        plan = self._plan()
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+
+        audit = self._audit(plan)
+        self.assertEqual(audit["out_of_scope_paths"], [])
+        self.assertEqual(audit["disregarded_unowned_paths"], [])
+        self.assertTrue(audit["in_scope"])
+        self.assertEqual(
+            sorted(audit["committed_paths"])[:2],
+            ["agent_workflows/demo.py", "tests/test_demo.py"],
+        )
+        result = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+
+    def test_committed_out_of_scope_path_in_a_foreign_commit_is_excluded_and_recorded(
+        self,
+    ):
+        """CASE 2 of 3. Another actor's commit, in THIS tree, touching no declared path.
+
+        This is the defect: before the fix the path landed in the unfiltered committed half and
+        demanded a reason this plan could not honestly give.
+        """
+        plan = self._plan()
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+        # Another actor commits two unrelated files together, in the SAME tree.
+        for name in ("agent_workflows/theirs_a.py", "agent_workflows/theirs_b.py"):
+            (self.root / name).write_text("theirs\n", encoding="utf-8")
+        _commit_paths(
+            self.root,
+            "another actor's unrelated commit",
+            ["agent_workflows/theirs_a.py", "agent_workflows/theirs_b.py"],
+        )
+
+        code, msg, evidence, _f = LC.finalize_precheck(self.root, plan)
+        self.assertEqual(code, LC.EXIT_OK, msg)
+        audit = evidence["scope_audit"]
+
+        self.assertEqual(audit["out_of_scope_paths"], [])
+        self.assertEqual(
+            audit["disregarded_unowned_paths"],
+            ["agent_workflows/theirs_a.py", "agent_workflows/theirs_b.py"],
+        )
+        # Recorded in the ONE existing channel, and surfaced to the human.
+        self.assertIn("agent_workflows/theirs_a.py", msg)
+        self.assertIn("not owned by this execution", msg)
+        # The message substantiates nothing it cannot: no sha, no actor named.
+        self.assertNotIn("committed by", msg)
+        self.assertNotIn("\u2014", msg)
+        self.assertNotIn("\u2013", msg)
+        # They ARE in the committed half, so the exclusion was a filter decision, not a collection gap.
+        for name in ("agent_workflows/theirs_a.py", "agent_workflows/theirs_b.py"):
+            self.assertIn(name, audit["committed_paths"])
+
+    def test_intervening_signal_still_fires_for_an_in_scope_path_another_actor_touched(
+        self,
+    ):
+        """CASE 3 of 3. The collision signal is a DIFFERENT fact and must survive untouched.
+
+        Another actor editing a path this plan DECLARED is worth surfacing, so it must not be
+        laundered away by the ownership filter.
+        """
+        plan = self._plan()
+        self._begin(plan)
+        # Another actor commits INTO this plan's declared territory, before the plan's own work.
+        (self.root / "tests/test_demo.py").write_text("theirs\n", encoding="utf-8")
+        _commit_paths(
+            self.root,
+            "another actor touches declared territory",
+            ["tests/test_demo.py"],
+        )
+        (self.root / "agent_workflows/demo.py").write_text("mine\n", encoding="utf-8")
+        _commit_paths(self.root, "the plan's own work", ["agent_workflows/demo.py"])
+
+        audit = self._audit(plan)
+        self.assertIn("tests/test_demo.py", audit["intervening_in_scope_commits"])
+        self.assertIn("agent_workflows/demo.py", audit["intervening_in_scope_commits"])
+        # A declared path is in scope, so it is neither out-of-scope nor disregarded.
+        self.assertEqual(audit["out_of_scope_paths"], [])
+        self.assertEqual(audit["disregarded_unowned_paths"], [])
+
+    def test_FAIL_CLOSED_an_unattributable_committed_path_still_demands_a_reason(self):
+        """THE FAIL-CLOSED DIRECTION, which is the assertion that matters most.
+
+        This change makes a demanding gate demand LESS, which is the direction in which a mistake
+        becomes invisible, so the class of committed path that STILL refuses must be demonstrated
+        rather than assumed. That class is a path COHESIVE with this execution's work: it rides in a
+        commit that also touched a declared path, so the same atomic act produced both, and it is
+        therefore this execution's to justify.
+
+        The implementation does admit such a case, so this is a real refusal and not a constructed
+        one; had it not, E-04 required reporting a whole-class exclusion as a finding instead.
+        """
+        plan = self._plan()
+        self._begin(plan)
+        # ONE commit containing a declared path AND an out-of-scope path: the executor's own
+        # out-of-scope edit, committed alongside its real work.
+        (self.root / "agent_workflows/demo.py").write_text("mine\n", encoding="utf-8")
+        (self.root / "tests/test_demo.py").write_text("mine\n", encoding="utf-8")
+        (self.root / "CHANGELOG.md").write_text(
+            "mine, out of scope\n", encoding="utf-8"
+        )
+        _commit_paths(
+            self.root,
+            "own work plus an out-of-scope path in ONE commit",
+            ["agent_workflows/demo.py", "tests/test_demo.py", "CHANGELOG.md"],
+        )
+
+        audit = self._audit(plan)
+        self.assertEqual(
+            audit["out_of_scope_paths"],
+            ["CHANGELOG.md"],
+            "a cohesive out-of-scope commit must STILL demand a reason",
+        )
+        self.assertEqual(audit["disregarded_unowned_paths"], [])
+
+        result = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("--scope-reason", result.message)
+        self.assertTrue(any("CHANGELOG.md" in f for f in result.findings))
+        self.assertTrue(plan.is_file(), "plan must be left unmoved")
+
+        # A supplied reason still legitimizes it, recorded verbatim: the gate is RESCOPED, not removed.
+        ok = LC.finalize(
+            self.root,
+            plan,
+            ACTOR,
+            "did the work",
+            apply=True,
+            scope_reasons={"CHANGELOG.md": "release note for this change"},
+        )
+        self.assertEqual(ok.exit_code, LC.EXIT_OK, f"{ok.message} / {ok.findings}")
+        moved = self._executed_path(plan).read_text(encoding="utf-8")
+        self.assertIn("out-of-scope CHANGELOG.md", moved)
+        self.assertIn("release note for this change", moved)
+
+
+class MeasuredIncidentRegressionTests(_ScopeOwnershipBase):
+    """The 2026-09-07 `mm6wuz` incident, reproduced in its REAL shape (scopeattr `h9cn0y` E-04).
+
+    Finalizing `mm6wuz` demanded TEN ``--scope-reason`` entries of which only TWO were that plan's
+    (``CHANGELOG.md`` and ``tests/test_runner_stop_level3.py``, both committed ALONGSIDE its declared
+    files). The other eight came from four unrelated commits by other agents.
+
+    The shape matters and is reproduced faithfully: the incident was a HAND finalize from the MAIN
+    checkout (the run never earned integration, so the runner's own finalize never ran), which is why
+    the foreign commits were in the very tree the finalize computed its diff in. The fixture therefore
+    commits the foreign work in the SAME tree, not in a peer worktree.
+    """
+
+    SCOPE_8 = (
+        "agent_workflows/render_stream.py, agent_workflows/oc_runipd.py, "
+        "tests/test_render_stream.py, tests/test_oc_runipd_cli.py"
+    )
+
+    def _incident_repo(self):
+        """Build the incident: the plan's own commit, then four foreign commits, one tree."""
+        plan = self._plan(scope_paths=self.SCOPE_8, plan_id="mmw001")
+        self._begin(plan)
+        # (1) THE PLAN'S OWN COMMIT: four declared files plus its two genuine out-of-scope paths.
+        own = [
+            "agent_workflows/render_stream.py",
+            "agent_workflows/oc_runipd.py",
+            "tests/test_render_stream.py",
+            "tests/test_oc_runipd_cli.py",
+            "CHANGELOG.md",
+            "tests/test_runner_stop_level3.py",
+        ]
+        for name in own:
+            (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / name).write_text("mine\n", encoding="utf-8")
+        _commit_paths(self.root, "the plan's own work", own)
+        # (2) FOUR FOREIGN COMMITS, none touching a declared path, in the SAME tree.
+        foreign = {
+            "attention": [
+                "agent_workflows/attention.py",
+                "tests/test_next_ordering.py",
+            ],
+            "isolated-commit": [
+                "agent_workflows/commit_lock.py",
+                "agent_workflows/git_commit_helper.py",
+                "tests/test_commit_lock.py",
+                "tests/test_isolated_commit.py",
+            ],
+            "lifecycle": [
+                "agent_workflows/ipd_lifecycle.py",
+                "tests/test_finalize_isolated_commit.py",
+            ],
+        }
+        for subject, names in foreign.items():
+            for name in names:
+                (self.root / name).parent.mkdir(parents=True, exist_ok=True)
+                (self.root / name).write_text("another agent\n", encoding="utf-8")
+            _commit_paths(self.root, f"another agent: {subject}", names)
+        return plan
+
+    def test_the_incident_now_demands_TWO_reasons_not_TEN(self):
+        """THE REGRESSION ASSERTION: exactly the two paths that were genuinely this plan's."""
+        plan = self._incident_repo()
+
+        audit = self._audit(plan)
+
+        self.assertEqual(
+            sorted(audit["out_of_scope_paths"]),
+            ["CHANGELOG.md", "tests/test_runner_stop_level3.py"],
+            "only the plan's OWN out-of-scope paths may demand a reason",
+        )
+        self.assertEqual(len(audit["out_of_scope_paths"]), 2)
+        # The eight foreign paths are excluded, and visibly so.
+        self.assertEqual(len(audit["disregarded_unowned_paths"]), 8)
+        for name in (
+            "agent_workflows/attention.py",
+            "agent_workflows/commit_lock.py",
+            "agent_workflows/ipd_lifecycle.py",
+            "agent_workflows/git_commit_helper.py",
+        ):
+            self.assertIn(name, audit["disregarded_unowned_paths"])
+
+    def test_the_same_fixture_demanded_TEN_reasons_under_the_PRE_FIX_rule(self):
+        """THE CONTRAST, computed against the PRE-FIX rule on the SAME repository state.
+
+        Without this, the fixture above would pass even if the filter were inverted, because a
+        one-sided assertion cannot show that anything improved. The pre-fix rule is re-applied here
+        exactly as it stood: EVERY committed path outside Scope-Paths demanded a reason, with only the
+        working-tree half ownership-filtered.
+        """
+        plan = self._incident_repo()
+        receipt = LC.read_receipt(self.root, "mmw001")
+        assert receipt is not None
+        base = str(receipt["base_head"])
+        scope_paths = list(receipt["scope_paths"])
+        plan_rel = str(plan.relative_to(self.root))
+
+        sources = LC._changed_path_sources(self.root, base)
+        committed_set = set(sources.committed)
+        pre_fix_out_of_scope = []
+        for p in sources.union():
+            if LC._is_implicitly_allowed(p, plan_rel):
+                continue
+            if any(LC._scope_match(p, pat) for pat in scope_paths):
+                continue
+            if p not in committed_set and not LC._working_tree_path_is_owned(
+                p,
+                scope_paths=scope_paths,
+                committed=sources.committed,
+                plan_rel=plan_rel,
+            ):
+                continue
+            pre_fix_out_of_scope.append(p)
+
+        self.assertEqual(
+            len(pre_fix_out_of_scope),
+            10,
+            f"the pre-fix rule should demand TEN reasons here; got {sorted(pre_fix_out_of_scope)}",
+        )
+        # And the post-fix audit on the SAME state demands two: 10 -> 2, demonstrated not asserted.
+        self.assertEqual(len(self._audit(plan)["out_of_scope_paths"]), 2)
+
+    def test_the_incident_plan_now_finalizes_with_its_own_two_reasons_alone(self):
+        """END TO END: the plan reaches executed/ giving reasons ONLY for its own two paths.
+
+        And its permanent record therefore contains no claim about a file it never touched, which is
+        the record-corruption this plan exists to stop.
+        """
+        plan = self._incident_repo()
+
+        result = LC.finalize(
+            self.root,
+            plan,
+            ACTOR,
+            "structured live event stream",
+            apply=True,
+            scope_reasons={
+                "CHANGELOG.md": "release note for this change",
+                "tests/test_runner_stop_level3.py": "stop-trigger coverage moved with the stream",
+            },
+        )
+
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        moved = self._executed_path(plan).read_text(encoding="utf-8")
+        self.assertIn("out-of-scope CHANGELOG.md", moved)
+        # THE RECORD IS CLEAN: no reason was written for another agent's file.
+        for foreign in (
+            "out-of-scope agent_workflows/attention.py",
+            "out-of-scope agent_workflows/commit_lock.py",
+            "out-of-scope agent_workflows/ipd_lifecycle.py",
+        ):
+            self.assertNotIn(foreign, moved)
 
 
 class ChangedPathSourcesSplitTests(_ScopeOwnershipBase):
@@ -590,6 +916,244 @@ class ChangedPathSourcesSplitTests(_ScopeOwnershipBase):
         )
         self.assertFalse(
             owned("agent_workflows/coworker.py"), "unowned: nothing attributes it"
+        )
+
+
+class NothingElseMovedTests(_ScopeOwnershipBase):
+    """scopeattr `h9cn0y` E-05: the surfaces this gate shares must be provably unaffected.
+
+    The committed-half filter is applied at the SPLIT, never to the union-returning surface, precisely
+    so the readers of that union do not change behavior as a side effect. These tests assert that
+    rather than trusting the code comment.
+    """
+
+    def test_check_scope_drift_still_sees_the_broad_time_window(self):
+        """``check_engine.check_scope_drift`` must be UNAFFECTED: it wants the time window.
+
+        It consumes ``_paths_changed_by_this_execution`` (the union), which is deliberately NOT
+        ownership-filtered. So a foreign committed path that finalize now DISREGARDS must still be
+        reported as drift here. This is the compatibility constraint the union surface exists for; if
+        a future change ownership-filters the union, this test is what catches it.
+        """
+        from agent_workflows import check_engine as CE
+
+        plan = self._plan()
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+        (self.root / "agent_workflows/theirs.py").write_text(
+            "theirs\n", encoding="utf-8"
+        )
+        _commit_paths(self.root, "another actor", ["agent_workflows/theirs.py"])
+
+        # finalize DISREGARDS it (the new behavior)...
+        audit = self._audit(plan)
+        self.assertEqual(audit["out_of_scope_paths"], [])
+        self.assertIn("agent_workflows/theirs.py", audit["disregarded_unowned_paths"])
+
+        # ...while the union surface still CONTAINS it, unchanged in shape and value.
+        receipt = LC.read_receipt(self.root, "abc123")
+        assert receipt is not None
+        union = LC._paths_changed_by_this_execution(
+            self.root, str(receipt["base_head"])
+        )
+        self.assertIn("agent_workflows/theirs.py", union)
+        sources = LC._changed_path_sources(self.root, str(receipt["base_head"]))
+        self.assertEqual(union, sources.union())
+
+        # And the drift rule that reads it still flags the path.
+        drift = CE.check_scope_drift(self.root)
+        self.assertTrue(
+            any("agent_workflows/theirs.py" in str(d.detail) for d in drift),
+            f"check_scope_drift must still flag the broad window; got {[d.detail for d in drift]}",
+        )
+
+    def test_the_in_scope_unmodified_scope_ack_direction_is_untouched(self):
+        """The MISSING-work direction still fires and still needs an ack. Not relaxed."""
+        plan = self._plan("agent_workflows/demo.py, tests/test_demo.py, tests/never.py")
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+
+        audit = self._audit(plan)
+        self.assertEqual(audit["in_scope_unmodified"], ["tests/never.py"])
+
+        refused = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
+        self.assertEqual(refused.exit_code, LC.EXIT_FINDINGS)
+        self.assertIn("--scope-ack", refused.message)
+        self.assertTrue(plan.is_file())
+
+        ok = LC.finalize(
+            self.root,
+            plan,
+            ACTOR,
+            "did the work",
+            apply=True,
+            scope_acks={"tests/never.py": "not-needed"},
+        )
+        self.assertEqual(ok.exit_code, LC.EXIT_OK, f"{ok.message} / {ok.findings}")
+
+    def test_a_clean_finalize_still_completes_without_prompting(self):
+        """Zero out-of-scope, zero unmodified, nothing disregarded: silent success, no message noise."""
+        plan = self._plan()
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+
+        code, msg, evidence, _f = LC.finalize_precheck(self.root, plan)
+        self.assertEqual(code, LC.EXIT_OK, msg)
+        audit = evidence["scope_audit"]
+        self.assertEqual(audit["out_of_scope_paths"], [])
+        self.assertEqual(audit["disregarded_unowned_paths"], [])
+        self.assertNotIn("Disregarded", msg)
+
+        result = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
+        self.assertEqual(
+            result.exit_code, LC.EXIT_OK, f"{result.message} / {result.findings}"
+        )
+        self.assertTrue(self._executed_path(plan).is_file())
+
+    def test_cohesion_uses_no_run_record_and_no_authorship_lookup(self):
+        """The two retired approaches must be ABSENT from the code, not merely unused.
+
+        F-13 forbids a run-record dependency in the lifecycle gate (gitignored, absent from a lane,
+        and finalize gets no run id) and F-14 forbids an authorship lookup (it cannot partition actors
+        here). Asserted by reading the source, because absence of a mechanism is not observable
+        behaviorally.
+
+        DOCSTRINGS AND COMMENTS ARE STRIPPED FIRST, deliberately: those functions DISCUSS the retired
+        approaches at length (that prose is required by the plan's spec-sync section, so a future
+        reader does not re-derive them), and a naive substring search would match the explanation
+        rather than a use. Only executable code is searched.
+        """
+        import ast
+        import inspect
+
+        def _executable_source(fn) -> str:
+            """The function's code with comments and docstrings removed."""
+            tree = ast.parse(inspect.cleandoc(inspect.getsource(fn)))
+            for node in ast.walk(tree):
+                # Drop every docstring (module, class, function) by deleting the leading Expr-of-Str.
+                body = getattr(node, "body", None)
+                if (
+                    isinstance(body, list)
+                    and body
+                    and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)
+                ):
+                    body.pop(0)
+            # ast.unparse never emits comments, so the result is code only.
+            return ast.unparse(tree)
+
+        for fn in (
+            LC._execution_cohesive_committed_paths,
+            LC._working_tree_path_is_owned,
+            LC.finalize_precheck,
+        ):
+            src = _executable_source(fn)
+            for forbidden in (
+                ".aw/records/runs",
+                "last_outcome",
+                "%an",
+                "%ae",
+                "--author",
+                "isolated_baseline",
+            ):
+                self.assertNotIn(
+                    forbidden,
+                    src,
+                    f"{fn.__name__} must not use {forbidden!r} as attribution evidence",
+                )
+
+    def test_cohesion_reports_UNANCHORED_rather_than_an_empty_set(self):
+        """THE FAIL-CLOSED SWITCH, and the reason the helper returns a pair rather than a set.
+
+        "No cohesive paths" and "cohesion knows nothing" are different states that a bare set cannot
+        tell apart, and conflating them INVERTS the gate: an empty set reads as "nothing is owned",
+        which would excuse every committed path on no evidence at all.
+
+        MEASURED during execution: with the switch absent, the pre-existing
+        ``FinalizeTests::test_p7dqwz_counterexample_refuses_out_of_scope_path`` began to FAIL, because
+        a plan whose ONLY commit was out-of-scope had no anchored commit and so was excused. That is
+        precisely the case the gate exists for, which is why this test guards the distinction.
+        """
+        plan = self._plan()
+        self._begin(plan)
+        self._do_in_scope_work_and_commit()
+        receipt = LC.read_receipt(self.root, "abc123")
+        assert receipt is not None
+        base = str(receipt["base_head"])
+
+        # No fence at all (grandfathered): unanchored, so the caller must not filter.
+        no_fence = LC._execution_cohesive_committed_paths(self.root, base, [])
+        self.assertFalse(no_fence.anchored)
+        self.assertEqual(no_fence.paths, frozenset())
+
+        # A git failure must not read as "nothing is owned" either.
+        bad_base = LC._execution_cohesive_committed_paths(
+            self.root, "0000000000000000000000000000000000000000", ["agent_workflows/"]
+        )
+        self.assertFalse(bad_base.anchored)
+        self.assertEqual(bad_base.paths, frozenset())
+
+        # A real footprint IS anchored, so the two states are genuinely distinguished.
+        real = LC._execution_cohesive_committed_paths(
+            self.root, base, list(receipt["scope_paths"])
+        )
+        self.assertTrue(real.anchored)
+        self.assertIn("agent_workflows/demo.py", real.paths)
+
+    def test_an_unanchored_execution_still_demands_a_reason(self):
+        """The behavioral half of the switch: no footprint means the gate behaves as before.
+
+        A plan that committed ONLY out-of-scope work (the `p7dqwz` counterexample's shape) has no
+        anchored commit, so cohesion cannot disclaim anything and the reason requirement still fires.
+        """
+        plan = self._plan("agent_workflows/demo.py")
+        self._begin(plan)
+        (self.root / "tests/test_empty_state_ux.py").write_text("x\n", encoding="utf-8")
+        _commit_paths(self.root, "out-of-scope only", ["tests/test_empty_state_ux.py"])
+
+        audit = self._audit(plan)
+        self.assertEqual(audit["out_of_scope_paths"], ["tests/test_empty_state_ux.py"])
+        self.assertEqual(audit["disregarded_unowned_paths"], [])
+
+        result = LC.finalize(self.root, plan, ACTOR, "did the work", apply=True)
+        self.assertEqual(result.exit_code, LC.EXIT_FINDINGS)
+        self.assertTrue(
+            any("tests/test_empty_state_ux.py" in f for f in result.findings),
+            result.findings,
+        )
+
+    def test_cohesion_groups_paths_by_commit_not_by_position(self):
+        """The helper's grouping is per COMMIT, so anchoring does not leak across commits."""
+        plan = self._plan()
+        self._begin(plan)
+        # Commit A: anchored (declared path) plus a rider.
+        (self.root / "agent_workflows/demo.py").write_text("mine\n", encoding="utf-8")
+        (self.root / "rider.md").write_text("rider\n", encoding="utf-8")
+        _commit_paths(
+            self.root, "anchored commit", ["agent_workflows/demo.py", "rider.md"]
+        )
+        # Commit B: unanchored, entirely foreign.
+        (self.root / "agent_workflows/theirs.py").write_text(
+            "theirs\n", encoding="utf-8"
+        )
+        _commit_paths(self.root, "foreign commit", ["agent_workflows/theirs.py"])
+
+        receipt = LC.read_receipt(self.root, "abc123")
+        assert receipt is not None
+        cohesive = LC._execution_cohesive_committed_paths(
+            self.root, str(receipt["base_head"]), list(receipt["scope_paths"])
+        )
+
+        self.assertTrue(cohesive.anchored)
+        self.assertIn(
+            "rider.md", cohesive.paths, "a rider in an anchored commit is cohesive"
+        )
+        self.assertIn("agent_workflows/demo.py", cohesive.paths)
+        self.assertNotIn(
+            "agent_workflows/theirs.py",
+            cohesive.paths,
+            "anchoring must not leak into a separate, unanchored commit",
         )
 
 

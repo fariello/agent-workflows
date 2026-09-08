@@ -21,6 +21,11 @@ WHAT MUST STAY TRUE, and is therefore asserted here rather than assumed:
 
 Real git and real ``pre-commit`` throughout: the defect was a wrong belief about what pre-commit does
 to a working tree, so a mock would encode the same wrong belief and pass.
+
+SECOND SUBJECT, added by scopeattr Order 01 (`h9cn0y` E-01): the ISOLATED lane's SCOPE ATTRIBUTION,
+pinned as a CHARACTERIZATION test of behavior that is ALREADY CORRECT rather than as a fix. See
+:class:`IsolatedFinalizeCommittedHalfIsLaneLocalTests` for why that distinction is the whole point.
+Those tests need real git but NOT ``pre-commit``, so they live in their own unskipped class.
 """
 
 from __future__ import annotations
@@ -250,6 +255,189 @@ class FinalizeIsolatedCommitTests(unittest.TestCase):
             "plan moved to executed/ despite a refused commit",
         )
         self.assertTrue(plan.exists(), "rollback did not restore the plan in place")
+
+
+class IsolatedFinalizeCommittedHalfIsLaneLocalTests(unittest.TestCase):
+    """scopeattr Order 01 (`h9cn0y` E-01): the ISOLATED case ALREADY attributes correctly.
+
+    THIS IS A CHARACTERIZATION TEST, NOT A FIX, and the distinction is load-bearing. `h9cn0y` was
+    AUTHORED believing finalize misattributes in a lane because it "diffs against the begin
+    receipt's base_head", and proposed teaching finalize to diff against the lane BRANCH instead.
+    Review (F-12) re-measured and found the premise false, so that work was retired and replaced by
+    this test. The reason the lane is already right is structural, not incidental:
+
+    * ``_repo_root`` deliberately resolves to the WORKTREE, not the main checkout
+      (`ipd_lifecycle.py:424-438`: "for a managed lane that is CORRECT"), and
+    * the runner hands an isolated turn ``finalize_repo = Path(work_dir)``
+      (`oc_runipd.py:6500`),
+
+    so ``git diff <base>..HEAD`` for an in-lane finalize already RUNS INSIDE THE LANE and therefore
+    cannot see a foreign commit made on main at all. MEASURED on the real incident: that diff
+    returned ELEVEN paths inside `aw/lane/mm6wuz_attempt3` and FORTY-SEVEN in the main checkout.
+
+    So the real exposure `h9cn0y` fixes is the IN-PLACE / HAND-FINALIZE case, where foreign commits
+    genuinely sit in the range the finalize computes. That case is covered in
+    ``tests/test_finalize_scope_ownership.py``; this class exists so the E-02 change cannot regress
+    the lane, and so a future reader does not re-derive the retired diagnosis and "fix" a path that
+    was never broken.
+
+    WHAT MUST NOT APPEAR AS A RESULT OF THIS TEST: a lane-branch diff in finalize (unsafe after
+    integration, because ``teardown_worktree`` DELETES the lane branch, `worktree_lease.py`), or any
+    ``isolated_baseline`` consumption in finalize (it is a ``begin``-only parameter, is not persisted
+    in the receipt, and never reaches finalize).
+
+    No ``pre-commit`` needed here, unlike the class above: these assertions are about which paths the
+    scope audit COLLECTS, so they must run everywhere.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _init_git(self.root)
+        (self.root / "agent_workflows").mkdir()
+        (self.root / "tests").mkdir()
+        _commit_all(self.root, "init tree")
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _plan(self, plan_id: str = "lan001") -> Path:
+        plan = _write_plan(
+            self.root,
+            _completed_plan_text(plan_id=plan_id, scope_paths=SCOPE),
+            f"20260830-demo-01-{plan_id}-demo.ipd.md",
+        )
+        _commit_all(self.root, f"add plan {plan_id}")
+        return plan
+
+    def test_isolated_committed_half_contains_only_the_lanes_own_commits(self) -> None:
+        """The property that ALREADY HOLDS: a lane's committed half is lane-local.
+
+        Built to the incident's real shape: the lane commits its own declared work while MAIN
+        receives unrelated commits from other actors in the same window. The lane's audit must see
+        only its own, and must therefore demand NO reason for main's commits.
+        """
+        plan = self._plan()
+        lane = self.root.parent / (self.root.name + "-lane-e01")
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "aw/lane/lan001", str(lane), "HEAD"],
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+        )
+        try:
+            lane_plan = lane / plan.relative_to(self.root)
+            res = LC.begin(lane, lane_plan, ACTOR, timestamp="t")
+            self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+            receipt = LC.read_receipt(lane, "lan001")
+            assert receipt is not None
+            base = str(receipt["base_head"])
+
+            # The lane does its own declared work, path-scoped as the contract requires.
+            (lane / "agent_workflows").mkdir(exist_ok=True)
+            (lane / "tests").mkdir(exist_ok=True)
+            (lane / "agent_workflows/demo.py").write_text("lane\n", encoding="utf-8")
+            (lane / "tests/test_demo.py").write_text("lane\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", "--", "agent_workflows/demo.py", "tests/test_demo.py"],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "lane in-scope work"],
+                cwd=lane,
+                check=True,
+                capture_output=True,
+            )
+
+            # MEANWHILE other actors COMMIT (not merely dirty) unrelated files on MAIN.
+            for name in ("agent_workflows/other_one.py", "tests/test_other_two.py"):
+                (self.root / name).write_text("another actor\n", encoding="utf-8")
+                subprocess.run(
+                    ["git", "add", "--", name],
+                    cwd=self.root,
+                    check=True,
+                    capture_output=True,
+                )
+                subprocess.run(
+                    ["git", "commit", "-q", "-m", f"another actor: {name}"],
+                    cwd=self.root,
+                    check=True,
+                    capture_output=True,
+                )
+
+            lane_sources = LC._changed_path_sources(lane, base)
+            main_sources = LC._changed_path_sources(self.root, base)
+
+            # THE PROPERTY: the lane's committed half is exactly its own two declared files.
+            self.assertEqual(
+                sorted(lane_sources.committed),
+                ["agent_workflows/demo.py", "tests/test_demo.py"],
+                "an isolated finalize's committed half must be LANE-LOCAL",
+            )
+            for foreign in ("agent_workflows/other_one.py", "tests/test_other_two.py"):
+                self.assertNotIn(foreign, lane_sources.committed)
+                # THE CONTRAST that makes the property meaningful: the SAME diff in the MAIN
+                # checkout DOES contain the foreign commits. This is the measured 11-vs-47 shape.
+                self.assertIn(foreign, main_sources.committed)
+            # The two halves are DISJOINT, which is the sharpest available statement of the
+            # contrast: each tree sees only the commits made in it. (Deliberately not a
+            # count comparison: main and the lane happen to hold two paths each here, so a
+            # `>` assertion would encode the fixture's arithmetic rather than the property.)
+            self.assertEqual(
+                set(lane_sources.committed) & set(main_sources.committed),
+                set(),
+                "lane-local and main-local committed halves must not overlap",
+            )
+
+            # And the audit consequently demands nothing: no reason, and nothing to disregard.
+            code, msg, evidence, _f = LC.finalize_precheck(lane, lane_plan)
+            self.assertEqual(code, LC.EXIT_OK, msg)
+            audit = evidence["scope_audit"]
+            self.assertEqual(audit["out_of_scope_paths"], [])
+            self.assertEqual(audit["disregarded_unowned_paths"], [])
+            self.assertTrue(audit["in_scope"])
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(lane)],
+                cwd=self.root,
+                check=False,
+            )
+
+    def test_finalize_consumes_no_isolated_baseline_and_no_lane_branch_diff(
+        self,
+    ) -> None:
+        """The NEGATIVE half of E-01, asserted in code rather than left to review.
+
+        ``isolated_baseline`` must stay a ``begin``-only concept and the receipt must not grow a
+        field for it, because F-12 shows finalize needs no such discriminator. Reading the source is
+        the honest way to pin "a mechanism was NOT introduced"; a behavioral test cannot show the
+        absence of a code path.
+        """
+        import inspect
+
+        for fn in (LC.finalize_precheck, LC.finalize):
+            src = inspect.getsource(fn)
+            self.assertNotIn(
+                "isolated_baseline",
+                src,
+                f"{fn.__name__} must not consume isolated_baseline (F-12)",
+            )
+            self.assertNotIn(
+                "aw/lane/",
+                src,
+                f"{fn.__name__} must not diff against a lane branch (F-15: it is deleted at teardown)",
+            )
+
+        # The receipt schema is unchanged: no isolated_baseline persisted for finalize to read.
+        plan = self._plan(plan_id="lan002")
+        res = LC.begin(self.root, plan, ACTOR, timestamp="t")
+        self.assertEqual(res.exit_code, LC.EXIT_OK, res.message)
+        receipt = LC.read_receipt(self.root, "lan002")
+        assert receipt is not None
+        self.assertNotIn("isolated_baseline", receipt)
+        self.assertIn("base_head", receipt)
 
 
 if __name__ == "__main__":
