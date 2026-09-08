@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import plans_index as I
 
 
@@ -231,10 +232,31 @@ class CheckDriftTests(unittest.TestCase):
         self.assertFalse(any(d.rule == "name-metadata-mismatch" for d in drift))
 
     def test_stale_index_flagged(self):
+        # idxuntrack 02 (yvvf98) E-08: retargeted to the split rule ids. A manifest that is PRESENT
+        # but not byte-equal to a rebuild is real drift and must FAIL the gate.
         self._regen()
         (self.pdir / I.INDEX_MD).write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.pdir)
-        self.assertTrue(any(d.rule == "stale-index" for d in drift))
+        self.assertTrue(any(d.rule == "check.stale-index-stale" for d in drift))
+        stale = [d for d in drift if d.rule == "check.stale-index-stale"]
+        self.assertEqual([d.severity for d in stale], ["warning"] * len(stale))
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_missing_index_is_informational_not_failing(self):
+        """A never-generated manifest is the normal state of a fresh clone or worktree.
+
+        idxuntrack 02 (yvvf98) E-02/E-08: it is reported as a DISTINCT `info` rule and must NOT fail
+        the gate, which is the whole reason the manifests can be gitignored. This is the assertion
+        that fails if the missing/stale split or its severity registration regresses.
+        """
+        self._regen()
+        (self.pdir / I.INDEX_JSON).unlink()
+        drift = I.check_drift(self.root, self.pdir)
+        missing = [d for d in drift if d.rule == "check.stale-index-missing"]
+        self.assertTrue(missing, f"expected a missing-manifest finding, got {drift!r}")
+        self.assertEqual([d.severity for d in missing], ["info"])
+        self.assertFalse(any(d.rule == "check.stale-index-stale" for d in drift))
+        self.assertEqual(_core.drift_exit_code(drift), 0)
 
     def test_dangling_plan_citation_flagged(self):
         self._regen()

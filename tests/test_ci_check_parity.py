@@ -95,8 +95,14 @@ class TestCiLocalParity(unittest.TestCase):
         repo = Path(tmp.name)
         (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
         subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-        # A real clean tree has its plans index generated/committed; regenerate it so the clean-tree
-        # check has no stale-index finding (mirrors the committed state CI runs against).
+        # Regenerate the plans index so the clean-tree check has no stale-index finding.
+        #
+        # idxuntrack 02 (yvvf98) E-08: the previous comment claimed this "mirrors the committed state
+        # CI runs against", which is no longer true and was the misleading part. The manifests are
+        # GENERATED LOCAL VIEWS, so a fresh clone has none at all and CI has no committed baseline to
+        # mirror. Generating here is still correct, but for a different reason: it exercises the
+        # PRESENT-and-current case rather than the absent one. Absence is separately covered by
+        # `check.stale-index-missing`, which is `info` and deliberately does NOT fail the gate.
         subprocess.run(
             [
                 sys.executable,
