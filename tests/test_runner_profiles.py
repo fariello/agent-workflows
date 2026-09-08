@@ -32,6 +32,7 @@ import re
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from agent_workflows import runner_profiles as RP
 
@@ -795,9 +796,15 @@ class ResolvedProvenanceRecordTests(unittest.TestCase):
         self.assertEqual(got.config_source, str(path))
         self.assertTrue(got.config_present)
         self.assertRegex(got.config_digest, r"^[0-9a-f]{64}$")
+        # `verify_with` joined the record in `runprofile` Order 06 (`kgpptv`). Every resolution
+        # carries it, and its value here is `same-as-executor` (nothing configured a verifier),
+        # which is NOT `host-default`: absent means "reuse the executor's own launch".
         self.assertEqual(
-            sorted(got.provenance), ["agent", "model", "runner", "validate", "variant"]
+            sorted(got.provenance),
+            ["agent", "model", "runner", "validate", "variant", "verify_with"],
         )
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_SAME_AS_EXECUTOR)
+        self.assertIsNone(got.verify_with)
         for key, value in got.provenance.items():
             self.assertIn(value, RP.PROVENANCE_VALUES, f"{key} -> {value}")
         print(
@@ -934,6 +941,424 @@ class ValidatePrecedenceMatrixTests(unittest.TestCase):
         )
 
 
+# ==================================================================================================
+# `runprofile` Order 06 (`kgpptv`) E-01 / V-01: the optional `verify_with` PROFILE REFERENCE
+#
+# These tests exist because three things about this field are easy to get wrong and each one is
+# silent when wrong: an ABSENT value read as "no verification" or as "host default" instead of
+# "same as the executor"; a DANGLING reference falling back to the executor's model, so an operator
+# believes an independent model checked the work when the same model did; and a version bump that
+# invalidates every store already on disk.
+# ==================================================================================================
+
+
+def _routing_doc(**overrides) -> dict:
+    """A two-profile document: `cheap` executes, `strong` verifies. Version 2 unless overridden."""
+
+    doc = {
+        "schema_version": 2,
+        "profiles": {
+            "cheap": {"runner": "oc", "model": _FLASH_MODEL, "verify_with": "strong"},
+            "strong": {"runner": "oc", "model": _INHOUSE_MODEL, "variant": "high"},
+        },
+    }
+    doc.update(overrides)
+    return doc
+
+
+class VerifyWithSchemaTests(unittest.TestCase):
+    """The field parses at BOTH levels, is optional, and stays a reference rather than a model."""
+
+    def test_accepted_at_the_profile_level(self):
+        cfg = RP.from_document(_routing_doc())
+        self.assertEqual(cfg.get("cheap").verify_with, "strong")
+        self.assertIsNone(cfg.get("strong").verify_with)
+        print("profile-level verify_with accepted: cheap -> strong")
+
+    def test_accepted_at_the_defaults_level(self):
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "defaults": {"verify_with": "strong"},
+                "profiles": {
+                    "cheap": {"runner": "oc", "model": _FLASH_MODEL},
+                    "strong": {"runner": "oc", "model": _INHOUSE_MODEL},
+                },
+            }
+        )
+        self.assertEqual(cfg.verify_with, "strong")
+        print("defaults-level verify_with accepted: defaults.verify_with = strong")
+
+    def test_absent_is_none_at_both_levels_and_is_omitted_from_the_document(self):
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "profiles": {"gem": {"runner": "oc", "model": _FLASH_MODEL}},
+            }
+        )
+        self.assertIsNone(cfg.verify_with)
+        self.assertIsNone(cfg.get("gem").verify_with)
+        # Absent must NOT be serialized, exactly as for `validate`, so absent stays
+        # distinguishable from any present value.
+        self.assertNotIn("verify_with", cfg.get("gem").to_document())
+        self.assertNotIn("defaults", cfg.to_document())
+
+    def test_round_trips_through_the_writer(self):
+        cfg = RP.from_document(_routing_doc(defaults={"verify_with": "strong"}))
+        reparsed = RP.from_document(json.loads(RP.dumps(cfg)))
+        self.assertEqual(reparsed.to_document(), cfg.to_document())
+        self.assertEqual(reparsed.get("cheap").verify_with, "strong")
+        self.assertEqual(reparsed.verify_with, "strong")
+
+    def test_a_non_string_reference_is_refused_and_says_it_is_a_reference(self):
+        for bad in (1, True, [], {}, {"model": "a/b"}):
+            with self.subTest(value=bad):
+                with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                    RP.parse_profile(
+                        "gem",
+                        {"runner": "oc", "model": _FLASH_MODEL, "verify_with": bad},
+                    )
+                self.assertIn("profile NAME", str(ctx.exception))
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(
+                {"schema_version": 2, "defaults": {"verify_with": 7}, "profiles": {}}
+            )
+        self.assertIn("profile NAME", str(ctx.exception))
+
+    def test_a_reference_must_obey_the_profile_name_grammar(self):
+        # An INLINE model is refused BY THE GRAMMAR, which is the point of taking a reference:
+        # `provider/model` contains a slash and can never be a profile name.
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.parse_profile(
+                "gem",
+                {"runner": "oc", "model": _FLASH_MODEL, "verify_with": _INHOUSE_MODEL},
+            )
+        self.assertIn("invalid profile name", str(ctx.exception))
+        print(
+            "an inline model in verify_with is refused by the profile-name grammar: "
+            f"{str(ctx.exception).splitlines()[0][:96]}"
+        )
+
+    def test_verify_with_is_not_a_forbidden_injection_surface_field(self):
+        # It is a NAME, not argv/env/a credential, which is why it is storable at all. Asserted so
+        # a later reader does not "fix" its absence from the forbidden set.
+        self.assertNotIn("verify_with", RP.FORBIDDEN_PROFILE_KEYS)
+        self.assertIn("verify_with", RP.ALLOWED_PROFILE_KEYS)
+        self.assertIn("verify_with", RP.ALLOWED_DEFAULTS_KEYS)
+
+
+class VerifyWithDanglingReferenceTests(unittest.TestCase):
+    """A reference that resolves to nothing is refused, at load AND at resolution."""
+
+    def test_a_dangling_profile_level_reference_is_refused_at_load(self):
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(
+                {
+                    "schema_version": 2,
+                    "profiles": {
+                        "cheap": {
+                            "runner": "oc",
+                            "model": _FLASH_MODEL,
+                            "verify_with": "nope",
+                        }
+                    },
+                }
+            )
+        message = str(ctx.exception)
+        self.assertIn("does not exist", message)
+        # The message must explain the CONSEQUENCE, not just the fact.
+        self.assertIn("EXECUTOR's own model", message)
+        print(f"dangling profile reference refused: {message.splitlines()[0][:120]}")
+
+    def test_a_dangling_defaults_reference_is_refused_at_load(self):
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.from_document(
+                {
+                    "schema_version": 2,
+                    "defaults": {"verify_with": "nope"},
+                    "profiles": {"cheap": {"runner": "oc", "model": _FLASH_MODEL}},
+                }
+            )
+        self.assertIn("defaults.verify_with", str(ctx.exception))
+        self.assertIn("does not exist", str(ctx.exception))
+
+    def test_an_explicit_unknown_reference_is_refused_at_resolution(self):
+        cfg = RP.from_document(_routing_doc())
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.resolve(cfg, runner="oc", profile="cheap", verify_with="nope")
+        self.assertIn("does not exist", str(ctx.exception))
+
+    def test_a_hand_built_config_cannot_smuggle_a_dangling_reference(self):
+        # `_replace` re-validates, so the mutators cannot create one either.
+        smuggled = RP.ProfileConfig(
+            profiles={
+                "cheap": RP.LaunchProfile(
+                    runner="oc", model=_FLASH_MODEL, verify_with="ghost"
+                )
+            }
+        )
+        # Resolution refuses even though the record was built directly, bypassing `from_document`.
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.resolve(smuggled, runner="oc", profile="cheap")
+        # And it can never be SAVED, because `save` round-trips through the validator.
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(RP.ProfileSchemaError):
+                RP.save(smuggled, Path(d) / "runner-profiles.json")
+
+    def test_the_setter_refuses_a_dangling_default(self):
+        cfg = RP.from_document(_routing_doc())
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.set_verify_with_default(cfg, "ghost")
+        # And the happy path plus the explicit UNSET both work.
+        set_ok = RP.set_verify_with_default(cfg, "strong")
+        self.assertEqual(set_ok.verify_with, "strong")
+        self.assertIsNone(RP.set_verify_with_default(set_ok, None).verify_with)
+
+
+class VerifyWithPrecedenceTests(unittest.TestCase):
+    """The tri-state chain: explicit > profile > defaults > ABSENT (same as the executor)."""
+
+    def _cfg(self, **overrides) -> RP.ProfileConfig:
+        return RP.from_document(_routing_doc(**overrides))
+
+    def test_level_1_explicit_wins_over_everything(self):
+        cfg = self._cfg(defaults={"verify_with": "strong"})
+        got = RP.resolve(cfg, runner="oc", profile="cheap", verify_with="cheap")
+        self.assertEqual(got.verify_with, "cheap")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_EXPLICIT)
+
+    def test_level_2_the_profiles_own_field_beats_defaults(self):
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "defaults": {"verify_with": "cheap"},
+                "profiles": {
+                    "cheap": {
+                        "runner": "oc",
+                        "model": _FLASH_MODEL,
+                        "verify_with": "strong",
+                    },
+                    "strong": {"runner": "oc", "model": _INHOUSE_MODEL},
+                },
+            }
+        )
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_PROFILE)
+
+    def test_level_3_defaults_applies_when_the_profile_is_silent(self):
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "defaults": {"verify_with": "strong"},
+                "profiles": {
+                    "cheap": {"runner": "oc", "model": _FLASH_MODEL},
+                    "strong": {"runner": "oc", "model": _INHOUSE_MODEL},
+                },
+            }
+        )
+        got = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_DEFAULTS)
+
+    def test_level_4_absent_everywhere_means_same_as_the_executor(self):
+        """The BACKWARD-COMPATIBILITY case, and the one that must never read as false or null."""
+
+        for cfg in (
+            RP.from_document(
+                {
+                    "schema_version": 1,
+                    "profiles": {"gem": {"runner": "oc", "model": _FLASH_MODEL}},
+                }
+            ),
+            RP.empty_config(),
+        ):
+            got = RP.resolve(cfg, runner="oc", profile="gem" if cfg.profiles else None)
+            self.assertIsNone(got.verify_with)
+            self.assertEqual(
+                got.provenance["verify_with"], RP.PROVENANCE_SAME_AS_EXECUTOR
+            )
+            # Absent is NOT `False`, NOT `host-default`, and NOT an error.
+            self.assertIsNot(got.verify_with, False)
+            self.assertNotEqual(
+                got.provenance["verify_with"], RP.PROVENANCE_HOST_DEFAULT
+            )
+        print(
+            "absent verify_with resolves to same-as-executor: not false, not null-model, "
+            "not host-default, not an error"
+        )
+
+    def test_the_per_runner_default_profile_supplies_it_too(self):
+        cfg = RP.from_document(_routing_doc(defaults={"profiles": {"oc": "cheap"}}))
+        got = RP.resolve(cfg, runner="oc")  # no profile NAMED
+        self.assertEqual(got.applied_profile, "cheap")
+        self.assertEqual(got.verify_with, "strong")
+        self.assertEqual(got.provenance["verify_with"], RP.PROVENANCE_DEFAULT_PROFILE)
+
+    def test_resolution_is_one_hop_so_a_cycle_is_unreachable(self):
+        """DECISION 06-kgpptv-D1: one hop, so `A -> B -> A` cannot loop."""
+
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "profiles": {
+                    "a": {"runner": "oc", "model": _FLASH_MODEL, "verify_with": "b"},
+                    "b": {"runner": "oc", "model": _INHOUSE_MODEL, "verify_with": "a"},
+                },
+            }
+        )
+        executor = RP.resolve(cfg, runner="oc", profile="a")
+        self.assertEqual(executor.verify_with, "b")
+        # The caller takes exactly ONE hop: it resolves `b` as a launch. `b`'s own `verify_with`
+        # is present but INERT while `b` is being used as the verifier, so no third resolution
+        # exists and there is no loop to detect.
+        verifier = RP.resolve(cfg, runner="oc", profile=executor.verify_with)
+        self.assertEqual(verifier.model, _INHOUSE_MODEL)
+        self.assertNotEqual(verifier.model, executor.model)
+        self.assertEqual(verifier.verify_with, "a")  # carried, and deliberately unused
+        print(
+            f"one hop: executor={executor.model} verifier={verifier.model}; "
+            f"verifier's own verify_with={verifier.verify_with!r} is inert"
+        )
+
+    def test_verify_with_and_validate_are_independent(self):
+        """`validate` decides WHETHER; `verify_with` decides WHICH. Two switches, one each."""
+
+        cfg = RP.from_document(
+            {
+                "schema_version": 2,
+                "profiles": {
+                    # verification OFF, but a verifier profile named anyway.
+                    "cheap": {
+                        "runner": "oc",
+                        "model": _FLASH_MODEL,
+                        "validate": False,
+                        "verify_with": "strong",
+                    },
+                    # verification ON, with NO verifier profile (so it verifies with itself).
+                    "strong": {
+                        "runner": "oc",
+                        "model": _INHOUSE_MODEL,
+                        "validate": True,
+                    },
+                },
+            }
+        )
+        off = RP.resolve(cfg, runner="oc", profile="cheap")
+        self.assertFalse(off.validate)
+        self.assertEqual(off.verify_with, "strong")
+        on = RP.resolve(cfg, runner="oc", profile="strong")
+        self.assertTrue(on.validate)
+        self.assertIsNone(on.verify_with)
+        # And an explicit `--verify-with` does not turn verification ON.
+        still_off = RP.resolve(cfg, runner="oc", profile="cheap", verify_with="strong")
+        self.assertFalse(still_off.validate)
+        print(
+            f"independent: validate={off.validate} with verify_with={off.verify_with}; "
+            f"validate={on.validate} with verify_with={on.verify_with!r}"
+        )
+
+
+class SchemaVersionCompatibilityTests(unittest.TestCase):
+    """DECISION 06-kgpptv-D2: writes 2, READS 1 and 2, and an older aw fails closed on 2."""
+
+    def test_the_module_writes_2_and_reads_1_and_2(self):
+        self.assertEqual(RP.SCHEMA_VERSION, 2)
+        self.assertEqual(sorted(RP.SUPPORTED_SCHEMA_VERSIONS), [1, 2])
+        print(
+            f"writes schema_version {RP.SCHEMA_VERSION}; reads "
+            f"{sorted(RP.SUPPORTED_SCHEMA_VERSIONS)}"
+        )
+
+    def test_an_existing_v1_document_still_loads_and_resolves_unchanged(self):
+        """No migration: a store written before this change keeps working exactly as it did."""
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "runner-profiles.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "default_runner": "oc",
+                        "defaults": {"profiles": {"oc": "gem"}, "validate": False},
+                        "profiles": {
+                            "gem": {
+                                "runner": "oc",
+                                "model": _FLASH_MODEL,
+                                "variant": "high",
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            before = path.read_bytes()
+            cfg = RP.load(path)
+            self.assertEqual(cfg.schema_version, 1)
+            got = RP.resolve(cfg, runner="oc")
+            self.assertEqual(got.model, _FLASH_MODEL)
+            self.assertEqual(got.variant, "high")
+            self.assertIsNone(got.verify_with)
+            self.assertEqual(
+                got.provenance["verify_with"], RP.PROVENANCE_SAME_AS_EXECUTOR
+            )
+            # READING does not rewrite: the v1 bytes on disk are untouched.
+            self.assertEqual(before, path.read_bytes())
+            print("v1 document loads, resolves, and is not rewritten on read")
+
+    def test_a_v1_document_may_carry_verify_with(self):
+        # The reader is version-agnostic about the FIELD, so a hand-written v1 store is not
+        # punished for using it. Only the WRITER pins a version.
+        cfg = RP.from_document(_routing_doc(schema_version=1))
+        self.assertEqual(cfg.schema_version, 1)
+        self.assertEqual(cfg.get("cheap").verify_with, "strong")
+
+    def test_an_older_aw_reading_a_v2_document_fails_closed_with_the_upgrade_message(
+        self,
+    ):
+        """The CONSEQUENCE of the bump, measured rather than asserted in prose.
+
+        An older aw is simulated exactly: its only difference here was
+        `SUPPORTED_SCHEMA_VERSIONS == frozenset((1,))`, which is what the shipped constant was
+        before this change.
+        """
+
+        new_document = json.loads(RP.dumps(RP.from_document(_routing_doc())))
+        self.assertEqual(new_document["schema_version"], 2)
+        with mock.patch.object(RP, "SUPPORTED_SCHEMA_VERSIONS", frozenset((1,))):
+            with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                RP.from_document(new_document)
+        message = str(ctx.exception)
+        self.assertIn("unsupported schema_version 2", message)
+        # The message points at the REAL fix (upgrade) rather than inviting a hand edit.
+        self.assertIn("Upgrade aw rather than editing the file", message)
+        print(f"older aw on a v2 document: {message.splitlines()[0]}")
+
+    def test_an_older_aw_refuses_to_overwrite_a_v2_document(self):
+        """The bump also protects the newer file from being clobbered by the older writer."""
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "runner-profiles.json"
+            RP.save(RP.from_document(_routing_doc()), path)
+            before = path.read_bytes()
+            with mock.patch.object(RP, "SUPPORTED_SCHEMA_VERSIONS", frozenset((1,))):
+                with mock.patch.object(RP, "SCHEMA_VERSION", 1):
+                    with self.assertRaises(RP.ProfileStoreError) as ctx:
+                        RP.save(
+                            RP.ProfileConfig(
+                                schema_version=1,
+                                profiles={
+                                    "gem": RP.LaunchProfile(
+                                        runner="oc", model=_FLASH_MODEL
+                                    )
+                                },
+                            ),
+                            path,
+                        )
+            self.assertIn("Nothing was changed", str(ctx.exception))
+            self.assertEqual(before, path.read_bytes())
+
+
 class NoSilentFallbackTests(unittest.TestCase):
     """The costly failure mode: a broken config must never quietly become the host default."""
 
@@ -1042,15 +1467,22 @@ class SourceAuditTests(unittest.TestCase):
     def test_no_arbitrary_argv_or_credential_field_is_persistable(self):
         # The ALLOWED sets are the whole storable surface; assert them literally so widening
         # them requires editing this test and stating why.
+        # `verify_with` was ADDED by `runprofile` Order 06 (`kgpptv`) and is listed here
+        # deliberately: it is a profile NAME (a reference to an already-validated profile), not
+        # argv, environment, an executable, a prompt, or a credential, so it does not widen the
+        # injection surface this test exists to fence. An INLINE verifier model would have, which
+        # is exactly why the field takes a reference.
         self.assertEqual(
             sorted(RP.ALLOWED_PROFILE_KEYS),
-            ["agent", "model", "runner", "validate", "variant"],
+            ["agent", "model", "runner", "validate", "variant", "verify_with"],
         )
         self.assertEqual(
             sorted(RP.ALLOWED_DOCUMENT_KEYS),
             ["default_runner", "defaults", "profiles", "schema_version"],
         )
-        self.assertEqual(sorted(RP.ALLOWED_DEFAULTS_KEYS), ["profiles", "validate"])
+        self.assertEqual(
+            sorted(RP.ALLOWED_DEFAULTS_KEYS), ["profiles", "validate", "verify_with"]
+        )
         self.assertEqual(
             RP.ALLOWED_PROFILE_KEYS & RP.FORBIDDEN_PROFILE_KEYS, frozenset()
         )

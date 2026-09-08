@@ -16,14 +16,15 @@ turn `aw run as gem` into a quoting-and-injection surface; a credential field wo
 convenience file into a secret store. This module never invokes a process: it returns typed
 fields and the caller builds its own argv list.
 
-Schema version 1 document::
+Schema version 2 document (version 1 is still READ unchanged; see :data:`SCHEMA_VERSION`)::
 
     {
-      "schema_version": 1,
+      "schema_version": 2,
       "default_runner": "oc",                 # optional; required only for GENERIC dispatch
       "defaults": {
         "profiles": {"oc": "gem"},            # optional per-runner default profile
-        "validate": false                     # optional TRI-STATE verification default
+        "validate": false,                    # optional TRI-STATE verification default
+        "verify_with": "opus"                 # optional; the fallback VERIFIER profile
       },
       "profiles": {
         "gem": {
@@ -31,7 +32,8 @@ Schema version 1 document::
           "model": "google/gemini-3.7-flash", # required; EXACT provider/model, never guessed
           "variant": "high",                  # optional
           "agent": "build",                   # optional
-          "validate": true                    # optional TRI-STATE verification default
+          "validate": true,                   # optional TRI-STATE verification default
+          "verify_with": "opus"               # optional; verify THIS profile's work with 'opus'
         }
       }
     }
@@ -59,6 +61,37 @@ For `validate`, with an ABSENT level falling THROUGH rather than reading as `fal
 AN EXPLICIT FLAG ALWAYS WINS. A stored default silently overriding an explicit flag would
 make the flag a lie, and would reproduce `vju5ba` inverted: two independently sensible
 defaults quietly cancelling each other out.
+
+`verify_with` NAMES THE PROFILE THAT VERIFIES, on the SAME tri-state discipline
+(`runprofile` Order 06, `kgpptv`)::
+
+    explicit --verify-with  >  profile's own `verify_with`  >  `defaults.verify_with`  >
+    ABSENT, which means "the verifier uses the EXECUTOR's own launch" (today's behavior)
+
+IT IS A PROFILE REFERENCE, NOT AN INLINE MODEL, and that is the security decision. A bare
+model string here would fork the one place a launch identity is defined and would be the
+first field to escape this module's validation; a reference reuses a whole ALREADY-VALIDATED
+profile, including its `variant` and `agent`. It is therefore NOT in
+:data:`FORBIDDEN_PROFILE_KEYS`' neighborhood: it is a NAME, not argv, environment, or a
+credential.
+
+ABSENT IS THE WHOLE BACKWARD-COMPATIBILITY STORY. Every profile written before this field
+existed, and every run started without one, resolves the verifier to the executor's own
+frozen launch and behaves EXACTLY as it does today. Absent is not `false`, not `null`, and
+not an error, exactly as for `validate`.
+
+RESOLUTION IS ONE HOP, DELIBERATELY (DECISION 06-kgpptv-D1). `A.verify_with = "B"` means the
+verifier launches with B's OWN fields; B's own `verify_with` is INERT while B is being used
+as a verifier. Nothing is chased transitively, so a cycle (`A -> B -> A`) is UNREACHABLE BY
+CONSTRUCTION rather than merely detected, and a reader of :func:`resolve` does not have to
+learn a second, deeper traversal rule than the one every other reference in this module uses.
+A DANGLING reference is still refused, at load time, by the same integrity check that refuses
+a dangling `defaults.profiles` entry.
+
+`verify_with` IS INDEPENDENT OF `validate`, and conflating them would be a defect: `validate`
+decides WHETHER a verifier turn runs at all, `verify_with` decides WHICH profile runs it when
+one does. Two switches for one behavior is precisely what the `validate` precedence chain
+exists to avoid.
 
 STORAGE IS USER-LOCAL AND SEPARATE ON PURPOSE. The file is
 ``<config_dir>/runner-profiles.json`` (:func:`store_path`, reusing
@@ -98,10 +131,25 @@ from agent_workflows import config as _config
 # ==================================================================================================
 
 #: The only schema version this module writes.
-SCHEMA_VERSION = 1
+#:
+#: BUMPED 1 -> 2 by `runprofile` Order 06 (`kgpptv`) when `verify_with` was added, and the bump is
+#: a DELIBERATE compatibility statement rather than bookkeeping (DECISION 06-kgpptv-D2). This
+#: schema FAILS CLOSED on an unknown key, so a document a NEW aw writes is unreadable by an OLDER
+#: aw either way; the only question is WHICH refusal the user sees. Left at 1, the old aw says
+#: "unknown field(s) ['verify_with']", which invites hand-deleting a field the new aw owns. At 2,
+#: the old aw says "unsupported schema_version 2 ... Upgrade aw rather than editing the file",
+#: which is the message this module deliberately wrote for exactly this situation, and `save`'s
+#: refuse-to-overwrite-a-newer-file guard already protects the document from being clobbered.
+SCHEMA_VERSION = 2
 
 #: Versions this module can READ. A document declaring anything else fails closed.
-SUPPORTED_SCHEMA_VERSIONS: frozenset = frozenset((1,))
+#:
+#: BOTH 1 and 2 are read, so no existing store is invalidated and NOTHING is migrated: a v1
+#: document keeps loading byte-for-byte as it did, and is only rewritten as v2 if the user
+#: actually saves through `aw oc profile ...`. `verify_with` is accepted in a v1 document too:
+#: the reader is version-agnostic about the FIELD, so a hand-written store is not punished for
+#: carrying it while declaring 1.
+SUPPORTED_SCHEMA_VERSIONS: frozenset = frozenset((1, 2))
 
 #: The store's file name, inside :func:`agent_workflows.config.config_dir`.
 STORE_NAME = "runner-profiles.json"
@@ -117,14 +165,16 @@ ALLOWED_DOCUMENT_KEYS: frozenset = frozenset(
 )
 
 #: Keys inside the top-level ``defaults`` object. ``profiles`` holds the per-runner default
-#: profile map; ``validate`` is the tri-state verification default. Keeping the per-runner map
-#: NESTED (rather than putting runner names directly in ``defaults``) means a future runner can
-#: never collide with a settings key such as ``validate``.
-ALLOWED_DEFAULTS_KEYS: frozenset = frozenset(("profiles", "validate"))
+#: profile map; ``validate`` is the tri-state verification default; ``verify_with`` is the
+#: fallback VERIFIER profile name. Keeping the per-runner map NESTED (rather than putting runner
+#: names directly in ``defaults``) means a future runner can never collide with a settings key
+#: such as ``validate``.
+ALLOWED_DEFAULTS_KEYS: frozenset = frozenset(("profiles", "validate", "verify_with"))
 
-#: Keys inside one profile object.
+#: Keys inside one profile object. ``verify_with`` is a PROFILE NAME (a reference), never an
+#: inline model, which is why it is safe to store: see the module docstring.
 ALLOWED_PROFILE_KEYS: frozenset = frozenset(
-    ("runner", "model", "variant", "agent", "validate")
+    ("runner", "model", "variant", "agent", "validate", "verify_with")
 )
 
 #: Keys refused BY NAME with an explicit reason. Unknown keys are refused anyway; this set
@@ -251,6 +301,10 @@ class LaunchProfile:
 
     ``validate`` is a TRI-STATE: ``None`` means "not specified at this level" and falls through
     to the next precedence level. It is NOT the same as ``False``.
+
+    ``verify_with`` is a PROFILE NAME (a reference into the same document), or ``None`` meaning
+    "not specified at this level", which ultimately means the verifier reuses the executor's own
+    launch. It is never an inline model.
     """
 
     runner: str
@@ -258,6 +312,7 @@ class LaunchProfile:
     variant: Optional[str] = None
     agent: Optional[str] = None
     validate: Optional[bool] = None
+    verify_with: Optional[str] = None
 
     def to_document(self) -> Dict[str, Any]:
         """Return the JSON object for this profile, omitting absent optional fields."""
@@ -269,6 +324,8 @@ class LaunchProfile:
             out["agent"] = self.agent
         if self.validate is not None:
             out["validate"] = self.validate
+        if self.verify_with is not None:
+            out["verify_with"] = self.verify_with
         return out
 
 
@@ -284,6 +341,8 @@ class ProfileConfig:
     default_runner: Optional[str] = None
     default_profiles: Mapping[str, str] = field(default_factory=dict)
     validate: Optional[bool] = None
+    #: ``defaults.verify_with``: the fallback VERIFIER profile name, or ``None`` for unspecified.
+    verify_with: Optional[str] = None
     profiles: Mapping[str, LaunchProfile] = field(default_factory=dict)
     source: Optional[Path] = None
     present: bool = False
@@ -327,6 +386,8 @@ class ProfileConfig:
             defaults["profiles"] = dict(self.default_profiles)
         if self.validate is not None:
             defaults["validate"] = self.validate
+        if self.verify_with is not None:
+            defaults["verify_with"] = self.verify_with
         if defaults:
             doc["defaults"] = defaults
         doc["profiles"] = {
@@ -364,6 +425,10 @@ class ResolvedLaunch(NamedTuple):
     config_present: bool
     config_digest: str
     provenance: Mapping[str, str]
+    #: The resolved VERIFIER profile NAME, or ``None`` meaning "the verifier reuses THIS launch"
+    #: (`runprofile` Order 06, `kgpptv`). ``None`` is today's behavior and is not an error. A
+    #: DEFAULTED field so every existing construction site keeps working unchanged.
+    verify_with: Optional[str] = None
 
 
 #: Provenance vocabulary, one value per resolved field. Closed set so a report can render it.
@@ -376,6 +441,12 @@ PROVENANCE_DEFAULTS = "defaults"  # the top-level `defaults` object supplied it
 PROVENANCE_DEFAULT_RUNNER = "default-runner"  # `default_runner` supplied the runner
 PROVENANCE_SHIPPED = "shipped-default"  # the module's shipped default
 PROVENANCE_HOST_DEFAULT = "host-default"  # nothing supplied it; pass no argument
+#: `verify_with` only: no level named a verifier profile, so the verifier reuses the EXECUTOR's
+#: launch. A DISTINCT value from `host-default`, because the two absences mean different things:
+#: `host-default` means "pass no argument and let the host choose", while this means "pass the
+#: executor's own resolved argument". Rendering them the same would tell an operator the verifier
+#: ran on the host default when it actually ran on the executor's model.
+PROVENANCE_SAME_AS_EXECUTOR = "same-as-executor"
 
 PROVENANCE_VALUES: frozenset = frozenset(
     (
@@ -386,6 +457,7 @@ PROVENANCE_VALUES: frozenset = frozenset(
         PROVENANCE_DEFAULT_RUNNER,
         PROVENANCE_SHIPPED,
         PROVENANCE_HOST_DEFAULT,
+        PROVENANCE_SAME_AS_EXECUTOR,
     )
 )
 
@@ -531,21 +603,70 @@ def parse_profile(name: str, raw: Any) -> LaunchProfile:
                 f"profile {name!r}: runner {runner!r} does not support an agent"
             )
     validate = _validate_tristate(f"profile {name!r} 'validate'", raw.get("validate"))
+    verify_with = raw.get("verify_with")
+    if verify_with is not None:
+        # A profile NAME, validated by the SAME grammar every other profile name uses, so a
+        # reference cannot carry a shape a real profile could never have. Whether it RESOLVES is
+        # a document-level question and is answered by `_validate_referential_integrity`, which
+        # already owns exactly that question for `defaults.profiles`.
+        if not isinstance(verify_with, str):
+            raise ProfileSchemaError(
+                f"profile {name!r} 'verify_with' must be a profile NAME string (a reference to "
+                f"another profile), got {type(verify_with).__name__}. It is deliberately not an "
+                "inline model: a reference reuses a whole validated profile."
+            )
+        verify_with = validate_profile_name(verify_with)
     return LaunchProfile(
-        runner=runner, model=model, variant=variant, agent=agent, validate=validate
+        runner=runner,
+        model=model,
+        variant=variant,
+        agent=agent,
+        validate=validate,
+        verify_with=verify_with,
     )
+
+
+def _validate_verify_reference(
+    where: str, target: str, profiles: Mapping[str, Any]
+) -> None:
+    """A ``verify_with`` reference must name an EXISTING profile (`kgpptv` E-01).
+
+    Refused with the same error class a dangling ``default_runner``/``defaults.profiles`` gets,
+    and for the same reason: a reference that resolves to nothing would silently fall back to the
+    executor's model, so the operator would believe an independent model verified the work when
+    the same model did. That is worse than a dangling default, because the failure is invisible in
+    the result rather than visible in the bill.
+
+    The runner is NOT constrained here. A profile binds a runner, but only ONE host reads profiles
+    at all today, so a cross-runner reference is refused where it is USED (`oc_runipd` resolves
+    with `runner="oc"`), not where it is stored; refusing it here would also make a legitimate
+    future cross-host reference a schema change rather than an adapter change.
+    """
+
+    if target not in profiles:
+        known = ", ".join(sorted(profiles)) or "(none)"
+        raise ProfileSchemaError(
+            f"{where} points at {target!r}, which does not exist (known profiles: {known}). "
+            "Remove the reference or create the profile; a dangling verifier reference would "
+            "silently verify with the EXECUTOR's own model, so an operator would believe an "
+            "independent model checked the work when the same model did."
+        )
 
 
 def _validate_referential_integrity(
     default_runner: Optional[str],
     default_profiles: Mapping[str, str],
     profiles: Mapping[str, LaunchProfile],
+    verify_with: Optional[str] = None,
 ) -> None:
     """A default reference must resolve to an existing profile OF THAT RUNNER.
 
     A dangling default is the failure mode that costs real money: the referenced profile is
     gone, so an unqualified run silently falls back to the host default model instead of the
     one the user chose.
+
+    Every ``verify_with`` reference (each profile's own, plus ``defaults.verify_with``) must
+    resolve too; see :func:`_validate_verify_reference`.
     """
 
     for runner, profile_name in sorted(default_profiles.items()):
@@ -565,6 +686,14 @@ def _validate_referential_integrity(
         raise ProfileSchemaError(
             f"default_runner {default_runner!r} is not a registered runner"
         )
+    for profile_name in sorted(profiles):
+        target = getattr(profiles[profile_name], "verify_with", None)
+        if target is not None:
+            _validate_verify_reference(
+                f"profile {profile_name!r} 'verify_with'", target, profiles
+            )
+    if verify_with is not None:
+        _validate_verify_reference("defaults.verify_with", verify_with, profiles)
 
 
 def from_document(
@@ -622,13 +751,24 @@ def from_document(
         default_profiles[canonical] = profile_name
 
     validate = _validate_tristate("defaults.validate", raw_defaults.get("validate"))
-    _validate_referential_integrity(default_runner, default_profiles, profiles)
+    raw_verify_with = raw_defaults.get("verify_with")
+    if raw_verify_with is not None:
+        if not isinstance(raw_verify_with, str):
+            raise ProfileSchemaError(
+                "defaults.verify_with must be a profile NAME string (a reference to a profile), "
+                f"got {type(raw_verify_with).__name__}"
+            )
+        raw_verify_with = validate_profile_name(raw_verify_with)
+    _validate_referential_integrity(
+        default_runner, default_profiles, profiles, verify_with=raw_verify_with
+    )
 
     return ProfileConfig(
         schema_version=version,
         default_runner=default_runner,
         default_profiles=default_profiles,
         validate=validate,
+        verify_with=raw_verify_with,
         profiles=profiles,
         source=source,
         present=present,
@@ -777,6 +917,7 @@ def _replace(cfg: ProfileConfig, **changes: Any) -> ProfileConfig:
         "default_runner": cfg.default_runner,
         "default_profiles": dict(cfg.default_profiles),
         "validate": cfg.validate,
+        "verify_with": cfg.verify_with,
         "profiles": dict(cfg.profiles),
         "source": cfg.source,
         "present": cfg.present,
@@ -784,7 +925,10 @@ def _replace(cfg: ProfileConfig, **changes: Any) -> ProfileConfig:
     base.update(changes)
     result = ProfileConfig(**base)
     _validate_referential_integrity(
-        result.default_runner, result.default_profiles, result.profiles
+        result.default_runner,
+        result.default_profiles,
+        result.profiles,
+        verify_with=result.verify_with,
     )
     return result
 
@@ -894,6 +1038,18 @@ def set_validate_default(cfg: ProfileConfig, value: Optional[bool]) -> ProfileCo
     return _replace(cfg, validate=_validate_tristate("defaults.validate", value))
 
 
+def set_verify_with_default(cfg: ProfileConfig, name: Optional[str]) -> ProfileConfig:
+    """Return a new config whose ``defaults.verify_with`` is set, or UNSET with ``None``.
+
+    ``None`` restores "unspecified", which means the verifier reuses the executor's own launch.
+    A name that does not resolve is refused by :func:`_validate_referential_integrity` through
+    :func:`_replace`, so this mutator cannot create a dangling reference.
+    """
+
+    target = None if name is None else validate_profile_name(name)
+    return _replace(cfg, verify_with=target)
+
+
 # ==================================================================================================
 # Resolution (E-03)
 # ==================================================================================================
@@ -908,6 +1064,7 @@ def resolve(
     variant: Optional[str] = None,
     agent: Optional[str] = None,
     validate: Optional[bool] = None,
+    verify_with: Optional[str] = None,
     generic: bool = False,
 ) -> ResolvedLaunch:
     """Resolve ONE auditable launch, with per-field provenance.
@@ -919,6 +1076,15 @@ def resolve(
     Precedence for ``validate``, highest first, with an ABSENT level falling THROUGH::
 
         explicit flag > profile's `validate` > `defaults.validate` > shipped default
+
+    Precedence for ``verify_with``, on the SAME tri-state discipline, highest first::
+
+        explicit --verify-with > profile's `verify_with` > `defaults.verify_with` >
+        ABSENT (None), meaning the verifier reuses THIS launch
+
+    ``verify_with`` resolves to a profile NAME, not to a launch: the caller resolves that name to
+    its own :class:`ResolvedLaunch` with a second :func:`resolve` call, which is what keeps this
+    ONE HOP (DECISION 06-kgpptv-D1) and keeps a cycle unreachable rather than merely detected.
 
     ``generic=True`` is host-neutral dispatch (`aw run ...`): when no named profile supplies a
     runner, ``default_runner`` is REQUIRED. It never guesses a runner, because guessing would
@@ -1016,6 +1182,29 @@ def resolve(
         resolved_validate = SHIPPED_VALIDATE_DEFAULT
         provenance["validate"] = PROVENANCE_SHIPPED
 
+    # ---- verify_with: the SAME tri-state chain, and absent means "same as the executor" -----
+    #
+    # `kgpptv` E-01. Deliberately NOT `pick()`: `pick`'s absent case is `host-default` ("pass no
+    # argument"), which is the WRONG meaning here. An absent verifier reference means "pass the
+    # EXECUTOR's own resolved argument", a different fact that gets its own provenance value.
+    if verify_with is not None:
+        resolved_verify_with = validate_profile_name(verify_with)
+        provenance["verify_with"] = PROVENANCE_EXPLICIT
+    elif applied is not None and applied.verify_with is not None:
+        resolved_verify_with = applied.verify_with
+        provenance["verify_with"] = applied_provenance
+    elif cfg.verify_with is not None:
+        resolved_verify_with = cfg.verify_with
+        provenance["verify_with"] = PROVENANCE_DEFAULTS
+    else:
+        resolved_verify_with = None
+        provenance["verify_with"] = PROVENANCE_SAME_AS_EXECUTOR
+    # A reference is proven to RESOLVE here as well as at load, so a hand-built `ProfileConfig`
+    # or an explicit `--verify-with` naming a missing profile cannot slip past resolution. This
+    # mirrors what the `default_profile_for` branch above does with `cfg.get`.
+    if resolved_verify_with is not None:
+        _validate_verify_reference("verify_with", resolved_verify_with, cfg.profiles)
+
     return ResolvedLaunch(
         runner=resolved_runner,
         model=resolved_model,
@@ -1028,4 +1217,5 @@ def resolve(
         config_present=cfg.present,
         config_digest=cfg.digest,
         provenance=MappingProxyType(dict(provenance)),
+        verify_with=resolved_verify_with,
     )
