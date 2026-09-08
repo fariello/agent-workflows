@@ -6,14 +6,17 @@
 - Scope: Implement deterministic activity attribution, required analytics, effective-dated pricing, robust statistics, comparison safeguards, and evidence-backed opportunity findings.
 - Scope-Paths: agent_workflows/run_analytics_taxonomy.py, agent_workflows/run_analytics_pricing.py, agent_workflows/run_analytics_statistics.py, agent_workflows/run_analytics_findings.py, tests/test_run_analytics_taxonomy.py, tests/test_run_analytics_statistics.py, tests/test_run_analytics_findings.py
 - Item-Dependencies: executed:8hald1
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: runanalytics
 - Order: 6
-- Highest E allocated: 03
+- Highest E allocated: 09
 - Author: Codex
 - Id: aflsz3
 
 ## Workflow history
+
+- 2026-09-08 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-073..PR-082, ALL TEN FIXED, no open findings. The verdict token is stated explicitly because `plan_readiness.newest_verdict` reads the newest review record's first verdict token and falls back to a negative scan when none is present. THIS PLAN WAS REVIEWED BY BUILDING THE ANALYTICS IT SPECIFIES AND RUNNING THEM OVER THE REAL 135-RUN CORPUS, and three of its central premises did not survive that. FIRST AND LARGEST (PR-073, F-1): THE ONLY CLASSIFIABLE SIGNAL IS THE BASH COMMAND STRING, AND ACTIVITY CLASSES OVERLAP IN 42 PERCENT OF COMMANDS. Measured over 22787 real bash calls, 84.7 percent contain multiple shell segments, 41.9 percent match TWO OR MORE taxonomy classes and 8.7 percent match none; the largest single unclassified head is `echo` at 14895 segments. A single-label taxonomy with precedence, as authored, would therefore DISCARD the second class in two of every five commands, and the class it drops is arbitrary. E-01/E-02 now require MULTI-LABEL classification with per-class evidence and a measured unclassified floor. SECOND (PR-074, F-2): THE FLAGSHIP ANALYSIS MEASURES ALMOST NOTHING. Required analysis 1 is instruction/spec-read TIME, and `read`-tool duration totals 183.2 s across the whole corpus, 0.38 percent of tool time, while tool time is itself 3.8 percent of run wall time, so instruction-read time is about 0.014 percent of elapsed. The real instruction burden is the INJECTED CONTEXT (median first-step input 15067 tokens, `AGENTS.md` alone ~8275), which is a token-and-cost measure and not a time measure at all. E-04 now measures the burden where it exists and V-04 requires the 0.014 percent figure be published so nobody reads a flat chart as a finding. THIRD (PR-075, F-3): PRICING IS RECOVERABLE EXACTLY, WHICH IS BETTER THAN THE PLAN ASSUMED, AND ALSO REFUTES ITS COMPONENT LIST. A two-era model reproduces 29648 of 29671 step costs to floating-point exactness (Era A to 2026-08-29T01:30Z: $5.00/$25.00 per Mtok input/output, cache_read FREE; Era B from 2026-08-29T05:38Z: $5.50/$27.50/$0.55), the remaining 23 being a different model; so the effective-dated schedule can be VALIDATED against recorded cost rather than merely asserted, cache_write is 0 everywhere and must not be a rate column, and cache_read is 98.62 percent of all tokens and 72.1 percent of spend. FOURTH (PR-076, F-4): FOUR REQUIRED ANALYSES HAVE SAMPLE SIZES OF 3 TO 6 (multi-attempt items 6 of 733, recovery attempts 6, merge-conflicts 3), so a plan that also mandates statistical rigor mandates a contradiction; each now must return the plan's own `cannot-determine` verdict rather than a chart. FIFTH (PR-077, F-5): MODEL IDENTITY, ON WHICH REQUIRED ANALYSIS 12 DEPENDS, IS RESOLVABLE FOR 2 OF 179 ATTEMPTS (1.1 percent), because `options.model` is null in 130 of 135 runs. ALSO FIXED: 13.0 percent of real spend sits in session logs whose attempt records no cost, and verifier spend ($64.08) is recorded at NO attempt (PR-078, F-6); the E-items were mechanically sized at three, the sixth sibling in a row, and the orchestrator's own OQ-01 names this plan's E-02 as one of the four densest items in the Set (PR-079, F-7, split to NINE); the gate carried no execution contract, the sixth sibling in a row (PR-080, F-8); the plan mandated dollar-cost analytics while shipped `benchmark_metrics` REJECTS dollar cost outright, an unreconciled contradiction between two metric layers (PR-081, F-9); and "No open questions" was untrue, with four decisions now recorded and one Simpson's-paradox instance found in the corpus (PR-082, F-10).
 
 - 2026-09-08 draft (Codex): created.
 - 2026-09-08 to-review (Codex): enumerated the analytics, taxonomy precedence, price provenance, statistical integrity rules, and ranked finding contract.
@@ -22,107 +25,283 @@
 
 Compute the requested time, cost, token, activity, outcome, model, and resource analyses from normalized facts. Findings must identify plausible efficiency opportunities with evidence and next experiments while explicitly separating association from causation.
 
+BUILD IT AGAINST WHAT THE CORPUS CAN ACTUALLY SUPPORT, WHICH IS NARROWER THAN THIS PLAN ASSUMED. The authored conventions said no live corpus exists; 135 runs do, and running this plan's own analytics over them refuted three premises. Activity classes OVERLAP in 41.9 percent of commands, so single-label precedence is the wrong shape (F-1). The flagship instruction-read TIME analysis measures 0.014 percent of elapsed time, because the instruction burden is injected context, not reading (F-2). And four required analyses have n between 3 and 6, so they must return `cannot-determine` rather than a chart (F-4). The compensating good news is that price is recoverable EXACTLY in two eras, so the pricing schedule is testable against recorded cost rather than merely declared (F-3).
+
 ## Detailed Implementation Checklist (TODO)
 
-### Task group 1: Attribution, measures, and findings
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
 
-- [ ] E-01 Implement a versioned deterministic taxonomy with precedence, overlap, uncertainty, and unclassified accounting.
+RIGHT-SIZING NOTE. Authored with THREE E-items, as were all ten children of this Set (31 items total), and the count-based lint conforms at three by construction. The orchestrator's own open question OQ-01 (`5lxvl3`) names THIS plan's E-02 explicitly as one of the four densest items in the Set: "Order 06 E-02 bundles effective-dated pricing WITH every required statistical aggregation, which are separate failure domains joined only by sequence". E-03-as-authored was worse: it carried the ranked-findings contract AND the selection of four additional analyses AND the twenty analytics. Five siblings were already split for the identical reason (`bzz5e6` 3->6, `lhccjf` 3->8, `5f2h8i` 3->7, `8hald1` 3->8). Split into NINE items across four groups (attribution / analytics / pricing and statistics / findings).
+
+### Task group 1: Attribution
+
+- [ ] E-01 Implement the versioned taxonomy as a MULTI-LABEL classifier over structured signals, not a single-label precedence chain.
+  THIS IS THE LARGEST CORRECTION IN THIS REVIEW AND IT IS MEASURED. The authored item asks for "precedence, overlap, uncertainty, and unclassified accounting", which reads as one winning class per event. Measured over all 22787 real bash tool calls in the corpus: 84.7 percent contain MORE THAN ONE shell segment (after stripping a leading `cd X &&`, which 45.3 percent carry), and when each segment is classified independently, 41.9 percent of commands match TWO OR MORE classes, 49.4 percent match exactly one, and 8.7 percent match none. So overlap is the NORM, not the exception a precedence rule handles. A single-label taxonomy discards the second class in two of every five commands, and which class it discards is an artifact of the precedence order rather than of the data. Emit a SET of labels per event with a per-label share, and reserve precedence for the narrow case of choosing a display label.
+  THE ONLY CLASSIFIABLE SIGNAL IS THE COMMAND STRING PLUS THE TOOL NAME. Measured: the corpus holds 32333 `tool_use` parts across 462 session files with exactly 10 distinct tool names (`bash` 22757, `edit` 5512, `read` 2332, `todowrite` 1074, `write` 575, `grep` 49, `glob` 21, `task` 11, `invalid` 1, `skill` 1). `edit`/`read`/`write` carry a `filePath` (8420 of 8421 do), which is a clean structured signal. `bash` carries only the command text. That matters for the privacy boundary: classifying bash REQUIRES reading command text, and the plan forbids PERSISTING it, so classification must happen at ingest and only the derived labels may cross into a fact.
   - Depends on: none
-  - Expected outcome: structured events are classified into instruction/spec reads, tests, git, gates/policy, risk/safety, merge/conflict, implementation/editing, inspection/search, dependency/install, recovery/retry, idle/wait, and other/unknown; every rule exposes why it matched and no prompt or command content is persisted.
+  - Expected outcome: a versioned classifier returning a LABEL SET per event with per-label evidence naming the matched rule and the matched segment kind (never the command text itself); precedence used only to pick a display label and documented as such; no prompt, response or command content persisted.
   - Execution state: pending
-- [ ] E-02 Implement effective-dated pricing and statistically sound aggregations for every required analytical slice.
+
+- [ ] E-02 Publish the UNCLASSIFIED and OVERLAP accounting as first-class measured outputs with a regression floor.
+  MEASURED TARGETS, so "unclassified accounting" is not a promise without a number. Segment-level class hits across 104116 segments: inspection/search 30540, git 9158, implementation/editing 5909, tests 3975, aw-tooling 3598, lint/format 93, dependency/install 17, idle/wait 12. Command-level: 8.7 percent match no class at all. The top unclassified heads are `echo` (14895 segments), an empty segment (3834), `python3` (3807, which is ambiguous by nature since it runs both tests and ad-hoc analysis), a `def` continuation line (1432) and `cd` (1257). Two consequences. FIRST, `echo` is the single largest unclassified head and is almost entirely progress narration, so a class for it is worth having rather than leaving an eighth of segments in `other/unknown`. SECOND, a bare `python3` head cannot be resolved without inspecting its arguments, which is exactly the ambiguity the confidence score exists to record.
   - Depends on: E-01
-  - Expected outcome: recorded cost is preserved separately from estimated cost; price schedules carry provider/model/variant, input/output/cache rates, currency, effective interval, and source/version; distributions report sample size, missingness, median, mean, standard deviation, robust quantiles, and confidence/appropriateness warnings.
+  - Expected outcome: per-class and unclassified shares published as measured outputs with the corpus figures as a recorded baseline; a test that fails if the unclassified command share regresses above the measured 8.7 percent by more than a declared margin; `other/unknown` never silently absorbs a growing share.
   - Execution state: pending
-- [ ] E-03 Implement ranked opportunity findings and select at least four additional corpus-supported analyses with falsifiable tests.
-  - Depends on: E-02
-  - Expected outcome: each finding includes rank, affected slice, effect size and units, sample/coverage, uncertainty, data-quality caveats, alternative explanations, and a low-risk experiment; insufficient evidence produces a “cannot determine” finding rather than advice.
+
+### Task group 2: The analytics and their honesty limits
+
+- [ ] E-03 Implement the TIME model so it publishes unattributed time rather than implying activity accounts for elapsed time.
+  MEASURED, AND THE RATIO IS THE POINT. Summing every `tool_use` part's own `time.start`/`time.end` (present on 32365 of 32365, so 100 percent coverage) gives 48036 s of tool activity, 13.3 h. Summing every run's `created_at`..`updated_at` gives 1254107 s, 348.4 h. So TOOL ACTIVITY IS 3.8 PERCENT OF RUN WALL TIME and 96.2 percent is unattributed: model inference, queueing and idle. At the attempt grain the figure is 9.6 percent of 246.9 h. Any "where did the time go" chart that shows only classified activity is therefore showing 4 percent of the truth, which is worse than showing nothing because it looks complete. Publish `unattributed_time` as the dominant term, by default, on every time view.
+  ALSO MEASURED: 27 attempts have tool activity EXCEEDING their own wall time, because 25 session ids are SHARED by 2 to 5 attempts (80 of 179 attempts live in a shared session). Apportioning a shared session's activity to each attempt double counts it. Attribute a shared session's time once and mark the attempts as sharing it.
+  - Depends on: E-01
+  - Expected outcome: every time view publishes `observed_activity_time`, `unattributed_time` and `overlap_time` with unattributed shown by default; a shared session's activity is attributed once, never once per attempt; a test with the measured 3.8 percent ratio proving activity is never scaled up to fill elapsed time.
+  - Execution state: pending
+
+- [ ] E-04 Implement the instruction-burden analysis as a TOKEN and COST measure, since the time measure it was authored as is empty.
+  THE FLAGSHIP ANALYSIS AS AUTHORED MEASURES 0.014 PERCENT OF ELAPSED TIME. Required analysis 1 is "instruction/spec/documentation-read time, cost, and tokens per IPD". Measured: all 2334 `read` tool calls in the entire corpus total 183.2 s of duration, which is 0.38 percent of the 48036 s of tool time, which is itself 3.8 percent of wall time. So instruction-read TIME is about 0.014 percent of elapsed time and will render as a flat line indistinguishable from zero.
+  THE BURDEN IS REAL BUT IT IS INJECTED, NOT READ. Measured: the median session's FIRST step already carries 15067 input tokens (mean 25401, p90 44668) before the agent reads anything, and `AGENTS.md` alone is 33101 bytes (~8275 tokens) of always-loaded context, with `CONTRIBUTING.md` ~3594, `GUIDING_PRINCIPLES.md` ~2558 and `RELEASING.md` ~899. The 474 prompt files have a median size of 2895 bytes. So the honest analysis is: what does the standing instruction corpus COST per turn, in tokens and dollars, and how does that scale with the number of turns. Read-tool time is a footnote, and the plan must say so rather than charting it as the headline.
+  - Depends on: E-03
+  - Expected outcome: instruction burden measured as injected input tokens and their priced cost per turn and per IPD, with the standing-instruction byte inventory recorded; read-tool time reported as a labeled footnote with its measured 0.38-percent-of-tool-time share; V-04 publishes the 0.014 percent figure so no reader mistakes a flat chart for an absent cost.
+  - Execution state: pending
+
+- [ ] E-05 Implement the remaining required analyses that the corpus CAN support, and refuse the ones it cannot.
+  Cover the analyses whose sample sizes are adequate: per-IPD cost/token/time (179 attempts across 118 distinct id6), the activity-class shares from E-01, the implementation-versus-inspection ratio (measured `edit` 5512 versus `read` 2332 calls, and by file category `source-code` 38.0 percent / `plan-or-ipd` 37.5 percent / `test-code` 13.0 percent of the 8421 file-touching calls), cache utilization (measured cache_read is 98.62 percent of all 5795743803 tokens and 72.1 percent of spend), cost concentration (measured: the top 10 percent of attempts hold 22.8 percent of spend, top 20 percent hold 39.6 percent), and the within-session cost gradient (measured: mean cost per step rises monotonically across position deciles, $0.0781 in the first to $0.1290 in the last, a 1.27x first-to-last-decile ratio at n=345 sessions with 20+ steps). Those last two ARE the corpus-supported additional analyses the plan asked to select at execution time, and they are named here rather than left to be invented.
+  - Depends on: E-04
+  - Expected outcome: each supported analysis has a schema-level and a numeric golden test in both aggregate and phase-separated modes; each names its measured sample size; the six analyses named above are implemented, so the "choose four more at execution" requirement is discharged with evidence rather than deferred.
+  - Execution state: pending
+
+- [ ] E-06 Make every UNDER-POWERED required analysis return the plan's own `cannot-determine` verdict rather than a chart.
+  MEASURED SAMPLE SIZES, AND FOUR REQUIRED ANALYSES CANNOT BE COMPUTED. Across all 135 runs and 733 queue items: only 6 items have more than one attempt (405 have exactly one, 322 have zero), only 6 attempts carry `recovery: true`, and only 3 attempts have disposition `merge-conflict`. So required analysis 5 (failed-merge waste, retry/recovery cost), 8 (merge/conflict share and recurrence), 10 (test failure/retry loops and time-to-first-pass) and 11 (instruction burden versus retries) each rest on n between 3 and 6. This plan simultaneously mandates those analyses AND mandates statistical rigor with confidence warnings, which is a contradiction unless under-powered slices return a refusal. They must return `cannot-determine` with the measured n, exactly as the plan's own findings contract already requires for insufficient evidence.
+  Also measured: verifier phase separation is only partly available. 57 session files are verifier logs holding $64.08 of spend, but ZERO attempts carry `verify_cost` or `verify_tokens`, so required analysis 13 (review versus execute versus verifier) must derive the verifier phase from the session FILENAME and label that derivation as such.
+  - Depends on: E-05
+  - Expected outcome: a shared under-power predicate with a declared minimum n, applied to at least the four analyses measured at n<=6, returning `cannot-determine` plus the observed n instead of a rendered result; the verifier phase derived from the log filename and LABELED derived; a test proving a chart cannot be produced for an under-powered slice.
+  - Execution state: pending
+
+### Task group 3: Pricing and statistics
+
+- [ ] E-07 Implement effective-dated pricing against the MEASURED two-era schedule, and validate it against recorded cost.
+  THE PLAN ASSUMED PRICE HISTORY WOULD HAVE TO BE ASSERTED FROM AN EXTERNAL SOURCE. Measured, it is RECOVERABLE FROM THE CORPUS EXACTLY, which makes the schedule testable rather than declarative. Fitting cost against token components per day yields two clean eras and nothing in between:
+  ERA A, through the step at 2026-08-29T01:30:43Z: input $5.00/Mtok, output $25.00/Mtok, cache_read FREE. Reproduces 7917 steps to floating-point exactness.
+  ERA B, from the step at 2026-08-29T05:38:43Z: input $5.50/Mtok, output $27.50/Mtok, cache_read $0.55/Mtok (exactly 10 percent of input, the standard cached-read discount). Reproduces 21731 steps exactly.
+  There is NO interleaving across the boundary: zero Era A steps occur after the first Era B step, so a single effective instant separates them. The residual 23 steps (0.08 percent) are the SAME 23 steps that carry `reasoning > 0`, and all three of their runs declare `options.model: google/gemini-3.8-flash`, a different model with a blended rate near $0.80/Mtok. So the residual is a model-identity gap, not a pricing bug.
+  TWO CONSEQUENCES FOR THE SCHEMA. First, `cache_write` must NOT be a rate column: measured, cache_write is 0 in all 29611 steps that report a cache object, so a write rate would be untestable and inventing one is guessing. Second, price shares are dominated by cache: least-squares over the Era B steps apportions 72.1 percent of $2855.75 to cache_read, 20.7 percent to output and 7.6 percent to input, and cache_read is 98.62 percent of all tokens. A pricing view that omits cache reads omits nearly three quarters of the money.
+  - Depends on: E-06
+  - Expected outcome: an effective-dated schedule carrying provider/model/variant, input/output/cache-read rates, currency, effective interval and source/version, with the measured two eras and their boundary instants as seed data; recorded cost preserved separately from estimated cost and never overwritten; a validation that the schedule reproduces recorded cost for the 29648 fitting steps and REFUSES rather than guessing for the 23 that do not; no cache_write rate column.
+  - Execution state: pending
+
+- [ ] E-08 Implement the statistical layer, with model comparison gated on the measured 1.1 percent model-identity coverage.
+  REQUIRED ANALYSIS 12 IS MODEL/PROVIDER/VARIANT COMPARISON, AND THE IDENTITY IS ALMOST ENTIRELY ABSENT. Measured: `options.model` is null in 130 of 135 runs and set in 5 (`google/gemini-3.8-flash` 3, `uri/its_direct/pt3-claude-opus-4.8-1m-us` 2). `options.launch_profile` is absent in 102 of 135 runs and, where present, records `model: host-default` in 31 of 33 provenance blocks. NO attempt record carries a model key at all. Only 16 of 462 session files mention `modelID`, and only at `part.state.metadata.model.modelID` on a `task` sub-agent call, so it identifies the SUB-AGENT's model rather than the main agent's. Net: a model is resolvable for 2 of 179 attempts carrying usage, 1.1 percent. So price-era stratification is genuinely available (E-07's two eras cover 99.92 percent of steps) but MODEL stratification is not, and a comparison chart drawn over 1.1 percent coverage is a fabrication. Order 04 (`5f2h8i`) states model identity "must be recorded per file and must not be inferred later from a single run-level snapshot", so the coverage improves for FUTURE runs only; historical comparison stays refused.
+  Standard-library computation is sufficient and is the house pattern: `benchmark_metrics.wilson_score_interval` (`:59`) already implements interval reporting stdlib-only for this repository, and `MetricValue` (`:95`) already carries `sample_size`, `ci_lower`, `ci_upper` and `is_available`. Reuse that shape rather than inventing a second uncertainty vocabulary.
+  - Depends on: E-07
+  - Expected outcome: distributions report sample size, missingness, median, mean, standard deviation and deterministic robust quantiles, in the existing `MetricValue`-shaped vocabulary; model comparison REFUSES with the measured coverage figure until identity coverage exceeds a declared threshold, while price-era stratification proceeds; no new runtime dependency.
+  - Execution state: pending
+
+### Task group 4: Findings
+
+- [ ] E-09 Implement the ranked-findings contract, including the confounder the corpus already contains.
+  Each finding carries rank, affected slice, effect size and units, sample and coverage, uncertainty, data-quality caveats, alternative explanations, and a low-risk next experiment. Insufficient evidence yields a `cannot-determine` finding, never advice.
+  A REAL SIMPSON'S-PARADOX HAZARD IS ALREADY IN THIS DATA, so the required warning has a concrete exemplar rather than a synthetic one. Blended cost per million tokens jumps from a median of $0.054 to $0.071 in the Era A days to $0.635 to $0.737 in the Era B days, a more-than-nine-fold apparent rise. That is NOT a rate change of that magnitude: the Era B rates are only 10 percent higher, and the apparent jump is caused by cache_read going from FREE to billable while cache_read is 98.62 percent of tokens. Any cost-efficiency comparison that pools across the 2026-08-29 boundary will therefore attribute a pricing-policy change to workflow behavior. Stratify by price era before any cost comparison, and make that the shipped exemplar for the paradox warning.
+  ALSO REQUIRED, because it is the finding this corpus most clearly supports: cost concentration and the within-session gradient (E-05) are association only. The step-cost rise across position deciles ($0.0781 to $0.1290) is consistent with context growth, but it is equally consistent with harder work later in a session, and the plan forbids asserting the first. State both.
+  - Depends on: E-08
+  - Expected outcome: findings meet the full evidence/caveat/experiment contract with ranking stability tests; the price-era Simpson's-paradox case ships as a golden test using the measured figures; no causal language anywhere in the output, verified by an explicit check; no recommendation on an under-powered slice.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- Current runs preserve separate execution and verification usage. Every analysis must support aggregate review-plus-execute and separate phase views.
-- Model prices changed over time. A timeless price map would rewrite history and is forbidden.
-- No live corpus is checked into this worktree. The four additional analyses must be selected during execution from fixture-supported signals and then checked against any user-supplied local corpus; selection and rationale become documented taxonomy metadata.
-- Tests and git commands can run concurrently or be nested in broader activity. Time accounting must expose overlap instead of multiplying wall time.
-- Statistical libraries are not current runtime dependencies. Prefer auditable standard-library computations; any new dependency requires explicit packaging, security, size, and necessity evidence.
+- Current runs preserve separate execution and verification usage. Every analysis must support aggregate review-plus-execute and separate phase views. MEASURED CAVEAT: attempt `action` is `review` (196) or `execute` (198) or absent (23), and ZERO attempts carry `verify_cost`/`verify_tokens`, yet 57 verifier session logs exist holding $64.08. So the verifier phase is derivable only from the session FILENAME and must be labeled derived.
+- Model prices changed over time. A timeless price map would rewrite history and is forbidden. CORRECTED AT REVIEW, AND IN THE PLAN'S FAVOR: the price history is recoverable EXACTLY from this corpus in two eras (F-3), so the schedule is validatable against recorded cost instead of merely asserted. Era A (through 2026-08-29T01:30:43Z): $5.00 input, $25.00 output, cache_read free. Era B (from 2026-08-29T05:38:43Z): $5.50, $27.50, $0.55. 29648 of 29671 steps reproduce exactly.
+- CORRECTED AT REVIEW: THE CHECKOUT DOES CONTAIN A LIVE RUN CORPUS. 135 runs, 462 session files, 32365 tool calls, 29671 priced steps. Every sibling plan reviewed so far carried the same false "no live corpus" claim, so it is a Set-wide authoring error. USE IT as a read-only smoke corpus and as the source of the measured figures here; keep checked-in fixtures AUTHORITATIVE for assertions, since the corpus is gitignored, mutable and grows with every run. Never commit any part of it.
+- Tests and git commands can run concurrently or be nested in broader activity. Time accounting must expose overlap instead of multiplying wall time. MEASURED AND FAR STRONGER THAN THE PLAN ASSUMED: 41.9 percent of bash commands match two or more activity classes and 84.7 percent contain multiple shell segments, so overlap is the norm and a single-label precedence taxonomy is the wrong shape (F-1).
+- THE ONLY SIGNAL AVAILABLE FOR CLASSIFYING A BASH ACTION IS THE COMMAND TEXT, which the plan forbids persisting. Classification must therefore happen at ingest, with only derived labels crossing into a fact. `edit`/`read`/`write` calls do carry a structured `filePath` (8420 of 8421), which is the clean signal; `bash` (22757 of 32333 calls) does not.
+- Statistical libraries are not current runtime dependencies, and none is needed. `pyproject.toml:50` declares exactly one runtime dependency (`filelock>=3`); the test extra adds pytest, xdist, randomly and PyYAML. The house precedent for stdlib statistics is `benchmark_metrics.wilson_score_interval` (`:59`) with the `MetricValue` shape (`:95`) carrying sample size, interval bounds and `is_available`. Reuse that vocabulary; any new dependency requires explicit packaging, security, size and necessity evidence.
+- A SHIPPED METRICS LAYER IN THIS REPOSITORY REJECTS DOLLAR COST OUTRIGHT, AND THIS PLAN IS BUILT ON IT. `benchmark_metrics` states "efficiency (time/token based, never dollar)" (`:1`) and enforces `_FORBIDDEN_COST_KEYS` (`:42-49`) so that passing `cost`/`usd`/`price` RAISES `MetricError` (`:170`); `benchmark_manifest` rejects the same fields in usage (`:215`). That prohibition traces to a recorded maintainer ruling in executed plan `9ihhzr`: "dollar `cost` is NOT capturable/enforceable". The rule is scoped to CROSS-MODEL BENCHMARK COMPARISON, and this plan's dollar cost is RECORDED per attempt by the runner and reproduces exactly from a two-era schedule, so the two layers are compatible. But the distinction must be written down (OQ-04), or a later reader sees one module forbidding what a sibling module centers.
+- 135 of 135 runs have zero `telemetry/` directory and zero `ledger.jsonl`, so resource-saturation analysis (required analysis 15) has NO real exemplar and is entirely fixture-driven pending Order 04.
 
 ## Findings
 
-The engine must provide at least these analyses, each filterable by runner, model/provider/variant, date, set, IPD, phase, outcome, attempt, host pseudonym, telemetry mode, taxonomy confidence, and data-quality level where meaningful:
+The engine must provide at least these analyses, each filterable by runner, model/provider/variant, date, set, IPD, phase, outcome, attempt, host pseudonym, telemetry mode, taxonomy confidence, and data-quality level where meaningful. EACH IS ANNOTATED WITH ITS MEASURED FEASIBILITY, since four are under-powered and one measures nearly nothing.
 
-1. Instruction/spec/documentation-read time, cost, and tokens per IPD and over time.
-2. Cost, token components, and elapsed time per IPD within a session/run.
-3. Test activity by IPD, phase, attempt, framework, outcome, and retry count.
-4. Git activity by IPD, including inspect, diff, commit, merge, conflict, and recovery subcategories.
-5. Failed-merge waste, retry/recovery cost, and eventual outcome.
-6. Gate/policy mitigation share.
-7. Risk/safety mitigation share.
-8. Merge/conflict share and recurrence.
-9. Implementation/editing versus inspection/search ratio.
-10. Test failure/retry loops and time-to-first-pass.
-11. Instruction burden versus success, retries, and duration.
-12. Model/provider/variant comparison with price-era stratification.
-13. Review versus execute versus verifier cost and value signals.
-14. Cache-token utilization and marginal recorded/estimated cost.
-15. Resource saturation correlations using CPU, memory, load, GPU, and process samples.
-16. Data-quality and telemetry-coverage trends.
+1. Instruction/spec/documentation-read time, cost, and tokens per IPD and over time. RESHAPED (F-2): read TIME is 0.014 percent of elapsed and must be a footnote; the burden is injected input tokens (median first step 15067) and their cost. See E-04.
+2. Cost, token components, and elapsed time per IPD within a session/run. SUPPORTED: 179 attempts, 118 distinct id6.
+3. Test activity by IPD, phase, attempt, framework, outcome, and retry count. PARTIALLY SUPPORTED: 3975 test-matching segments, but retry count is under-powered (6 multi-attempt items).
+4. Git activity by IPD, including inspect, diff, commit, merge, conflict, and recovery subcategories. SUPPORTED for inspect/diff/commit (9158 git segments); merge and conflict are under-powered (3 merge-conflict attempts).
+5. Failed-merge waste, retry/recovery cost, and eventual outcome. UNDER-POWERED, n=3 to 6 (F-4). Must return `cannot-determine`.
+6. Gate/policy mitigation share. SUPPORTED via structured events (`mixed-type-gate` 35, `draft-admission-gate` 4, `host-permission-posture` 16, `ipd-begin-refused` 6, `ipd-finalize-refused` 18).
+7. Risk/safety mitigation share. SUPPORTED via structured events (`deliberate-stop-at-checkpoint` 3, `worktree-alloc-failed` 5, `lane-reclaimed-on-interrupt` 2) but each n is small; report n.
+8. Merge/conflict share and recurrence. UNDER-POWERED, n=3 (F-4). Must return `cannot-determine`.
+9. Implementation/editing versus inspection/search ratio. SUPPORTED and measured: `edit` 5512 versus `read` 2332 calls; segment-level implementation/editing 5909 versus inspection/search 30540.
+10. Test failure/retry loops and time-to-first-pass. UNDER-POWERED, n=6 (F-4). Must return `cannot-determine`.
+11. Instruction burden versus success, retries, and duration. The retries arm is UNDER-POWERED (n=6); the burden-versus-duration arm is supported.
+12. Model/provider/variant comparison with price-era stratification. THE PRICE-ERA ARM IS SUPPORTED (two exact eras, 99.92 percent of steps). THE MODEL ARM IS NOT: identity resolves for 2 of 179 attempts, 1.1 percent (F-5). Refuse the model arm.
+13. Review versus execute versus verifier cost and value signals. SUPPORTED with a caveat: review 196 and execute 198 attempts are labeled; the verifier's $64.08 across 57 logs is recorded at no attempt and must be derived from the filename and labeled derived.
+14. Cache-token utilization and marginal recorded/estimated cost. STRONGLY SUPPORTED and the largest single lever: cache_read is 98.62 percent of tokens and 72.1 percent of Era B spend; cache_write is 0 everywhere.
+15. Resource saturation correlations using CPU, memory, load, GPU, and process samples. NO REAL EXEMPLAR: zero of 135 runs carry `telemetry/`. Entirely fixture-driven pending Order 04.
+16. Data-quality and telemetry-coverage trends. SUPPORTED and needed: 13.0 percent of session-log spend sits in files whose attempt records no cost (F-6).
 
-At execution time, choose at least four more from signals actually available, such as context-switching entropy, long-tail IPDs, retry escalation, verifier disagreement, idle/load interaction, cost concentration, source-schema drift, or missingness bias. Record why each is supported and avoid a chart for unsupported ideas.
+THE FOUR ADDITIONAL CORPUS-SUPPORTED ANALYSES ARE NOW NAMED RATHER THAN DEFERRED, because the plan asked to "choose at least four more from signals actually available" and the corpus was measured at review, so leaving the choice to execution would repeat the guesswork this review corrected. They are: (a) COST CONCENTRATION, measured, the top 10 percent of attempts hold 22.8 percent of spend and the top 20 percent hold 39.6 percent, most expensive single attempt $54.50 against a median of $11.79; (b) the WITHIN-SESSION COST GRADIENT, measured, mean cost per step rising monotonically across position deciles from $0.0781 to $0.1290, 1.27x first-to-last decile over 345 sessions with 20+ steps; (c) PRICE-ERA STRATIFIED cost efficiency, which is also the Simpson's-paradox control (E-09); and (d) MISSINGNESS BIAS, measured, 215 session files hold $394.19 of spend that no attempt record accounts for. A fifth is available if wanted: activity-class overlap structure, since 41.9 percent multi-class is itself a finding about how work is done.
+
+### Findings (review, measured 2026-09-08 at HEAD `1f4c969b`)
+
+| Id | Severity | Location | Finding | Evidence |
+| --- | --- | --- | --- | --- |
+| F-1 | HIGH | plan E-01's precedence model; 22787 real bash calls | **ACTIVITY CLASSES OVERLAP IN 41.9 PERCENT OF COMMANDS, SO SINGLE-LABEL PRECEDENCE DISCARDS REAL DATA.** 84.7 percent of bash commands contain multiple shell segments (45.3 percent carry a leading `cd X &&`); classifying each segment independently, 41.9 percent of commands match two or more classes, 49.4 percent exactly one, 8.7 percent none. A precedence chain keeps one label and drops the rest, and which it drops is an artifact of the ordering. Overlap is the norm, not an exception a tiebreak handles | parsed all 462 session files; segment-split and classified all 22787 bash commands (104116 segments) |
+| F-2 | HIGH | plan required analysis 1; `read` tool durations | **THE FLAGSHIP INSTRUCTION-READ TIME ANALYSIS MEASURES 0.014 PERCENT OF ELAPSED TIME.** All 2334 `read` calls total 183.2 s, 0.38 percent of the 48036 s of tool time, which is 3.8 percent of the 1254107 s of run wall time. It will render as a flat line. The real burden is INJECTED context: median first-step input 15067 tokens (mean 25401, p90 44668) before any read, with `AGENTS.md` at ~8275 tokens always loaded. A time chart here is not merely useless, it looks complete while showing nothing | summed `time.start`/`time.end` on all 32365 tool parts (100 percent coverage); first-step input tokens over 428 sessions; file sizes |
+| F-3 | HIGH | plan E-02's pricing model; 29671 priced steps | **PRICE IS RECOVERABLE EXACTLY IN TWO ERAS, WHICH BOTH STRENGTHENS THE PLAN AND REFUTES ITS COMPONENT LIST.** Era A (through 2026-08-29T01:30:43Z): $5.00 input / $25.00 output / cache_read FREE reproduces 7917 steps to floating-point exactness. Era B (from 2026-08-29T05:38:43Z): $5.50 / $27.50 / $0.55 reproduces 21731. Zero interleaving across the boundary. The 23 residual steps are exactly the 23 carrying `reasoning>0`, all in runs declaring `google/gemini-3.8-flash`. So the schedule is TESTABLE against recorded cost. But `cache_write` is 0 in all 29611 steps, so a write-rate column is untestable invention, and cache_read is 98.62 percent of tokens and 72.1 percent of spend, so omitting it omits most of the money | per-day least-squares fit of cost on token components; exact-match test of both rate hypotheses against every step; boundary located to the step |
+| F-4 | HIGH | plan required analyses 5, 8, 10, 11; 733 queue items | **FOUR REQUIRED ANALYSES HAVE n BETWEEN 3 AND 6, SO MANDATING THEM AND MANDATING RIGOR IS A CONTRADICTION.** Of 733 queue items only 6 have more than one attempt (405 have one, 322 have zero); only 6 attempts carry `recovery: true`; only 3 have disposition `merge-conflict`. Retry loops, merge waste, conflict recurrence and burden-versus-retries all rest on those. The plan's own findings contract already requires a refusal on insufficient evidence, so these must return `cannot-determine` rather than a chart | attempt and disposition census across all 135 `state.json` files |
+| F-5 | HIGH | plan required analysis 12; model identity fields | **MODEL IDENTITY RESOLVES FOR 1.1 PERCENT OF ATTEMPTS, SO THE MODEL-COMPARISON ANALYSIS CANNOT BE DRAWN.** `options.model` is null in 130 of 135 runs; `options.launch_profile` is absent in 102 and records `model: host-default` in 31 of the 33 present; no attempt record carries a model key; only 16 of 462 session files mention `modelID`, and only at `part.state.metadata.model.modelID` on a `task` call, which identifies the SUB-AGENT's model. Net 2 of 179 attempts. Price-era stratification is available; model stratification is not | enumerated every model/provider key path in state and session files |
+| F-6 | MEDIUM | attempt-versus-log cost reconciliation | **13.0 PERCENT OF REAL SPEND IS INVISIBLE AT THE ATTEMPT GRAIN, AND ALL VERIFIER SPEND IS.** Session logs total $3026.38; recorded attempts total $2568.12. 215 session files whose matching attempt records no cost hold $394.19. Separately, 57 verifier logs hold $64.08 and ZERO attempts carry `verify_cost`/`verify_tokens`. Reconciling per session id: 123 of 124 agree exactly, 1 disagrees because a second queue item was still `running`. So the grain is sound but coverage is not, and a per-IPD cost chart built only from attempts understates by an eighth | summed both sides for every run; matched session files to attempts by filename and by session id |
+| F-7 | MEDIUM | plan E-01..E-03; orchestrator `5lxvl3` OQ-01 | **THE E-ITEMS WERE MECHANICALLY SIZED, AND THIS PLAN IS NAMED IN THE SET'S OWN OPEN QUESTION AS ONE OF THE FOUR DENSEST.** All ten children carry exactly three items (31 in the Set); `5lxvl3` OQ-01 says "Order 06 E-02 bundles effective-dated pricing WITH every required statistical aggregation, which are separate failure domains joined only by sequence". E-03 was worse, carrying the findings contract AND the four-analysis selection AND twenty analytics. Sixth sibling with this finding (`bzz5e6` 3->6, `lhccjf` 3->8, `5f2h8i` 3->7, `8hald1` 3->8) | orchestrator plan read; item content counted |
+| F-8 | MEDIUM | plan gate as authored | The gate carried two sentences and NO execution contract: no scope fence, no path-scoped-commit / never-push rule, no paste-actual-output honesty rule, no lifecycle move, no re-measure warning, no stop conditions. Sixth consecutive sibling with the same omission, so it is a property of the authoring pipeline rather than of any one plan | plan read; five sibling review records read |
+| F-9 | MEDIUM | `benchmark_metrics.py:1,42-49,170`; `benchmark_manifest.py:215` | **A SHIPPED METRICS LAYER IN THIS REPOSITORY REJECTS DOLLAR COST OUTRIGHT AND THE PLAN NEVER RECONCILED WITH IT.** `benchmark_metrics` is "time/token based, never dollar" and RAISES `MetricError` on a `cost`/`usd`/`price` key; the prohibition traces to a maintainer ruling recorded in executed plan `9ihhzr` ("dollar `cost` is NOT capturable/enforceable"). This plan centers dollar cost. They are reconcilable, since that rule governs cross-model benchmark comparison while this cost is runner-recorded and exactly reproducible, but unstated it reads as two modules contradicting each other | both modules read; the executed plan's convention line quoted |
+| F-10 | LOW | plan "No open questions"; corpus cost-per-token by day | "No open questions" was untrue: the taxonomy shape, the under-power policy, the model-comparison refusal and the dollar-cost reconciliation were all unmade decisions. Also, a REAL Simpson's-paradox instance is already in the data: median blended $/Mtok rises from $0.054 to $0.071 in Era A days to $0.635 to $0.737 in Era B, a nine-fold apparent jump caused by cache_read going from free to billable while being 98.62 percent of tokens, NOT by the 10 percent rate change. Any comparison pooling across 2026-08-29 misattributes a pricing change to workflow behavior | per-day blended rate computed across all 29671 steps |
 
 ## Proposed changes (ordered, validatable)
 
-1. Classify structured activity with explicit precedence and quality scores.
-2. Join effective prices and compute phase-aware descriptive and comparison statistics.
-3. Rank cautious opportunities and expose machine-readable evidence/explanation records.
+1. E-01 classifies activity MULTI-LABEL with per-label evidence; E-02 publishes the measured unclassified and overlap accounting with a regression floor.
+2. E-03 publishes unattributed time as the dominant term (96.2 percent measured) and attributes a shared session once; E-04 reshapes instruction burden into a token/cost measure.
+3. E-05 implements the analyses the corpus supports, including the four named additions; E-06 refuses the four measured at n<=6.
+4. E-07 seeds and validates the measured two-era price schedule against recorded cost, with no cache_write column.
+5. E-08 computes distributions in the existing stdlib `MetricValue` vocabulary and refuses model comparison at 1.1 percent coverage.
+6. E-09 ships the ranked-findings contract with the price-era Simpson's-paradox case as a golden test.
 
 ## Deferred / out of scope (with reason)
 
 - Causal claims, automatic workflow changes, model routing changes, and automatic price scraping are excluded.
 - Natural-language semantic classification of private conversations is excluded.
-- ANOVA/regression may be exposed only when assumptions, minimum sample sizes, missingness, grouping, and multiple-comparison risks are checked; otherwise return an explicit refusal.
-- Rendering is Orders 07 and 08.
+- ANOVA/regression may be exposed only when assumptions, minimum sample sizes, missingness, grouping, and multiple-comparison risks are checked; otherwise return an explicit refusal. Note the measured consequence: with four required slices at n<=6 and model identity at 1.1 percent, the refusal path is the COMMON path here, not the edge case.
+- Rendering is Orders 07 (`6eq3oq`) and 08 (`mm5p3v`). Verified against their front matter.
+- The fact schema, source precedence, conservation checks and the token component map are Order 05 (`8hald1`); the privacy projector and cache envelope are Order 02 (`bzz5e6`); telemetry production is Orders 03 (`lhccjf`) and 04 (`5f2h8i`). This plan CONSUMES all of them and reimplements none.
+- Improving model-identity capture is Order 04's (`5f2h8i`) work, which requires model identity be "recorded per file and must not be inferred later from a single run-level snapshot". This plan does NOT retrofit identity onto historical runs; it refuses the comparison instead.
+- Fixing the 13.0 percent attempt-level cost gap (F-6) is a RUNNER change, not an analytics change. This plan measures and reports the gap; it does not close it.
 
 ## Scope check
 
-- Over-scope: no ingestion, cache storage, runner instrumentation, UI, CLI registration, or network transport.
-- Under-scope: covers all 16 required analyses, four corpus-selected additions, pricing eras, distributions, missingness, uncertainty, and ranked findings.
+- Over-scope: no ingestion, cache storage, runner instrumentation, UI, CLI registration, or network transport. Specifically, and each for a measured reason: do NOT re-parse source run directories (Order 05 owns ingestion and this plan consumes its facts); do NOT write a second privacy projector or sanitizer (Order 02's `bzz5e6` E-04 is the single projector every persisted fact crosses); do NOT persist prompt, response or command text, which is the hazard E-01 creates by needing command strings to classify; do NOT add a runtime dependency for statistics (`pyproject.toml:50` declares exactly one, and `benchmark_metrics` proves stdlib suffices); do NOT relax `benchmark_metrics._FORBIDDEN_COST_KEYS` to accommodate this plan's dollar cost (see OQ-04, the two layers coexist); do NOT edit a spec, since none is declared in `Scope-Paths`; and do NOT commit any part of the live run corpus.
+- An out-of-scope edit is not forbidden outright, it must be JUSTIFIED: `aw ipd finalize` refuses to complete without a `--scope-reason` per out-of-scope path and a `--scope-ack` per declared-but-unmodified path.
+- Under-scope: covers the 16 required analyses WITH their measured feasibility verdicts, the four now-named corpus-supported additions, the two measured pricing eras, distributions, missingness, uncertainty, and ranked findings. The multi-label taxonomy (E-01), the unattributed-time dominance (E-03), the reshaped instruction burden (E-04), the under-power refusal (E-06) and the model-comparison refusal (E-08) were all under-scope before review.
 
 ## Required tests / validation
 
-- Golden taxonomy fixtures for every class, ambiguous/overlap/unclassified cases, and explanation text.
-- Pricing boundary dates, unknown model, missing variant, recorded-versus-estimated preservation, currency mismatch refusal, and historical rate-change cases.
-- Small/empty/skewed samples, missing values, zero duration, outliers, overlapping intervals, Simpson’s-paradox warning slices, and deterministic quantiles.
-- Every required analysis has a schema-level and numeric golden test across aggregate and phase-separated modes and every metric: time, cost, input, output, cache, and total tokens where applicable.
+Baseline, measured bare at HEAD `1f4c969b`: `2 failed, 5655 passed, 3 skipped, 2 xfailed in 54.84s`. Both failures (`tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today` and `tests/test_orchestrator_retirement.py::RealRepositorySets::test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows`) are pinned to the live mutable plan corpus and are PRE-EXISTING. Re-measure in the executing worktree and compare failing NODE IDS; the criterion is an empty delta against your own baseline, never a total.
+
+FIXTURES ARE AUTHORITATIVE; THE LIVE CORPUS IS A READ-ONLY SMOKE CHECK. Do not pin a test to `.aw/records/runs/`: it is gitignored, mutable, grows with every run, and carries absolute paths the leak detector flags at `fail`. The two current suite failures are themselves live-corpus couplings, which is this argument made concrete. Use the corpus to confirm the fixtures resemble reality, then assert against fixtures.
+
+- Golden taxonomy fixtures for every class, and specifically for the MULTI-LABEL cases the corpus proves dominate: a `cd X && git status && python3 -m pytest` command that is simultaneously git and test, a `grep`-into-`sed` pipeline that is simultaneously inspection and editing, a bare `echo` that classifies as narration, and a bare `python3` whose class is genuinely ambiguous and must carry low confidence. Assert the label SET, not a winner.
+- An unclassified-share regression test with the measured 8.7 percent command-level floor and a declared margin.
+- Pricing tests: both measured eras reproducing recorded cost exactly; the boundary instants (last Era A step 2026-08-29T01:30:43Z, first Era B step 2026-08-29T05:38:43Z) as boundary-date cases; a `reasoning`-bearing step from an unpriced model REFUSED rather than estimated; unknown model; missing variant; recorded-versus-estimated preservation; currency mismatch refusal; and NO cache_write rate column (cache_write is 0 in all 29611 measured steps).
+- Time-model tests: a fixture whose activities deliberately overlap, proving activity is never scaled to fill elapsed time; a SHARED-session fixture proving activity is attributed once and not once per attempt (27 real attempts exceed their own wall time without this); publication of `unattributed_time` as the dominant term with the measured 96.2 percent ratio.
+- Statistics tests: small/empty/skewed samples, missing values, zero duration, outliers, overlapping intervals, deterministic quantiles, and the price-era Simpson's-paradox slice built from the measured $0.054-to-$0.635 blended-rate jump.
+- Under-power tests: each of the four measured slices (n=3 to 6) returning `cannot-determine` WITH its observed n, and a proof that no chart can be produced for them. Model comparison refusing at the measured 1.1 percent identity coverage.
+- Every SUPPORTED analysis has a schema-level and numeric golden test across aggregate and phase-separated modes and every metric: time, cost, input, output, cache, and total tokens where applicable. Every REFUSED analysis has a test that it refuses.
 - Finding tests prove ranking stability, coverage thresholds, caveats, alternative explanations, no causation language, and no recommendation on insufficient evidence.
-- Bare \`python3 -m pytest\` and \`git diff --check\`.
+- No test may parse the live corpus as its assertion source, spend real time, or reach the network.
+- Bare `python3 -m pytest` and `git diff --check`. Run the suite BARE; do not add `-n0`, a second `-q`, or `-p no:randomly`, since `pyproject.toml` `addopts` already supplies the intended flags.
 
 ## Spec / documentation sync
 
-Order 10 publishes the taxonomy/version, data dictionary, pricing-source procedure, statistical definitions, caveats, and interpretation guide. Price schedules must be maintained as versioned data with source citations and effective intervals; a run-recorded price always remains visibly distinct.
+Order 10 (`9xycbh`) publishes the taxonomy/version, data dictionary, pricing-source procedure, statistical definitions, caveats, and interpretation guide. Price schedules must be maintained as versioned data with source citations and effective intervals; a run-recorded price always remains visibly distinct from an estimated one.
+
+THIS PLAN DECLARES NO SPEC FILE IN `Scope-Paths` AND MUST EDIT NONE. If execution concludes that a spec contract must change, that is a STOP-and-raise, not a unilateral edit.
+
+THE INTERPRETATION GUIDE MUST CARRY THE REFUSALS, NOT ONLY THE RESULTS, and that is the most important documentation obligation this plan creates. Four required analyses cannot be computed from this corpus (F-4), model comparison cannot (F-5), resource saturation has no real exemplar at all, and the headline instruction-read time measures 0.014 percent of elapsed (F-2). A data dictionary that lists twenty analyses without saying which five are refused invites the reader to assume all twenty are measured. RE-MEASURE every figure in this plan at execution: the corpus grows with every run, so treat each count as a review-time snapshot.
 
 ## Open questions
 
-No open questions.
+"No open questions" was not accurate: the plan required four decisions it specified nowhere. All are answerable from repository evidence or from measurement rather than by asking, so each is recorded resolved with its basis. Every reviewed sibling in this Set carried the same inaccurate claim.
+
+### OQ-01: Is the taxonomy single-label with precedence, or multi-label?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AT REVIEW BY MEASUREMENT as MULTI-LABEL, with precedence demoted to display only. The authored item asks for precedence plus overlap accounting, which is a single winner plus a note. Measured over all 22787 real bash commands: 84.7 percent contain multiple shell segments and 41.9 percent match two or more classes, so a precedence chain silently discards a real class in two of every five commands and the discarded one is chosen by the ordering rather than by the data. REJECTED: single-label with an `overlap_time` side-channel, because the side-channel records that overlap happened without recording WHAT overlapped, which is the question every activity analysis asks; and a "primary plus secondary" pair, because 1.6 percent of commands match four or more classes and a fixed arity truncates them.
+
+### OQ-02: What happens to a required analysis whose sample size is 3?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AT REVIEW as an explicit `cannot-determine` verdict carrying the observed n, using the plan's OWN findings-contract rule rather than a new mechanism. Measured: 4 of the 16 required analyses rest on n between 3 and 6 (6 multi-attempt items of 733, 6 recovery attempts, 3 merge-conflict attempts). The plan mandates both those analyses and statistical rigor, which cannot both hold. REJECTED: rendering them with a wide confidence interval, because a chart drawn from n=3 is read as a result no matter what the interval says, and this plan's stated purpose is to avoid impressive charts that are not evidence; and dropping the four requirements, because their absence would be indistinguishable from an oversight while a recorded refusal is a durable statement about the corpus.
+
+### OQ-03: Can the model/provider/variant comparison be computed at all?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AT REVIEW as NO for historical runs; refuse with the measured coverage, and let price-era stratification carry the analysis instead. Measured: `options.model` null in 130 of 135 runs, `launch_profile` absent in 102, no attempt-level model key anywhere, and the only `modelID` occurrences (16 of 462 session files) sit at `part.state.metadata.model.modelID` on a `task` call and describe the SUB-AGENT's model. Net 2 of 179 attempts, 1.1 percent. Order 04 (`5f2h8i`) is the plan that fixes capture going forward ("model identity ... must be recorded per file and must not be inferred later from a single run-level snapshot"), so coverage improves for future runs only. REJECTED: inferring the model from the run date, because that conflates model identity with PRICE ERA and would make every cost difference look like a model difference, which is precisely the Simpson's-paradox trap F-10 documents; and inferring it from a `task` sub-agent's `modelID`, because that is a different model than the one being measured.
+
+### OQ-04: How does this plan's dollar-cost analytics coexist with `benchmark_metrics`, which forbids dollar cost?
+
+- Blocking: no
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED AT REVIEW from the shipped code and the executed plan behind it: THEY ARE DIFFERENT MEASUREMENT CONTRACTS AND BOTH STAY AS THEY ARE. `benchmark_metrics` declares itself "time/token based, never dollar" (`:1`) and RAISES `MetricError` on any `cost`/`usd`/`price` key (`:42-49`, `:170`), with `benchmark_manifest` rejecting the same in usage (`:215`); the rule traces to a maintainer ruling recorded in executed plan `9ihhzr` that dollar cost "is NOT capturable/enforceable" for CROSS-MODEL BENCHMARK COMPARISON, where a per-model price is neither knowable nor stable. This plan's dollar cost is different in kind: it is RECORDED BY THE RUNNER per attempt and reproduces from a two-era schedule to floating-point exactness over 29648 of 29671 steps, so it is an observation about this repository's own spend rather than a cross-model claim. REJECTED: relaxing `_FORBIDDEN_COST_KEYS` so one cost vocabulary serves both, because that would delete a deliberate guard on the benchmark layer to suit an unrelated consumer; and dropping dollar cost from this plan, because recorded cost is the primary signal the maintainer asked to analyze and it demonstrably exists. The distinction MUST be documented in Order 10's data dictionary, or a later reader sees two modules contradicting each other.
 
 ## Validation and cross-check (verify before reporting done)
 
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
 - [ ] V-01 validates E-01
-  - Required evidence: complete taxonomy golden set proves deterministic attribution, precedence, overlap accounting, confidence, and unclassified totals.
+  - Required evidence: paste the classifier's output for a command that is simultaneously git and test, showing a LABEL SET rather than a winner, with the matched rule and segment kind per label and NO command text in the persisted record. Paste the re-measured multi-class share from the executing worktree (41.9 percent of commands at two or more classes, 84.7 percent multi-segment at review; RE-MEASURE, the corpus grows). Paste the tool-name census (10 distinct names at review) and proof that `bash` classification consumes command text at ingest only.
   - Observed evidence:
   - Result: pending
+
 - [ ] V-02 validates E-02
-  - Required evidence: pricing-era and statistical golden tests reproduce hand-calculated results and reject invalid comparisons.
+  - Required evidence: paste the per-class and unclassified shares re-measured in the executing worktree against the review baseline (inspection/search 30540, git 9158, implementation/editing 5909, tests 3975, aw-tooling 3598; 8.7 percent of commands unclassified). Paste the regression test failing when the unclassified share is pushed above the floor, then passing. Paste the top unclassified heads showing `echo` handled rather than dumped into `other/unknown`.
   - Observed evidence:
   - Result: pending
+
 - [ ] V-03 validates E-03
-  - Required evidence: all 16 required plus four corpus-supported analytics have tested outputs, and findings meet the evidence/caveat/experiment contract; full suite and diff check pass.
+  - Required evidence: paste the re-measured activity-versus-wall ratio (48036 s of tool activity against 1254107 s of run wall time, 3.8 percent, at review) and show `unattributed_time` published as the dominant term by default. Paste a shared-session fixture proving activity is attributed ONCE, and state how many real attempts exceeded their own wall time before the fix (27 at review). Include a mutation check: scale activity to fill elapsed time, show a test fails, revert.
   - Observed evidence:
   - Result: pending
+
+- [ ] V-04 validates E-04
+  - Required evidence: paste the instruction-burden output as tokens and priced cost per turn, with the standing-instruction byte inventory (`AGENTS.md` 33101 bytes at review). PASTE THE 0.014 PERCENT FIGURE EXPLICITLY, with its derivation (183.2 s of read-tool time over 48036 s of tool time over 1254107 s of wall time), and show read time labeled a footnote. This item's whole purpose is that a reader must not mistake a flat chart for an absent cost, so the number must appear in the output, not only in this plan.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste a schema-level AND a numeric golden result for each supported analysis in both aggregate and phase-separated modes, each carrying its sample size. Paste the four named additions with their re-measured figures: cost concentration (top 10 percent holding 22.8 percent of spend at review), the within-session gradient ($0.0781 first decile to $0.1290 last, 1.27x, n=345 sessions), price-era stratified efficiency, and missingness bias ($394.19 unaccounted across 215 files). Paste the implementation-versus-inspection ratio with its file-category breakdown.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-06 validates E-06
+  - Required evidence: paste each of the four under-powered analyses returning `cannot-determine` WITH its observed n, re-measured (6 multi-attempt items of 733, 6 recovery attempts, 3 merge-conflict attempts at review). Paste proof that requesting a chart for one of them refuses rather than renders. Paste the verifier-phase derivation from the session filename, LABELED derived, with the measured verifier spend ($64.08 across 57 logs) and the fact that zero attempts carry `verify_cost`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-07 validates E-07
+  - Required evidence: paste the schedule reproducing RECORDED cost over the real corpus in the executing worktree, reporting exact-match counts per era (7917 Era A and 21731 Era B of 29671 at review, 23 residual). Name the two boundary instants and show a step on each side priced by the correct era. Paste a `reasoning`-bearing unpriced-model step being REFUSED rather than estimated. Paste proof there is no cache_write rate column and the measurement behind it (cache_write 0 in all 29611 steps reporting a cache object). Paste recorded and estimated cost side by side, distinct.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: paste distributions carrying sample size, missingness, median, mean, standard deviation and deterministic quantiles, in the `MetricValue`-shaped vocabulary, with the reuse of `benchmark_metrics`'s existing shape shown rather than a second vocabulary. Paste model comparison REFUSING with the re-measured identity coverage (2 of 179 attempts, 1.1 percent at review) while price-era stratification proceeds. Paste `pip freeze`-equivalent proof that no runtime dependency was added beyond the single declared `filelock`.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-09 validates E-09
+  - Required evidence: paste a ranked finding set showing every contract field, and a ranking-stability test. Paste the price-era Simpson's-paradox golden test using the measured figures (median blended $/Mtok $0.054 to $0.071 in Era A days versus $0.635 to $0.737 in Era B, driven by cache_read becoming billable while being 98.62 percent of tokens, not by the 10 percent rate change), showing a pooled comparison flagged. Paste the no-causal-language check firing on a planted causal claim, then clean. Paste an under-powered slice yielding `cannot-determine` instead of advice.
+  - Observed evidence:
+  - Result: pending
+
+Additionally, and NOT as a separate V-item because it validates no single E-item: V-09 must also carry bare `python3 -m pytest` and `git diff --check` from the executing worktree, against the baseline the executor measured itself, comparing failing NODE IDS and never totals.
 
 ## Approval and execution gate
 
 - Size assessment: exception
-- Cohesion rationale: taxonomy, pricing, statistics, and findings form one analytical interpretation contract; splitting their policy would allow the same fact to receive incompatible attribution, cost, and recommendation semantics. Only three focused E items own those seams.
+- Cohesion rationale: taxonomy, pricing, statistics, and findings form one analytical interpretation contract; splitting their policy would allow the same fact to receive incompatible attribution, cost, and recommendation semantics. NOTE THE SCOPE OF THAT ARGUMENT: it justifies ONE PLAN, not one ITEM. The four genuinely constrain each other, which is why they belong together; that does not make the classifier, the unclassified accounting, the time model, the instruction burden, the supported analytics, the refusals, the price schedule, the statistics and the findings contract one deliverable, which is why the nine items exist (F-7, and the Set orchestrator's own OQ-01 naming this plan's E-02).
 
-Execute only after approval and normalized schema completion. The agent must report data gaps and inconclusive results plainly; producing impressive charts is not evidence of a valid conclusion.
+EXECUTION CONTRACT. This plan requires explicit human approval (`aw ipd set approved aflsz3 --by-human --message ...`), and its `Item-Dependencies` refuse dispatch until `8hald1` (Order 05) is `executed`. That dependency is load-bearing rather than bookkeeping: Order 05 owns the fact schema, the source precedence, the open token component map and the conservation checks that every number here is computed from, and it was itself corrected at review because its four-term conservation equation failed on real data. Orders 07, 08 and 10 consume what this plan produces, so the taxonomy version, the price schedule shape and the refusal vocabulary are CONTRACTS, not internal details.
+
+- Commit ONLY the files this plan changed, path-scoped (`git commit -m msg -- <path>`); never `git add -A`, never `-a`, and never push. Verify the staged set with `git diff --cached --name-only` before every commit and RE-VERIFY after any failed or hook-interrupted commit, since a rejected hook can leave paths in the index you never staged. Other agents and humans work concurrently in this checkout.
+- NEVER COMMIT ANY PART OF THE LIVE RUN CORPUS, and never persist command, prompt or response text into a fact. The corpus is gitignored and its `state.json` files carry absolute paths that `aw sanitize` flags at `fail`. E-01 must READ command strings to classify them, which makes this the one item in the Set where the privacy boundary and the core algorithm touch: classify at ingest, persist only labels. Run `aw sanitize --agent` before treating any output as shareable.
+- THE HONESTY RULE, which outranks every convenience: when you report that tests passed, PASTE THE ACTUAL RUNNER OUTPUT. Never fill an `Observed evidence:` field from memory or from a matching execution checkmark. If a validation cannot be performed, say so plainly and leave it `pending`.
+- RE-MEASURE EVERY CORPUS NUMBER IN THIS PLAN. Every figure here (135 runs, 462 session files, 32365 tool calls, 29671 priced steps, 22787 bash commands, 104116 segments, the 41.9 percent overlap, the 3.8 percent activity ratio, the two price eras, the n=3-to-6 slices, the 1.1 percent model coverage) is a review-time snapshot of a tree that grows with every run. Re-derive them; do not cite them as current.
+- RE-LOCATE EVERY CITED SYMBOL BY NAME, not by line number.
+- Transition via `aw ipd finalize` after `aw ipd lint --phase pre-transition` conforms and every `V-*` carries pasted evidence.
+
+Never fill missing data with zero unless the source explicitly reports zero; missing, unavailable, and not-applicable are distinct. Producing impressive charts is not evidence of a valid conclusion, and this corpus makes that concrete: five of the sixteen required analyses cannot honestly be drawn from it.
+
+FOUR STOP CONDITIONS. If you find yourself giving an under-powered slice a chart because the refusal "looks unfinished", STOP: the refusal IS the finding, and n=3 is the measured reality. If you find yourself inferring model identity from the run date to make the model comparison renderable, STOP: that conflates model with price era and manufactures exactly the confound F-10 documents. If you find yourself relaxing `benchmark_metrics._FORBIDDEN_COST_KEYS` so one cost type serves both layers, STOP: OQ-04 settled that they coexist. And if a test needs the live corpus to pass, STOP and build a fixture, because the two current suite failures are precisely that mistake made earlier.
