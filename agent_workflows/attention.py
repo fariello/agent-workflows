@@ -1575,39 +1575,17 @@ def _extract_identity_parts(it: Item) -> Tuple[str, str, str]:
 
 
 def _color_dep_id(dep: str, target: Optional[Item], term: T.Term, colored: bool) -> str:
-    """Color a dependency id6 based on target's type and status:
-    - executed: green (40, bold)
-    - approved or reviewed plans/specs: orange (214, bold, same as to-review)
-    - draft or to-review plans/specs: blue (39, bold)
-    - backlog items: red (196, bold)
-    - unknown/unmatched: neutral gray (244)
+    """Color a dependency id6 to match the color of its target's Status.
+    Unknown/unmatched dependencies are colored neutral gray (244).
     """
     if not colored:
         return dep
     if target is None:
         return term.color256(dep, 244)
-    if target.tree == "backlog":
-        return term.color256(dep, 196, bold=True)
-    if target.tree == "plans":
-        if target.native_status == "executed":
-            return term.color256(dep, 40, bold=True)
-        if target.native_status in ("approved", "reviewed"):
-            return term.color256(dep, 214, bold=True)
-        if target.native_status in ("draft", "to-review"):
-            return term.color256(dep, 39, bold=True)
-    if target.tree == "specs":
-        if target.native_status == "implemented":
-            return term.color256(dep, 40, bold=True)
-        if target.native_status in ("approved", "reviewed"):
-            return term.color256(dep, 214, bold=True)
-        if target.native_status in ("draft", "to-review"):
-            return term.color256(dep, 39, bold=True)
-    if target.tree == "releases":
-        if target.native_status == "shipped":
-            return term.color256(dep, 40, bold=True)
-        if target.native_status == "planned":
-            return term.color256(dep, 214, bold=True)
-    return term.color256(dep, 244)
+    code = _STATUS_COLOR_256.get(
+        target.native_status, _CLASS_COLOR_256.get(target.attention_class, 244)
+    )
+    return term.color256(dep, code, bold=True)
 
 
 def _extract_dependency_id6s(it: Item) -> List[str]:
@@ -1960,20 +1938,14 @@ def render_table(
         )
 
     if legend:
-        if colored:
-            met_txt = term.color256("met", 40, bold=True)
-            ready_txt = term.color256("ready", 214, bold=True)
-            draft_txt = term.color256("draft", 39, bold=True)
-            backlog_txt = term.color256("backlog", 196, bold=True)
-            lines.append(
-                f"OQs = Open Questions (open/total), Exec = Executed items, "
-                f"Valid = Validated items, Deps = Dependencies ({met_txt}, {ready_txt}, {draft_txt}, or in {backlog_txt})"
-            )
-        else:
-            lines.append(
-                "OQs = Open Questions (open/total), Exec = Executed items, "
-                "Valid = Validated items, Deps = Dependencies (met, ready, draft, or in backlog)"
-            )
+        oqs_lbl = term.colorize("OQs", "bold") if colored else "OQs"
+        exec_lbl = term.colorize("Exec", "bold") if colored else "Exec"
+        valid_lbl = term.colorize("Valid", "bold") if colored else "Valid"
+        deps_lbl = term.colorize("Deps", "bold") if colored else "Deps"
+        lines.append(
+            f"{oqs_lbl} = Open Questions (open/total), {exec_lbl} = Executed items, "
+            f"{valid_lbl} = Validated items, {deps_lbl} = Dependencies"
+        )
 
     return "\n".join(lines).rstrip("\n") + "\n"
 

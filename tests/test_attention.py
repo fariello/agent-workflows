@@ -918,7 +918,7 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         # 4. Legend
         self.assertEqual(
             lines[8],
-            "OQs = Open Questions (open/total), Exec = Executed items, Valid = Validated items, Deps = Dependencies (met, ready, draft, or in backlog)",
+            "OQs = Open Questions (open/total), Exec = Executed items, Valid = Validated items, Deps = Dependencies",
         )
 
     def test_oq_count_in_table_and_parser(self):
@@ -1652,19 +1652,20 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("\033[1;38;5;214m1/2\033[0m", colored)
         # 2/2 is styled in bold green (color 40)
         self.assertIn("\033[1;38;5;40m2/2\033[0m", colored)
-        # Executed dep 29wvmj is styled in bold green (color 40)
-        self.assertIn("\033[1;38;5;40m29wvmj\033[0m", colored)
-        # Approved dep 51vw4y is styled in bold orange (color 214)
-        self.assertIn("\033[1;38;5;214m51vw4y\033[0m", colored)
-        # To-review dep 6sb3yu is styled in bold blue (color 39)
-        self.assertIn("\033[1;38;5;39m6sb3yu\033[0m", colored)
-        # Backlog dep bk1111 is styled in bold red (color 196)
-        self.assertIn("\033[1;38;5;196mbk1111\033[0m", colored)
-        # Legend items
-        self.assertIn("\033[1;38;5;40mmet\033[0m", colored)
-        self.assertIn("\033[1;38;5;214mready\033[0m", colored)
-        self.assertIn("\033[1;38;5;39mdraft\033[0m", colored)
-        self.assertIn("\033[1;38;5;196mbacklog\033[0m", colored)
+        # Executed dep 29wvmj is styled in bold green (color 46) matching executed status
+        self.assertIn("\033[1;38;5;46m29wvmj\033[0m", colored)
+        # Approved dep 51vw4y is styled in bold green (color 46) matching approved status
+        self.assertIn("\033[1;38;5;46m51vw4y\033[0m", colored)
+        # To-review dep 6sb3yu is styled in bold orange (color 214) matching to-review status
+        self.assertIn("\033[1;38;5;214m6sb3yu\033[0m", colored)
+        # Backlog dep bk1111 is styled in bold green (color 40) matching open status
+        self.assertIn("\033[1;38;5;40mbk1111\033[0m", colored)
+        # Legend column names are bolded
+        self.assertIn("\033[1mOQs\033[0m = Open Questions", colored)
+        self.assertIn("\033[1mExec\033[0m = Executed items", colored)
+        self.assertIn("\033[1mValid\033[0m = Validated items", colored)
+        self.assertIn("\033[1mDeps\033[0m = Dependencies", colored)
+        self.assertNotIn("(met", colored)
 
 
 if __name__ == "__main__":
