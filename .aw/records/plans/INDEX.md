@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 274 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -35,9 +35,17 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 
 - `akzy45` [pending] 01 pending/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md
 
+## depclosure
+
+- `dhycim` [pending] 01 pending/20260908-depclosure-01-dhycim-build-the-with-dependencies-transitive-closure-expansion-bef.ipd.md
+
 ## depverb
 
 - `f6idxs` [pending] 01 pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md
+
+## discclass
+
+- `zexed1` [pending] 01 pending/20260908-discclass-01-zexed1-classify-a-run-record-versus-artifact-difference-by-directio.ipd.md
 
 ## durablecapture
 
@@ -53,6 +61,10 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 ## gatejrnl
 
 - `i4c0c3` [pending] 01 pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md
+
+## gatepin
+
+- `h3bjue` [pending] 01 pending/20260908-gatepin-01-h3bjue-pin-the-approval-gate-corpus-test-to-named-id6s-so-a-legitim.ipd.md
 
 ## graduate
 
@@ -92,6 +104,10 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 - `daexj1` [pending] 03 pending/20260908-integearn-03-daexj1-ask-the-agent-to-adjudicate-a-failing-suite-instead-of-refus.ipd.md
 - `ys1dor` [pending] 04 pending/20260908-integearn-04-ys1dor-report-a-run-whose-work-never-landed-as-not-done-in-red-from.ipd.md
 
+## lanestrand
+
+- `pr5b0t` [pending] 01 pending/20260908-lanestrand-01-pr5b0t-report-every-stranded-lane-in-aw-attention-and-fail-its-chec.ipd.md
+
 ## lcpolicy
 
 - `u06zo2` [pending] 01 pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md
@@ -120,6 +136,10 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 
 - `8v5pwa` [pending] 02 pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md
 
+## retrytier
+
+- `y4adch` [pending] 01 pending/20260908-retrytier-01-y4adch-add-the-repository-policy-tier-of-the-retry-budget-precedenc.ipd.md
+
 ## retrywire
 
 - `xipfy1` [pending] 01 pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md
@@ -127,6 +147,10 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 ## reverify
 
 - `mp289j` [pending] 01 pending/20260908-reverify-01-mp289j-run-the-existing-verifier-prompt-against-an-already-executed.ipd.md
+
+## roleadv
+
+- `8b9ufm` [pending] 01 pending/20260908-roleadv-01-8b9ufm-state-the-runner-owns-begin-finalize-role-at-turn-start-inst.ipd.md
 
 ## runanalytics
 
@@ -167,38 +191,6 @@ Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 ## runtrailwire
 
 - `wao266` [pending] 01 pending/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md
-
-## runverdict
-
-- `1bfppy` [pending] 05 pending/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md
-- `bxx9af` [pending] 05 pending/20260908-runverdict-05-bxx9af-consume-the-verifier-evidence-the-runner-already-asks-for-an.ipd.md
-- `fzxfph` [pending] 06 pending/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md
-- `w33lrl` [pending] 07 pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md
-
-## runviewdisc
-
-- `vdabn5` [pending] 02 pending/20260908-runviewdisc-02-vdabn5-stop-flagging-an-interrupted-item-as-a-status-discrepancy-wh.ipd.md
-
-## selfmdialect
-
-- `xo3244` [pending] 01 pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md
-
-## setidhard
-
-- `yku4ga` [pending] 00 pending/20260908-setidhard-00-yku4ga-make-a-setid-a-hard-cross-type-unique-identity-and-replace-s.ipd.md
-- `drzbs9` [pending] 01 pending/20260908-setidhard-01-drzbs9-resolve-every-pre-existing-cross-type-setid-collision-before.ipd.md
-- `bwgyum` [pending] 02 pending/20260908-setidhard-02-bwgyum-add-the-graduated-to-forward-link-and-its-dangling-check-mir.ipd.md
-- `dw7i3m` [pending] 03 pending/20260908-setidhard-03-dw7i3m-mint-a-fresh-child-setid-on-graduation-and-prevent-a-cross-t.ipd.md
-
-## specdirs
-
-- `wfjsp4` [pending] 00 pending/20260908-specdirs-00-wfjsp4-give-specs-the-lifecycle-subdirs-every-other-lifecycle-beari.ipd.md
-- `y4bdoz` [pending] 01 pending/20260908-specdirs-01-y4bdoz-make-every-spec-reader-recursive-so-a-spec-in-a-subdir-canno.ipd.md
-- `1bdxcp` [pending] 02 pending/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md
-
-## specfresh
-
-- `wenmg4` [pending] 01 pending/20260908-specfresh-01-wenmg4-re-measure-spec-25kzda-s-infrastructure-paragraph-and-stop-i.ipd.md
 
 ## (singletons: no Set)
 

@@ -4994,9 +4994,29 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-depclosure-01-dhycim-build-the-with-dependencies-transitive-closure-expansion-bef.ipd.md",
+    "plan_id": "dhycim",
+    "set_id": "depclosure",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md",
     "plan_id": "f6idxs",
     "set_id": "depverb",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-discclass-01-zexed1-classify-a-run-record-versus-artifact-difference-by-directio.ipd.md",
+    "plan_id": "zexed1",
+    "set_id": "discclass",
     "status": "to-review"
   },
   {
@@ -5047,6 +5067,16 @@
     "path": "pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md",
     "plan_id": "i4c0c3",
     "set_id": "gatejrnl",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-gatepin-01-h3bjue-pin-the-approval-gate-corpus-test-to-named-id6s-so-a-legitim.ipd.md",
+    "plan_id": "h3bjue",
+    "set_id": "gatepin",
     "status": "to-review"
   },
   {
@@ -5174,6 +5204,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-lanestrand-01-pr5b0t-report-every-stranded-lane-in-aw-attention-and-fail-its-chec.ipd.md",
+    "plan_id": "pr5b0t",
+    "set_id": "lanestrand",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md",
     "plan_id": "u06zo2",
     "set_id": "lcpolicy",
@@ -5244,6 +5284,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-retrytier-01-y4adch-add-the-repository-policy-tier-of-the-retry-budget-precedenc.ipd.md",
+    "plan_id": "y4adch",
+    "set_id": "retrytier",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md",
     "plan_id": "xipfy1",
     "set_id": "retrywire",
@@ -5257,6 +5307,16 @@
     "path": "pending/20260908-reverify-01-mp289j-run-the-existing-verifier-prompt-against-an-already-executed.ipd.md",
     "plan_id": "mp289j",
     "set_id": "reverify",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-roleadv-01-8b9ufm-state-the-runner-owns-begin-finalize-role-at-turn-start-inst.ipd.md",
+    "plan_id": "8b9ufm",
+    "set_id": "roleadv",
     "status": "to-review"
   },
   {
