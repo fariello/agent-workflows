@@ -1,5 +1,5 @@
 - Id: jys5dp
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: durablecapture
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: a known unfixed defect named in an IPD's prose vanishes when the plan reaches executed: require handoff to a durable carrier, mirroring the release-gate close predicate
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan rnkqrc (to-review), which carries From-Backlog: jys5dp and inherits Blocks-Release: next.
 - 2026-09-05 created (aw backlog): a known unfixed defect named in an IPD's prose vanishes when the plan reaches executed: require handoff to a durable carrier, mirroring the release-gate close predicate
 
 THE PROBLEM, in the maintainer's words (2026-09-05): "A note in an executed IPD is 100% guaranteed

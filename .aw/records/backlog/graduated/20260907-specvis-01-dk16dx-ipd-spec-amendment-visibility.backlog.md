@@ -1,5 +1,5 @@
 - Id: dk16dx
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: specvis
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: IPDs may amend specs: make a run's declared spec edits visible at run START and END, and cover both hosts
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan st5klo (to-review), which carries From-Backlog: dk16dx and inherits Blocks-Release: next.
 - 2026-09-07 created (aw backlog): IPDs may amend specs: make a run's declared spec edits visible at run START and END, and cover both hosts
 
 MAINTAINER RULING 2026-09-07, recorded verbatim in substance: an IPD MAY modify a spec. Specs are

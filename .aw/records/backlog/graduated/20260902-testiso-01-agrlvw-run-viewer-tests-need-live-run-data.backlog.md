@@ -1,5 +1,5 @@
 - Id: agrlvw
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: testiso
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: 15 tests in tests/test_run_viewer.py depend on gitignored live run data under .aw/records/runs/, so they pass only on a machine that has run the driver and fail in every fresh clone and in CI
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan utwr6y (to-review), which carries From-Backlog: agrlvw and inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 FOUND 2026-09-02 while deciding whether the crashed runs lane work (97df1z) was safe to merge. The

@@ -1,5 +1,5 @@
 - Id: p8ni63
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: integdefer
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: both runners start against a dirty main tree without warning, then refuse integration hours later: add a startup dirty-base gate with an explicit override
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan 3i0aaz (to-review), which carries From-Backlog: p8ni63 and inherits Blocks-Release: next.
 - 2026-09-05 created (aw backlog): both runners start against a dirty main tree without warning, then refuse integration hours later: add a startup dirty-base gate with an explicit override
 
 PARTIALLY OBSOLETE 2026-09-08, VERIFIED. READ THIS BEFORE GRADUATING: approved plan `nna8yz`

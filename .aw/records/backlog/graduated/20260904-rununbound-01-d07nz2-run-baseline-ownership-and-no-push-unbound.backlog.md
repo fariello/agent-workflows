@@ -1,5 +1,5 @@
 - Id: d07nz2
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: rununbound
 - Priority: medium
@@ -7,6 +7,7 @@
 - Summary: RUN-BASELINE-OWNERSHIP and RUN-NO-PUSH land as names with no predicate; the machinery behind them is unbuilt
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan 4h7tt0 (to-review), which carries From-Backlog: d07nz2 and inherits Blocks-Release: next.
 - 2026-09-04 created (aw backlog): RUN-BASELINE-OWNERSHIP and RUN-NO-PUSH land as names with no predicate; the machinery behind them is unbuilt
 
 PARTIALLY OBSOLETE 2026-09-08, VERIFIED IN-TREE. HALF OF THIS ITEM IS DEAD. Graduate ONLY the
