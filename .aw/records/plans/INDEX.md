@@ -171,7 +171,7 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 
 ## depreview
 
-- `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
+- `03ie04` [executed] 01 executed/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
 
 ## dirtybase
 
