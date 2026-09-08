@@ -1,12 +1,52 @@
 - Id: ol8iyx
-- Status: open
+- Status: graduated
 - Set: wtisodebt
 - Priority: low
 - Work-Kind: followup
 - Summary: wtiso retirement debt: the out-of-repo control-state relocation (Phase 4, 58ha43) has no successor plan, and six in-code pointers plus spec c4gd2h OQ-03 still name retired wtiso plans as the live owner of unbuilt work
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): PARTLY OBSOLETE, SPLIT IN TWO. Seven of the twelve sites (all wtiso_gate.py) were already fixed by executed plan 604wra (1d9bbbd3) in exactly the style this item's suggested fix (b) prescribes. Debt 2 (the five surviving stale pointers plus the spec c4gd2h OQ-03 annotation) graduated to plan 2iye0e. Debt 1 (the out-of-repo relocation) is an open DECISION not a defined change, so it split out to backlog item e820ka rather than being graduated. Three corrections recorded in the body: this item MISLABELS the platform_lock site (that capability shipped under y6mfgo, so the no-successor note would be false there), its VERIFY-WITH grep misses two Phase 4 claims that carry no id6, and editing describe_lane's docstring breaks an AST fingerprint freeze it does not mention. graduated not done because Debt 1 survives in e820ka.
 - 2026-09-05 created (aw backlog): filed by plan eulhzt E-08: records the debt left by retiring wtiso Phases 4/5 unlanded, so aw attention can see it instead of it living only in plan prose
+
+GRADUATED 2026-09-08, PARTLY OBSOLETE, AND SPLIT IN TWO. Read this header before acting on anything
+below it: the site list and the prescribed fixes are no longer accurate.
+
+WHAT IS ALREADY DONE (do NOT re-fix). SEVEN of the twelve `wtiso_gate.py`-related sites this item lists
+were repaired by executed plan `604wra` (commit `1d9bbbd3`), in exactly the style this item's own
+suggested fix (b) prescribes. `_unimplemented`'s contract now REQUIRES a message to name the owner AND
+ITS DISPOSITION; `check_protected_refs` (`wtiso_gate.py:294`) reads "`2c122z` (Phase 5, RETIRED
+UNLANDED 2026-09-02) ... NEITHER is in flight and the recovery surface has no successor";
+`check_receipt` (`:423`, `:440`) records both owners retired plus what did land, which resolves this
+item's own "doubly stale" complaint; and the module docstring (`:37-43`) states the retirement. Pinned
+by `tests/test_containment_predicates.py`.
+
+WHERE THE SURVIVING WORK WENT. Debt 2 (the stale pointers) graduated to plan `2iye0e`
+(`.aw/records/plans/pending/20260908-wtisoptr-01-2iye0e-...ipd.md`, carrying `- From-Backlog: ol8iyx`),
+narrowed to the FIVE pointers that actually survive plus the spec OQ-03 annotation. Debt 1 (the
+relocation, which has no successor plan) is NOT graduated: it is an open DECISION rather than a defined
+change, so it was split out to its own backlog item `e820ka` (Set `wtisoreloc`) where `aw attention`
+keeps seeing it. That is why this item is `graduated` and not `done`.
+
+THREE CORRECTIONS TO THIS ITEM'S OWN CONTENT, found while graduating it:
+  1. ONE SITE IS MISLABELED. This item lists `runner_shutdown.py`'s `platform_lock` comment among the
+     "no successor" sites. It is not: `agent_workflows/platform_lock.py` EXISTS on `main`, shipped
+     under plan `y6mfgo`, whose record states it SUPERSEDES `2c122z`'s `platform_lock` portion and
+     names the module to match `2c122z`'s references on purpose. Applying this item's generic note
+     there would write a FALSE claim into the source. Plan `2iye0e` E-02 handles it separately.
+  2. THE VERIFY-WITH GREP IS INSUFFICIENT. Two stale Phase 4 claims (`runner_stop.py:41-44` and
+     `:362-363`) say "Set `wtiso` Phase 4" in prose with NO id6 anywhere, so
+     `grep -rn "58ha43\|2c122z\|7p9n2v" agent_workflows/` returns success while both survive. Grep by
+     phrase, not by id6 alone.
+  3. A TRAP THIS ITEM DOES NOT MENTION. `describe_lane`'s docstring in `runner_shared.py` is frozen
+     into an AST fingerprint fixture (`tests/fixtures/runner_shared_premove_fingerprints.json`,
+     asserted by `tests/test_runner_shared.py`), and a docstring is part of the unparsed body, so
+     editing it breaks that freeze. Verified mechanically by recomputing the fingerprint.
+  Also minor: this item's citations `oc_runipd.py:4223` and `agy_runipd.py:2345` for `rchpms`
+  provenance are stale; they are now `:5530` and `:2720`. The item's judgment that `rchpms` citations
+  are LEGITIMATE (Phase 2 partly landed) is correct and was confirmed.
+
+ORIGINAL ITEM TEXT FOLLOWS, uncorrected.
 
 TWO DISTINCT DEBTS, filed together because one retirement created both. Plan `eulhzt` (which closed
 backlog `dh0uno` by anchoring control state on the checkout) retired the seven `wtiso` plans to
