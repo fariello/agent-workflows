@@ -4887,7 +4887,7 @@
     "path": "pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md",
     "plan_id": "m7gvuz",
     "set_id": "orchprobe",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-07",
@@ -4927,6 +4927,46 @@
     "path": "pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md",
     "plan_id": "b5sfwm",
     "set_id": "bklgkind",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260908-commitguard-00-ao1rb7-commit-path-safety-wire-the-existing-gates-and-make-the-tool.ipd.md",
+    "plan_id": "ao1rb7",
+    "set_id": "commitguard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md",
+    "plan_id": "kbqpkn",
+    "set_id": "commitguard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md",
+    "plan_id": "y9vpvv",
+    "set_id": "commitguard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md",
+    "plan_id": "f6idxs",
+    "set_id": "depverb",
     "status": "to-review"
   },
   {
@@ -4984,6 +5024,26 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md",
+    "plan_id": "76w6mq",
+    "set_id": "idcapture",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md",
+    "plan_id": "u06zo2",
+    "set_id": "lcpolicy",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md",
     "plan_id": "quqyc4",
     "set_id": "nogitmsg",
@@ -5017,6 +5077,16 @@
     "path": "pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md",
     "plan_id": "8v5pwa",
     "set_id": "rdattest",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md",
+    "plan_id": "xipfy1",
+    "set_id": "retrywire",
     "status": "to-review"
   },
   {
@@ -5057,7 +5127,7 @@
     "path": "pending/20260908-runanalytics-03-lhccjf-cross-host-resource-telemetry-schema-collector-and-sampling.ipd.md",
     "plan_id": "lhccjf",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5067,7 +5137,7 @@
     "path": "pending/20260908-runanalytics-04-5f2h8i-opencode-and-agy-runner-telemetry-lifecycle-integration.ipd.md",
     "plan_id": "5f2h8i",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5077,7 +5147,7 @@
     "path": "pending/20260908-runanalytics-05-8hald1-normalized-run-ingestion-fact-schema-and-conservation-checks.ipd.md",
     "plan_id": "8hald1",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5087,7 +5157,7 @@
     "path": "pending/20260908-runanalytics-06-aflsz3-activity-taxonomy-effective-dated-pricing-statistics-and-fin.ipd.md",
     "plan_id": "aflsz3",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5097,7 +5167,7 @@
     "path": "pending/20260908-runanalytics-07-6eq3oq-self-contained-offline-analytics-spa-and-report-bundle.ipd.md",
     "plan_id": "6eq3oq",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5107,7 +5177,7 @@
     "path": "pending/20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md",
     "plan_id": "mm5p3v",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5117,7 +5187,7 @@
     "path": "pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md",
     "plan_id": "ixis0c",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5127,7 +5197,7 @@
     "path": "pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md",
     "plan_id": "9xycbh",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5287,6 +5357,16 @@
     "path": "pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md",
     "plan_id": "xo3244",
     "set_id": "selfmdialect",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md",
+    "plan_id": "yaxr4i",
+    "set_id": "ttyflags",
     "status": "to-review"
   },
   {

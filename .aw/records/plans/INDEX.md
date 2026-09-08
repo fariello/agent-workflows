@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
 
 ## actorparen
 
@@ -11,6 +11,16 @@ Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 ## bklgkind
 
 - `b5sfwm` [pending] 01 pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md
+
+## commitguard
+
+- `ao1rb7` [pending] 00 pending/20260908-commitguard-00-ao1rb7-commit-path-safety-wire-the-existing-gates-and-make-the-tool.ipd.md
+- `kbqpkn` [pending] 01 pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md
+- `y9vpvv` [pending] 02 pending/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md
+
+## depverb
+
+- `f6idxs` [pending] 01 pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md
 
 ## gatejrnl
 
@@ -29,6 +39,14 @@ Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 - `sk7ggr` [pending] 01 pending/20260908-id6integ-01-sk7ggr-mint-id6-against-the-unified-inventory-and-close-d140-s-decl.ipd.md
 - `paw8so` [pending] 02 pending/20260908-id6integ-02-paw8so-surface-an-id6-collision-on-the-lookup-surfaces-instead-of-r.ipd.md
 
+## idcapture
+
+- `76w6mq` [pending] 01 pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md
+
+## lcpolicy
+
+- `u06zo2` [pending] 01 pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md
+
 ## nogitmsg
 
 - `quqyc4` [pending] 01 pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md
@@ -44,6 +62,10 @@ Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 ## rdattest
 
 - `8v5pwa` [pending] 02 pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md
+
+## retrywire
+
+- `xipfy1` [pending] 01 pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md
 
 ## runanalytics
 
@@ -95,6 +117,10 @@ Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 ## selfmdialect
 
 - `xo3244` [pending] 01 pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md
+
+## ttyflags
+
+- `yaxr4i` [pending] 01 pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
 
 ## depreview
 
@@ -174,36 +200,6 @@ Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 ## runsverify
 
 - `7wei1o` [pending] 01 pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md
-
-## scopeattr
-
-- `h9cn0y` [pending] 01 pending/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md
-
-## streamfmt
-
-- `mm6wuz` [executed] 01 executed/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md
-
-## sysproto
-
-- `eqzd0h` [pending] 01 pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md
-
-## verifygap
-
-- `mn3gwr` [superseded] 01 superseded/20260906-verifygap-01-mn3gwr-wire-the-per-profile-validate-tri-state-into-both-runners-so.ipd.md
-
-## runprofile
-
-- `3m0urk` [pending] 00 pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md
-- `f2mrsw` [executed] 01 executed/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md
-- `p0l1to` [executed] 02 executed/20260829-runprofile-02-p0l1to-opencode-profile-management-wizard-and-model-selector.ipd.md
-- `3cm15q` [executed] 03 executed/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md
-- `ygzq71` [executed] 04 executed/20260829-runprofile-04-ygzq71-host-neutral-run-as-dispatch-and-default-runner-routing.ipd.md
-- `p7xhhm` [executed] 05 executed/20260829-runprofile-05-p7xhhm-setup-wizard-integration-documentation-and-full-regression-p.ipd.md
-- `kgpptv` [pending] 06 pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md
-
-## skilldigest
-
-- `8fhjjc` [pending] 01 pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md
 
 ## (singletons: no Set)
 
