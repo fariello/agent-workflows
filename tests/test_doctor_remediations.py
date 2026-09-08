@@ -52,13 +52,23 @@ class DoctorRemediationTests(unittest.TestCase):
         )
 
     def test_stale_index_remediation(self) -> None:
-        d = core.Drift(
-            ".aw/records/plans/INDEX.json", "stale-index", "index out of date"
-        )
-        rem = doctor.build_remediation(d, self.repo_root)
-        self.assertEqual(rem.command, "aw index plans")
-        self.assertIn("aw index plans", rem.detailed_fix)
-        self.assertEqual(rem.summary_fix, "aw index")
+        # idxuntrack 02 (yvvf98) E-08: retargeted to the split ids from E-02. BOTH must keep
+        # producing the `aw index <type>` hint, and each must carry its OWN title so the doctor no
+        # longer re-conflates the missing/stale distinction E-02 introduced. The legacy bare
+        # `stale-index` id is exercised too, because the five `doctor.py` classification sites match
+        # on the SUBSTRING and that tolerance is deliberate (E-03).
+        for rule, want_title in (
+            ("check.stale-index-missing", "Manifest index has not been generated yet"),
+            ("check.stale-index-stale", "Manifest index is out of date"),
+            ("stale-index", "Manifest index is missing or out of date"),
+        ):
+            with self.subTest(rule=rule):
+                d = core.Drift(".aw/records/plans/INDEX.json", rule, "detail")
+                rem = doctor.build_remediation(d, self.repo_root)
+                self.assertEqual(rem.command, "aw index plans")
+                self.assertIn("aw index plans", rem.detailed_fix)
+                self.assertEqual(rem.summary_fix, "aw index")
+                self.assertEqual(rem.title, want_title)
 
     def test_setup_needed_remediation(self) -> None:
         # setupmarker: the per-repo reminder is cleared by the `/setup-repo` WORKFLOW, never by
@@ -229,8 +239,14 @@ class DoctorRemediationTests(unittest.TestCase):
 
     def test_priority_ranking_next_action(self) -> None:
         # Multi-category drift: setup + leak + stale-index
+        # idxuntrack 02 (yvvf98) E-08: uses E-02's split id, proving the priority ranking still
+        # reaches the `aw index plans` action through the new rule vocabulary.
         drift_list = [
-            core.Drift(".aw/records/plans/INDEX.json", "stale-index", "out of date"),
+            core.Drift(
+                ".aw/records/plans/INDEX.json",
+                "check.stale-index-stale",
+                "out of date",
+            ),
             core.Drift("<setup>", "doctor.setup-needed", "initial setup"),
             core.Drift("src/secret.py", "doctor.leak-secret", "token"),
         ]

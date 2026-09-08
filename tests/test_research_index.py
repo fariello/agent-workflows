@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from agent_workflows import artifact_core as _core
 from agent_workflows import research_contract as R
 from agent_workflows import research_cmd as C
 from agent_workflows import research_index as I
@@ -201,10 +202,30 @@ class CheckDriftTests(unittest.TestCase):
         self.assertEqual(drift, [])
 
     def test_stale_index_detected(self):
+        # idxuntrack 02 (yvvf98) E-08: retargeted to the split rule ids. PRESENT-but-stale is real
+        # drift and must FAIL the gate.
         self._regen()
         (self.rroot / I.INDEX_MD).write_text("stale", encoding="utf-8")
         drift = I.check_drift(self.root, self.rroot)
-        self.assertTrue(any(d.rule == "stale-index" for d in drift))
+        self.assertTrue(any(d.rule == "check.stale-index-stale" for d in drift))
+        stale = [d for d in drift if d.rule == "check.stale-index-stale"]
+        self.assertEqual([d.severity for d in stale], ["warning"] * len(stale))
+        self.assertEqual(_core.drift_exit_code(drift), 1)
+
+    def test_missing_index_is_informational_not_failing(self):
+        """A never-generated manifest must not fail the gate (idxuntrack 02 E-02/E-08).
+
+        The research twin of the plans assertion: absence is the normal state of a fresh clone or
+        worktree once the manifests are gitignored generated views.
+        """
+        self._regen()
+        (self.rroot / I.INDEX_JSON).unlink()
+        drift = I.check_drift(self.root, self.rroot)
+        missing = [d for d in drift if d.rule == "check.stale-index-missing"]
+        self.assertTrue(missing, f"expected a missing-manifest finding, got {drift!r}")
+        self.assertEqual([d.severity for d in missing], ["info"])
+        self.assertFalse(any(d.rule == "check.stale-index-stale" for d in drift))
+        self.assertEqual(_core.drift_exit_code(drift), 0)
 
     def test_invalid_frontmatter_detected(self):
         # A file with frontmatter missing 'id'.

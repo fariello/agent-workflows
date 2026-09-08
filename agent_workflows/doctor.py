@@ -856,8 +856,23 @@ def build_remediation(d: core.Drift, repo_root: Path) -> Remediation:
             file_path=loc,
         )
 
+    # idxuntrack 02 (yvvf98) E-03: the SUBSTRING test is deliberate and load-bearing. E-02 split the
+    # old conflated `stale-index` rule into `check.stale-index-missing` / `check.stale-index-stale`,
+    # and both new ids CONTAIN `stale-index`, so this match (and the four other `"stale-index" in
+    # rule` sites in this module) keeps working without five parallel edits. A future rename must
+    # preserve the substring or update all five together.
+    #
+    # The TITLE now distinguishes the two cases, because the old wording ("missing or out of date")
+    # re-conflated exactly what E-02 separated. A manifest that has merely never been generated is
+    # the normal state of a fresh clone or a fresh worktree, not a defect; the remedy is identical
+    # (`aw index <type>`), which is why the command is shared.
     if "stale-index" in rule or rule.startswith("doctor.index-"):
-        title = "Manifest index is missing or out of date"
+        if rule == "check.stale-index-missing":
+            title = "Manifest index has not been generated yet"
+        elif rule == "check.stale-index-stale":
+            title = "Manifest index is out of date"
+        else:
+            title = "Manifest index is missing or out of date"
         cmd = f"aw index {art_type}" if art_type else "aw index"
         return Remediation(
             title=title,

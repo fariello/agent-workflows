@@ -464,14 +464,49 @@ def check_drift(
     want_md = build_index_md(entries, limit=limit)
     json_path = research_root / INDEX_JSON
     md_path = research_root / INDEX_MD
-    if not json_path.is_file() or json_path.read_text(encoding="utf-8") != want_json:
-        drift.append(
-            Drift(INDEX_JSON, "stale-index", "INDEX.json is missing or out of date")
-        )
-    if not md_path.is_file() or md_path.read_text(encoding="utf-8") != want_md:
-        drift.append(
-            Drift(INDEX_MD, "stale-index", "INDEX.md is missing or out of date")
-        )
+    # idxuntrack 02 (yvvf98) E-02: MISSING and STALE are DISTINCT rules; see the twin comment in
+    # `plans_index.check_drift` for the reasoning. Severities live in `check_engine.RULE_REGISTRY`.
+    # Severity is stamped at the emitter for the reason measured in the plans twin: neither
+    # `run_index` nor `check_engine.check_content` enriches these findings, so an un-enriched
+    # `severity=""` would still fail the gate on a merely-absent manifest.
+    from agent_workflows import check_engine as _ce
+
+    for path_const, exists, matches, label in (
+        (
+            INDEX_JSON,
+            json_path.is_file(),
+            json_path.is_file() and json_path.read_text(encoding="utf-8") == want_json,
+            "INDEX.json",
+        ),
+        (
+            INDEX_MD,
+            md_path.is_file(),
+            md_path.is_file() and md_path.read_text(encoding="utf-8") == want_md,
+            "INDEX.md",
+        ),
+    ):
+        if not exists:
+            drift.append(
+                _ce.enrich_drift(
+                    Drift(
+                        path_const,
+                        "check.stale-index-missing",
+                        f"{label} has not been generated; run 'aw index research'",
+                    ),
+                    recovery="aw index research",
+                )
+            )
+        elif not matches:
+            drift.append(
+                _ce.enrich_drift(
+                    Drift(
+                        path_const,
+                        "check.stale-index-stale",
+                        f"{label} is out of date; run 'aw index research'",
+                    ),
+                    recovery="aw index research",
+                )
+            )
     # Dangling citations via Order 04's imported detector primitive.
     for d in RF.find_dangling_citations(repo_root, research_root):
         drift.append(Drift(f"{d.file}:{d.line}", "dangling-citation", f"id6 {d.id6}"))
@@ -556,16 +591,20 @@ def run_index(args: argparse.Namespace) -> int:
     limit = getattr(args, "limit", None) or DEFAULT_INDEX_LIMIT
     if getattr(args, "check", False):
         drift = check_drift(repo_root, research_root, limit=limit)
+        # idxuntrack 02 (yvvf98) E-02: BOTH branches defer to the shared severity convention rather
+        # than `1 if drift else 0`, so an `info` finding (a manifest never generated, the normal state
+        # of a fresh clone or worktree) does not fail the gate while real staleness still does. See
+        # the twin note in `plans_index.run_index`.
         if getattr(args, "agent", False):
             for d in drift:
                 print(f"{d.location}\t{d.rule}\t{d.detail}")
-            return 1 if drift else 0
+            return _core.drift_exit_code(drift)
         if not drift:
             print("index --check: clean")
             return 0
         for d in drift:
             print(f"{d.location}: {d.rule}: {d.detail}")
-        return 1
+        return _core.drift_exit_code(drift)
     # Regenerate.
     entries, drift = _scan_docs(research_root)
     if drift:

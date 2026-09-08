@@ -307,6 +307,35 @@ RULE_REGISTRY: Dict[str, RuleSpec] = {
     "check.system-layout-drift": RuleSpec(
         "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
     ),
+    # idxuntrack 02 (yvvf98) E-02: the generated plans/research manifests (`INDEX.json`/`INDEX.md`).
+    # These replace the single conflated `stale-index` rule, and the SPLIT is the whole point: once
+    # the manifests are gitignored generated views, ABSENT and STALE stop being the same condition.
+    #
+    # Both ids deliberately CONTAIN the substring `stale-index`, because five sites in `doctor.py`
+    # classify findings with `"stale-index" in rule` rather than an equality test. Preserving the
+    # substring keeps those matches working by construction instead of by five parallel edits, so a
+    # future rename must preserve it too or update all five together (E-03).
+    #
+    # SEVERITY, following the `check.system-layout-*` precedent directly above for the identical
+    # case (a generated, gitignored artifact whose remedy is mechanical, `aw index <type>`):
+    #
+    #   * MISSING -> `info`, the ONLY non-failing severity. `artifact_core.drift_exit_code` fails the
+    #     gate for anything that is not `info`, so `warning` here would still exit 1 on every fresh
+    #     clone and every fresh worktree, which is exactly the outcome untracking must not cause.
+    #     A manifest that was never generated is not drift: there is nothing to be stale against.
+    #   * STALE -> `warning`, which DOES fail the gate. A manifest present but not byte-equal to a
+    #     rebuild is real drift a human can act on, and `warning` rather than `error` states the
+    #     class honestly: the artifact is GENERATED, not hand-authored, so the remedy is mechanical.
+    #
+    # Registering both matters beyond taste: an UNREGISTERED rule falls through to
+    # `_DEFAULT_RULESPEC` (severity `error`), which is what `stale-index` silently did, and is why
+    # absence could not have been made non-failing by editing a message string.
+    "check.stale-index-missing": RuleSpec(
+        "info", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
+    "check.stale-index-stale": RuleSpec(
+        "warning", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, ""
+    ),
 }
 
 # Conservative default for an unregistered rule id: treat it as an error-severity, repository-class,

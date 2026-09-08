@@ -278,16 +278,58 @@ def check_drift(
     want_md = build_index_md(entries, limit=limit)
     jp = plans_dir / INDEX_JSON
     mp = plans_dir / INDEX_MD
-    if not jp.is_file() or jp.read_text(encoding="utf-8") != want_json:
-        drift.append(
-            _core.Drift(
-                INDEX_JSON, "stale-index", "INDEX.json is missing or out of date"
+    # idxuntrack 02 (yvvf98) E-02: MISSING and STALE are reported as DISTINCT rules, because once
+    # the manifest is a gitignored generated view they are materially different conditions. An absent
+    # manifest is the NORMAL state of a fresh clone or a fresh worktree (nothing has generated it
+    # yet), so it is informational and must not fail the gate; a manifest that is present but not
+    # byte-equal to a rebuild is real drift. Severities live in `check_engine.RULE_REGISTRY`, never
+    # here: `artifact_core.drift_exit_code` fails on anything that is not `info`.
+    #
+    # The severity is STAMPED HERE (via `check_engine.enrich_drift`) rather than left for a caller to
+    # apply, and that is load-bearing rather than tidy. MEASURED: `run_index` computes its exit status
+    # with `artifact_core.drift_exit_code` on whatever this function returns, and `check_engine.
+    # check_content` forwards these findings WITHOUT enriching them. An un-enriched `Drift` carries
+    # `severity=""`, and `drift_exit_code` fails the gate for anything that is not `info`, so merely
+    # REGISTERING the rules left a missing manifest still exiting 1 on both surfaces. Enriching at the
+    # emitter is what makes the registry the single source of severity for every consumer.
+    from agent_workflows import check_engine as _ce
+
+    for path_const, exists, matches, label in (
+        (
+            INDEX_JSON,
+            jp.is_file(),
+            jp.is_file() and jp.read_text(encoding="utf-8") == want_json,
+            "INDEX.json",
+        ),
+        (
+            INDEX_MD,
+            mp.is_file(),
+            mp.is_file() and mp.read_text(encoding="utf-8") == want_md,
+            "INDEX.md",
+        ),
+    ):
+        if not exists:
+            drift.append(
+                _ce.enrich_drift(
+                    _core.Drift(
+                        path_const,
+                        "check.stale-index-missing",
+                        f"{label} has not been generated; run 'aw index plans'",
+                    ),
+                    recovery="aw index plans",
+                )
             )
-        )
-    if not mp.is_file() or mp.read_text(encoding="utf-8") != want_md:
-        drift.append(
-            _core.Drift(INDEX_MD, "stale-index", "INDEX.md is missing or out of date")
-        )
+        elif not matches:
+            drift.append(
+                _ce.enrich_drift(
+                    _core.Drift(
+                        path_const,
+                        "check.stale-index-stale",
+                        f"{label} is out of date; run 'aw index plans'",
+                    ),
+                    recovery="aw index plans",
+                )
+            )
     # Drift class (d): dangling plan citation via the shared-core detector, using the ONE unified
     # id6-handle matcher (IPD 3cmnfc E-04): the PLAN-<id6> handle recognized uniformly with the
     # research RSCH-<id6> handle. The dead-bare-filename flag (OQ-01 option B) is delivered as a
@@ -346,7 +388,12 @@ def run_index(args: argparse.Namespace) -> int:
             return 0
         for d in drift:
             print(f"{d.location}: {d.rule}: {d.detail}")
-        return 1
+        # idxuntrack 02 (yvvf98) E-02: defer to the SHARED severity convention instead of a hardcoded
+        # `return 1`, so this human-readable branch and the `--agent` branch above cannot disagree
+        # about one repository state. MEASURED: with the literal 1, an `info` finding (a manifest that
+        # has merely never been generated, the normal state of a fresh clone or fresh worktree) still
+        # failed the gate here while `--agent` correctly returned 0 on the same tree.
+        return _core.drift_exit_code(drift)
     entries, drift = scan_plans(plans_dir)
     json_path = plans_dir / INDEX_JSON
     md_path = plans_dir / INDEX_MD
