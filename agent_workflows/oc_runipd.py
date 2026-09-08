@@ -2629,11 +2629,63 @@ def resolve_launch_profile(args: argparse.Namespace) -> runner_profiles.Resolved
             model=getattr(args, "model", None),
             variant=getattr(args, "variant", None),
             agent=getattr(args, "agent", None),
+            verify_with=getattr(args, "verify_with", None),
         )
     except runner_profiles.RunnerProfileError as exc:
         # Typed at the boundary, so the operator gets the resolver's exact diagnostic (which names the
         # known profiles, or the offending field) with the driver's exit-2 contract.
         raise DriverError(f"runner profile: {exc}") from exc
+
+
+def resolve_launch_pair(
+    args: argparse.Namespace,
+) -> tuple[runner_profiles.ResolvedLaunch, runner_profiles.ResolvedLaunch | None]:
+    """Resolve the EXECUTOR launch and the VERIFIER launch from ONE store read (`kgpptv` E-02).
+
+    Returns ``(executor, verifier_or_None)``. ``None`` for the verifier means "reuse the executor's
+    launch", which is what every run did before this field existed and is what an absent
+    `verify_with` resolves to at every level.
+
+    ONE STORE READ, deliberately. Two independent `runner_profiles.load()` calls would leave a
+    window in which the file is edited between them, so a run could freeze an executor from one
+    document and a verifier from another while recording ONE `config_digest` for both. Loading once
+    makes the two records provably describe the same configuration, which is asserted below.
+
+    ONE HOP (DECISION 06-kgpptv-D1): `executor.verify_with` names a profile, and that profile is
+    resolved as a launch in its own right. The verifier profile's own `verify_with` is carried but
+    INERT, so there is no chain to walk and a cycle is unreachable rather than merely detected.
+
+    Called as the FIRST statement of `initialize_run`, so a dangling `verify_with` refuses before any
+    run directory, event, or `state.json` exists (`3cm15q` F-13's guarantee, extended to this field).
+    """
+
+    try:
+        cfg = runner_profiles.load()
+        executor = runner_profiles.resolve(
+            cfg,
+            runner="oc",
+            profile=getattr(args, "profile", None),
+            model=getattr(args, "model", None),
+            variant=getattr(args, "variant", None),
+            agent=getattr(args, "agent", None),
+            verify_with=getattr(args, "verify_with", None),
+        )
+        if executor.verify_with is None:
+            return executor, None
+        verifier = runner_profiles.resolve(
+            cfg, runner="oc", profile=executor.verify_with
+        )
+    except runner_profiles.RunnerProfileError as exc:
+        raise DriverError(f"runner profile: {exc}") from exc
+    # Both launches came from ONE in-memory config, so this cannot fail; it is asserted rather than
+    # assumed because a future refactor that re-read the store would silently break the guarantee
+    # the two frozen records make by sharing a digest.
+    if verifier.config_digest != executor.config_digest:
+        raise DriverError(
+            "runner profile: the executor and verifier launches were resolved from different "
+            "configurations; refusing rather than freezing an inconsistent pair"
+        )
+    return executor, verifier
 
 
 def launch_profile_record(
@@ -2670,7 +2722,12 @@ def initialize_run(args: argparse.Namespace) -> Path:
     # identity is decided before the repository is even validated, so no ordering change can later
     # slip a durable write (run dir at `run_dir.mkdir`, events, state.json) ahead of a refusal. A
     # malformed or unknown profile therefore exits nonzero having created nothing.
-    resolved_launch = resolve_launch_profile(args)
+    #
+    # runprofile-06 (`kgpptv`) E-02: BOTH launches are resolved here, in this same position, so a
+    # dangling `verify_with` refuses just as early as an unknown `--profile` does. `resolved_verify`
+    # is None when no level named a verifier profile, which means "the verifier reuses the executor's
+    # launch" and is the behavior of every run created before this field existed.
+    resolved_launch, resolved_verify = resolve_launch_pair(args)
 
     repo = Path(args.repo).expanduser().resolve()
     if not (repo / ".git").exists():
@@ -2948,6 +3005,23 @@ def initialize_run(args: argparse.Namespace) -> Path:
             # frozen here ONCE and never re-resolved, which is what makes a later edit to
             # `runner-profiles.json` unable to change an existing run (E-04).
             "launch_profile": launch_profile_record(resolved_launch),
+            # runprofile-06 (`kgpptv`) E-02: the VERIFIER's launch, frozen BESIDE the executor's
+            # rather than nested inside it (DECISION 06-kgpptv-D4), and built by the SAME
+            # `launch_profile_record` so there is one record shape rather than two. These four keys
+            # are ABSENT ENTIRELY when no verifier profile was configured, which is what keeps an
+            # existing invocation's frozen state byte-identical to what it was before this field.
+            # `run_opencode` reads `verify_model`/`verify_variant`/`verify_agent` only at the
+            # VERIFIER call site, and only when they are present.
+            **(
+                {
+                    "verify_model": resolved_verify.model,
+                    "verify_variant": resolved_verify.variant,
+                    "verify_agent": resolved_verify.agent,
+                    "verify_launch_profile": launch_profile_record(resolved_verify),
+                }
+                if resolved_verify is not None
+                else {}
+            ),
             "auto": getattr(args, "auto", True),
             "session": initial_session,
             "output_mode": getattr(args, "output_mode", "clean"),
@@ -3064,6 +3138,25 @@ def render_launch_identity(state: dict[str, Any]) -> str:
         parts.append(f"profile={requested} (requested)")
     elif applied:
         parts.append(f"profile={applied} (default)")
+    # runprofile-06 (`kgpptv`) E-03: name the VERIFIER's launch when the run froze a separate one,
+    # so "which model checked this work" needs no `state.json` archaeology either. Emitted ONLY when
+    # a verifier profile was configured, so the line is unchanged for every other run.
+    vlp = options.get("verify_launch_profile") or {}
+    if vlp:
+        verify_bits = [
+            f"verify-model={options.get('verify_model') or '(host default)'}"
+        ]
+        if options.get("verify_variant"):
+            verify_bits.append(f"verify-variant={options['verify_variant']}")
+        if options.get("verify_agent"):
+            verify_bits.append(f"verify-agent={options['verify_agent']}")
+        vsrc = (provenance.get("verify_with") or "").strip()
+        applied_v = vlp.get("applied")
+        if applied_v:
+            verify_bits.append(
+                f"verify-profile={applied_v}" + (f" ({vsrc})" if vsrc else "")
+            )
+        parts.extend(verify_bits)
     if not lp:
         # A run created before this field existed, or by a path that froze no snapshot. Say that
         # plainly instead of implying the identity is unknown.
@@ -5264,6 +5357,7 @@ def run_opencode(
     label_suffix: str = "",
     tracker: StreamTracker | None = None,
     work_dir: str | None = None,
+    use_verifier_launch: bool = False,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     opencode = options.get("opencode") or "opencode"
@@ -5302,12 +5396,35 @@ def run_opencode(
         argv.extend(["--session", session])
 
     argv.extend(["--dir", agent_dir, "--format", "json"])
-    if options.get("model"):
-        argv.extend(["--model", options["model"]])
-    if options.get("variant"):
-        argv.extend(["--variant", options["variant"]])
-    if options.get("agent"):
-        argv.extend(["--agent", options["agent"]])
+    # runprofile-06 (`kgpptv`) E-03: WHICH frozen launch this turn uses. ONE argv builder serves
+    # every turn (a second builder for the verifier is how the two hosts' flag surfaces diverged),
+    # so the ROLE is passed in explicitly by the caller and never inferred here.
+    #
+    # SELECTED BY THE CALL SITE, NOT BY `fresh_session`, and that distinction is the whole trap
+    # (F-10). `fresh_session` is true for the verifier AND for every ISOLATED turn, and
+    # `isolate_worktree` defaults True, so keying the verifier launch off `fresh_session` - or off
+    # session-absence - would hand the VERIFIER's model to nearly every EXECUTE turn, which is the
+    # DEFAULT configuration. Only the verifier call site passes `use_verifier_launch=True`.
+    #
+    # A REVIEW turn needs no branch at all: it IS the execute call site with
+    # `item["action"] == "review"` (read below only to pick a `--title` label), so it keeps the
+    # executor's launch automatically (F-11).
+    #
+    # `verify_launch` is falsy for every run created without a verifier profile (the keys are absent
+    # from frozen state entirely), so the argv below is byte-identical to what it was before this
+    # field existed.
+    verify_launch = use_verifier_launch and bool(options.get("verify_launch_profile"))
+    model_key, variant_key, agent_key = (
+        ("verify_model", "verify_variant", "verify_agent")
+        if verify_launch
+        else ("model", "variant", "agent")
+    )
+    if options.get(model_key):
+        argv.extend(["--model", options[model_key]])
+    if options.get(variant_key):
+        argv.extend(["--variant", options[variant_key]])
+    if options.get(agent_key):
+        argv.extend(["--agent", options[agent_key]])
     if options.get("auto", True):
         argv.append("--auto")
 
@@ -6352,6 +6469,12 @@ def execute_item(
                 label_suffix="verification",
                 tracker=tracker,
                 work_dir=work_dir,
+                # runprofile-06 (`kgpptv`) E-03: THE ONLY call site that asks for the verifier's
+                # frozen launch. Passed explicitly from here rather than inferred inside
+                # `run_opencode`, because every signal that inference could use (`fresh_session`,
+                # session-absence) is ALSO true for an isolated EXECUTE turn, which is the default
+                # configuration. No-op when the run froze no verifier profile.
+                use_verifier_launch=True,
             )
             if _v_log:
                 attempt["verify_log"] = str(_v_log)
@@ -7549,6 +7672,21 @@ LAUNCH IDENTITY (model / variant / agent):
         "--agent",
         help="Primary OpenCode agent name. Overrides only the agent of a profile named with 'as'",
     )
+    # runprofile-06 (`kgpptv`) E-02: WHICH profile verifies, never WHETHER verification happens
+    # (that is `--validate`). Takes a profile NAME, not a model: a reference reuses a whole
+    # validated profile (its variant and agent too), and an inline model would be the first field
+    # to escape the schema's own validation.
+    start.add_argument(
+        "--verify-with",
+        dest="verify_with",
+        default=None,
+        metavar="PROFILE",
+        help="Name the runner profile the INDEPENDENT VERIFIER turn launches with, so a run can "
+        "execute with one model and be verified by another. Overrides a profile's own "
+        "'verify_with' and the store's 'defaults.verify_with'. Omitted (the default) means the "
+        "verifier reuses the executor's launch, exactly as before. This says WHICH profile "
+        "verifies, not WHETHER verification runs (that is --validate). OpenCode host only.",
+    )
     start.add_argument(
         "--auto",
         action=argparse.BooleanOptionalAction,
@@ -7680,6 +7818,22 @@ LAUNCH IDENTITY (model / variant / agent):
     resume.add_argument(
         "--variant",
         help="Override model variant / reasoning effort for OpenCode",
+    )
+    # runprofile-06 (`kgpptv`) E-02: registered with `default=None` so an OMITTED flag can never
+    # clobber the frozen verifier launch, which is the `--full-auto`/`--retry-budget` pattern. When
+    # it IS passed, it is REFUSED (see the refusal below), for the same reason `as <profile>` is
+    # refused on resume: honoring a profile NAME requires re-reading `runner-profiles.json`, and
+    # `3cm15q` E-04 forbids a resume from re-resolving it. Registered anyway because refusing needs
+    # argparse to accept the flag first; otherwise the operator is told the flag does not exist
+    # instead of being told the frozen value cannot change (DECISION 06-kgpptv-D5).
+    resume.add_argument(
+        "--verify-with",
+        dest="verify_with",
+        default=None,
+        metavar="PROFILE",
+        help="Refused on resume: the verifier launch is frozen when the run is created, because "
+        "honoring a profile name here would mean re-reading runner-profiles.json. Omit it and the "
+        "frozen value is used; start a new run to verify with a different profile.",
     )
     _add_output_mode_flags(resume, verbosity_default=None)
 
@@ -8010,6 +8164,21 @@ def main(argv: list[str] | None = None) -> int:
             # refusing, so the spec's two sentences disagree and converting a shipped flag's behavior
             # is out of this plan's fence. The divergence is recorded, not papered over.
             runner_shared.refuse_frozen_flags_on_resume(args)
+            # runprofile-06 (`kgpptv`) E-02: REFUSE `--verify-with` on resume, before any state is
+            # loaded or written, for exactly the reason `as <profile>` is refused: the flag names a
+            # PROFILE, honoring it would require re-reading `runner-profiles.json`, and `3cm15q`
+            # E-04 makes a resume use the identity frozen at creation. Refusing LOUDLY rather than
+            # accepting-and-ignoring, because an operator who typed `--verify-with opus` believes
+            # the resumed verifier turns will use `opus`, and silently continuing under the
+            # original one is the "silently verified with the wrong model" failure this plan exists
+            # to prevent.
+            if getattr(args, "verify_with", None) is not None:
+                raise DriverError(
+                    f"--verify-with {args.verify_with!r} cannot be changed on resume: the "
+                    "verifier launch is frozen when the run is created, because honoring a "
+                    "profile name here would mean re-reading runner-profiles.json. Resume "
+                    "without it to use the frozen value, or start a NEW run."
+                )
             # Apply the policy flags the operator actually PASSED; leave the omitted ones frozen. This
             # SUBSUMES the hand-written `--full-auto` block that was here: the shared helper applies
             # the same `None`-means-absent rule to all eight, so `--full-auto`'s shipped resume

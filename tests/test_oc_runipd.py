@@ -4568,5 +4568,718 @@ class LaunchProfileFrozenTurnArgvTests(unittest.TestCase):
             self.assertFalse(opts["launch_profile"]["config_present"])
 
 
+# ==================================================================================================
+# runprofile Order 06 (`kgpptv`): the VERIFIER turn resolves its OWN launch.
+#
+# THE THREE LOAD-BEARING CASES, and only one of them is the new feature:
+#   (a) a profile WITH `verify_with` produces DIFFERENT models in the execute and verifier argv;
+#   (b) a profile WITHOUT it produces argv BYTE-IDENTICAL to pre-change behavior, for every turn
+#       kind - the claim a reviewer should distrust most, because a suite proving only (a) would
+#       pass while every existing user's runs had silently changed model;
+#   (c) an ISOLATED EXECUTE turn still carries the EXECUTOR's model. This is the decisive negative
+#       case: `isolate_worktree` defaults True and an isolated turn is ALWAYS session-free, exactly
+#       like the verifier, so an implementation keyed on `fresh_session` (or on session-absence)
+#       would misroute the DEFAULT configuration while every new-routing test passed.
+#
+# THE LIMIT, stated because no test can state it: this is cross-MODEL verification on the OpenCode
+# host ONLY. Cross-HOST (execute under agy, verify under oc) is NOT delivered and is deferred by the
+# maintainer's choice (OQ-01). The agy runner has ZERO profile integration, so it does not
+# participate at all.
+# ==================================================================================================
+
+
+_VERIFY_ROUTING_STORE = {
+    "schema_version": 2,
+    "profiles": {
+        "cheap": {
+            "runner": "oc",
+            "model": "vendor/flash-1",
+            "variant": "low",
+            "verify_with": "strong",
+        },
+        "strong": {
+            "runner": "oc",
+            "model": "vendor/opus-9",
+            "variant": "high",
+            "agent": "build",
+        },
+    },
+}
+
+
+class VerifierLaunchFreezeTests(unittest.TestCase):
+    """E-02: BOTH launches frozen at creation, before any durable side effect, and never re-resolved."""
+
+    def _prepare(self, root: Path, extra_argv: list, store_doc: dict | None) -> Path:
+        repo = root / "repo"
+        _init_repo_with_conforming_plan(repo, "vprof1")
+        if store_doc is None:
+            (root / "xdg").mkdir(exist_ok=True)
+            env = {**_DRIVER_ENV, "XDG_CONFIG_HOME": str(root / "xdg")}
+        else:
+            env = {**_DRIVER_ENV, **_profile_store(root, store_doc)}
+        res = subprocess.run(
+            _DRIVER_CMD
+            + extra_argv
+            + ["vprof1", "--repo", os.fspath(repo), "--prepare-only"],
+            cwd=repo,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self._stdout = res.stdout
+        self._repo = repo
+        self._env = env
+        return sorted((repo / ".aw" / "records" / "runs").glob("run-*"))[0]
+
+    def test_both_launches_are_frozen_side_by_side(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+        # The EXECUTOR's record keeps its exact shipped shape and keys.
+        self.assertEqual(opts["model"], "vendor/flash-1")
+        self.assertEqual(opts["variant"], "low")
+        self.assertEqual(opts["launch_profile"]["applied"], "cheap")
+        # The VERIFIER's record sits BESIDE it (DECISION 06-kgpptv-D4), not nested inside it.
+        self.assertEqual(opts["verify_model"], "vendor/opus-9")
+        self.assertEqual(opts["verify_variant"], "high")
+        self.assertEqual(opts["verify_agent"], "build")
+        self.assertEqual(opts["verify_launch_profile"]["applied"], "strong")
+        self.assertEqual(opts["launch_profile"]["provenance"]["verify_with"], "profile")
+        # Both records describe the SAME configuration, which is what one store read buys.
+        self.assertEqual(
+            opts["verify_launch_profile"]["config_digest"],
+            opts["launch_profile"]["config_digest"],
+        )
+        # No credential-shaped key rode along in the new record either.
+        self.assertNotIn("api_key", json.dumps(opts["verify_launch_profile"]).lower())
+        print(
+            "frozen pair: executor model="
+            f"{opts['model']} variant={opts['variant']}; verifier model="
+            f"{opts['verify_model']} variant={opts['verify_variant']} "
+            f"agent={opts['verify_agent']}"
+        )
+
+    def test_without_verify_with_the_frozen_state_has_no_verifier_keys_at_all(self):
+        """The no-op default at the STATE level: absent, not null, not false."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(
+                root,
+                ["as", "strong"],
+                _VERIFY_ROUTING_STORE,
+            )
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+        for key in (
+            "verify_model",
+            "verify_variant",
+            "verify_agent",
+            "verify_launch_profile",
+        ):
+            self.assertNotIn(
+                key, opts, f"{key} leaked into a run with no verifier profile"
+            )
+        self.assertEqual(opts["model"], "vendor/opus-9")
+        self.assertEqual(
+            opts["launch_profile"]["provenance"]["verify_with"], "same-as-executor"
+        )
+        print(
+            "no verifier profile configured: no verify_* keys frozen; "
+            f"provenance={opts['launch_profile']['provenance']['verify_with']}"
+        )
+
+    def test_a_dangling_verify_with_refuses_before_any_durable_side_effect(self):
+        """`3cm15q` F-13's guarantee, extended: no run dir, no events, no state.json."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / "repo"
+            _init_repo_with_conforming_plan(repo, "vprof2")
+            runs_root = repo / ".aw" / "records" / "runs"
+            before = (
+                sorted(p.name for p in runs_root.glob("*"))
+                if runs_root.exists()
+                else []
+            )
+            env = {**_DRIVER_ENV, **_profile_store(root, _VERIFY_ROUTING_STORE)}
+            res = subprocess.run(
+                _DRIVER_CMD
+                + [
+                    "as",
+                    "cheap",
+                    "vprof2",
+                    "--repo",
+                    os.fspath(repo),
+                    "--verify-with",
+                    "ghost",
+                    "--prepare-only",
+                ],
+                cwd=repo,
+                env=env,
+                capture_output=True,
+                text=True,
+            )
+            text = res.stdout + res.stderr
+            self.assertEqual(res.returncode, 2, text)
+            self.assertIn("does not exist", text)
+            after = (
+                sorted(p.name for p in runs_root.glob("*"))
+                if runs_root.exists()
+                else []
+            )
+            self.assertEqual(before, after, "a refused run left durable state behind")
+            self.assertNotIn("Run ID:", res.stdout)
+            print(
+                f"dangling --verify-with refused with no durable state: {text.strip()[:140]}"
+            )
+
+    def test_an_explicit_flag_beats_the_stored_reference(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(
+                root,
+                ["as", "cheap", "--verify-with", "cheap"],
+                _VERIFY_ROUTING_STORE,
+            )
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+        # `cheap`'s stored `verify_with` is `strong`; the flag overrode it.
+        self.assertEqual(opts["verify_model"], "vendor/flash-1")
+        self.assertEqual(opts["verify_launch_profile"]["applied"], "cheap")
+        self.assertEqual(
+            opts["launch_profile"]["provenance"]["verify_with"], "explicit"
+        )
+
+    def test_the_help_registers_the_flag_on_start_and_resume(self):
+        parser = driver.build_parser()
+        for command in ("start", "resume"):
+            action = parser.parse_args(
+                [command, "x"] if command == "start" else [command, "run-xyz"]
+            )
+            self.assertTrue(
+                hasattr(action, "verify_with"), f"{command} lacks verify_with"
+            )
+            # `default=None` on BOTH, so an omitted flag can never clobber a frozen value.
+            self.assertIsNone(getattr(action, "verify_with"), command)
+        helps = {}
+        for command in ("start", "resume"):
+            sub = [
+                a
+                for a in parser._subparsers._group_actions[0].choices.items()  # type: ignore[attr-defined]
+                if a[0] == command
+            ][0][1]
+            helps[command] = sub.format_help()
+            self.assertIn("--verify-with", helps[command], command)
+        print(
+            "start --verify-with help: "
+            + [
+                line.strip()
+                for line in helps["start"].splitlines()
+                if "--verify-with" in line
+            ][0]
+        )
+        print(
+            "resume --verify-with help: "
+            + [
+                line.strip()
+                for line in helps["resume"].splitlines()
+                if "--verify-with" in line
+            ][0]
+        )
+
+    def test_resume_refuses_the_flag_and_an_omitted_flag_keeps_the_frozen_value(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
+            frozen = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(frozen["options"]["verify_model"], "vendor/opus-9")
+
+            # PASSED on resume -> refused, loudly, and nothing is mutated.
+            res = subprocess.run(
+                _DRIVER_CMD
+                + [
+                    "resume",
+                    run_dir.name,
+                    "--repo",
+                    os.fspath(self._repo),
+                    "--verify-with",
+                    "cheap",
+                ],
+                cwd=self._repo,
+                env=self._env,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+            self.assertIn("frozen", res.stdout + res.stderr)
+            after = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
+            self.assertEqual(
+                after["options"]["verify_model"], frozen["options"]["verify_model"]
+            )
+            print(
+                "resume --verify-with refused: "
+                + (res.stdout + res.stderr).strip().splitlines()[-1][:150]
+            )
+
+            # OMITTED on resume, with the store REPOINTED and then DELETED: the frozen verifier
+            # launch survives, because nothing on the resume path re-reads the store.
+            for mutation in (
+                {
+                    "schema_version": 2,
+                    "profiles": {
+                        "cheap": {
+                            "runner": "oc",
+                            "model": "vendor/flash-1",
+                            "verify_with": "strong",
+                        },
+                        "strong": {"runner": "oc", "model": "EVIL/other"},
+                    },
+                },
+                None,
+            ):
+                if mutation is None:
+                    (root / "xdg" / "agent-workflows" / "runner-profiles.json").unlink()
+                else:
+                    _profile_store(root, mutation)
+                res = subprocess.run(
+                    _DRIVER_CMD
+                    + [
+                        "status",
+                        run_dir.name,
+                        "--repo",
+                        os.fspath(self._repo),
+                        "--json",
+                    ],
+                    cwd=self._repo,
+                    env=self._env,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+                state = json.loads(res.stdout)
+                self.assertEqual(
+                    state["options"]["verify_model"], "vendor/opus-9", mutation
+                )
+                self.assertEqual(
+                    state["options"]["verify_launch_profile"]["config_digest"],
+                    frozen["options"]["verify_launch_profile"]["config_digest"],
+                    mutation,
+                )
+            print(
+                "after repointing AND deleting the store, the frozen verifier launch is still "
+                f"{state['options']['verify_model']}"
+            )
+
+    def test_validate_and_verify_with_are_independent(self):
+        """Verification OFF with a verifier profile set, and ON with none."""
+
+        store_off = {
+            "schema_version": 2,
+            "profiles": {
+                "cheap": {
+                    "runner": "oc",
+                    "model": "vendor/flash-1",
+                    "verify_with": "strong",
+                },
+                "strong": {"runner": "oc", "model": "vendor/opus-9"},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            # (1) `--no-validate` with a verifier profile configured: routing frozen, verify off.
+            run_dir = self._prepare(root, ["as", "cheap", "--no-validate"], store_off)
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertFalse(opts["validate"])
+            self.assertEqual(opts["verify_model"], "vendor/opus-9")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            # (2) `--validate` with NO verifier profile: verify on, no routing.
+            run_dir = self._prepare(root, ["as", "strong", "--validate"], store_off)
+            opts = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))[
+                "options"
+            ]
+            self.assertTrue(opts["validate"])
+            self.assertNotIn("verify_launch_profile", opts)
+        print(
+            "independent: validate=False with a verifier profile frozen; validate=True with none"
+        )
+
+    def test_the_launch_identity_line_names_the_verifier(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "cheap"], _VERIFY_ROUTING_STORE)
+            report = (run_dir / "execution-report.md").read_text(encoding="utf-8")
+        self.assertIn("verify-model=vendor/opus-9", report)
+        self.assertIn("verify-profile=strong", report)
+        self.assertIn("verify-model=vendor/opus-9", self._stdout)
+        line = [ln for ln in report.splitlines() if ln.startswith("- Launch:")][0]
+        print(f"report identity line: {line}")
+
+    def test_the_identity_line_is_unchanged_when_no_verifier_is_configured(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = self._prepare(root, ["as", "strong"], _VERIFY_ROUTING_STORE)
+            report = (run_dir / "execution-report.md").read_text(encoding="utf-8")
+        self.assertNotIn("verify-model", report)
+        self.assertNotIn("verify-profile", report)
+        line = [ln for ln in report.splitlines() if ln.startswith("- Launch:")][0]
+        print(f"unchanged identity line: {line}")
+
+    def test_render_launch_identity_tolerates_a_pre_field_run(self):
+        # A run frozen before `verify_launch_profile` existed must render, not raise.
+        text = driver.render_launch_identity(
+            {"options": {"model": "opus", "launch_profile": {"applied": "gem"}}}
+        )
+        self.assertIn("model=opus", text)
+        self.assertNotIn("verify-model", text)
+
+
+class VerifierTurnArgvRoutingTests(unittest.TestCase):
+    """E-03/E-04: the verifier CALL SITE gets the verifier launch; every other turn does not."""
+
+    def _state(self, options: dict) -> dict:
+        return {
+            "run_id": "run-test",
+            "repo": "/tmp/repo",
+            "session_id": None,
+            "set_sessions": {},
+            "session_turn_counts": {},
+            "options": {"opencode": "opencode", **options},
+        }
+
+    def _argv_for(self, options: dict, **kw) -> list:
+        """Build the REAL argv `run_opencode` would launch, without launching anything."""
+
+        captured = {}
+
+        class _Proc:
+            def __init__(self, argv):
+                captured["argv"] = argv
+                self.stdout = io.StringIO("")
+                self.stderr = io.StringIO("")
+                self.returncode = 0
+
+            def wait(self, timeout=None):
+                return 0
+
+            def poll(self):
+                return 0
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            run_dir = root / "run"
+            for name in ("sessions", "outcomes", "prompts", "logs"):
+                (run_dir / name).mkdir(parents=True, exist_ok=True)
+            prompt = root / "prompt.txt"
+            prompt.write_text("do the thing", encoding="utf-8")
+            plan = root / "plan.ipd.md"
+            plan.write_text("# plan\n", encoding="utf-8")
+            item = {
+                "position": 1,
+                "id6": "vprof3",
+                "setid": "s1",
+                "action": kw.pop("action", "execute"),
+            }
+            state = self._state(options)
+            state["repo"] = str(root)
+            if kw.pop("isolated", False):
+                # `isolate_worktree` defaults True, so this is the DEFAULT execute turn: it runs in
+                # a worktree and is therefore session-free, exactly like the verifier.
+                lane = root / "lane"
+                lane.mkdir()
+                kw["work_dir"] = str(lane)
+
+            def fake_popen(argv, **_kw):
+                self.assertFalse(
+                    _kw.get("shell", False), "argv must be launched with shell=False"
+                )
+                return _Proc(argv)
+
+            with mock.patch.object(driver.subprocess, "Popen", side_effect=fake_popen):
+                try:
+                    driver.run_opencode(state, run_dir, item, plan, prompt, 1, **kw)
+                except Exception:
+                    # Only argv construction is under test; stream handling may abort on the fake.
+                    pass
+        return captured.get("argv") or []
+
+    #: A run frozen WITH verifier routing: `cheap` executes, `strong` verifies.
+    ROUTED = {
+        "model": "vendor/flash-1",
+        "variant": "low",
+        "verify_model": "vendor/opus-9",
+        "verify_variant": "high",
+        "verify_agent": "build",
+        "verify_launch_profile": {"applied": "strong"},
+    }
+
+    def _launch_of(self, argv: list) -> tuple:
+        def value(flag):
+            return argv[argv.index(flag) + 1] if flag in argv else None
+
+        return value("--model"), value("--variant"), value("--agent")
+
+    def test_the_verifier_turn_uses_the_verifier_launch(self):
+        argv = self._argv_for(
+            self.ROUTED,
+            fresh_session=True,
+            log_suffix="verify",
+            label_suffix="verification",
+            use_verifier_launch=True,
+        )
+        self.assertEqual(
+            self._launch_of(argv), ("vendor/opus-9", "high", "build"), argv
+        )
+        print(f"verifier argv launch: {self._launch_of(argv)}")
+
+    def test_the_execute_turn_keeps_the_executor_launch(self):
+        argv = self._argv_for(self.ROUTED)
+        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+        print(f"execute argv launch:  {self._launch_of(argv)}")
+
+    def test_the_review_turn_keeps_the_executor_launch_with_no_branch(self):
+        """F-11: a review turn IS the execute call site; preserving its model needs no code."""
+
+        argv = self._argv_for(self.ROUTED, action="review")
+        self.assertIn("--title", argv)
+        self.assertIn("aw-review-", argv[argv.index("--title") + 1])
+        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+        print(f"review argv launch:   {self._launch_of(argv)} (no branch required)")
+
+    def test_the_recovery_turn_keeps_the_executor_launch(self):
+        argv = self._argv_for(self.ROUTED, log_suffix="recovery")
+        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+
+    def test_an_isolated_execute_turn_keeps_the_executor_launch(self):
+        """THE DECISIVE NEGATIVE CASE (F-10), and the DEFAULT configuration.
+
+        `isolate_worktree` defaults True and an isolated turn is ALWAYS session-free (the `xd9sll`
+        lane-collision rule), so `fresh_session` is effectively true for it. An implementation that
+        keyed the verifier launch off `fresh_session`, or off session-absence, would give the
+        VERIFIER's model to nearly every EXECUTE turn while every new-routing test still passed.
+        """
+
+        argv = self._argv_for(self.ROUTED, isolated=True)
+        # Session-free, exactly like the verifier...
+        self.assertNotIn("--session", argv, argv)
+        # ...and yet it carries the EXECUTOR's launch.
+        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+        self.assertNotIn("vendor/opus-9", argv, argv)
+        print(
+            "isolated execute turn (default config): session-free yet launch="
+            f"{self._launch_of(argv)}"
+        )
+
+    def test_a_fresh_session_execute_turn_alone_does_not_get_the_verifier_launch(self):
+        """The same trap stated at the flag level: `fresh_session` is not the verifier signal."""
+
+        argv = self._argv_for(self.ROUTED, fresh_session=True)
+        self.assertNotIn("--session", argv)
+        self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None), argv)
+
+    def test_controlled_negative_a_fresh_session_keyed_implementation_would_be_caught(
+        self,
+    ):
+        """MUTATION control: prove the assertion above is not vacuous.
+
+        The defect is injected exactly as a naive implementation would write it - route by
+        `fresh_session` instead of by call site - and the isolated-execute assertion MUST then fail.
+        """
+
+        real = driver.run_opencode
+
+        def sabotaged(state, *a, **kw):
+            if kw.get("fresh_session") or kw.get("work_dir"):
+                kw["use_verifier_launch"] = True  # the defect
+            return real(state, *a, **kw)
+
+        with mock.patch.object(driver, "run_opencode", sabotaged):
+            argv = self._argv_for(self.ROUTED, isolated=True)
+        self.assertEqual(
+            self._launch_of(argv), ("vendor/opus-9", "high", "build"), "sabotage inert"
+        )
+        with self.assertRaises(AssertionError):
+            self.assertEqual(self._launch_of(argv), ("vendor/flash-1", "low", None))
+        print(
+            "controlled negative: a fresh_session-keyed implementation gives the isolated EXECUTE "
+            f"turn {self._launch_of(argv)}, which this suite catches"
+        )
+
+    def test_one_argv_builder_serves_both_call_sites(self):
+        """No second builder: `run_opencode` is still the only launcher, with exactly two callers."""
+
+        source = Path(driver.__file__).read_text(encoding="utf-8")
+        call_sites = [
+            line.strip()
+            for line in source.splitlines()
+            if "run_opencode(" in line and "def run_opencode" not in line
+        ]
+        # Two real call sites; any other occurrence is a test double, not a builder.
+        self.assertEqual(
+            len([c for c in call_sites if c.endswith("run_opencode(")]),
+            2,
+            call_sites,
+        )
+        self.assertEqual(source.count("def run_opencode("), 1)
+        print(f"one builder, two call sites: {call_sites}")
+
+    def test_the_verifier_still_forces_a_fresh_session_and_stays_in_the_worktree(self):
+        """A model swap must not disturb session freshness or the directory the turn runs in."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            lane = Path(temp) / "lane"
+            lane.mkdir()
+            argv = self._argv_for(
+                {**self.ROUTED, "session": "sess-executor"},
+                fresh_session=True,
+                log_suffix="verify",
+                use_verifier_launch=True,
+                work_dir=str(lane),
+            )
+            self.assertNotIn("--session", argv, argv)
+            self.assertEqual(argv[argv.index("--dir") + 1], str(lane))
+            self.assertEqual(
+                self._launch_of(argv), ("vendor/opus-9", "high", "build"), argv
+            )
+        print("verifier turn: fresh session preserved, still runs in the worktree")
+
+
+class VerifierRoutingNoOpDefaultTests(unittest.TestCase):
+    """E-04: the BYTE-IDENTICAL no-op default, which is the claim to distrust most."""
+
+    def setUp(self):
+        self.helper = VerifierTurnArgvRoutingTests()
+        self.helper.assertFalse = self.assertFalse  # for the shell=False assertion
+
+    def _argv(self, options: dict, **kw) -> list:
+        return self.helper._argv_for(options, **kw)
+
+    def test_every_turn_kind_is_byte_identical_without_verify_with(self):
+        """A run frozen with NO verifier keys: each turn's argv must equal the pre-change argv.
+
+        Pre-change is reproduced EXACTLY rather than approximated: before this plan, `run_opencode`
+        read `options["model"|"variant"|"agent"]` unconditionally, which is what
+        `use_verifier_launch=False` (the default) does now. So the comparison is the new builder
+        against itself with the flag never set - which is precisely what an existing invocation
+        does, since no existing caller passes it.
+        """
+
+        plain = {"model": "vendor/flash-1", "variant": "low", "agent": "build"}
+        turns = {
+            "execute": {},
+            "isolated-execute": {"isolated": True},
+            "recovery": {"log_suffix": "recovery"},
+            "review": {"action": "review"},
+            "verifier": {
+                "fresh_session": True,
+                "log_suffix": "verify",
+                "label_suffix": "verification",
+                "use_verifier_launch": True,
+            },
+        }
+        for label, kw in turns.items():
+            argv = self._argv(plain, **kw)
+            self.assertEqual(
+                self.helper._launch_of(argv),
+                ("vendor/flash-1", "low", "build"),
+                f"{label}: {argv}",
+            )
+            print(
+                f"no verify_with -> {label:17s} launch={self.helper._launch_of(argv)}"
+            )
+
+    def test_a_run_with_no_launch_fields_at_all_passes_no_launch_flags(self):
+        """The absent-store case: host defaults, for the verifier turn too."""
+
+        for kw in ({}, {"fresh_session": True, "use_verifier_launch": True}):
+            argv = self._argv({}, **kw)
+            self.assertNotIn("--model", argv, argv)
+            self.assertNotIn("--variant", argv, argv)
+            self.assertNotIn("--agent", argv, argv)
+
+    def test_a_verifier_turn_on_a_pre_field_run_uses_the_executor_launch(self):
+        """A run frozen BEFORE this field existed: `use_verifier_launch` must be inert."""
+
+        argv = self._argv(
+            {"model": "vendor/flash-1", "variant": "low"},
+            fresh_session=True,
+            log_suffix="verify",
+            use_verifier_launch=True,
+        )
+        self.assertEqual(
+            self.helper._launch_of(argv), ("vendor/flash-1", "low", None), argv
+        )
+        print(
+            "pre-field run: verifier turn falls back to the executor launch "
+            f"{self.helper._launch_of(argv)}"
+        )
+
+    def test_differing_models_from_one_run_side_by_side(self):
+        """(a) and (b) in one place: the routed pair, and the unrouted pair, from one state each."""
+
+        routed = VerifierTurnArgvRoutingTests.ROUTED
+        exec_argv = self._argv(routed)
+        verify_argv = self._argv(
+            routed, fresh_session=True, log_suffix="verify", use_verifier_launch=True
+        )
+        self.assertNotEqual(
+            self.helper._launch_of(exec_argv), self.helper._launch_of(verify_argv)
+        )
+        print("ROUTED   execute:  " + " ".join(exec_argv[:12]))
+        print("ROUTED   verifier: " + " ".join(verify_argv[:12]))
+
+        plain = {"model": "vendor/flash-1", "variant": "low"}
+        exec_plain = self._argv(plain)
+        verify_plain = self._argv(
+            plain, fresh_session=True, log_suffix="verify", use_verifier_launch=True
+        )
+        self.assertEqual(
+            self.helper._launch_of(exec_plain), self.helper._launch_of(verify_plain)
+        )
+        print("UNROUTED execute:  " + " ".join(exec_plain[:12]))
+        print("UNROUTED verifier: " + " ".join(verify_plain[:12]))
+
+
+class VerifierRoutingHostAsymmetryTests(unittest.TestCase):
+    """E-05(a): this capability is OpenCode-only BY CONSTRUCTION, not merely by scope choice."""
+
+    def test_the_agy_runner_has_no_profile_integration_at_all(self):
+        from agent_workflows import agy_runipd
+
+        source = Path(agy_runipd.__file__).read_text(encoding="utf-8")
+        for symbol in (
+            "runner_profiles",
+            "resolve_launch_profile",
+            "launch_profile",
+            "verify_with",
+        ):
+            self.assertEqual(
+                source.count(symbol),
+                0,
+                f"agy_runipd now references {symbol!r}; the OC-only claim needs re-measuring",
+            )
+        print(
+            "agy_runipd references runner_profiles/resolve_launch_profile/launch_profile/"
+            "verify_with exactly 0 times: profile routing is OC-only by construction"
+        )
+
+    def test_the_flag_help_says_opencode_host_only(self):
+        parser = driver.build_parser()
+        start = parser._subparsers._group_actions[0].choices["start"]  # type: ignore[attr-defined]
+        help_text = start.format_help()
+        self.assertIn("--verify-with", help_text)
+        self.assertIn("OpenCode host only", help_text)
+
+
 if __name__ == "__main__":
     unittest.main()

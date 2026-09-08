@@ -316,7 +316,13 @@ class WizardToArgvE2E(_ArgvSpyFixture):
         # The file exists, on disk, written by the shipped atomic writer.
         self.assertTrue(self.store.is_file(), "no store was written")
         doc = json.loads(self.store.read_text(encoding="utf-8"))
-        self.assertEqual(doc["schema_version"], 1)
+        # A freshly WRITTEN document declares the version this aw writes, which `runprofile`
+        # Order 06 (`kgpptv`) bumped to 2 when `verify_with` was added (DECISION 06-kgpptv-D2).
+        # Asserted against the constant rather than a literal, so the next bump does not require
+        # editing an unrelated wizard test; the READ side (a v1 document still loading) is
+        # asserted in `tests/test_runner_profiles.py`.
+        self.assertEqual(doc["schema_version"], rp.SCHEMA_VERSION)
+        self.assertEqual(rp.SCHEMA_VERSION, 2)
         self.assertEqual(doc["profiles"]["gem"]["model"], GEM_MODEL)
         self.assertEqual(doc["profiles"]["gem"]["variant"], "high")
         self.assertEqual(doc["profiles"]["gem"]["runner"], "oc")
@@ -826,10 +832,12 @@ class PublishedContractParityTests(unittest.TestCase):
                     rp.parse_profile(
                         "x", {"runner": "oc", "model": GEM_MODEL, forbidden: "v"}
                     )
-        # And the allowed set is exactly what the doc lists.
+        # And the allowed set is exactly what the doc lists. `verify_with` joined both the schema
+        # and the doc in `runprofile` Order 06 (`kgpptv`); it is a profile NAME, not a credential
+        # or an argv fragment, so it does not weaken the claim this test defends.
         self.assertEqual(
             sorted(rp.ALLOWED_PROFILE_KEYS),
-            ["agent", "model", "runner", "validate", "variant"],
+            ["agent", "model", "runner", "validate", "variant", "verify_with"],
         )
 
     def test_the_doc_contains_no_em_or_en_dash(self):
@@ -837,6 +845,48 @@ class PublishedContractParityTests(unittest.TestCase):
 
         self.assertNotIn("\u2014", self.text)
         self.assertNotIn("\u2013", self.text)
+
+    def test_the_doc_states_the_verify_with_limits_rather_than_implying_parity(self):
+        """`runprofile` Order 06 (`kgpptv`) E-05(a).
+
+        "The verifier can use a different profile" reads as host-agnostic and is NOT: the Antigravity
+        runner has ZERO profile integration, so the doc must say so rather than let a reader infer
+        parity. It must also not imply a different RUNNER can verify, which is deferred (OQ-01).
+        """
+
+        self.assertIn("verify_with", self.text)
+        # It is OpenCode only, and the doc says which host does NOT participate.
+        self.assertIn("OPENCODE ONLY", self.text.upper())
+        self.assertIn("does not read runner profiles", self.text)
+        # And it must not promise cross-runner verification.
+        self.assertIn("routes the model, not the host", self.text)
+        # The claim is true: the agy runner references no profile symbol at all.
+        agy = (REPO_ROOT / "agent_workflows" / "agy_runipd.py").read_text(
+            encoding="utf-8"
+        )
+        for symbol in ("runner_profiles", "launch_profile", "verify_with"):
+            self.assertEqual(agy.count(symbol), 0, symbol)
+        print(
+            "doc states the OC-only limit; agy_runipd references 0 profile symbols, so the "
+            "limit is a property of the system rather than of the doc's wording"
+        )
+
+    def test_the_doc_and_the_schema_agree_on_the_written_version(self):
+        """The version bump is a USER-FACING contract, so the doc must state it (E-01 / D2)."""
+
+        self.assertIn("`schema_version` 2", self.text)
+        self.assertEqual(rp.SCHEMA_VERSION, 2)
+        self.assertEqual(sorted(rp.SUPPORTED_SCHEMA_VERSIONS), [1, 2])
+        # The doc promises a v1 store still works and is not rewritten; assert the read path.
+        self.assertIn("still declaring version 1 is read exactly as", self.text)
+        v1 = rp.from_document(
+            {
+                "schema_version": 1,
+                "profiles": {"gem": {"runner": "oc", "model": GEM_MODEL}},
+            }
+        )
+        self.assertEqual(v1.schema_version, 1)
+        self.assertEqual(rp.resolve(v1, runner="oc", profile="gem").model, GEM_MODEL)
 
     def test_docs_check_passes_for_the_new_and_edited_docs(self):
         from agent_workflows import docs_check

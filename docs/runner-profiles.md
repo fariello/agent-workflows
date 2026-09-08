@@ -142,6 +142,61 @@ This exists because verification is worth different amounts on different models.
 model rarely benefits can record `validate: false` while a cheaper one records `true`, instead of
 your having to remember a flag on every invocation.
 
+## Verifying with a different model
+
+An independent verifier turn is worth most when it is genuinely independent, and a second opinion
+from the same model is the one least likely to catch what the first missed. A profile can therefore
+name the profile that VERIFIES its work:
+
+```json
+{
+  "schema_version": 2,
+  "profiles": {
+    "cheap": {"runner": "oc", "model": "vendor/fast-1", "verify_with": "strong"},
+    "strong": {"runner": "oc", "model": "vendor/deep-9", "variant": "high"}
+  }
+}
+```
+
+Now `aw oc run as cheap <selector>` executes with `vendor/fast-1` and, when verification runs,
+verifies with `vendor/deep-9`. You can override it for one run, or set a fallback for every
+profile that does not name its own:
+
+```bash
+aw oc run as cheap <selector> --verify-with strong   # for this run only
+```
+
+Precedence, highest first, on the same tri-state rule as `validate`:
+
+1. An explicit `--verify-with <profile>`.
+2. The profile's own `verify_with`.
+3. The store's `defaults.verify_with`.
+4. Nothing, which means the verifier uses the EXECUTOR's own launch. That is what every run did
+   before this field existed, so a store without it behaves exactly as it always has.
+
+Four things are worth knowing:
+
+- IT IS A PROFILE NAME, not a model. A reference reuses a whole profile that has already been
+  validated, including its variant and agent, and there is deliberately no way to write a bare
+  model here.
+- IT SAYS WHICH, NOT WHETHER. `validate` decides whether a verifier turn runs at all;
+  `verify_with` decides which profile runs it when one does. They are independent, so you can set
+  a verifier profile on a run with verification off, and the setting simply waits.
+- RESOLUTION IS ONE HOP. If the profile you verify with names a `verify_with` of its own, that
+  value is ignored while it is acting as the verifier. There is no chain, so there is no loop.
+- IT IS OPENCODE ONLY. The Antigravity runner does not read runner profiles at all, so it neither
+  honors `verify_with` nor any other profile field. Verifying under a DIFFERENT RUNNER than the one
+  that executed is also not available: this routes the model, not the host.
+
+A reference that names a profile which does not exist is refused when the store is read, before a
+run has any durable side effect. That refusal is deliberate: falling back to the executor's model
+would leave you believing an independent model checked the work when the same model did.
+
+This field arrived with `schema_version` 2. A store still declaring version 1 is read exactly as
+before and is never rewritten unless you save a change, but a store this version of `aw` WRITES is
+declared as version 2 and an older `aw` will refuse it and tell you to upgrade rather than treat it
+as empty.
+
 ### Which host runs it
 
 `aw run as <profile>` asks the PROFILE, which names exactly one runner. `aw run ipd` has no
@@ -189,8 +244,8 @@ The file is `runner-profiles.json` in your user configuration directory
 - Writes are ATOMIC: the whole new document is validated first, then replaced in one operation.
   An interrupted or invalid write leaves your previous file byte for byte unchanged.
 
-A profile holds only structured launch fields: `runner`, `model`, `variant`, `agent`, and
-`validate`. It is NOT a command, an argv fragment, a shell string, an environment mapping, an
+A profile holds only structured launch fields: `runner`, `model`, `variant`, `agent`, `validate`,
+and `verify_with`. It is NOT a command, an argv fragment, a shell string, an environment mapping, an
 executable path, a prompt, a permission set, or a place for a token or an API key. Every one of
 those keys is refused by name, and any unrecognized key is refused too. A raw arguments field
 would turn `aw run as gem` into a quoting and injection surface; a credential field would turn a
@@ -215,6 +270,11 @@ outright does not change a run already in flight, and `resume` never re-resolves
 provenance record is also why an operator reading `state.json` months later can tell an explicit
 flag from a profile that has since been edited.
 
+When a verifier profile applies, its resolved launch is frozen BESIDE the executor's, with its own
+provenance, and the verifier turn uses that one. Because it is frozen too, `--verify-with` is
+refused on `resume`: honoring a profile name there would mean re-reading the store, which is the one
+thing a resume must never do. Start a new run to verify with a different profile.
+
 You can see the identity before committing to anything:
 
 ```bash
@@ -235,6 +295,9 @@ directory, no partial state.
 | A runner that is valid in the schema but has no adapter in this build | Refused, and reported as unimplemented rather than as a typo. |
 | A dangling default profile (points at a name that no longer exists) | Refused at load, so a broken store surfaces at once. |
 | A duplicate name without `--replace` | Refused, and the existing profile survives untouched. |
+| A `verify_with` naming a profile that does not exist | Refused, because falling back to the executor's model would let you believe an independent model verified the work. |
+| `--verify-with` passed to `resume` | Exit 2. The verifier launch is frozen at creation; omit the flag to use it, or start a new run. |
+| A store written by a newer `aw` (a higher `schema_version`) | Refused with the version and the advice to upgrade, never treated as empty. |
 
 If the store is malformed, `aw setup` reports it and does NOT offer the interview, so a file you
 can still repair by hand is never written over.
@@ -249,6 +312,7 @@ can still repair by hand is never written over.
 | Run with your default runner and profile | `aw run ipd <selector>` |
 | Run naming OpenCode explicitly | `aw oc run as gem <selector>` |
 | Override one field for one run | `aw run as gem <selector> --variant max` |
+| Verify with a different model | Add `"verify_with": "strong"` to the profile, or `--verify-with strong` |
 | See the resolved launch without running | `aw oc run as gem <selector> --prepare-only` |
 | See what you have | `aw oc profile list` |
 | Set or clear the default profile | `aw oc profile default gem` / `--clear` |
