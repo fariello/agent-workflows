@@ -860,8 +860,10 @@ def _spec_record(
     d_kind, d_text = _extract_detail(text)
     rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
+    sid_m = re.search(r"(?m)^- Id:\s*([0-9a-z]{6})\s*$", text)
+    sid = sid_m.group(1) if sid_m else ""
     return Item(
-        "",
+        sid,
         rel,
         "specs",
         status,
@@ -1662,15 +1664,25 @@ _IDENTITY_PARTS_RE = re.compile(
 _LEGACY_SPEC_RE = re.compile(r"^(\d{8})-\d{4}-\d{2}-([a-z0-9-]+)")
 
 
+def extract_id6(it: Item) -> Optional[str]:
+    """Extract id6 for an item, from it.id or filename."""
+    if it.id and it.id != "-":
+        return it.id
+    _, _, id6 = _extract_identity_parts(it)
+    if id6 and id6 != "-":
+        return id6
+    return None
+
+
 def _extract_identity_parts(it: Item) -> Tuple[str, str, str]:
     """Extract (Date, SetID, ID6) from an Item's path and metadata."""
     base = it.path.replace("\\", "/").rsplit("/", 1)[-1]
-    m = _IDENTITY_PARTS_RE.match(base)
-    if m:
-        return m.group(1), m.group(2), it.id or m.group(4)
     m_leg = _LEGACY_SPEC_RE.match(base)
     if m_leg:
         return m_leg.group(1), m_leg.group(2), it.id or "-"
+    m = _IDENTITY_PARTS_RE.match(base)
+    if m:
+        return m.group(1), m.group(2), it.id or m.group(4)
     date = base[:8] if len(base) >= 8 and base[:8].isdigit() else "-"
     raw_stem = _FACET_STRIP_RE.sub("", base)
     set_id = raw_stem if raw_stem else "-"
@@ -2589,7 +2601,21 @@ def run(args) -> int:
         ):
             items = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
 
-    run_status_filters = parse_run_status_filters(getattr(args, "run_status", None))
+    active_flag = getattr(args, "active", False)
+    not_active_flag = getattr(args, "not_active", False)
+
+    if active_flag:
+        run_status_filters = {"any"}
+    elif not_active_flag:
+        run_status_filters = {"-", "none", "no", "false"}
+    else:
+        raw_run_st = (
+            getattr(args, "run_status", None)
+            or getattr(args, "arcive_state", None)
+            or getattr(args, "active_state", None)
+        )
+        run_status_filters = parse_run_status_filters(raw_run_st)
+
     has_terminal_run_status = any(
         s in ("done", "failed", "completed", "executed", "any")
         for s in run_status_filters
@@ -2600,7 +2626,13 @@ def run(args) -> int:
     order_keys = [k.strip() for k in order_by.split(",") if k.strip()]
     runs_in_order = any(k in ("runs", "run") for k in order_keys)
     runs_arg = getattr(args, "runs", False)
-    runs_needed = bool(runs_arg) or bool(run_status_filters) or runs_in_order
+    runs_needed = (
+        bool(runs_arg)
+        or bool(run_status_filters)
+        or runs_in_order
+        or active_flag
+        or not_active_flag
+    )
 
     run_map = get_active_runs_map(repo_root) if (runs_needed and repo_root) else {}
 
@@ -2681,6 +2713,35 @@ def run(args) -> int:
         else:
             sys.stdout.write("aw attention --check: the view is valid.\n")
         return exit_code
+
+    id6_only = getattr(args, "id6_only", False)
+    paths_only = getattr(args, "paths", False)
+    filenames_only = getattr(args, "filenames", False)
+
+    if id6_only or paths_only or filenames_only:
+        show_all = (
+            getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
+        )
+        if not show_all:
+            visible = [
+                it for it in items if it.attention_class not in (A.DONE, A.PARKED)
+            ]
+        else:
+            visible = list(items)
+
+        if id6_only:
+            for it in visible:
+                val = extract_id6(it)
+                if val:
+                    sys.stdout.write(f"{val}\n")
+        elif paths_only:
+            for it in visible:
+                sys.stdout.write(f"{it.path}\n")
+        elif filenames_only:
+            for it in visible:
+                name = Path(it.path).name
+                sys.stdout.write(f"{name}\n")
+        return core.drift_exit_code(drift)
 
     if ctx.is_agent:
         exit_code = core.drift_exit_code(drift)

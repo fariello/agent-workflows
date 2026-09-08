@@ -784,6 +784,21 @@ class _AttentionOrderChoices:
         return len(self._keys)
 
 
+class _RunStatusAction(argparse.Action):
+    """Action for --arcive-state / --active-state / --run-status that populates run_status, arcive_state, active_state."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = getattr(namespace, self.dest, None)
+        if items is None:
+            items = []
+        else:
+            items = list(items)
+        items.append(values)
+        setattr(namespace, self.dest, items)
+        setattr(namespace, "arcive_state", items)
+        setattr(namespace, "active_state", items)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     # A shared parent so --no-color, --agent, and --json work consistently across all subcommands.
     common = _AwArgumentParser(add_help=False)
@@ -3402,10 +3417,36 @@ def _build_parser() -> argparse.ArgumentParser:
             "ordering never filters."
         ),
     )
-    p_attention.add_argument(
+    out_format_grp = p_attention.add_mutually_exclusive_group()
+    out_format_grp.add_argument(
+        "--id6-only",
+        "-id",
+        dest="id6_only",
+        action="store_true",
+        default=False,
+        help="Print only the list of id6 for matching artifacts (one per line).",
+    )
+    out_format_grp.add_argument(
+        "--paths",
+        "--full-paths",
+        dest="paths",
+        action="store_true",
+        default=False,
+        help="Print only the list of repo-relative file paths for matching artifacts (one per line).",
+    )
+    out_format_grp.add_argument(
+        "--filenames",
+        "--files",
+        dest="filenames",
+        action="store_true",
+        default=False,
+        help="Print only the list of filenames for matching artifacts (one per line).",
+    )
+    out_format_grp.add_argument(
         "--long",
         dest="long",
         action="store_true",
+        default=False,
         help="Show the full repo-relative path instead of the compact identity stem.",
     )
     p_attention.add_argument(
@@ -3471,13 +3512,44 @@ def _build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Show live runner session status for items in active runs.",
     )
-    p_attention.add_argument(
+    p_attention.set_defaults(arcive_state=[], active_state=[])
+    run_status_grp = p_attention.add_mutually_exclusive_group()
+    run_status_grp.add_argument(
+        "--arcive-state",
+        "--active-state",
+        "--archive-state",
         "--run-status",
         "--runs-status",
+        "-as",
+        "-ars",
         dest="run_status",
-        action="append",
+        action=_RunStatusAction,
         default=[],
-        help="Filter by live runner session status (e.g. running, queued, merging, done, blocked, failed, -). Supports multiple flags or comma-separated lists.",
+        help=(
+            "Filter by live runner session state in the 'Run' column "
+            "(e.g. running, queued, merging, done, blocked, failed, -). "
+            "Supports multiple flags or comma-separated lists."
+        ),
+    )
+    run_status_grp.add_argument(
+        "--active",
+        "-a",
+        "-ac",
+        "-act",
+        dest="active",
+        action="store_true",
+        default=False,
+        help="Show only artifacts that have any non-empty state in the 'Run' column.",
+    )
+    run_status_grp.add_argument(
+        "--not-active",
+        "-na",
+        "-nac",
+        "-not",
+        dest="not_active",
+        action="store_true",
+        default=False,
+        help="Show only artifacts that have only empty state in the 'Run' column.",
     )
     p_attention.add_argument(
         "selectors",
