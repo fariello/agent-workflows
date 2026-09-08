@@ -2,10 +2,10 @@
 
 - Subject-Id: 51vw4y
 - Subject-Type: ipd
-- Reviewed-At: 2026-09-07
+- Reviewed-At: 2026-09-08
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -64,3 +64,69 @@ Finding-disposition round recording a MAINTAINER RULING, not a re-review. No pla
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-4 | Round 1 escalated PR-301 rather than fixing it. Now that the maintainer has ruled, does this record update itself or wait for a full re-review? | UPDATED HERE as a finding-disposition round, carrying ONLY the ruling. | (a) Wait for the next full `/plan-review` to notice, rejected: the stale `open` row actively blocks `aw oc run` at preflight, so waiting means the ruling is recorded in the plan and still unenforceable. (b) Edit Round 1's row in place, rejected: rounds are append-only history and `current_findings()` already returns only the last round, so amending history would destroy the record of what review 1 actually found. (c) Mark it `DEFERRED` instead of `FIXED`, rejected as untrue: the question was answered, not postponed. | `review_findings.subject_gating_blocks` returned `('PR-301','blocker','open')`; measured preflight refusal `check.ipd-dependency-findings-blocked`; `ReviewDocument.current_findings()` last-round semantics | yes |
+
+## Round 3
+
+Full re-review at HEAD `bb7e6a8c`, the first since child 02 executed and since the maintainer answered
+OQ-04. Structural preflight `aw ipd lint --phase author` conformed before semantic review and
+`--phase review-finalize` conformed after the revisions. Round 2 was a finding-disposition round that
+recorded the ruling into this record; this round asks whether the plan is now EXECUTABLE, and the answer
+was no until the revisions below.
+
+SELF-REVIEW DISCLOSURE: the same agent authored the plan and both prior rounds, so this is the third
+self-assessment in the chain. What that cost is visible in PR-311: a maintainer ruling was recorded in
+prose in two places and never propagated into the checklist an executor actually follows, and two prior
+rounds did not catch it because both were reasoning about the prose.
+
+THE PLAN'S THESIS HOLDS AND I RE-VERIFIED EVERY LOAD-BEARING CLAIM rather than trusting Round 1.
+`integration-blocked` is still in both runners' `TERMINAL_STATES`; `integration-deferred` still does not
+exist; the diagnostic `integration_deferred` reason string is still written while the status still goes
+terminal (F-3's trap is real); the `reconcile_disposition` fall-through still relabels a non-member
+disposition to `partial` (F-11's silent-downgrade trap is real, read at both hosts); `cascade_dependency_blocked`
+is still ONE implementation re-exported by agy; `runnable is None` is still the loop's own condition;
+`is_interactive_run` still tests TTY-and-not-unattended. The spec collision is exact: driving the contract
+test's own `spec_grammar_flags` parser shows 11 declared flags, 9 owned, `owned - declared` currently
+EMPTY, and neither new flag anywhere in the spec, so registering either without amending 2.1 fails the
+suite. The measured incident is still in the durable record (`aw runs run-20260905T050043Z-639569` shows
+four `integration-blocked` and three `dependency-blocked` items). Diagnosis and design are sound.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-311 | BLOCKER | UNDER-SCOPE | G. executability; spec `25kzda` | plan E-02 as authored ("Await OQ-04's answer", "DO NOT \"FIX\" IT BY EDITING THE SPEC"); OQ-04 `Status: resolved`; absent `E-*` | **The maintainer's OQ-04 ruling never reached the executable part of the plan, so the authorized deliverable was covered by no checklist item.** The ruling (option (a): amend spec 2.1, then register in the shared table) was written into OQ-04's rationale and into `Spec / documentation sync`, but E-02 still told the executor to AWAIT the answer and still carried the standing prohibition against editing the spec, and NO `E-*` performed the amendment while NO `V-*` verified it. An executor reads the checklist, so the two available outcomes were both wrong: stall on an answered question, or obey the prohibition and refuse the authorized act. Round 2 recorded the ruling into the review record and did not touch the plan's checklist, which is how the gap survived | C:Low; U:Low; S:Low; F:High; Overall:Low | FIXED | New E-08 (Task group 0, ordered FIRST) performs the amendment, naming exactly what the contract test's parser reads and forbidding any other spec edit; new V-08 verifies with that parser and requires the spec diff, the untouched 4.2 table, the tooled history line, and `test_run_flag_surface.py` passing unmodified. E-02 rewritten: route decided, `Depends on: E-08`, and the ordering hazard stated |
+| PR-312 | HIGH | IN-SCOPE | A. correctness; D. invariants | `runner_shared.integrate_lane_branch` return contract; `oc_runipd.py:6740-6754`; F-6's own argument | **The plan never distinguishes the two refusal kinds, so the ladder would defer genuine merge conflicts too.** The shared refusal returns `kind` in `{"integrated", "integration-blocked", "merge-conflict"}` and each runner maps it with `fail_status = "integration-blocked" if integ_kind == "integration-blocked" else "merge-conflict"`. The plan's justifying argument (repetition CAN succeed, because the blocker is another process's transient dirt) holds ONLY for the dirty-overlap arm; `merge-conflict` means the gate returned non-passing (real conflict, stale base, combined-red, scope), which repetition does not fix. Deferring it would retry a genuine failure up to ten times and consume the budget for nothing, and every positive-arm test the plan specifies would still pass, so the over-trigger is invisible | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | New F-17 records the three-kind contract and the mapping site. E-01 gains a paragraph scoping the change to the `"integration-blocked"` arm only and stating why `merge-conflict` stays terminal. E-06 and V-06 now require the NEGATIVE case (a `merge-conflict` reaching terminal on first attempt, no deferral, no budget consumed) and declare its omission a failed validation. The fence forbids deferring that arm |
+| PR-313 | HIGH | IN-SCOPE | Evidence accuracy; G. executability | measured bare run at Round 2; `tests/test_reporting_contract.py:650-668`; `.gitignore:49`; 1746 files | **The stated baseline is wrong for the second time and the named pre-existing failure has CHANGED, so the executor's pass criterion misdirects them twice over.** Round 1 recorded `1 failed, 5613 passed` at `ec475372` and named `test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows`; re-measured at Round 2 that test PASSES (`3 passed, 109 deselected`) and the suite is `1 failed, 5865 passed, 3 skipped, 2 xfailed` with a DIFFERENT failure, `ParityTests::test_only_expected_files_contain_the_full_contract_prose`. That failure is ENVIRONMENTAL: the test walks `REPO_ROOT.rglob("*")` skipping only `.git/`, `.aw/records/`, `.aw/worktrees/` and `tests/` and consults no `.gitignore`, and this checkout holds a gitignored `opencode-recovery/` of 1746 files, 189 containing the contract sentence. An executor told to expect a different failure could plausibly "fix" this one by deleting another party's untracked directory | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | New F-18 records both measurements, the mechanism, and the file count. The validation section now forbids trusting ANY in-plan baseline including its own, names the current failure as environmental with its cause, and instructs the executor to exclude it from the delta. The fence explicitly forbids deleting `opencode-recovery/` to make it pass |
+| PR-314 | MEDIUM | IN-SCOPE | C. architecture; G. executability | `.aw/records/plans/executed/20260906-integpath-02-6sb3yu-...ipd.md`; `runner_shared.py:791`, `:823`, `:862`; `oc_runipd.py:1946`/`:1967`; `agy_runipd.py:1272`/`:1307` | **Child 02 is now EXECUTED, so the plan's forward-looking framing ("the shared module child 02 creates", "child 02 MAY move a third symbol") is stale in a way that changes the work.** The shared module already holds all three symbols (child 02 DID take its narrow exception on `build_lane_outcome`), and each runner keeps a thin wrapper at the original name binding its own `host_label` and `run_checked`. That means a signature change must be made once in the shared definition AND reflected in both wrappers, which the plan nowhere says. The dependency is also discharged, so the gate's "MUST NOT run before child 02" framing wrongly implies an outstanding blocker | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | New F-16 records the executed state and the three symbol locations. Step 0 gains two conventions (the shared module's actual contents and wrapper mechanics; the `kind`-to-status split as the seam where the ladder goes). The DEPENDENCY paragraph rewritten to DEPENDENCY SATISFIED, stating the exception was taken and what that implies for a signature change |
+| PR-315 | MEDIUM | IN-SCOPE | Evidence accuracy | all anchors re-resolved at `bb7e6a8c`; Round 1's own corrections | **Every driver anchor drifted a SECOND time, by 100 to 260 lines, after Round 1 had already corrected them once.** Examples: the set-difference trap `oc:5844` to `:6011` and `agy:3185` to `:3150`, the diagnostic write `oc:6493` to `:6752`, the dispatch loop `oc:7064` to `:7323`, `TERMINAL_STATES` `oc:301` to `:317`, `is_interactive_run` `:1790` to `:2087`, `cascade_dependency_blocked` `:4109` to `:4224`. Every cited construct still exists and every claim about it is still true, so this is citation rot, but a plan whose numbers have now been wrong twice teaches the executor to distrust its own evidence | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | All 24 anchors re-resolved (Round 1's historical history line left as-is, deliberately). The RE-LOCATE BY SYMBOL paragraph now cites the twice-drifted measurement with examples, so the rule reads as a measured consequence rather than boilerplate, and names the symbols to search for including the new `integ_kind`-to-`fail_status` mapping |
+| PR-316 | LOW | IN-SCOPE | G. executability; project rule conformance | plan fence ("the six paths") vs seven declared in `- Scope-Paths:` | The scope fence's count disagreed with the declared path list: it said "touch ONLY the six paths" while `Scope-Paths` listed seven, the seventh being the spec file added when OQ-04 was answered. A fence whose own count is wrong invites the executor to guess which path is not really in scope, and the spec file is precisely the one they would guess | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Count corrected to seven with a note that the spec file is the addition. The fence also gained the new prohibitions (no deferring `merge-conflict`, no spec edit outside 2.1, no touching `test_run_flag_surface.py`, no deleting `opencode-recovery/`) and the scope check now states explicitly that the contract test is deliberately OUT of Scope-Paths so an edit to it is a declared violation |
+| PR-317 | LOW | IN-SCOPE | Project rule conformance | measured `aw check all` with Round 3 edits stashed; plan history lines dated 2026-09-07 | `aw check` reports `check.lifecycle-transition-invalid` on this plan file, because Round 1's history records `2026-09-07 reviewed` followed by `2026-09-07 to-review`, a BACKWARDS transition in the derived event stream. Confirmed PRE-EXISTING by stashing all Round 3 edits and re-running the check. Unreported, an executor would either believe they caused it or would "fix" it by editing attributed history lines from a prior session | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | New F-19 records it, states it is pre-existing with the falsification method, and explains why it is left uncorrected (rewriting another session's attributed history to satisfy a checker falsifies the record). The validation section tells the executor to expect exactly this one finding on this file and not to clear it |
+
+No finding was DEFERRED, left OPEN, or marked REPLAN in this round, so no escalation to a `- Blocking: yes`
+question was required. PR-311 is a BLOCKER by consequence (the plan was not executable as written) but was
+repairable with bounded in-place edits, which is why the verdict is APPROVE WITH REVISIONS APPLIED.
+
+All four open questions are resolved. OQ-04's `- Blocking:` was changed from `yes` to `no` to match its
+`Status: resolved`, and `plan_readiness.has_unresolved_blocking_question` now returns `False`, so
+`aw set approved` no longer refuses. Round 1's `Readiness: no-go` is superseded by
+`go-pending-approval`: the condition that justified it (an unanswered blocking question) is gone, and
+nothing but human sign-off remains.
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | The authorized spec amendment had no E-item. Add one, or fold the amendment into E-02 where the flag is registered? | A SEPARATE E-08 in a new Task group 0, ordered before E-02, which now declares `Depends on: E-08`. | Folding it into E-02, rejected on a mechanical ground rather than a stylistic one: the contract test fails the instant a flag is registered that the spec does not declare, so spec-then-code is a real ORDERING constraint, and an ordering constraint inside one E-item is invisible to the runner's dependency handling and easy for an executor to perform in the wrong order. Leaving it in prose, rejected as the very defect PR-311 names. | `tests/test_run_flag_surface.py::test_no_owned_flag_is_absent_from_the_spec`; measured `owned - declared` currently empty | yes |
+| D-6 | Should the ladder apply to `merge-conflict` as well as `integration-blocked`? | NO. Defer only the `integration-blocked` arm; `merge-conflict` stays on today's terminal path. | Deferring both, rejected because the plan's own justification does not extend to it: F-6 argues repetition can succeed BECAUSE the blocker is another process's transient dirt, which is false for a gate that returned non-passing on a real conflict, stale base, combined-red, or scope finding. Making it configurable, rejected as scope creep with no evidence of demand. | `runner_shared.integrate_lane_branch`'s three-kind return contract; the runners' `fail_status` mapping; the plan's F-6 rationale | yes |
+| D-7 | `aw check` flags a backwards transition inside this plan's own history. Correct it, or report it? | REPORT it, in F-19 and in the validation section, and leave the history lines untouched. | Editing the `2026-09-07 to-review` line out, rejected: it is another session's attributed record of what actually happened, and rewriting attributed history to satisfy a checker is falsification, the same class of act the repository's untooled-status hook exists to catch. Silently ignoring it, rejected because the executor would then see an unexplained finding and might "fix" it the wrong way. | measured pre-existence by stashing Round 3 edits; `check.lifecycle-transition-invalid` semantics (derived event stream) | no |
+
+D-7 IS RECORDED AS IRREVERSIBLE and is escalated accordingly rather than resting on reviewer authority
+alone: it leaves a permanent `aw check` finding on a tracked file. It is NOT raised as a blocking question
+in the plan because the alternative (rewriting a prior session's attributed history) is the act that would
+be irreversible in the damaging direction, while this choice is merely visible. The maintainer should know
+the finding exists and that it is deliberate; if they prefer the history corrected, that is their call and
+one line removes it.
+
+Nothing was rejected. The plan's approach, its three-rung design, and its evidence-based rung-2 bound are
+sound; what Round 3 supplied was the ruling's propagation into the checklist, the refusal-kind scoping, and
+a current map of the code and the suite.
