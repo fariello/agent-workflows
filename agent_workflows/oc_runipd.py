@@ -2578,6 +2578,41 @@ def enforce_requested_action(
 DEPENDENCY_FATAL_RULES = frozenset(("check.ipd-dependency-ambiguous",))
 
 
+def _consuming_actions_for(plans: list[tuple[Path, str]]) -> dict[str, str]:
+    """Map each selected plan's path to the action THIS run would take on it (`runner_shared.action_for`).
+
+    Spec 25kzda 2.9 makes `executed:` satisfaction ACTION-DEPENDENT, so the shared evaluator needs to
+    know which turn consumes each edge. Derived from the SAME `action_for(kind, status)` the queue
+    builder uses, rather than a second local rule, so preflight and dispatch cannot disagree about
+    what a plan's next action is. A plan whose kind/status cannot be read is simply OMITTED, which
+    leaves the evaluator on its strict (execute) default: unreadable must never mean permissive.
+    """
+    from agent_workflows import ipd_lint as _lint
+
+    out: dict[str, str] = {}
+    for path, text in plans:
+        try:
+            fields = _lint.parse(text).meta_fields
+            kind = (fields.get("Kind") or "").strip()
+            status = (fields.get("Status") or "").strip()
+        except Exception:
+            continue
+        # FAIL CLOSED, EXPLICITLY. Only a plan whose `- Status:` we actually READ may claim the
+        # relaxed `review` reading. `action_for` happens to return `execute` for an empty status
+        # today, but relying on that would make the safety of this gate depend on an unrelated
+        # function's default; omitting the entry instead leaves the evaluator on its own strict
+        # default, which is the behavior the tests pin.
+        if not status:
+            continue
+        try:
+            action = runner_shared.action_for(kind, status)
+        except Exception:
+            continue
+        if action:
+            out[str(path)] = action
+    return out
+
+
 def preflight_dependency_findings(
     repo: Path, plan_paths: list[Path], *, phase: str = "pre-execution"
 ) -> list[tuple[str, str, str]]:
@@ -2587,6 +2622,11 @@ def preflight_dependency_findings(
     phase and surfaces whatever it returns, naming the shared `check.ipd-*dependency*` rules. There
     is deliberately NO runner-local dependency policy here, and in particular NO runner-local branch
     for the MISSING-statement case.
+
+    IT DOES pass the per-plan CONSUMING ACTION (`_consuming_actions_for`), which is an INPUT to the
+    shared rules rather than a local policy: spec 25kzda 2.9 makes `executed:` satisfaction
+    action-dependent, and the runner is the only caller that knows which turn it is about to take.
+    The judgement still belongs entirely to the evaluator.
 
     WHY NO MISSING-STATEMENT BRANCH (8guhs0 OQ-02, resolved from repository evidence; see orchestrator
     y0gg8o OQ-03): the decision is the evaluator's plus the cutover marker's, not the runner's. The
@@ -2608,7 +2648,9 @@ def preflight_dependency_findings(
             continue
     if not plans:
         return []
-    drift = _ce.evaluate_ipd_dependencies(repo, phase=phase, plans=plans)
+    drift = _ce.evaluate_ipd_dependencies(
+        repo, phase=phase, plans=plans, actions=_consuming_actions_for(plans)
+    )
     return [(d.location, d.rule, d.detail) for d in drift]
 
 

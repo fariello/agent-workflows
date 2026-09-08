@@ -577,6 +577,75 @@ class CheckEngineRuleTests(_RepoCase):
         self.assertIn("F-1", hits[0].detail)
         self.assertIn("high", hits[0].detail)
 
+    def test_review_action_is_exempt_from_the_findings_gate(self):
+        """Spec 25kzda 2.9's REVIEW row: a review turn needs no execution evidence on its target.
+
+        MEASURED DEFECT (2026-09-08): `aw oc run runanalytics orchprobe hostdefault ...` was refused
+        at preflight because `m7gvuz` declares `executed:r2i1b1, executed:8tgg6g` and both targets
+        carried unresolved gating findings. Every plan involved was `to-review`, so the consuming
+        action was `review` and the run would have written no code at all; 8 selectors and 21 queued
+        items were refused over an edge the spec's own review row exempts. It was also CIRCULAR: the
+        `orchprobe` Set exists to fix orchestrator gate defects and the gate blocked reviewing it.
+        """
+        _set_threshold(self.repo, "high")
+        _plan(self.repo, "depaaa")
+        _review(self.repo, "depaaa")
+        dependent = _plan(
+            self.repo,
+            "itemaa",
+            lane="pending",
+            status="approved",
+            order=2,
+            deps="executed:depaaa",
+        )
+        plans = [(dependent, dependent.read_text(encoding="utf-8"))]
+        drift = ce.evaluate_ipd_dependencies(
+            self.repo,
+            phase="pre-execution",
+            plans=plans,
+            actions={str(dependent): "review"},
+        )
+        self.assertEqual(
+            [d for d in drift if d.rule == DEP_RULE],
+            [],
+            "a review turn must not be blocked by findings on its prerequisite",
+        )
+
+    def test_execute_action_is_still_blocked_by_the_findings_gate(self):
+        """THE COUNTERPART, so the exemption cannot be mistaken for a general relaxation.
+
+        An execute turn imports, calls, or builds on the prerequisite's code, so an unresolved gating
+        finding on that target still refuses. If this test ever passes with an empty finding list the
+        gate has been broken open, not narrowed.
+        """
+        _set_threshold(self.repo, "high")
+        _plan(self.repo, "depaaa")
+        _review(self.repo, "depaaa")
+        dependent = _plan(
+            self.repo,
+            "itemaa",
+            lane="pending",
+            status="approved",
+            order=2,
+            deps="executed:depaaa",
+        )
+        plans = [(dependent, dependent.read_text(encoding="utf-8"))]
+        for label, actions in (
+            ("execute", {str(dependent): "execute"}),
+            ("orchestrate", {str(dependent): "orchestrate"}),
+            ("absent-action-defaults-strict", {}),
+            ("unknown-path-defaults-strict", {"/nonexistent": "review"}),
+        ):
+            with self.subTest(action=label):
+                drift = ce.evaluate_ipd_dependencies(
+                    self.repo, phase="pre-execution", plans=plans, actions=actions
+                )
+                self.assertEqual(
+                    len([d for d in drift if d.rule == DEP_RULE]),
+                    1,
+                    f"{label} must still be blocked by a gating finding on its prerequisite",
+                )
+
     def test_clean_target_is_silent(self):
         _set_threshold(self.repo, "high")
         _plan(self.repo, "depaaa")

@@ -31,7 +31,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_workflows import agy_runipd, check_engine, ipd_schema, oc_runipd
+from agent_workflows import (
+    agy_runipd,
+    check_engine,
+    ipd_schema,
+    oc_runipd,
+    runner_shared,
+)
 from tests.support import REPO_ROOT
 
 _DRIVERS = (("oc_runipd", oc_runipd), ("agy_runipd", agy_runipd))
@@ -1048,6 +1054,61 @@ class NoRegressionForUndeclaredEdgesTests(unittest.TestCase):
         self.assertFalse(all_done)
         self.assertEqual(unfinished, ["child1"])
         self.assertEqual(oc_runipd.cascade_dependency_blocked(state), [])
+
+
+class ConsumingActionDerivationTests(unittest.TestCase):
+    """`_consuming_actions_for` must agree with `action_for` and fail closed on unreadable input.
+
+    This is the runner half of the 2026-09-08 findings-gate fix. The evaluator relaxes its
+    findings-blocked check ONLY for a `review` turn, so a wrong or missing action here is what would
+    either re-block a review run or silently exempt an execute run. Both directions are pinned.
+    """
+
+    def _write(self, tmp: Path, name: str, kind: str, status: str) -> Path:
+        p = tmp / name
+        p.write_text(
+            f"# IPD: t\n\n- Kind: {kind}\n- Status: {status}\n- Id: aaa111\n",
+            encoding="utf-8",
+        )
+        return p
+
+    def test_derived_action_matches_the_shared_action_for(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            cases = [
+                ("child", "to-review", "review"),
+                ("child", "approved", "execute"),
+                ("child", "reviewed", "execute"),
+                ("orchestrator", "to-review", "review"),
+                ("orchestrator", "approved", "orchestrate"),
+            ]
+            plans = []
+            want = {}
+            for i, (kind, status, expected) in enumerate(cases):
+                p = self._write(tmp, f"p{i}.ipd.md", kind, status)
+                plans.append((p, p.read_text(encoding="utf-8")))
+                want[str(p)] = expected
+                self.assertEqual(
+                    runner_shared.action_for(kind, status),
+                    expected,
+                    "the fixture's own expectation must match the shared predicate",
+                )
+            self.assertEqual(oc_runipd._consuming_actions_for(plans), want)
+
+    def test_unreadable_plan_is_omitted_so_the_evaluator_stays_strict(self):
+        """Unreadable must never mean permissive: omission leaves the strict (execute) default."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bad = tmp / "bad.ipd.md"
+            bad.write_text("no front matter at all\n", encoding="utf-8")
+            good = self._write(tmp, "good.ipd.md", "child", "to-review")
+            plans = [
+                (bad, bad.read_text(encoding="utf-8")),
+                (good, good.read_text(encoding="utf-8")),
+            ]
+            derived = oc_runipd._consuming_actions_for(plans)
+            self.assertNotIn(str(bad), derived)
+            self.assertEqual(derived.get(str(good)), "review")
 
 
 class AntiDivergenceGuardTests(unittest.TestCase):

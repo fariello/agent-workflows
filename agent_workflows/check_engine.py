@@ -2369,6 +2369,7 @@ def evaluate_ipd_dependencies(
     plans: Optional[List[Tuple[Path, str]]] = None,
     overlay: Optional[Dict[str, str]] = None,
     include_retired: bool = False,
+    actions: Optional[Dict[str, str]] = None,
 ) -> List[_core.Drift]:
     """The shared cross-IPD dependency evaluator. Returns Drift findings (deterministic order).
 
@@ -2383,6 +2384,25 @@ def evaluate_ipd_dependencies(
     on-disk text for BOTH the whole-repo cycle graph and the per-statement checks, so a staged edge
     that introduces/participates in a cycle is caught. Paths in `overlay` not already on disk are
     added to the graph (a newly-staged plan). Pure w.r.t. the overlay; no disk writes.
+
+    `actions` (path_str -> ``"review"``/``"execute"``/``"orchestrate"``) is the CONSUMING ACTION for
+    each evaluated plan, and it exists because spec 25kzda 2.9 makes `executed:` satisfaction
+    ACTION-DEPENDENT. Its review row states that a review turn is satisfied by a target in
+    `executed`, `reviewed`, or `approved` and that "terminal execution evidence is NOT required,
+    because a review turn writes no code and therefore cannot be invalidated by an unexecuted
+    prerequisite". So the findings-blocked check below (which is a statement about the TARGET's
+    execution-readiness) does NOT apply to a review turn, and applying it there contradicts the spec.
+
+    MEASURED DEFECT THIS CLOSES (2026-09-08): `aw oc run runanalytics orchprobe hostdefault ...` was
+    refused at preflight because `m7gvuz` declares `executed:r2i1b1, executed:8tgg6g` and those two
+    targets carry unresolved gating findings. But every one of those plans was `to-review`, i.e. the
+    consuming action was `review`, and the run reviewed nothing at all: 8 selectors and 21 items were
+    refused over an edge whose own spec row exempts them. Worse, it was CIRCULAR, because the
+    `orchprobe` Set exists to fix orchestrator gate defects and the gate blocked reviewing it.
+
+    ABSENT/UNKNOWN action is treated as the STRICT (execute) reading, so every existing caller
+    (`aw check`, `aw ipd lint`, the pre-commit hook) keeps its current behavior unchanged and this
+    parameter can only ever RELAX the gate for a turn that provably writes no code.
     """
     repo_root = Path(repo_root)
     from agent_workflows import config as _config
@@ -2524,7 +2544,15 @@ def evaluate_ipd_dependencies(
                 #
                 # Scoped to `executed:` DELIBERATELY: only that edge kind asserts work was completed
                 # and verified. `exists:`/`state:` are structural checks and keep their semantics.
-                if e.kind == "executed":
+                #
+                # ACTION-SCOPED (2026-09-08): spec 2.9's review row exempts a REVIEW turn from
+                # execution-readiness entirely ("terminal execution evidence is NOT required, because
+                # a review turn writes no code and therefore cannot be invalidated by an unexecuted
+                # prerequisite"). An unresolved gating finding on the target is a statement about that
+                # target's readiness to be BUILT ON, so it cannot bear on reading and critiquing the
+                # dependent's prose. Absent/unknown action keeps the STRICT reading, so every
+                # non-runner caller is unchanged and this can only relax a provably code-free turn.
+                if e.kind == "executed" and (actions or {}).get(ps) != "review":
                     for blk in _findings_blocks_for(repo_root, e.id6, _findings_thr):
                         drift.append(
                             _core.Drift(
