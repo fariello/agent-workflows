@@ -178,11 +178,18 @@ class AdapterGenerationError(ValueError):
 
 @dataclass
 class SkillResource:
-    """A reference file, template, or deterministic script inside a skill package."""
+    """A reference file, template, or deterministic script inside a skill package.
+
+    VOCABULARY STATUS (IPD `8fhjjc`): ``reference`` is the only kind :func:`build_skill_package`
+    PRODUCES by default. ``script`` and ``template`` are ACCEPTED-BUT-UNPRODUCED values, still
+    reachable by a caller through ``build_skill_package(..., extra_resources=...)``. They are an
+    extension seam, NOT dead code to prune: that seam is what keeps re-adding a per-package script
+    a one-entry change if a host ever turns out to invoke one.
+    """
 
     relative_path: str
     content: str
-    kind: str = "reference"  # reference | template | script
+    kind: str = "reference"  # reference (produced) | template, script (seam-only)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -356,9 +363,16 @@ def build_skill_package(
     """Build one portable Agent Skill package for a workflow.
 
     The package contains a SKILL.md router (with trigger description, canonical semantic
-    digest, explicit invocation, and resource references), one reference file (the pointer
-    to the canonical body), and a deterministic verification script that recomputes the
-    parity digest.
+    digest, explicit invocation, and resource references) and one reference file (the
+    pointer to the canonical body).
+
+    It deliberately emits NO per-package verification script (IPD `8fhjjc`). The former
+    ``scripts/verify_digest.py`` computed nothing: it compared ``argv[1]`` against a
+    constant baked in at generation time and never read or hashed the package it claimed to
+    protect, and its only caller was a test of the artifact itself. Package integrity is
+    carried by the install manifest's per-file ``sha256`` instead, which an artifact cannot
+    self-report. The ``semantic-digest`` FRONTMATTER key is retained: it is the portable
+    signal a host can actually read.
     """
     name = _slugify(workflow.command)
     semantic_digest = compute_workflow_semantic_digest(workflow)
@@ -383,11 +397,6 @@ def build_skill_package(
                 f"This skill package never duplicates that content; it points at it.\n"
             ),
         ),
-        SkillResource(
-            relative_path="scripts/verify_digest.py",
-            kind="script",
-            content=_render_digest_verify_script(name, semantic_digest),
-        ),
     ]
     if extra_resources:
         resources.extend(extra_resources)
@@ -410,38 +419,6 @@ def build_skill_package(
         main_file_content=main_content,
         resources=resources,
         main_budget_bytes=main_budget_bytes,
-    )
-
-
-def _render_digest_verify_script(name: str, expected_digest: str) -> str:
-    """A deterministic, self-contained script that verifies the skill's parity digest.
-
-    It has no external dependencies (stdlib only) and is directly testable: given the
-    expected digest baked in, it exits 0 when a supplied digest matches and 1 otherwise.
-    """
-    return (
-        "#!/usr/bin/env python3\n"
-        '"""Deterministic parity-digest verifier for the '
-        + name
-        + ' skill package."""\n'
-        "from __future__ import annotations\n"
-        "import sys\n"
-        "\n"
-        f'EXPECTED_DIGEST = "{expected_digest}"\n'
-        "\n"
-        "\n"
-        "def verify(observed: str) -> bool:\n"
-        '    """Return True iff the observed semantic digest matches the baked-in expected one."""\n'
-        "    return observed == EXPECTED_DIGEST\n"
-        "\n"
-        "\n"
-        "def main(argv: list[str]) -> int:\n"
-        "    observed = argv[1] if len(argv) > 1 else ''\n"
-        "    return 0 if verify(observed) else 1\n"
-        "\n"
-        "\n"
-        'if __name__ == "__main__":\n'
-        "    raise SystemExit(main(sys.argv))\n"
     )
 
 

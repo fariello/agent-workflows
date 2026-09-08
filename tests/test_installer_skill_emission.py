@@ -73,9 +73,12 @@ class NamespaceAndCollectTests(unittest.TestCase):
         self.assertTrue(
             INS.in_framework_namespace(".agents/skills/release-review/SKILL.md")
         )
+        # A legacy `scripts/` path must STILL be recognized as framework-owned: the
+        # generator no longer emits one (IPD 8fhjjc), but an upgraded repo carries them
+        # until pruned, and prune only reaches what this predicate adopts.
         self.assertTrue(
             INS.in_framework_namespace(
-                ".agents/skills/release-review/scripts/verify_digest.py"
+                ".agents/skills/release-review/scripts/legacy-artifact.py"
             )
         )
         # A non-framework path is still rejected (the predicate did not go broad).
@@ -130,7 +133,15 @@ class SkillEmissionInstallTests(unittest.TestCase):
         for md in skill_mds:
             name = md[len(".agents/skills/") : -len("/SKILL.md")]
             self.assertIn(f".agents/skills/{name}/reference/canonical-body.md", on_disk)
-            self.assertIn(f".agents/skills/{name}/scripts/verify_digest.py", on_disk)
+            # IPD 8fhjjc: the per-package digest script is NO LONGER emitted. Asserted
+            # ABSENT (not merely dropped from the expected list) so a re-introduction fails.
+            self.assertNotIn(f".agents/skills/{name}/scripts/verify_digest.py", on_disk)
+        # Stronger than per-name: NOTHING under any package's scripts/ dir is emitted.
+        self.assertEqual(
+            [p for p in on_disk if "/scripts/" in p],
+            [],
+            "a fresh install must emit no per-package script files",
+        )
 
         manifest = json.loads(
             (repo / ".aw/system/managed-sections.json").read_text(encoding="utf-8")
@@ -145,7 +156,10 @@ class SkillEmissionInstallTests(unittest.TestCase):
     def test_no_adapter_metadata_files_emitted(self):
         # OQ-02 Option A: ONLY skill-package files are emitted; the adapter `host_adapters`
         # metadata (to_dict-only) is NOT written as files. Every emitted skills-dir file is
-        # part of a skill package (SKILL.md, reference/*, scripts/*) - no adapter/*.json etc.
+        # part of a skill package - no adapter/*.json etc. This is an ALLOWLIST of package
+        # SHAPES, not a claim about which are produced: `scripts/` stays permitted because
+        # `extra_resources` can inject one, while IPD 8fhjjc means none is emitted by
+        # default (absence is asserted in test_fresh_install_emits_skill_packages...).
         repo = init_repo(self.base / "nometa")
         INS.install_into_repo(repo, self.source, yes=True, no_color=True)
         for p in self._skill_files_on_disk(repo):
