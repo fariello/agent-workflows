@@ -241,10 +241,10 @@ class ScanTests(unittest.TestCase):
         # Default colored board shows the compact identity stem (not the folded prefix / full path);
         # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+0\s+0\s+r")
+        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+0\s+0\s+-\s+-\s+r")
         self.assertRegex(
             stripped,
-            r"deferred\s+spec\s+-\s+-\s+-\s+0\s+0\s+s\s+\[gate artifact: TODO.md\]",
+            r"deferred\s+spec\s+-\s+-\s+-\s+0\s+0\s+-\s+-\s+s\s+-\s+\[gate artifact: TODO.md\]",
         )
         self.assertNotIn("## blocked", stripped)
         # No trailing " tree" tag after the status.
@@ -774,9 +774,10 @@ class StaleResearchReclassifyTests(unittest.TestCase):
 
             # Interactive output is a table with header
             self.assertIn(
-                "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
+                "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID",
                 stripped,
             )
+            self.assertIn("Deps", stripped)
             self.assertNotIn("## active", stripped)
             self.assertNotIn("## ready", stripped)
 
@@ -877,40 +878,40 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in stripped.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
+            "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID               Deps",
         )
 
         # Verify exact sorted lines:
         # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
-            "open      backlog    2.0.0 medium   -            0    0  20260903-runnerlayer-01-cnwy8g",
+            "open      backlog    2.0.0 medium   -            0    0      -      -  20260903-runnerlayer-01-cnwy8g  -",
         )
         self.assertEqual(
             lines[2],
-            "open      backlog    2.0.0 medium   -            0    0  20260904-rununbound-01-d07nz2",
+            "open      backlog    2.0.0 medium   -            0    0      -      -  20260904-rununbound-01-d07nz2   -",
         )
         # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
-            "reviewed  plan           - -        -            0    0  20260829-runprofile-02-p0l1to",
+            "reviewed  plan           - -        -            0    0      -      -  20260829-runprofile-02-p0l1to   -",
         )
         self.assertEqual(
             lines[4],
-            "approved  plan       2.0.0 -        -            0    0  20260829-rununify-00-5e4sb6",
+            "approved  plan       2.0.0 -        -            0    0      -      -  20260829-rununify-00-5e4sb6     -",
         )
         self.assertEqual(
             lines[5],
-            "reviewed  plan       2.0.0 -        go-pendin    0    0  20260830-runcodes-01-wlxkoz",
+            "reviewed  plan       2.0.0 -        go-pendin    0    0      -      -  20260830-runcodes-01-wlxkoz     -",
         )
         self.assertEqual(
             lines[6],
-            "to-revie  plan       2.0.0 -        -            0    0  20260904-revsweep-01-76gsmv",
+            "to-revie  plan       2.0.0 -        -            0    0      -      -  20260904-revsweep-01-76gsmv     -",
         )
         # 3. Type: spec
         self.assertEqual(
             lines[7],
-            "implemen  spec       2.0.0 -        -            0    0  20260829-c4gd2h-01-c4gd2h",
+            "implemen  spec       2.0.0 -        -            0    0      -      -  20260829-c4gd2h-01-c4gd2h       -",
         )
 
     def test_oq_count_in_table_and_parser(self):
@@ -950,10 +951,11 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in out.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID",
+            "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID  Deps",
         )
         self.assertIn(
-            "to-revie  plan           - -        -            2    1  p", lines[1]
+            "to-revie  plan           - -        -            2    1      -      -  p                  -",
+            lines[1],
         )
 
     def test_priority_sorting(self):
@@ -1002,10 +1004,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
         # None first, then low, med, high
-        self.assertTrue(lines[0].endswith("c"))
-        self.assertTrue(lines[1].endswith("b"))
-        self.assertTrue(lines[2].endswith("d"))
-        self.assertTrue(lines[3].endswith("a"))
+        self.assertEqual(lines[0].split()[-2], "c")
+        self.assertEqual(lines[1].split()[-2], "b")
+        self.assertEqual(lines[2].split()[-2], "d")
+        self.assertEqual(lines[3].split()[-2], "a")
 
     def test_name_sorting(self):
         items = [
@@ -1039,9 +1041,9 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         ]
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
-        self.assertTrue(lines[0].endswith("a-item"))
-        self.assertTrue(lines[1].endswith("m-item"))
-        self.assertTrue(lines[2].endswith("z-item"))
+        self.assertEqual(lines[0].split()[-2], "a-item")
+        self.assertEqual(lines[1].split()[-2], "m-item")
+        self.assertEqual(lines[2].split()[-2], "z-item")
 
 
 class AttentionFilteringTests(unittest.TestCase):
@@ -1419,6 +1421,183 @@ class AttentionFilteringTests(unittest.TestCase):
             filters = att.parse_blocking_filters(["next"])
             self.assertTrue(att.matches_blocking(item_map["res001"], filters, root))
             self.assertFalse(att.matches_blocking(item_map["res002"], filters, root))
+
+
+class ExecValidAndDepsColumnsTests(unittest.TestCase):
+    """Pin checklist progress extraction and rendering for Exec, Valid, and Deps columns."""
+
+    def test_extract_checklist_progress(self):
+        # Empty / non-checklist
+        self.assertEqual(att._extract_checklist_progress(""), (None, None))
+        self.assertEqual(att._extract_checklist_progress("Just text"), (None, None))
+
+        # Unchecked items
+        text_unchecked = """
+- [ ] E-01 First task
+- [ ] E-02 Second task
+- [ ] V-01 Validates E-01
+- [ ] V-02 Validates E-02
+"""
+        self.assertEqual(
+            att._extract_checklist_progress(text_unchecked), ((0, 2), (0, 2))
+        )
+
+        # Partially checked items with lower and upper case
+        text_partial = """
+- [x] E-01 First task
+- [ ] E-02 Second task
+- [ ] E-03 Third task
+- [X] V-01 Validates E-01
+- [x] V-02 Validates E-02
+- [ ] V-03 Validates E-03
+"""
+        self.assertEqual(
+            att._extract_checklist_progress(text_partial), ((1, 3), (2, 3))
+        )
+
+        # Fully checked
+        text_full = """
+- [x] E-01 First task
+- [X] E-02 Second task
+- [x] V-01 Validates E-01
+- [x] V-02 Validates E-02
+"""
+        self.assertEqual(att._extract_checklist_progress(text_full), ((2, 2), (2, 2)))
+
+    def test_extract_dependency_id6s(self):
+        # From item_dependencies
+        it1 = att.Item(
+            "p1",
+            "p1.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            item_dependencies=(
+                "executed:29wvmj",
+                "exists:spec:6sb3yu",
+                "state:ipd:reviewed:rl67b0",
+            ),
+        )
+        self.assertEqual(
+            att._extract_dependency_id6s(it1), ["29wvmj", "6sb3yu", "rl67b0"]
+        )
+
+        # From gate with direct id6
+        it2 = att.Item(
+            "b1",
+            "b1.md",
+            "backlog",
+            "blocked",
+            A.BLOCKED,
+            {"kind": "artifact", "ref": "rnl3b7"},
+            None,
+        )
+        self.assertEqual(att._extract_dependency_id6s(it2), ["rnl3b7"])
+
+        # From gate with path containing id6
+        it3 = att.Item(
+            "b2",
+            "b2.md",
+            "backlog",
+            "blocked",
+            A.BLOCKED,
+            {
+                "kind": "artifact",
+                "ref": ".aw/records/research/20260905-awmetastore-00-27rjro-where.md",
+            },
+            None,
+        )
+        self.assertEqual(att._extract_dependency_id6s(it3), ["27rjro"])
+
+        # From gate with non-id6 ref
+        it4 = att.Item(
+            "s1",
+            "s1.md",
+            "specs",
+            "deferred",
+            A.BLOCKED,
+            {"kind": "artifact", "ref": "TODO.md"},
+            None,
+        )
+        self.assertEqual(att._extract_dependency_id6s(it4), [])
+
+        # No dependencies or gate
+        it5 = att.Item("p2", "p2.ipd.md", "plans", "approved", A.READY, None, None)
+        self.assertEqual(att._extract_dependency_id6s(it5), [])
+
+    def test_render_table_colors_and_formatting(self):
+        it_none = att.Item(
+            "p0",
+            ".aw/records/plans/pending/p0.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+        it_zero = att.Item(
+            "p1",
+            ".aw/records/plans/pending/p1.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            exec_progress=(0, 2),
+            valid_progress=(0, 2),
+        )
+        it_partial = att.Item(
+            "p2",
+            ".aw/records/plans/pending/p2.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            exec_progress=(1, 2),
+            valid_progress=(0, 2),
+            item_dependencies=("executed:29wvmj", "executed:51vw4y"),
+        )
+        it_full = att.Item(
+            "p3",
+            ".aw/records/plans/pending/p3.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            exec_progress=(2, 2),
+            valid_progress=(2, 2),
+            item_dependencies=("executed:6sb3yu",),
+        )
+        items = [it_none, it_zero, it_partial, it_full]
+
+        # Plain text rendering
+        plain = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        lines = [line for line in plain.splitlines() if line.strip()][1:]
+        self.assertIn("      -      -  p0", lines[0])
+        self.assertTrue(lines[0].endswith("-"))
+        self.assertIn("    0/2    0/2  p1", lines[1])
+        self.assertTrue(lines[1].endswith("-"))
+        self.assertIn("    1/2    0/2  p2", lines[2])
+        self.assertTrue(lines[2].endswith("29wvmj, 51vw4y"))
+        self.assertIn("    2/2    2/2  p3", lines[3])
+        self.assertTrue(lines[3].endswith("6sb3yu"))
+
+        # Colored text rendering: check color codes
+        colored = att.render_table(
+            items, [], show_all=True, term=att.T.Term(color=True)
+        )
+        # 0/2 is styled in color 244
+        self.assertIn("\033[38;5;244m0/2\033[0m", colored)
+        # 1/2 is styled in bold yellow (color 214)
+        self.assertIn("\033[1;38;5;214m1/2\033[0m", colored)
+        # 2/2 is styled in bold green (color 40)
+        self.assertIn("\033[1;38;5;40m2/2\033[0m", colored)
+        # Deps string 29wvmj, 51vw4y is styled in color 250
+        self.assertIn("\033[38;5;250m29wvmj, 51vw4y\033[0m", colored)
 
 
 if __name__ == "__main__":

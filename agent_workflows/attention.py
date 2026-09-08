@@ -69,6 +69,8 @@ class Item(NamedTuple):
     # Item-Dependencies field present"; an empty tuple means the field was present and declared no
     # edges (`none`), a distinction `-o depth` does not need but which costs nothing to preserve.
     item_dependencies: Optional[Tuple[str, ...]] = None
+    exec_progress: Optional[Tuple[int, int]] = None
+    valid_progress: Optional[Tuple[int, int]] = None
 
 
 _OQ_SECTION_RE = re.compile(
@@ -171,6 +173,35 @@ def count_unresolved_open_questions(text: str) -> int:
     """Count open/unresolved questions in an artifact's '## Open questions' section."""
     oqs, _ = count_question_stats(text)
     return oqs
+
+
+_E_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*E-[0-9]{2,}\b", re.MULTILINE)
+_V_LEAF_RE = re.compile(r"^-\s*\[([ xX])\]\s*V-[0-9]{2,}\b", re.MULTILINE)
+
+
+def _extract_checklist_progress(
+    text: str,
+) -> Tuple[Optional[Tuple[int, int]], Optional[Tuple[int, int]]]:
+    """Extract (exec_progress, valid_progress) as ((checked, total), (checked, total)) for a plan.
+
+    Returns (None, None) if no E or V items are present respectively.
+    """
+    if not text or ("E-" not in text and "V-" not in text):
+        return None, None
+    e_matches = _E_LEAF_RE.findall(text)
+    v_matches = _V_LEAF_RE.findall(text)
+
+    exec_prog = (
+        (sum(1 for m in e_matches if m in ("x", "X")), len(e_matches))
+        if e_matches
+        else None
+    )
+    valid_prog = (
+        (sum(1 for m in v_matches if m in ("x", "X")), len(v_matches))
+        if v_matches
+        else None
+    )
+    return exec_prog, valid_prog
 
 
 def count_resolved_questions(text: str) -> int:
@@ -859,6 +890,7 @@ def _plans_record(
     d_kind, d_text = _extract_detail(text)
     rd = read_readiness(text)
     oqs, rqs = count_question_stats(text)
+    exec_prog, valid_prog = _extract_checklist_progress(text)
     return Item(
         pid or "",
         rel,
@@ -874,6 +906,8 @@ def _plans_record(
         readiness=rd,
         oqs=oqs,
         rqs=rqs,
+        exec_progress=exec_prog,
+        valid_progress=valid_prog,
     ), drift
 
 
@@ -1517,6 +1551,35 @@ def _resolve_release_version(repo_root: Optional[Path], val: Optional[str]) -> s
 PRIORITY_RANK = {"": 0, "-": 0, "none": 0, "low": 1, "medium": 2, "med": 2, "high": 3}
 
 
+_ID6_IN_NAME_RE = re.compile(r"-([0-9a-z]{6})-")
+
+
+def _extract_dependency_id6s(it: Item) -> List[str]:
+    """Extract ordered unique dependency id6 strings for an item."""
+    ids: List[str] = []
+    seen: set = set()
+
+    def _add(cand: str):
+        if core.is_valid_id6(cand) and cand not in seen:
+            seen.add(cand)
+            ids.append(cand)
+
+    if it.item_dependencies:
+        for dep in it.item_dependencies:
+            cand = dep.rsplit(":", 1)[-1].strip()
+            _add(cand)
+    if it.gate and isinstance(it.gate, dict):
+        ref = str(it.gate.get("ref", "")).strip()
+        if core.is_valid_id6(ref):
+            _add(ref)
+        else:
+            m = _ID6_IN_NAME_RE.search(ref)
+            if m:
+                _add(m.group(1))
+
+    return ids
+
+
 def _render_table_row(
     it: Item,
     term: T.Term,
@@ -1525,6 +1588,7 @@ def _render_table_row(
     details: bool = False,
     repo_root: Optional[Path] = None,
     gate_in_header: bool = False,
+    ident_w: int = 19,
 ) -> str:
     st_raw = it.native_status[:8]
     if colored:
@@ -1585,11 +1649,6 @@ def _render_table_row(
         rd_styled = rd_raw
     rd_col = rd_styled + (" " * (9 - len(rd_raw))) + "  "
 
-    if long:
-        ident = _colorize_tree_segment(term, it.path, it.tree) if colored else it.path
-    else:
-        ident = _identity_stem(it.path)
-
     oq_cnt = getattr(it, "oqs", 0) or 0
     oq_raw = str(oq_cnt)
     oq_left_pad = " " * (3 - len(oq_raw))
@@ -1614,6 +1673,59 @@ def _render_table_row(
         rq_styled = rq_raw
     rq_col = f"{rq_left_pad}{rq_styled}  "
 
+    exec_prog = getattr(it, "exec_progress", None)
+    if exec_prog and exec_prog[1] > 0:
+        exec_raw = f"{exec_prog[0]}/{exec_prog[1]}"
+        if colored:
+            if exec_prog[0] == exec_prog[1]:
+                exec_styled = term.color256(exec_raw, 40, bold=True)
+            elif exec_prog[0] > 0:
+                exec_styled = term.color256(exec_raw, 214, bold=True)
+            else:
+                exec_styled = term.color256(exec_raw, 244)
+        else:
+            exec_styled = exec_raw
+    else:
+        exec_raw = "-"
+        exec_styled = term.color256("-", 244) if colored else "-"
+    exec_left_pad = " " * max(0, 5 - len(exec_raw))
+    exec_col = f"{exec_left_pad}{exec_styled}  "
+
+    valid_prog = getattr(it, "valid_progress", None)
+    if valid_prog and valid_prog[1] > 0:
+        valid_raw = f"{valid_prog[0]}/{valid_prog[1]}"
+        if colored:
+            if valid_prog[0] == valid_prog[1]:
+                valid_styled = term.color256(valid_raw, 40, bold=True)
+            elif valid_prog[0] > 0:
+                valid_styled = term.color256(valid_raw, 214, bold=True)
+            else:
+                valid_styled = term.color256(valid_raw, 244)
+        else:
+            valid_styled = valid_raw
+    else:
+        valid_raw = "-"
+        valid_styled = term.color256("-", 244) if colored else "-"
+    valid_left_pad = " " * max(0, 5 - len(valid_raw))
+    valid_col = f"{valid_left_pad}{valid_styled}  "
+
+    raw_ident = it.path if long else _identity_stem(it.path)
+    if long:
+        ident = _colorize_tree_segment(term, it.path, it.tree) if colored else it.path
+    else:
+        ident = _identity_stem(it.path)
+    ident_pad = " " * max(2, ident_w - len(raw_ident))
+    ident_col = f"{ident}{ident_pad}"
+
+    dep_ids = _extract_dependency_id6s(it)
+    if dep_ids:
+        deps_raw = ", ".join(dep_ids)
+        deps_styled = term.color256(deps_raw, 250) if colored else deps_raw
+    else:
+        deps_raw = "-"
+        deps_styled = term.color256("-", 244) if colored else "-"
+    deps_col = deps_styled
+
     inline_gate = ""
     if it.gate and not gate_in_header:
         ref_txt = _gate_ref_display(
@@ -1621,7 +1733,7 @@ def _render_table_row(
         )
         inline_gate = f"  [gate {it.gate.get('kind')}: {ref_txt}]"
 
-    row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{rq_col}{ident}{inline_gate}"
+    row_line = f"{st_col}{tp_col}{blk_col}{prio_col}{rd_col}{oq_col}{rq_col}{exec_col}{valid_col}{ident_col}{deps_col}{inline_gate}"
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
@@ -1648,7 +1760,7 @@ def render_table(
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), OQs (3), RQs (3), Artifact Set / ID.
+    Columns: Status (8), Type (8), Blocking (8), Priority (9), Readiness (9), OQs (3), RQs (3), Exec (5), Valid (5), Artifact Set / ID, Deps.
     Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -1703,9 +1815,12 @@ def render_table(
     if shared_gate:
         note = f"all {len(visible)} gated by {shared_gate}"
         lines.append(term.color256(note, 244) if colored else note)
-    header = (
-        "Status    Type    Blocking Priority Readiness  OQs  RQs  Artifact Set / ID"
+    max_ident_len = max(
+        (len(it.path if long else _identity_stem(it.path)) for it in visible),
+        default=0,
     )
+    ident_w = max(len("Artifact Set / ID"), max_ident_len) + 2
+    header = f"Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  {'Artifact Set / ID'.ljust(ident_w)}Deps"
     lines.append(term.colorize(header, "bold") if colored else header)
 
     for it in visible:
@@ -1718,6 +1833,7 @@ def render_table(
                 details=details,
                 repo_root=repo_root,
                 gate_in_header=bool(shared_gate),
+                ident_w=ident_w,
             )
         )
 
@@ -1738,7 +1854,7 @@ def render_board(
     """Render the attention board.
 
     When ``term`` is colored (a real TTY / FORCE_COLOR), the human view renders the columnar
-    table (Status, Type, Blocking, Priority, Readiness, OQs, RQs, Artifact Set / ID). When color is OFF
+    table (Status, Type, Blocking, Priority, Readiness, OQs, RQs, Exec, Valid, Artifact Set / ID, Deps). When color is OFF
     (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
     ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape. Under an
     explicit order, the non-colored board emits a single flat, globally-ordered list (sections are
