@@ -911,6 +911,57 @@ class RunViewerTests(TestCase):
             self.assertEqual(toks["input"], 400)
             self.assertEqual(toks["output"], 100)
 
+    def test_extract_log_metrics_antigravity_format(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            log_p = Path(td) / "session.jsonl"
+            lines = [
+                json.dumps(
+                    {
+                        "event": "step_update",
+                        "step_update": {
+                            "step_index": 1,
+                            "state": "DONE",
+                            "step_type": "agent_response",
+                            "usage": {
+                                "input_tokens": 1000,
+                                "output_tokens": 250,
+                                "cache_read_tokens": 5000,
+                                "thinking_tokens": 120,
+                                "total_tokens": 1250,
+                            },
+                            "cost": 0.025,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event": "step_update",
+                        "step_update": {
+                            "step_index": 2,
+                            "state": "DONE",
+                            "step_type": "agent_response",
+                            "usage": {
+                                "input_tokens": 2000,
+                                "output_tokens": 300,
+                                "cache_read_tokens": 4000,
+                                "thinking_tokens": 80,
+                                "total_tokens": 2300,
+                            },
+                        },
+                    }
+                ),
+            ]
+            log_p.write_text("\n".join(lines), encoding="utf-8")
+            cost, toks = run_viewer.extract_log_metrics(log_p)
+            self.assertAlmostEqual(cost, 0.025, places=3)
+            self.assertEqual(toks["total"], 3550)
+            self.assertEqual(toks["input"], 3000)
+            self.assertEqual(toks["output"], 550)
+            self.assertEqual(toks["cache"], 9000)
+            self.assertEqual(toks["reasoning"], 200)
+
     def test_format_step_line_cost_badge(self):
         term = Term(color=False)
         step = run_viewer.StepSummary(
