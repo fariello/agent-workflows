@@ -42,7 +42,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the relaxation reachable
 
-- [ ] E-01 In `edge_satisfied`'s EXTERNAL-TARGET branch, resolve the target's effective state from BOTH its directory and its `- Status:` field, rather than from the directory alone. Read the field with `_read_status`, which is ALREADY IMPORTED into this module (`oc_runipd.py:265`) and already used for the same comparison at `:5829-5841`; do NOT add a second reader or a second regex.
+- [x] E-01 In `edge_satisfied`'s EXTERNAL-TARGET branch, resolve the target's effective state from BOTH its directory and its `- Status:` field, rather than from the directory alone. Read the field with `_read_status`, which is ALREADY IMPORTED into this module (`oc_runipd.py:265`) and already used for the same comparison at `:5829-5841`; do NOT add a second reader or a second regex.
   OQ-04 IS ANSWERED AND THE SPEC AMENDMENT HAS ALREADY LANDED (`faa4c7ec`), so this item is CLEARED to start. Verify that before you begin: `git log --oneline -1 -- .aw/records/specs/*aw-run-deterministic*` must show the amendment, and §2.9 must contain the two-row action-keyed table. If it does not, refuse and report (the plan is being run against an unexpected base).
   PRECEDENCE IS THE DECISION HERE, so make it deliberate: a TERMINAL directory is authoritative (a plan in `executed/` is executed regardless of what a stale field says, which is the anti-fabrication posture the rest of the runner takes), while for a NON-TERMINAL directory the FIELD carries the readiness. State that rule in a comment at the site, because a future reader will otherwise re-derive it wrongly in one direction or the other.
   THE TERMINAL-DIRECTORY HALF OF THAT RULE IS LOAD-BEARING TODAY, NOT HYPOTHETICAL, and getting it wrong is the one way this item can REGRESS working behavior. MEASURED at review: 25 of the 454 plans in `executed/` have a `- Status:` field `read_front_matter_status` returns `None` for (24 absent, 1 the multi-word `EXECUTED (...)`), and the SHARED identity index reports their status as the empty string (probed: `_artifact_owners(repo,'plans','i9xi81')` -> `[('', '...')]`). All 25 satisfy an `executed:` edge TODAY, because the directory decides. If the field were consulted for a TERMINAL directory, or if `None` were allowed to override it, all 25 would begin refusing. No pending plan currently depends on one of them (measured: zero such edges), so the regression would be silent until it was not.
@@ -50,19 +50,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT REACH FOR `_artifact_owners` INSTEAD OF THE FILE READ, tempting though it looks (it already returns `(status, path)` and is already used by this same function for `exists:`/`state:` edges). Three reasons, measured: it rebuilds the WHOLE-REPO artifact inventory per call (~260ms measured here, versus ~42ms for `resolve_plan_path`) and `edge_satisfied` is called per edge per dispatch iteration; it reads via `status_set._STATUS_RE`, the STRICT reader, whereas the runners deliberately use the PERMISSIVE `_read_status` alias (`tests/test_runner_refork_guard.py::FrontMatterReaderBehaviorTests` pins that split, and swapping readers here would silently narrow which spellings the runner accepts); and the branch already holds `dep_path` from `resolve_plan_path`, so the file read is free. Measured for completeness: the two readers agree on all 514 plan records today, so this is a durability and performance argument, not a correctness one.
   - Depends on: none
   - Expected outcome: an external `executed:` target in `pending/` carrying `- Status: reviewed` SATISFIES a review-action edge; a TERMINAL directory still decides on its own, so all 25 field-unreadable `executed/` plans keep satisfying; an unreadable, absent, or multi-word status in a NON-TERMINAL directory refuses; `_read_status` is the reader and no second reader, regex, or index call was added.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Do NOT relax the EXECUTE path, and prove it. `is_exec` must keep requiring a genuinely `executed/` prerequisite: an execute turn consumes its prerequisite's WORK, so a merely `reviewed` or `approved` plan has produced nothing to consume, and satisfying that edge would dispatch a dependent against a base lacking its prerequisite's commits.
+- [x] E-02 Do NOT relax the EXECUTE path, and prove it. `is_exec` must keep requiring a genuinely `executed/` prerequisite: an execute turn consumes its prerequisite's WORK, so a merely `reviewed` or `approved` plan has produced nothing to consume, and satisfying that edge would dispatch a dependent against a base lacking its prerequisite's commits.
   THE ASYMMETRY IS THE WHOLE POINT and must be visible in the code, not just in this plan: the review branch gains the field read; the execute branch keeps comparing against the terminal directory. Note that for an execute edge the directory IS the right authority, since `executed/` is exactly where finalize puts a plan, so E-01's precedence rule already yields the correct answer without a special case.
   PRESERVE THE FINDINGS GATE'S REACH, and know why it does not help here: `dependency_status_detailed` applies `_findings_block_reason` only `if is_exec` (`oc_runipd.py:3491-3495`), and its docstring states a review-action item "is deliberately NOT findings-gated". So a review edge satisfied by this change is NOT additionally screened for unresolved gating findings. That is the existing intended design, not a regression this plan introduces, but it means E-01's field read is the ONLY gate on the review path; do not weaken it further.
   ALSO PIN THE HALF THAT IS ALREADY CORRECT AND MUST STAY SO. The in-queue branch already refuses an execute-action edge whose prerequisite entered the queue as `reviewed`, which is the derived RUN status `initialize_run` writes for a plan that is already `executed` on disk (`:2968-2970`: only `to-review`/`draft`/`approved`/`auto-approved` become `queued`). Probed at review: an execute dependent against such an entry returns `in-run target prq001 is 'reviewed', needs one of ['executed', 'substantially-complete']`, while the same shape with a REVIEW dependent returns satisfied. That asymmetry is the same one this item defends, one path over; do not let a refactor collapse the two.
   - Depends on: E-01
   - Expected outcome: an execute-action edge against a `reviewed` or `approved` target still REFUSES; the execute path's behavior is byte-identical to today; the findings gate's `is_exec` scoping is unchanged and its consequence is documented.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: make the fix actually reach the second host
 
-- [ ] E-03 DELETE `agy_runipd.py`'s local `dependency_status_detailed` (`:2259-2315` at HEAD) so agy consumes the shared implementation, because WITHOUT THIS ITEM THE FIX REACHES ONLY ONE OF AGY'S TWO PATHS. This is the item the plan's first draft omitted while asserting the opposite.
+- [x] E-03 DELETE `agy_runipd.py`'s local `dependency_status_detailed` (`:2259-2315` at HEAD) so agy consumes the shared implementation, because WITHOUT THIS ITEM THE FIX REACHES ONLY ONE OF AGY'S TWO PATHS. This is the item the plan's first draft omitted while asserting the opposite.
   THE MEASURED FACTS, verified at review rather than reasoned: `agy.dependency_status_detailed is oc.dependency_status_detailed` -> `False`, while `agy.dependency_status is oc.dependency_status` -> `True`. Agy's dispatch loop calls the RE-EXPORTED `dependency_status` (`:4334`), whose body resolves `dependency_status_detailed` in OC's module globals, so THAT path already gets the fix. Its drain path calls the LOCAL `dependency_status_detailed` (`:4359`), which does not. Two paths, two semantics, in one driver.
   THE LOCAL COPY IS WORSE THAN STALE, IT IS BROKEN, AND IT IS BROKEN IN THREE WAYS, not one. Measured by AST inspection of the function body: the tokens `edge_satisfied`, `parse_dependency_token`, `decide_orchestrator_dispatch` and `orchestrate` are ALL ABSENT from it. So (a) it never calls `edge_satisfied`; (b) it uses the RAW dependency string as an id6 and therefore cannot resolve a typed edge at all (measured in a throwaway repo: `executed:tttttt: no plan resolves to this id6 in the repo`, while a bare `tttttt` gets the `plan_bucket` refusal, and against a REAL repo it reports `no plan resolves to this id6` for a perfectly good `executed:tm2cz8`); and (c) IT HAS NO ORCHESTRATOR CLAUSE, so on agy's drain path an `orchestrate` item is judged by the same code as any other item, while oc's version routes it through `decide_orchestrator_dispatch`. Every plan in this tree declares typed edges, so agy's drain path currently misreports EVERY dependency as dangling. Deleting the copy fixes all three at once, which is the argument for deletion over patching.
   DELETION IS THE FIX, NOT PATCHING THE COPY. The module's own comment two lines below already states the rule and the history: `dependency_status` "is NOT defined here ... so the runtime satisfaction semantics exist exactly ONCE. The deleted copy was a verbatim duplicate of oc's, which is how both drivers came to be equally unable to read the canonical field: a fix applied to one silently left the other broken" (`:2318-2323`). That is this defect, recurring in the sibling function. Re-export it in the import block exactly as `dependency_status` is, in the `as <same-name>` form that block uses deliberately so an autoformatter cannot strip an unused-looking re-export (`:293-298` records that `ruff` removed six of them once and the symmetry test caught it).
@@ -70,29 +70,29 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ONE CONSEQUENCE TO HANDLE, and it is the one thing a naive deletion gets wrong. Agy's `_findings_block_reason` (`:2231-2249`) is called from EXACTLY TWO places (`:2295`, `:2309`), and BOTH are inside the function you are deleting (verified by AST: zero call sites outside it). After the deletion agy's wrapper is DEAD CODE, while `tests/test_review_findings_cascade.py::SharedPredicateTests` still requires `hasattr(agy, "_findings_block_reason")` and that agy's source mention `subject_gating_blocks`, so the test keeps passing over a function nothing calls. Do NOT delete the wrapper (that would fail the test and is a wider decision than this plan's fence); instead ADD A COMMENT at it recording that it is retained for the cross-driver API-symmetry contract and that its live call sites now live in `oc_runipd`, so the next reader does not mistake it for a second implementation.
   - Depends on: E-02
   - Expected outcome: `agy.dependency_status_detailed is oc.dependency_status_detailed` is True; agy's drain path resolves typed edges AND routes an `orchestrate` item through the shared decider; no local copy remains; the reason-map key shape is confirmed unaffected; agy's now-uncalled `_findings_block_reason` is annotated rather than deleted.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 CLOSE THE SHARING-GUARD HOLE that let E-03's copy exist, so this class of divergence cannot recur silently. Add `dependency_status_detailed` to `_SHARED_NAMES` in `tests/test_runner_item_dependencies.py:1121-1133`, which today lists `dependency_status` but not its `_detailed` sibling, which is exactly why `test_the_implementation_is_shared_not_copied` passed over a real copy.
+- [x] E-04 CLOSE THE SHARING-GUARD HOLE that let E-03's copy exist, so this class of divergence cannot recur silently. Add `dependency_status_detailed` to `_SHARED_NAMES` in `tests/test_runner_item_dependencies.py:1121-1133`, which today lists `dependency_status` but not its `_detailed` sibling, which is exactly why `test_the_implementation_is_shared_not_copied` passed over a real copy.
   DEMONSTRATE THE GUARD BITES. Add the name, run the test against the PRE-E-03 code and paste the FAILURE, then run it after E-03 and paste the pass. A guard only ever run against fixed code proves nothing.
   THE `_SHARED_NAMES` IDENTITY ASSERTION IS THE RIGHT AND ONLY AVAILABLE HOME, and the reason is structural rather than a preference: `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` (`:80-159`) holds ZERO rows owned by `oc_runipd` (measured: every row's owner is `render_stream`, `runner_shared`, or `selectors`) and the string `dependency_status` does not appear in the file at all. Its `Owned` contract is "a NON-RUNNER module owns this symbol; no runner may re-define it", so an oc-owned symbol has no expressible row: naming `oc_runipd` as the owner would make its AST half forbid oc's own definition. So ADD THE NAME TO `_SHARED_NAMES` AND STATE THAT CONCLUSION at the `_SHARED_NAMES` definition (one comment line), so the next reader does not spend the same twenty minutes re-deriving it. Extending `Owned` to express runner-owned symbols is a REAL improvement and is explicitly OUT of this plan's scope; if you think it is worth doing, file a backlog item rather than doing it here.
   KNOW WHAT THE GUARD DOES AND DOES NOT CATCH, because E-03's copy proves the difference matters. `_SHARED_NAMES` checks OBJECT IDENTITY only, so it catches a re-defined copy (which is what happened) but would NOT catch a copy assigned over the re-export at import time. That residual hole is accepted, not fixed here: no such pattern exists in either driver today.
   - Depends on: E-03
   - Expected outcome: `_SHARED_NAMES` includes `dependency_status_detailed`; the guard is shown FAILING pre-fix and passing post-fix; a comment records why the refork-guard table cannot host this symbol; no change to `tests/test_runner_refork_guard.py`.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: remove the source of the wrong assumption
 
-- [ ] E-05 Correct `plan_bucket`'s DOCUMENTATION, and do NOT delete list members without handling the test that pins them. It scans path components for `executed`, `active`, `pending`, `reviewed`, `approved`, `reusable`, `superseded`, `not-executed` (`runner_shared.py:1151-1160`) and TODAY HAS NO DOCSTRING AT ALL, and `reviewed/`/`approved/` do not exist as directories in this layout, so the list invites exactly the confusion this plan is fixing.
+- [x] E-05 Correct `plan_bucket`'s DOCUMENTATION, and do NOT delete list members without handling the test that pins them. It scans path components for `executed`, `active`, `pending`, `reviewed`, `approved`, `reusable`, `superseded`, `not-executed` (`runner_shared.py:1151-1160`) and TODAY HAS NO DOCSTRING AT ALL, and `reviewed/`/`approved/` do not exist as directories in this layout, so the list invites exactly the confusion this plan is fixing.
   THE "OBSERVABLY A NO-OP" CLAIM WAS FALSE, so this item is re-pointed. `tests/test_oc_runipd.py:1818-1840` (`PlanBucketRecognitionTests`) asserts `plan_bucket` returns each of the eight names INCLUDING `reviewed` and `approved` for a synthetic path, and that an unknown segment returns `None`; measured `2 passed` at HEAD. Deleting the members BREAKS that test, so the change is not invisible and that test's file must be in Scope-Paths (it now is).
   THE MINIMAL SAFE CHANGE IS DOCUMENTATION, not deletion: ADD a docstring stating that buckets are DIRECTORIES and readiness is a FIELD, that `reviewed`/`approved` (and `active`) are recognized DEFENSIVELY and do not occur in this layout, and that a caller wanting readiness must read `- Status:` (citing `edge_satisfied` as the precedent). Cite the corroborating layout fact rather than asserting it: `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` (`:506-511`) lists exactly `executed`, `superseded`, `not-executed`, `reusable` as the terminal directories, which is the same four-plus-`pending` layout measured on disk, and names neither `reviewed` nor `approved`. That removes the trap for the next reader at zero behavioral risk.
   IF YOU NEVERTHELESS DELETE THEM, you must also update `tests/test_oc_runipd.py` and prove no caller compares a bucket to those values. THE CALLER SEARCH IS ALREADY DONE and its result is recorded here so you verify rather than rediscover: nine non-test call sites (`oc_runipd.py:1178`, `:2243`, `:3345`, `:5852`, `:6761`; `agy_runipd.py:1478`, `:2304`, `:3188`, `:4077` at HEAD), and the ONLY equality comparisons are against `"executed"`. `agy_runipd.py:2304` compares against the `("executed","reviewed","approved")` tuple and is DELETED by E-03, which is what removes the last such comparison. Note two of these sites use a bucket as a DEFAULT STATUS rather than comparing it (`oc_runipd.py:2243` / `agy_runipd.py:3185`-neighborhood `status = bucket or "to-review"`), so a deleted member would silently change a derived status there; that is a further argument for documentation over deletion. Re-verify at execution time; do not trust this list blind.
   - Depends on: E-04
   - Expected outcome: `plan_bucket` HAS a docstring stating that buckets are directories, readiness is a field, and which members are defensive; no real path's bucket changes; if members were removed, the pinning test is updated and the caller search re-verified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-06 Test the MATRIX of action against target state, prove BOTH hosts, and prove nothing else moved. The correctness of this change is entirely in which combinations pass.
+- [x] E-06 Test the MATRIX of action against target state, prove BOTH hosts, and prove nothing else moved. The correctness of this change is entirely in which combinations pass.
   THE MATRIX, for an external target: review-action against `pending/` + `Status: reviewed` SATISFIES; review against `pending/` + `Status: approved` SATISFIES; review against `pending/` + `Status: to-review` REFUSES; review against `executed/` SATISFIES; execute against `pending/` + `Status: reviewed` REFUSES; execute against `executed/` SATISFIES; a missing, unparseable, or MULTI-WORD status in a NON-TERMINAL directory REFUSES for both actions.
   ADD THE EIGHTH CASE, WHICH IS THE ANTI-REGRESSION ONE AND THE ONE MOST LIKELY TO BE OMITTED: a target in `executed/` whose `- Status:` field is ABSENT or MULTI-WORD must still SATISFY under BOTH actions, because the terminal directory decides. This is not hypothetical: 25 real plans in `executed/` are in exactly that state (measured at review; 24 absent, 1 `EXECUTED (...)`), and all 25 satisfy today. A fix that made the field authoritative everywhere would break all 25 and no other case in this matrix would notice.
   REPRODUCE THE MEASURED CASE as a named fixture with SYNTHETIC plans, not by naming live plans: `- Item-Dependencies: executed:<prereq>` where the prerequisite is `pending/` + `Status: reviewed`, action `review`. Assert it now SATISFIES, and assert against the PRE-FIX code that it refused, so the contrast is demonstrated rather than asserted. DO NOT write a test that depends on `tm2cz8`'s live status: it was `reviewed` when this defect was filed and is `approved` now, so such a test would have silently changed what it proves within a day.
@@ -102,12 +102,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Run the suite BARE (`python3 -m pytest`) and state before/after counts. MEASURE YOUR OWN BEFORE-BASELINE IMMEDIATELY BEFORE YOU START, and do not inherit this plan's number: measured at THIS review `2 failed, 5640 passed, 3 skipped, 2 xfailed`, where the two failures are BOTH pre-existing and NEITHER is in this plan's scope (`test_orchestrator_retirement::RealRepositorySets::test_runprofile_refuses_for_R2...`, which asserts a live plan's status that has since advanced to `approved`; and `test_run_viewer::RunViewerTests::test_run_viewer_cli_latest_only`, which reads the gitignored `.aw/records/runs/` tree and fails because the three newest runs share one queue, so `latest_only` collapses to a single contributing run and prints no "Data from N runs" header). BOTH are repository-state-dependent, so your own baseline may differ again; the criterion is that the AFTER failure set minus YOUR BEFORE set is EMPTY.
   - Depends on: E-05
   - Expected outcome: all eight matrix cases pass; the measured case is pinned with a pre-fix contrast using synthetic fixtures; both agy paths are exercised, the identity is pinned, and the test says what that does and does not prove; the in-queue path is proven unchanged and `SUCCESS_STATES` stated unchanged; the bare-suite delta against a freshly measured baseline is empty with counts stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Pass a REVIEW-APPROPRIATE phase to the dependency preflight, so a review-only run is not gated on execution readiness. `enforce_dependency_preflight` accepts a `phase` parameter (`oc_runipd.py:2616`, default `"pre-execution"`), but its single caller at `oc_runipd.py:2834` passes NONE, so every run gets the execution phase even when every selected item's action is `review`. Derive the phase from the queue: when all selected items resolve to the `review` action, pass the review phase; otherwise keep `pre-execution` exactly as today. Do the same in the agy caller, and locate both by SYMBOL rather than line number. THIS ITEM STANDS ON ITS OWN even if OQ-04 is answered against the relaxation: it is a wrong-argument-at-a-call-site defect, independent of what the acceptance predicate decides once it is reached, and the preflight refuses BEFORE selection ever consults `edge_satisfied`, so E-01..E-06 cannot fix it.
+- [x] E-07 Pass a REVIEW-APPROPRIATE phase to the dependency preflight, so a review-only run is not gated on execution readiness. `enforce_dependency_preflight` accepts a `phase` parameter (`oc_runipd.py:2616`, default `"pre-execution"`), but its single caller at `oc_runipd.py:2834` passes NONE, so every run gets the execution phase even when every selected item's action is `review`. Derive the phase from the queue: when all selected items resolve to the `review` action, pass the review phase; otherwise keep `pre-execution` exactly as today. Do the same in the agy caller, and locate both by SYMBOL rather than line number. THIS ITEM STANDS ON ITS OWN even if OQ-04 is answered against the relaxation: it is a wrong-argument-at-a-call-site defect, independent of what the acceptance predicate decides once it is reached, and the preflight refuses BEFORE selection ever consults `edge_satisfied`, so E-01..E-06 cannot fix it.
+  EXECUTED DIFFERENTLY FROM THE MECHANISM THIS ITEM NAMES, ON MEASURED EVIDENCE; SEE DECISION 01-03ie04-D1. The GOAL was reached and is now pinned on both hosts; the `phase` ARGUMENT was NOT added, because measurement shows it cannot produce that goal. TWO FACTS decide this. FIRST, `phase` reaches EXACTLY ONE rule inside `check_engine.evaluate_ipd_dependencies`: `blocking = phase in _DEP_BLOCKING_PHASES` gating the `unresolved` SCAFFOLD SENTINEL finding, and by AST inspection those are the only references to `phase`/`blocking` in the whole function. Every phase a review turn could claim (`review-readiness`, `review-finalize`, `pre-execution`, `pre-transition`) is ALREADY in that set, so no reachable value changes any verdict; the only values that WOULD change behavior (`check`/`author`) relax the sentinel for the entire selection, a widening this item never asked for. SECOND, the cited defect was ALREADY FIXED at HEAD by commit `5699c6ad` ("fix(deps): exempt a review turn from the dependency findings gate, per spec 2.9", an ancestor of this plan's base), using the CORRECT mechanism: the evaluator gained an `actions` parameter, the findings-blocked rule is now guarded by `(actions or {}).get(ps) != "review"`, and `preflight_dependency_findings` threads `actions=_consuming_actions_for(plans)` derived from the same `runner_shared.action_for` the queue builder uses. Its commit message cites the SAME measured refusal F-9 cites. So writing the `phase` argument would have added a control that looks like a gate and is not one, which is worse than the gap. What was done instead: the goal is VERIFIED by measurement and PINNED by `ReviewQueuePreflightTests` (review queue admitted on both hosts, execute queue still refused on both hosts, plus a MUTATION check that neutralizes the action derivation and shows the review case refusing again), and `test_the_phase_argument_cannot_discriminate_a_review_turn` records the negative finding so nobody re-adds the argument expecting it to gate.
   - Depends on: none
   - Expected outcome: `aw oc run <setid>` over a queue of review turns is not refused by a dependency's unresolved review findings or unexecuted state; an execute-action queue is refused exactly as it is today.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -255,40 +256,706 @@ The refusal message is operator-facing and should name what it actually read. Wr
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the changed external-target branch. Show SIX probes: `pending/` + `Status: reviewed` under a review action SATISFIES; `pending/` + `Status: to-review` REFUSES; an absent status in `pending/` REFUSES; a MULTI-WORD status in `pending/` REFUSES; and THE TWO ANTI-REGRESSION PROBES, an `executed/` plan with an ABSENT field and one with a MULTI-WORD field, each SATISFYING under BOTH actions (F-15: 25 real plans are in that state). Quote the comment stating the precedence rule and its measured justification. Confirm by inspection that `_read_status` is the already-imported reader and that no second reader, regex, or `_artifact_owners` call was added. Paste the verification that spec §2.9 carries the two-row action-keyed table (the E-01 precondition).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The changed branch, the six required probes plus the two anti-regression ones, the 96-probe real-corpus proof, the shared-reader assertion, and the verified spec precondition are pasted below. One HONEST CORRECTION to the plan's census is recorded.
+    THE CHANGED BRANCH (`oc_runipd.edge_satisfied`, external-target case; located by SYMBOL). The
+    precedence comment and its measured justification are in the source; the operative code is:
 
-- [ ] V-02 validates E-02
+    ```python
+            bucket = plan_bucket(dep_path)
+            allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
+            # PRECEDENCE (depreview 03ie04 E-01, OQ-01): A TERMINAL DIRECTORY IS AUTHORITATIVE; for a
+            # NON-TERMINAL directory the `- Status:` FIELD carries the readiness. [...]
+            # WHY THE DIRECTORY MUST WIN IN `executed/`, measured and not hypothetical: 24 of the 455
+            # plans in `executed/` carry a `- Status:` that `read_front_matter_status` returns None for
+            # (all 24 the MULTI-WORD `EXECUTED (approved ...)` form [...]). Every one of them satisfies
+            # an `executed:` edge today because the directory decides. [...]
+            # WHY THE FIELD MUST WIN IN `pending/`: readiness in this layout is a FIELD, not a
+            # directory. [...] Reading the bucket alone therefore made the review-action relaxation
+            # above UNREACHABLE [...]
+            # `_read_status` is the reader the module ALREADY imports and ALREADY uses for this exact
+            # comparison in `reconcile_disposition`'s review branch; do not substitute another. It
+            # returns None for an ABSENT and for a MULTI-WORD status alike, and in a NON-TERMINAL
+            # directory both must FAIL CLOSED, exactly as an unrecognized bucket does.
+            from agent_workflows import run_selection_policy as _policy
+
+            effective = bucket
+            if bucket is not None and not _policy.is_in_terminal_directory(str(dep_path)):
+                try:
+                    field = _read_status(dep_path.read_text(encoding="utf-8"))
+                except Exception:
+                    field = None
+                effective = field
+            if effective not in allowed:
+                return False, (
+                    f"{tok}: external target {edge.id6} is {effective!r} "
+                    f"(directory {bucket!r}), needs one of {list(allowed)} "
+                    "(it is not in this run, so it cannot become satisfied here)"
+                )
+            return True, ""
+    ```
+
+    THE SIX REQUIRED PROBES, plus the two anti-regression ones, from
+    `.aw/state/probes-03ie04/POST-E01.txt` (harness pins `PYTHONPATH` to a chosen tree; see decision
+    01-03ie04-D4 for why that matters). PRE-FIX contrast for the same probes is in `PRE-FIX.txt`,
+    produced against a pristine `git archive HEAD` tree:
+
+    ```text
+    1. review vs pending/ Status: reviewed    action=review   satisfied=True
+    2. review vs pending/ Status: approved    action=review   satisfied=True
+    3. review vs pending/ Status: to-review   action=review   satisfied=False  executed:prq001: external target prq001 is 'to-review' (directory 'pending'), needs one of ['executed', 'reviewed', 'approved'] (it is not in this run, so it cannot become satisfied here)
+    7a. review vs pending/ status ABSENT      action=review   satisfied=False  ... is None (directory 'pending'), needs one of ['executed', 'reviewed', 'approved'] ...
+    7b. review vs pending/ MULTI-WORD status  action=review   satisfied=False  ... is None (directory 'pending'), needs one of ['executed', 'reviewed', 'approved'] ...
+    === CASE 8: ANTI-REGRESSION, terminal directory decides (F-15) ===
+    8a. review vs executed/ status ABSENT     action=review   satisfied=True
+    8b. execute vs executed/ status ABSENT    action=execute  satisfied=True
+    8c. review vs executed/ MULTI-WORD status action=review   satisfied=True
+    8d. execute vs executed/ MULTI-WORD       action=execute  satisfied=True
+    8e. review vs executed/ STALE to-review   action=review   satisfied=True
+    8f. execute vs executed/ STALE to-review  action=execute  satisfied=True
+    ```
+
+    The SAME rows PRE-FIX (`PRE-FIX.txt`), showing rows 1 and 2 refusing and naming a DIRECTORY:
+
+    ```text
+    1. review vs pending/ Status: reviewed    action=review   satisfied=False  executed:prq001: external target prq001 is in 'pending', needs one of ['executed', 'reviewed', 'approved'] (it is not in this run, so it cannot become satisfied here)
+    2. review vs pending/ Status: approved    action=review   satisfied=False  (identical message)
+    ```
+
+    THE ANTI-REGRESSION PROOF AGAINST THE REAL CORPUS, not a fixture
+    (`.aw/state/probes-03ie04/V01-F15.txt`). This is the F-15 claim re-measured at execution:
+
+    ```text
+    plans in executed/: 455
+    of those, `- Status:` the SHARED reader returns None for: 24
+       field ABSENT: 0   field present but MULTI-WORD/unparseable: 24
+       of those, carrying a readable `- Id:`: 24
+    EVERY ONE must still satisfy an `executed:` edge under BOTH actions on BOTH hosts,
+    because the TERMINAL DIRECTORY decides. A field-authoritative fix would break all of them.
+
+    probes: 96   refusals: 0
+
+    sample (id6, the raw field line, what the shared reader returns):
+       7ibobm  '- Status: EXECUTED (approved by maintainer 2026-06-30; all steps applied and validated)' reader=None
+       rin79g  '- Status: EXECUTED (approved by maintainer 2026-07-01; slug "generalization" confirmed; ...)' reader=None
+    ```
+
+    HONEST CORRECTION TO THE PLAN'S CENSUS. The review recorded "25 of 454 (24 absent, 1 multi-word)".
+    Re-measured at execution the corpus is 455 plans, of which 24 are unreadable and ALL 24 are the
+    MULTI-WORD form; ZERO have an absent field. The plan's CONCLUSION is unaffected (the terminal
+    directory must decide, or those plans break), only its count was stale. The source comment now
+    states the re-measured census and notes the discrepancy, rather than repeating the review's number.
+
+    THE READER IS THE ALREADY-SHARED ONE, and no second reader, regex, or index call was added.
+    Asserted mechanically by `ExternalTargetReadinessMatrixTests::
+    test_the_status_field_is_read_with_the_already_shared_reader`, which tokenizes the function body
+    (so a comment mentioning a name cannot satisfy it), requires `_read_status`, forbids
+    `_artifact_owners` in the `executed:` branch, and pins
+    `oc_runipd._read_status is selectors.read_front_matter_status`.
+
+    THE E-01 PRECONDITION, verified BEFORE any code change:
+
+    ```text
+    $ git log --oneline -1 --name-only -- .aw/records/specs/*aw-run-deterministic*
+    faa4c7ec spec(25kzda): sanction the review-action dependency relaxation in 2.9
+    .aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md
+    ```
+
+    and the two-row action-keyed table is present at spec `:373-378`:
+
+    ```text
+    | Edge | Consuming action | Satisfied when |
+    | `executed:<id6>` | `execute` | ... is in `executed/` with status `executed`, passes terminal lint, and has valid deterministic execution/finalization evidence. ... |
+    | `executed:<id6>` | `review`  | The target resolves uniquely to an IPD whose state is `executed`, `reviewed`, or `approved`. Terminal execution evidence is NOT required, ... |
+    ```
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste an execute-action edge against a `pending/` + `Status: reviewed` target REFUSING, and against an `executed/` target SATISFYING. Paste a diff or a statement confirming the execute path's behavior is unchanged from today, and state in one sentence why an execute edge legitimately needs the terminal directory (it consumes the prerequisite's work). Paste the `if is_exec` findings-gate line unchanged and state in one sentence that a review edge is therefore not findings-gated. ALSO paste the IN-QUEUE counterpart still refusing: an execute dependent whose in-queue prerequisite carries the derived run status `reviewed` must report `needs one of ['executed', 'substantially-complete']`, which is the same asymmetry one path over. Quote the spec sentence that makes this normative ("distinguishable by the consuming action and by nothing else").
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The execute path still refuses a non-terminal target and its behavior is unchanged; the `if is_exec` findings-gate line is unmodified and its consequence stated; the in-queue counterpart still refuses; the governing spec sentence is quoted.
+    THE EXECUTE PATH STILL REFUSES A NON-TERMINAL TARGET, and satisfies a terminal one
+    (`.aw/state/probes-03ie04/POST-E01.txt`):
 
-- [ ] V-03 validates E-03
+    ```text
+    5. execute vs pending/ Status: reviewed   action=execute  satisfied=False  executed:prq001: external target prq001 is 'reviewed' (directory 'pending'), needs one of ['executed'] (it is not in this run, so it cannot become satisfied here)
+    5b. execute vs pending/ Status: approved  action=execute  satisfied=False  ... is 'approved' (directory 'pending'), needs one of ['executed'] ...
+    6. execute vs executed/ Status: executed  action=execute  satisfied=True
+    ```
+
+    Also pinned as tests, on BOTH hosts: `ExternalTargetReadinessMatrixTests` rows 5/5b/6/7c/7d, and
+    `AgyDependencyPathsAreSharedTests::test_an_execute_edge_is_NOT_relaxed_on_this_host`.
+
+    WHY AN EXECUTE EDGE LEGITIMATELY NEEDS THE TERMINAL DIRECTORY, in one sentence: an execute turn
+    consumes its prerequisite's WORK, so a merely `reviewed` or `approved` plan has produced nothing
+    to consume and satisfying its edge would dispatch the dependent against a base lacking the commits
+    it depends on.
+
+    THE EXECUTE PATH'S BEHAVIOR IS UNCHANGED FROM TODAY. The `allowed` tuple is untouched
+    (`("executed",) if is_exec else (...)`), and for an execute edge the only reachable target that
+    satisfies it is one in a terminal `executed/` directory, exactly as before: the added field read
+    applies ONLY when `not is_in_terminal_directory(...)`, and in that case the pre-fix code refused
+    too (bucket `pending` was in neither tuple). Confirmed by the 80-probe matrix contrast
+    (`matrix_contrast.py`): of the 16 pre-fix failures, ZERO are execute-vs-non-terminal rows; every
+    changed verdict is either a review-action relaxation or an agy DRAIN-path repair.
+
+    THE FINDINGS GATE'S `is_exec` SCOPING IS UNCHANGED, pasted verbatim from
+    `dependency_status_detailed`:
+
+    ```python
+            if is_exec:
+                target = dependency_target_id6(edge) or dep
+                why = _findings_block_reason(repo, target)
+                if why:
+                    _block(dep, why)
+    ```
+
+    CONSEQUENCE, stated plainly: a review edge is therefore NOT findings-gated, so E-01's field read is
+    the ONLY gate on the review path. That is the existing intended design (F-13), not a regression
+    this plan introduces, and it was deliberately not widened.
+
+    THE IN-QUEUE COUNTERPART STILL REFUSES, which is the same asymmetry one path over
+    (`.aw/state/probes-03ie04/POST-E01.txt`, and pinned by
+    `ExternalTargetReadinessMatrixTests::test_the_in_queue_branch_still_reads_run_state_not_disk`):
+
+    ```text
+    in-queue: execute dependent vs run status 'reviewed'   action=execute  satisfied=False  executed:prq001: in-run target prq001 is 'reviewed', needs one of ['executed', 'substantially-complete']
+    in-queue: review dependent vs run status 'reviewed'    action=review   satisfied=True
+    in-queue: execute dependent vs run status 'executed'   action=execute  satisfied=True
+    ```
+
+    THE SPEC SENTENCE THAT MAKES THIS NORMATIVE, quoted from `25kzda` 2.9 (`:388-394`): the two rows
+    "must stay distinguishable by the consuming action and by nothing else: not by queue membership,
+    not by which host is running, and not by whether the target happens to be in the current run."
+    It is also quoted at the code site so the constraint travels with the change.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `agy.dependency_status_detailed is oc.dependency_status_detailed` -> True (and the pre-fix `False` for contrast). Paste the deletion diff and the re-export line. Paste a probe showing agy's DRAIN path now resolves a TYPED edge (`executed:<id6>`) instead of reporting `no plan resolves to this id6`. Paste a probe showing agy's drain path now ROUTES AN `orchestrate` ITEM through the shared decider (the copy had no such clause). State what you found about the reason-map KEY shape (`dep_id6` vs `dep_token`) and name any caller or test affected. Paste the annotation added to agy's now-uncalled `_findings_block_reason` and state that its two former call sites were both inside the deleted function.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Identity True after (False before), the deletion and re-export pasted, agy's DRAIN path now resolves a TYPED edge and routes an `orchestrate` item, the reason-map key shape confirmed unaffected by execution, and the orphaned wrapper annotated rather than deleted.
+    THE IDENTITY, before and after. POST-FIX (`.aw/state/probes-03ie04/V03.txt`):
 
-- [ ] V-04 validates E-04
+    ```text
+    agy.dependency_status_detailed is oc.dependency_status_detailed -> True
+    agy.dependency_status is oc.dependency_status -> True
+    ```
+
+    PRE-FIX, the same probe against a pristine HEAD tree (`V03-PREFIX.txt`):
+
+    ```text
+    agy.dependency_status_detailed is oc.dependency_status_detailed -> False
+    agy.dependency_status is oc.dependency_status -> True
+    ```
+
+    THE DELETION AND THE RE-EXPORT. `agy_runipd.py` lost 57 lines (the whole local
+    `def dependency_status_detailed`) and gained the re-export in the import block, in the
+    `as <same-name>` form that block uses deliberately so an autoformatter cannot strip it:
+
+    ```python
+        dependency_status as dependency_status,
+        # depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. [...]
+        # Measured before the deletion:
+        # `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
+        # BROKEN in three ways [...]
+        dependency_status_detailed as dependency_status_detailed,
+    ```
+
+    The module note below it now covers BOTH names and records why the `_detailed` copy survived the
+    earlier cleanup (`_SHARED_NAMES` never listed it).
+
+    THE DRAIN PATH NOW RESOLVES A TYPED EDGE. POST-FIX (`V03.txt`):
+
+    ```text
+    === (a) agy DRAIN path resolves a TYPED `executed:<id6>` edge ===
+        action=execute  satisfied=True missing=[] reasons={}
+        action=review   satisfied=True missing=[] reasons={}
+    ```
+
+    PRE-FIX, same fixture (`V03-PREFIX.txt`) - the copy used the raw token as an id6:
+
+    ```text
+        action=execute  satisfied=False missing=['executed:depaaa'] reasons={'executed:depaaa': 'executed:depaaa: no plan resolves to this id6 in the repo'}
+        action=review   satisfied=False missing=['executed:depaaa'] reasons={'executed:depaaa': 'executed:depaaa: no plan resolves to this id6 in the repo'}
+    ```
+
+    THE DRAIN PATH NOW ROUTES AN `orchestrate` ITEM through the shared decider. POST-FIX, with an
+    Order-0 orchestrator whose declared child is unfinished:
+
+    ```text
+    === (b) agy DRAIN path ROUTES an `orchestrate` item through the shared decider ===
+        orchestrator with an UNFINISHED child: satisfied=False missing=['executed:child1']
+          executed:child1 -> orchestrator waits for child child1 of set 'probe' to execute (currently queued)
+        a reason naming a CHILD can ONLY come from the orchestrator clause
+        oc verdict identical: True
+    ```
+
+    PRE-FIX the same fixture returned `satisfied=True missing=[]` with NO reason, i.e. the orchestrator
+    was admitted without consulting `decide_orchestrator_dispatch` at all, and oc disagreed
+    (`oc verdict identical: False`). Pinned as a test by `AgyDependencyPathsAreSharedTests::
+    test_the_drain_path_routes_an_orchestrate_item_through_the_shared_decider`.
+
+    THE REASON-MAP KEY SHAPE: UNAFFECTED, and this was verified by EXECUTION rather than reading. The
+    shared implementation keys reasons by the token AS DECLARED (`dep_token`), the deleted copy
+    documented `dep_id6`; the only cross-driver assertion on key shape
+    (`tests/test_review_findings_cascade.py::BlockLegibilityTests::
+    test_reason_map_names_the_finding_id_and_severity`) uses a BARE `depaaa` dependency where token and
+    id6 are identical. NO test file needed an edit for the key shape, exactly as the plan predicted:
+
+    ```text
+    $ python3 -m pytest tests/test_review_findings_cascade.py tests/test_runner_item_dependencies.py \
+        tests/test_agy_runipd_cli.py tests/test_oc_runipd.py tests/test_runner_refork_guard.py \
+        tests/test_runner_shared.py -o addopts="" -q
+    361 passed in 33.14s
+    ```
+
+    `tests/test_review_findings_cascade.py` and `tests/test_runner_refork_guard.py` were NOT modified
+    (`git diff --name-only` lists neither), which the plan's fence requires.
+
+    THE ORPHANED WRAPPER IS ANNOTATED, NOT DELETED. Its two former call sites were BOTH inside the
+    deleted function, so it now has ZERO call sites in this module (`V03.txt` section (d): `call sites
+    of _findings_block_reason in agy_runipd.py: 0`, while `hasattr(agy, '_findings_block_reason')` is
+    True and the source still names `subject_gating_blocks`, which is what
+    `test_review_findings_cascade.py::SharedPredicateTests` requires). The added annotation:
+
+    ```text
+        RETAINED FOR THE CROSS-DRIVER API-SYMMETRY CONTRACT, AND NOT CALLED FROM THIS MODULE (depreview
+        03ie04 E-03). Its only two call sites were both inside the local `dependency_status_detailed`
+        copy that E-03 DELETED, so the live gate now runs in `oc_runipd` through the re-exported
+        implementation. It is kept rather than deleted because
+        `tests/test_review_findings_cascade.py::SharedPredicateTests` asserts BOTH that this attribute
+        exists on this module and that this module's source names `subject_gating_blocks`; removing it
+        would change that test's contract, which is a wider decision [...] Do NOT read it as a second
+        implementation of the gate: there is one, in `review_findings.subject_gating_blocks`.
+    ```
+
+    Pinned by `AgyDependencyPathsAreSharedTests::test_the_retained_findings_wrapper_is_uncalled_but_present`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `_SHARED_NAMES` containing `dependency_status_detailed`. Paste the guard FAILING against pre-E-03 code and then PASSING after it, so it is shown to bite rather than merely be green. Paste the comment recording why `tests/test_runner_refork_guard.py`'s `Owned` table cannot host this symbol, and confirm that file was NOT modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `_SHARED_NAMES` now names `dependency_status_detailed`; the guard is shown FAILING against pre-E-03 code and PASSING after; the refork-guard rationale is recorded as a comment and that file was NOT modified.
+    `_SHARED_NAMES` NOW CONTAINS THE NAME (`tests/test_runner_item_dependencies.py`):
 
-- [ ] V-05 validates E-05
+    ```python
+        _SHARED_NAMES = (
+            "_read_item_dependencies",
+            "parse_dependency_token",
+            "dependency_target_id6",
+            "edge_satisfied",
+            "dependency_status",
+            # depreview 03ie04 E-04: the `_detailed` sibling was MISSING from this list, which is exactly
+            # why the guard below passed over agy's real copy of it. Both names are required.
+            "dependency_status_detailed",
+            "dependency_reasons",
+            "dependency_depth",
+            "queue_sort_key",
+            "cascade_dependency_blocked",
+            "preflight_dependency_findings",
+            "DEPENDENCY_FATAL_RULES",
+        )
+    ```
+
+    THE GUARD BITES: run against PRE-E-03 code (my post-fix `oc_runipd.py` + `runner_shared.py` + this
+    test file, with agy STILL carrying the copy), it FAILS
+    (`.aw/state/probes-03ie04/V04.txt`):
+
+    ```text
+    --- 2. the guard RUN AGAINST PRE-E-03 agy_runipd.py, with the name added: FAILS ---
+                with self.subTest(name=name):
+    >               self.assertIs(
+                        getattr(agy_runipd, name),
+                        getattr(oc_runipd, name),
+                        f"{name} is a COPY in agy_runipd; it must be the shared object",
+                    )
+    E               AssertionError: <function dependency_status_detailed at 0x7351efcf64b0> is not <function dependency_status_detailed at 0x7351efced0c0> : dependency_status_detailed is a COPY in agy_runipd; it must be the shared object
+    FAILED tests/test_runner_item_dependencies.py::CrossDriverSymmetryTests::test_the_implementation_is_shared_not_copied
+    1 failed in 0.54s
+    ```
+
+    AND PASSES after E-03:
+
+    ```text
+    --- 3. the SAME guard after E-03 deleted the copy: PASSES ---
+    .......                                                                  [100%]
+    7 passed in 0.17s
+    ```
+
+    WHY THE REFORK-GUARD TABLE CANNOT HOST THIS SYMBOL is recorded as a comment at the
+    `_SHARED_NAMES` definition, re-verified rather than copied from the plan: `REFORK_TABLE`'s `Owned`
+    contract is "a NON-RUNNER module owns this symbol; no runner may re-define it", every row's owner
+    is `render_stream`/`runner_shared`/`selectors`, and naming `oc_runipd` as an owner would make its
+    AST half forbid oc's own definition. The comment also records the guard's LIMIT (identity catches a
+    re-defined copy, not a copy assigned over the re-export at import time; that residual hole is
+    accepted, as no such pattern exists in either driver today).
+
+    `tests/test_runner_refork_guard.py` WAS NOT MODIFIED:
+
+    ```text
+    $ git diff --name-only -- tests/test_runner_refork_guard.py
+    (no output)
+    ```
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `plan_bucket`'s NEW docstring (it had none). Paste `PlanBucketRecognitionTests` PASSING (or, if members were removed, the updated test plus the re-verified caller search naming every call site and its comparison, INCLUDING the two `status = bucket or "to-review"` sites that consume a bucket as a default status rather than comparing it). Paste a probe showing a real path's bucket is UNCHANGED for each member.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. `plan_bucket` now HAS a docstring (it had none), no member was removed, the pinning test passes alongside two new pins, no real path's bucket changed, and the caller search was re-verified at this HEAD. One OUT-OF-FENCE edit is disclosed.
+    `plan_bucket` NOW HAS A DOCSTRING (it had NONE; `plan_bucket.__doc__` was `None` at HEAD). Pasted
+    from `.aw/state/probes-03ie04/V05.txt`:
 
-- [ ] V-06 validates E-06
+    ```text
+    Which lifecycle DIRECTORY is this plan path in? Returns the segment name, or None.
+
+    A BUCKET IS A DIRECTORY; READINESS IS A FIELD. That distinction is the whole contract of this
+    function and getting it wrong has already cost one defect (depreview 03ie04). In this layout a
+    plan STAYS in `pending/` for its entire non-terminal life, moving through `- Status: draft` ->
+    `to-review` -> `reviewed` -> `approved`, and only a TERMINAL state moves the file. So a caller
+    that wants to know "is this plan reviewed/approved yet" CANNOT learn it here: it must read the
+    `- Status:` front-matter field with `selectors.read_front_matter_status`. `oc_runipd.edge_satisfied`
+    is the worked precedent, and the reason it had to change: it compared this function's result
+    against `("executed", "reviewed", "approved")`, which made two thirds of that tuple DEAD CODE
+    because every non-terminal plan buckets as `pending`.
+
+    `reviewed`, `approved` and `active` ARE RECOGNIZED DEFENSIVELY AND DO NOT OCCUR IN THIS LAYOUT.
+    `.aw/records/plans/` holds only `executed`, `not-executed`, `pending`, `reusable` and
+    `superseded`, and `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` corroborates that in code by
+    naming exactly the four terminal ones [...] They are kept rather than removed because the members
+    are PINNED by `tests/test_oc_runipd.py::PlanBucketRecognitionTests` and because two callers (each
+    driver's `parse_plan_file`) consume the result AS a default status (`status = bucket or
+    "to-review"`) rather than comparing it, so deleting a member would silently change a DERIVED
+    STATUS rather than merely skip a comparison.
+
+    This function does no IO and must not learn to [...] (OQ-03).
+    ```
+
+    NO MEMBERS WERE REMOVED, so the pinning test needed no change, and it PASSES together with two new
+    pins added in the same class:
+
+    ```text
+    $ python3 -m pytest tests/test_oc_runipd.py::PlanBucketRecognitionTests -o addopts="" -q
+    ....                                                                     [100%]
+    4 passed in 0.23s
+    ```
+
+    NO REAL PATH'S BUCKET CHANGED, and every member still resolves (`V05.txt`):
+
+    ```text
+    === every member still resolves for a synthetic path (no behavior change) ===
+       executed      -> 'executed'   OK
+       active        -> 'active'   OK
+       pending       -> 'pending'   OK
+       reviewed      -> 'reviewed'   OK
+       approved      -> 'approved'   OK
+       reusable      -> 'reusable'   OK
+       superseded    -> 'superseded'   OK
+       not-executed  -> 'not-executed'   OK
+       unknown segment -> None (must be None)
+    === real paths in THIS repository are unchanged ===
+       pending       -> 'pending'
+       executed      -> 'executed'
+       superseded    -> 'superseded'
+       not-executed  -> 'not-executed'
+    === the corroborating layout fact cited in the docstring ===
+       run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS = ('/executed/', '/superseded/', '/not-executed/', '/reusable/')
+       directories that actually exist under .aw/records/plans/:
+          ['executed', 'not-executed', 'pending', 'reusable', 'superseded']
+    ```
+
+    THE CALLER SEARCH, RE-VERIFIED AT THIS HEAD as the plan demands rather than trusted
+    (`.aw/state/probes-03ie04/V05-callers.txt`). EIGHT call sites, not the plan's nine, because E-03
+    deleted one:
+
+    ```text
+    agent_workflows/agy_runipd.py:1488:        bucket = plan_bucket(path)
+    agent_workflows/agy_runipd.py:3151:        bucket = plan_bucket(current_plan)
+    agent_workflows/agy_runipd.py:4040:            if plan_bucket(path) == "executed":
+    agent_workflows/oc_runipd.py:1178:                bucket = plan_bucket(plan)
+    agent_workflows/oc_runipd.py:2243:        bucket = plan_bucket(path)
+    agent_workflows/oc_runipd.py:3387:        bucket = plan_bucket(dep_path)
+    agent_workflows/oc_runipd.py:5944:        bucket = plan_bucket(current_plan)
+    agent_workflows/oc_runipd.py:6853:            if plan_bucket(path) == "executed":
+
+    === every EQUALITY/membership comparison against a bucket value ===
+    oc_runipd.py:1186:            if bucket != "executed":
+    oc_runipd.py:5947:    if bucket == "executed":
+    oc_runipd.py:6853:            if plan_bucket(path) == "executed":
+    agy_runipd.py:3154:    if bucket == "executed":
+    agy_runipd.py:4040:            if plan_bucket(path) == "executed":
+
+    === the two sites that use a bucket AS a default status ===
+    agy_runipd.py:1489:        status = bucket or "to-review"
+    oc_runipd.py:2244:        status = bucket or "to-review"
+    ```
+
+    So the ONLY remaining comparisons are against `"executed"`, a genuine directory: the
+    `("executed","reviewed","approved")` tuple comparison the plan flagged at `agy_runipd.py:2301` is
+    GONE with the deleted copy. That absence is now PINNED by the new
+    `PlanBucketRecognitionTests::test_no_caller_compares_a_bucket_to_a_non_terminal_member`, which
+    fails against pre-fix code:
+
+    ```text
+    E  AssertionError: <re.Match object; span=(71859, 71908), match='bucket not in ("executed", "reviewed", "approved"' > is not None : agy_runipd compares a plan_bucket() result against a non-terminal member; readiness lives in the `- Status:` field, not in a directory name
+    FAILED tests/test_oc_runipd.py::PlanBucketRecognitionTests::test_the_docstring_states_that_a_bucket_is_not_a_readiness
+    FAILED tests/test_oc_runipd.py::PlanBucketRecognitionTests::test_no_caller_compares_a_bucket_to_a_non_terminal_member
+    2 failed, 2 passed in 0.40s
+    ```
+
+    OUT-OF-FENCE EDIT REQUIRED BY THIS ITEM, disclosed here and in decision 01-03ie04-D3: adding the
+    docstring BREAKS `tests/test_runner_shared.py::PureMoveFingerprintTests::
+    test_every_clean_symbol_is_a_STRICT_fingerprint_match`, which compares `plan_bucket`'s full AST
+    against a committed pre-move capture. Measured, the docstring is the ENTIRE delta:
+
+    ```text
+    HEAD fingerprint == fixture:       True
+    MINE fingerprint == fixture:      False
+    MINE minus docstring == fixture:  True
+    ```
+
+    Resolved in that guard's own enumerated-subtraction idiom rather than by weakening it: a
+    `DOCUMENTED_SINCE_MOVE = ("plan_bucket",)` list plus `_without_docstring`, which removes ONLY a
+    leading string expression so every remaining token must still match; plus a new
+    `test_a_documented_symbol_is_still_held_to_its_executable_body` proving the exemption is narrow
+    (the symbol must really have a docstring, must really fail the STRICT comparison, and an added
+    executable statement must STILL be detected). The fixture was NOT re-captured, because its own
+    comments make it a record of the pre-move source at HEAD `1ecc5891`.
+
+    ```text
+    $ python3 -m pytest tests/test_runner_shared.py -o addopts="" -q
+    44 passed in 11.86s
+    ```
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the ACTUAL output of all EIGHT matrix cases, including the terminal-directory anti-regression case. Paste the SYNTHETIC measured-case fixture SATISFYING, AND the same fixture against the PRE-FIX code REFUSING with the original message; confirm no test depends on a live plan's mutable status. Paste both agy paths exercised, the identity pinned, and the docstring stating that after E-03 they are one object so the identity is what carries the guarantee. Paste the in-queue-path test proving that branch is unchanged, and state explicitly that `SUCCESS_STATES` needed NO change because it already equals the sanctioned tuple (paste the equality). Paste the per-driver constant equality assertion (`agy.SUCCESS_STATES == oc.SUCCESS_STATES` while `is` is False). Paste a real review run on BOTH hosts, or say plainly which host could not be demonstrated; a synthetic repository is acceptable and preferred. Paste YOUR OWN freshly measured BEFORE baseline and the AFTER summary, and show the AFTER-minus-BEFORE failure set is EMPTY.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All 20 matrix rows x 2 hosts x 2 entry points (80 probes) pass, against 16 failures pre-fix; the measured case is pinned synthetically; both agy paths and the identity are pinned; the in-queue path and `SUCCESS_STATES` are proven unchanged; a live end-to-end run is shown on BOTH hosts; the bare-suite delta is EMPTY.
+    ALL MATRIX CASES PASS, AND THE PRE-FIX CONTRAST IS MEASURED. The matrix is 20 rows x 2 hosts x 2
+    entry points = 80 probes, driven straight from the test class's own `MATRIX` table so the recorded
+    contrast and the committed test cannot disagree (`.aw/worktrees/03ie04-scratch/matrix_contrast.py`).
 
-- [ ] V-07 validates E-07
+    PRE-FIX, against a pristine `git archive HEAD` tree:
+
+    ```text
+    FAIL oc  dependency_status            review vs pending/ + reviewed            want=True got=False
+    FAIL oc  dependency_status_detailed   review vs pending/ + reviewed            want=True got=False
+    FAIL agy dependency_status            review vs pending/ + reviewed            want=True got=False
+    FAIL agy dependency_status_detailed   review vs pending/ + reviewed            want=True got=False
+    FAIL oc  dependency_status            review vs pending/ + approved            want=True got=False
+    FAIL oc  dependency_status_detailed   review vs pending/ + approved            want=True got=False
+    FAIL agy dependency_status            review vs pending/ + approved            want=True got=False
+    FAIL agy dependency_status_detailed   review vs pending/ + approved            want=True got=False
+    FAIL agy dependency_status_detailed   review vs executed/ + executed           want=True got=False
+    FAIL agy dependency_status_detailed   execute vs executed/ + executed          want=True got=False
+    FAIL agy dependency_status_detailed   review vs executed/ + absent             want=True got=False
+    FAIL agy dependency_status_detailed   execute vs executed/ + absent            want=True got=False
+    FAIL agy dependency_status_detailed   review vs executed/ + multi-word         want=True got=False
+    FAIL agy dependency_status_detailed   execute vs executed/ + multi-word        want=True got=False
+    FAIL agy dependency_status_detailed   review vs executed/ + stale to-review    want=True got=False
+    FAIL agy dependency_status_detailed   execute vs executed/ + stale to-review   want=True got=False
+
+    rows=20 probes=80 failures=16
+    ```
+
+    The first 8 failures are the review-action relaxation being unreachable; the last 8 are agy's DRAIN
+    path failing on a TYPED token, i.e. F-9's broken copy. POST-FIX:
+
+    ```text
+    rows=20 probes=80 failures=0
+    ```
+
+    THE EIGHTH (ANTI-REGRESSION) CASE IS IN THE TABLE and is proven against the REAL corpus too; see
+    V-01's 96-probe / 0-refusal measurement over the 24 `executed/` plans whose field the shared reader
+    returns None for.
+
+    THE MEASURED CASE IS PINNED WITH SYNTHETIC FIXTURES, never against a live plan's mutable status
+    (`ExternalTargetReadinessMatrixTests::test_the_measured_case_now_satisfies_and_names_what_it_read`
+    and `::test_the_refusal_message_names_the_field_it_actually_read`). `tm2cz8` is named nowhere in
+    any test; it was `reviewed` when the defect was filed and is `approved` now, which is exactly why.
+
+    BOTH AGY PATHS ARE EXERCISED and the IDENTITY is pinned, with the honest statement in the test's own
+    docstring: after E-03 both paths call the SAME object, so "they agree" is true BY CONSTRUCTION and
+    the identity assertion is what carries the guarantee, while the behavioral sweep catches a re-fork
+    that kept the name. See `test_the_matrix_holds_on_both_hosts_and_through_both_entry_points` and
+    `AgyDependencyPathsAreSharedTests::test_both_dependency_entry_points_are_the_shared_objects`.
+
+    THE IN-QUEUE PATH IS PROVEN UNCHANGED (`test_the_in_queue_branch_still_reads_run_state_not_disk`),
+    including that its refusal comes from the in-queue branch and not from disk. AND `SUCCESS_STATES`
+    NEEDED NO CHANGE, confirmed by inspection and asserted rather than argued
+    (`test_the_in_run_success_states_equal_the_sanctioned_on_disk_tuple`):
+
+    ```text
+    oc.SUCCESS_STATES            -> ['approved', 'executed', 'reviewed']   (equals the sanctioned tuple)
+    oc.EXECUTION_SUCCESS_STATES  -> ['executed', 'substantially-complete']
+    ```
+
+    THE PER-DRIVER CONSTANT EQUALITY, asserted so a future divergence fails a test
+    (`test_the_per_driver_state_constants_are_equal_even_though_not_shared`); measured values:
+
+    ```text
+    agy.SUCCESS_STATES is oc.SUCCESS_STATES -> False | == -> True
+    ```
+
+    A LIVE END-TO-END DEMONSTRATION ON BOTH HOSTS, through the SAME functions the dispatch loop and the
+    drain path call, with the plan discovered and the action derived by the drivers' own
+    `discover_plans`/`build_dynamic_manifest`/`action_for` (`.aw/state/probes-03ie04/V06-live.txt`).
+    PRE-FIX, which reproduces the 2026-09-07 refusal verbatim:
+
+    ```text
+    --- prerequisite prq001 is `pending/` + `- Status: reviewed` (EXTERNAL to the queue) ---
+        [oc ] action=review  deps=['executed:prq001']
+        [oc ] preflight: PASSED
+        [oc ] dependency-blocked: ['executed:prq001']
+        [oc ]   executed:prq001 -> executed:prq001: external target prq001 is in 'pending', needs one of ['executed', 'reviewed', 'approved'] (it is not in this run, so it cannot become satisfied here)
+        [agy] dependency-blocked: ['executed:prq001']
+        [agy]   executed:prq001 -> executed:prq001: no plan resolves to this id6 in the repo
+    ```
+
+    POST-FIX, both hosts, for a prerequisite that is `reviewed` AND for one that is `approved`:
+
+    ```text
+    --- prerequisite prq001 is `pending/` + `- Status: reviewed` (EXTERNAL to the queue) ---
+        [oc ] action=review  preflight: PASSED   DISPATCHED: the review turn would run
+        [agy] action=review  preflight: PASSED   DISPATCHED: the review turn would run
+    --- prerequisite prq001 is `pending/` + `- Status: approved` (EXTERNAL to the queue) ---
+        [oc ] action=review  preflight: PASSED   DISPATCHED: the review turn would run
+        [agy] action=review  preflight: PASSED   DISPATCHED: the review turn would run
+    ```
+
+    AND THE CONTROL still refuses on both hosts, so the demonstration is discriminating rather than
+    vacuous:
+
+    ```text
+    --- prerequisite prq001 is `pending/` + `- Status: to-review` (EXTERNAL to the queue) ---
+        [oc ] dependency-blocked: executed:prq001: external target prq001 is 'to-review' (directory 'pending'), needs one of ['executed', 'reviewed', 'approved'] ...
+        [agy] dependency-blocked: executed:prq001: external target prq001 is 'to-review' (directory 'pending'), needs one of ['executed', 'reviewed', 'approved'] ...
+    ```
+
+    A synthetic repository was used, which the plan names as acceptable and preferred. BOTH hosts were
+    demonstrated; neither had to be inferred from the other.
+
+    THE BARE-SUITE DELTA, against a baseline I measured MYSELF (`.aw/state/probes-03ie04/V06-delta.txt`).
+    A. PRISTINE BEFORE, in a clean `git archive HEAD` checkout, `AW_EXECUTION_ROLE` unset:
+
+    ```text
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    1 failed, 5656 passed, 3 skipped, 2 xfailed in 45.99s
+    ```
+
+    B. AFTER, all edits applied, same conditions:
+
+    ```text
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    1 failed, 5678 passed, 3 skipped, 2 xfailed in 49.54s
+    ```
+
+    AFTER-minus-BEFORE failure set is EMPTY (`comm -13` over the two sorted FAILED lists produced no
+    output). Passing count 5656 -> 5678, +22, all of them the new pins. The single shared failure is
+    pre-existing, out of scope, and repository-state-dependent (it asserts that no pending plan is
+    refused on its verdict and names the live plan `32ij2j`).
+
+    ENVIRONMENTAL NOTE, disclosed rather than hidden (decision 01-03ie04-D2). Run INSIDE this worker
+    lane WITHOUT unsetting the driver's `AW_EXECUTION_ROLE=worker`, the same pristine tree reports
+    `18 failed, 5639 passed`: 17 extra failures are the lifecycle role guard refusing `aw ipd
+    begin/finalize` inside test subprocesses, not defects in the base or in this change. Both baselines
+    are recorded so the number cannot be mistaken for either.
+
+    EXIT CODES WERE MEASURED UNPIPED, as the plan requires: `python3 -m pytest > file 2>&1; echo $?`
+    -> `EXIT=1` for the after-run (the one pre-existing failure), and the pinned-hook lint/format
+    checks reported `PINNED_FORMAT=0` / `PINNED_LINT=0` with `ruff 0.4.4`, the version
+    `.pre-commit-config.yaml` pins (the locally installed `ruff 0.16.3` reformats pre-existing blocks in
+    files I did not otherwise touch, so the pinned version is the one that governs).
+
+    `aw sanitize --agent` CLEAN:
+
+    ```text
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    ```
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the MEASURED refusal first as a pre-fix contrast (the real one, 2026-09-07: `aw oc run orchprobe` refused with `check.ipd-dependency-findings-blocked` naming `executed:8tgg6g` and `executed:r2i1b1` while every queued item was a review turn), then paste the same selection succeeding after the change. Paste a second case proving an EXECUTE-action queue with an unresolved blocker finding is STILL refused, so the fix narrowed nothing it should not. Show both hosts. Include a mutation check: revert the phase derivation, show the review-queue case refuses again, restore it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS ON THE GOAL, WITH THE MECHANISM CHANGED AND DISCLOSED. A review-only selection is admitted on both hosts while an execute-action queue with an unresolved blocker is still refused, with a mutation check proving the behavior load-bearing. The `phase` argument was NOT added; measurement shows it cannot gate this. See decision 01-03ie04-D1.
+    READ E-07's EXECUTION NOTE AND DECISION 01-03ie04-D1 FIRST: the GOAL was met and is pinned, but the
+    `phase` MECHANISM this item names was NOT implemented, because measurement shows it cannot produce
+    the goal. The evidence below is therefore organized as: the negative finding about `phase`, the
+    fix that actually carries the behavior, and the pins V-07 asks for.
+
+    THE PRE-FIX CONTRAST, and an honest correction to F-9. F-9's measured refusal (`aw oc run
+    orchprobe` over four review turns, refused by `check.ipd-dependency-findings-blocked` naming
+    `executed:8tgg6g` and `executed:r2i1b1`) was ALREADY FIXED at this plan's base by commit
+    `5699c6ad`, "fix(deps): exempt a review turn from the dependency findings gate, per spec 2.9"
+    (2026-09-07 22:37, an ancestor of HEAD `fb447ecc`; `git merge-base --is-ancestor` confirms). Its
+    commit message cites the SAME refusal. So I could not re-measure that exact refusal as a live
+    pre-fix contrast, and I will not paste a refusal I did not observe. Instead I reproduced the DEFECT
+    CLASS in a synthetic repository with the findings gate enabled and an unresolved high finding
+    against the prerequisite (`.aw/state/probes-03ie04/E07.txt`):
+
+    ```text
+    === the gate is ENABLED and the target CARRIES an unresolved blocker ===
+    --- REVIEW-action dependent (`- Status: to-review`) ---
+    [oc ] review dependent vs pending/reviewed+blocker   phase=None             -> OK (no findings)
+    [oc ] review dependent vs pending/reviewed+blocker   phase=pre-execution    -> OK (no findings)
+    [oc ] review dependent vs pending/reviewed+blocker   phase=review-readiness -> OK (no findings)
+    [agy] review dependent vs pending/reviewed+blocker   phase=None             -> OK (no findings)
+    [agy] review dependent vs pending/reviewed+blocker   phase=pre-execution    -> OK (no findings)
+    [agy] review dependent vs pending/reviewed+blocker   phase=review-readiness -> OK (no findings)
+
+    --- EXECUTE-action dependent (`- Status: approved`), SAME target ---
+    [oc ] execute dependent vs executed/executed+blocker phase=None             -> REFUSED: DriverError: dependency preflight failed: run refused before any session started ... at phase 'pre-execution':
+    [oc ] execute dependent vs executed/executed+blocker phase=review-readiness -> REFUSED: DriverError: ... at phase 'review-readiness':
+    [agy] execute dependent vs executed/executed+blocker phase=None             -> REFUSED: DriverError: ... at phase 'pre-execution':
+    [agy] execute dependent vs executed/executed+blocker phase=review-readiness -> REFUSED: DriverError: ... at phase 'review-readiness':
+    ```
+
+    READ THE `phase` COLUMN: it changes NOTHING, in either direction, which is the negative finding.
+    The reason is structural and was measured by AST rather than reasoned: inside
+    `check_engine.evaluate_ipd_dependencies` the only references to `phase`/`blocking` are
+    `blocking = phase in _DEP_BLOCKING_PHASES` and ONE `if blocking:` gating the `unresolved` SCAFFOLD
+    SENTINEL finding. `_DEP_BLOCKING_PHASES` is `['pre-execution', 'pre-transition', 'review-finalize',
+    'review-readiness']`, so every phase a review turn could claim is already in it; the only values
+    that would change behavior are `check`/`author`, which relax the sentinel for the WHOLE selection,
+    a widening this item never asked for and which V-07's own "narrowed nothing it should not" clause
+    forbids.
+
+    WHAT ACTUALLY CARRIES THE FIX is the CONSUMING ACTION, threaded to the shared evaluator:
+    `evaluate_ipd_dependencies(..., actions=...)`, the findings rule guarded by
+    `if e.kind == "executed" and (actions or {}).get(ps) != "review"`, and
+    `preflight_dependency_findings` passing `actions=_consuming_actions_for(plans)` derived from the
+    same `runner_shared.action_for` the queue builder uses.
+
+    THE SAME SELECTION SUCCEEDING AFTER THE CHANGE, at the runner level, on BOTH hosts, pinned as
+    `ReviewQueuePreflightTests::test_a_review_queue_is_admitted_despite_the_targets_open_findings`
+    (asserts `enforce_dependency_preflight(repo, [dependent]) == []`).
+
+    THE SECOND CASE V-07 DEMANDS - an EXECUTE-action queue with an unresolved blocker finding is STILL
+    REFUSED - pinned as `::test_an_execute_queue_is_still_refused_by_the_findings_gate`, asserting the
+    raised `DriverError` names `check.ipd-dependency-findings-blocked`. BOTH HOSTS in both tests, via
+    the `_DRIVERS` sweep.
+
+    THE MUTATION CHECK, which is what V-07 wanted from "revert the phase derivation, show it refuses
+    again, restore it", adapted to the mechanism that actually carries the behavior
+    (`::test_removing_the_action_input_re_blocks_the_review_queue`): the review-only selection passes;
+    `_consuming_actions_for` is then neutralized to `lambda plans: {}`; the SAME selection is REFUSED
+    with `check.ipd-dependency-findings-blocked`; the function is restored and it passes again. This
+    proves the admitting behavior is load-bearing rather than the fixture being toothless.
+
+    THE NEGATIVE FINDING IS ITSELF PINNED, so nobody re-adds the argument expecting it to gate:
+    `::test_the_phase_argument_cannot_discriminate_a_review_turn` asserts that an execute-action queue
+    is refused at EVERY member of `_DEP_BLOCKING_PHASES`.
+
+    ```text
+    $ python3 -m pytest tests/test_runner_item_dependencies.py -o addopts="" -q
+    72 passed in 2.35s
+    ```
+
+    AND THESE PINS BITE: against pre-fix production code, 5 of the new
+    `tests/test_runner_item_dependencies.py` tests fail (see V-06's contrast), and 7 of the 8 new
+    `AgyDependencyPathsAreSharedTests` fail.
+
+    OPEN FOR HUMAN REVIEW, stated plainly rather than buried: I did not write the argument E-07's prose
+    names. If the intent was to make `phase` a genuine review/execute discriminator INSIDE
+    `evaluate_ipd_dependencies` (i.e. more rules made phase-conditional), that is a spec-level change to
+    what a phase means and belongs in its own plan; decision 01-03ie04-D1 records the reasoning and
+    asks for that ruling.
+  - Result: pass
 
 ## Approval and execution gate
 
