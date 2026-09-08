@@ -6,16 +6,16 @@
 - Scope: Coordinate a five-child Set delivering strict user-local launch profiles, an OpenCode profile/model wizard, direct model/variant and run-as support in the durable OpenCode runner, host-neutral fixed dispatch plus default routing, optional setup integration, documentation, and adversarial/end-to-end validation. The orchestrator changes no product code; it validates dependency order and the whole Set.
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:0soncw
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: runprofile
 - Order: 0
 - Highest E allocated: 02
 - Author: codex gpt-5.6
 - Id: 3m0urk
-- Approval: 2026-09-05, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-08 executed (aw agy run model=gemini-3.7-flash-high): RETIRED as the orchestrator rollup step of a runner Set completion, not executed by an agent: every child of Set runprofile reached executed, so the runner (run run-20260908T212520Z-3675719) retired this Order-0 plan as bookkeeping. Its own E-*/V-* items were NOT performed; the runner superseded them by enforcing the ordering, the isolation and the per-child merge gate. Justifying children: f2mrsw, p0l1to, 3cm15q, ygzq71, p7xhhm, kgpptv.
 - 2026-09-05 approved (aw set): status set to approved
 - 2026-09-04 reviewed (aw set): record the maintainer-decided cross-Set order (OQ-01 / PR-001): 0soncw must reach executed before this Set
 - 2026-09-01 reviewed (aw set): plan-review round 1 (whole Set): REVIEWED - OPEN QUESTIONS. Blocking OQ on the aw run noun retirement by approved 0soncw; f2mrsw additionally APPROVE WITH REVISIONS APPLIED for the two maintainer-directed validate findings. See .aw/records/reviews/.

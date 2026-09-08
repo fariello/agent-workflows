@@ -1174,6 +1174,123 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIsNotNone(res)
         self.assertIn(unparseable, res)
 
+    def test_render_agy_event_updates_tracker_usage_and_cost(self):
+        from agent_workflows.render_stream import StreamTracker
+
+        pal = agy_runipd.Palette(False)
+        tracker = StreamTracker()
+        event_line = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "step_index": 1,
+                    "state": "DONE",
+                    "step_type": "agent_response",
+                    "usage": {
+                        "input_tokens": 1200,
+                        "output_tokens": 340,
+                        "cache_read_tokens": 4500,
+                    },
+                    "cost": 0.0125,
+                },
+            }
+        )
+        res = agy_runipd.render_agy_event(event_line, pal, tracker=tracker)
+        self.assertIsNone(res)
+        self.assertEqual(tracker.input_tokens, 1200)
+        self.assertEqual(tracker.output_tokens, 340)
+        self.assertEqual(tracker.cache_tokens, 4500)
+        self.assertAlmostEqual(tracker.cost, 0.0125, places=4)
+
+    def test_render_agy_event_notes_modified_files(self):
+        from agent_workflows.render_stream import StreamTracker
+
+        pal = agy_runipd.Palette(False)
+        tracker = StreamTracker()
+        repo_root = "/mock/repo"
+
+        # 1. write_to_file DONE notes file
+        evt_write = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "write_to_file",
+                        "parameters": {"TargetFile": "/mock/repo/src/new_mod.py"},
+                    },
+                },
+            }
+        )
+        agy_runipd.render_agy_event(
+            evt_write, pal, repo_root=repo_root, tracker=tracker
+        )
+        self.assertIn("src/new_mod.py", tracker.modified_files)
+
+        # 2. replace_file_content DONE notes file
+        evt_edit = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "replace_file_content",
+                        "parameters": {"TargetFile": "/mock/repo/src/existing.py"},
+                    },
+                },
+            }
+        )
+        agy_runipd.render_agy_event(evt_edit, pal, repo_root=repo_root, tracker=tracker)
+        self.assertIn("src/existing.py", tracker.modified_files)
+
+        # 3. ACTIVE state does not note file prematurely
+        evt_active = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "ACTIVE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "write_to_file",
+                        "parameters": {"TargetFile": "/mock/repo/src/in_progress.py"},
+                    },
+                },
+            }
+        )
+        agy_runipd.render_agy_event(
+            evt_active, pal, repo_root=repo_root, tracker=tracker
+        )
+        self.assertNotIn("src/in_progress.py", tracker.modified_files)
+
+    def test_tracker_wiring_in_agy_runipd_pipeline(self):
+        import inspect
+
+        # Verify run_queue instantiates StreamTracker and passes tracker
+        rq_source = inspect.getsource(agy_runipd.run_queue)
+        self.assertIn("tracker = StreamTracker()", rq_source)
+        self.assertIn(
+            "execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)",
+            rq_source,
+        )
+        self.assertIn("render_run_summary_table(", rq_source)
+        self.assertIn("tracker=tracker", rq_source)
+
+        # Verify execute_item accepts and passes tracker
+        ei_source = inspect.getsource(agy_runipd.execute_item)
+        self.assertIn("tracker: StreamTracker | None = None", ei_source)
+        self.assertIn("run_agy_turn(", ei_source)
+        self.assertIn("tracker=tracker", ei_source)
+
+        # Verify run_agy_turn initializes Statusline with tracker
+        rat_source = inspect.getsource(agy_runipd.run_agy_turn)
+        self.assertIn("tracker: StreamTracker | None = None", rat_source)
+        self.assertIn("tracker.begin_turn()", rat_source)
+        self.assertIn("statusline = Statusline(", rat_source)
+        self.assertIn("tracker=tracker", rat_source)
+        self.assertIn("render_agy_event(", rat_source)
+
 
 class AgyDependencyPathsAreSharedTests(unittest.TestCase):
     """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.

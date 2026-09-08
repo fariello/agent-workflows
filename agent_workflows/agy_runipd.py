@@ -527,8 +527,9 @@ def render_agy_event(
     `TargetFile`/`Pattern`. There is NO `filediff` equivalent and no additions/deletions anywhere, so
     an agy edit line CANNOT carry `(+A, -D)` and does not pretend to; it carries the repo-relative
     path instead of the bare basename it used to show. There is likewise no `todowrite` event, so no
-    todo transition is computed and `tracker` is accepted only so a caller can thread ONE object to
-    both renderers. `duration_seconds` IS agy-only and is preserved.
+    todo transition is computed. `tracker` accumulates tokens and cost from `step_update.usage`
+    events and notes file modifications from `write_to_file` and `replace_file_content`.
+    `duration_seconds` IS agy-only and is preserved.
 
     The new parameters are KEYWORD-ONLY WITH DEFAULTS because `tools/ipdrunner/runagy.py` re-exports
     every module attribute, so an existing two-argument `render_agy_event(line, pal)` call through
@@ -566,11 +567,52 @@ def render_agy_event(
         state = str(step.get("state", "")).upper()
         step_type = str(step.get("step_type", ""))
 
+        usage = step.get("usage") or event.get("usage")
+        if tracker is not None and isinstance(usage, dict) and state == "DONE":
+            inp = int(
+                usage.get("input_tokens")
+                or usage.get("prompt_tokens")
+                or usage.get("input")
+                or 0
+            )
+            out = int(
+                usage.get("output_tokens")
+                or usage.get("completion_tokens")
+                or usage.get("output")
+                or 0
+            )
+            cache_raw = (
+                usage.get("cache_read_tokens")
+                if "cache_read_tokens" in usage
+                else usage.get("cache") or 0
+            )
+            if isinstance(cache_raw, dict):
+                cache_val = int(cache_raw.get("read") or 0) + int(
+                    cache_raw.get("write") or 0
+                )
+            elif isinstance(cache_raw, (int, float)):
+                cache_val = int(cache_raw)
+            else:
+                cache_val = 0
+            cost = float(
+                step.get("cost") or event.get("cost") or usage.get("cost") or 0.0
+            )
+            tracker.update(inp=inp, out=out, cache=cache_val, cost=cost)
+
         if step_type == "tool":
             tool_info = step.get("tool_info") or {}
             tool_name = tool_info.get("name") or step.get("tool_name") or "tool"
             params = tool_info.get("parameters") or {}
             kind = agy_prefix_kind(str(tool_name), params)
+            if tracker is not None and state == "DONE":
+                if tool_name in (
+                    "write_to_file",
+                    "replace_file_content",
+                    "multi_replace_file_content",
+                ):
+                    p = params.get("TargetFile") or params.get("AbsolutePath")
+                    if p:
+                        tracker.note_modified_file(_relativize_path(str(p), repo_root))
             # streamfmt (mm6wuz) E-06: the same tier rule the oc renderer applies. A read or a
             # search does not change the repository, so it is suppressed at the default tier and
             # surfaced at `-v`.
@@ -2669,6 +2711,7 @@ def run_agy_turn(
     log_suffix: str = "",
     label_suffix: str = "",
     work_dir: str | None = None,
+    tracker: StreamTracker | None = None,
 ) -> tuple[int, str | None, Path, list[str]]:
     options = state.get("options", {})
     agy_bin = options.get("agy_executable") or options.get("agy") or resolve_agy(None)
@@ -2776,6 +2819,9 @@ def run_agy_turn(
     if run_start_mono is None:
         run_start_mono = time.monotonic()
 
+    if tracker is not None:
+        tracker.begin_turn()
+
     with log_path.open("w", encoding="utf-8") as log:
         # Track the child so a clean shutdown at ANY layer can reap it even when this frame is
         # gone (spec `c4gd2h` R1: no descendant left alive or reparented to init).
@@ -2787,7 +2833,7 @@ def run_agy_turn(
         statusline = Statusline(
             pal=pal,
             stream=sys.stdout,
-            tracker=None,
+            tracker=tracker,
             interval=1.0 if is_tty and output_mode == "clean" else 0.0,
             current_idx=current_idx,
             total_items=total_items or 1,
@@ -2970,15 +3016,32 @@ def run_agy_turn(
                     if output_mode == "raw":
                         sys.stdout.write(raw_line)
                         sys.stdout.flush()
+                        if tracker is not None:
+                            render_agy_event(
+                                raw_line,
+                                pal,
+                                verbosity=verbosity,
+                                repo_root=agent_dir,
+                                tracker=tracker,
+                            )
                     elif output_mode == "clean":
                         rendered = render_agy_event(
                             raw_line,
                             pal,
                             verbosity=verbosity,
                             repo_root=agent_dir,
+                            tracker=tracker,
                         )
                         if rendered is not None:
                             statusline.write_event(rendered)
+                    elif tracker is not None:
+                        render_agy_event(
+                            raw_line,
+                            pal,
+                            verbosity=verbosity,
+                            repo_root=agent_dir,
+                            tracker=tracker,
+                        )
                 # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
                 # child (that reap is what unblocks the read at all), so re-check here rather than
                 # falling through to a normal `process.wait()` and reporting an ordinary exit code.
@@ -3090,7 +3153,11 @@ def reconcile_disposition(
 
 
 def execute_item(
-    run_dir: Path, state: dict[str, Any], item: dict[str, Any], recovery: bool
+    run_dir: Path,
+    state: dict[str, Any],
+    item: dict[str, Any],
+    recovery: bool,
+    tracker: StreamTracker | None = None,
 ) -> None:
     repo = Path(state["repo"])
     pal = Palette(should_color(sys.stdout))
@@ -3372,6 +3439,7 @@ def execute_item(
             log_suffix="",
             label_suffix="",
             work_dir=work_dir,
+            tracker=tracker,
         )
     except runner_stop.StopNowForce as stop:
         # runstop m0z0ti (E-02/E-03, spec A2/R18/R21/R22): the exact counterpart of the `oc_runipd`
@@ -3592,6 +3660,7 @@ def execute_item(
                 log_suffix="verify",
                 label_suffix="verification",
                 work_dir=work_dir,
+                tracker=tracker,
             )
             if _v_log:
                 attempt["verify_log"] = str(_v_log)
@@ -4215,6 +4284,7 @@ def run_queue(
         )
         return 1
 
+    tracker = StreamTracker()
     invocation_start_mono = time.monotonic()
     state["_invocation_start_mono"] = invocation_start_mono
 
@@ -4336,7 +4406,7 @@ def run_queue(
         # it is observed at the next checkpoint with this set already captured.
         current_setid = runnable.get("setid")
         try:
-            execute_item(run_dir, state, runnable, recovery=recovery)
+            execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)
         except ToolIdentityError:
             # lanetruth Order 01 (af7i6p) E-04 / OQ-02: RUN-FATAL. Must precede the item-local
             # `except DriverError` (ToolIdentityError subclasses it), or the abort would be
@@ -4414,7 +4484,12 @@ def run_queue(
         exit_reason = "STOPPED (at checkpoint)"
     print(
         render_run_summary_table(
-            state, run_dir, pal=pal, exit_reason=exit_reason, driver_label="antigravity"
+            state,
+            run_dir,
+            tracker=tracker,
+            pal=pal,
+            exit_reason=exit_reason,
+            driver_label="antigravity",
         )
     )
     hint = render_continuation_hint(state, run_dir)

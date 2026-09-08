@@ -6,10 +6,10 @@ order: 00
 topic: [artifact-storage, token-cost, history, schema]
 model:
 kind: research-prompt
-status: todo
-outcome: none-yet
+status: reference
+outcome: adopted
 summary: Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
-consumed-by: []
+consumed-by: [ms06pi, tk1gqo]
 priority: high
 ---
 
