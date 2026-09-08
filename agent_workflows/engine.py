@@ -15,11 +15,11 @@ Layout it installs into a target repo:
     .agents/workflows/                  workflow bodies + index.md (the manifest)
     .opencode/commands/<command>.md     OpenCode slash-command shims
     .claude/commands/<command>.md       Claude Code slash-command shims
-    .agents/skills/<name>/SKILL.md      generated Agent Skill packages (+ reference/, scripts/)
+    .agents/skills/<name>/SKILL.md      generated Agent Skill packages (+ reference/)
     AGENTS.md                           one-line pointer to .agents/workflows/index.md
 
-The generated skill packages (a SKILL.md router plus reference/ and scripts/ resources per
-workflow classified as a skill entry point) are emitted into the shared host-consumption
+The generated skill packages (a SKILL.md router plus a reference/ pointer per workflow
+classified as a skill entry point) are emitted into the shared host-consumption
 skills directory (`resolve_skills_dir()`, `.agents/skills` for both the `aw` and legacy
 layouts, like the command shim dirs). They are written idempotently, pruned when orphaned,
 and removed by the manifest-driven uninstall, exactly like the other generated members.
@@ -2275,7 +2275,10 @@ def collect_target_framework_files(
 
     # Generated skill packages (SKILL.md + resources) under the resolved skills dir, so an
     # orphaned skill file (from a removed workflow) is discoverable by prune. Recurse: a
-    # package is `<skills_dir>/<name>/SKILL.md` plus `<name>/reference/...`, `scripts/...`.
+    # package is `<skills_dir>/<name>/SKILL.md` plus `<name>/reference/...`. The scan must
+    # stay SHAPE-AGNOSTIC and keep recursing the whole package dir: an upgraded repo still
+    # carries no-longer-generated members (e.g. a legacy `<name>/scripts/verify_digest.py`,
+    # dropped by IPD 8fhjjc) and prune is what removes them.
     skills_dir = repo_root / resolve_skills_dir(target_layout)
     if skills_dir.is_dir():
         for path in skills_dir.rglob("*"):

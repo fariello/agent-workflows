@@ -135,15 +135,43 @@ class SkillPackageTests(unittest.TestCase):
         self.assertIn(self.pkg.semantic_digest, self.pkg.main_file_content)
         self.assertIn(self.pkg.explicit_invocation, self.pkg.main_file_content)
 
-    def test_deterministic_script_verifier_has_direct_test(self):
-        # The generated deterministic script must be a real, testable module: exec it.
-        script = next(r for r in self.pkg.resources if r.kind == "script")
-        ns: dict = {}
-        exec(compile(script.content, script.relative_path, "exec"), ns)
-        self.assertTrue(ns["verify"](self.pkg.semantic_digest))
-        self.assertFalse(ns["verify"]("not-the-digest"))
-        self.assertEqual(ns["main"](["prog", self.pkg.semantic_digest]), 0)
-        self.assertEqual(ns["main"](["prog", "wrong"]), 1)
+    def test_no_per_package_script_resource_is_emitted(self):
+        # IPD 8fhjjc: the generator emits NO per-package verification script. This replaces
+        # test_deterministic_script_verifier_has_direct_test, whose entire subject was that
+        # deleted artifact (it exec'd the rendered content and exercised verify()/main()).
+        # Enforced at the GENERATOR level, not only at the install level, so a
+        # re-introduction fails here and not just in the slow install suite.
+        self.assertEqual(
+            [r.relative_path for r in self.pkg.resources if r.kind == "script"],
+            [],
+            "no kind=='script' resource may be produced by default",
+        )
+        self.assertEqual(
+            sorted(r.relative_path for r in self.pkg.resources),
+            ["reference/canonical-body.md"],
+            "the default package is exactly the router + the canonical-body pointer",
+        )
+        self.assertNotIn("verify_digest", self.pkg.main_file_content)
+
+    def test_script_kind_remains_reachable_via_extra_resources(self):
+        # The `script` kind is ACCEPTED-BUT-UNPRODUCED, not removed: it stays injectable
+        # through the caller-facing `extra_resources` seam. That seam is what keeps re-adding
+        # a per-package script a one-entry change, so it is pinned rather than assumed.
+        injected = ha.build_skill_package(
+            self.workflow,
+            extra_resources=[
+                ha.SkillResource(
+                    relative_path="scripts/custom.py",
+                    kind="script",
+                    content="#!/usr/bin/env python3\n",
+                )
+            ],
+        )
+        self.assertIn(
+            "scripts/custom.py",
+            [r.relative_path for r in injected.resources],
+        )
+        self.assertEqual(ha.validate_skill_package(injected), [])
 
 
 # --------------------------------------------------------------------------------------------------

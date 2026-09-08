@@ -32,26 +32,26 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: prove nothing is lost
 
-- [ ] E-01 ESTABLISH THE REAL COVERAGE BEFORE DELETING ANYTHING, and record it as findings rather than as prose confidence. Three questions, each answered with a command and its output.
+- [x] E-01 ESTABLISH THE REAL COVERAGE BEFORE DELETING ANYTHING, and record it as findings rather than as prose confidence. Three questions, each answered with a command and its output.
   (a) WHO CALLS `verify_digest.py`? Search shipped code, tests, CI workflows (`.github/workflows/`), `Makefile`, pre-commit config, the installed bundle, and docs. Distinguish a call that EXECUTES the script from an assertion that it EXISTS. NOTE THE PLAN'S ORIGINAL PREMISE WAS WRONG AND HAS BEEN CORRECTED (see F-3): there IS one executing caller, `tests/test_host_adapters_skills.py:140` `test_deterministic_script_verifier_has_direct_test`, which `exec`s the rendered script and calls `verify()`/`main()`. Re-confirm at YOUR HEAD and state whether any caller EXISTS OUTSIDE A TEST OF THE ARTIFACT ITSELF, because that (not "zero callers") is the honest justification.
   (b) WHAT DOES THE INSTALL MANIFEST ACTUALLY GUARANTEE for these files? Show a skill file's recorded `sha256` AND name the code paths that CONSUME it, with a live demonstration rather than a code reading. F-9 records what this review measured: `plan_uninstall` (`engine.py:3999`) classifies a hand-edited skill file as `drifted` and preserves it, and `write_file`/`_record_written` (`engine.py:1905`) make re-install idempotent. Also state the LIMIT honestly: the user-modification WARNING path (`engine.py:2021-2024`) and the stale-prune consent path (`:2269-2272`) are gated on `COMMAND_SHIM_DIRS`, so a skill file is silently overwritten on upgrade, not warned about. Do NOT write "the manifest already covers it" without this distinction.
   (c) WHAT IS `aw workflow check-generated`'s REAL SCOPE? Paste evidence for whether it touches skill packages. The plan asserts it does NOT (`workflow_cli.py:302`, no `skill` reference in the module); verify and record, since an earlier claim of equivalence was wrong and that error is exactly what this item exists to prevent repeating.
   - Depends on: none
   - Expected outcome: three answered questions with pasted evidence; an explicit statement of what verification EXISTS versus what these scripts PURPORT to provide; the corrected caller count (one executing caller, itself a test of the artifact) stated rather than the original "zero"; no deletion yet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 DECIDE AND RECORD THE EXTERNAL-CALLER QUESTION, which is the only way this deletion goes wrong. If a host runtime executes scripts inside a skill package, these files may be an interface rather than dead weight.
+- [x] E-02 DECIDE AND RECORD THE EXTERNAL-CALLER QUESTION, which is the only way this deletion goes wrong. If a host runtime executes scripts inside a skill package, these files may be an interface rather than dead weight.
   WHAT THE REPOSITORY CAN ESTABLISH: `V1_HOSTS` is `("opencode", "codex")` (`host_adapters.py:64`), and neither is documented here as executing skill scripts. That is evidence of absence within this repo, NOT evidence about the hosts themselves.
   WHAT IT CANNOT: whether any host does so in reality. Research `sx0cqv` Question 4 asks precisely this ("Do any hosts invoke a script inside a skill package to validate it?").
   THE DECISION IS ALREADY MADE; DO NOT RE-OPEN IT. The maintainer ruled on 2026-09-06, after being shown the measured position, that this plan PROCEEDS on the in-repo evidence and does NOT wait for `sx0cqv` (OQ-01, now `Status: resolved`). This E-item is therefore a RECORDING item, not a decision item: restate the ruling, cite the four findings it rests on (F-2 the script computes nothing, F-3 its only caller is a test of the artifact itself, F-9 the manifest carries a stronger content hash with real consumers, F-8 reversal is one generated resource entry through the standing `extra_resources` seam), and state the reversal cost in one sentence.
   DO NOT ADD A TYPED DEPENDENCY on the research, and do not re-litigate option (ii). The ruling's stated ground: a generated file with no caller, no computation, and no read of its own package is not an interface, and shipping a file that IMPLIES a tamper-detection guarantee it does not provide is worse than shipping nothing. If `sx0cqv` later reports that some host does invoke package scripts, the correct response is a NEW plan building a real verifier, NOT a revert of this one; say so in the record so a later reader does not mistake this for an oversight.
   - Depends on: E-01
   - Expected outcome: the maintainer's ruling is recorded with its date, its four supporting findings, and the reversal cost; no typed dependency on `sx0cqv` is added; the record states what a contrary research result would imply (a new plan, not a revert).
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: remove it, then prove the removal on both install paths
 
-- [ ] E-03 Stop emitting the script from the generator and drop it from the package contract.
+- [x] E-03 Stop emitting the script from the generator and drop it from the package contract.
   THE EXACT SEAM: `build_skill_package` appends a `SkillResource(relative_path="scripts/verify_digest.py", kind="script", content=_render_digest_verify_script(...))` (`host_adapters.py:386-390`). Remove that resource and the now-unused renderer, and check whether `SkillResource`'s `kind="script"` vocabulary still has any producer; if it does not, say so rather than leaving a dead branch.
   KEEP THE FRONTMATTER `semantic-digest`. It is a portable, host-readable signal and `validate_skill_package` requires it (`:478`); removing it is a different and larger decision. This plan deletes the SCRIPT, not the digest.
   KEEP `compute_workflow_semantic_digest` (`:253`), which delegates to the canonical `workflow_profile.semantic_digest` scheme. It feeds the frontmatter and must not be touched.
@@ -60,9 +60,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO DECIDE `extra_resources` (`:354`, `:392-393`), a public keyword argument of `build_skill_package` with ZERO callers in the repo. After this change `kind="script"` has no producer at all. Do NOT delete `extra_resources` (out of scope, and it is the documented extension seam that makes F-8's reversal cheap): state explicitly that the `kind` vocabulary retains `script` as an ACCEPTED-BUT-UNPRODUCED value reachable only through that seam, so a reader does not mistake it for dead code to prune later.
   - Depends on: E-02
   - Expected outcome: the generator emits two files per package instead of three; the router's own `## Package resources` list no longer names the script (proved by `validate_skill_package` returning `[]`, not merely by inspection); the frontmatter digest and the canonical digest function are untouched; `_render_digest_verify_script` is deleted; the `kind="script"` vocabulary is explicitly documented as producer-free-but-reachable via `extra_resources` rather than silently left dangling.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Update the tests that pin the three-file shape, INCLUDING the one that would ERROR rather than fail.
+- [x] E-04 Update the tests that pin the three-file shape, INCLUDING the one that would ERROR rather than fail.
   THREE CALL SITES, NOT TWO. The plan originally named only the two greppable `verify_digest` paths and MISSED the one that breaks hardest:
   (i) `tests/test_installer_skill_emission.py:78` names `.agents/skills/release-review/scripts/verify_digest.py` explicitly (asserts present -> flip to ABSENT).
   (ii) `tests/test_installer_skill_emission.py:133` asserts it for every skill (asserts present -> flip to ABSENT).
@@ -71,24 +71,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PROVE THE MANIFEST STAYS CONSISTENT on a FRESH install: `test_fresh_install_emits_skill_packages_and_records_manifest` asserts manifest skill entries equal the on-disk skill fileset. MEASURED IN REVIEW: fresh install with the resource removed gives 90 == 90, invariant holds. Note these tests are `pytest.mark.slow` (`tests/test_installer_skill_emission.py:32`), so a BARE `python3 -m pytest` DESELECTS all 10 of them; they must be run explicitly (`make test-all`, or the file with `-m ''`) or this E-item's work is not exercised at all.
   - Depends on: E-03
   - Expected outcome: (i) and (ii) assert ABSENT; (iii) deleted and replaced by a no-script-resource assertion at the generator level; the count-literal grep re-run and its empty result recorded; a fresh install's manifest skill entries equal the on-disk set; the slow install suite actually run, not silently deselected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MEASURE AND RECORD THE UPGRADE PATH, which the plan originally ignored by testing only a FRESH install. A real user does not get a fresh install; they get an upgrade over the 135-file tree, and that path behaves differently in three ways this review measured and none of which the plan mentioned.
+- [x] E-05 MEASURE AND RECORD THE UPGRADE PATH, which the plan originally ignored by testing only a FRESH install. A real user does not get a fresh install; they get an upgrade over the 135-file tree, and that path behaves differently in three ways this review measured and none of which the plan mentioned.
   (a) THE MANIFEST KEEPS 45 STALE ROWS. `prune_stale` (`engine.py:2243`) deletes the 45 files from disk, but nothing retires their manifest rows: `manifest.py` has no delete/forget method, and `_record_written` only ADDS. MEASURED: after an upgrade, on-disk skill files = 90 while manifest skill entries = 135, of which 45 name `verify_digest.py`. `plan_uninstall` then classifies exactly those 45 as `missing` (`engine.py:4020`), and `uninstall_repo` prints `<path> already absent (manifest entry stale)` (`:4073`). So the phantom is HARMLESS and ALREADY HANDLED - but it is real, it contradicts the fresh-install invariant on an upgraded repo, and V-05 must state it rather than let a later reader discover the two numbers disagree.
   (b) IN A GIT REPO WITH THOSE FILES ALREADY STAGED-BUT-UNCOMMITTED, THE UPGRADE ABORTS. MEASURED: `prune_stale` calls `git rm --quiet` (`:2325`), git refuses with `error: the following file has changes staged in the index`, and `git_run` (`:1775-1780`) turns any nonzero git exit into `SystemExit` - so the install dies partway. This is EXACTLY the state a maintainer is in today after `aw install` staged 135 new skill files (the origin conversation's own situation, per `.aw/records/runs/run-20260905T050043Z-639569/state.json`). RECORD this as a precondition: commit or unstage the skill tree before the first upgrade past this change. Do NOT fix `git_run`'s error handling here (out of scope), but do NOT let it surprise the next person either.
   (c) A NON-GIT TARGET IS LEFT WITH 45 EMPTY `scripts/` DIRECTORIES. MEASURED: with git the `git rm` removes the parent dir as a side effect (0 left); without git, `destination.unlink()` (`:2326`) leaves the empty dir, because `prune_stale` has no dir-pruning step (only `run_deep_cleanup` does, `:3930-3945`). Cosmetic, not a correctness bug. State it; do not add dir-pruning to `prune_stale` in this plan.
   - Depends on: E-03
   - Expected outcome: all three upgrade behaviors measured on a real throwaway install-then-upgrade (not reasoned about), each recorded with its command and output, and each explicitly classified as accepted-and-documented rather than fixed-here.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Correct the one shipped document that states the three-file package contract, so the docs do not ship a false claim.
+- [x] E-06 Correct the one shipped document that states the three-file package contract, so the docs do not ship a false claim.
   THE EXACT LINE: `docs/skill-selection.md:16` reads "`scripts/verify_digest.py`: a deterministic script that recomputes the parity digest." That sentence is doubly wrong after this change and was ALREADY wrong before it: the script never recomputed anything, it compared `argv[1]` to a constant (F-2). Remove the bullet and leave the two-file contract stated accurately.
   WHY IT IS IN SCOPE despite the original Scope-Paths omitting it: this doc is required to EXIST by `tests/test_docs.py:37`, it is the only prose statement of the package contract, and leaving it would mean shipping documentation contradicted by the code in the same commit.
   ALSO CHECK, and state N/A with the paths if clean: `agent_workflows/engine.py:18,21,2230` mention `scripts/` generically as part of the package shape. MEASURED IN REVIEW: these are module docstring and comment prose, not a contract, and `:2230` describes what the PRUNE SCAN may encounter (which must still tolerate a legacy `scripts/` path on an upgraded repo). Decide deliberately whether to touch them; if you do, do not narrow the prune-scan comment in a way that suggests `scripts/` can never appear.
   DO NOT amend the spec `.aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md`: MEASURED, it never enumerates the three files (it discusses `SKILL.md` discovery tiers and is `deferred`), so the plan's original "if it enumerates the three files" instruction resolves to N/A.
   - Depends on: E-03
   - Expected outcome: `docs/skill-selection.md` states the real two-file contract with no `verify_digest.py` bullet; `tests/test_docs.py` still passes; the engine docstring/comment mentions explicitly decided (changed or left, with the reason); the spec confirmed N/A by measurement rather than by assumption.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -178,35 +178,340 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste all three answers with their commands and output. (a) The caller search, distinguishing EXECUTES from ASSERTS-EXISTS, over shipped code, tests, CI, `Makefile`, pre-commit, and docs; it MUST name `tests/test_host_adapters_skills.py:140` as the executing caller and state that its subject is the artifact itself. An answer that repeats "zero callers" is WRONG and fails this item. (b) A skill file's recorded `sha256` AND a live demonstration of a consumer: tamper with one installed `SKILL.md` and paste `plan_uninstall` reporting it as `drifted`. Then state the LIMIT: no upgrade-time warning for skill files, because the warn/consent paths are gated on `COMMAND_SHIM_DIRS`. (c) Evidence for `check-generated`'s scope. STATE EXPLICITLY that the earlier equivalence claim was wrong and what replaced it, so the record cannot be misread as confirming it.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All three answered at pre-change HEAD `8b4e15702830dd713bff56bc49fb23642cc06ee3`.
+    (a) CALLER SEARCH, split by category. `git grep -n verify_digest -- agent_workflows/` -> ONE hit,
+    `agent_workflows/host_adapters.py:387: relative_path="scripts/verify_digest.py"`, i.e. the GENERATOR,
+    not a caller. `-- tests/` -> `tests/test_installer_skill_emission.py:78` and `:133`, both
+    ASSERTS-EXISTS (`assertIn` on an installed path). `-- .github/ Makefile .pre-commit-config.yaml` ->
+    `(no match in CI/Makefile/pre-commit)`. `-- docs/ README.md ARCHITECTURE.md CHANGELOG.md` ->
+    `docs/skill-selection.md:16` only, prose. THE ONE EXECUTING CALLER IS
+    `tests/test_host_adapters_skills.py:140`, `test_deterministic_script_verifier_has_direct_test`,
+    which does `next(r for r in self.pkg.resources if r.kind == "script")`, `exec(compile(...))`s the
+    rendered content, and calls `ns["verify"](...)` / `ns["main"](...)`. ITS SUBJECT IS THE ARTIFACT
+    ITSELF: every assertion in it is about the rendered script's own behavior, so it is self-justifying
+    coverage and not a capability any other code depends on. THE CLAIM "ZERO CALLERS" IS FALSE AND IS
+    NOT MADE ANYWHERE IN THIS EXECUTION; note the greppable count is 4 hits but the EXECUTING count is
+    1, and that one is invisible to a `verify_digest` grep because it selects the resource by `kind`.
+    (b) MANIFEST GUARANTEE, measured on a throwaway install (`tmp/t_e01b`, 346 manifest file entries,
+    135 skill rows, 135 skill files on disk, 45 of them `verify_digest.py`). Recorded row for
+    `.agents/skills/advise-architect/scripts/verify_digest.py`:
+    `{"host": "", "kind": "file", "logical_id": "", "sha256": "77d7f2cc0946a50a72298608eefe5bd0a24758712e275ddf5081560e3e977ee7"}`;
+    for that package's `SKILL.md`:
+    `{"host": "", "kind": "file", "logical_id": "", "sha256": "561c48e95dcbace470a7a0036665f0538c0c282ed8b0a69fc82a648f972a4198"}`.
+    LIVE CONSUMER DEMONSTRATED, not read: before tampering, `plan_uninstall` gave
+    `drifted count = 0 | victim drifted? False` and `victim in remove? True`; after appending
+    `<!-- hand edit -->` to that `SKILL.md`, `drifted count = 1`,
+    `drifted list = ['.agents/skills/advise-architect/SKILL.md']`, `victim in remove? False` - so the
+    hash is genuinely consumed to PRESERVE a user-edited skill file instead of deleting it.
+    THE LIMIT, ALSO MEASURED, NOT INFERRED: with that file still hand-edited, a re-install printed NO
+    warning at all (stdout lines matching the path or `Warning` -> `(NONE - no warning was printed)`),
+    reported `.agents/skills/advise-architect/SKILL.md [overwrite]`, and the edit was GONE afterwards
+    (`victim still hand-edited after the upgrade? False`). Cause: the warn path (`engine.py:2068-2070`)
+    and the prune-consent path (`:2316-2318`) both gate on `COMMAND_SHIM_DIRS`, which is
+    `(".opencode/commands", ".claude/commands")` (`engine.py:208-211`) and excludes the skills dir. So
+    the honest end state is: drift is DETECTED at uninstall time and on re-install, and is NOT surfaced
+    at upgrade time; there is no verify-installed-tree verb. "The manifest already covers it" is NOT
+    claimed.
+    (c) `aw workflow check-generated` SCOPE: `grep -n skill agent_workflows/workflow_cli.py` ->
+    `(NO MATCH - zero 'skill' references in the module)`. `_run_check_generated` (`:302`) loops
+    `_loader.load_package(pkg)` then `_compiler.render_generated_files(_compiler.compile_workflow(...))`
+    and diffs against `_generated/`; `render_generated_files` (`workflow_compiler.py:281-296`) emits
+    exactly `_generated/prompt.md`, `manifest.json`, `evidence.json`, `catalog-row.json`,
+    `command.json`, and `packets/<step>.json` - no skill path. THE EARLIER EQUIVALENCE CLAIM WAS WRONG:
+    this command does NOT do what the digest scripts purported to do and does not cover skill packages
+    at all. What replaced it as the justification for removal is F-3 (the only caller is a test of the
+    artifact) plus F-9 as bounded above, NOT equivalence with this command.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the recorded ruling (maintainer, 2026-09-06: PROCEED on in-repo evidence, no dependency on `sx0cqv`), the four findings it rests on (F-2, F-3, F-9, F-8), and one sentence on the cost of being wrong. Confirm the in-repo limit is stated honestly: `V1_HOSTS` not executing skill scripts is evidence about this repository, NOT about the hosts, and the external question remains unanswered rather than answered negatively. Confirm NO typed dependency on `sx0cqv` was added, and that the record says a contrary research result calls for a new plan rather than a revert. Re-deciding this question, or recording it as still open, is a FAILED validation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RULING WAS RECORDED, NOT RE-DECIDED. Written verbatim into the run register
+    (`.aw/state/lane-submissions/run-20260908T030809Z-1812970/07-8fhjjc/attempt-1/decisions-and-questions.md`,
+    section "RECORDED RULING (E-02, not a decision of mine)") and restated in the commit message of
+    `ab13e2b6`: "MAINTAINER RULING, 2026-09-06, OQ-01: PROCEED on the in-repo evidence; do NOT wait for
+    research `sx0cqv` to answer whether any host executes a script inside a skill package. No typed
+    dependency on that research is added."
+    THE FOUR FINDINGS IT RESTS ON, each re-measured this turn rather than copied: F-2 the script
+    computes nothing (body is `return observed == EXPECTED_DIGEST` with
+    `observed = argv[1] if len(argv) > 1 else ''`; it never reads or hashes its own package, so a bare
+    invocation always exits 1); F-3 its only executing caller is
+    `tests/test_host_adapters_skills.py:140`, a test whose sole subject is the artifact (see V-01(a));
+    F-9 the manifest carries a stronger content hash WITH a demonstrated consumer (`plan_uninstall`
+    moved a tampered `SKILL.md` into `drifted`, measured live in V-01(b)) AND a measured limit (no
+    upgrade-time warning); F-8 reversal is one `SkillResource` entry through the standing
+    `extra_resources` seam, which this turn additionally PINNED with a new test
+    (`test_script_kind_remains_reachable_via_extra_resources`, injecting a `kind="script"` resource and
+    getting `validate_skill_package(injected) == []`).
+    COST OF BEING WRONG, one sentence: if `sx0cqv` later reports that some host does invoke a script
+    inside a skill package, that host gains nothing from the file deleted here (it computed nothing and
+    read nothing), so the correct response is a NEW plan that builds a real verifier, not a revert of
+    this one - stated in exactly those terms in both the register and the commit message.
+    THE IN-REPO LIMIT IS STATED HONESTLY: `V1_HOSTS` is `("opencode", "codex")`
+    (`agent_workflows/host_adapters.py:64`) and neither is documented HERE as executing skill scripts,
+    which is evidence about THIS REPOSITORY and NOT about those hosts' actual behavior. The external
+    question REMAINS UNANSWERED rather than answered negatively; the register says so in those words.
+    NO TYPED DEPENDENCY ON `sx0cqv` WAS ADDED: `- Item-Dependencies: none` is unchanged in this plan's
+    metadata, and `grep -n "sx0cqv" ` over the plan finds it only in prose (Scope, F-7, OQ-01, the
+    deferred/out-of-scope list), never in a dependency field. OQ-01 remains `Status: resolved` and was
+    NOT re-opened or re-decided.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste `sorted(pkg.to_files())` showing exactly two paths. Paste the generated `SKILL.md` showing `semantic-digest:` STILL PRESENT in frontmatter, which is the over-deletion this item must avoid, AND showing no `verify_digest` string anywhere in the router body (the `## Package resources` list must have re-rendered). Paste `validate_skill_package(pkg)` returning `[]` - the empty list, not a description of it - because F-11 shows the one plausible mistake here produces exactly one finding. Paste `grep -n _render_digest_verify_script agent_workflows/` returning nothing. State explicitly that `kind="script"` now has no producer but remains reachable via `extra_resources`, and that you did NOT delete `extra_resources`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Measured on the post-change tree, package `release-review`.
+    `sorted(pkg.to_files())` -> EXACTLY TWO PATHS:
+    `.agents/skills/release-review/SKILL.md`
+    `.agents/skills/release-review/reference/canonical-body.md`
+    `sorted({r.kind for r in pkg.resources})` -> `['reference']`; `any(r.kind == "script" ...)` -> `False`.
+    `validate_skill_package(pkg)` -> `[]`  (the empty list, printed via `repr`).
+    `"verify_digest" in pkg.main_file_content` -> `False`;  `"semantic-digest:" in ...` -> `True`.
+    GENERATED `SKILL.md`, full, showing the frontmatter digest RETAINED and the `## Package resources`
+    list RE-RENDERED without the script:
+    ```
+    ---
+    name: release-review
+    description: Use when the user asks to release-review (Full pre-release repository review and hardening: deep audit through eight personas, the Fix Bar, fix/validate/report, push and release decisions). Do not use for unrelated requests or when no release-review action was requested.
+    semantic-digest: d0ca355c2dd254933a694380f7f205c3d9d0d54eb589d856dc0cbf992c9f48c8
+    ---
 
-- [ ] V-04 validates E-04
+    # Skill: release-review
+
+    This skill is a discovery/dispatch router only. The authoritative workflow semantics, state machine, and evidence contract live in the canonical source and runtime, NOT in this file.
+
+    ## Canonical behavior
+
+    Read and execute @.aw/system/workflows/release-review/README.md. Treat that file as the controlling instruction and follow it fully.
+
+    - Canonical semantic digest: `d0ca355c2dd254933a694380f7f205c3d9d0d54eb589d856dc0cbf992c9f48c8`
+
+    ## Explicit invocation (works even if this skill is disabled)
+
+        read and execute .aw/system/workflows/release-review/README.md
+
+    ## Package resources
+
+    - `reference/canonical-body.md` (reference)
+    ```
+    `grep -rn "_render_digest_verify_script" agent_workflows/` -> `(nothing - correct)`. (Note: an
+    initial run matched `agent_workflows/__pycache__/host_adapters.cpython-314.pyc`, a STALE BYTECODE
+    artifact, not source; caches were cleared and the source grep is empty. Recorded so a later reader
+    does not mistake a `.pyc` hit for a surviving definition.)
+    F-11's COUPLING RE-CONFIRMED IN BOTH DIRECTIONS, so the clean result is not a coincidence:
+    re-inserting `- `scripts/verify_digest.py` (script)` into the rendered router text while the
+    resource is absent yields exactly
+    `["router references resource 'scripts/verify_digest.py' not in package"]` - one finding, as F-11
+    predicted. Because `_render_skill_main_file` is called WITH the `resources` list, removing the
+    resource before the render fixes this by construction.
+    `kind="script"` NOW HAS NO PRODUCER BUT REMAINS REACHABLE via `extra_resources`, and I did NOT
+    delete `extra_resources`: it is still a keyword parameter of `build_skill_package` and still
+    extends the resource list. Proved rather than asserted -
+    `build_skill_package(wf, extra_resources=[SkillResource("scripts/x.py", kind="script", ...)])`
+    yields paths `[SKILL.md, reference/canonical-body.md, scripts/x.py]`, kinds
+    `['reference', 'script']`, and `validate_skill_package(injected) == []`. The vocabulary status is
+    now documented on `SkillResource`'s docstring as ACCEPTED-BUT-UNPRODUCED / extension seam, so it is
+    not mistaken for dead code to prune. `compute_workflow_semantic_digest` was NOT touched (unchanged
+    in `git diff`), and the `semantic-digest` frontmatter key was NOT removed.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the flipped assertions showing the script is asserted ABSENT (not merely removed from the expected list), since only that prevents silent re-introduction. Paste the deletion of `test_deterministic_script_verifier_has_direct_test` together with the new no-script-resource assertion that replaces it, and one sentence on why deleting a test is correct when its subject is the deleted artifact. Paste the re-run count-literal grep and its (expected empty) result. Paste the fresh-install manifest/on-disk equality with the derived numbers (expected 90 == 90, and 45 `SKILL.md` routers). Then paste the ACTUAL `make test-all` output - NOT a bare `python3 -m pytest`, which per F-12 deselects all 10 install tests and would prove nothing here - with the `git rev-parse HEAD` it was measured at, compared against your own pre-change `make test-all` baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE PLAN NAMED THREE CALL SITES; ONE WAS MISCHARACTERIZED AND IS HANDLED
+    DIFFERENTLY, WITH THE REASON MEASURED (see decision 07-8fhjjc-D4 in the run register).
+    SITE (ii), `tests/test_installer_skill_emission.py:133` - FLIPPED TO ABSENT, as instructed:
+    ```
+    -            self.assertIn(f".agents/skills/{name}/scripts/verify_digest.py", on_disk)
+    +            # IPD 8fhjjc: the per-package digest script is NO LONGER emitted. Asserted
+    +            # ABSENT (not merely dropped from the expected list) so a re-introduction fails.
+    +            self.assertNotIn(f".agents/skills/{name}/scripts/verify_digest.py", on_disk)
+    +        # Stronger than per-name: NOTHING under any package's scripts/ dir is emitted.
+    +        self.assertEqual(
+    +            [p for p in on_disk if "/scripts/" in p],
+    +            [],
+    +            "a fresh install must emit no per-package script files",
+    +        )
+    ```
+    So absence is ASSERTED, not merely dropped from an expected list, and the added `assertEqual`
+    is strictly stronger: it fails on ANY emitted `scripts/` member, not just this filename.
+    SITE (i), `tests/test_installer_skill_emission.py:78` - NOT an asserts-emitted site, so flipping it
+    to ABSENT would have been WRONG. It asserts
+    `INS.in_framework_namespace(".agents/skills/release-review/scripts/verify_digest.py")`, and
+    `in_framework_namespace` (`engine.py:1855-1870`) is a PREFIX predicate over `SKILLS_DIR`: measured,
+    it returns `True` for `.../scripts/verify_digest.py`, `.../scripts/anything-at-all.py`, and
+    `.../SKILL.md` alike. Asserting `False` would demand the predicate STOP adopting paths under
+    `.agents/skills/`, which is exactly what `prune_stale`'s defense-in-depth guard
+    (`engine.py:2313-2314`, `if not in_framework_namespace(rel): continue`) needs in order to DELETE a
+    legacy `scripts/verify_digest.py` on an upgraded repo - the very prune E-05(a) measures deleting 45
+    files. Flipping it would have made the test contradict E-05. Retargeted to a neutral legacy path
+    instead, preserving the predicate's real contract:
+    ```
+    +        # A legacy `scripts/` path must STILL be recognized as framework-owned: the
+    +        # generator no longer emits one (IPD 8fhjjc), but an upgraded repo carries them
+    +        # until pruned, and prune only reaches what this predicate adopts.
+             self.assertTrue(
+                 INS.in_framework_namespace(
+    -                ".agents/skills/release-review/scripts/verify_digest.py"
+    +                ".agents/skills/release-review/scripts/legacy-artifact.py"
+                 )
+             )
+    ```
+    SITE (iii), `tests/test_host_adapters_skills.py:140` - DELETED, exactly as instructed. The whole
+    body of `test_deterministic_script_verifier_has_direct_test` (`next(... r.kind == "script")`, the
+    `exec(compile(...))`, and the four `verify()`/`main()` assertions) is gone. WHY DELETING A TEST IS
+    CORRECT HERE, one sentence: the test's entire subject was the rendered script's own runtime
+    behavior, so with the artifact gone there is nothing left for it to be a test OF, and "adapting" it
+    would mean inventing an unrelated new subject under a name describing something that no longer
+    exists. Replaced at the GENERATOR level, per the E-item, by
+    `test_no_per_package_script_resource_is_emitted`, which asserts no `kind == "script"` resource, the
+    exact two-path resource set, and no `verify_digest` string in the router; plus
+    `test_script_kind_remains_reachable_via_extra_resources`, which pins F-13's seam so the reversal
+    path F-8 depends on is TESTED rather than asserted in prose.
+    COUNT-LITERAL GREP RE-RUN as instructed:
+    `grep -n "135\|45\b\|90\b" tests/test_installer_skill_emission.py tests/test_host_adapters_skills.py`
+    -> `(no matches - confirmed, no count literal needs changing)`. The review's finding holds; the
+    135/45 figures were smoke output, never assertions.
+    FRESH-INSTALL MANIFEST/ON-DISK PARITY, derived from a real throwaway git install (not asserted):
+    `on-disk skill files = 90 (was 135 with the script)`, `manifest skill rows = 90`,
+    `PARITY on_disk == rows = True (90 == 90)`, `SKILL.md routers = 45`,
+    `canonical-body pointers = 45`, `files under any scripts/ = 0`, `verify_digest.py present = 0`,
+    and the arithmetic checks out: `2 files x 45 packages = 90`.
+    FULL SUITE, `make test-all` (NOT a bare `python3 -m pytest`, which per F-12 deselects all 10 install
+    tests - independently re-confirmed this turn:
+    `python3 -m pytest tests/test_installer_skill_emission.py --collect-only` ->
+    `no tests collected (10 deselected) in 0.25s`). Both runs at
+    `git rev-parse HEAD` = `8b4e15702830dd713bff56bc49fb23642cc06ee3`, the change carried in the working
+    tree, so the comparison isolates this change:
+    PRE-CHANGE BASELINE (my own measurement, not an inherited number), at HEAD
+    `8b4e15702830dd713bff56bc49fb23642cc06ee3`:
+    `38 failed, 6078 passed, 3 skipped, 2 xfailed in 262.42s (0:04:22)`
+    POST-CHANGE, working tree, same HEAD:
+    `38 failed, 6079 passed, 3 skipped, 2 xfailed in 368.26s (0:06:08)`
+    FINAL RUN at the committed end state, HEAD `a69bb1fe58fc71d68130d497b65c7ba8855980c4` (both commits
+    in, including the engine.py prose fix) - this is the authoritative measurement:
+    `38 failed, 6079 passed, 3 skipped, 2 xfailed in 245.82s (0:04:05)`
+    The sorted FAILED sets were DIFFED, not merely counted:
+    `diff tmp/baseline-failed.txt tmp/final-failed.txt` -> empty,
+    `(IDENTICAL: the same 38 pre-existing failures, none caused or fixed)`, 38 names on both sides.
+    HONEST NOTE ON AN INTERMEDIATE RED RUN: a run taken between those two showed
+    `40 failed, 6077 passed` with two EXTRA failures,
+    `tests/test_release_readiness.py::FullReportTests::test_build_report_go_on_clean_tree` and
+    `::IpdLintGateTests::test_ipd_lint_all_phases_run_and_pass`. Both were SELF-INFLICTED by me and are
+    recorded rather than hidden: I had written `- Result: verified` into this plan's V-items, which is
+    not in the lint's result vocabulary, so `aw ipd lint` exited 1 (`IPD-S402 unknown validation result
+    'verified'`, `IPD-S404 not 'pass' at pre-transition`) and the repo-wide readiness gate that shells
+    out to it went red. Corrected to the canonical `- Result: pass`; lint then reported `conforming` and
+    `python3 -m pytest tests/test_release_readiness.py -m ''` -> `20 passed`. The final run above
+    confirms both are green again. Passes rose by
+    exactly 1 (net effect of deleting 1 test and adding 2). The 38 are PRE-EXISTING and unrelated
+    (`test_run_viewer` x15, `test_agy_runipd_cli`, `test_cli_conformance_matrix`,
+    `test_command_surface_declarations`, `test_installer::UninstallCompletenessTests`, and others), all
+    red at the baseline before I touched anything. Targeted confirmation of the files this E-item
+    changed: `python3 -m pytest tests/test_host_adapters_skills.py tests/test_installer_skill_emission.py -m ''`
+    -> `43 passed in 11.07s` (was 42 before: -1 deleted, +2 added).
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste, from a REAL throwaway install-then-upgrade (not from reasoning), all three measurements. (a) The post-upgrade counts showing on-disk skill files versus manifest skill entries disagree (expected 90 versus 135) and `plan_uninstall` classifying exactly 45 as `missing`; then state that this phantom is handled by `uninstall_repo`'s already-absent branch and is accepted, not fixed here. (b) The staged-file abort reproduced: the `git rm ... failed: error: the following file has changes staged in the index` message and the resulting `SystemExit`, plus the one-line precondition a maintainer must satisfy before the first upgrade. (c) The empty-`scripts/`-dir count on a non-git target (expected 45) contrasted with a git target (expected 0). Each classified explicitly as accepted-and-documented.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL THREE MEASURED ON REAL THROWAWAY INSTALL-THEN-UPGRADE RUNS, never reasoned
+    about. Method, stated because it is what makes these upgrades genuine: each scratch target was
+    installed FIRST with the OLD generator (restored via `git show HEAD:agent_workflows/host_adapters.py`
+    into place for that install only, then reverted), committed, then upgraded with the NEW generator.
+    (a) THE MANIFEST KEEPS 45 STALE ROWS.
+    `AFTER OLD INSTALL: on-disk skill files = 135 | manifest skill rows = 135`, `verify_digest.py on disk = 45`.
+    `AFTER UPGRADE: on-disk skill files = 90 | manifest skill rows = 135`,
+    `pruned skill entries reported = 45`, `verify_digest.py ON DISK = 0`,
+    `verify_digest.py rows STILL IN MANIFEST = 45`, `DISK vs MANIFEST DISAGREE: 90 != 135 -> True`.
+    `plan_uninstall: missing total = 45 | of which verify_digest.py = 45`, sample missing row
+    `.agents/skills/advise-architect/scripts/verify_digest.py`. The phantom is HANDLED by
+    `uninstall_repo`'s already-absent branch:
+    `uninstall_repo actions containing 'already absent (manifest entry stale)': 45`, of which
+    `verify_digest.py: 45`, sample
+    `.agents/skills/advise-architect/scripts/verify_digest.py already absent (manifest entry stale)`.
+    CORRECTION TO THE PLAN'S OWN WORDING, recorded so a later reader is not misled: F-10a and E-05a say
+    `uninstall_repo` PRINTS this line. It does not print it; it APPENDS it to the returned `actions`
+    list (`engine.py:4122`). My first measurement scanned stdout and found 0, which looked like a
+    refuted finding; scanning the return value found exactly 45. The finding is CORRECT, its stated
+    mechanism was not. ACCEPTED AND DOCUMENTED, NOT FIXED HERE: `manifest.py` has no row-deletion API
+    and adding one is a much larger blast radius, so the fresh-install equality invariant simply does
+    NOT hold on an upgraded repo, and V-04's 90 == 90 must not be read as if it did.
+    (b) THE STAGED-FILE ABORT, REPRODUCED. With the 45 files staged-but-uncommitted
+    (`PRECONDITION: staged-but-uncommitted verify_digest.py files: 45`, sample porcelain line
+    `A  .agents/skills/advise-architect/scripts/verify_digest.py`), the upgrade died partway:
+    ```
+    *** SystemExit RAISED: 'git rm --quiet -- .agents/skills/advise-architect/scripts/verify_digest.py failed:\nerror: the following file has changes staged in the index:\n    .agents/skills/advise-architect/scripts/verify_digest.py\n(use --cached to keep the file, or -f to force removal)'
+    ```
+    PRECONDITION FOR A MAINTAINER, one line: commit (or unstage) the `.agents/skills/` tree before the
+    first upgrade past this change, or the install will abort partway on the first pruned file.
+    ACCEPTED AND DOCUMENTED, NOT FIXED HERE: `git_run` escalating any nonzero git exit to `SystemExit`
+    is the installer's error-handling contract and is explicitly out of this plan's fence.
+    (c) EMPTY `scripts/` DIRS, both target kinds contrasted:
+    `NON-GIT target: skill files 135 -> 90 | EMPTY scripts/ dirs remaining = 45` (sample
+    `.agents/skills/advise-architect/scripts`) versus
+    `GIT target: skill files 135 -> 90 | EMPTY scripts/ dirs remaining = 0`. Cause as F-10c states:
+    with git, `git rm` removes the now-empty parent as a side effect; without git, `destination.unlink()`
+    leaves the directory, since only `run_deep_cleanup` prunes empty dirs. ACCEPTED AND DOCUMENTED, NOT
+    FIXED HERE: cosmetic, and adding dir-pruning to `prune_stale` is outside the fence.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste the `docs/skill-selection.md` diff showing the `verify_digest.py` bullet gone and the remaining contract accurate. Paste `python3 -m pytest tests/test_docs.py` passing. Paste `grep -rn verify_digest docs/ README.md ARCHITECTURE.md agent_workflows/` showing what remains and why each remaining mention is correct (or that none remain). State the engine docstring/comment decision explicitly, and record the spec as N/A by quoting the measurement that it never enumerated the three files. Finally `aw check all` NO-WORSENING against your own fresh baseline (do NOT claim it passes: it reports 15 findings at HEAD `484994ec`, none in this plan's paths).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `docs/skill-selection.md` DIFF (the false bullet gone, the remaining contract
+    accurate):
+    ```
+    -- `scripts/verify_digest.py`: a deterministic script that recomputes the parity digest.
+    ++
+    ++That is the whole package: two files. It carries no per-package verification script. Integrity of
+    ++the installed files is tracked by the install manifest, which records a `sha256` per emitted file;
+    ++that is a stronger signal than one an artifact reports about itself. The router's `semantic-digest`
+    ++frontmatter key remains the portable parity signal a host can read.
+    ```
+    (The bullet was doubly wrong: it described a script that "recomputes" a digest, which was false even
+    BEFORE this change per F-2, since the script only compared `argv[1]` to a constant.)
+    `python3 -m pytest tests/test_docs.py` -> `14 passed in 4.09s`. Re-run together with the two skill
+    test modules after the engine.py edit -> `57 passed in 9.61s`.
+    `grep -rn verify_digest docs/ README.md ARCHITECTURE.md agent_workflows/` -> ONE remaining mention,
+    `agent_workflows/host_adapters.py:370`, inside the new `build_skill_package` docstring paragraph
+    that EXPLAINS the removal ("The former ``scripts/verify_digest.py`` computed nothing..."). That
+    mention is correct and deliberate: it names the deleted artifact in the past tense so a future
+    reader learns why no script is emitted rather than re-adding one. No other file mentions it.
+    ENGINE DOCSTRING/COMMENT DECISION, STATED EXPLICITLY - and NOT the N/A the plan predicted. The
+    review characterized `agent_workflows/engine.py:18,21,2230` as "module docstring and comment prose,
+    not a contract"; READ DIRECTLY, TWO OF THE THREE WERE AFFIRMATIVE FALSE CLAIMS after this change.
+    `:18` said `generated Agent Skill packages (+ reference/, scripts/)` and `:21` said "a SKILL.md
+    router plus reference/ and scripts/ resources"; both now say reference/ only. This required an edit
+    OUTSIDE the declared Scope-Paths, declared and justified rather than slipped in (decision
+    07-8fhjjc-D5 in the run register; `--scope-reason` supplied to `aw ipd finalize`), on the same
+    ground E-06 uses for the doc: shipping a package whose own docstring contradicts its code in the
+    same commit is not a defensible narrower scope. THE PRUNE-SCAN COMMENT WAS DELIBERATELY NOT
+    NARROWED, which is what E-06 warns against: it was EXPANDED to state the scan must stay
+    shape-agnostic and keep recursing because an upgraded repo still carries a legacy
+    `<name>/scripts/verify_digest.py` that prune is responsible for removing - the exact behavior
+    V-05(a) measures. No executable statement in `engine.py` was touched.
+    SPEC RECORDED N/A BY MEASUREMENT, not assumption:
+    `grep -n "verify_digest\|scripts/" .aw/records/specs/20260725-0957-01-external-delivery-and-skills.spec.md`
+    returns nothing - the spec never enumerates the three package files (it discusses `SKILL.md`
+    discovery tiers and the probe protocol) and is itself `deferred`. NOT EDITED, as instructed.
+    Also confirmed clean, per the plan's spec/doc-sync list: `README.md`, `ARCHITECTURE.md`,
+    `CHANGELOG.md`, and every other file under `docs/` contain no `verify_digest` mention (the grep
+    above covers them).
+    `aw check all` NO-WORSENING AGAINST MY OWN FRESH BASELINE - and NOT claimed to pass (it does not;
+    exit 1 both times). The plan's orientation figure of 15 findings at HEAD `484994ec` is STALE by an
+    order of magnitude and was correctly re-measured rather than trusted. Measured by stashing exactly
+    my four files and restoring them, three runs each to rule out nondeterminism:
+    WITHOUT my change -> `140 finding(s) detected across 624 all`, `140`, `140`.
+    WITH my change    -> `168 finding(s) detected across 624 all`, `168`, `168`.
+    THE +28 IS DETERMINISTIC AND FULLY ATTRIBUTED, NOT WAVED THROUGH. The category diff shows the ONLY
+    changed rule is `check.scope-drift` (6 -> 7 groups). Enumerated programmatically via
+    `check_engine.check_scope_drift(Path('.'))`: 120 findings total, of which exactly 28 name one of my
+    four files, spread over exactly 7 OTHER plans at 4 apiece (`nna8yz`, `xdr83v`, `kgpptv`, `tm2cz8`,
+    `4r0qp1`, `29wvmj`, `03ie04`) - i.e. 7 co-workers' LIVE begin receipts x my 4 in-flight files. ZERO
+    are attributed to this plan (`any attributed to MY OWN plan 8fhjjc? False`). This is the known
+    ownership-blindness of a shared checkout: `check_scope_drift` compares each live receipt's frozen
+    base against the WHOLE working tree, so any uncommitted file is charged to every concurrently
+    executing plan. It is not a defect this plan introduces and it resolves for those plans as their own
+    work commits. No new finding in this plan's Scope-Paths, and no rule count decreased.
+  - Result: pass
 
 ## Approval and execution gate
 

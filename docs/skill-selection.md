@@ -13,7 +13,11 @@ For each workflow the compiler generates a portable skill package
   invocation. The router POINTS at the canonical body via the digest; it never inlines the
   authoritative steps.
 - `reference/canonical-body.md`: a pointer to the authoritative instruction.
-- `scripts/verify_digest.py`: a deterministic script that recomputes the parity digest.
+
+That is the whole package: two files. It carries no per-package verification script. Integrity of
+the installed files is tracked by the install manifest, which records a `sha256` per emitted file;
+that is a stronger signal than one an artifact reports about itself. The router's `semantic-digest`
+frontmatter key remains the portable parity signal a host can read.
 
 `validate_skill_package` fails a package that is missing frontmatter, lacks the use/non-use
 clauses, references a missing resource, exceeds the entry-point byte budget, or does not carry
