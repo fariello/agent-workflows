@@ -36,13 +36,94 @@ import argparse
 import io
 import json
 import tempfile
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase
 
 from agent_workflows import cli, run_viewer
 from agent_workflows.term import Term
+
+# --------------------------------------------------------------------------------------------------
+# Fixture helpers for the unresolvable-target refusal (runsverify 7wei1o E-05)
+#
+# FIXTURE-BASED ON PURPOSE. Per this module's header hazard, a new test must NOT read the live
+# repository via `dir="."`: `.aw/records/runs/` is gitignored and absent in every fresh checkout and
+# in every isolated lane worktree the runner allocates by default, so a refusal test keyed to live
+# run records would be unrunnable exactly where it is actually run.
+# --------------------------------------------------------------------------------------------------
+
+#: A resolvable run id in the fixture below. Its trailing digits double as the substring-match case.
+_FIXTURE_RUN = "run-20260901T000000Z-2367239"
+#: A Set the fixture declares (two runs carry it), i.e. the legitimate setid-resolution case.
+_FIXTURE_SETID = "runnernorm"
+
+
+def _build_viewer_fixture(root: Path) -> Path:
+    """Write four driver run records under ``root``, then return ``root``.
+
+    Shaped to carry all four resolution cases the refusal must tell apart: two real Set ids, a run-id
+    substring, a leaf-name COLLISION (a Set genuinely named ``status``, which no real set id
+    collides with, so it must be constructed), and ordinary JSON keys/values (``driver``, ``options``,
+    ``run_id``, ``main``, ``clean``) that the resolver's old raw-substring fallback over-matched.
+    """
+    runs = root / ".aw" / "records" / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    specs = [
+        (_FIXTURE_RUN, _FIXTURE_SETID),
+        ("run-20260901T010000Z-1111111", _FIXTURE_SETID),
+        ("run-20260902T000000Z-2222222", "lanectn"),
+        # The leaf-name collision the `--` escape hatch exists for.
+        ("run-20260902T010000Z-3333333", "status"),
+    ]
+    for run_id, setid in specs:
+        d = runs / run_id
+        d.mkdir(exist_ok=True)
+        (d / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": run_id,
+                    "created_at": "2026-09-01T00:00:00+00:00",
+                    "updated_at": "2026-09-01T01:00:00+00:00",
+                    # Ordinary JSON keys/values. Every one of these strings is a token the old
+                    # fallback matched by raw substring, resolving it to effectively every run.
+                    "driver": {
+                        "path": "agent_workflows/oc_runipd.py",
+                        "host": "opencode",
+                    },
+                    "options": {"base_branch": "main", "worktree": "clean"},
+                    "selectors": [setid],
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "aaa111",
+                            "setid": setid,
+                            "action": "execute",
+                            "status": "complete",
+                            "configured_file": "",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+    return root
+
+
+def _run_viewer(root: Path, argv: list[str]) -> tuple[str, str, int]:
+    """Invoke `aw runs` through the REAL cli entry point. Returns ``(stdout, stderr, rc)``.
+
+    Captures the streams SEPARATELY because the refusal's human message goes to stderr on purpose
+    (so it never lands in a report a caller is parsing on stdout), and a combined capture could not
+    tell the two apart.
+    """
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = cli.main(["runs", "--dir", str(root), *argv])
+    except SystemExit as exc:  # argparse usage errors exit rather than return
+        rc = int(exc.code or 0)
+    return out.getvalue(), err.getvalue(), rc
 
 
 class RunViewerTests(TestCase):
@@ -1373,6 +1454,330 @@ class RunViewerTests(TestCase):
         self.assertIn("error: --issues/-i cannot be used with --summary-only/-S", out)
 
 
+class UnresolvableTargetRefusalTests(TestCase):
+    """`aw runs <unresolvable-target>` must REFUSE, not report success having done nothing.
+
+    runsverify 7wei1o E-05. The defect: `aw runs` carries two shapes at once, so its routing branch
+    is leaf-or-viewer with no third outcome, and any first positional that is not a registered leaf
+    name became a TARGET by construction. A target matching nothing was then silently DROPPED and the
+    command still exited 0.
+
+    The measured harm, and why this is not a cosmetic exit code: `aw runs verify <run-id>` names no
+    leaf (the leaf is `verify-ledger`), so it rendered the run's ordinary report and exited 0 while
+    verifying nothing at all. Until 2026-09-05 the spec documented that exact spelling and seven
+    shipped recovery messages in `run_evidence.py` told operators to run it, precisely when a ledger
+    might be corrupt. An operator asking for an integrity check got a normal-looking report and a
+    success exit, and reasonably concluded nothing was wrong.
+
+    Every exit code below is asserted on the return of the real `cli.main`, which is the process exit
+    code. Measuring the same thing in a shell REQUIRES `cmd >/dev/null 2>&1; echo $?` rather than a
+    pipe, because a piped `$?` reports the last pipeline stage; that mistake produced a false finding
+    elsewhere in this Set (`zrzfkw`, corrected 2026-09-06).
+    """
+
+    def test_runs_verify_run_id_is_refused(self):
+        """THE MOTIVATING CASE: the near-miss leaf spelling must fail loudly and suggest the leaf."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["verify", _FIXTURE_RUN])
+
+            self.assertEqual(code, 2, out + err)
+            # It must NAME the unresolved token, so a future refactor cannot degrade the refusal to a
+            # bare exit code, and must SUGGEST the one-edit correction.
+            self.assertIn("verify", err)
+            self.assertIn("verify-ledger", err)
+            # And it must NOT have rendered the run's report, which is what made the bug convincing.
+            self.assertNotIn(_FIXTURE_RUN, out)
+
+    def test_wholly_unknown_token_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["totalgibberish"])
+
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("totalgibberish", err)
+            # The old behaviour, explicitly gone.
+            self.assertNotIn("no matching runs found", out)
+
+    def test_mixed_resolvable_and_unresolvable_is_refused_not_partially_rendered(self):
+        """The MOST misleading variant, refused deliberately (E-04).
+
+        `aw runs totalgibberish <real-run-id>` printed the real run at exit 0 with the bogus token
+        silently dropped, so the output LOOKED like a complete answer to the question asked. A
+        partially-honored request that looks complete is the whole defect, so a request is either
+        honored in full or refused, never quietly narrowed.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["totalgibberish", _FIXTURE_RUN])
+
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("totalgibberish", err)
+            self.assertNotIn(_FIXTURE_RUN, out)
+
+    def test_refusal_message_goes_to_stderr_not_stdout(self):
+        """Keeps a refusal out of a report a caller may be parsing on stdout."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["totalgibberish"])
+            self.assertEqual(code, 2)
+            self.assertIn("totalgibberish", err)
+            self.assertEqual(out, "")
+
+    def test_refusal_is_honored_by_the_agent_renderer(self):
+        """The machine path is the one automation READS, so it must refuse too (F-11).
+
+        `--agent` and `--json` both emitted `{"runs": []}` and returned 0 from a branch that ran
+        BEFORE the human line, so a human-only refusal would have left the fail-open exactly where it
+        silently misleads a script.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["totalgibberish", "--agent"])
+
+            self.assertEqual(code, 2, out + err)
+            record = json.loads(out.strip())
+            # A conformant aw.agent/v1 error record, NOT a bare empty payload...
+            self.assertEqual(record["schema"], "aw.agent/v1")
+            self.assertEqual(record["kind"], "error")
+            self.assertEqual(record["outcome"], "cannot-run")
+            self.assertFalse(record["complete"])
+            # ...whose `exit` AGREES with the process exit code (asserted by the conformance matrix).
+            self.assertEqual(record["exit"], code)
+            self.assertEqual(record["unresolved_targets"], ["totalgibberish"])
+            self.assertNotIn("runs", record)
+
+    def test_refusal_is_honored_by_the_json_renderer(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["totalgibberish", "--json"])
+
+            self.assertEqual(code, 2, out + err)
+            record = json.loads(out)
+            self.assertEqual(record["kind"], "error")
+            self.assertEqual(record["exit"], code)
+            self.assertEqual(record["unresolved_targets"], ["totalgibberish"])
+
+    def test_refusal_reaches_through_the_escape_hatch(self):
+        """The hatch decides a token is a TARGET; it never claims the target EXISTS."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["--", "no-such-target-xyz"])
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("no-such-target-xyz", err)
+
+    def test_every_unresolved_token_is_named_not_just_the_first(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["bogus-one", "bogus-two"])
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("bogus-one", err)
+            self.assertIn("bogus-two", err)
+
+    # ---- The anti-regression half (E-03). This change can only fail in ONE direction: by refusing
+    # ---- an invocation that used to work. These are the cases that must stay exit 0.
+
+    def test_every_resolvable_target_shape_still_exits_zero(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            for argv in (
+                [_FIXTURE_RUN],  # a full run id
+                ["2367239"],  # a run-id SUBSTRING
+                [_FIXTURE_SETID],  # a Set id
+                ["lanectn"],  # a second Set id
+                [
+                    str(root / ".aw" / "records" / "runs" / _FIXTURE_RUN)
+                ],  # a directory path
+                [],  # bare: "all runs"
+            ):
+                with self.subTest(argv=argv):
+                    out, err, code = _run_viewer(root, argv)
+                    self.assertEqual(code, 0, out + err)
+
+    def test_every_viewer_flag_still_exits_zero(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            for argv in (
+                ["--last", "1"],
+                ["--latest-only"],
+                ["--issues"],
+                ["--summary-only"],
+                ["--short"],
+                ["--detail"],
+                ["--since", "2026-09-01"],
+                ["--since", "7d"],
+                ["--since", _FIXTURE_RUN],
+                ["--set", "lanectn"],
+                ["--ipd", "aaa111"],
+                ["--agent"],
+                ["--json"],
+            ):
+                with self.subTest(argv=argv):
+                    out, err, code = _run_viewer(root, argv)
+                    self.assertEqual(code, 0, out + err)
+
+    def test_bare_call_on_an_empty_repository_is_still_success(self):
+        """OQ-01: asking for EVERYTHING and finding nothing is a healthy state, not a failed request.
+
+        The distinction the refusal draws is between "you asked for something SPECIFIC that does not
+        exist" (an error) and "you asked for everything and there is nothing" (not an error).
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".aw" / "records").mkdir(parents=True)
+            out, err, code = _run_viewer(root, [])
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("no matching runs found", out)
+
+    def test_a_filter_that_excludes_everything_is_still_success(self):
+        """A resolvable target plus a filter that matches nothing is an empty RESULT, not a refusal."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["--set", "no-such-set"])
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("no matching runs found", out)
+
+    def test_a_leaf_named_target_is_reachable_through_the_hatch_and_exits_zero(self):
+        """The AMBIGUITY RULE is preserved: the hatch still reaches a Set that collides with a leaf.
+
+        The fixture CONSTRUCTS the collision (a Set genuinely named `status`) because none exists
+        among the repo's real set ids, so this cannot be covered by observation alone.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["--", "status"])
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("run-20260902T010000Z-3333333", out)
+
+    def test_bare_leaf_name_without_the_hatch_still_routes_to_the_leaf(self):
+        """The other half of the ambiguity rule: the LEAF wins, and the refusal must not invert it."""
+        out, err, code = _run_viewer(Path("."), ["status"])
+        self.assertNotEqual(code, 0)
+        # The LEAF's own usage error (it demands its required target), not the viewer's refusal.
+        self.assertIn("target", (out + err).lower())
+        self.assertNotIn("no run matched target", out + err)
+
+    def test_already_correct_refusals_keep_their_own_messages(self):
+        """The new refusal must not shadow the validation that already exits 2 for other reasons."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            for argv, expected in (
+                (["--since", "bogusdate"], "invalid date"),
+                (["--summary-only", "--short"], "cannot be used with"),
+                (["--latest-only", "--summary-only"], "cannot be used with"),
+                (["--issues", "--summary-only"], "cannot be used with"),
+            ):
+                with self.subTest(argv=argv):
+                    out, err, code = _run_viewer(root, argv)
+                    self.assertEqual(code, 2, out + err)
+                    self.assertIn(expected, out + err)
+                    self.assertNotIn("no run matched target", out + err)
+
+
+class ResolverSetidNarrowingTests(TestCase):
+    """The resolver's `state.json` fallback must read the setid FIELD, not raw file text.
+
+    runsverify 7wei1o E-07. This is LOAD-BEARING for the refusal above, not a cleanup: the old
+    fallback was `if f'"{t_str}"' in content` over the whole file, so any quoted JSON key or value
+    anywhere matched. Measured against 106 live run records BEFORE the fix: `status`, `run`,
+    `opencode`, `driver`, `run_id` and `options` each resolved 106 of 106, `clean` 105, `main` 96,
+    `json` 79, `execute` 53, `approved` 46, `verified` 13. None of those is a Set id. A mistyped token
+    that happened to be a JSON key therefore resolved to EVERY run in the repository and reported
+    success, which is the same fail-open one layer down: such a token is never "unresolved", so it
+    would be silently exempted from the refusal.
+    """
+
+    def test_ordinary_json_keys_and_values_no_longer_resolve(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            for token in (
+                "opencode",  # a value under the `driver` key
+                "driver",  # a key
+                "run_id",  # a key
+                "options",  # a key
+                "main",  # a value under `options.base_branch`
+                "clean",  # a value under `options.worktree`
+                "execute",  # every queue item's `action`
+                "complete",  # every queue item's `status`
+                "queue",  # a key
+                "position",  # a key
+            ):
+                with self.subTest(token=token):
+                    self.assertEqual(
+                        run_viewer.resolve_target_runs([token], root),
+                        [],
+                        f"{token!r} must not resolve: it is JSON structure, not a Set id",
+                    )
+
+    def test_real_setids_and_run_id_substrings_still_resolve(self):
+        """The anti-regression half: a narrowing that breaks setid lookup is a failed fix."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            # Two runs carry `runnernorm`; one carries `lanectn`; one carries the collision `status`.
+            self.assertEqual(
+                len(run_viewer.resolve_target_runs([_FIXTURE_SETID], root)), 2
+            )
+            self.assertEqual(len(run_viewer.resolve_target_runs(["lanectn"], root)), 1)
+            self.assertEqual(len(run_viewer.resolve_target_runs(["status"], root)), 1)
+            # A run-id substring is a DIFFERENT, earlier rule and is untouched by the narrowing.
+            resolved = run_viewer.resolve_target_runs(["2367239"], root)
+            self.assertEqual(len(resolved), 1)
+            self.assertIn("2367239", resolved[0].name)
+
+    def test_detailed_resolver_separates_unresolved_from_absent(self):
+        """E-01: the caller must be able to tell "asked for nothing" from "asked for the missing"."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+
+            # 1. A real id: resolved, nothing unresolved.
+            runs, unresolved = run_viewer.resolve_target_runs_detailed(
+                [_FIXTURE_RUN], root
+            )
+            self.assertEqual(len(runs), 1)
+            self.assertEqual(unresolved, [])
+
+            # 2. A bogus token: nothing resolved, and it is NAMED.
+            runs, unresolved = run_viewer.resolve_target_runs_detailed(
+                ["totalgibberish"], root
+            )
+            self.assertEqual(runs, [])
+            self.assertEqual(unresolved, ["totalgibberish"])
+
+            # 3. Both: the real one resolves AND the bogus one is still reported (the mixed case,
+            #    which used to render a plausible partial answer at exit 0).
+            runs, unresolved = run_viewer.resolve_target_runs_detailed(
+                ["totalgibberish", _FIXTURE_RUN], root
+            )
+            self.assertEqual(len(runs), 1)
+            self.assertEqual(unresolved, ["totalgibberish"])
+
+            # 4. A BARE call is distinguishable from "all tokens unresolved": it resolves every run
+            #    and reports nothing unresolved, which is what keeps an empty repository exit 0.
+            runs, unresolved = run_viewer.resolve_target_runs_detailed([], root)
+            self.assertEqual(len(runs), 4)
+            self.assertEqual(unresolved, [])
+
+    def test_setid_resolves_from_run_level_selectors_too(self):
+        """A run whose queue is empty is still reachable by the Set it was LAUNCHED with."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = root / ".aw" / "records" / "runs" / "run-20260905T000000Z-4444444"
+            d.mkdir(parents=True)
+            (d / "state.json").write_text(
+                json.dumps({"run_id": d.name, "selectors": ["emptyset"], "queue": []}),
+                encoding="utf-8",
+            )
+            self.assertEqual(len(run_viewer.resolve_target_runs(["emptyset"], root)), 1)
+
+    def test_malformed_state_json_does_not_raise(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            d = root / ".aw" / "records" / "runs" / "run-20260905T000000Z-5555555"
+            d.mkdir(parents=True)
+            (d / "state.json").write_text("{not json at all", encoding="utf-8")
+            self.assertEqual(run_viewer.resolve_target_runs(["anything"], root), [])
+
+
 class RunsRepairHelpTests(TestCase):
     """`aw runs repair` must be documented and discoverable.
 
@@ -1492,6 +1897,37 @@ class RunsRepairHelpTests(TestCase):
             self.assertEqual(
                 before, (run_dir / "state.json").read_text(encoding="utf-8")
             )
+
+    def test_repair_refuses_an_unresolvable_target_instead_of_silently_succeeding(self):
+        """`aw runs repair <unresolvable>` must refuse, not exit 0 having repaired nothing.
+
+        runsverify 7wei1o E-08. The resolve loop simply never executed when nothing matched, so `rc`
+        stayed 0 and NOTHING was printed (measured before the fix: exit 0, zero bytes of output).
+        That is the worst place for this defect on the whole surface, because `repair` is the ONE
+        mutating verb here and the operator was told nothing at all. Note the adjacent no-target case
+        was already correct, so this closed an inconsistency inside a single function.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["repair", "totalgibberish"])
+
+            self.assertEqual(code, 2, out + err)
+            self.assertIn("totalgibberish", out + err)  # names the token
+            # A refused mutation must not have written anything.
+            state_files = sorted(
+                (root / ".aw" / "records" / "runs").glob("*/state.json")
+            )
+            self.assertEqual(len(state_files), 4)
+            for sf in state_files:
+                self.assertNotIn("interrupted", sf.read_text(encoding="utf-8"))
+
+    def test_repair_still_works_on_a_resolvable_target(self):
+        """The E-08 anti-regression half: a real target still repairs (or no-ops) at exit 0."""
+        with tempfile.TemporaryDirectory() as td:
+            root = _build_viewer_fixture(Path(td))
+            out, err, code = _run_viewer(root, ["repair", _FIXTURE_RUN])
+            self.assertEqual(code, 0, out + err)
+            self.assertIn("nothing to repair", out)
 
     def test_format_step_duration(self):
         self.assertEqual(run_viewer.format_step_duration(None), "-")

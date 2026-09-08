@@ -140,6 +140,40 @@ class _LedgerFixture(unittest.TestCase):
             encoding="utf-8",
         )
 
+        # A run whose Set is literally named `status`: the leaf-name COLLISION the `--` escape hatch
+        # exists for. Added by runsverify 7wei1o E-05/E-06, which requires CONSTRUCTING the collision
+        # rather than skipping it (none exists among the repo's real set ids).
+        #
+        # WHY IT IS NEEDED HERE: the hatch test used to prove `aw runs -- status` reached the viewer
+        # by getting exit 0 on a fixture that declared NO such Set. That only "worked" because the
+        # resolver's old fallback was a raw substring test over the whole `state.json`, and the
+        # literal string `"status"` appears in every one of them as an ordinary JSON KEY (the run's
+        # own `queue[].status`), so the token matched every run by accident. E-07 narrows the fallback
+        # to the real setid field, so proving the hatch now requires a run that genuinely declares
+        # that Set, which is what this record is.
+        self.collision_run = "run-20260829T000000Z-222222"
+        cdir = self.root / ".aw" / "records" / "runs" / self.collision_run
+        cdir.mkdir(parents=True)
+        (cdir / "state.json").write_text(
+            json.dumps(
+                {
+                    "run_id": self.collision_run,
+                    "queue": [
+                        {
+                            "position": 1,
+                            "id6": "item02",
+                            "setid": "status",
+                            "action": "execute",
+                            "status": "complete",
+                            "configured_file": "",
+                            "stem": "20260829-status-01-item02",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
 
 class LeafSurfaceCharacterizationTests(_LedgerFixture):
     """E-01/V-01: pin the parse + exit CLASS of all twelve leaves and the bare viewer shapes."""
@@ -266,7 +300,8 @@ class LeafSurfaceCharacterizationTests(_LedgerFixture):
 
         A first positional that exactly equals a leaf name routes to the LEAF (documented rule), so a
         Set literally named `status` needs `--` to be reachable as a viewer target. No such collision
-        exists in the repo today, but the rule must be exercised, not merely asserted in prose.
+        exists among the repo's real set ids, so the fixture CONSTRUCTS one (`self.collision_run`
+        declares `setid: status`); the rule must be exercised, not merely asserted in prose.
         """
         # Bare `runs status` routes to the LEAF, which then demands its own required target.
         rc, out = _cli("runs", "status", "--dir", str(self.root))
@@ -278,10 +313,20 @@ class LeafSurfaceCharacterizationTests(_LedgerFixture):
         rc, out = _cli("runs", "--dir", str(self.root), "--", "status")
         self.assertEqual(rc, 0, out)
         self.assertNotIn("the following arguments are required", out)
-        # A token that matches nothing renders the viewer's own empty-state, still not a leaf error.
+        # And it resolved the SET named `status`, not merely "some run": the hatch is only meaningful
+        # if it reaches the colliding target itself.
+        self.assertIn(self.collision_run[:18], out)
+        # A token that matches nothing is REFUSED, and the refusal reaches THROUGH the hatch
+        # (runsverify 7wei1o E-06; this assertion previously expected rc 0 + "no matching runs
+        # found"). The hatch's one job is deciding that a token is a TARGET rather than a leaf name;
+        # it makes no claim that the target EXISTS, so an unresolvable escaped token is the same
+        # failed request as an unresolvable bare one. Exempting it would make the hatch a documented
+        # bypass of the check. The case is RE-POINTED rather than deleted because it is the hatch's
+        # only unresolvable-token coverage.
         rc, out = _cli("runs", "--dir", str(self.root), "--", "no-such-target-xyz")
-        self.assertEqual(rc, 0, out)
-        self.assertIn("no matching runs found", out)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("no-such-target-xyz", out)  # the message NAMES the bad token
+        self.assertNotIn("no matching runs found", out)
 
     def test_runs_repair_verb_still_routes(self) -> None:
         """The pre-existing positionally-routed MUTATING verb must survive the split (ssk6nf E-04)."""
