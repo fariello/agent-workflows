@@ -34,6 +34,7 @@ import tempfile
 from pathlib import Path
 from typing import (
     Any,
+    Collection,
     Dict,
     FrozenSet,
     List,
@@ -41,6 +42,7 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     Tuple,
 )
 
@@ -1154,9 +1156,13 @@ class ChangedPathSources(NamedTuple):
 
     HONEST BOUND: ``committed`` is attributable to a COMMIT, not to an AGENT. Every agent in a
     shared checkout may commit under one git identity, so this split does NOT let finalize tell a
-    co-worker's commit from its own. That residual gap is deliberately out of Order 01's scope
-    (backlog `a8eufb`) and is pinned by a characterization test in
-    ``tests/test_finalize_scope_ownership.py``.
+    co-worker's commit from its own.
+
+    WHAT SCOPEATTR `h9cn0y` DID ABOUT THAT BOUND, since Order 01 left it open (backlog `a8eufb`): it
+    does not lift it, and no honest reading of git can. Instead it uses the one thing a commit DOES
+    record, the COMMIT BOUNDARY, to decide whether a committed path belongs to this execution's work
+    (see :func:`_execution_cohesive_committed_paths`). That is a heuristic with a stated cost, not the
+    proof a commit trailer would give, so `a8eufb` remains the real fix.
     """
 
     committed: Tuple[str, ...]
@@ -1196,13 +1202,22 @@ def _paths_changed_by_this_execution(repo_root: Path, base_head: str) -> List[st
 
     Union of `git diff --name-only <base>..HEAD` (commits made since the frozen base) and
     `git status --porcelain` (staged + unstaged + untracked working-tree changes). This is the set
-    of paths the CURRENT worktree presents relative to the frozen base - i.e. what THIS execution
-    produced (unrelated concurrent commits on disjoint paths are handled by the intervening-commit
-    collision check, not here).
+    of paths the CURRENT worktree presents relative to the frozen base.
 
-    Kept as the UNION-returning surface so every existing caller (notably
-    ``check_engine.check_scope_drift``) is unaffected by the E-01 split. Callers that must
-    distinguish the two halves by ownership evidence use :func:`_changed_path_sources` instead.
+    IT IS A TIME WINDOW, NOT AN ATTRIBUTION, and callers must not read it as one. In a shared
+    checkout the range ``base..HEAD`` also contains every concurrent agent's commit, and the porcelain
+    also contains their dirty files, so this set OVERSTATES what this execution produced. It said so
+    itself before scopeattr `h9cn0y` ("unrelated concurrent commits on disjoint paths are handled by
+    the intervening-commit collision check, not here"), and that concession was the defect: MEASURED
+    2026-09-07, finalizing `mm6wuz` demanded ten scope reasons of which eight were other agents'
+    commits. Attribution now happens where the two halves are still distinguishable, using
+    :func:`_changed_path_sources` plus :func:`_working_tree_path_is_owned` and
+    :func:`_execution_cohesive_committed_paths`.
+
+    Kept as the UNION-returning surface, unchanged in SHAPE and in VALUE, so every existing caller
+    (notably ``check_engine.check_scope_drift``, which wants the broad time window and is deliberately
+    NOT ownership-filtered) is unaffected. Callers that must distinguish the two halves by ownership
+    evidence use :func:`_changed_path_sources` instead.
     """
     return _changed_path_sources(repo_root, base_head).union()
 
@@ -1224,6 +1239,101 @@ def _intervening_commits_touching(
     committed = [ln.strip() for ln in out.splitlines() if ln.strip()]
     hits = [p for p in committed if any(_scope_match(p, pat) for pat in scope_paths)]
     return sorted(set(hits))
+
+
+class CommittedAttribution(NamedTuple):
+    """What COMMIT COHESION could establish about the committed half. See the helper below.
+
+    ``anchored`` is the FAIL-CLOSED switch and is the reason this is a pair rather than a bare set. It
+    is True only when at least one commit in ``base..HEAD`` touched a declared path, i.e. when this
+    execution has a recognizable commit footprint at all. When it is False the caller must NOT filter
+    the committed half: an empty ``paths`` would otherwise mean "nothing is owned", which would excuse
+    EVERY committed path on no evidence whatsoever, the exact inversion of what this is for.
+    """
+
+    anchored: bool
+    paths: FrozenSet[str]
+
+
+def _execution_cohesive_committed_paths(
+    repo_root: Path, base_head: str, scope_paths: Sequence[str]
+) -> CommittedAttribution:
+    """Committed paths attributable to THIS execution by COMMIT COHESION (scopeattr `h9cn0y` E-02).
+
+    THE PROBLEM THIS SOLVES, and why the obvious answers are all unavailable. A committed path in
+    ``base..HEAD`` may belong to this execution or to a co-worker who committed to the same tree, and
+    finalize has no channel that says which:
+
+    * git AUTHORSHIP cannot partition actors here, because every agent commits under the maintainer's
+      identity (measured: identical ``%an``/``%ae`` across the incident's own and foreign commits);
+    * the RUN RECORD (``last_outcome.commits[].sha``) is unreachable, being gitignored, absent from a
+      lane worktree, and never handed a run id by finalize; and
+    * COMMIT TRAILERS (``AW-Run:``/``AW-Item:``) would settle it exactly, but essentially no commit in
+      history carries one yet, so nothing can be consumed today (backlog ``a8eufb``).
+
+    WHAT GIT DOES RECORD is the COMMIT BOUNDARY, and that is enough to be useful. A commit is one
+    atomic act by one actor, so the paths inside it share an author whoever that author was. This
+    execution DECLARED its territory in the frozen ``Scope-Paths``, so a commit that touched a
+    declared path is this execution's commit, and every path in that commit is therefore attributable
+    to it, including the ones outside the fence. Those are exactly the paths a ``--scope-reason``
+    should be demanded for. A commit that touched NO declared path is not this execution's, and its
+    paths are not this plan's to justify.
+
+    So this returns the union of the paths of every ANCHORED commit in ``base..HEAD``: anchored
+    meaning it touched at least one path matching ``scope_paths``. Merges are excluded
+    (``--no-merges``): a merge's name-only listing is not a single actor's edit.
+
+    ACCEPTED COST, stated because it is real and is the reason the fail-closed tests matter. Cohesion
+    is a HEURISTIC, not proof of authorship, and it errs in both directions. A co-worker who touches
+    one of this plan's declared paths in the same commit as unrelated files makes those files look
+    like this plan's (a false DEMAND, which is fail-closed and merely annoying). An executor who
+    commits an out-of-scope path in a commit containing NO declared path escapes the reason
+    requirement (a false EXCUSE, and the genuine weakening). The mitigation is the execution
+    contract's path-scoped commits, which keep a plan's work in commits anchored by its declared
+    paths. This is the same shape of trade the working-tree half already accepted and documented.
+
+    FAIL-CLOSED WHEN THERE IS NO FOOTPRINT, which is why the result carries ``anchored`` alongside the
+    paths. If NO commit in the range touched a declared path, this execution has no recognizable commit
+    footprint and cohesion knows NOTHING; the caller must then leave the committed half unfiltered.
+    Returning a bare empty set here would read as "nothing is owned" and excuse every committed path on
+    no evidence at all. MEASURED: without this switch, a plan whose ONLY commit was out-of-scope (the
+    ``p7dqwz`` counterexample, ``tests/test_ipd_lifecycle_cli.py``) stopped being refused, which is the
+    precise inversion of the gate's purpose. The same applies when there is no fence (a grandfathered
+    plan has nothing to anchor to) or when git fails.
+    """
+    if not scope_paths:
+        return CommittedAttribution(False, frozenset())
+    rc, out, _err = _git(
+        repo_root,
+        ["log", "--no-merges", "--format=%H", "--name-only", f"{base_head}..HEAD"],
+    )
+    if rc != 0:
+        return CommittedAttribution(False, frozenset())
+
+    cohesive: Set[str] = set()
+    current: List[str] = []
+
+    def _flush(paths: List[str]) -> None:
+        if paths and any(_scope_match(p, pat) for p in paths for pat in scope_paths):
+            cohesive.update(paths)
+
+    for raw in out.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # A 40-char hex line is a commit header (`--format=%H`), not a path; a path never looks like
+        # one, because git prints paths relative to the repo root and they always carry an extension
+        # or a separator in practice. Checked structurally rather than by position so a commit with
+        # NO files (possible with `--name-only`) does not desynchronize the grouping.
+        if len(line) == 40 and all(c in "0123456789abcdef" for c in line):
+            _flush(current)
+            current = []
+            continue
+        current.append(line)
+    _flush(current)
+    # `anchored` is exactly "at least one commit touched declared territory", which is what a non-empty
+    # cohesive set means: `_flush` only ever adds paths from an anchored commit.
+    return CommittedAttribution(bool(cohesive), frozenset(cohesive))
 
 
 def _scope_match(path: str, pattern: str) -> bool:
@@ -1285,31 +1395,51 @@ def _working_tree_path_is_owned(
     scope_paths: List[str],
     committed: Sequence[str],
     plan_rel: str,
+    cohesive_committed: Optional[Collection[str]] = None,
 ) -> bool:
-    """Is this WORKING-TREE (uncommitted) path attributable to THIS execution? (Order 01 E-02.)
+    """Is this changed path attributable to THIS execution? (Order 01 E-02; scopeattr `h9cn0y` E-02.)
 
-    A `git status --porcelain` entry carries no author, so ownership has to be inferred from
-    positive evidence. This execution OWNS a dirty path when any of the following holds:
+    NOW JUDGES BOTH HALVES, so the name is a historical misnomer kept deliberately: it is asserted as
+    a source substring by the ownership test-suite and renaming it would churn a proven surface for
+    cosmetics. Read it as "path is owned", not "working-tree path is owned".
+
+    Neither change source carries an author that finalize can use. A ``git status --porcelain`` entry
+    has none at all, and a COMMIT has one that does not discriminate, because every agent in this
+    repository commits under the maintainer's identity. So ownership is inferred from POSITIVE
+    EVIDENCE in both halves. This execution OWNS a path when any of the following holds:
 
     * it matches the plan's frozen ``Scope-Paths`` (the plan declared this territory);
-    * it also appears in the COMMITTED half (this execution already committed that path, so the
-      dirty entry is a further edit of its own work); or
+    * it also appears in the COMMITTED half (this execution already committed that path, so a dirty
+      entry is a further edit of its own work). This clause is why a caller judging the COMMITTED
+      half must NOT pass that half as ``committed``: doing so is a tautology that would excuse every
+      committed path. Such a caller passes ``committed=()`` and supplies ``cohesive_committed``;
+    * it is COHESIVE with this execution's commits, i.e. it shares a commit with a declared path (see
+      :func:`_execution_cohesive_committed_paths`); or
     * it is an implicit lifecycle allowance (the plan file, the plans index).
 
-    A dirty path matching NONE of those is UNOWNED: in a shared checkout it is almost certainly a
-    concurrent agent's in-flight work, and demanding a ``--scope-reason`` for it would force this
-    plan to either write a false claim into its permanent record or block on a condition it does
-    not control. Note this only ever REMOVES paths from the out-of-scope set; it never adds any.
+    A path matching NONE of those is UNOWNED: in a shared checkout it is almost certainly a concurrent
+    agent's work, and demanding a ``--scope-reason`` for it would force this plan to either write a
+    false claim into its permanent record or block on a condition it does not control. Note this only
+    ever REMOVES paths from the out-of-scope set; it never adds any.
 
-    ACCEPTED COST (Order 01 OQ-01/F3): an executor's OWN uncommitted out-of-scope edit is
-    byte-identical to a co-worker's here, so it is disregarded too. The mitigation is the execution
-    contract's path-scoped commits, which put the executor's real work in the COMMITTED half, where
-    the reason requirement still fires. Disregarded paths are recorded in the evidence and surfaced
-    in the human message rather than silently dropped.
+    ACCEPTED COST, in two parts, both mitigated by the same thing and both kept VISIBLE in the
+    evidence rather than silently dropped:
+
+    * (Order 01 OQ-01/F3) an executor's OWN uncommitted out-of-scope edit is byte-identical to a
+      co-worker's, so it is disregarded too; and
+    * (scopeattr `h9cn0y`) an executor's own COMMITTED out-of-scope path escapes the reason
+      requirement when it rides in a commit containing no declared path.
+
+    The mitigation for both is the execution contract's path-scoped commits, which keep a plan's real
+    work in commits anchored by its declared paths, where the reason requirement still fires. The
+    exact fix that would remove the second cost is commit trailers (backlog ``a8eufb``); until those
+    exist, this is the strongest attribution available, and it is deliberately weaker than a proof.
     """
     if _is_implicitly_allowed(path, plan_rel):
         return True
     if path in set(committed):
+        return True
+    if cohesive_committed is not None and path in set(cohesive_committed):
         return True
     return any(_scope_match(path, pat) for pat in scope_paths)
 
@@ -1399,31 +1529,71 @@ def finalize_precheck(
     #     out-of-scope set (Order oorry1: grandfathered = advisory); only implicit lifecycle
     #     allowances + free-form scope apply.
     #
-    #     ATTRIBUTE BY OWNERSHIP, NOT BY MERE DIRTINESS (scopeattrib Order 01, lbgzxg E-02). The two
-    #     change sources are filtered DIFFERENTLY because they carry different ownership evidence:
-    #       * COMMITTED half: treated exactly as before. A path this execution committed outside
-    #         Scope-Paths still demands a reason (no weakening whatsoever).
-    #       * WORKING-TREE half: an UNOWNED dirty path (see `_working_tree_path_is_owned`) is
-    #         DISREGARDED instead of demanding a reason, because in a shared checkout it belongs to a
-    #         concurrent agent and this plan can neither honestly justify it nor wait it out.
+    #     ATTRIBUTE BY OWNERSHIP, NOT BY A TIME WINDOW (scopeattrib Order 01 lbgzxg E-02, extended to
+    #     the committed half by scopeattr `h9cn0y` E-02). BOTH change sources are now judged by the
+    #     SAME ownership predicate, because neither carries an author finalize can use: a porcelain
+    #     entry has none, and a commit's author is the maintainer for EVERY agent here. What differs
+    #     is the positive evidence each half can offer:
+    #       * WORKING-TREE half: owned when the path matches Scope-Paths, appears in the COMMITTED
+    #         half, or is an implicit lifecycle allowance. Otherwise DISREGARDED, because in a shared
+    #         checkout it belongs to a concurrent agent and this plan can neither honestly justify it
+    #         nor wait it out.
+    #       * COMMITTED half: owned when the path matches Scope-Paths, is an implicit allowance, or is
+    #         COHESIVE with this execution's commits (it shares a commit with a declared path, so the
+    #         same atomic act produced both). Otherwise DISREGARDED, for the same reason: demanding a
+    #         reason for another agent's commit forces a FALSE claim into this plan's permanent record.
+    #         Note `committed=()` for this half deliberately: passing the committed half as its own
+    #         ownership evidence is a tautology that would excuse every committed path.
+    #     WHY THIS MATTERS BEYOND ANNOYANCE (measured 2026-09-07 finalizing `mm6wuz`): the gate
+    #     demanded TEN reasons of which EIGHT were other agents' commits, and those reasons are
+    #     written into the plan's permanent finalize evidence, so an executed plan asserted it edited
+    #     files it never touched. Cohesion reduces that same case to the TWO genuinely its own.
+    #     ACCEPTED COST (the honest bound, see `_working_tree_path_is_owned`): cohesion is a heuristic,
+    #     not proof of authorship, so an executor's OWN committed out-of-scope path escapes the reason
+    #     requirement when it rides in a commit containing no declared path. The mitigation is
+    #     path-scoped commits; the real fix is commit trailers (backlog `a8eufb`).
     #     This is also what makes finalize CONSISTENT with begin, which already ignores disjoint
     #     uncommitted work so a concurrent multi-agent workflow is not thrashed.
     out_of_scope: List[str] = []
     disregarded_unowned: List[str] = []
     if scope_paths:
         committed_set = set(sources.committed)
+        cohesive = _execution_cohesive_committed_paths(
+            repo_root, base_head, scope_paths
+        )
         for p in changed:
             if _is_implicitly_allowed(p, plan_rel):
                 continue
             if any(_scope_match(p, pat) for pat in scope_paths):
                 continue
-            if p not in committed_set and not _working_tree_path_is_owned(
-                p,
-                scope_paths=scope_paths,
-                committed=sources.committed,
-                plan_rel=plan_rel,
-            ):
-                # Working-tree only AND unowned: not this execution's to justify.
+            if p in committed_set:
+                # COMMITTED half: cohesion is the only positive evidence available. `committed=()`
+                # avoids the self-referential clause (see the predicate's docstring).
+                #
+                # FAIL CLOSED WHEN COHESION KNOWS NOTHING. With no anchored commit this execution has
+                # no recognizable commit footprint, so treat the committed path exactly as before the
+                # fix (owned, therefore reason required) rather than excusing it on absent evidence.
+                # This is what keeps a plan whose ONLY commit is out-of-scope refused.
+                owned = (
+                    _working_tree_path_is_owned(
+                        p,
+                        scope_paths=scope_paths,
+                        committed=(),
+                        plan_rel=plan_rel,
+                        cohesive_committed=cohesive.paths,
+                    )
+                    if cohesive.anchored
+                    else True
+                )
+            else:
+                owned = _working_tree_path_is_owned(
+                    p,
+                    scope_paths=scope_paths,
+                    committed=sources.committed,
+                    plan_rel=plan_rel,
+                )
+            if not owned:
+                # Not attributable to this execution: not this plan's to justify.
                 disregarded_unowned.append(p)
                 continue
             out_of_scope.append(p)
@@ -1448,8 +1618,11 @@ def finalize_precheck(
         "in_scope_unmodified": list(in_scope_unmodified),
         "intervening_in_scope_commits": collisions,
         # E-03: what the ownership filter DISREGARDED, kept visible rather than silently dropped.
-        # These are uncommitted paths this execution cannot be shown to own (a concurrent agent's
-        # in-flight work in a shared checkout). They demand no reason, but they stay on the record.
+        # Paths this execution cannot be shown to own: a concurrent agent's in-flight work, or (since
+        # scopeattr `h9cn0y`) a commit that touched none of this plan's declared paths. They demand no
+        # reason, but they stay on the record. ONE key covers BOTH halves deliberately, so the audit
+        # trail has a single shape; `committed_paths`/`working_tree_paths` below already say which
+        # half any given path came from, so no second key is needed to tell them apart.
         "disregarded_unowned_paths": list(disregarded_unowned),
         "committed_paths": list(sources.committed),
         "working_tree_paths": list(sources.working_tree),
@@ -1460,10 +1633,16 @@ def finalize_precheck(
     # computed two-way delta in evidence so `finalize` can reconcile it.
     msg = "precheck passed (receipt valid, pre-transition conforming; scope delta computed)."
     if disregarded_unowned:
+        # OPERATOR-FACING, so it states only what the code can substantiate: that the path is outside
+        # this plan's declared Scope-Paths and could not be attributed to this execution. It names NO
+        # sha and blames NO actor, because nothing available here identifies who committed a path
+        # (every agent commits under one git identity), and asserting otherwise would be a fabricated
+        # attribution claim. The word "uncommitted" was dropped when the committed half became
+        # filterable too; the wording now holds for both halves.
         msg += (
             " Disregarded "
             + str(len(disregarded_unowned))
-            + " uncommitted path(s) not owned by this execution (no reason required, recorded in "
+            + " path(s) not owned by this execution (no reason required, recorded in "
             "the scope audit): " + ", ".join(disregarded_unowned) + "."
         )
     return (
@@ -2669,6 +2848,11 @@ def _disregarded_unowned_note(evidence: Dict[str, Any]) -> str:
     Surfaces what the ownership filter set aside so it is visible in the terminal output, not only
     in the recorded scope audit. Says DISREGARDED, not "in scope": these paths were neither
     justified nor attributed to this execution.
+
+    Like the precheck's twin message, it states only what the code can substantiate: that the path is
+    outside the declared ``Scope-Paths`` and could not be attributed to this execution. It names no
+    sha and blames no actor, because nothing available identifies who committed a path. The word
+    "uncommitted" was dropped when scopeattr `h9cn0y` made the COMMITTED half filterable too.
     """
     paths = list(
         (evidence.get("scope_audit", {}) or {}).get("disregarded_unowned_paths", [])
@@ -2679,7 +2863,7 @@ def _disregarded_unowned_note(evidence: Dict[str, Any]) -> str:
     return (
         " Disregarded "
         + str(len(paths))
-        + " uncommitted path(s) not owned by this execution (left untouched, recorded in the scope "
+        + " path(s) not owned by this execution (left untouched, recorded in the scope "
         "audit): " + ", ".join(paths) + "."
     )
 
