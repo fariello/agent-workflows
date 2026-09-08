@@ -887,11 +887,21 @@ class RealRepositorySets(unittest.TestCase):
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS)
         self.assertEqual(set(d.unauthored_rows), {"03+", "last"})
 
-    def test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows(self):
+    def test_runprofile_is_not_refused_for_unauthored_rows(self):
+        """RE-MEASURED 2026-09-08, per this class's instruction to re-measure rather than loosen.
+
+        This test's POINT is the second half: `runprofile`'s child table is fully authored, so the
+        Set must NOT be refused for unauthored rows. It previously ALSO asserted a refusal, because
+        its one unfinished child `kgpptv` was `approved` at the time. `kgpptv`'s lane had been
+        STRANDED (integration refused by the binary whole-repo suite gate), and recovering and
+        finalizing it made every child `executed`, so the Set is now legitimately ELIGIBLE. The
+        unfinished-children refusal is pinned by the `lanectn` case above, which still has a real
+        unfinished child; asserting it here as well pinned a transient repository state rather than
+        the behavior this test is named for.
+        """
+
         d = rs.evaluate_set_retirement(REPO_ROOT, "runprofile")
-        self.assertFalse(d.eligible)
-        self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
-        self.assertEqual(dict(d.unfinished), {"kgpptv": "approved"})
+        self.assertNotEqual(d.reason, rs.RETIRE_REFUSED_UNAUTHORED_CHILD_ROWS)
         m = rs.read_set_membership(REPO_ROOT, "runprofile")
         assert m.orchestrator is not None
         unauth, parsed = rs.find_unauthored_child_rows(
