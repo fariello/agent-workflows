@@ -1,13 +1,43 @@
 - Id: behjg6
-- Status: open
-- Blocks-Release: next
+- Status: done
 - Set: specflags
 - Priority: high
 - Work-Kind: bug
 - Summary: Spec 25kzda 2.1 wrongly forbids operationally-required flags by name: capture the requirement instead of prohibiting it
 
 ## Workflow history
+- 2026-09-08 done (aw set): OBSOLETE: the 2.1 correction this item asked for landed in 844d195c on 2026-09-06, one day BEFORE this item was created. Verified at HEAD: the prohibition sentence is gone (:162 records the supersession), the requirement is captured positively by 7ckptx R4.1c (:277) and pinned by tests/test_lane_permission_posture.py:315, and :161 keeps only the two real prohibitions. Gate RELEASED rather than transferred: ki6tom named this item as its Blocks-Release carrier, but there is no remaining work to carry.
 - 2026-09-07 created (aw backlog): Spec 25kzda 2.1 wrongly forbids operationally-required flags by name: capture the requirement instead of prohibiting it
+
+OBSOLETE 2026-09-08, VERIFIED IN-REPO. DO NOT GRADUATE THIS ITEM: the correction it asks for HAS
+ALREADY LANDED, and it landed BEFORE this item was even written. This item was created 2026-09-07 while
+resolving plan `ki6tom` OQ-01, on the belief that spec `25kzda` 2.1 still forbade the operationally
+required flags. It did not. Commit `844d195c` (2026-09-06) had already amended 2.1, one day earlier.
+
+WHAT THIS ITEM ASKED FOR, AND WHERE EACH PART NOW LIVES, each checked at HEAD:
+  1. "2.1 stops forbidding a capability that is operationally required." DONE. The sentence "There is
+     no `--no-verify`, `--skip-audit`, `--dangerous`, or hook-bypass flag on `run`" is GONE. Spec `:162`
+     records the supersession explicitly and states that `--dangerous` "is REMOVED from this prohibition".
+  2. "CAPTURE the requirement, with its required default and the reason." DONE, and captured in the
+     right place: `:162` names `7ckptx` R4.1c as "the controlling authority on host permission posture",
+     and R4.1c (`:277`) states the constraint positively as a REQUIREMENT on drivers, pinned by
+     `tests/test_lane_permission_posture.py:315`. Spec `:96` states in as many words that this "is not an
+     unclosed gap awaiting work: it is a decided constraint".
+  3. "Distinguish prohibited spellings from required capabilities." DONE. `:161` keeps exactly the two
+     prohibitions that are real (`--skip-audit`, and the GIT sense of `--no-verify` via the commit
+     gateway) and `:162` explains the conflation of the two `--no-verify` senses that caused the defect.
+  4. "State the per-profile-configuration end state for `--no-verify`." Already tracked by its own live
+     work (`kgpptv`, approved; `f2mrsw` E-03), not by this item.
+
+WHY THIS IS `done` AND NOT `parked`: nothing here awaits a decision or a future opportunity. The
+requested change exists in the tree, so the item is satisfied rather than shelved. The evidence citation
+is the spec file itself.
+
+CONSEQUENCE FOR `ki6tom`, stated so the handoff is not silently broken: `ki6tom` was retired to
+`not-executed/` on 2026-09-08 naming THIS item as the carrier of its `Blocks-Release: next` gate. That
+reasoning was wrong in the same way this item was: there was no remaining work to carry. The gate is
+released rather than transferred, because the contract `ki6tom` enforced was withdrawn and the
+correction it pointed at had already shipped. No release blocker is lost, because none remains.
 
 MAINTAINER RULING 2026-09-07, recorded while resolving plan `ki6tom` OQ-01: the spec is WRONG in
 forbidding these flags. `--dangerous` (and its `--dangerously-skip-permissions` spelling) is 100%
