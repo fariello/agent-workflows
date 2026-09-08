@@ -36,7 +36,9 @@ from agent_workflows import (
     check_engine,
     ipd_schema,
     oc_runipd,
+    review_findings,
     runner_shared,
+    selectors,
 )
 from tests.support import REPO_ROOT
 
@@ -1056,6 +1058,442 @@ class NoRegressionForUndeclaredEdgesTests(unittest.TestCase):
         self.assertEqual(oc_runipd.cascade_dependency_blocked(state), [])
 
 
+class ExternalTargetReadinessMatrixTests(unittest.TestCase):
+    """depreview 03ie04 E-06: the ACTION x TARGET-STATE matrix for an EXTERNAL `executed:` target.
+
+    THE WHOLE CORRECTNESS OF 03ie04 IS WHICH COMBINATIONS PASS, so the matrix is the test. The
+    defect it pins: `edge_satisfied` compared the target's DIRECTORY (`plan_bucket`) against
+    `("executed", "reviewed", "approved")`, but this layout has no `reviewed/` or `approved/`
+    directory (a plan stays in `pending/` from `draft` through `approved`), so two thirds of that
+    tuple were unreachable and a REVIEW turn refused exactly as an EXECUTE turn would. Spec 25kzda
+    2.9's review-action row requires the opposite.
+
+    PRECEDENCE UNDER TEST: a TERMINAL directory decides on its own; for a NON-TERMINAL directory the
+    `- Status:` FIELD decides, and an unreadable field FAILS CLOSED.
+    """
+
+    #: (label, action, bucket, status-or-None, expected-satisfied)
+    MATRIX = (
+        # 1-4: the review row of spec 2.9, which was UNREACHABLE before this change.
+        ("review vs pending/ + reviewed", "review", "pending", "reviewed", True),
+        ("review vs pending/ + approved", "review", "pending", "approved", True),
+        ("review vs pending/ + to-review", "review", "pending", "to-review", False),
+        ("review vs executed/ + executed", "review", "executed", "executed", True),
+        # 5-6: the execute row, DELIBERATELY unrelaxed.
+        ("execute vs pending/ + reviewed", "execute", "pending", "reviewed", False),
+        ("execute vs pending/ + approved", "execute", "pending", "approved", False),
+        ("execute vs executed/ + executed", "execute", "executed", "executed", True),
+        # 7: an unreadable field in a NON-TERMINAL directory fails closed for BOTH actions.
+        # `read_front_matter_status` returns None for an ABSENT and for a MULTI-WORD status alike.
+        ("review vs pending/ + absent", "review", "pending", None, False),
+        (
+            "review vs pending/ + multi-word",
+            "review",
+            "pending",
+            "EXECUTED (approved)",
+            False,
+        ),
+        ("execute vs pending/ + absent", "execute", "pending", None, False),
+        (
+            "execute vs pending/ + multi-word",
+            "execute",
+            "pending",
+            "EXECUTED (approved)",
+            False,
+        ),
+        # 8: THE ANTI-REGRESSION CASE. A TERMINAL directory decides ALONE, so a plan in `executed/`
+        # whose field is absent, multi-word, or STALE still satisfies under BOTH actions. This is not
+        # hypothetical: 25 of the 454 plans in `executed/` have a field the shared reader returns None
+        # for (24 absent, 1 the multi-word `EXECUTED (...)` form) and all 25 satisfy today. A fix that
+        # made the field authoritative everywhere would break all 25, and NO other row here notices.
+        ("review vs executed/ + absent", "review", "executed", None, True),
+        ("execute vs executed/ + absent", "execute", "executed", None, True),
+        (
+            "review vs executed/ + multi-word",
+            "review",
+            "executed",
+            "EXECUTED (approved)",
+            True,
+        ),
+        (
+            "execute vs executed/ + multi-word",
+            "execute",
+            "executed",
+            "EXECUTED (approved)",
+            True,
+        ),
+        (
+            "review vs executed/ + stale to-review",
+            "review",
+            "executed",
+            "to-review",
+            True,
+        ),
+        (
+            "execute vs executed/ + stale to-review",
+            "execute",
+            "executed",
+            "to-review",
+            True,
+        ),
+        # A NON-EXECUTED terminal directory never satisfies `executed:` under either action
+        # (spec 5.4 rule 9), and the field must not rescue it.
+        ("review vs superseded/ + reviewed", "review", "superseded", "reviewed", False),
+        (
+            "review vs not-executed/ + approved",
+            "review",
+            "not-executed",
+            "approved",
+            False,
+        ),
+        (
+            "execute vs superseded/ + executed",
+            "execute",
+            "superseded",
+            "executed",
+            False,
+        ),
+    )
+
+    def _repo_with_target(self, temp: Path, bucket: str, status: str | None) -> Path:
+        repo = temp / "repo"
+        d = repo / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(
+            parents=True, exist_ok=True
+        )
+        text = _plan_text("depaaa", deps="none", status=status or "approved")
+        if status is None:
+            text = "\n".join(
+                ln for ln in text.splitlines() if not ln.startswith("- Status:")
+            )
+        (d / "20260829-demo-01-depaaa-x.ipd.md").write_text(text, encoding="utf-8")
+        return repo
+
+    def _item(self, action: str) -> dict:
+        return {
+            "id6": "itemaa",
+            "status": "queued",
+            "action": action,
+            "dependencies": ["executed:depaaa"],
+            "position": 1,
+            "configured_file": "",
+        }
+
+    def _ask(self, mod, fn_name: str, repo: Path, action: str):
+        item = self._item(action)
+        state = {"repo": str(repo), "queue": [item]}
+        return getattr(mod, fn_name)(item, state)
+
+    def test_the_matrix_holds_on_both_hosts_and_through_both_entry_points(self):
+        """Every row, for oc and agy, through the DISPATCH and the DRAIN entry point alike.
+
+        BE HONEST ABOUT WHAT THE TWO-PATH SWEEP PROVES. After E-03 deleted agy's local
+        `dependency_status_detailed`, both agy paths call the SAME objects as oc, so "they agree" is
+        true by construction. The value here is that the matrix is asserted through the exact
+        functions the two dispatch sites call (`dependency_status` at dispatch,
+        `dependency_status_detailed` at drain), so a future re-fork of either one is caught by a
+        BEHAVIORAL failure and not only by the identity pin in `CrossDriverSymmetryTests`.
+        """
+        for label, action, bucket, status, expected in self.MATRIX:
+            for driver, mod in _DRIVERS:
+                for fn_name in ("dependency_status", "dependency_status_detailed"):
+                    with self.subTest(case=label, driver=driver, entry=fn_name):
+                        with tempfile.TemporaryDirectory() as t:
+                            repo = self._repo_with_target(Path(t), bucket, status)
+                            got = self._ask(mod, fn_name, repo, action)
+                            self.assertEqual(
+                                got[0],
+                                expected,
+                                f"{label}: expected satisfied={expected}; reasons={got[-1]!r}",
+                            )
+
+    def test_the_measured_case_now_satisfies_and_names_what_it_read(self):
+        """The refusal that motivated 03ie04, reproduced SYNTHETICALLY and then fixed.
+
+        MEASURED 2026-09-07: a `review` item declaring `executed:tm2cz8` was refused with "external
+        target tm2cz8 is in 'pending', needs one of ['executed', 'reviewed', 'approved']" while
+        `tm2cz8` carried `- Status: reviewed`. Deliberately NOT written against `tm2cz8`: that plan
+        has since advanced to `approved`, so a test naming it would silently change what it proves.
+        """
+        with tempfile.TemporaryDirectory() as t:
+            repo = self._repo_with_target(Path(t), "pending", "reviewed")
+            satisfied, missing, reasons = self._ask(
+                oc_runipd, "dependency_status_detailed", repo, "review"
+            )
+            self.assertTrue(
+                satisfied, f"the measured case must now pass; reasons={reasons!r}"
+            )
+            self.assertEqual(missing, [])
+
+    def test_the_refusal_message_names_the_field_it_actually_read(self):
+        """An operator-facing refusal must not claim to have read a state it never looked at."""
+        with tempfile.TemporaryDirectory() as t:
+            repo = self._repo_with_target(Path(t), "pending", "to-review")
+            _sat, _missing, reasons = self._ask(
+                oc_runipd, "dependency_status_detailed", repo, "review"
+            )
+            reason = reasons["executed:depaaa"]
+            self.assertIn(
+                "'to-review'", reason, "the refusal must name the FIELD it read"
+            )
+            self.assertIn("directory 'pending'", reason, "and the directory it saw")
+
+    def test_the_status_field_is_read_with_the_already_shared_reader(self):
+        """No second reader, no second regex, and no `_artifact_owners` call was introduced.
+
+        `_artifact_owners` looks like the smaller change (it already returns `(status, path)`), but it
+        rebuilds the whole-repo artifact inventory PER CALL and reads through the STRICT status regex,
+        while the runners deliberately use the PERMISSIVE `_read_status` alias. Substituting it would
+        silently narrow which front-matter spellings the runner accepts.
+        """
+        import inspect
+
+        body = _code_only(inspect.getsource(oc_runipd.edge_satisfied))
+        self.assertIn("_read_status", body, "the shared reader must be the one used")
+        self.assertNotIn(
+            "_artifact_owners",
+            body.split("if edge.kind == 'executed'")[-1].split("record_type")[0],
+        )
+        self.assertIs(
+            oc_runipd._read_status,
+            selectors.read_front_matter_status,
+            "`_read_status` must remain the shared permissive reader",
+        )
+
+    def test_the_in_queue_branch_still_reads_run_state_not_disk(self):
+        """The in-queue branch answers a DIFFERENT question and must stay untouched.
+
+        It asks "is this prerequisite verified IN THIS RUN yet", from run state, and its own docstring
+        warns it must not be consolidated with the static evaluator. Pinned here so a later refactor
+        cannot merge the two paths carelessly: an EXECUTE dependent against an in-queue prerequisite
+        whose derived RUN status is `reviewed` must still refuse, while a REVIEW dependent is
+        satisfied, which is the same action asymmetry one path over.
+        """
+        with tempfile.TemporaryDirectory() as t:
+            # The target is in `pending/` with `- Status: reviewed` on DISK, so if the in-queue branch
+            # ever started consulting disk this test would stop discriminating.
+            repo = self._repo_with_target(Path(t), "pending", "reviewed")
+            for action, expected in (("execute", False), ("review", True)):
+                with self.subTest(action=action):
+                    item = self._item(action)
+                    prq = {
+                        "id6": "depaaa",
+                        "status": "reviewed",
+                        "action": "execute",
+                        "dependencies": [],
+                        "position": 0,
+                    }
+                    state = {"repo": str(repo), "queue": [prq, item]}
+                    sat, _missing, reasons = oc_runipd.dependency_status_detailed(
+                        item, state
+                    )
+                    self.assertEqual(sat, expected, f"reasons={reasons!r}")
+                    if not sat:
+                        self.assertIn(
+                            "in-run target",
+                            reasons["executed:depaaa"],
+                            "the refusal must come from the IN-QUEUE branch, not from disk",
+                        )
+
+    def test_the_in_run_success_states_equal_the_sanctioned_on_disk_tuple(self):
+        """`SUCCESS_STATES` needed NO change, and this states that by assertion rather than by prose.
+
+        Spec 25kzda 2.9 sanctions `executed`/`reviewed`/`approved` for a review-consumed edge, and the
+        in-run twin ALREADY equals that set. The two must stay equal, or one edge's verdict would start
+        depending on QUEUE MEMBERSHIP, which the same spec paragraph explicitly prohibits.
+        """
+        self.assertEqual(oc_runipd.SUCCESS_STATES, {"executed", "reviewed", "approved"})
+        self.assertEqual(
+            oc_runipd.EXECUTION_SUCCESS_STATES, {"executed", "substantially-complete"}
+        )
+
+    def test_the_per_driver_state_constants_are_equal_even_though_not_shared(self):
+        """agy re-declares these as EQUAL BUT SEPARATE objects; unifying them is `rununify`'s job.
+
+        Not fixed here, deliberately. Asserted so a future DIVERGENCE fails a test instead of making
+        one host accept an edge the other refuses.
+        """
+        for name in ("SUCCESS_STATES", "EXECUTION_SUCCESS_STATES", "TERMINAL_STATES"):
+            with self.subTest(constant=name):
+                self.assertEqual(
+                    getattr(agy_runipd, name),
+                    getattr(oc_runipd, name),
+                    f"{name} must stay EQUAL across the drivers",
+                )
+
+
+class ReviewQueuePreflightTests(unittest.TestCase):
+    """depreview 03ie04 E-07: a REVIEW-only selection must not be refused on EXECUTION readiness.
+
+    THE DEFECT, measured 2026-09-07: `aw oc run orchprobe` over four REVIEW turns was refused by
+    `check.ipd-dependency-findings-blocked` naming `executed:8tgg6g` and `executed:r2i1b1`, and the
+    refusal blocked the very re-review that would have resolved those findings. The preflight refuses
+    BEFORE selection ever consults `edge_satisfied`, so nothing in E-01..E-06 can reach it.
+
+    WHAT ACTUALLY FIXES IT, and why this class does not pass a `phase` (see decision 01-03ie04-D1).
+    E-07 proposed deriving a review-appropriate `phase`. Measured, `phase` cannot do this job: inside
+    `check_engine.evaluate_ipd_dependencies` it is used for EXACTLY ONE thing,
+    `blocking = phase in _DEP_BLOCKING_PHASES`, gating the `unresolved` SCAFFOLD SENTINEL finding, and
+    every phase a review turn could claim is already in that set. The findings-blocked rule is gated
+    on the CONSUMING ACTION instead (`actions`, threaded from `_consuming_actions_for`). So the goal is
+    real and reachable, and these tests pin the goal on both hosts rather than the guessed mechanism.
+    """
+
+    def _repo(
+        self, temp: Path, *, dep_bucket: str, dep_status: str, dependent_status: str
+    ):
+        repo = temp / "repo"
+        for sub in ("plans/pending", "reviews"):
+            (repo / ".aw" / "records" / sub).mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "config").mkdir(parents=True, exist_ok=True)
+        (repo / ".aw" / "config" / "project.json").write_text(
+            json.dumps({"review_findings_gate": {"block_at": "high"}}), encoding="utf-8"
+        )
+        d = repo / ".aw" / "records" / "plans" / dep_bucket
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "20260829-demo-01-depaaa-x.ipd.md").write_text(
+            _plan_text("depaaa", deps="none", status=dep_status), encoding="utf-8"
+        )
+        dependent = (
+            repo
+            / ".aw"
+            / "records"
+            / "plans"
+            / "pending"
+            / "20260829-demo-02-itemaa-x.ipd.md"
+        )
+        dependent.write_text(
+            _plan_text(
+                "itemaa", deps="executed:depaaa", order=2, status=dependent_status
+            ),
+            encoding="utf-8",
+        )
+        # An UNRESOLVED gating finding against the prerequisite, written through the real writer so
+        # the fixture cannot drift from the format `subject_gating_blocks` actually parses.
+        review_findings.write_review(
+            repo
+            / ".aw"
+            / "records"
+            / "reviews"
+            / "20260829-demo-01-depaaa-x.review.md",
+            subject_id="depaaa",
+            subject_type="ipd",
+            reviewed_at="2026-08-29",
+            reviewer="test",
+            verdict="REVIEWED - OPEN QUESTIONS",
+            rounds=[
+                review_findings.Round(
+                    1,
+                    (
+                        review_findings.Finding(
+                            id="PR-001",
+                            severity="high",
+                            scope="in-scope",
+                            area="correctness",
+                            evidence="x.py:1",
+                            finding="deliberately unresolved",
+                            remediation_risk="low",
+                            decision="accepted",
+                            resolution="pending",
+                        ),
+                    ),
+                    (),
+                )
+            ],
+        )
+        return repo, dependent
+
+    def test_a_review_queue_is_admitted_despite_the_targets_open_findings(self):
+        """`- Status: to-review` derives the `review` action, so the findings gate must not apply."""
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver):
+                with tempfile.TemporaryDirectory() as t:
+                    repo, dependent = self._repo(
+                        Path(t),
+                        dep_bucket="pending",
+                        dep_status="reviewed",
+                        dependent_status="to-review",
+                    )
+                    self.assertEqual(
+                        mod.enforce_dependency_preflight(repo, [dependent]),
+                        [],
+                        "a review-only selection must not be gated on execution readiness",
+                    )
+
+    def test_an_execute_queue_is_still_refused_by_the_findings_gate(self):
+        """The counter-case: the fix must have narrowed NOTHING it should not."""
+        for driver, mod in _DRIVERS:
+            with self.subTest(driver=driver):
+                with tempfile.TemporaryDirectory() as t:
+                    repo, dependent = self._repo(
+                        Path(t),
+                        dep_bucket="executed",
+                        dep_status="executed",
+                        dependent_status="approved",
+                    )
+                    with self.assertRaises(oc_runipd.DriverError) as caught:
+                        mod.enforce_dependency_preflight(repo, [dependent])
+                    self.assertIn(
+                        "check.ipd-dependency-findings-blocked", str(caught.exception)
+                    )
+
+    def test_removing_the_action_input_re_blocks_the_review_queue(self):
+        """THE MUTATION CHECK: the admitting behavior is load-bearing, not incidental.
+
+        Neutralize the consuming-action derivation (the mechanism that actually carries the fix) and
+        the review-only selection must be REFUSED again, then restore it and it passes. This is the
+        E-07 equivalent of "revert the change, see it break, restore it": it proves the review case
+        passes BECAUSE of the action input rather than because the fixture is toothless.
+        """
+        with tempfile.TemporaryDirectory() as t:
+            repo, dependent = self._repo(
+                Path(t),
+                dep_bucket="pending",
+                dep_status="reviewed",
+                dependent_status="to-review",
+            )
+            self.assertEqual(
+                oc_runipd.enforce_dependency_preflight(repo, [dependent]), []
+            )
+            original = oc_runipd._consuming_actions_for
+            try:
+                oc_runipd._consuming_actions_for = lambda plans: {}
+                with self.assertRaises(oc_runipd.DriverError) as caught:
+                    oc_runipd.enforce_dependency_preflight(repo, [dependent])
+                self.assertIn(
+                    "check.ipd-dependency-findings-blocked", str(caught.exception)
+                )
+            finally:
+                oc_runipd._consuming_actions_for = original
+            self.assertEqual(
+                oc_runipd.enforce_dependency_preflight(repo, [dependent]),
+                [],
+                "the fixture must pass again once the action input is restored",
+            )
+
+    def test_the_phase_argument_cannot_discriminate_a_review_turn(self):
+        """Pins decision 01-03ie04-D1, so nobody re-adds a phase argument expecting it to gate.
+
+        `phase` reaches exactly one rule (the `unresolved` sentinel) and EVERY blocking phase name
+        behaves identically for these inputs. Asserted rather than argued, because the plan's E-07
+        prose proposed `phase` as the lever and a future reader will otherwise try it again.
+        """
+        with tempfile.TemporaryDirectory() as t:
+            repo, dependent = self._repo(
+                Path(t),
+                dep_bucket="executed",
+                dep_status="executed",
+                dependent_status="approved",
+            )
+            for phase in sorted(check_engine._DEP_BLOCKING_PHASES):
+                with self.subTest(phase=phase):
+                    with self.assertRaises(oc_runipd.DriverError):
+                        oc_runipd.enforce_dependency_preflight(
+                            repo, [dependent], phase=phase
+                        )
+
+
 class ConsumingActionDerivationTests(unittest.TestCase):
     """`_consuming_actions_for` must agree with `action_for` and fail closed on unreadable input.
 
@@ -1179,12 +1617,28 @@ class AntiDivergenceGuardTests(unittest.TestCase):
 class CrossDriverSymmetryTests(unittest.TestCase):
     """Both drivers are declared in this plan's Scope-Paths, so REAL symmetry is required."""
 
+    # THIS LIST IS THE ONLY AVAILABLE HOME FOR A RUNNER-OWNED SHARED SYMBOL, and the reason is
+    # structural rather than preference (depreview 03ie04 E-04). The sibling guard
+    # `tests/test_runner_refork_guard.py`'s `REFORK_TABLE` cannot host one: its `Owned` contract is
+    # "a NON-RUNNER module owns this symbol; no runner may re-define it", every row's owner is
+    # `render_stream`, `runner_shared` or `selectors`, and naming `oc_runipd` as an owner would make
+    # its AST half forbid oc's own definition. So `oc_runipd`-owned names that agy must BIND rather
+    # than copy are pinned here, by OBJECT IDENTITY, in `test_the_implementation_is_shared_not_copied`.
+    #
+    # KNOW WHAT THIS CATCHES AND WHAT IT DOES NOT: identity catches a RE-DEFINED copy, which is what
+    # actually happened to `dependency_status_detailed` (agy carried its own broken copy for months
+    # BECAUSE this list did not name it, so the guard passed over a live divergence). It would NOT
+    # catch a copy assigned over the re-export at import time. That residual hole is accepted, not
+    # fixed here: no such pattern exists in either driver today.
     _SHARED_NAMES = (
         "_read_item_dependencies",
         "parse_dependency_token",
         "dependency_target_id6",
         "edge_satisfied",
         "dependency_status",
+        # depreview 03ie04 E-04: the `_detailed` sibling was MISSING from this list, which is exactly
+        # why the guard below passed over agy's real copy of it. Both names are required.
+        "dependency_status_detailed",
         "dependency_reasons",
         "dependency_depth",
         "queue_sort_key",

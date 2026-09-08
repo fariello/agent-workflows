@@ -1839,6 +1839,57 @@ class PlanBucketRecognitionTests(unittest.TestCase):
             driver.plan_bucket(Path("/x/.aw/records/plans/limbo/20260824-x.ipd.md"))
         )
 
+    def test_the_docstring_states_that_a_bucket_is_not_a_readiness(self):
+        """depreview 03ie04 E-05: the members above are DEFENSIVE, and that must be documented.
+
+        WHY A TEST ABOUT A DOCSTRING IS WARRANTED HERE and is not documentation theatre. This function
+        had NO docstring, while the list asserted directly above it names `reviewed` and `approved` as
+        if they were directories. They are not: `.aw/records/plans/` holds only `executed`,
+        `not-executed`, `pending`, `reusable` and `superseded`, and a plan stays in `pending/` through
+        `draft` -> `to-review` -> `reviewed` -> `approved`. A reader who took the list at face value
+        wrote `oc_runipd.edge_satisfied`'s external-target branch to compare this function's result
+        against `("executed", "reviewed", "approved")`, which made two thirds of that tuple
+        unreachable and refused every review-action edge. So the missing contract had a measured cost,
+        and this test keeps the correction attached to the thing it corrects.
+        """
+        doc = driver.plan_bucket.__doc__ or ""
+        self.assertTrue(doc.strip(), "plan_bucket must have a docstring")
+        for needle in ("DIRECTORY", "FIELD", "DEFENSIVELY", "- Status:"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, doc)
+
+    def test_no_caller_compares_a_bucket_to_a_non_terminal_member(self):
+        """The members are defensive, so no caller may treat one as a readiness verdict.
+
+        This is the guard that would have caught the original defect. `agy_runipd` used to compare a
+        bucket against the tuple `("executed", "reviewed", "approved")`; that comparison is gone with
+        the local `dependency_status_detailed` copy, and the only bucket equality comparisons left in
+        either driver are against `"executed"`, a genuine directory.
+
+        Deliberately NOT a ban on the STRINGS `reviewed`/`approved`, which appear legitimately all over
+        both drivers as STATUS values. It bans comparing them to a value obtained from `plan_bucket`,
+        which is the actual error.
+        """
+        import re
+
+        pattern = re.compile(
+            r"bucket\s*(?:==|!=)\s*[\"'](?:reviewed|approved|active)[\"']"
+            r"|bucket\s+(?:not\s+)?in\s*\([^)]*[\"'](?:reviewed|approved|active)[\"']"
+        )
+        for name in ("oc_runipd", "agy_runipd"):
+            path = REPO_ROOT / "agent_workflows" / f"{name}.py"
+            text = path.read_text(encoding="utf-8")
+            # Comments and docstrings may legitimately DISCUSS the retired comparison.
+            code = "\n".join(
+                ln for ln in text.splitlines() if not ln.lstrip().startswith("#")
+            )
+            with self.subTest(module=name):
+                self.assertIsNone(
+                    pattern.search(code),
+                    f"{name} compares a plan_bucket() result against a non-terminal member; "
+                    "readiness lives in the `- Status:` field, not in a directory name",
+                )
+
 
 class StatusJsonTests(unittest.TestCase):
     """#3: `status --json` emits the full state.json payload."""

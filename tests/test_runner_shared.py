@@ -90,6 +90,25 @@ UNMOVABLE = ("disable_lane_prompt",)
 # normalized, and its rendered output is proven byte-identical for BOTH hosts separately.
 HOST_NAMING_ONLY = ("print_status",)
 
+# Symbols that GAINED A DOCSTRING since the pre-move capture, and nothing else. ENUMERATED, in the
+# same spirit as `INJECTED` above, because an unenumerated exemption is how this harness would become
+# decorative (depreview 03ie04 E-05).
+#
+# WHY THE EXEMPTION IS LEGITIMATE HERE. This file's claim is that a moved body still BEHAVES as it
+# did. A docstring is an unobservable string constant, so it cannot change behavior, but it DOES
+# change `ast.dump`. Holding a moved symbol to byte-identical AST forever would mean a moved symbol
+# can never be DOCUMENTED, which penalizes precisely the improvement the repository wants: measured,
+# `plan_bucket` had NO docstring at all, and the absence of its stated contract is what let
+# `oc_runipd.edge_satisfied` ask it a question it structurally cannot answer (readiness), producing
+# the defect 03ie04 fixes.
+#
+# THE EXEMPTION IS NARROW AND PROVEN BY SUBTRACTION, not asserted: `_without_docstring` removes ONLY
+# the leading string expression and the remaining tokens must match the pre-move capture EXACTLY, so
+# any edit to an executable statement in one of these bodies still FAILS. Every symbol NOT listed
+# here is still held to STRICT equality including its docstring. Keep this list SHORT, and add a name
+# only together with the reason the new documentation was needed.
+DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
+
 
 def load_fixture() -> dict[str, Any]:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -151,15 +170,49 @@ def _normalize_dump(dumped: str) -> str:
     return out
 
 
-def fingerprint_of(module, name: str) -> str | None:
+def _without_docstring(node: ast.AST) -> ast.AST:
+    """Return ``node`` with a leading docstring removed, leaving every executable statement.
+
+    WHY A HARNESS ABOUT PURITY IS ALLOWED TO IGNORE A DOCSTRING (depreview 03ie04 E-05, and see
+    `DOCUMENTED_SINCE_MOVE` for the enumeration this serves). This file's claim is that a moved body
+    still BEHAVES as it did, and it proves that by fingerprinting the AST. A docstring is a string
+    constant that no caller can observe through behavior, so adding one cannot change what the
+    function does, yet it DOES change `ast.dump` and therefore fails a strict comparison. The
+    alternative was measured and rejected: a moved symbol could then never be DOCUMENTED, which
+    penalizes exactly the improvement this repository wants (`plan_bucket` had no docstring at all,
+    and its missing contract is what let `edge_satisfied` ask it a question it cannot answer).
+
+    THIS IS A SUBTRACTION, NOT A HAND-WAVE, exactly like `_strip_injected_parameter` above: ONLY the
+    leading string expression is removed, and every remaining token must then match the pre-move
+    capture. Change one executable line as well and the comparison still fails. It is applied ONLY to
+    the names enumerated in `DOCUMENTED_SINCE_MOVE`, so a silent body edit to any other symbol still
+    fails STRICTLY.
+    """
+    clone = ast.parse(ast.unparse(node)).body[0]
+    assert isinstance(clone, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    body = clone.body
+    if (
+        len(body) > 1
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        # A function whose ONLY statement is its docstring would become syntactically invalid, so the
+        # `len(body) > 1` guard keeps it rather than emitting an empty body.
+        clone.body = body[1:]
+    return clone
+
+
+def fingerprint_of(module, name: str, *, drop_docstring: bool = False) -> str | None:
     """The post-move fingerprint of ``name`` as defined in ``module``, or None if absent."""
     for node in ast.parse(module_source(module)).body:
         if (
             isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
             and node.name == name
         ):
+            target = _without_docstring(node) if drop_docstring else node
             return _normalize_dump(
-                ast.dump(ast.parse(ast.unparse(node)), include_attributes=False)
+                ast.dump(ast.parse(ast.unparse(target)), include_attributes=False)
             )
     return None
 
@@ -286,11 +339,65 @@ class PureMoveFingerprintTests(unittest.TestCase):
         self.assertEqual(len(clean), 25, "the clean-move count must not drift silently")
         for name in clean:
             with self.subTest(symbol=name):
+                # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted; every
+                # other name is compared STRICTLY, docstring included.
+                documented = name in DOCUMENTED_SINCE_MOVE
                 self.assertEqual(
-                    fingerprint_of(runner_shared, name),
+                    fingerprint_of(runner_shared, name, drop_docstring=documented),
                     _normalize_dump(expected[name]),
                     f"`{name}` was NOT a pure move: its body differs from the pre-move "
-                    f"capture at {data['captured_at_head']}",
+                    f"capture at {data['captured_at_head']}"
+                    + (
+                        " (compared with its docstring subtracted, per DOCUMENTED_SINCE_MOVE, so "
+                        "this failure is about an EXECUTABLE statement)"
+                        if documented
+                        else ""
+                    ),
+                )
+
+    def test_a_documented_symbol_is_still_held_to_its_executable_body(self):
+        """The `DOCUMENTED_SINCE_MOVE` exemption covers the docstring and NOTHING else.
+
+        Proves the subtraction is narrow rather than trusting the comment that says so: each exempt
+        symbol must (a) genuinely HAVE a docstring now, or it does not belong on the list, (b) still
+        differ from the pre-move capture when compared STRICTLY, which is what makes the exemption
+        necessary rather than decorative, and (c) FAIL when an executable statement is also changed.
+        """
+        data = load_fixture()
+        expected = data["fingerprints"]["oc_runipd"]
+        for name in DOCUMENTED_SINCE_MOVE:
+            with self.subTest(symbol=name):
+                fn = getattr(runner_shared, name)
+                self.assertTrue(
+                    (fn.__doc__ or "").strip(),
+                    f"`{name}` is listed as documented but has no docstring",
+                )
+                self.assertNotEqual(
+                    fingerprint_of(runner_shared, name),
+                    _normalize_dump(expected[name]),
+                    f"`{name}` matches STRICTLY, so it does not need the exemption; "
+                    "remove it from DOCUMENTED_SINCE_MOVE",
+                )
+                # (c) mutate one executable statement and require the subtraction to still refuse.
+                node = None
+                for cand in ast.parse(module_source(runner_shared)).body:
+                    if (
+                        isinstance(cand, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and cand.name == name
+                    ):
+                        node = cand
+                assert node is not None
+                mutated = _without_docstring(node)
+                assert isinstance(mutated, (ast.FunctionDef, ast.AsyncFunctionDef))
+                mutated.body.append(ast.Return(value=ast.Constant(value="mutant")))
+                self.assertNotEqual(
+                    _normalize_dump(
+                        ast.dump(
+                            ast.parse(ast.unparse(mutated)), include_attributes=False
+                        )
+                    ),
+                    _normalize_dump(expected[name]),
+                    f"an added statement in `{name}` was NOT detected; the exemption is too wide",
                 )
 
     def test_every_injected_symbol_matches_MODULO_its_one_new_parameter(self):

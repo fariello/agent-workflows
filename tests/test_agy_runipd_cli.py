@@ -1101,5 +1101,200 @@ class AgyVerbosityFlagTests(unittest.TestCase):
         self.assertIn(unparseable, res)
 
 
+class AgyDependencyPathsAreSharedTests(unittest.TestCase):
+    """depreview 03ie04 E-03/E-06: THIS HOST's two dependency paths must be the shared ones.
+
+    WHY THIS LIVES IN THE AGY SUITE and is not merely a line in the cross-driver test: agy is the host
+    whose fix was missed. Its DISPATCH path calls the re-exported ``dependency_status`` (whose body
+    resolves ``dependency_status_detailed`` in oc's globals) while its DRAIN path calls
+    ``dependency_status_detailed`` directly. This module used to DEFINE its own copy of the latter, so
+    a dependency fix reached one path and not the other, and the copy was additionally broken: it never
+    called ``edge_satisfied``, never called ``parse_dependency_token`` (so a typed ``executed:<id6>``
+    edge was treated as a bare id6 and reported as resolving to no plan), and had no ``orchestrate``
+    clause. Measured before the deletion: ``agy.dependency_status_detailed is
+    oc.dependency_status_detailed`` was ``False``.
+    """
+
+    def _repo(self, tmp: Path, *, bucket: str, status: str) -> Path:
+        repo = tmp / "repo"
+        (repo / ".aw" / "records" / "plans" / "pending").mkdir(parents=True)
+        d = repo / ".aw" / "records" / "plans" / bucket
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "20260908-demo-01-depaaa-x.ipd.md").write_text(
+            "# IPD: dep\n\n"
+            "- Date: 2026-09-08\n- Kind: child\n- Scope-Paths: x.py\n"
+            f"- Item-Dependencies: none\n- Status: {status}\n- Set: demo\n"
+            "- Order: 1\n- Id: depaaa\n\n## Goal\ng\n",
+            encoding="utf-8",
+        )
+        return repo
+
+    def _item(self, action: str) -> dict:
+        return {
+            "id6": "itemaa",
+            "status": "queued",
+            "action": action,
+            "dependencies": ["executed:depaaa"],
+            "position": 1,
+            "setid": "demo",
+            "configured_file": "",
+        }
+
+    def test_both_dependency_entry_points_are_the_shared_objects(self):
+        """The IDENTITY pin. After the deletion this is what fails if the copy ever returns.
+
+        Stated honestly: because both paths now call the SAME object, the behavioral agreement
+        asserted below is true BY CONSTRUCTION. The identity assertion is therefore the one that
+        carries the guarantee, and the behavioral test is what catches a re-fork that kept the name.
+        """
+        from agent_workflows import oc_runipd
+
+        self.assertIs(agy_runipd.dependency_status, oc_runipd.dependency_status)
+        self.assertIs(
+            agy_runipd.dependency_status_detailed,
+            oc_runipd.dependency_status_detailed,
+            "agy must BIND the shared implementation, never define its own",
+        )
+        self.assertIs(agy_runipd.edge_satisfied, oc_runipd.edge_satisfied)
+
+    def test_this_module_no_longer_defines_a_dependency_status_detailed(self):
+        """Assertion by SOURCE, so a copy shadowed by a later import cannot hide behind identity."""
+        import ast
+
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        defined = [
+            node.name
+            for node in ast.parse(src).body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        self.assertNotIn("dependency_status_detailed", defined)
+        self.assertNotIn("dependency_status", defined)
+
+    def test_the_drain_path_resolves_a_TYPED_edge(self):
+        """The copy reported `no plan resolves to this id6 in the repo` for a valid typed edge."""
+        for action in ("review", "execute"):
+            with self.subTest(action=action):
+                with tempfile.TemporaryDirectory() as t:
+                    repo = self._repo(Path(t), bucket="executed", status="executed")
+                    item = self._item(action)
+                    state = {"repo": str(repo), "queue": [item]}
+                    ok, missing, reasons = agy_runipd.dependency_status_detailed(
+                        item, state
+                    )
+                    self.assertTrue(ok, f"reasons={reasons!r}")
+                    self.assertEqual(missing, [])
+
+    def test_the_drain_path_routes_an_orchestrate_item_through_the_shared_decider(self):
+        """The copy had NO `orchestrate` clause, so an orchestrator bypassed the shared decision."""
+        with tempfile.TemporaryDirectory() as t:
+            repo = Path(t) / "repo"
+            pending = repo / ".aw" / "records" / "plans" / "pending"
+            pending.mkdir(parents=True)
+            (pending / "20260908-demo-00-orch00-x.ipd.md").write_text(
+                "# IPD: orch\n\n- Date: 2026-09-08\n- Kind: orchestrator\n"
+                "- Scope-Paths: x.py\n- Item-Dependencies: none\n- Status: approved\n"
+                "- Set: demo\n- Order: 0\n- Id: orch00\n\n"
+                "## Children\n\n| Order | Id | Title |\n|---|---|---|\n| 01 | child1 | c |\n",
+                encoding="utf-8",
+            )
+            (pending / "20260908-demo-01-child1-x.ipd.md").write_text(
+                "# IPD: child\n\n- Date: 2026-09-08\n- Kind: child\n- Scope-Paths: x.py\n"
+                "- Item-Dependencies: none\n- Status: approved\n- Set: demo\n"
+                "- Order: 1\n- Id: child1\n\n## Goal\ng\n",
+                encoding="utf-8",
+            )
+            orch = {
+                "id6": "orch00",
+                "status": "queued",
+                "action": "orchestrate",
+                "dependencies": [],
+                "position": 1,
+                "setid": "demo",
+                "configured_file": "",
+            }
+            child = dict(
+                self._item("execute"), id6="child1", position=2, dependencies=[]
+            )
+            state = {"repo": str(repo), "queue": [orch, child]}
+            ok, missing, reasons = agy_runipd.dependency_status_detailed(orch, state)
+            self.assertFalse(ok, "an orchestrator with an unfinished child must WAIT")
+            self.assertEqual(missing, ["executed:child1"])
+            self.assertIn(
+                "orchestrator waits for child child1",
+                reasons["executed:child1"],
+                "only the orchestrator clause can produce a child-named reason",
+            )
+
+    def test_a_review_edge_is_satisfied_by_a_reviewed_external_target_on_this_host(
+        self,
+    ):
+        """The headline fix, asserted on THIS host: readiness is the FIELD, not the directory."""
+        for status, expected in (
+            ("reviewed", True),
+            ("approved", True),
+            ("to-review", False),
+        ):
+            with self.subTest(status=status):
+                with tempfile.TemporaryDirectory() as t:
+                    repo = self._repo(Path(t), bucket="pending", status=status)
+                    item = self._item("review")
+                    state = {"repo": str(repo), "queue": [item]}
+                    for entry in ("dependency_status", "dependency_status_detailed"):
+                        got = getattr(agy_runipd, entry)(item, state)
+                        self.assertEqual(got[0], expected, f"{entry} disagreed")
+
+    def test_an_execute_edge_is_NOT_relaxed_on_this_host(self):
+        """The asymmetry, on this host too: an execute turn consumes WORK, so it needs `executed/`."""
+        for status in ("reviewed", "approved"):
+            with self.subTest(status=status):
+                with tempfile.TemporaryDirectory() as t:
+                    repo = self._repo(Path(t), bucket="pending", status=status)
+                    item = self._item("execute")
+                    state = {"repo": str(repo), "queue": [item]}
+                    ok, missing, _reasons = agy_runipd.dependency_status_detailed(
+                        item, state
+                    )
+                    self.assertFalse(ok)
+                    self.assertEqual(missing, ["executed:depaaa"])
+
+    def test_a_terminal_directory_still_decides_on_this_host(self):
+        """The anti-regression half: an `executed/` plan with an unreadable field still satisfies."""
+        for status in ("EXECUTED (approved by maintainer)", "to-review"):
+            for action in ("review", "execute"):
+                with self.subTest(status=status, action=action):
+                    with tempfile.TemporaryDirectory() as t:
+                        repo = self._repo(Path(t), bucket="executed", status=status)
+                        item = self._item(action)
+                        state = {"repo": str(repo), "queue": [item]}
+                        ok, _m, reasons = agy_runipd.dependency_status_detailed(
+                            item, state
+                        )
+                        self.assertTrue(ok, f"reasons={reasons!r}")
+
+    def test_the_retained_findings_wrapper_is_uncalled_but_present(self):
+        """`_findings_block_reason`'s two call sites were BOTH inside the deleted copy.
+
+        It is kept because `tests/test_review_findings_cascade.py::SharedPredicateTests` requires this
+        module to expose it and to name `subject_gating_blocks`; the live gate now runs in `oc_runipd`
+        through the shared implementation. Pinned so a future reader does not mistake it for a second
+        implementation, and so deleting it is a deliberate act rather than an accident.
+        """
+        import ast
+
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        calls = [
+            node
+            for node in ast.walk(ast.parse(src))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_findings_block_reason"
+        ]
+        self.assertEqual(
+            calls, [], "the wrapper must have no call sites in this module"
+        )
+        self.assertTrue(hasattr(agy_runipd, "_findings_block_reason"))
+        self.assertIn("subject_gating_blocks", src)
+
+
 if __name__ == "__main__":
     unittest.main()

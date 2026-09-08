@@ -3386,9 +3386,61 @@ def edge_satisfied(
             return False, f"{tok}: {exc}"
         bucket = plan_bucket(dep_path)
         allowed = ("executed",) if is_exec else ("executed", "reviewed", "approved")
-        if bucket not in allowed:
+        # PRECEDENCE (depreview 03ie04 E-01, OQ-01): A TERMINAL DIRECTORY IS AUTHORITATIVE; for a
+        # NON-TERMINAL directory the `- Status:` FIELD carries the readiness. The two signals answer
+        # different halves of one question and only one of them carries information in each case.
+        #
+        # WHY THE DIRECTORY MUST WIN IN `executed/`, measured and not hypothetical: 24 of the 455
+        # plans in `executed/` carry a `- Status:` that `read_front_matter_status` returns None for
+        # (all 24 the MULTI-WORD `EXECUTED (approved ...)` form the reader documents as yielding
+        # None). Every one of them satisfies an `executed:` edge today because the directory decides.
+        # Making the field authoritative EVERYWHERE, or letting a None field override a terminal
+        # directory, silently breaks all 24 at once. `aw ipd finalize` is what moves a plan into
+        # `executed/`, so the move is the harder-to-forge signal, which is the same anti-fabrication
+        # posture `reconcile_disposition` takes when it trusts the directory over an agent's outcome.
+        # (The plan's review recorded "24 absent, 1 multi-word"; re-measured at execution the corpus
+        # is 24 multi-word and 0 absent. The conclusion is unchanged, the census is not.)
+        #
+        # WHY THE FIELD MUST WIN IN `pending/`: readiness in this layout is a FIELD, not a directory.
+        # A plan sits in `pending/` from `draft` through `to-review`, `reviewed` and `approved`, and
+        # only a TERMINAL state moves it, so there are no `reviewed/` or `approved/` directories to
+        # find. Reading the bucket alone therefore made the review-action relaxation above
+        # UNREACHABLE: every non-terminal plan buckets as `pending`, which is in neither `allowed`
+        # tuple, so a review turn refused exactly as an execute turn would (spec 25kzda 2.9's
+        # review-action row, which requires no terminal execution evidence).
+        #
+        # `_read_status` is the reader the module ALREADY imports and ALREADY uses for this exact
+        # comparison in `reconcile_disposition`'s review branch; do not substitute another. It
+        # returns None for an ABSENT and for a MULTI-WORD status alike, and in a NON-TERMINAL
+        # directory both must FAIL CLOSED, exactly as an unrecognized bucket does.
+        #
+        # THE ASYMMETRY BETWEEN THE TWO `allowed` TUPLES IS THE POINT AND MUST STAY VISIBLE. Only the
+        # REVIEW tuple gains anything from reading the field, because only it accepts a non-terminal
+        # state. An EXECUTE turn consumes its prerequisite's WORK, so a merely `reviewed` or
+        # `approved` plan has produced nothing to consume and satisfying its edge would dispatch a
+        # dependent against a base lacking the commits it depends on; for an execute edge the
+        # terminal directory IS the right authority, since `executed/` is exactly where finalize puts
+        # a plan, and the precedence rule above already yields that answer with no special case.
+        # Spec 25kzda 2.9 makes this normative: the two rows "must stay distinguishable by the
+        # consuming action and by nothing else: not by queue membership, not by which host is
+        # running, and not by whether the target happens to be in the current run".
+        #
+        # The terminal-directory set is NOT re-listed here: it is the shared
+        # `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` predicate, so a layout change lands in
+        # one place. Lazily imported for the same reason `ipd_schema` is below.
+        from agent_workflows import run_selection_policy as _policy
+
+        effective = bucket
+        if bucket is not None and not _policy.is_in_terminal_directory(str(dep_path)):
+            try:
+                field = _read_status(dep_path.read_text(encoding="utf-8"))
+            except Exception:
+                field = None
+            effective = field
+        if effective not in allowed:
             return False, (
-                f"{tok}: external target {edge.id6} is in {bucket!r}, needs one of {list(allowed)} "
+                f"{tok}: external target {edge.id6} is {effective!r} "
+                f"(directory {bucket!r}), needs one of {list(allowed)} "
                 "(it is not in this run, so it cannot become satisfied here)"
             )
         return True, ""
