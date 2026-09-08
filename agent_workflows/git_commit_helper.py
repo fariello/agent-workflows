@@ -321,6 +321,43 @@ def _staged_paths(repo_root: Path) -> List[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
+def _ignored_paths(repo_root: Path, rel_paths: Sequence[str]) -> List[str]:
+    """Subset of ``rel_paths`` that ``git add`` would REFUSE because .gitignore excludes them.
+
+    Exists because ``git add -- <ignored-path>`` is NOT tolerant: it exits 1 and stages NOTHING,
+    including the non-ignored paths in the same invocation, so one generated-and-now-gitignored
+    file in a mixed path-set would take the REAL artifact's commit down with it (measured
+    2026-09-06; see :func:`offer_commit`).
+
+    The predicate is ``git check-ignore``, which was measured to agree EXACTLY with ``git add``'s
+    refusal condition: it reports a path ignored only when the path is untracked AND matched by an
+    ignore rule. In particular it does NOT report a path that is TRACKED but happens to match a
+    pattern (git honors the index over .gitignore there, and ``git add`` accepts it), nor a
+    tracked DELETION of such a path, so filtering on this predicate cannot silently drop a real
+    change. A nonexistent path is likewise not reported, and is left in the set so that git's own
+    "pathspec did not match" error still surfaces rather than being swallowed here.
+
+    Returns an empty list on any git failure: the filter is a safety net, and a broken probe must
+    not itself start dropping paths.
+    """
+
+    if not rel_paths:
+        return []
+    # Batch form: one subprocess regardless of path count. -z keeps paths with spaces intact.
+    proc = subprocess.run(
+        ["git", "check-ignore", "-z", "--stdin"],
+        cwd=str(repo_root),
+        input="\0".join(rel_paths) + "\0",
+        capture_output=True,
+        text=True,
+    )
+    # rc 0 = at least one path ignored, 1 = none ignored, >1 = real error.
+    if proc.returncode > 1:
+        return []
+    ignored = {p for p in proc.stdout.split("\0") if p}
+    return [p for p in rel_paths if p in ignored]
+
+
 def _normalize(paths: Sequence[str], repo_root: Path) -> List[str]:
     """Coerce the caller's paths to repo-relative POSIX strings, de-duplicated, order-stable."""
 
@@ -359,8 +396,11 @@ def offer_commit(
     repo_root:
         Repository root the git commands run in.
     paths:
-        The exact files the caller touched (repo-relative or absolute), including deletions,
-        renames, and any regenerated index. ONLY these are ever staged (``git add -- <paths>``).
+        The exact files the caller touched (repo-relative or absolute), including deletions and
+        renames. ONLY these are ever staged (``git add -- <paths>``), and a path that .gitignore
+        EXCLUDES is dropped from the staging set first, with a note naming it on stderr (see
+        below). Callers must therefore not rely on a generated, gitignored file being committed
+        here.
     message:
         Commit message. Never combined with ``--no-verify``; the commit is path-scoped
         (``git commit -- <paths>``) and is never pushed.
@@ -391,7 +431,18 @@ def offer_commit(
         ``committed`` (with the new sha), ``skipped`` (gate declined it non-interactively or
         ``no_commit``), ``declined`` (interactive user said no), ``refused-dirty``
         (``on_unrelated_staged="refuse"`` and the index held unrelated staged paths),
-        ``nothing-to-commit`` (no requested path exists/changed), or ``error``.
+        ``nothing-to-commit`` (no requested path exists/changed, or EVERY requested path is
+        gitignored), or ``error``.
+
+    Notes
+    -----
+    GITIGNORED PATHS ARE FILTERED, NOT FORCED. ``git add -- <ignored-path>`` exits 1 and stages
+    NOTHING AT ALL, so a single gitignored entry in an otherwise valid path-set made this helper
+    return ``error`` and create no commit, losing the real artifact's commit too (measured
+    2026-09-06). Such paths are therefore dropped BEFORE staging and reported by name; the
+    remaining paths commit normally. Nothing is ever force-added: a path the repository has
+    chosen to ignore is one it has chosen not to track. See :func:`_ignored_paths` for why the
+    predicate cannot drop a tracked file or a tracked deletion.
     """
 
     if on_unrelated_staged not in ("scope", "refuse"):
@@ -414,6 +465,26 @@ def offer_commit(
 
     if no_commit:
         return CommitOutcome(STATUS_SKIPPED, None, (), "skipped: --no-commit requested")
+
+    # --- Drop gitignored paths BEFORE staging (never force-add them). ---
+    # A single ignored path makes `git add` exit 1 having staged NOTHING, which previously turned
+    # into `error` and no commit at all, silently losing the real artifact's commit. Degrade to
+    # "that one path is not committed" instead, and say which.
+    ignored = _ignored_paths(repo_root, rel_paths)
+    if ignored:
+        print(
+            "note: not committing gitignored path(s): " + ", ".join(ignored),
+            file=sys.stderr,
+        )
+        rel_paths = [p for p in rel_paths if p not in set(ignored)]
+        if not rel_paths:
+            return CommitOutcome(
+                STATUS_NOTHING_TO_COMMIT,
+                None,
+                (),
+                "nothing to commit: every requested path is gitignored: "
+                + ", ".join(ignored),
+            )
 
     # --- Unrelated pre-staged content: decide BEFORE we stage anything. ---
     pre_staged = set(_staged_paths(repo_root))

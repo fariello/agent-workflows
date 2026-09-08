@@ -119,6 +119,15 @@ def plan_reference_rewrites(
 
     edits: List[RefEdit] = []
     for f in _core.iter_scan_files(repo_root, scan_roots):
+        # NEVER rewrite a GENERATED manifest (INDEX.md/README.md/STATUS.md). Doing so is both
+        # pointless and harmful: the caller REGENERATES the manifest from the renamed corpus
+        # immediately after this rewrite, so the edit is overwritten anyway, and meanwhile the
+        # manifest lands in the caller's `touched_paths`, which is its COMMIT path-set. That put a
+        # generated (now gitignored) file into a commit, which is what idxuntrack `4r0qp1` E-05
+        # exists to eliminate. `_SKIP_NAMES` is already the module's name for "not a citing
+        # document"; it was applied when COLLECTING names but not when SCANNING them.
+        if f.name in _SKIP_NAMES:
+            continue
         try:
             text = f.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

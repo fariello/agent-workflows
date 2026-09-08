@@ -1756,13 +1756,16 @@ class NoReceiptIsRequiredAndNoneIsLeftBehind(RollupTransitionCase):
         self.assertTrue(
             expected <= changed, f"expected the plan move; got {sorted(changed)}"
         )
-        # The ONLY other paths are the owned index artifacts. Enumerated exactly rather than by
-        # prefix, so a rollup that started committing some other plans-tree file would fail.
-        self.assertEqual(
-            changed - expected,
-            {".aw/records/plans/INDEX.json", ".aw/records/plans/INDEX.md"},
-            sorted(changed),
-        )
+        # The plan move is the WHOLE commit: there are no other paths at all. Asserted as an exact
+        # set rather than by prefix, so a rollup that started committing some other plans-tree file
+        # would fail here.
+        self.assertEqual(changed - expected, set(), sorted(changed))
+        # In particular the GENERATED plans manifests are absent. They are still refreshed on disk
+        # by the transaction (`_refresh_plans_index_fail_loud`), but generated output is no longer
+        # committed by any `aw` verb, so committing one here would be the regression (idxuntrack
+        # `4r0qp1` E-01).
+        self.assertNotIn(".aw/records/plans/INDEX.json", changed)
+        self.assertNotIn(".aw/records/plans/INDEX.md", changed)
 
 
 class TheWorkerRoleIsRefused(RollupTransitionCase):

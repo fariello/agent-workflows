@@ -159,8 +159,12 @@ def _refresh_index(repo_root: Path, plans_dir: Path) -> None:
 def apply_shard_moves(
     repo_root: Path, plans_dir: Path, moves: List[ShardMove]
 ) -> List[str]:
-    """Apply archival shard moves; RETURN repo-relative touched paths (moved files + regenerated
-    INDEX) for the self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer."""
+    """Apply archival shard moves; RETURN repo-relative touched paths (the MOVED FILES) for the
+    self-commit offer (selfcommit jgcm68 E-02). The caller drives the offer.
+
+    The regenerated INDEX.json/INDEX.md are deliberately NOT in the returned list. They are still
+    refreshed on disk (`_refresh_index` below), but generated manifests are not committed by any
+    `aw` verb (idxuntrack `4r0qp1` E-07), and the caller commits this list verbatim."""
     touched: List[str] = []
     for m in moves:
         src_rel = m.old_path.relative_to(repo_root).as_posix()
@@ -169,13 +173,6 @@ def apply_shard_moves(
         touched.append(src_rel)
         touched.append(dst_rel)
     _refresh_index(repo_root, plans_dir)
-    for name in (_idx.INDEX_JSON, _idx.INDEX_MD):
-        p = plans_dir / name
-        if p.exists():
-            try:
-                touched.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
-            except ValueError:
-                touched.append(p.as_posix())
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
@@ -283,8 +280,9 @@ def run_archive(args: argparse.Namespace) -> int:
 def _offer_archive_commit(
     args: argparse.Namespace, repo_root: Path, touched: List[str]
 ) -> None:
-    """selfcommit jgcm68 E-02: offer to path-scoped-commit the archived plan moves + regenerated
-    INDEX. Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit the archived plan moves. The regenerated
+    INDEX is NOT included (idxuntrack `4r0qp1` E-07): it is refreshed on disk but never committed.
+    Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
     ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``; unrelated dirty files never
     folded in. A commit failure is non-fatal (the archive already happened)."""
     if not touched:

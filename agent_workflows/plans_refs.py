@@ -145,15 +145,16 @@ class MutationResult(NamedTuple):
     * ``rc`` - the backend's exit code (0 ok / 1 findings / 2 cannot-run); the router still honors it.
     * ``touched_paths`` - repo-relative paths the backend moved/renamed/rewrote (incl. citing files
       whose references were rewritten), tracked EXPLICITLY during the mutation - never a dirty scan.
-    * ``index_paths`` - repo-relative regenerated INDEX files (INDEX.json/INDEX.md).
 
-    The commit path-set is ``touched_paths + index_paths``. This type is defined here (in scope) and
-    imported by ``research_refs`` and ``artifact_rename`` so there is a single shared definition.
+    The commit path-set is ``touched_paths``, and that is the WHOLE of it. There is deliberately no
+    ``index_paths`` companion: the backends still REGENERATE the INDEX.json/INDEX.md manifests, but
+    those are generated output that no `aw` verb commits (idxuntrack `4r0qp1` E-03), so a caller must
+    not add them back to a commit path-set. This type is defined here (in scope) and imported by
+    ``research_refs`` and ``artifact_rename`` so there is a single shared definition.
     """
 
     rc: int
     touched_paths: Tuple[str, ...] = ()
-    index_paths: Tuple[str, ...] = ()
 
 
 def clustered_name(
@@ -410,19 +411,6 @@ def _dirs(args: argparse.Namespace) -> Tuple[Path, Path]:
     return repo_root, plans_dir
 
 
-def _index_paths_for(plans_dir: Path, repo_root: Path) -> Tuple[str, ...]:
-    """Repo-relative INDEX.json/INDEX.md for the plans tree (only those that exist)."""
-    out: List[str] = []
-    for name in (_idx.INDEX_JSON, _idx.INDEX_MD):
-        p = plans_dir / name
-        if p.exists():
-            try:
-                out.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
-            except ValueError:
-                out.append(p.as_posix())
-    return tuple(out)
-
-
 def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     repo_root, plans_dir = _dirs(args)
     ids = [i.strip() for i in (getattr(args, "ids", None) or []) if i.strip()]
@@ -448,8 +436,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         apply=getattr(args, "apply", False),
         update_refs=not getattr(args, "no_refs", False),
     )
-    idx = _index_paths_for(plans_dir, repo_root) if touched else ()
-    return MutationResult(0, touched, idx)
+    return MutationResult(0, touched)
 
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
@@ -496,5 +483,4 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
         update_refs=not getattr(args, "no_refs", False),
         verb="rename",
     )
-    idx = _index_paths_for(plans_dir, repo_root) if touched else ()
-    return MutationResult(0, touched, idx)
+    return MutationResult(0, touched)

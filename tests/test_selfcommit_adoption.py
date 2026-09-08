@@ -5,10 +5,16 @@ Covers the child-02 validation items:
 * V-01 - the shared ``--commit``/``--no-commit`` arg group is registered on every records-mutating
   parser (archive/group/rename/set/research set-assign-mv) and reaches the backend namespace.
 * V-02 - ``research_archive.run_archive`` / ``plans_archive.run_archive`` commit exactly the moved
-  paths + regenerated INDEX with ``--commit``; ``--no-commit`` skips; non-interactive-without-commit
+  paths with ``--commit``; ``--no-commit`` skips; non-interactive-without-commit
   is a no-op; an unrelated dirty file is never folded in.
-* V-03 - each group/rename backend RETURNS a ``MutationResult`` whose touched/index paths match the
-  files it moved/regenerated, and commits NOTHING itself.
+* V-03 - each group/rename backend RETURNS a ``MutationResult`` whose touched paths match the
+  files it moved, and commits NOTHING itself.
+
+BOTH HALVES OF THE GENERATED-MANIFEST CONTRACT ARE PINNED HERE (idxuntrack `4r0qp1`): the
+INDEX.json/INDEX.md manifests are still REGENERATED on disk by every mutating verb, and are NEVER
+part of a commit path-set. A test that stops asserting either half would let the pair drift.
+Plus the shared ``offer_commit`` ignored-path guard (E-06), which is what makes a MISSED
+contributor degrade to "the manifest was not committed" instead of "nothing was committed at all".
 * V-04 - ``aw research set-assign``/``mv`` AND ``aw group/rename research`` (the SAME shared backend
   reached by two entry points) each fire EXACTLY ONE offer - no double-commit (PR-012).
 * V-05 - the shared ``status_set.run_set_command`` offers once for a single-target transition and a
@@ -251,7 +257,7 @@ class ArchiveCommitTests(unittest.TestCase):
         base.update(kw)
         return argparse.Namespace(**base)
 
-    def test_commit_flag_commits_exactly_moved_and_index(self):
+    def test_commit_flag_commits_exactly_the_moved_doc_and_not_the_index(self):
         # an unrelated dirty file must NOT be folded in
         (self.repo / "unrelated.txt").write_text("dirty\n", encoding="utf-8")
         before = _head(self.repo)
@@ -260,10 +266,21 @@ class ArchiveCommitTests(unittest.TestCase):
         after = _head(self.repo)
         self.assertNotEqual(before, after, "a commit should have been made")
         files = _committed_files(self.repo, after)
-        # The moved doc (old + new path) and the two INDEX files are committed; unrelated.txt is not.
+        # The moved doc (old + new path) is committed; unrelated.txt is not.
         self.assertTrue(any("bbbbbb" in f for f in files))
-        self.assertTrue(any(f.endswith("INDEX.json") for f in files))
         self.assertNotIn("unrelated.txt", files)
+        # The GENERATED manifests are NOT committed (idxuntrack `4r0qp1` E-07), ...
+        self.assertEqual(
+            [f for f in files if f.endswith(("INDEX.json", "INDEX.md"))],
+            [],
+            f"generated manifests must not be committed; got {sorted(files)}",
+        )
+        # ... but they ARE still refreshed on disk, which is the half that must survive.
+        from agent_workflows import research_index as RI
+
+        idx = self.rroot / RI.INDEX_JSON
+        self.assertTrue(idx.is_file(), "the manifest must still be regenerated on disk")
+        self.assertIn("bbbbbb", idx.read_text(encoding="utf-8"))
 
     def test_no_commit_skips(self):
         before = _head(self.repo)
@@ -345,7 +362,21 @@ class BackendReturnShapeTests(unittest.TestCase):
         self.assertEqual(mr.rc, 0)
         self.assertTrue(mr.touched_paths, "expected touched paths")
         self.assertTrue(any("pl1234" in p for p in mr.touched_paths))
-        self.assertTrue(any(p.endswith("INDEX.json") for p in mr.index_paths))
+        # The generated manifests are NOT part of the commit path-set the backend returns, and the
+        # `index_paths` field that used to carry them is gone (idxuntrack `4r0qp1` E-03).
+        self.assertFalse(
+            hasattr(mr, "index_paths"),
+            "MutationResult must no longer carry an index_paths commit contribution",
+        )
+        self.assertEqual(
+            [p for p in mr.touched_paths if p.endswith(("INDEX.json", "INDEX.md"))],
+            [],
+            f"generated manifests must not be in the commit path-set; got {mr.touched_paths}",
+        )
+        # But the manifest IS still refreshed on disk by the backend.
+        idx = plans_dir / "INDEX.json"
+        self.assertTrue(idx.is_file(), "the manifest must still be regenerated on disk")
+        self.assertIn("pl1234", idx.read_text(encoding="utf-8"))
         # The backend itself made NO commit.
         self.assertEqual(before, _head(repo), "backend must not commit")
 
@@ -649,6 +680,76 @@ class DispatchCoverageTests(unittest.TestCase):
         git(repo, "commit", "-q", "-m", "seed")
         spy = self._run_group(repo, "specs", "ds0001")
         self.assertEqual(spy.count, 1)
+
+
+# --------------------------------------------------------------------------------------
+# idxuntrack `4r0qp1` E-06: the shared ignored-path guard in offer_commit
+# --------------------------------------------------------------------------------------
+
+
+class IgnoredPathsAreFilteredNotFatal(unittest.TestCase):
+    """A gitignored path in the set must not take the REAL artifact's commit down with it.
+
+    MEASURED (2026-09-06) before the guard existed: ``git add -- <ignored>`` exits 1 and stages
+    NOTHING, including the non-ignored paths in the same invocation, so ``offer_commit`` returned
+    ``error``, created NO commit, and the real artifact silently went uncommitted. That is the
+    failure mode this guard converts into a reported skip, and it is what makes a commit-path
+    contributor that anyone MISSED non-destructive.
+    """
+
+    def _repo(self) -> Path:
+        repo = init_repo(Path(tempfile.mkdtemp(prefix="aw_sc_ign_")))
+        self.addCleanup(lambda: shutil.rmtree(repo, ignore_errors=True))
+        _commit_seed(repo)
+        (repo / ".gitignore").write_text("GEN.json\n", encoding="utf-8")
+        git(repo, "add", "--", ".gitignore")
+        git(repo, "commit", "-q", "-m", "ignore GEN.json")
+        return repo
+
+    def test_a_mixed_set_commits_the_real_path_and_skips_the_ignored_one(self):
+        repo = self._repo()
+        (repo / "real.md").write_text("real\n", encoding="utf-8")
+        (repo / "GEN.json").write_text("{}\n", encoding="utf-8")
+        before = _head(repo)
+        out = git_commit_helper.offer_commit(
+            repo, ["real.md", "GEN.json"], message="mixed", assume_yes=True
+        )
+        self.assertEqual(out.status, git_commit_helper.STATUS_COMMITTED, out.message)
+        self.assertEqual(out.staged, ("real.md",))
+        self.assertNotEqual(before, _head(repo), "the real artifact must be committed")
+        self.assertEqual(_committed_files(repo, _head(repo)), {"real.md"})
+
+    def test_an_all_ignored_set_is_nothing_to_commit_not_error(self):
+        repo = self._repo()
+        (repo / "GEN.json").write_text("{}\n", encoding="utf-8")
+        before = _head(repo)
+        out = git_commit_helper.offer_commit(
+            repo, ["GEN.json"], message="all ignored", assume_yes=True
+        )
+        self.assertEqual(
+            out.status, git_commit_helper.STATUS_NOTHING_TO_COMMIT, out.message
+        )
+        self.assertIn("GEN.json", out.message, "the skipped path must be named")
+        self.assertEqual(before, _head(repo), "no commit should be made")
+
+    def test_a_TRACKED_file_matching_an_ignore_pattern_is_still_committed(self):
+        """The guard must not over-reach: git honors the index over .gitignore, and so must we."""
+        repo = self._repo()
+        (repo / "GEN.json").write_text("v1\n", encoding="utf-8")
+        git(repo, "add", "-f", "--", "GEN.json")
+        git(repo, "commit", "-q", "-m", "force-track GEN.json")
+        (repo / "GEN.json").write_text("v2\n", encoding="utf-8")
+        out = git_commit_helper.offer_commit(
+            repo, ["GEN.json"], message="tracked ignored", assume_yes=True
+        )
+        self.assertEqual(out.status, git_commit_helper.STATUS_COMMITTED, out.message)
+        self.assertEqual(out.staged, ("GEN.json",))
+
+    def test_no_force_add_was_introduced(self):
+        """Force-adding an ignored path is the exact behavior this Set exists to REMOVE."""
+        src = Path(git_commit_helper.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('"-f"', src)
+        self.assertNotIn('"--force"', src)
 
 
 if __name__ == "__main__":
