@@ -55,8 +55,15 @@ RESOLUTION PRECEDENCE IS EXACT AND TESTED. For a launch field
 For `validate`, with an ABSENT level falling THROUGH rather than reading as `false`::
 
     explicit --validate/--no-validate  >  profile's own `validate`  >
-    `defaults.validate`  >  the shipped default (:data:`SHIPPED_VALIDATE_DEFAULT`, False,
-    matching `oc_runipd`'s `--validate` BooleanOptionalAction default)
+    `defaults.validate`  >  the RESOLVED RUNNER's shipped posture
+    (:attr:`RunnerSpec.validate_default` on its :data:`RUNNER_REGISTRY` row)
+
+TIER 4 IS PER HOST, not one global. The two shipped hosts want OPPOSITE defaults, deliberately:
+`oc` verification defaults OFF (`oc_runipd`'s `--validate` BooleanOptionalAction defaults False)
+while `agy` defaults ON (`agy_runipd` gates its verifier on `not no_verify`, and `--no-verify` is
+a `store_true`). One module constant cannot carry two host postures, so the value lives on the
+registry row beside the other per-host launch facts. :data:`SHIPPED_VALIDATE_DEFAULT` is retained
+as a compatibility name for the `oc` row's value only.
 
 AN EXPLICIT FLAG ALWAYS WINS. A stored default silently overriding an explicit flag would
 make the flag a lie, and would reproduce `vju5ba` inverted: two independently sensible
@@ -154,9 +161,16 @@ SUPPORTED_SCHEMA_VERSIONS: frozenset = frozenset((1, 2))
 #: The store's file name, inside :func:`agent_workflows.config.config_dir`.
 STORE_NAME = "runner-profiles.json"
 
-#: The shipped `validate` default, used only when no level supplied a value. FALSE, matching
-#: `oc_runipd.py`'s `--validate` (`BooleanOptionalAction`, `default=False`), so this module
-#: cannot silently change what an un-configured run does today.
+#: The `oc` row's shipped `validate` default, retained as a COMPATIBILITY NAME. FALSE, matching
+#: `oc_runipd.py`'s `--validate` (`BooleanOptionalAction`, `default=False`).
+#:
+#: THE AUTHORITY FOR TIER 4 MOVED TO THE REGISTRY ROW: :func:`resolve` reads
+#: ``RUNNER_REGISTRY[<resolved runner>].validate_default``, because the two shipped hosts want
+#: OPPOSITE defaults and one global cannot express both. This name is kept because tests and this
+#: module's docstring cite it, and it must stay a LITERAL rather than
+#: ``RUNNER_REGISTRY["oc"].validate_default``: the registry is defined BELOW this line, so that
+#: expression is a module-level forward reference and raises `NameError` at import. A test asserts
+#: this literal still equals the `oc` row's value, which is what keeps the two from drifting.
 SHIPPED_VALIDATE_DEFAULT = False
 
 #: Top-level document keys. Anything else is refused (no silent widening).
@@ -239,24 +253,59 @@ FIELD_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,%d}$" % (MAX_FIELD_LEN - 1)
 
 
 class RunnerSpec(NamedTuple):
-    """One registered runner (host) and the launch fields it actually supports.
+    """One registered runner (host), the launch fields it supports, and its verification posture.
 
-    THE REGISTRY SEAM. Version 1 registers OpenCode only. Adding a host is ONE ROW here plus
-    that host's own adapter work; it is deliberately data rather than a `register_runner()`
-    mutator, so nothing at runtime can widen the accepted runner set.
+    THE REGISTRY SEAM. Version 1 of the schema registers TWO rows, OpenCode (`oc`) and
+    Antigravity (`agy`), which deliberately differ in every field below because the two hosts
+    genuinely differ. Adding a host is ONE ROW here plus that host's own adapter work; it is
+    deliberately data rather than a `register_runner()` mutator, so nothing at runtime can widen
+    the accepted runner set.
+
+    ``validate_default`` is that host's SHIPPED verification posture, and it is the BOTTOM TIER
+    of the `validate` precedence chain ONLY: it is consulted when no explicit flag, no profile
+    `validate`, and no `defaults.validate` spoke, so a row can never override an operator's
+    typed choice. The field is REQUIRED with no Python default on purpose: a defaulted field
+    would let a future host row omit it and silently inherit OpenCode's posture, which is the
+    exact class of bug the per-host row exists to remove. Registering a host is therefore a
+    DECISION about how that host verifies, and `RunnerSpec(...)` without the field raises
+    ``TypeError``.
     """
 
     name: str
     aliases: Tuple[str, ...]
     supports_variant: bool
     supports_agent: bool
+    validate_default: bool
 
 
-#: Canonical runner name -> spec. Version 1: OpenCode (`oc`), whose CLI accepts `--model`,
-#: `--variant` and `--agent` (`oc_runipd.py` `run_opencode` appends exactly those three).
+#: Canonical runner name -> spec. Version 1 registers TWO rows, whose fields are MEASURED from
+#: each driver rather than assumed:
+#:
+#: * ``oc`` (OpenCode): accepts `--model`, `--variant` and `--agent` (`oc_runipd.run_opencode`
+#:   appends exactly those three), and verification defaults OFF (`--validate` is a
+#:   `BooleanOptionalAction` with `default=False`, and the verifier turn is gated on it).
+#: * ``agy`` (Antigravity): accepts `--model` ONLY (`agy_runipd`'s child argv appends only
+#:   `--model` and its parser declares only `--model`), so `supports_variant`/`supports_agent`
+#:   are False and `parse_profile` refuses a stored profile carrying either; and verification
+#:   defaults ON (that driver gates its verifier on `not no_verify`, and `--no-verify` is a
+#:   `store_true`, so a bare run verifies).
+#:
+#: The two rows' OPPOSITE `validate_default` values are the reason this is a per-host field and
+#: not a module global: one constant cannot describe both hosts.
 RUNNER_REGISTRY: Dict[str, RunnerSpec] = {
     "oc": RunnerSpec(
-        name="oc", aliases=("opencode",), supports_variant=True, supports_agent=True
+        name="oc",
+        aliases=("opencode",),
+        supports_variant=True,
+        supports_agent=True,
+        validate_default=False,
+    ),
+    "agy": RunnerSpec(
+        name="agy",
+        aliases=("antigravity",),
+        supports_variant=False,
+        supports_agent=False,
+        validate_default=True,
     ),
 }
 
@@ -470,9 +519,20 @@ PROVENANCE_VALUES: frozenset = frozenset(
 def canonical_runner(name: Any) -> str:
     """Canonicalize a runner name, or raise :class:`ProfileSchemaError`.
 
-    Version 1 maps ``opencode`` -> ``oc`` and otherwise accepts only a REGISTERED runner. An
-    unregistered runner is refused rather than stored optimistically, because a profile naming
-    a host nobody can launch is a failure the user should see at write time, not at 3am.
+    Maps each row's aliases to its canonical name (``opencode`` -> ``oc``, ``antigravity`` ->
+    ``agy``) and otherwise accepts only a REGISTERED runner. An unregistered runner is refused
+    rather than stored optimistically, because a profile naming a host nobody can launch is a
+    failure the user should see at write time, not at 3am.
+
+    THAT RATIONALE IS NOW ONLY PARTLY TRUE, and saying so here is more honest than leaving the
+    stale absolute. This function is the write-time gate for :func:`parse_profile`,
+    :func:`_validate_referential_integrity` and :func:`set_default_runner`, so registering the
+    ``agy`` row made ``runner: agy`` and ``default_runner: agy`` STORABLE while
+    ``run_dispatch.RUNNER_ADAPTERS`` still has no adapter for that host: a store can hold a
+    configuration nothing in this build can run. That is an ACCEPTED consequence of putting the
+    host's verification posture in the schema (`hostdefault-01`), bounded because every dispatch
+    route refuses it with a clear exit-2 message naming the runners this build can reach, rather
+    than misrouting to the wrong driver, and because the profile wizard still writes ``oc`` only.
     """
 
     if not isinstance(name, str) or not name.strip():
@@ -1075,7 +1135,8 @@ def resolve(
 
     Precedence for ``validate``, highest first, with an ABSENT level falling THROUGH::
 
-        explicit flag > profile's `validate` > `defaults.validate` > shipped default
+        explicit flag > profile's `validate` > `defaults.validate` >
+        the RESOLVED RUNNER's `validate_default` row value
 
     Precedence for ``verify_with``, on the SAME tri-state discipline, highest first::
 
@@ -1138,6 +1199,33 @@ def resolve(
             applied_profile = default_name
             applied_provenance = PROVENANCE_DEFAULT_PROFILE
 
+    # ---- an EXPLICIT field the resolved host does not support --------------------------------
+    # REFUSE, matching `parse_profile` (`hostdefault-01` E-08). `parse_profile` has always
+    # enforced `supports_variant`/`supports_agent` for a STORED profile, but this function
+    # consulted neither flag, so an explicit caller argument was carried through with provenance
+    # `explicit` even for a host whose argv builder cannot emit it. That path was UNREACHABLE
+    # while `oc` was the only row (any other `runner=` raised in `canonical_runner`); registering
+    # `agy`, which supports neither field, makes it reachable, so it becomes a decision.
+    #
+    # WHY REFUSE rather than accept-and-document: the store and the caller must enforce the SAME
+    # row contract, or `--variant high` is refused when written to a profile and silently dropped
+    # when typed on the command line, which is a difference the operator cannot see. Silently
+    # dropping a field the operator explicitly asked for is the same class of lie this module's
+    # "an explicit flag always wins" rule exists to prevent: better a typed refusal naming the
+    # host than a run that ignores half the command line. The message deliberately mirrors
+    # `parse_profile`'s wording so the two refusals read as one rule.
+    resolved_spec = RUNNER_REGISTRY[resolved_runner]
+    if variant is not None and not resolved_spec.supports_variant:
+        raise ProfileSchemaError(
+            f"runner {resolved_runner!r} does not support a model variant, so an explicit "
+            f"variant cannot be honored; omit it"
+        )
+    if agent is not None and not resolved_spec.supports_agent:
+        raise ProfileSchemaError(
+            f"runner {resolved_runner!r} does not support an agent, so an explicit agent "
+            f"cannot be honored; omit it"
+        )
+
     # ---- per-field launch values ------------------------------------------------------------
     def pick(
         explicit: Optional[str], from_profile: Optional[str], key: str
@@ -1179,7 +1267,15 @@ def resolve(
         resolved_validate = cfg.validate
         provenance["validate"] = PROVENANCE_DEFAULTS
     else:
-        resolved_validate = SHIPPED_VALIDATE_DEFAULT
+        # TIER 4 IS PER HOST (`hostdefault-01` E-02). Read the SHIPPED posture off the row of the
+        # runner resolved above, not off a module global: `oc` verifies OFF by default and `agy`
+        # verifies ON, so one constant would be right for one host by coincidence and wrong for
+        # every other. `resolved_runner` is finalized in the `---- runner` block far above and is
+        # always a canonical registry key, so this lookup needs no restructuring and cannot miss.
+        # The provenance stays `shipped-default` (OQ-01): the tier's MEANING is unchanged
+        # ("nothing was configured, so the built-in applies"); only its value is host-specific,
+        # and the record's own `runner` field already says which host that was.
+        resolved_validate = RUNNER_REGISTRY[resolved_runner].validate_default
         provenance["validate"] = PROVENANCE_SHIPPED
 
     # ---- verify_with: the SAME tri-state chain, and absent means "same as the executor" -----

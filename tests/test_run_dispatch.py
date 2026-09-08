@@ -332,16 +332,26 @@ class AdapterRegistryTests(_ProfileStoreFixture):
         self.assertIn("oc", str(ctx.exception))
 
     def test_a_registered_but_unimplemented_runner_is_a_distinct_refusal(self) -> None:
-        """'known runner, no adapter' must not be reported as 'not a runner': different fixes."""
+        """'known runner, no adapter' must not be reported as 'not a runner': different fixes.
+
+        Uses a FICTIONAL host rather than the real `agy` row: `hostdefault-01` registered `agy` in
+        the schema, so patching that key would SHADOW shipped data instead of adding a hypothetical
+        host, and this test's job is the hypothetical case that recurs at every future host. The
+        real `agy` refusal is covered separately (both dispatch routes, in the e2e suite).
+        """
 
         spec = runner_profiles.RunnerSpec(
-            name="agy", aliases=(), supports_variant=True, supports_agent=False
+            name="futurehost",
+            aliases=(),
+            supports_variant=True,
+            supports_agent=False,
+            validate_default=False,
         )
         with mock.patch.dict(
-            runner_profiles.RUNNER_REGISTRY, {"agy": spec}, clear=False
+            runner_profiles.RUNNER_REGISTRY, {"futurehost": spec}, clear=False
         ):
             with self.assertRaises(run_dispatch.RunDispatchError) as ctx:
-                run_dispatch.adapter_for("agy")
+                run_dispatch.adapter_for("futurehost")
         message = str(ctx.exception)
         self.assertIn("no dispatch adapter", message)
         self.assertNotIn("is not a registered runner", message)
@@ -392,17 +402,46 @@ class FailClosedRefusalTests(_HostSpyFixture):
         self._refuses("run", "ipd", "SEL")
 
     def test_a_profile_whose_runner_has_no_adapter_refuses(self) -> None:
+        # A FICTIONAL host, for the reason given on the adapter-registry twin of this test: the
+        # real `agy` row now ships, so patching that key would shadow real data rather than
+        # simulate the next host. What this pins is that a profile naming a schema-valid host with
+        # no adapter refuses fail-closed WITHOUT launching any driver, whichever host that is.
         spec = runner_profiles.RunnerSpec(
-            name="agy", aliases=(), supports_variant=True, supports_agent=False
+            name="futurehost",
+            aliases=(),
+            supports_variant=True,
+            supports_agent=False,
+            validate_default=False,
         )
         store = json.loads(json.dumps(self.STORE))
-        store["profiles"]["future"] = {"runner": "agy", "model": SONNET_MODEL}
+        store["profiles"]["future"] = {"runner": "futurehost", "model": SONNET_MODEL}
         with mock.patch.dict(
-            runner_profiles.RUNNER_REGISTRY, {"agy": spec}, clear=False
+            runner_profiles.RUNNER_REGISTRY, {"futurehost": spec}, clear=False
         ):
             self.write_store(store)
             out = self._refuses("run", "as", "future", "SEL")
         self.assertIn("no dispatch adapter", out)
+
+    def test_the_real_agy_row_refuses_on_both_routes_without_launching(self) -> None:
+        """`hostdefault-01` E-04: the registered-but-unimplemented refusal for the REAL second row.
+
+        Registering `agy` in the schema made two new store states WRITABLE that no adapter can
+        launch: a profile whose `runner` is `agy`, and `default_runner: agy` (which the UNQUALIFIED
+        `aw run ipd` route reaches with no profile named at all). Both must refuse fail-closed,
+        because the whole point of the row is to record that host's verification posture, NOT to
+        make `aw run` reach it. No `mock.patch.dict` here: this is shipped data.
+        """
+
+        store = json.loads(json.dumps(self.STORE))
+        store["profiles"]["gg"] = {"runner": "agy", "model": SONNET_MODEL}
+        store["default_runner"] = "agy"
+        self.write_store(store)
+        for argv in (("run", "as", "gg", "SEL"), ("run", "ipd", "SEL")):
+            with self.subTest(route=" ".join(argv)):
+                out = self._refuses(*argv)
+                self.assertIn("no dispatch adapter", out)
+                self.assertIn("'agy'", out)
+                self.assertIn("oc", out)
 
     def test_as_without_a_profile_name_refuses(self) -> None:
         out = self._refuses("run", "as")

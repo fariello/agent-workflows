@@ -38,21 +38,21 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: make the default a per-host fact
 
-- [ ] E-01 Add a `validate_default: bool` field to `RunnerSpec` (`runner_profiles.py:191-202`; RE-LOCATE BY SYMBOL, every line number in this plan may drift) and give the existing `oc` row the value `False`, which is its CURRENT effective default and must not change. Extend the class docstring to say what the field means and, critically, that it is the BOTTOM tier only: it is consulted when no explicit flag, no profile, and no `defaults.validate` spoke, so a row's value can never override an operator's typed choice.
+- [x] E-01 Add a `validate_default: bool` field to `RunnerSpec` (`runner_profiles.py:191-202`; RE-LOCATE BY SYMBOL, every line number in this plan may drift) and give the existing `oc` row the value `False`, which is its CURRENT effective default and must not change. Extend the class docstring to say what the field means and, critically, that it is the BOTTOM tier only: it is consulted when no explicit flag, no profile, and no `defaults.validate` spoke, so a row's value can never override an operator's typed choice.
   THE FIELD IS DELIBERATELY REQUIRED, NOT DEFAULTED. Giving it a Python default (`validate_default: bool = False`) would let a future host row omit it and silently inherit opencode's posture, which is the exact class of bug this plan exists to remove; a required field makes registering a host a decision about its verification posture. The measured consequence is that two shipped test call sites break (F-6), and E-05 updates them.
   - Depends on: none
   - Expected outcome: `RunnerSpec` carries `validate_default`; the `oc` row declares `False`; `RunnerSpec(...)` without the field raises `TypeError`; nothing else changed yet.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Resolve tier 4 from the registry row instead of the module global. In `resolve()`'s validate chain (`runner_profiles.py:1015-1017`), replace `resolved_validate = SHIPPED_VALIDATE_DEFAULT` with the `validate_default` of the row for `resolved_runner`. THE ORDERING IS ALREADY CORRECT AND MUST BE CONFIRMED, NOT ASSUMED: `resolved_runner` is finalized in the `---- runner` block roughly 70 lines ABOVE the validate chain (measured: the runner block resolves at relative lines 29-53 of the function, the validate chain begins at relative line 103), so the row is available with no restructuring and no second lookup. Do NOT move either block.
+- [x] E-02 Resolve tier 4 from the registry row instead of the module global. In `resolve()`'s validate chain (`runner_profiles.py:1015-1017`), replace `resolved_validate = SHIPPED_VALIDATE_DEFAULT` with the `validate_default` of the row for `resolved_runner`. THE ORDERING IS ALREADY CORRECT AND MUST BE CONFIRMED, NOT ASSUMED: `resolved_runner` is finalized in the `---- runner` block roughly 70 lines ABOVE the validate chain (measured: the runner block resolves at relative lines 29-53 of the function, the validate chain begins at relative line 103), so the row is available with no restructuring and no second lookup. Do NOT move either block.
   KEEP `SHIPPED_VALIDATE_DEFAULT` AS A NAME, do not delete it. Three tests reference it (`tests/test_runner_profiles.py:889-893`, `tests/test_runner_profiles_e2e.py:807`) and the module docstring cites it (`:56`). Retain it as the literal `False` with a comment stating that it is now the `oc` row's value and that the AUTHORITY moved to the row. Deleting it would break three tests for no benefit and would lose the documented link between the two.
   DO NOT DEFINE IT AS `RUNNER_REGISTRY["oc"].validate_default`. That is the obvious-looking expression of "retain it as the row's value" and it does not import: the constant is defined at `:112` and `RUNNER_REGISTRY` at `:207`, so the reference is a module-level forward reference. MEASURED at review: `NameError: name 'RUNNER_REGISTRY' is not defined` at import, which breaks the entire package rather than one test. Either keep the literal (preferred, one line, no ordering coupling) or move the constant BELOW the registry; if you move it, say so, because the module docstring's tier-4 clause and the reading order both assume it precedes the schema constants. A test asserting the two agree (E-06) is what keeps a literal honest.
   ALSO UPDATE THE MODULE DOCSTRING's precedence block (`:53-57`), which currently ends the chain at "the shipped default (`SHIPPED_VALIDATE_DEFAULT`, False, matching `oc_runipd`'s `--validate` ...)". That text becomes false the moment a second row exists with a different value, and this module's docstring is the only place the four-tier chain is written down in prose.
   - Depends on: E-01
   - Expected outcome: tier 4 reads the resolved runner's row; provenance for that tier is UNCHANGED (still `shipped-default`, see OQ-01); `SHIPPED_VALIDATE_DEFAULT` still exists and still equals `False`; the module IMPORTS (no forward reference); the docstring's chain description matches the code.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 Correct the FOUR in-code prose statements that assert a one-host registry, which the row makes false. This is not polish: three of them are the reader's only statement of the registry's population, and one of them is the docstring of the very field this plan adds.
+- [x] E-07 Correct the FOUR in-code prose statements that assert a one-host registry, which the row makes false. This is not polish: three of them are the reader's only statement of the registry's population, and one of them is the docstring of the very field this plan adds.
   (1) `runner_profiles.py:194` `RunnerSpec`'s own docstring, "THE REGISTRY SEAM. Version 1 registers OpenCode only." Restate the population as the two rows, and KEEP the load-bearing sentence that follows ("Adding a host is ONE ROW here plus that host's own adapter work"), which this plan is the proof of.
   (2) `runner_profiles.py:205-206` the `RUNNER_REGISTRY` comment, "Version 1: OpenCode (`oc`), whose CLI accepts `--model`, `--variant` and `--agent`". Name both rows and state each one's measured field support, since the two differ and that difference is now enforced.
   (3) `run_dispatch.py:101` "Version 1 registers OpenCode only, matching `runner_profiles.RUNNER_REGISTRY`." That sentence is now DOUBLY wrong and in the more dangerous direction: the two registries no longer match, and their disagreement is exactly what makes the registered-but-unimplemented branch reachable. Say that plainly, because a future reader who believes the two tables match will not understand why `adapter_for` refuses a name the schema accepted.
@@ -60,34 +60,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT widen any behavior while editing these four sites. This item changes COMMENTS AND DOCSTRINGS ONLY, and `git diff` must show no executable line touched in `run_dispatch.py` or `runner_profile_wizard.py`.
   - Depends on: E-03
   - Expected outcome: no in-code prose claims a one-host registry; `RUNNER = "oc"` unchanged; the diff for the two non-resolver modules is comment-only.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: register the second host
 
-- [ ] E-03 Add the `agy` registry row: `name="agy"`, `aliases=("antigravity",)`, `validate_default=True`. The alias is required for symmetry with `oc`'s `("opencode",)`, and `canonical_runner` already lowercases and checks aliases (`:409-414`), so `agy`/`AGY`/`antigravity` must all canonicalize to `agy` once the row exists.
+- [x] E-03 Add the `agy` registry row: `name="agy"`, `aliases=("antigravity",)`, `validate_default=True`. The alias is required for symmetry with `oc`'s `("opencode",)`, and `canonical_runner` already lowercases and checks aliases (`:409-414`), so `agy`/`AGY`/`antigravity` must all canonicalize to `agy` once the row exists.
   `validate_default=True` IS THE MEASURED CURRENT BEHAVIOR OF THAT HOST, not a new policy: `agy_runipd.py:3392-3399` gates the verifier on `not no_verify` and `--no-verify` is a `store_true` with an implicit `False` default (`:4447-4453`), so a bare `agy run start` verifies. This plan does NOT change that; it records it where the resolver can see it.
   SET `supports_variant=False` and `supports_agent=False`, which is also measured rather than chosen: `agy_runipd.py` appends only `--model` to its child argv (`:2575`) and its parser declares only `--model` (`:4417`), whereas `oc_runipd` appends all three (`:5223-5227`). A row claiming variant/agent support would let the store accept a profile whose fields that host silently drops, and `parse_profile` already refuses unsupported fields per row (`:517-531`), which is the mechanism that makes this honest.
   - Depends on: E-02
   - Expected outcome: `sorted(RUNNER_REGISTRY)` is `["agy", "oc"]`; `canonical_runner("antigravity")` returns `agy`; a profile declaring `runner: agy` with a valid `provider/model` parses; a profile declaring `runner: agy` WITH a `variant` or `agent` is REFUSED with the existing per-row message.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Keep the DISPATCH refusal intact and prove it is now the reachable one. `run_dispatch.RUNNER_ADAPTERS` registers only `oc` (`run_dispatch.py:106-108`) and `adapter_for` deliberately distinguishes "not a runner at all" from "registered but has no adapter" (`:117-142`). Before this plan, an `agy` profile was refused EARLIER, at store load by the schema, so the registered-but-unimplemented branch was unreachable for that name; `tests/test_runner_profiles_e2e.py:624-632` records exactly that ("refused at STORE LOAD by the schema, before the router ever reaches its adapter table"). After E-03 the refusal MOVES to the adapter table.
+- [x] E-04 Keep the DISPATCH refusal intact and prove it is now the reachable one. `run_dispatch.RUNNER_ADAPTERS` registers only `oc` (`run_dispatch.py:106-108`) and `adapter_for` deliberately distinguishes "not a runner at all" from "registered but has no adapter" (`:117-142`). Before this plan, an `agy` profile was refused EARLIER, at store load by the schema, so the registered-but-unimplemented branch was unreachable for that name; `tests/test_runner_profiles_e2e.py:624-632` records exactly that ("refused at STORE LOAD by the schema, before the router ever reaches its adapter table"). After E-03 the refusal MOVES to the adapter table.
   DO NOT ADD AN `agy` ADAPTER, and do not make `aw run as <agy-profile>` launch the antigravity driver. That is host-neutral dispatch for a second host, a separate concern with its own surface (the driver's argv contract, `--variant`/`--agent` absence, its own `main`), and folding it in here would make a data-shape plan into a dispatch plan. The REQUIRED outcome is that the refusal stays fail-closed and its MESSAGE remains accurate, naming the runner as known-but-not-dispatchable and pointing at the runners this build can reach.
   COVER BOTH ROUTES, NOT ONLY `as`. `default_runner: agy` is newly STORABLE once the row exists, because `set_default_runner` and `_validate_referential_integrity` both gate on `canonical_runner` (`:884`, `:564`), so `aw run ipd <selector>` reaches `adapter_for` through `resolve_default_runner` (`run_dispatch.py:180-196`) with no profile named at all. MEASURED at review with an isolated store holding `default_runner: agy`: both `aw run ipd SEL` and `aw run as g SEL` exit 2 with the registered-but-unimplemented message and launch nothing. Pin BOTH; the original E-04 named only the profile route, which would have left the default route's refusal unproven at exactly the moment it became reachable.
   - Depends on: E-03
   - Expected outcome: BOTH `aw run as <profile with runner agy>` and `aw run ipd <selector>` under `default_runner: agy` refuse with exit 2 and do NOT invoke `oc_runipd.main`; the refusal comes from `adapter_for`'s registered-but-unimplemented branch; the e2e test's assertion is updated to pin the NEW message while pinning the SAME guarantee (the wrong host driver is never launched).
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Decide and record what an EXPLICIT `variant`/`agent` argument means for a row that declares no support, which registering the second row makes reachable for the first time. `parse_profile` enforces `supports_variant`/`supports_agent` for a STORED profile (`:517-531`), but `resolve()`'s per-field block consults NEITHER flag: MEASURED at review, `resolve(cfg, runner="agy", variant="high", agent="build")` returns `variant='high'`, `agent='build'` with provenance `explicit`, silently carrying fields that host's argv builder does not emit (`agy_runipd.py:2667` appends only `--model`). Before this plan the path was unreachable, because `runner="agy"` raised at `canonical_runner`; after it, it resolves.
+- [x] E-08 Decide and record what an EXPLICIT `variant`/`agent` argument means for a row that declares no support, which registering the second row makes reachable for the first time. `parse_profile` enforces `supports_variant`/`supports_agent` for a STORED profile (`:517-531`), but `resolve()`'s per-field block consults NEITHER flag: MEASURED at review, `resolve(cfg, runner="agy", variant="high", agent="build")` returns `variant='high'`, `agent='build'` with provenance `explicit`, silently carrying fields that host's argv builder does not emit (`agy_runipd.py:2667` appends only `--model`). Before this plan the path was unreachable, because `runner="agy"` raised at `canonical_runner`; after it, it resolves.
   THE MINIMUM DELIVERABLE IS A RECORDED DECISION PLUS A TEST, NOT NECESSARILY A REFUSAL. Two defensible answers: (a) REFUSE in `resolve()`, consistent with `parse_profile`, so the store and the caller enforce the same row contract; or (b) ACCEPT and document that an explicit caller field is the caller's problem, on the ground that no dispatch path can reach agy anyway (E-04) so nothing can act on the stray value today. Choose ONE, state the reasoning in a comment at the decision site, and add a test pinning the CHOSEN behavior so it is a decision rather than an accident. If you choose (a), the refusal must be a typed `ProfileSchemaError` matching `parse_profile`'s wording, and you must confirm no shipped test asserted the permissive behavior.
   DO NOT let this item grow into a general per-field capability audit. It concerns exactly the two `supports_*` flags already on the row, exactly in `resolve()`, and exactly for an explicitly-passed value.
   - Depends on: E-03
   - Expected outcome: `resolve()`'s treatment of an unsupported explicit `variant`/`agent` is deliberate, commented at the site, and pinned by a test; the choice between refusing and documenting is recorded with its reason.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: update the tests that pin one host
 
-- [ ] E-05 Update the SIX shipped tests the change breaks, enumerated with their measured failure modes in F-6. THE COUNT WAS FIVE AT AUTHORING AND IS WRONG; see F-10 for why the sixth was invisible. EACH MUST BE UPDATED TO PIN THE SAME PROPERTY OVER THE NEW POPULATION, never deleted and never weakened to pass:
+- [x] E-05 Update the SIX shipped tests the change breaks, enumerated with their measured failure modes in F-6. THE COUNT WAS FIVE AT AUTHORING AND IS WRONG; see F-10 for why the sixth was invisible. EACH MUST BE UPDATED TO PIN THE SAME PROPERTY OVER THE NEW POPULATION, never deleted and never weakened to pass:
   (1) `tests/test_runner_profiles.py:158-166` `test_only_registered_runners_are_accepted` asserts `sorted(RUNNER_REGISTRY) == ["oc"]` and that `agy`/`antigravity`/`codex`/`claude` all raise. Update the population to `["agy", "oc"]`, MOVE `agy`/`antigravity` from the refused list to an accepted list, and KEEP `codex`/`claude`/`""`/`None`/`3` refused, since the point of the test is that the registry is closed, not that it has one row.
   (2) `tests/test_runner_profiles.py:651-656` `test_default_runner_setter_canonicalizes_and_clears` asserts `set_default_runner(cfg, "agy")` RAISES. That is now legal; change the negative case to a name that is still unregistered (`codex`) so the test still proves the setter canonicalizes AND refuses an unknown host.
   (3) `tests/test_runner_profiles.py:753-760` `test_unknown_and_wrong_runner_profiles_fail_rather_than_fall_back` asserts `resolve(cfg, runner="agy", profile="gem")` raises `ProfileSchemaError`. With `agy` registered, the RIGHT refusal for an oc profile requested on agy is `ProfileResolutionError` ("profile 'gem' runs on 'oc', but 'agy' was requested", `:938-942`), which is a BETTER test of the same property: a profile is never silently run on the wrong host. Update the expected exception type and say why in a comment.
@@ -96,9 +96,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO CHECK `tests/test_run_dispatch.py:266-267` `test_only_oc_is_registered_in_version_1`, which asserts `run_dispatch.registered_runners() == ["oc"]`. It does NOT break, because that function reads `RUNNER_ADAPTERS` and no adapter is added. Do NOT "fix" it; its continuing to pass is the PROOF that E-04 added no adapter, and V-04 requires that. Its NAME becomes slightly misleading (it now pins the dispatch table, not the schema registry), which you may correct in a comment.
   - Depends on: E-04
   - Expected outcome: all six tests pass and each still pins its original property over the two-host population; `test_only_oc_is_registered_in_version_1` still passes UNCHANGED; no test was deleted, skipped, or had an assertion removed rather than updated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Add the tests this plan's own guarantees need, which the shipped suite cannot express because it predates a second row. FOUR properties, and the third is the one that would have caught the defect this plan fixes:
+- [x] E-06 Add the tests this plan's own guarantees need, which the shipped suite cannot express because it predates a second row. FOUR properties, and the third is the one that would have caught the defect this plan fixes:
   (a) TIER 4 IS PER HOST: with an EMPTY store and no flag, `resolve(runner="oc").validate` is `False` and `resolve(runner="agy").validate` is `True`, both with provenance `shipped-default`.
   (b) A ROW NEVER BEATS AN OPERATOR: for BOTH hosts, an explicit `validate=True`/`validate=False` wins over the row (provenance `explicit`), and a `defaults.validate` wins over the row (provenance `defaults`). Assert the agy case with `defaults.validate: false`, which is the direction that proves the row is a FLOOR and not an override.
   (c) EVERY REGISTERED ROW DECLARES ITS POSTURE DELIBERATELY: iterate `RUNNER_REGISTRY` and assert every row's `validate_default` is a `bool`. This is the guard that makes host three a decision instead of an inheritance, and it is cheap and permanent.
@@ -108,7 +108,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   Do NOT duplicate the resolver-level tier tests already at `tests/test_runner_profiles.py:843-935`; read them first and add only what a second host makes newly expressible.
   - Depends on: E-05
   - Expected outcome: four new assertions pass; (c) fails if a future row omits a deliberate posture AND if a row declares a non-`bool`; the constant-mirrors-the-row assertion passes; no existing resolver test is duplicated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -204,45 +204,584 @@ No SPEC change is authorized here. Spec `25kzda` records that skipping the verif
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new `RunnerSpec` definition and the `oc` row. Paste a Python probe showing `RunnerSpec(name="x", aliases=(), supports_variant=True, supports_agent=True)` raising `TypeError` for the missing required argument, which proves the field cannot be silently omitted by a future host row. Quote the docstring sentence stating the field is the BOTTOM tier only.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. `RunnerSpec` carries `validate_default`; the `oc` row declares `False` (unchanged effective default); the field is REQUIRED, proven by the `TypeError` probe below; the docstring states it is the BOTTOM tier only. Full evidence:
+    THE NEW FIELD LIST (`agent_workflows/runner_profiles.py`, `class RunnerSpec`):
 
-- [ ] V-02 validates E-02
+    ```python
+        name: str
+        aliases: Tuple[str, ...]
+        supports_variant: bool
+        supports_agent: bool
+        validate_default: bool
+    ```
+
+    THE `oc` ROW, whose value is its CURRENT effective default and did not change:
+
+    ```python
+        "oc": RunnerSpec(
+            name="oc",
+            aliases=("opencode",),
+            supports_variant=True,
+            supports_agent=True,
+            validate_default=False,
+        ),
+    ```
+
+    THE FIELD IS REQUIRED, not defaulted (probe, `logs/probe-resolver.txt`):
+
+    ```text
+    == V-01: RunnerSpec requires validate_default ==
+    TypeError: RunnerSpec.__new__() missing 1 required positional argument: 'validate_default'
+    ```
+
+    THE BOTTOM-TIER SENTENCE, quoted verbatim from the extended class docstring: "``validate_default`` is that host's SHIPPED verification posture, and it is the BOTTOM TIER of the `validate` precedence chain ONLY: it is consulted when no explicit flag, no profile `validate`, and no `defaults.validate` spoke, so a row can never override an operator's typed choice." The docstring also records WHY the field carries no Python default: "a defaulted field would let a future host row omit it and silently inherit OpenCode's posture, which is the exact class of bug the per-host row exists to remove."
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the changed tier-4 lines from `resolve()`. Paste a probe showing that for an EMPTY store, `resolve(runner="oc").validate` is `False` and `resolve(runner="agy").validate` is `True`, with each provenance value shown. Paste the retained `SHIPPED_VALIDATE_DEFAULT` line and its new comment, plus the three tests that reference it still passing. Paste the output of `python3 -c "import agent_workflows.runner_profiles"` succeeding, which is what proves the F-8 forward-reference trap was avoided; if you MOVED the constant below the registry instead of keeping the literal, say so and state what else you had to reorder. Paste the UPDATED module-docstring precedence block and confirm in one sentence that it no longer claims a single global tier-4 value.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Tier 4 now reads `RUNNER_REGISTRY[resolved_runner].validate_default`; an empty store resolves `oc`->`False` and `agy`->`True`, both provenance `shipped-default`; `SHIPPED_VALIDATE_DEFAULT` is retained as a LITERAL (not moved, nothing reordered) and the module imports; the docstring chain no longer claims a single global. Full evidence:
+    THE CHANGED TIER-4 BRANCH, the `else` arm of the validate chain in `resolve()` (neither the runner block nor the chain was moved):
 
-- [ ] V-03 validates E-03
+    ```python
+        else:
+            # TIER 4 IS PER HOST (`hostdefault-01` E-02). Read the SHIPPED posture off the row of the
+            # runner resolved above, not off a module global: `oc` verifies OFF by default and `agy`
+            # verifies ON, so one constant would be right for one host by coincidence and wrong for
+            # every other. `resolved_runner` is finalized in the `---- runner` block far above and is
+            # always a canonical registry key, so this lookup needs no restructuring and cannot miss.
+            # The provenance stays `shipped-default` (OQ-01): the tier's MEANING is unchanged
+            # ("nothing was configured, so the built-in applies"); only its value is host-specific,
+            # and the record's own `runner` field already says which host that was.
+            resolved_validate = RUNNER_REGISTRY[resolved_runner].validate_default
+            provenance["validate"] = PROVENANCE_SHIPPED
+    ```
+
+    PER-HOST TIER 4 WITH AN EMPTY STORE (isolated `XDG_CONFIG_HOME`, store confirmed absent; `logs/probe-resolver.txt`):
+
+    ```text
+    store_path (isolated): /tmp/aw-isolated-store-<tmp>/agent-workflows/runner-profiles.json
+    store exists: False
+    config present (absent store): False
+      resolve(runner='oc').validate = False  provenance='shipped-default'
+      resolve(runner='agy').validate = True  provenance='shipped-default'
+    SHIPPED_VALIDATE_DEFAULT = False == oc row: True
+    ```
+
+    Provenance for the tier is UNCHANGED (`shipped-default` on both hosts), per OQ-01.
+
+    THE CONSTANT WAS KEPT AS A LITERAL AND NOT MOVED. Nothing was reordered; the constant still precedes the schema constants exactly as before, so the module's reading order is untouched:
+
+    ```python
+    #: The `oc` row's shipped `validate` default, retained as a COMPATIBILITY NAME. FALSE, matching
+    #: `oc_runipd.py`'s `--validate` (`BooleanOptionalAction`, `default=False`).
+    #:
+    #: THE AUTHORITY FOR TIER 4 MOVED TO THE REGISTRY ROW: :func:`resolve` reads
+    #: ``RUNNER_REGISTRY[<resolved runner>].validate_default``, because the two shipped hosts want
+    #: OPPOSITE defaults and one global cannot express both. This name is kept because tests and this
+    #: module's docstring cite it, and it must stay a LITERAL rather than
+    #: ``RUNNER_REGISTRY["oc"].validate_default``: the registry is defined BELOW this line, so that
+    #: expression is a module-level forward reference and raises `NameError` at import. A test asserts
+    #: this literal still equals the `oc` row's value, which is what keeps the two from drifting.
+    SHIPPED_VALIDATE_DEFAULT = False
+    ```
+
+    THE IMPORT SUCCEEDS, which is the check that proves the F-8 forward-reference trap was avoided:
+
+    ```text
+    $ python3 -c "import agent_workflows.runner_profiles; print('import OK')"
+    import OK
+    ```
+
+    THE THREE REFERENCING TESTS STILL PASS. The two in `tests/test_runner_profiles.py` (the level-4 case at `:916-917`, plus the new drift assertion at `:1047`):
+
+    ```text
+    $ python3 -m pytest -o addopts="" -q \
+        "tests/test_runner_profiles.py::ValidatePrecedenceMatrixTests::test_level_4_shipped_default_applies_when_no_level_specified" \
+        "tests/test_runner_profiles.py::PerHostValidateDefaultTests::test_every_registered_row_declares_a_real_bool_posture"
+    ..                                                                       [100%]
+    2 passed in 0.16s
+    ```
+
+    and the `slow` e2e doc test that cites it (`tests/test_runner_profiles_e2e.py:810`):
+
+    ```text
+    $ python3 -m pytest -o addopts="-m slow" -q "tests/test_runner_profiles_e2e.py" -k "doc"
+    ......                                                                   [100%]
+    6 passed, 24 deselected in 0.50s
+    ```
+
+    THE UPDATED MODULE-DOCSTRING PRECEDENCE BLOCK:
+
+    ```text
+    For `validate`, with an ABSENT level falling THROUGH rather than reading as `false`::
+
+        explicit --validate/--no-validate  >  profile's own `validate`  >
+        `defaults.validate`  >  the RESOLVED RUNNER's shipped posture
+        (:attr:`RunnerSpec.validate_default` on its :data:`RUNNER_REGISTRY` row)
+
+    TIER 4 IS PER HOST, not one global. The two shipped hosts want OPPOSITE defaults, deliberately:
+    `oc` verification defaults OFF (`oc_runipd`'s `--validate` BooleanOptionalAction defaults False)
+    while `agy` defaults ON (`agy_runipd` gates its verifier on `not no_verify`, and `--no-verify` is
+    a `store_true`). One module constant cannot carry two host postures, so the value lives on the
+    registry row beside the other per-host launch facts. :data:`SHIPPED_VALIDATE_DEFAULT` is retained
+    as a compatibility name for the `oc` row's value only.
+    ```
+
+    That block no longer claims a single global tier-4 value: it names the RESOLVED RUNNER's row as the authority and demotes `SHIPPED_VALIDATE_DEFAULT` to a compatibility name for the `oc` row only. `resolve()`'s own docstring chain line was updated to match ("the RESOLVED RUNNER's `validate_default` row value").
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste `sorted(RUNNER_REGISTRY)` showing both rows. Paste `canonical_runner` results for `agy`, `AGY`, and `antigravity`. Paste a successful parse of a profile declaring `runner: agy` with a valid `provider/model`, AND the REFUSAL text for the same profile carrying a `variant` or `agent`, since that refusal is what makes `supports_variant=False` load-bearing rather than decorative. State where agy's `validate_default=True` was measured from, citing the gate expression and the flag default.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. `sorted(RUNNER_REGISTRY)` is `['agy', 'oc']`; `agy`/`AGY`/`antigravity` all canonicalize to `agy`; an `agy` profile parses and is REFUSED when it carries `variant` or `agent`; `validate_default=True` is measured from the driver's gate expression and flag default. Full evidence:
+    BOTH ROWS, CANONICALIZATION, PARSE AND PER-ROW REFUSAL (`logs/probe-resolver.txt`):
 
-- [ ] V-04 validates E-04
+    ```text
+    == V-02/V-03: registry + per-host tier 4 ==
+    sorted(RUNNER_REGISTRY): ['agy', 'oc']
+      row agy: RunnerSpec(name='agy', aliases=('antigravity',), supports_variant=False, supports_agent=False, validate_default=True)
+      row oc: RunnerSpec(name='oc', aliases=('opencode',), supports_variant=True, supports_agent=True, validate_default=False)
+      canonical_runner('agy') -> 'agy'
+      canonical_runner('AGY') -> 'agy'
+      canonical_runner('antigravity') -> 'agy'
+      canonical_runner('oc') -> 'oc'
+      canonical_runner('OpenCode') -> 'oc'
+
+    == V-03: agy profile parses; variant/agent refused per row ==
+      parsed: LaunchProfile(runner='agy', model='synthetic/gem-test', variant=None, agent=None, validate=None)
+      REFUSED (variant): profile 'gg': runner 'agy' does not support a model variant
+      REFUSED (agent): profile 'gg': runner 'agy' does not support an agent
+    ```
+
+    Note the parse input declared `runner: "antigravity"` and the stored value came back canonicalized to `agy`, so the alias is live through `parse_profile` and not merely through `canonical_runner`.
+
+    WHERE `validate_default=True` WAS MEASURED, re-resolved BY SYMBOL at this HEAD rather than trusting the plan's authored line numbers (which drifted, per the plan's own note):
+    - THE GATE EXPRESSION, `agent_workflows/agy_runipd.py:3626-3632`: `no_verify = state.get("options", {}).get("no_verify") or state.get("options", {}).get("no_audit")`, then the verifier turn runs `if (not is_review and disposition in ("executed", "substantially-complete") and not no_verify)`. So the verifier is gated on `not no_verify`, i.e. verification is ON unless suppressed.
+    - THE FLAG DEFAULT, `agent_workflows/agy_runipd.py:4738-4743`: `"--no-verify", "--no-audit", dest="no_verify", action="store_true"`, so `no_verify` is implicitly `False` and a bare `agy run start` verifies.
+    - THE DRIVER ITSELF SAYS SO IN PROSE, `agy_runipd.py:3709-3713`: "NOTE THE SEMANTIC DIFFERENCE from `oc_runipd`: this driver gates the verifier on `not no_verify` (verification defaults ON here), whereas `oc` gates on `validate` (which defaults OFF)."
+    - THE OPPOSITE POLE, for contrast, `oc_runipd.py:7643-7649`: `"--validate", "--verify", "--audit", dest="validate", action=argparse.BooleanOptionalAction, default=False`, and the gate at `:6455` reads `if integration_gate_relevant and not validate`.
+
+    `supports_variant=False`/`supports_agent=False` are equally measured, not chosen: `agy_runipd.py:2802` appends only `["--model", options["model"]]` to the child argv (plus `--effort`, which is not a profile field), its parser declares `--model` at `:4707` and declares no `--variant` and no `--agent` at all (`grep` for either `add_argument` returns nothing), whereas `oc_runipd` appends all three.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the exit code and message for BOTH routes with an isolated store: `aw run as <profile whose runner is agy>` AND `aw run ipd <selector>` with `default_runner: agy`, each showing exit 2 and each showing the refusal names a known-but-not-dispatchable runner. A single-route paste is a FAILED validation, because the default route is the one the row newly made reachable (F-13). Paste evidence that `oc_runipd.main` was NOT called (the shipped e2e pattern asserts an empty call list). Paste `sorted(run_dispatch.RUNNER_ADAPTERS)` showing it is still `['oc']`, and paste `test_only_oc_is_registered_in_version_1` PASSING UNCHANGED, which together prove no adapter was added. Paste the updated e2e assertion and state in one sentence which guarantee it still pins.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED ON BOTH ROUTES. `aw run as <agy profile>` and `aw run ipd` under `default_runner: agy` each exit 2 with the registered-but-unimplemented message and an EMPTY `oc_runipd.main` call list; `RUNNER_ADAPTERS` is still `['oc']` and `test_only_oc_is_registered_in_version_1` passes unchanged. Full evidence:
+    BOTH ROUTES REFUSED, exit 2, no driver launched. Isolated store holding BOTH newly-writable states at once (`default_runner: agy` AND a profile whose runner is `agy`), with `oc_runipd.main` patched to record any call (`logs/probe-dispatch.txt`):
 
-- [ ] V-05 validates E-05
+    ```text
+    isolated store: /tmp/aw-isolated-store-<tmp>/agent-workflows/runner-profiles.json
+    {"schema_version": 1, "default_runner": "agy", "profiles": {"g": {"runner": "agy", "model": "synthetic/gem-test"}}}
+    sorted(run_dispatch.RUNNER_ADAPTERS): ['oc']
+    run_dispatch.registered_runners(): ['oc']
+
+    $ aw run as g SEL
+      exit code: 2
+      oc_runipd.main calls: []
+      output: aw run as: runner 'agy' is a known runner but has no dispatch adapter in this build, so `aw run` cannot launch it. Runners this build can dispatch to: oc. Use that host's own command directly, or name a profile whose runner is one of them ('aw oc profile list').
+
+    $ aw run ipd SEL
+      exit code: 2
+      oc_runipd.main calls: []
+      output: aw run ipd: runner 'agy' is a known runner but has no dispatch adapter in this build, so `aw run` cannot launch it. Runners this build can dispatch to: oc. Use that host's own command directly, or name a profile whose runner is one of them ('aw oc profile list').
+    ```
+
+    Both messages come from `adapter_for`'s registered-but-unimplemented branch (they say "is a known runner but has no dispatch adapter", not "unknown runner"), and both name the reachable set (`oc`). The store LOADED in both cases, which is the change: the refusal moved from the schema to the adapter table. The DEFAULT route reached `adapter_for` with no profile named at all, via `resolve_default_runner`, which is the route F-13 identified as newly reachable.
+
+    NO ADAPTER WAS ADDED. `sorted(run_dispatch.RUNNER_ADAPTERS)` is `['oc']` (above), and the shipped guard passes UNCHANGED (`git diff -- tests/test_run_dispatch.py` contains no occurrence of its name, so it was not edited):
+
+    ```text
+    $ python3 -m pytest -o addopts="" -q "tests/test_run_dispatch.py::AdapterRegistryTests::test_only_oc_is_registered_in_version_1" -v
+    collected 1 item
+    tests/test_run_dispatch.py .                                             [100%]
+    ============================== 1 passed in 0.16s ===============================
+    ```
+
+    THE UPDATED e2e ASSERTION (`tests/test_runner_profiles_e2e.py`, `NegativeE2E::test_wrong_runner_profile_is_not_launched_by_opencode`):
+
+    ```python
+            self.assertEqual(rc, 2, out)
+            self.assertEqual(calls, [], "the wrong host driver was launched")
+            self.assertIn("no dispatch adapter", out)
+            self.assertIn("'agy'", out)
+    ```
+
+    It still pins the guarantee that has always mattered: a profile written for another host is refused (exit 2) and the OpenCode driver is NEVER called (`calls == []`); only the WHERE of the refusal moved, from store load to the adapter table. Both message assertions were REPLACED rather than removed, and the eight-line comment above them, which said the refusal happened "at STORE LOAD by the schema, before the router ever reaches its adapter table" and is now precisely backwards, was rewritten to describe the new location and to state that the guarantee is unchanged (see V-05).
+
+    A REGRESSION TEST FOR THE REAL ROW was also added rather than relying on the probe alone: `tests/test_run_dispatch.py::FailClosedRefusalTests::test_the_real_agy_row_refuses_on_both_routes_without_launching` drives BOTH routes through the CLI against the shipped registry (no `mock.patch.dict`), asserting exit 2, an empty host-call list, and the registered-but-unimplemented message for each.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL passing output of the three targeted test files, and note that `tests/test_runner_profiles_e2e.py` requires `-m slow` (a paste showing `no tests ran` for that file is NOT evidence it passed). For EACH of the SIX tests in F-6, quote the updated assertion and state in one sentence what property it now pins over two hosts. A test that was deleted, skipped, `xfail`ed, or had an assertion removed rather than updated is a FAILED validation, and so is a paste that does not account for all six. Also confirm the e2e test's now-backwards comment was rewritten, not merely its assertions.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED, ALL SIX. Every one of the six was UPDATED to pin its original property over the two-host population; none was deleted, skipped, xfailed or had an assertion removed; the e2e test's now-backwards comment was rewritten, not merely its assertions. Full evidence:
+    THE THREE TARGETED FILES, ACTUAL OUTPUT. The two fast files:
 
-- [ ] V-06 validates E-06
+    ```text
+    $ python3 -m pytest tests/test_runner_profiles.py tests/test_run_dispatch.py
+    bringing up nodes...
+    ........................................................................ [ 55%]
+    ..........................................................               [100%]
+    130 passed in 9.18s
+    ```
+
+    and the third file, which REQUIRES `-m slow` (naming its path under the configured `addopts` reports `no tests ran`, per F-10):
+
+    ```text
+    $ python3 -m pytest -m slow tests/test_runner_profiles_e2e.py
+    bringing up nodes...
+    ..............................                                           [100%]
+    30 passed in 6.60s
+    ```
+
+    ALL SIX, INDIVIDUALLY RUN AND PASSING (`logs/six-tests-fast.txt`):
+
+    ```text
+    ### tests/test_runner_profiles.py::RunnerCanonicalizationTests::test_only_registered_runners_are_accepted
+    1 passed in 0.12s
+    ### tests/test_runner_profiles.py::MutationTests::test_default_runner_setter_canonicalizes_and_clears
+    1 passed in 0.13s
+    ### tests/test_runner_profiles.py::ResolutionPrecedenceTests::test_unknown_and_wrong_runner_profiles_fail_rather_than_fall_back
+    1 passed in 0.11s
+    ### tests/test_run_dispatch.py::AdapterRegistryTests::test_a_registered_but_unimplemented_runner_is_a_distinct_refusal
+    1 passed in 0.16s
+    ### tests/test_run_dispatch.py::FailClosedRefusalTests::test_a_profile_whose_runner_has_no_adapter_refuses
+    1 passed in 0.26s
+    ### e2e (slow)
+    1 passed in 0.28s
+    ```
+
+    (1) `test_only_registered_runners_are_accepted`:
+
+    ```python
+            self.assertEqual(sorted(RP.RUNNER_REGISTRY), ["agy", "oc"])
+            for name, canonical in (("agy", "agy"), ("antigravity", "agy"), ("AGY", "agy")):
+                with self.subTest(accepted=name):
+                    self.assertEqual(RP.canonical_runner(name), canonical)
+            for name in ("codex", "claude", "kiro", "", None, 3):
+                with self.subTest(runner=name):
+                    with self.assertRaises(RP.ProfileSchemaError):
+                        RP.canonical_runner(name)
+    ```
+
+    PINS: the registry is CLOSED over the two-host population. `agy`/`antigravity` MOVED from the refused list to an accepted list (with `AGY` added to prove the row's alias path lowercases), while every unregistered host and every non-name stays refused, so nothing at runtime can widen the accepted host set. The property was never "there is one row"; a comment now says so, and `kiro` was added to the refused set so the closure claim covers a host that `host_adapters` names but this registry does not.
+
+    (2) `test_default_runner_setter_canonicalizes_and_clears`:
+
+    ```python
+            self.assertEqual(
+                RP.set_default_runner(cfg, "antigravity").default_runner, "agy"
+            )
+            with self.assertRaises(RP.ProfileSchemaError):
+                RP.set_default_runner(cfg, "codex")
+    ```
+
+    PINS: the setter still does BOTH of its jobs over two hosts, canonicalizing any registered host (now demonstrated through the `agy` alias, not only `opencode`) and refusing an unregistered one, with `codex` taking over the negative case that `agy` used to serve. A comment records that `agy` is now storable-but-unlaunchable.
+
+    (3) `test_unknown_and_wrong_runner_profiles_fail_rather_than_fall_back`:
+
+    ```python
+            with self.assertRaises(RP.ProfileResolutionError):
+                RP.resolve(self.cfg, runner="agy", profile="gem")
+            # An UNREGISTERED runner is still the schema refusal, so both halves stay covered.
+            with self.assertRaises(RP.ProfileSchemaError):
+                RP.resolve(self.cfg, runner="codex", profile="gem")
+    ```
+
+    PINS: a profile is never silently run on a host it was not written for, and it now pins that through the REAL cross-host mismatch (`ProfileResolutionError`: "profile 'gem' runs on 'oc', but 'agy' was requested") rather than through a name the registry rejected before resolution got that far, which is a strictly stronger test of the same property. The `ProfileSchemaError` half was KEPT by moving it to `codex`, so unregistered-runner coverage did not disappear.
+
+    (4) `test_a_registered_but_unimplemented_runner_is_a_distinct_refusal`:
+
+    ```python
+            spec = runner_profiles.RunnerSpec(
+                name="futurehost",
+                aliases=(),
+                supports_variant=True,
+                supports_agent=False,
+                validate_default=False,
+            )
+            with mock.patch.dict(
+                runner_profiles.RUNNER_REGISTRY, {"futurehost": spec}, clear=False
+            ):
+    ```
+
+    PINS: "known runner, no adapter" is reported distinctly from "not a runner at all", for a HYPOTHETICAL host, which is the case that recurs at host three. The required `validate_default` was added, and the simulated host was RENAMED from `agy` to `futurehost` (the clarity improvement the plan invited): patching the key `agy` would now SHADOW a shipped row rather than add a fictional one, so the test would have silently stopped testing what it claims. Both original assertions (`"no dispatch adapter"` present, `"is not a registered runner"` absent) are untouched.
+
+    (5) `test_a_profile_whose_runner_has_no_adapter_refuses`: same `validate_default=False` addition and same `futurehost` rename, with the store's profile now declaring `"runner": "futurehost"`; the assertion `self.assertIn("no dispatch adapter", out)` is unchanged. PINS: a profile naming a schema-valid host with no adapter refuses fail-closed without launching any driver, whichever host that is. The REAL `agy` case is not left to the probe: a new sibling test covers both dispatch routes against the shipped registry (see V-04).
+
+    (6) `NegativeE2E::test_wrong_runner_profile_is_not_launched_by_opencode`: the two surviving assertions (`rc == 2`, `calls == []`) are unchanged and the two message assertions were REPLACED with `assertIn("no dispatch adapter", out)` and `assertIn("'agy'", out)`, as quoted in V-04. PINS: the wrong host's driver is never launched for a profile written for another host.
+
+    THE e2e COMMENT WAS REWRITTEN, not merely the assertions. It previously asserted the refusal happens "at STORE LOAD by the schema, before the router ever reaches its adapter table", which is now backwards. It now reads:
+
+    ```python
+            # MEASURED behavior, and WHERE THE REFUSAL COMES FROM MOVED in `hostdefault-01`. It used to
+            # happen at STORE LOAD, because the schema registry admitted `oc` only, so `agy` was
+            # rejected before the router ever reached its adapter table. The schema now registers `agy`
+            # too (that is where the host's verification posture lives), so the store LOADS and the
+            # refusal comes one step later, from `run_dispatch.adapter_for`'s
+            # registered-but-unimplemented branch: a known runner with no adapter in this build.
+            # THE GUARANTEE IS UNCHANGED AND IS THE POINT: the OpenCode driver is NOT called, so a
+            # profile written for another host is never quietly run by this one.
+    ```
+
+    NOTHING WAS DELETED, SKIPPED OR WEAKENED. `git diff -- tests/` contains no removed `def test_` line and no added `skip`/`xfail`:
+
+    ```text
+    $ git diff -- tests/ | grep -E "^\-.*def test_|^\+.*(skip|xfail)"
+    NONE: no test definition deleted, no skip/xfail added
+    ```
+
+    `test_only_oc_is_registered_in_version_1` also still passes UNCHANGED (V-04), which is the proof required that E-04 added no adapter; its name now describes the dispatch table rather than the schema registry, and the sibling test added beside it makes that distinction explicit in prose.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the ACTUAL output of the four new tests, of the BARE full suite (`python3 -m pytest`), AND of `python3 -m pytest -m slow`, each with its summary line. State your OWN before-baseline for both commands and show that the after-minus-before failure set is empty; do NOT compare against the plan's authored `5462 passed` figure (F-11). Name the test implementing guard (c) and paste proof it FAILS in BOTH ways: when a row OMITS a deliberate posture, and when a row declares a NON-`bool` truthy value such as `"yes"` (add each bad row in a `mock.patch.dict`, show the failure, revert). A guard that only catches the omission is half a guard, since `NamedTuple` does not type-check at runtime. Paste the `SHIPPED_VALIDATE_DEFAULT == RUNNER_REGISTRY["oc"].validate_default` assertion passing. Confirm the new tests point `XDG_CONFIG_HOME` at a temp dir and state that no test read or wrote the maintainer's real store. Confirm no resolver-level tier test from `tests/test_runner_profiles.py:843-935` was duplicated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. The new tests pass; my OWN measured before-baseline was 33 bare / 6 slow failures and the after-minus-before failure set is EMPTY on both commands (bare passing rose 5616->5623); guard (c) fails BOTH ways and passes on shipped data; the constant-mirrors-the-row assertion passes; no test touched the real store; no existing tier test was duplicated. Full evidence:
+    THE NEW TESTS, ACTUAL OUTPUT. The four E-06 properties live in `PerHostValidateDefaultTests` and the two E-08/E-03 row-contract cases in `RegisteredRowFieldSupportTests`, six tests in total:
 
-- [ ] V-07 validates E-07
+    ```text
+    $ python3 -m pytest -o addopts="" -q tests/test_runner_profiles.py -k "PerHostValidateDefaultTests or RegisteredRowFieldSupportTests" -v
+    collected 81 items / 75 deselected / 6 selected
+    tests/test_runner_profiles.py ......                                     [100%]
+    ======================= 6 passed, 75 deselected in 0.21s =======================
+    ```
+
+    (a) `test_tier_4_is_per_host`, (b) `test_a_row_never_beats_an_operator`, (c) `test_every_registered_row_declares_a_real_bool_posture`, (d) `test_the_tristate_does_not_collapse_on_the_new_host`. Their live values are in the V-02/V-03 probe pastes and in `logs/probe-resolver.txt` (`agy` + `defaults.validate:false` -> `False`/`defaults`; `agy` profile absent -> `True`/`shipped-default`, present-false -> `False`/`profile`).
+
+    MY OWN BEFORE-BASELINE, measured at HEAD `4647890f` immediately before any edit (NOT the plan's stale `5462 passed`, per F-11):
+
+    ```text
+    BEFORE, bare:  33 failed, 5616 passed, 3 skipped, 2 xfailed in 109.75s (0:01:49)
+    BEFORE, slow:   6 failed, 458 passed in 246.10s (0:04:06)
+    ```
+
+    AFTER, same two commands:
+
+    ```text
+    $ python3 -m pytest
+    33 failed, 5623 passed, 3 skipped, 2 xfailed in 92.96s (0:01:32)
+
+    $ python3 -m pytest -m slow
+    6 failed, 458 passed in 292.88s (0:04:52)
+    ```
+
+    THE AFTER-MINUS-BEFORE FAILURE SET IS EMPTY on both commands, compared by full test id rather than by count:
+
+    ```text
+    $ comm -13 baseline-bare-failures.txt after-bare-failures.txt   # NEW failures
+    (empty)
+    $ comm -23 baseline-bare-failures.txt after-bare-failures.txt   # disappeared
+    (empty)
+    $ comm -13 baseline-slow-failures.txt after-slow-failures.txt   # NEW failures
+    (empty)
+    $ comm -23 baseline-slow-failures.txt after-slow-failures.txt   # disappeared
+    (empty)
+    ```
+
+    The bare failure count is IDENTICAL (33) and the passing count rose by exactly 7 (5616 -> 5623), which is the six new tests plus the one new dispatch test in V-04. No pre-existing failure disappeared, so nothing is being masked. All four baseline/after failure lists are preserved in `logs/`.
+
+    THE 33 PRE-EXISTING BARE FAILURES ARE NOT MINE, and the plan named some of them in advance: 15 in `tests/test_run_viewer.py` are the known lane `.aw/state` artifact (`dh0uno`), `tests/test_orchestrator_retirement.py::RealRepositorySets::test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows` is F-11's recorded failure asserting against a sibling plan's live status, and the remainder are lifecycle/worktree/role tests that fail in an isolated lane (`test_ipd_lifecycle_cli`, `test_worker_role_refusal`, the `oc`/`agy` self-finalize and worktree-isolation suites). None touches this plan's Scope-Paths, and I did not attempt to fix any of them. The 6 slow failures are F-11's environment/order-dependent set (`test_installer`/`test_cli` cleanup and the CLI-surface declaration guards).
+
+    GUARD (c) IS `PerHostValidateDefaultTests::test_every_registered_row_declares_a_real_bool_posture`, AND IT FAILS BOTH WAYS (`logs/probe-guard.txt`; each bad row injected with `mock.patch.dict`, the guard run, then reverted):
+
+    ```text
+    === half 1: a row OMITTING the posture cannot even be constructed ===
+    TypeError: RunnerSpec.__new__() missing 1 required positional argument: 'validate_default'
+
+    === half 2: a row declaring a NON-bool truthy value ('yes') FAILS the guard ===
+    every row declares a bool posture: {"agy": true, "badhost": "yes", "oc": false}
+    --- validate_default='yes': failures=1 errors=0
+    AssertionError: 'yes' is not an instance of <class 'bool'> : row 'badhost' must declare a real bool verification posture
+
+    === half 2b: an INT 1 also fails (assertIn would have passed it) ===
+    every row declares a bool posture: {"agy": true, "badhost": 1, "oc": false}
+    --- validate_default=1: failures=1 errors=0
+    AssertionError: 1 is not an instance of <class 'bool'> : row 'badhost' must declare a real bool verification posture
+
+    === control: shipped registry PASSES the guard ===
+    shipped registry: failures=0 errors=0
+    ```
+
+    ON THE OMISSION HALF, stated precisely because it differs from what the plan anticipated: a row that omits the posture cannot be CONSTRUCTED at all, since E-01 made the field required with no default, so the omission is caught one step earlier than the guard by a `TypeError` at construction. The guard therefore covers the case the type system cannot: a row that DOES declare a value which is not a `bool`. Both directions are proven above, and the int case shows why the assertion is `isinstance(..., bool)` and not a membership check (the probe also confirms `1 in (True, False)` is `True` in Python, so `assertIn` would have admitted it). The comment at the assertion records that reasoning and states `isinstance` was chosen over `type(...) is bool`.
+
+    THE NAMEDTUPLE DOES NOT TYPE-CHECK, measured directly, which is what makes the guard load-bearing rather than redundant:
+
+    ```text
+    RunnerSpec(validate_default='yes').validate_default = 'yes' truthy: True isinstance bool: False
+    ```
+
+    THE DRIFT ASSERTION PASSES, keeping the retained literal honest (same test, run above and in V-02):
+
+    ```python
+            self.assertIs(
+                RP.SHIPPED_VALIDATE_DEFAULT, RP.RUNNER_REGISTRY["oc"].validate_default
+            )
+    ```
+
+    ```text
+      SHIPPED_VALIDATE_DEFAULT = False == oc row: True
+    ```
+
+    NO TEST TOUCHED THE MAINTAINER'S REAL STORE. The six new tests build every config IN MEMORY (`RP.empty_config()`, `RP.add_profile`, `RP.set_validate_default`, `RP.from_document`) and never call `RP.load()` or `RP.store_path()`, so there is no filesystem path to point anywhere; the class docstring states this. The two LIVE probes, which do reach the store path, each set `XDG_CONFIG_HOME` to a fresh `tempfile.mkdtemp()` BEFORE importing `runner_profiles`, and the resolver probe asserts the isolated store is absent both before and after (`store exists: False` ... `store still absent (no write to any real store): True`). The dispatch probe wrote its store only inside its own temp dir (path shown in V-04).
+
+    NO RESOLVER-LEVEL TIER TEST WAS DUPLICATED. `ValidatePrecedenceMatrixTests` (the block the plan cites) was read first and left entirely unmodified: it covers levels 1-3 and fall-through ON `oc`, and the new class covers only what a SECOND row makes newly expressible (a per-host tier 4, the row-as-floor property on both hosts, the per-row deliberateness guard, and the tri-state on the new host). The new class's docstring says so explicitly. `git diff -- tests/test_runner_profiles.py` shows no change inside `ValidatePrecedenceMatrixTests`.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste the BEFORE and AFTER text of all four corrected prose sites. Paste `git diff -- agent_workflows/run_dispatch.py agent_workflows/runner_profile_wizard.py` IN FULL and confirm in one sentence that every changed line is a comment or docstring, with no executable line touched. Paste the line showing `RUNNER = "oc"` unchanged in the wizard. State in one sentence what the corrected `run_dispatch.py:101` now says about the two registries no longer matching, since that is the sentence a future reader needs in order to understand why `adapter_for` refuses a name the schema accepted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. All four enumerated prose sites corrected (plus a fifth, recorded as DECISION D2); the diff of the two non-resolver modules is COMMENT-ONLY with no executable line touched; `RUNNER = "oc"` unchanged. Full evidence:
+    SITE (1), `RunnerSpec`'s own docstring. BEFORE: "THE REGISTRY SEAM. Version 1 registers OpenCode only. Adding a host is ONE ROW here plus that host's own adapter work; it is deliberately data rather than a `register_runner()` mutator, so nothing at runtime can widen the accepted runner set." AFTER, restating the population and KEEPING the load-bearing sentence this plan is the proof of:
 
-- [ ] V-08 validates E-08
+    ```text
+        THE REGISTRY SEAM. Version 1 of the schema registers TWO rows, OpenCode (`oc`) and
+        Antigravity (`agy`), which deliberately differ in every field below because the two hosts
+        genuinely differ. Adding a host is ONE ROW here plus that host's own adapter work; it is
+        deliberately data rather than a `register_runner()` mutator, so nothing at runtime can widen
+        the accepted runner set.
+    ```
+
+    (The same docstring then documents the new field itself, quoted in V-01.)
+
+    SITE (2), the `RUNNER_REGISTRY` comment. BEFORE: "Canonical runner name -> spec. Version 1: OpenCode (`oc`), whose CLI accepts `--model`, `--variant` and `--agent` (`oc_runipd.py` `run_opencode` appends exactly those three)." AFTER, naming both rows with each one's MEASURED field support, since the two now differ and that difference is enforced:
+
+    ```python
+    #: Canonical runner name -> spec. Version 1 registers TWO rows, whose fields are MEASURED from
+    #: each driver rather than assumed:
+    #:
+    #: * ``oc`` (OpenCode): accepts `--model`, `--variant` and `--agent` (`oc_runipd.run_opencode`
+    #:   appends exactly those three), and verification defaults OFF (`--validate` is a
+    #:   `BooleanOptionalAction` with `default=False`, and the verifier turn is gated on it).
+    #: * ``agy`` (Antigravity): accepts `--model` ONLY (`agy_runipd`'s child argv appends only
+    #:   `--model` and its parser declares only `--model`), so `supports_variant`/`supports_agent`
+    #:   are False and `parse_profile` refuses a stored profile carrying either; and verification
+    #:   defaults ON (that driver gates its verifier on `not no_verify`, and `--no-verify` is a
+    #:   `store_true`, so a bare run verifies).
+    #:
+    #: The two rows' OPPOSITE `validate_default` values are the reason this is a per-host field and
+    #: not a module global: one constant cannot describe both hosts.
+    ```
+
+    SITES (3) AND (4) ARE THE FULL DIFF OF THE TWO NON-RESOLVER MODULES, pasted IN FULL as required:
+
+    ```diff
+    diff --git a/agent_workflows/run_dispatch.py b/agent_workflows/run_dispatch.py
+    index c70e0fe8..f37b5f82 100644
+    --- a/agent_workflows/run_dispatch.py
+    +++ b/agent_workflows/run_dispatch.py
+    @@ -98,11 +98,17 @@ def _dispatch_opencode(argv: Sequence[str]) -> int:
+     #: Canonical runner name -> adapter. THE HOST SEAM, and deliberately DATA rather than a
+     #: `register()` mutator so nothing at runtime can widen the set of hosts a run may reach.
+     #:
+    -#: Version 1 registers OpenCode only, matching `runner_profiles.RUNNER_REGISTRY`. A runner that
+    -#: is a valid SCHEMA value but has no row here is "registered but not implemented", which is a
+    -#: distinct and separately-reported failure from "not a runner at all": the first is a roadmap
+    -#: gap, the second is a typo, and telling the operator which one they hit is the difference
+    -#: between a five-second fix and a bug report.
+    +#: This table registers OpenCode only, and it DELIBERATELY NO LONGER MATCHES
+    +#: `runner_profiles.RUNNER_REGISTRY`, which registers both `oc` and `agy` (`hostdefault-01`).
+    +#: THAT DISAGREEMENT IS WHAT MAKES THE SECOND REFUSAL BELOW REACHABLE, so a reader who assumes
+    +#: the two tables are kept in sync will not understand why `adapter_for` refuses a runner name the
+    +#: schema happily accepted. A runner that is a valid SCHEMA value but has no row here is
+    +#: "registered but not implemented", which is a distinct and separately-reported failure from
+    +#: "not a runner at all": the first is a roadmap gap, the second is a typo, and telling the
+    +#: operator which one they hit is the difference between a five-second fix and a bug report.
+    +#: `agy` is exactly that roadmap gap today: a store may name it (so the schema can record that
+    +#: host's verification posture), and every dispatch route refuses it fail-closed rather than
+    +#: launching the wrong driver.
+     RUNNER_ADAPTERS: Dict[str, Callable[[Sequence[str]], int]] = {
+         "oc": _dispatch_opencode,
+     }
+    diff --git a/agent_workflows/runner_profile_wizard.py b/agent_workflows/runner_profile_wizard.py
+    index 011402ec..9acc6674 100644
+    --- a/agent_workflows/runner_profile_wizard.py
+    +++ b/agent_workflows/runner_profile_wizard.py
+    @@ -68,8 +68,11 @@ MAX_ATTEMPTS = 5
+     #: accept none of these, and a provider may accept something not listed (hence the custom option).
+     COMMON_VARIANTS: Tuple[str, ...] = ("low", "medium", "high", "max")
+
+    -#: The runner this wizard configures. Version 1 of the schema registers OpenCode only
+    -#: (`runner_profiles.RUNNER_REGISTRY`); a second host needs its own adapter, not a widened wizard.
+    +#: The runner this wizard configures. The schema's registry (`runner_profiles.RUNNER_REGISTRY`)
+    +#: now holds a second row (`agy`), but this wizard still writes OpenCode profiles ONLY, and that
+    +#: is deliberate rather than an oversight: a second host needs its own adapter, not a widened
+    +#: wizard. `agy` has no dispatch adapter (`run_dispatch.RUNNER_ADAPTERS`), so offering it here
+    +#: would let a user create by wizard a profile nothing in this build can launch.
+     RUNNER = "oc"
+
+     _CANCEL_WORDS = frozenset(("q", "quit", "cancel", "abort"))
+    ```
+
+    EVERY CHANGED LINE IN BOTH MODULES IS A `#:` COMMENT LINE; no executable line was touched, and the diff contains no added or removed statement, expression, import or definition in either file. The wizard's premise was corrected while its CONCLUSION was kept, and `RUNNER = "oc"` is unchanged:
+
+    ```text
+    $ grep -n '^RUNNER = ' agent_workflows/runner_profile_wizard.py
+    76:RUNNER = "oc"
+    ```
+
+    WHAT THE CORRECTED `run_dispatch.py` COMMENT NOW SAYS about the mismatch, in one sentence: that this adapter table registers OpenCode only and DELIBERATELY no longer matches `runner_profiles.RUNNER_REGISTRY` (which holds both `oc` and `agy`), and that this disagreement is precisely what makes the registered-but-unimplemented refusal reachable, so a reader who assumes the two tables are kept in sync cannot understand why `adapter_for` refuses a name the schema accepted.
+
+    A FIFTH STALE SITE WAS ALSO CORRECTED, beyond E-07's literal enumeration, and the decision is recorded as DECISION 05-tm2cz8-D2. `canonical_runner`'s docstring asserted "a profile naming a host nobody can launch is a failure the user should see at write time, not at 3am", an absolute this very change falsifies (the row makes `runner: agy` and `default_runner: agy` storable but unlaunchable, exactly as F-13 records). The docstring now states the partial inversion and why it is bounded, in the same comment-only style, inside a declared Scope-Path file. Leaving it would have reproduced the defect E-07 exists to remove.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: state WHICH option you chose (refuse in `resolve()`, or accept and document) and quote the comment you wrote at the decision site giving the reason. Paste the probe showing the CHOSEN behavior for `resolve(cfg, runner="agy", variant="high", agent="build")`: either the typed `ProfileSchemaError` and its message, or the accepted values with a statement of why that is safe today. Paste the new test pinning it. Confirm you checked whether any shipped test asserted the previous permissive behavior, and name the result of that search.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED. Chose option (a), REFUSE in `resolve()` with a typed `ProfileSchemaError` mirroring `parse_profile`; the reason is commented at the decision site; a probe shows the exact message per field and that `oc` is unaffected; a new test pins it; NO shipped test asserted the previous permissive behavior. Full evidence:
+    OPTION CHOSEN: (a) REFUSE in `resolve()` with a typed `ProfileSchemaError` mirroring `parse_profile`'s wording. Recorded in full, with alternatives and reversibility, as DECISION 05-tm2cz8-D1 in the run's decisions register.
+
+    THE COMMENT AT THE DECISION SITE, quoted verbatim:
+
+    ```python
+        # ---- an EXPLICIT field the resolved host does not support --------------------------------
+        # REFUSE, matching `parse_profile` (`hostdefault-01` E-08). `parse_profile` has always
+        # enforced `supports_variant`/`supports_agent` for a STORED profile, but this function
+        # consulted neither flag, so an explicit caller argument was carried through with provenance
+        # `explicit` even for a host whose argv builder cannot emit it. That path was UNREACHABLE
+        # while `oc` was the only row (any other `runner=` raised in `canonical_runner`); registering
+        # `agy`, which supports neither field, makes it reachable, so it becomes a decision.
+        #
+        # WHY REFUSE rather than accept-and-document: the store and the caller must enforce the SAME
+        # row contract, or `--variant high` is refused when written to a profile and silently dropped
+        # when typed on the command line, which is a difference the operator cannot see. Silently
+        # dropping a field the operator explicitly asked for is the same class of lie this module's
+        # "an explicit flag always wins" rule exists to prevent: better a typed refusal naming the
+        # host than a run that ignores half the command line. The message deliberately mirrors
+        # `parse_profile`'s wording so the two refusals read as one rule.
+    ```
+
+    THE PROBE, showing the typed refusal and its exact message for each field, plus the unchanged behavior for a host that DOES support them (`logs/probe-resolver.txt`):
+
+    ```text
+    == V-08: explicit unsupported variant/agent ==
+      REFUSED {'variant': 'high'}: ProfileSchemaError: runner 'agy' does not support a model variant, so an explicit variant cannot be honored; omit it
+      REFUSED {'agent': 'build'}: ProfileSchemaError: runner 'agy' does not support an agent, so an explicit agent cannot be honored; omit it
+      oc honored: high build explicit explicit
+    ```
+
+    The refusal is the typed `ProfileSchemaError` the plan required (not a bare `ValueError`), and `oc` still resolves `variant='high'`, `agent='build'` with provenance `explicit`, so nothing about the shipped host's behavior moved.
+
+    THE NEW TEST PINNING IT, `RegisteredRowFieldSupportTests::test_an_explicit_unsupported_field_is_refused_at_resolution`:
+
+    ```python
+            with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                RP.resolve(RP.empty_config(), runner="agy", variant="high")
+            self.assertIn("agy", str(ctx.exception))
+            self.assertIn("does not support a model variant", str(ctx.exception))
+            with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                RP.resolve(RP.empty_config(), runner="agy", agent="build")
+            self.assertIn("agy", str(ctx.exception))
+            self.assertIn("does not support an agent", str(ctx.exception))
+            # Unchanged for a host that DOES support them.
+            got = RP.resolve(
+                RP.empty_config(), runner="oc", variant="high", agent="build"
+            )
+            self.assertEqual((got.variant, got.agent), ("high", "build"))
+            self.assertEqual(got.provenance["variant"], RP.PROVENANCE_EXPLICIT)
+    ```
+
+    Its sibling `test_a_stored_profile_is_refused_per_row` pins the same row contract on the `parse_profile` side (including that the SAME fields are still accepted for `oc`, so the refusal is about the ROW and not about the fields).
+
+    THE SEARCH FOR A SHIPPED TEST ASSERTING THE PERMISSIVE BEHAVIOR WAS RUN, AND THE RESULT IS NONE. `grep -rn "supports_variant\|supports_agent" --include=*.py .` returns only the two `RunnerSpec(...)` constructor calls in `tests/test_run_dispatch.py` (which simulate a registered-but-unimplemented host and assert nothing about explicit fields) plus the resolver/registry definition lines themselves. `grep -rn "resolve(.*variant=" tests/*.py` returns exactly two call sites, `tests/test_runner_profiles.py:727` and `tests/test_runner_profiles_e2e.py:791`, and BOTH pass `runner="oc"`, a host that supports both fields, so neither is affected. The only product caller passing these fields is `oc_runipd.resolve_launch_profile`, which hard-codes `runner="oc"`. The empty after-minus-before failure set on both full suites (V-06) independently confirms nothing depended on the permissive path.
+  - Result: pass
 
 ## Approval and execution gate
 
