@@ -1,11 +1,12 @@
 - Id: sd2wz5
-- Status: open
+- Status: graduated
 - Set: sd2wz5
 - Priority: medium
 - Work-Kind: chore
 - Summary: spec 25kzda's corrected infrastructure paragraph has itself gone stale: From-Spec shipped but is still listed as net-new
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan wenmg4 (specfresh-01). All five enumerated claims in spec 25kzda's infrastructure paragraph re-measured at HEAD; the paragraph is unchanged since filing. FOUR MATCH THE ITEM: From-Spec IS recognized (item 1 stale as filed); trailers still unpassed (item 2 holds, 0 in 400 commits); no Run contract block (item 3 holds, 0 hits in both drivers); aw hooks install absent (item 5 holds). ITEM 4 IS MORE STALE THAN THE ITEM RECORDS, which strengthens the fix: the item calls the capability descriptor 'MISLEADING rather than false' because mjx7ne was then PENDING and scoped to EXTEND. mjx7ne HAS EXECUTED, and HostSandboxCapabilities now carries 13 fields including all three runner-safety fields the item said 'genuinely does not exist', two of them declared-and-never-probed by deliberate decision. So the honest correction is stronger than the item's suggested rewording. THE AUDIT HALF IS CLOSED and explicitly not redone: 28 specs now (was 24), stale-existence claims still confined to 25kzda. No Blocks-Release on the item, so none inherited.
 - 2026-08-31 created (aw backlog): spec 25kzda's corrected infrastructure paragraph has itself gone stale: From-Spec shipped but is still listed as net-new
 
 FOUND by auditing every live spec for stale "does not exist yet" claims (the tmp/human-todo-asap.md item 2 audit). Result of that audit, so it is not repeated: only ONE spec carries such claims at all.

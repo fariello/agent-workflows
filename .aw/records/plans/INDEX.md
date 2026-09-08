@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 264 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -11,6 +11,10 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 ## actorparen
 
 - `fn2l1u` [pending] 01 pending/20260908-actorparen-01-fn2l1u-reject-an-unparseable-actor-at-the-setter-instead-of-wedging.ipd.md
+
+## auditshare
+
+- `6ltz1y` [pending] 01 pending/20260908-auditshare-01-6ltz1y-extract-the-run-viewer-artifact-audit-into-one-shared-module.ipd.md
 
 ## awinbox
 
@@ -40,6 +44,11 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 - `m867ox` [pending] 02 pending/20260908-durablecapture-02-m867ox-scan-the-releases-tree-the-attention-contract-already-declar.ipd.md
 - `diof9n` [pending] 03 pending/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md
 
+## findtier
+
+- `826o13` [pending] 01 pending/20260908-findtier-01-826o13-add-a-filename-first-tier-to-aw-find-as-a-candidate-filter-u.ipd.md
+- `3i6rso` [pending] 02 pending/20260908-findtier-02-3i6rso-report-every-record-whose-declared-id-or-set-is-absent-from.ipd.md
+
 ## gatejrnl
 
 - `i4c0c3` [pending] 01 pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md
@@ -49,6 +58,10 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 - `y9s4vm` [pending] 00 pending/20260908-graduate-00-y9s4vm-show-what-a-source-already-graduated-to-before-authoring-ano.ipd.md
 - `jxxec8` [pending] 01 pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md
 - `iuxtjy` [pending] 02 pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md
+
+## groupord
+
+- `e3hzyc` [pending] 01 pending/20260908-groupord-01-e3hzyc-preserve-each-plan-order-in-aw-group-the-way-aw-rename-alrea.ipd.md
 
 ## hardreach
 
@@ -172,37 +185,19 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 - `bwgyum` [pending] 02 pending/20260908-setidhard-02-bwgyum-add-the-graduated-to-forward-link-and-its-dangling-check-mir.ipd.md
 - `dw7i3m` [pending] 03 pending/20260908-setidhard-03-dw7i3m-mint-a-fresh-child-setid-on-graduation-and-prevent-a-cross-t.ipd.md
 
+## specdirs
+
+- `wfjsp4` [pending] 00 pending/20260908-specdirs-00-wfjsp4-give-specs-the-lifecycle-subdirs-every-other-lifecycle-beari.ipd.md
+- `y4bdoz` [pending] 01 pending/20260908-specdirs-01-y4bdoz-make-every-spec-reader-recursive-so-a-spec-in-a-subdir-canno.ipd.md
+- `1bdxcp` [pending] 02 pending/20260908-specdirs-02-1bdxcp-migrate-the-28-specs-into-status-subdirs-and-make-location-a.ipd.md
+
+## specfresh
+
+- `wenmg4` [pending] 01 pending/20260908-specfresh-01-wenmg4-re-measure-spec-25kzda-s-infrastructure-paragraph-and-stop-i.ipd.md
+
 ## ttyflags
 
 - `yaxr4i` [pending] 01 pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
-
-## depreview
-
-- `03ie04` [executed] 01 executed/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
-
-## dirtybase
-
-- `3i0aaz` [pending] 01 pending/20260907-dirtybase-01-3i0aaz-guard-the-ungated-dirty-base-cases-nna8yz-leaves-open-untrac.ipd.md
-
-## integpath
-
-- `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
-- `29wvmj` [executed] 01 executed/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
-- `6sb3yu` [executed] 02 executed/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
-- `51vw4y` [pending] 03 pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
-- `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
-- `3v7wo6` [pending] 05 pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md
-
-## mergedirty
-
-- `fujm0y` [pending] 01 pending/20260907-mergedirty-01-fujm0y-widen-the-pre-merge-dirty-check-to-every-path-the-merge-woul.ipd.md
-
-## orchprobe
-
-- `yeh7gc` [pending] 00 pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md
-- `r2i1b1` [pending] 01 pending/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md
-- `8tgg6g` [pending] 02 pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md
-- `m7gvuz` [pending] 03 pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md
 
 ## (singletons: no Set)
 
