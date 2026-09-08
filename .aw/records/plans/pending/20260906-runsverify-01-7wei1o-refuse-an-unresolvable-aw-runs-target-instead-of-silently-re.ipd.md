@@ -33,53 +33,53 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: detect the unresolvable case
 
-- [ ] E-01 In the `aw runs` viewer path, determine per-token whether each requested target RESOLVED to at least one run, and treat "one or more requested tokens resolved to nothing" as a distinct condition from "no targets were requested". `resolve_target_runs` (`run_viewer.py:1095`) currently returns only the union of matches, so an unmatched token is indistinguishable from an absent one by the time the caller sees the result. Return or expose the unresolved token list rather than re-deriving it in the caller, so one function owns the answer.
+- [x] E-01 In the `aw runs` viewer path, determine per-token whether each requested target RESOLVED to at least one run, and treat "one or more requested tokens resolved to nothing" as a distinct condition from "no targets were requested". `resolve_target_runs` (`run_viewer.py:1095`) currently returns only the union of matches, so an unmatched token is indistinguishable from an absent one by the time the caller sees the result. Return or expose the unresolved token list rather than re-deriving it in the caller, so one function owns the answer.
   - Depends on: none
   - Expected outcome: the caller can name exactly which requested tokens matched nothing, and a bare `aw runs` (no tokens) remains a distinct, non-error case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Make the unresolvable case exit NONZERO with a message that names the unresolved token, the registered leaves, and the closest leaf match when there is one (`verify` -> `verify-ledger` is a one-edit suggestion and is the case that motivated this plan). Use the existing invalid-invocation exit code rather than inventing one: `run_cli.EXIT_INVALID_INVOCATION` is 2 (`run_cli.py:58`) and `aw runs verify-ledger <absent>` already exits 2 for the analogous "cannot do what you asked" case, so 2 keeps the surface coherent. HONOR THE REFUSAL IN ALL THREE RENDERERS. The empty-state at `run_viewer.py:2538-2543` has a machine branch that returns `{"runs": []}` and exit 0 for `--agent`/`--json` BEFORE the human `no matching runs found` line, and the machine branch is the one an automated consumer reads. A refusal implemented only on the human path leaves the fail-open exactly where it does the most damage. Emit the machine refusal as a conformant `aw.agent/v1` record (`agent_schema.py:21`) carrying the nonzero `exit`, not a bare `{"runs": []}`, because `tests/test_cli_conformance_matrix.py` asserts the agent summary `exit` agrees with the process return code (`tests/test_cli_conformance_matrix.py:9-10`).
+- [x] E-02 Make the unresolvable case exit NONZERO with a message that names the unresolved token, the registered leaves, and the closest leaf match when there is one (`verify` -> `verify-ledger` is a one-edit suggestion and is the case that motivated this plan). Use the existing invalid-invocation exit code rather than inventing one: `run_cli.EXIT_INVALID_INVOCATION` is 2 (`run_cli.py:58`) and `aw runs verify-ledger <absent>` already exits 2 for the analogous "cannot do what you asked" case, so 2 keeps the surface coherent. HONOR THE REFUSAL IN ALL THREE RENDERERS. The empty-state at `run_viewer.py:2538-2543` has a machine branch that returns `{"runs": []}` and exit 0 for `--agent`/`--json` BEFORE the human `no matching runs found` line, and the machine branch is the one an automated consumer reads. A refusal implemented only on the human path leaves the fail-open exactly where it does the most damage. Emit the machine refusal as a conformant `aw.agent/v1` record (`agent_schema.py:21`) carrying the nonzero `exit`, not a bare `{"runs": []}`, because `tests/test_cli_conformance_matrix.py` asserts the agent summary `exit` agrees with the process return code (`tests/test_cli_conformance_matrix.py:9-10`).
   - Depends on: E-01
   - Expected outcome: `aw runs verify <run-id>` and `aw runs totalgibberish` both exit 2 with an actionable message; the human message goes to stderr so it does not pollute a parsed report on stdout, and `--agent`/`--json` emit a nonzero-carrying record instead of an empty success.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: do not break what works
 
-- [ ] E-03 Preserve every currently-working invocation, verified individually rather than assumed: a real run id; a setid (`lanectn` resolves today); a bare `aw runs` with no positionals (means "all runs", must stay exit 0 even when the repository has zero runs, since an empty repository is not an error); every viewer flag (`--last`, `--issues`, `--latest-only`, `--since`, ...); and the `--` escape hatch (`aw runs -- status` means the TARGET named `status`, handled pre-parse in `_dispatch` at `cli.py:10579`). Also preserve the documented AMBIGUITY RULE at `cli.py:652-657`: a first positional equal to a leaf name routes to the LEAF, and the escape hatch is the only way to reach a same-named target. Do NOT invert that precedence while adding the refusal.
+- [x] E-03 Preserve every currently-working invocation, verified individually rather than assumed: a real run id; a setid (`lanectn` resolves today); a bare `aw runs` with no positionals (means "all runs", must stay exit 0 even when the repository has zero runs, since an empty repository is not an error); every viewer flag (`--last`, `--issues`, `--latest-only`, `--since`, ...); and the `--` escape hatch (`aw runs -- status` means the TARGET named `status`, handled pre-parse in `_dispatch` at `cli.py:10579`). Also preserve the documented AMBIGUITY RULE at `cli.py:652-657`: a first positional equal to a leaf name routes to the LEAF, and the escape hatch is the only way to reach a same-named target. Do NOT invert that precedence while adding the refusal.
   - Depends on: E-02
   - Expected outcome: each listed invocation behaves exactly as it does at `63107a76`, demonstrated case by case.
-  - Execution state: pending
+  - Execution state: performed
   - Re-measured independently at `de26ef00` (unpiped), all exit 0 and all MUST stay exit 0: a real run id; the setid `lanectn`; bare `aw runs`; `--last 1`; `aw runs -- status` (renders 106 runs, i.e. the escape hatch reaches the viewer, and note `aw runs status` WITHOUT the hatch exits 2 from the leaf demanding its target, which is the ambiguity rule working); `--since 2026-09-01`; `--since 7d`; `--since <run-id>`. Also confirmed already-correct and NOT to be changed: `--since bogusdate` exits 2, and the three mutually-exclusive flag pairs exit 2 (`run_viewer.py:2461-2482`).
 
-- [ ] E-04 Decide and implement the MIXED case deliberately, and state the choice in the message: `aw runs totalgibberish <real-run-id>` currently prints the real run and exits 0, silently dropping the bogus token. That is the most misleading variant. Refuse it (nonzero, naming the unresolved token) rather than rendering a partial result, because a partially-honored request that looks complete is the defect this plan exists to remove. If the executor concludes partial rendering plus a nonzero exit is better, that is acceptable ONLY if the unresolved token is named prominently on stderr; silently dropping it is not.
+- [x] E-04 Decide and implement the MIXED case deliberately, and state the choice in the message: `aw runs totalgibberish <real-run-id>` currently prints the real run and exits 0, silently dropping the bogus token. That is the most misleading variant. Refuse it (nonzero, naming the unresolved token) rather than rendering a partial result, because a partially-honored request that looks complete is the defect this plan exists to remove. If the executor concludes partial rendering plus a nonzero exit is better, that is acceptable ONLY if the unresolved token is named prominently on stderr; silently dropping it is not.
   - Depends on: E-02
   - Expected outcome: a mixed invocation cannot exit 0; the unresolved token is always named.
-  - Execution state: pending
+  - Execution state: performed
   - Note the mixed case is MORE common than the plan first implied, because of the over-matching E-07 fixes: `aw runs verified <real-run-id>` renders 14 runs at exit 0 today (measured `de26ef00`), since `verified` accidentally resolves via the JSON substring fallback. Land E-07 before judging E-04's behavior, or the mixed case will appear to pass for tokens that should have been refused.
 
 ### Task group 3: close the same fail-open on the two sibling paths
 
-- [ ] E-07 Narrow the resolver's `state.json` fallback, which currently over-matches so broadly that it would silently exempt common tokens from the refusal. The fallback is a raw substring test over the entire file (`if f'"{t_str}"' in content`, `run_viewer.py:1148`), not a setid lookup, so it matches any quoted JSON key or value anywhere. MEASURED at HEAD `de26ef00` against 106 run records via `resolve_target_runs`: `status` -> 106, `run` -> 106, `opencode` -> 106, `driver` -> 106, `run_id` -> 106, `options` -> 106, `main` -> 96, `clean` -> 105, `json` -> 79, `execute` -> 53, `approved` -> 46, `verified` -> 13, `pass` -> 11. None of those is a setid. Match against the setid field the summary already parses (`RunSummary.setids`, `run_viewer.py:108`, populated at `:916`) instead of the raw text. THIS IS LOAD-BEARING FOR THE REFUSAL, not a cleanup: a mistyped token that happens to be a JSON key resolves to every run in the repository and reports success, which is the same defect the plan exists to close. Preserve the legitimate setid case, verified individually (`lanectn` -> 3 runs, `runnernorm` -> 7 runs today) and the substring-on-run-id case (`2367239` -> 1 run), both of which `tests/test_run_viewer.py:63-69` asserts.
+- [x] E-07 Narrow the resolver's `state.json` fallback, which currently over-matches so broadly that it would silently exempt common tokens from the refusal. The fallback is a raw substring test over the entire file (`if f'"{t_str}"' in content`, `run_viewer.py:1148`), not a setid lookup, so it matches any quoted JSON key or value anywhere. MEASURED at HEAD `de26ef00` against 106 run records via `resolve_target_runs`: `status` -> 106, `run` -> 106, `opencode` -> 106, `driver` -> 106, `run_id` -> 106, `options` -> 106, `main` -> 96, `clean` -> 105, `json` -> 79, `execute` -> 53, `approved` -> 46, `verified` -> 13, `pass` -> 11. None of those is a setid. Match against the setid field the summary already parses (`RunSummary.setids`, `run_viewer.py:108`, populated at `:916`) instead of the raw text. THIS IS LOAD-BEARING FOR THE REFUSAL, not a cleanup: a mistyped token that happens to be a JSON key resolves to every run in the repository and reports success, which is the same defect the plan exists to close. Preserve the legitimate setid case, verified individually (`lanectn` -> 3 runs, `runnernorm` -> 7 runs today) and the substring-on-run-id case (`2367239` -> 1 run), both of which `tests/test_run_viewer.py:63-69` asserts.
   - Depends on: E-01
   - Expected outcome: a token that is merely a JSON key or value no longer resolves; `lanectn`, `runnernorm` and `2367239` still resolve to the same runs as at `de26ef00`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-08 Fix the same fail-open on the sibling `repair` path, which is inside this plan's fence and one function away. `aw runs repair <unresolvable>` iterates `for run_dir in resolve_target_runs(targets, repo_root)` (`run_viewer.py:2424`) and, when nothing resolves, the loop body never runs, so `rc` stays 0 and NOTHING is printed. MEASURED unpiped at `de26ef00`: `aw runs repair totalgibberish` -> exit 0, zero bytes of output. That is strictly worse than the read path, because `repair` is the one MUTATING verb on this surface and an operator is told nothing at all. Note the adjacent missing-target case is ALREADY correct (`:2418-2421` prints an error and returns 2), so this is an inconsistency within one function, and the fix is to route the unresolvable case through the same refusal as E-02.
+- [x] E-08 Fix the same fail-open on the sibling `repair` path, which is inside this plan's fence and one function away. `aw runs repair <unresolvable>` iterates `for run_dir in resolve_target_runs(targets, repo_root)` (`run_viewer.py:2424`) and, when nothing resolves, the loop body never runs, so `rc` stays 0 and NOTHING is printed. MEASURED unpiped at `de26ef00`: `aw runs repair totalgibberish` -> exit 0, zero bytes of output. That is strictly worse than the read path, because `repair` is the one MUTATING verb on this surface and an operator is told nothing at all. Note the adjacent missing-target case is ALREADY correct (`:2418-2421` prints an error and returns 2), so this is an inconsistency within one function, and the fix is to route the unresolvable case through the same refusal as E-02.
   - Depends on: E-02
   - Expected outcome: `aw runs repair <unresolvable>` exits nonzero and names the token; `aw runs repair <real-id>` still exits 0 and prints its result; `aw runs repair` with no target still exits 2.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-05 Test the whole matrix, and measure exit codes WITHOUT a pipe (`cmd >/dev/null 2>&1; echo $?`), because a piped `$?` reports the last pipeline stage and that error produced a false finding in this very Set. Cover: the motivating case (`runs verify <id>` -> nonzero); a wholly unknown token; the mixed case; each preserved case from E-03 including the empty-repository bare call; the escape hatch; a leaf-name collision if one can be constructed in a fixture (none exists in the repo today per `cli.py:654`, so construct it rather than skip it); and all THREE renderers (human, `--agent`, `--json`) for the refusal, since only the human one is obvious. Assert the message NAMES the unresolved token, so a future refactor cannot degrade it to a bare exit code. BUILD A FIXTURE REPO; do NOT add a test that reads `dir="."`: `tests/test_run_viewer.py:1-30` records that 23 existing tests assert against the live gitignored `.aw/records/runs/` and that 14 of them fail in a bare worktree (re-measured 2026-09-06 in `.aw/worktrees/5942n7`: `14 failed, 32 passed`), and it explicitly instructs new tests to use a fixture instead. A new refusal test keyed to live run records would be unrunnable in CI and in every isolated lane worktree the runner allocates.
+- [x] E-05 Test the whole matrix, and measure exit codes WITHOUT a pipe (`cmd >/dev/null 2>&1; echo $?`), because a piped `$?` reports the last pipeline stage and that error produced a false finding in this very Set. Cover: the motivating case (`runs verify <id>` -> nonzero); a wholly unknown token; the mixed case; each preserved case from E-03 including the empty-repository bare call; the escape hatch; a leaf-name collision if one can be constructed in a fixture (none exists in the repo today per `cli.py:654`, so construct it rather than skip it); and all THREE renderers (human, `--agent`, `--json`) for the refusal, since only the human one is obvious. Assert the message NAMES the unresolved token, so a future refactor cannot degrade it to a bare exit code. BUILD A FIXTURE REPO; do NOT add a test that reads `dir="."`: `tests/test_run_viewer.py:1-30` records that 23 existing tests assert against the live gitignored `.aw/records/runs/` and that 14 of them fail in a bare worktree (re-measured 2026-09-06 in `.aw/worktrees/5942n7`: `14 failed, 32 passed`), and it explicitly instructs new tests to use a fixture instead. A new refusal test keyed to live run records would be unrunnable in CI and in every isolated lane worktree the runner allocates.
   - Depends on: E-03, E-04, E-07, E-08
   - Expected outcome: the refusal and every preserved behavior are pinned by fixture-based tests that pass in a bare worktree, with exit codes measured unpiped.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Update `tests/test_run_noun_split.py`, which ALREADY ASSERTS the exact behavior this plan removes and will go red otherwise. `test_leaf_name_as_viewer_target_is_reachable_via_the_escape_hatch` ends with `rc, out = _cli("runs", "--dir", str(self.root), "--", "no-such-target-xyz")` then `self.assertEqual(rc, 0, out)` and `self.assertIn("no matching runs found", out)` (`tests/test_run_noun_split.py:280-284`). That is an unresolvable token via the escape hatch, so E-02/E-04 must make it nonzero. Change the assertion to the new contract (nonzero, token named) rather than deleting the case: it is the escape hatch's only unresolvable-token coverage. Re-read the two sibling assertions above it in the same test (`--` forcing viewer interpretation of `status`, and the bare `runs status` leaf routing) and leave BOTH intact, because they pin the ambiguity rule E-03 must preserve.
+- [x] E-06 Update `tests/test_run_noun_split.py`, which ALREADY ASSERTS the exact behavior this plan removes and will go red otherwise. `test_leaf_name_as_viewer_target_is_reachable_via_the_escape_hatch` ends with `rc, out = _cli("runs", "--dir", str(self.root), "--", "no-such-target-xyz")` then `self.assertEqual(rc, 0, out)` and `self.assertIn("no matching runs found", out)` (`tests/test_run_noun_split.py:280-284`). That is an unresolvable token via the escape hatch, so E-02/E-04 must make it nonzero. Change the assertion to the new contract (nonzero, token named) rather than deleting the case: it is the escape hatch's only unresolvable-token coverage. Re-read the two sibling assertions above it in the same test (`--` forcing viewer interpretation of `status`, and the bare `runs status` leaf routing) and leave BOTH intact, because they pin the ambiguity rule E-03 must preserve.
   - Depends on: E-02, E-04
   - Expected outcome: `tests/test_run_noun_split.py` passes with the escape-hatch unresolvable case asserting the refusal; the two ambiguity-rule assertions are unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -168,45 +168,479 @@ Update `_RUNS_DESCRIPTION`/`_RUNS_EPILOG` help text only if the refusal makes th
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the resolver's output for three inputs showing unresolved tokens are reported distinctly: one real id, one bogus token, and both together. Show that a bare call (no tokens) is distinguishable from "all tokens unresolved".
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `resolve_target_runs_detailed` on 4 inputs: real id -> resolved=1/unresolved=[]; bogus -> 0/['totalgibberish']; both -> 1/['totalgibberish']; BARE -> 5/[]. Rows 2 and 4 are distinguishable, which is the point. Detail and the measurement note below.
 
-- [ ] V-02 validates E-02
+    MEASUREMENT NOTE, stated once and applying to V-01 through V-08: this turn ran in the runner's
+    isolated lane worktree, which has NO `.aw/records/runs/` at all (the tree is gitignored and
+    box-local), and the main checkout was out of bounds. So every count below is against a FIXTURE
+    of 5 run records built by `tmp/7wei1o/mkfixture.py` (gitignored scratch), carrying the same
+    SHAPES the plan measured on the live tree: the setids `runnernorm`/`lanectn`/`runsverify`, the
+    run-id substring `2367239`, and the JSON keys/values `status`/`driver`/`options`/`run_id`/
+    `opencode`/`main`/`clean`/`execute`/`verified`. Counts are therefore out of 5, not out of 106.
+    Recorded as DECISION 08-7wei1o-D3. This is also what the plan already requires of the SHIPPED
+    tests (F-12, E-05), and V-05 proves those pass in a genuinely bare worktree.
+
+    `resolve_target_runs_detailed`, four inputs (the new function E-01 added):
+
+    ```
+    1. one real id           resolved=1  unresolved=[]
+    2. one bogus token       resolved=0  unresolved=['totalgibberish']
+    3. both together         resolved=1  unresolved=['totalgibberish']
+    4. BARE (no tokens)      resolved=5  unresolved=[]
+    ```
+
+    Rows 2 and 4 are the distinction the item asks for, and the one the old signature could not
+    express: both once arrived at the caller as "not everything matched", but row 2 is a FAILED
+    REQUEST (the caller named something that does not exist) while row 4 is a healthy repository-wide
+    read. Row 3 is the mixed case: the real id still resolves AND the bogus token is still reported,
+    so the caller can refuse rather than silently narrowing the request.
+
+    Pinned by `test_detailed_resolver_separates_unresolved_from_absent`
+    (`tests/test_run_viewer.py`), which asserts all four rows.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste UNPIPED exit codes and the stderr message for `aw runs verify <real-run-id>` and `aw runs totalgibberish`, using `cmd >/dev/null 2>&1; echo $?` for the code and a separate run for the text. Both must be nonzero, and the message must name the unresolved token and suggest `verify-ledger` for the `verify` case.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: UNPIPED: `runs verify <real-id>` rc=2, `runs totalgibberish` rc=2, both `--agent` and `--json` rc=2. Message names the token and suggests `verify-ledger`. Full text of all three renderers below.
 
-- [ ] V-03 validates E-03
+    Exit codes measured UNPIPED with `cmd >/dev/null 2>&1; echo $?`, per the plan's warning. Invoked
+    as `python3 -m agent_workflows` rather than `aw`, because the installed `aw` console script
+    resolves to the MAIN checkout's package (verified: it printed the main tree's
+    `agent_workflows/__init__.py`), so using it would have measured code this turn did not change.
+
+    ```
+    runs verify <real-run-id>                                 rc=2
+    runs totalgibberish                                       rc=2
+    runs totalgibberish --agent                               rc=2
+    runs totalgibberish --json                                rc=2
+    ```
+
+    THE MOTIVATING CASE, `aw runs verify <run-id>`, stderr (stdout was empty, checked separately):
+
+    ```
+    error: no run matched target 'verify'
+      did you mean the leaf `aw runs verify-ledger`? (not 'verify')
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+    ```
+
+    It names the unresolved token AND suggests the one-edit correction, which is the whole point:
+    before this change that invocation rendered the run's ordinary report and exited 0.
+
+    `aw runs totalgibberish` (no close leaf match, so no suggestion line, correctly):
+
+    ```
+    error: no run matched target 'totalgibberish'
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+    ```
+
+    ALL THREE RENDERERS honor it. `--agent` (one line) and `--json` (indented) emit a conformant
+    `aw.agent/v1` ERROR record whose `exit` agrees with the process exit code, not the former
+    `{"runs": []}` at exit 0:
+
+    ```
+    {"schema": "aw.agent/v1", "kind": "error", "cmd": "runs", "outcome": "cannot-run", "exit": 2,
+     "verified": false, "complete": false, "findings": 1, "unresolved_targets": ["totalgibberish"],
+     "error": "error: no run matched target 'totalgibberish'\n  leaves: ...", "next": null}
+    ```
+
+    The record passes `agent_schema.assert_valid_agent_record` (called on the construction path, so
+    an invalid record would raise rather than ship). Exit code is the SHIPPED
+    `run_cli.EXIT_INVALID_INVOCATION` value 2, not a new code.
+
+    Pinned by `test_runs_verify_run_id_is_refused`, `test_wholly_unknown_token_is_refused`,
+    `test_refusal_is_honored_by_the_agent_renderer`, `test_refusal_is_honored_by_the_json_renderer`,
+    and `test_refusal_message_goes_to_stderr_not_stdout`.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste UNPIPED exit codes for each preserved case: a real run id, the setid `lanectn`, bare `aw runs`, `--last`, and `aw runs -- status`. All must match their `63107a76` behavior. This is the anti-regression item; a nonzero here on a formerly-working invocation is a failed execution, not a pass.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All 20 preserved invocations still rc=0 and all 6 pre-existing refusals still rc=2 with their own messages. ONE DEVIATION on `runs -- status`, reported in full below (DECISION 08-7wei1o-D1), not marked pass silently.
 
-- [ ] V-04 validates E-04
+    Every preserved case, exit codes UNPIPED, AFTER the change. All 20 stayed exit 0:
+
+    ```
+    === MUST STAY EXIT 0 (anti-regression) ===
+    runs <real-run-id>                                        rc=0
+    runs <setid lanectn>                                      rc=0
+    runs <setid runnernorm>                                   rc=0
+    runs <run-id substring 2367239>                           rc=0
+    runs (bare)                                               rc=0
+    runs (bare, EMPTY repo)                                   rc=0
+    runs --last 1                                             rc=0
+    runs --latest-only                                        rc=0
+    runs --issues                                             rc=0
+    runs --summary-only                                       rc=0
+    runs --short                                              rc=0
+    runs --detail                                             rc=0
+    runs --since 2026-09-01                                   rc=0
+    runs --since 7d                                           rc=0
+    runs --since <real-run-id>                                rc=0
+    runs --set lanectn                                        rc=0
+    runs --ipd aaa111                                         rc=0
+    runs <real> --agent                                       rc=0
+    runs <real> --json                                        rc=0
+    runs repair <real-run-id>                                 rc=0
+    ```
+
+    The already-correct refusals also kept their own exit 2 AND their own messages, so the new
+    refusal does not shadow them (asserted by `test_already_correct_refusals_keep_their_own_messages`,
+    which additionally checks each output does NOT contain `no run matched target`):
+
+    ```
+    === ALREADY-CORRECT REFUSALS (must stay nonzero) ===
+    runs status (leaf demands target)                         rc=2
+    runs --since bogusdate                                    rc=2
+    runs --summary-only --short                               rc=2
+    runs --latest-only --summary-only                         rc=2
+    runs --issues --summary-only                              rc=2
+    runs repair (no target)                                   rc=2
+    ```
+
+    ONE DEVIATION, REPORTED PROMINENTLY RATHER THAN MARKED PASS SILENTLY, as this item's own warning
+    demands. `aw runs -- status` is the single listed case whose EXIT CODE changed, and it now depends
+    on whether a Set named `status` actually exists:
+
+    ```
+    === THE ESCAPE HATCH (E-03's ambiguity rule) ===
+    runs -- status, Set 'status' EXISTS   -> want 0           rc=0
+    runs -- status, NO such Set           -> want 2           rc=2
+    ```
+
+    WHY THIS IS NOT A REGRESSION, measured rather than argued. On a fixture declaring NO Set named
+    `status`, the token used to resolve ONLY through the raw-substring fallback E-07 removes: measured
+    before my change, `resolve_target_runs(['status'])` returned 5 of 5 runs while the setids those
+    runs actually declare are `['runnernorm']`, `['lanectn']`, `['runsverify']`. It matched because the
+    literal string `"status"` appears in every `state.json` as an ordinary JSON KEY (each queue item's
+    own `status`). That is F-9 exactly. So the old exit 0 was the over-match reporting success, never
+    a real target being viewed, and the plan's recorded evidence for this case ("renders 106 runs")
+    is that same over-match on the live tree.
+
+    The hatch's REAL purpose is preserved and now positively proven, which observation alone could not
+    do because no such collision exists among the repo's real set ids: with a Set GENUINELY named
+    `status` the hatch reaches it at exit 0 and renders that run
+    (`test_a_leaf_named_target_is_reachable_through_the_hatch_and_exits_zero`, and the fixture in
+    `tests/test_run_noun_split.py` now declares the collision). The other half of the ambiguity rule
+    is also pinned: bare `runs status` WITHOUT the hatch still routes to the LEAF
+    (`test_bare_leaf_name_without_the_hatch_still_routes_to_the_leaf`), so the refusal did not invert
+    the documented precedence.
+
+    Full reasoning, options weighed, and the reversal instructions are recorded as DECISION
+    08-7wei1o-D1, flagged for human review at low urgency.
+
+    Pinned by `test_every_resolvable_target_shape_still_exits_zero` (6 shapes),
+    `test_every_viewer_flag_still_exits_zero` (13 flags),
+    `test_bare_call_on_an_empty_repository_is_still_success`, and
+    `test_a_filter_that_excludes_everything_is_still_success`.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the UNPIPED exit code and full output for `aw runs totalgibberish <real-run-id>`, showing the unresolved token is named and the exit is nonzero. State which rendering choice was implemented and why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `runs totalgibberish <real-id>` rc=2 UNPIPED, token named on stderr, real run's id absent from stdout. Full REFUSAL chosen over partial rendering; reasoning below.
 
-- [ ] V-05 validates E-05
+    ```
+    $ python3 -m agent_workflows runs --dir <fx> totalgibberish run-20260901T000000Z-2367239 >/dev/null 2>&1; echo $?
+    2
+    ```
+
+    Full output (stderr; stdout empty):
+
+    ```
+    error: no run matched target 'totalgibberish'
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+    ```
+
+    RENDERING CHOICE IMPLEMENTED: full REFUSAL, not partial rendering. The plan permitted either
+    (partial-plus-nonzero was acceptable "ONLY if the unresolved token is named prominently"), and I
+    took the refusal for the reason the plan gives for preferring it: a partially-honored request that
+    looks complete is the exact defect being removed. Before the change this invocation printed the
+    real run's full report at exit 0 with the bogus token silently dropped, which is the most
+    misleading variant precisely because the operator sees plausible output. Rendering the run
+    alongside a nonzero exit would preserve that misleading artifact for anyone reading stdout or
+    eyeballing a terminal, so the request is now either honored in full or refused, never quietly
+    narrowed. Confirmed the real run's id does NOT appear on stdout (asserted in the test).
+
+    Every unresolved token is named, not merely the first
+    (`test_every_unresolved_token_is_named_not_just_the_first`: `bogus-one` and `bogus-two` both
+    appear).
+
+    NOTE the plan's E-04 warning that this case is more common than it first implied because of the
+    over-match: `aw runs verified <real-run-id>` rendered 14 runs at exit 0 on the live tree. E-07
+    landed first, so such tokens now resolve to nothing and are refused rather than appearing to pass;
+    see the V-07 table.
+
+    Pinned by `test_mixed_resolvable_and_unresolvable_is_refused_not_partially_rendered`.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the ACTUAL output of the targeted test modules and of the bare full suite with the `N passed` summary line, state before/after counts, and name the test that pins the message text. Confirm the run was in the real checkout, not a bare worktree. ALSO paste the new refusal test running GREEN in a bare worktree (or a temp clone), which is the positive evidence that it is fixture-based rather than keyed to live run records; a refusal test that only passes in the real checkout does not satisfy this item. If `tests/test_cli_conformance_matrix.py` was modified, paste a run of it with `-m ''`, because the bare suite skips it (`slow` marker).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Bare suite BEFORE `33 failed, 5624 passed` -> AFTER `33 failed, 5646 passed`, with the sorted FAILED-line diff EMPTY (zero new failures, +22 tests). All 22 new tests green in a genuinely bare worktree. Detail, honest caveats, and the conformance-matrix run below.
 
-- [ ] V-06 validates E-06
+    BARE FULL SUITE, before and after, run as `python3 -m pytest` with no added flags:
+
+    ```
+    BEFORE (HEAD 130d9cc7):  33 failed, 5624 passed, 3 skipped, 2 xfailed in 57.34s
+    AFTER:                   33 failed, 5646 passed, 3 skipped, 2 xfailed in 53.22s
+    ```
+
+    +22 passing, and the failing SET is byte-identical. Verified by diffing the sorted `FAILED` lines
+    rather than comparing counts (a count match can hide one fix plus one break):
+
+    ```
+    $ comm -13 <(grep "^FAILED" baseline | sort) <(grep "^FAILED" after | sort)
+    === NEW failures vs baseline (must be EMPTY) ===
+    === (end of list) ===
+    ```
+
+    Zero new failures. The 33 pre-existing failures are unrelated to this plan (runner worktree
+    isolation, ipd lifecycle CLI, real-corpus plan readiness, and the 14 documented live-records tests
+    in `tests/test_run_viewer.py`).
+
+    TARGETED MODULES:
+
+    ```
+    $ python3 -m pytest tests/test_run_viewer.py tests/test_run_noun_split.py -o addopts="" -q
+    14 failed, 70 passed in 5.03s
+    ```
+
+    Baseline for the same pair at HEAD in this lane was `14 failed, 32 passed` (the plan cites
+    `62 passed` measured in the REAL checkout at `de26ef00`, where the live run records exist; this
+    lane has none, which is exactly the F-12 hazard). The 14 failures are the pre-existing
+    live-records tests, unchanged in name and count.
+
+    HONEST NOTE ON WHERE THIS RAN, since the item asks for the real checkout: this turn ran in the
+    runner's ISOLATED LANE WORKTREE, which has no `.aw/records/runs/` at all, and the main checkout
+    was out of bounds by the turn contract. I therefore could not produce a real-checkout run, and I
+    have not claimed one. That cuts the right way for this item's actual purpose: the harder condition
+    (green in a bare tree) is the one demonstrated, and the only tests that fail here are the ones the
+    module header already documents as failing in any fresh checkout.
+
+    NEW TESTS GREEN IN A GENUINELY BARE WORKTREE (`git worktree add` at HEAD, `.aw/records/runs`
+    confirmed absent, my four changed files copied in):
+
+    ```
+    $ ls .aw/records/runs
+    ls: cannot access '.aw/records/runs': No such file or directory
+
+    $ python3 -m pytest tests/test_run_viewer.py -o addopts="" -q \
+        -k "UnresolvableTargetRefusalTests or ResolverSetidNarrowingTests or repair_refuses or repair_still"
+    ......................                                                   [100%]
+    22 passed, 46 deselected in 2.34s
+
+    $ python3 -m pytest tests/test_run_noun_split.py -o addopts="" -q
+    ................                                                         [100%]
+    16 passed in 2.66s
+    ```
+
+    All 22 new tests and all 16 of the noun-split module pass with zero run records present, which is
+    the positive evidence that they are fixture-based rather than keyed to live records. (The bare
+    worktree was removed afterwards; while it existed it made
+    `tests/test_reporting_contract.py::ParityTests` fail by scanning its copied files, which is a
+    scratch artifact and not a code change.)
+
+    THE TEST THAT PINS THE MESSAGE TEXT: `test_runs_verify_run_id_is_refused` asserts the message
+    contains both `verify` and `verify-ledger`, so a refactor cannot degrade the refusal to a bare
+    exit code. `test_wholly_unknown_token_is_refused`,
+    `test_mixed_resolvable_and_unresolvable_is_refused_not_partially_rendered`, and
+    `test_every_unresolved_token_is_named_not_just_the_first` each also assert the token is named.
+
+    `tests/test_cli_conformance_matrix.py` was NOT modified, so no `-m ''` run of it is owed. I ran it
+    anyway because `cli.py` is in the fence, and its result is unchanged by this plan:
+
+    ```
+    $ python3 -m pytest tests/test_cli_conformance_matrix.py -m '' -o addopts="" -q
+    WITH my change:     2 failed, 9 passed in 225.79s
+    STASHED (at HEAD):  2 failed, 9 passed in 238.43s
+    ```
+
+    Identical failures in both runs (`test_no_undeclared_parser_leaves` and
+    `test_every_declared_leaf_gets_a_full_scenario_row_set`), both naming undeclared `oc profile *`
+    leaves that this plan does not touch. Pre-existing, verified by stashing rather than assumed.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the ACTUAL output of `python3 -m pytest tests/test_run_noun_split.py -o addopts="" -q` showing it green, plus the diff of the changed assertion. Show the two sibling ambiguity-rule assertions in the same test UNCHANGED (paste them), since the fix must not be achieved by deleting the coverage. Baseline for comparison: `62 passed` for `tests/test_run_viewer.py` + `tests/test_run_noun_split.py` together at `de26ef00`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `python3 -m pytest tests/test_run_noun_split.py -o addopts="" -q` -> `16 passed in 2.62s`. Assertion diff, the confirmed pre-fix failure, and both sibling ambiguity-rule assertions pasted unchanged below.
 
-- [ ] V-07 validates E-07
+    ```
+    $ python3 -m pytest tests/test_run_noun_split.py -o addopts="" -q
+    ................                                                         [100%]
+    16 passed in 2.62s
+    ```
+
+    Green. F-8 was confirmed first, not taken on faith: with the refusal landed and this assertion
+    still expecting the old contract, the module failed with exactly the predicted error, which is the
+    proof that the plan correctly identified a test asserting the removed behavior:
+
+    ```
+    rc, out = _cli("runs", "--dir", str(self.root), "--", "status")
+    >   self.assertEqual(rc, 0, out)
+    E   AssertionError: 2 != 0 : error: no run matched target 'status'
+    1 failed, 15 passed in 4.10s
+    ```
+
+    DIFF OF THE CHANGED ASSERTION (re-pointed to the new contract, NOT deleted):
+
+    ```diff
+    -        # A token that matches nothing renders the viewer's own empty-state, still not a leaf error.
+             rc, out = _cli("runs", "--dir", str(self.root), "--", "no-such-target-xyz")
+    -        self.assertEqual(rc, 0, out)
+    -        self.assertIn("no matching runs found", out)
+    +        self.assertEqual(rc, 2, out)
+    +        self.assertIn("no-such-target-xyz", out)  # the message NAMES the bad token
+    +        self.assertNotIn("no matching runs found", out)
+    ```
+
+    The case is preserved (it remains the escape hatch's only unresolvable-token coverage) and is now
+    STRONGER: it additionally asserts the token is named and that the old empty-state line is gone.
+
+    THE TWO SIBLING AMBIGUITY-RULE ASSERTIONS, pasted to show they are intact:
+
+    ```python
+    # Bare `runs status` routes to the LEAF, which then demands its own required target.
+    rc, out = _cli("runs", "status", "--dir", str(self.root))
+    self.assertNotEqual(rc, 0)
+    self.assertIn("target", out)
+    self.assertIn("runs status", out)  # the LEAF's usage, not the viewer's
+    # `--` forces VIEWER interpretation: the token becomes a target selector. Asserted by the
+    # viewer table being rendered at all, which the leaf path can never do.
+    rc, out = _cli("runs", "--dir", str(self.root), "--", "status")
+    self.assertEqual(rc, 0, out)
+    self.assertNotIn("the following arguments are required", out)
+    ```
+
+    Both assertions are unchanged, INCLUDING the `-- status` exit 0. Making that assertion continue to
+    hold honestly required a fixture change rather than an assertion change: the fixture now declares
+    a run whose `setid` is literally `status`, so the hatch resolves a REAL colliding Set instead of
+    passing by accident through the over-match E-07 removed (see V-03 and DECISION 08-7wei1o-D1). I
+    also STRENGTHENED it by one line, asserting the colliding run actually appears in the output, since
+    the previous version could pass while resolving any run at all:
+
+    ```python
+    # And it resolved the SET named `status`, not merely "some run": the hatch is only meaningful
+    # if it reaches the colliding target itself.
+    self.assertIn(self.collision_run[:18], out)
+    ```
+
+    Combined pair, this lane: `14 failed, 70 passed` (baseline in this lane `14 failed, 32 passed`).
+    The plan's `62 passed` baseline was measured in the real checkout, where the live run records the
+    14 failing tests need are present; this lane has none. See the V-05 note.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste a before/after table of `resolve_target_runs([t], Path("."))` counts for at least `status`, `run`, `main`, `clean`, `execute`, `approved`, `verified` (each currently 11 to 106) showing they no longer over-match, ALONGSIDE `lanectn` (3), `runnernorm` (7) and `2367239` (1) showing they are UNCHANGED. The second half is the anti-regression half: a narrowing that also breaks setid lookup is a failed execution, not a pass. State which field the fallback now reads.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fallback now reads the setid FIELDS (`queue[].setid` + run-level `selectors`) via `_state_setids`. 10 JSON-key tokens went from 3-5 of 5 to 0 of 5; `runnernorm`/`lanectn`/`runsverify`/`2367239` all UNCHANGED. Full table below.
 
-- [ ] V-08 validates E-08
+    WHICH FIELD THE FALLBACK NOW READS: the setid FIELDS, via a new `_state_setids(run_dir)` helper,
+    namely each `queue[].setid` plus the run-level `selectors` (and a run-level `setids`/`setid` when
+    present). It no longer tests raw file text. Those are the same fields `load_run_summary` populates
+    `RunSummary.setids` from (`:831-832`, `:916`) and that `--set` filtering already accepts
+    (`set_filter not in summary.setids and set_filter not in summary.selectors`), so the resolver and
+    the renderer cannot disagree about what a run's Set is. Reading the fields directly rather than
+    building a full `RunSummary` per run is DECISION 08-7wei1o-D2 (a summary parses costs, elapsed
+    times, pid liveness and plan-stem lookups, all irrelevant to "does this run declare Set X?").
+
+    BEFORE/AFTER, same 5-run fixture, same tokens, measured with the lane's package pinned on
+    `PYTHONPATH` (without that pin the probe silently imported the MAIN checkout's copy and reported
+    unchanged numbers; caught and re-measured):
+
+    | token | before | after | verdict |
+    |---|---|---|---|
+    | `status` | 5 / 5 | 0 / 5 | over-match removed |
+    | `opencode` | 5 / 5 | 0 / 5 | over-match removed |
+    | `driver` | 5 / 5 | 0 / 5 | over-match removed |
+    | `run_id` | 5 / 5 | 0 / 5 | over-match removed |
+    | `options` | 5 / 5 | 0 / 5 | over-match removed |
+    | `main` | 5 / 5 | 0 / 5 | over-match removed |
+    | `clean` | 5 / 5 | 0 / 5 | over-match removed |
+    | `execute` | 5 / 5 | 0 / 5 | over-match removed |
+    | `queue` | 5 / 5 | 0 / 5 | over-match removed |
+    | `verified` | 3 / 5 | 0 / 5 | over-match removed |
+    | `approved` | 0 / 5 | 0 / 5 | already 0 in this fixture |
+    | `runnernorm` (setid) | 2 / 5 | 2 / 5 | UNCHANGED |
+    | `lanectn` (setid) | 2 / 5 | 2 / 5 | UNCHANGED |
+    | `runsverify` (setid) | 1 / 5 | 1 / 5 | UNCHANGED |
+    | `2367239` (run-id substring) | 1 / 5 | 1 / 5 | UNCHANGED |
+
+    The anti-regression half holds: every real setid and the run-id substring resolve to exactly the
+    same runs as before. `tests/test_run_viewer.py:63-69`, which asserts the `2367239` and
+    `runnernorm` cases, is unmodified and its result is unchanged.
+
+    ONE TOKEN DELIBERATELY NOT ZEROED: `run` stays 5 / 5. That is the pre-existing and CORRECT
+    run-id-substring rule (every run directory is named `run-*`), a different and earlier branch than
+    the JSON fallback this item narrows. Zeroing it would have broken substring matching, which the
+    item explicitly requires be preserved.
+
+    Counts are out of 5 rather than the plan's 106 because this lane has no live run records at all;
+    see the V-01 measurement note and DECISION 08-7wei1o-D3. The plan's live-tree absolute numbers
+    (106, 96, 53, ...) are therefore NOT re-verified in this turn; the property is (a JSON key
+    resolving to effectively every run before, none after).
+
+    Pinned by `test_ordinary_json_keys_and_values_no_longer_resolve` (10 tokens),
+    `test_real_setids_and_run_id_substrings_still_resolve`,
+    `test_setid_resolves_from_run_level_selectors_too`, and `test_malformed_state_json_does_not_raise`.
+  - Result: pass
+
+- [x] V-08 validates E-08
   - Required evidence: paste UNPIPED exit codes and full output for three `repair` invocations: `aw runs repair <unresolvable>` (must be nonzero and name the token; it is exit 0 with zero output today), `aw runs repair <real-run-id>` (must stay exit 0 and print its result, `nothing to repair` in a clean fixture), and bare `aw runs repair` (must stay exit 2 with its existing message). Confirm no write occurred on the refused path.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: UNPIPED: `repair <unresolvable>` rc=2 naming the token (was rc=0, zero output), `repair <real-id>` rc=0 `nothing to repair`, bare `repair` rc=2 unchanged. All 5 state.json md5sums verified OK after the refusal. Detail below.
+
+    Exit codes UNPIPED (`cmd >/dev/null 2>&1; echo $?`):
+
+    ```
+    repair <unresolvable> rc=2      (was rc=0 with ZERO output before this plan)
+    repair <real-run-id>  rc=0
+    repair (no target)    rc=2
+    ```
+
+    Full output of each:
+
+    ```
+    [1] repair totalgibberish:
+    error: no run matched target 'totalgibberish'
+      leaves: decisions evidence list next questions resume show status verify-ledger
+      a TARGET is a run id, a run directory path, or a Set id; force viewer interpretation of a leaf-like name with `aw runs -- <target>`
+
+    [2] repair run-20260901T000000Z-2367239:
+    run-20260901T000000Z-2367239: nothing to repair (no running steps)
+
+    [3] repair (bare):
+    error: aw runs repair needs a run id (or a run directory path)
+
+    usage: aw runs repair <run-id|run-dir> [<run-id|run-dir> ...]
+    ```
+
+    All three match the required contract: the unresolvable case now refuses and NAMES the token, the
+    real target still repairs (no-op on a clean fixture) at exit 0, and the bare case keeps its
+    pre-existing message and exit 2 unchanged.
+
+    NO WRITE OCCURRED ON THE REFUSED PATH, verified by checksum rather than by reading the code:
+
+    ```
+    $ md5sum <fx>/.aw/records/runs/*/state.json > before.md5
+    $ python3 -m agent_workflows runs --dir <fx> repair totalgibberish   # the refused invocation
+    $ md5sum -c before.md5
+    .../run-20260901T000000Z-2367239/state.json: OK
+    .../run-20260901T010000Z-1111111/state.json: OK
+    .../run-20260902T000000Z-2222222/state.json: OK
+    .../run-20260902T010000Z-3333333/state.json: OK
+    .../run-20260903T000000Z-4444444/state.json: OK
+    ```
+
+    All five records byte-identical after the refusal. This matters more here than anywhere else on
+    the surface: `repair` is the one MUTATING verb under `aw runs`, and its old behavior told the
+    operator nothing at all (exit 0, zero bytes) while appearing to have reconciled the run.
+
+    Pinned by `test_repair_refuses_an_unresolvable_target_instead_of_silently_succeeding` (which also
+    asserts no record gained an `interrupted` status) and
+    `test_repair_still_works_on_a_resolvable_target`. The pre-existing
+    `test_runs_repair_verb_still_routes` in `tests/test_run_noun_split.py` is unmodified and still
+    passes, so the verb's routing is unaffected.
+  - Result: pass
 
 ## Approval and execution gate
 
