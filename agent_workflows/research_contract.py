@@ -87,14 +87,38 @@ def iter_id6_citations(text: str) -> List[str]:
 # --------------------------------------------------------------------------------------
 
 # ``<model>`` authorship facet. ``reconciliation`` denotes a synthesis with no single author.
+#
+# THE TOKEN IDENTIFIES A MODEL *PLUS ITS REASONING EFFORT*, because effort materially changes the
+# output and a comparison set exists precisely to hold two such outputs side by side. The original
+# vocabulary encoded effort for the gpt56 family ONLY (`gpt56medium`/`gpt56high`) and offered no
+# equivalent for Sonnet or Gemini, so a genuine `sonnet5` high-effort report could not be named. The
+# effort suffix is therefore GENERALIZED here rather than kept as a gpt56 special case.
+#
+# EXTENSION MECHANISM (same contract as KINDS below): append the token HERE with a one-line
+# justification in review, add any spelling drift to MODEL_NORMALIZATIONS, and amend section 5.4 of
+# the naming spec `20260730-2152-01-agents-artifact-organization` in the SAME change, since E3 makes
+# this an enumerated `[Must]` vocabulary and the two must not drift apart.
+#
+# A NEW MODEL IS NOT A SPELLING VARIANT. `gemini38flash` is a DIFFERENT model from `gemini36flash`,
+# so it is added as its own token and deliberately NOT normalized onto the 3.6 spelling; the closest
+# -match hint the validator prints ("did you mean gemini31pro?") is string proximity, not a claim
+# about model identity, and collapsing them would file a report under a model that did not write it.
 MODELS: FrozenSet[str] = frozenset(
     (
         "gpt56",
         "gpt56medium",
         "gpt56high",
+        # `sol` is the product label OpenAI ships the gpt56 reasoning tier under; kept in the token
+        # because the maintainer's own provenance labels carry it and dropping it would make two
+        # distinguishable configurations collide on one name.
+        "gpt56solhigh",
         "gemini31pro",
+        "gemini31prohigh",
         "gemini36flash",
+        "gemini38flash",
+        "gemini38flashhigh",
         "sonnet5",
+        "sonnet5high",
         "reconciliation",
     )
 )
@@ -106,9 +130,19 @@ MODEL_NORMALIZATIONS: Dict[str, str] = {
     "gpt56-medium": "gpt56medium",
     "gpt-56-high": "gpt56high",
     "gpt56-high": "gpt56high",
+    "gpt-56-sol-high": "gpt56solhigh",
+    "gpt56-sol-high": "gpt56solhigh",
+    "gpt56sol-high": "gpt56solhigh",
     "gemini-31-pro": "gemini31pro",
+    "gemini-31-pro-high": "gemini31prohigh",
+    "gemini31pro-high": "gemini31prohigh",
     "gemini-36-flash": "gemini36flash",
+    "gemini-38-flash": "gemini38flash",
+    "gemini-38-flash-high": "gemini38flashhigh",
+    "gemini38flash-high": "gemini38flashhigh",
     "sonnet-5": "sonnet5",
+    "sonnet-5-high": "sonnet5high",
+    "sonnet5-high": "sonnet5high",
     "chatgpt": "gpt56",  # a product label mapped to a model version; also record provenance
 }
 

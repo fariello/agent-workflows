@@ -607,23 +607,61 @@ def extract_log_metrics(log_path: Path | str) -> tuple[float | None, dict[str, i
                         tokens_agg["output"] += int(out)
                         tokens_agg["cache"] += int(cache_val)
                         tokens_agg["reasoning"] += int(reasoning)
-                elif ev.get("type") == "agent_response" or "usage" in ev:
-                    usage = ev.get("usage") or {}
+                elif (
+                    ev.get("type") == "agent_response"
+                    or "usage" in ev
+                    or (
+                        isinstance(ev.get("step_update"), dict)
+                        and "usage" in ev["step_update"]
+                    )
+                ):
+                    step_data = (
+                        ev.get("step_update")
+                        if isinstance(ev.get("step_update"), dict)
+                        else {}
+                    )
+                    usage = step_data.get("usage") or ev.get("usage") or {}
                     if isinstance(usage, dict):
                         has_tokens = True
-                        tot = usage.get("total_tokens") or 0
                         inp = (
-                            usage.get("prompt_tokens") or usage.get("input_tokens") or 0
-                        )
-                        out = (
-                            usage.get("completion_tokens")
-                            or usage.get("output_tokens")
+                            usage.get("input_tokens")
+                            or usage.get("prompt_tokens")
+                            or usage.get("input")
                             or 0
                         )
+                        out = (
+                            usage.get("output_tokens")
+                            or usage.get("completion_tokens")
+                            or usage.get("output")
+                            or 0
+                        )
+                        cache_raw = (
+                            usage.get("cache_read_tokens")
+                            if "cache_read_tokens" in usage
+                            else usage.get("cache") or 0
+                        )
+                        if isinstance(cache_raw, dict):
+                            cache_val = (cache_raw.get("read") or 0) + (
+                                cache_raw.get("write") or 0
+                            )
+                        elif isinstance(cache_raw, (int, float)):
+                            cache_val = int(cache_raw)
+                        else:
+                            cache_val = 0
+                        reasoning = (
+                            usage.get("thinking_tokens")
+                            or usage.get("reasoning_tokens")
+                            or 0
+                        )
+                        tot = usage.get("total_tokens")
+                        if tot is None:
+                            tot = inp + out + cache_val
                         tokens_agg["total"] += int(tot)
                         tokens_agg["input"] += int(inp)
                         tokens_agg["output"] += int(out)
-                    c = ev.get("cost")
+                        tokens_agg["cache"] += int(cache_val)
+                        tokens_agg["reasoning"] += int(reasoning)
+                    c = step_data.get("cost") or ev.get("cost")
                     if c is not None:
                         try:
                             total_cost += float(c)

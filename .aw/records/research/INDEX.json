@@ -90,18 +90,21 @@
     ]
   },
   {
-    "consumed_by": [],
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
     "created": "20260905",
     "date": "20260905",
     "id6": "27rjro",
     "kind": "research-prompt",
     "model": "",
     "order": "00",
-    "outcome": "none-yet",
-    "path": "20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md",
     "priority": "high",
     "set_id": "awmetastore",
-    "status": "todo",
+    "status": "reference",
     "summary": "Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness",
     "topic": [
       "artifact-storage",
@@ -169,6 +172,30 @@
       "hooks",
       "ci",
       "lifecycle"
+    ]
+  },
+  {
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
+    "created": "20260908",
+    "date": "20260905",
+    "id6": "2o895n",
+    "kind": "research-report",
+    "model": "sonnet5high",
+    "order": "02",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-02-2o895n-where-aw-metadata-should-live.sonnet5high.research-report.md",
+    "priority": "",
+    "set_id": "awmetastore",
+    "status": "reference",
+    "summary": "Sonnet 5 High: hybrid inline front matter plus sidecar history, with an explicit section 0 accounting of which prompt claims were verified against the live source and which could not be",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
     ]
   },
   {
@@ -325,6 +352,30 @@
     "status": "archive",
     "summary": "Migrated from 20260712-planrev-03-60v91z-chatgpt-improved-v1-changes.gpt56.research-report.md.",
     "topic": []
+  },
+  {
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
+    "created": "20260908",
+    "date": "20260905",
+    "id6": "6mye7n",
+    "kind": "reconciliation-report",
+    "model": "reconciliation",
+    "order": "05",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md",
+    "priority": "",
+    "set_id": "awmetastore",
+    "status": "reference",
+    "summary": "Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High, Gemini 3.1 Pro High and Gemini 3.8 Flash High: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by an explicit per-artifact seq rather than by date; the live-verified disagreements are the inline residue, IPD-S405, and write locking",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
+    ]
   },
   {
     "consumed_by": [],
@@ -1243,6 +1294,30 @@
     "topic": []
   },
   {
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
+    "created": "20260908",
+    "date": "20260905",
+    "id6": "pavnai",
+    "kind": "research-report",
+    "model": "gemini38flashhigh",
+    "order": "04",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-04-pavnai-where-aw-metadata-should-live.gemini38flashhigh.research-report.md",
+    "priority": "",
+    "set_id": "awmetastore",
+    "status": "reference",
+    "summary": "Gemini 3.8 Flash High: recommended hybrid of per-artifact JSONL plus a one-line inline status, evaluated against a live checkout and scoring four storage options",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
+    ]
+  },
+  {
     "consumed_by": [],
     "created": "20260831",
     "date": "20260831",
@@ -1391,6 +1466,30 @@
     "status": "archive",
     "summary": "Migrated from 20260713-occomms-04-t5xyw0-native-capabilities-and-runtime.research-report.md.",
     "topic": []
+  },
+  {
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
+    "created": "20260908",
+    "date": "20260905",
+    "id6": "takpys",
+    "kind": "research-report",
+    "model": "gpt56solhigh",
+    "order": "01",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-01-takpys-where-aw-metadata-should-live.gpt56solhigh.research-report.md",
+    "priority": "",
+    "set_id": "awmetastore",
+    "status": "reference",
+    "summary": "GPT-5.6 Sol High: keep current-state front matter inline, move unbounded workflow history to git-tracked per-artifact JSONL event journals keyed by the stable Id; do not make the single global history.jsonl or SQLite the git-carried authority",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
+    ]
   },
   {
     "consumed_by": [],
@@ -1800,6 +1899,30 @@
     "status": "archive",
     "summary": "Migrated from 20260716-broker-feasibility-confirmation-00-xawbsa-broker-feasibility-confirmation.research-report.md.",
     "topic": []
+  },
+  {
+    "consumed_by": [
+      "ms06pi",
+      "tk1gqo"
+    ],
+    "created": "20260908",
+    "date": "20260905",
+    "id6": "xn6f6u",
+    "kind": "research-report",
+    "model": "gemini31prohigh",
+    "order": "03",
+    "outcome": "adopted",
+    "path": "reference/202609/20260905-awmetastore-03-xn6f6u-where-aw-metadata-should-live.gemini31prohigh.research-report.md",
+    "priority": "",
+    "set_id": "awmetastore",
+    "status": "reference",
+    "summary": "Gemini 3.1 Pro High: move Workflow history into per-artifact JSONL sidecars under a history dir keyed by id6, keep front matter inline",
+    "topic": [
+      "artifact-storage",
+      "token-cost",
+      "history",
+      "schema"
+    ]
   },
   {
     "consumed_by": [

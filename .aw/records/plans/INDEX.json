@@ -3802,6 +3802,16 @@
   {
     "date": "2026-08-29",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
+    "plan_id": "3m0urk",
+    "set_id": "runprofile",
+    "status": "executed"
+  },
+  {
+    "date": "2026-08-29",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260829-runprofile-01-f2mrsw-versioned-user-local-runner-profile-schema-and-resolution.ipd.md",
@@ -4704,16 +4714,6 @@
     "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
-    "path": "pending/20260829-runprofile-00-3m0urk-named-runner-profiles-and-collision-safe-run-as-dispatch.ipd.md",
-    "plan_id": "3m0urk",
-    "set_id": "runprofile",
-    "status": "approved"
-  },
-  {
-    "date": "2026-08-29",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
     "path": "pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md",
     "plan_id": "5e4sb6",
     "set_id": "rununify",
@@ -4747,7 +4747,7 @@
     "path": "pending/20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md",
     "plan_id": "ybkmzp",
     "set_id": "hostdefault",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-06",
@@ -4837,7 +4837,7 @@
     "path": "pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md",
     "plan_id": "yeh7gc",
     "set_id": "orchprobe",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-07",
@@ -4847,7 +4847,7 @@
     "path": "pending/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md",
     "plan_id": "r2i1b1",
     "set_id": "orchprobe",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-07",
@@ -4867,7 +4867,7 @@
     "path": "pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md",
     "plan_id": "m7gvuz",
     "set_id": "orchprobe",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-07",
@@ -4926,6 +4926,16 @@
     "order": 1,
     "path": "pending/20260908-awinbox-01-lznpv6-add-aw-adopt-to-file-a-raw-inbox-drop-into-a-typed-records-t.ipd.md",
     "plan_id": "lznpv6",
+    "set_id": "awinbox",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md",
+    "plan_id": "9iiqmm",
     "set_id": "awinbox",
     "status": "to-review"
   },
@@ -5133,6 +5143,16 @@
     "date": "2026-09-08",
     "disposition": "pending",
     "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-instdiff-01-at61gc-show-generated-skill-members-in-aw-install-diff-so-the-previ.ipd.md",
+    "plan_id": "at61gc",
+    "set_id": "instdiff",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
     "order": 3,
     "path": "pending/20260908-integearn-03-daexj1-ask-the-agent-to-adjudicate-a-failing-suite-instead-of-refus.ipd.md",
     "plan_id": "daexj1",
@@ -5257,7 +5277,7 @@
     "path": "pending/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md",
     "plan_id": "xbwq8n",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5267,7 +5287,7 @@
     "path": "pending/20260908-runanalytics-02-bzz5e6-privacy-safe-incremental-per-run-analytics-cache.ipd.md",
     "plan_id": "bzz5e6",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5277,7 +5297,7 @@
     "path": "pending/20260908-runanalytics-03-lhccjf-cross-host-resource-telemetry-schema-collector-and-sampling.ipd.md",
     "plan_id": "lhccjf",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5287,7 +5307,7 @@
     "path": "pending/20260908-runanalytics-04-5f2h8i-opencode-and-agy-runner-telemetry-lifecycle-integration.ipd.md",
     "plan_id": "5f2h8i",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5297,7 +5317,7 @@
     "path": "pending/20260908-runanalytics-05-8hald1-normalized-run-ingestion-fact-schema-and-conservation-checks.ipd.md",
     "plan_id": "8hald1",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5307,7 +5327,7 @@
     "path": "pending/20260908-runanalytics-06-aflsz3-activity-taxonomy-effective-dated-pricing-statistics-and-fin.ipd.md",
     "plan_id": "aflsz3",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5317,7 +5337,7 @@
     "path": "pending/20260908-runanalytics-07-6eq3oq-self-contained-offline-analytics-spa-and-report-bundle.ipd.md",
     "plan_id": "6eq3oq",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5327,7 +5347,7 @@
     "path": "pending/20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md",
     "plan_id": "mm5p3v",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5337,7 +5357,7 @@
     "path": "pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md",
     "plan_id": "ixis0c",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5347,7 +5367,7 @@
     "path": "pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md",
     "plan_id": "9xycbh",
     "set_id": "runanalytics",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-08",
@@ -5604,9 +5624,39 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md",
+    "plan_id": "si24ia",
+    "set_id": "specreq",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-stopdisc-01-wqq8ua-name-the-stop-levels-where-an-operator-actually-meets-them-t.ipd.md",
+    "plan_id": "wqq8ua",
+    "set_id": "stopdisc",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md",
     "plan_id": "yaxr4i",
     "set_id": "ttyflags",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md",
+    "plan_id": "2iye0e",
+    "set_id": "wtisoptr",
     "status": "to-review"
   },
   {
