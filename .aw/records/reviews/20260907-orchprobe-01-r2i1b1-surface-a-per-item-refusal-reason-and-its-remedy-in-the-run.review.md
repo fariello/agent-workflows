@@ -106,3 +106,78 @@ out.
 | D-4 | Is the remedy's placement in the detail view sufficient? | NO. Require it visible with no flag, plus the full reason under `--detail`, plus discrete fields in the machine payloads | Leave it detail-only as authored, rejected because `render_step_details` is gated on `if detail:`, so the default reader sees `Issue: YES` with no why and no what-next, which defeats the remedy's stated purpose | `run_viewer.py:1537`, `:1699`, `:1737` | yes |
 | D-5 | Escalate the repair-fence question, or decide it? | ESCALATE as OQ-02 `Blocking: yes`, readiness NO-GO, with (a) renderer-side recommended | Decide (a) myself, rejected because although it is the smaller change, the choice also determines whether this child touches two runner modules that two APPROVED plans are concurrently rewriting, and a concurrency trade-off plus a fence boundary are the maintainer's call. Decide (c) out-of-scope myself, rejected because it would leave a measured defect unfixed by a plan that had just documented it | `oc_runipd.py:6498-6512`; `agy_runipd.py:3798-3811`; `51vw4y` and `rl67b0` both `- Status: approved` over those functions; ESCALATED in-plan as OQ-02 with `- Finding: PR-005`, and maintainer told 2026-09-07 in this review's final report | no |
 | D-6 | Add a second guard (E-07) for the field-mismatch class, when E-06 already guards the allowlist? | YES, add it | Rely on E-06 alone, rejected because the two guard different things: E-06 catches a closed status set returning, while the defect actually found was a branch whose CONDITION reads a field no producer writes, which an allowlist guard cannot see. That defect survived a green suite for as long as it has existed, which is the argument for guarding it explicitly | rendered per-status measurement; `tests/test_run_summary_table.py:198` supplying `driver_error` on a `failed-safely` item, which is why the branch looks exercised | yes |
+
+## Round 2
+
+Re-reviewed 2026-09-08 at HEAD `4647890f`. Structural preflight `aw ipd lint --phase author` conformed
+before semantic review; `--phase review-finalize` conformed after the revisions.
+
+ROUND 1's TECHNICAL WORK VERIFIED IN FULL, and that is the main result of this round. Every load-bearing
+claim was RE-EXECUTED rather than re-read, because this plan's value rests almost entirely on four
+measurements about live code:
+
+- F-4 RE-REPRODUCED by calling the real `render_run_summary_table(state, pal=Palette(False))` once per
+  status with the fields the runners actually write: `dependency-blocked` True, `failed-safely` True,
+  `integration-blocked` FALSE, `merge-conflict` FALSE, `interrupted` True. A NEW CONTROL was added that
+  round 1 did not run: the same `integration-blocked` item supplied `driver_error` instead DOES render a
+  line. That isolates the cause to the field NAME rather than to the status, which is the sharpest and
+  most falsifiable form of the finding, and it is now recorded in the plan.
+- F-2's five predicate copies re-grepped, all still at `run_viewer.py:1349`, `:1498`, `:2564`, `:2608`,
+  `:2639`. None moved.
+- E-01's circular-import argument re-verified by AST walk and it is exactly right: `render_stream`
+  imports ZERO first-party modules (stdlib only) while `runner_shared.py:136` does
+  `from agent_workflows.render_stream import Palette, render_run_summary_table`. So the edge is one-way
+  and `render_stream` is the only legal home for the record. This reasoning was buried inside an E-item;
+  it is now finding F-7 so a later reader cannot lose it and "move it to runner_shared" cannot resurface
+  as a cheap suggestion.
+- The oc-to-agy import count is still exactly 47, so E-08's "did not increase from 47" is still the
+  right assertion.
+
+WHAT WAS WRONG WAS THE PLAN'S FRAMING OF ITS OWN GATE, not its engineering. The gate asserted a blocker
+that no longer exists, in the same shape found on this Set's orchestrator, and the coordinates decayed in
+a single day, which matters here more than usual because E-02's instruction is to edit a specific block.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-005 | HIGH | IN-SCOPE | Scope fence; C. operability (concurrency) | OQ-02's own `- Blocking: no` / `- Status: resolved`; `51vw4y` and `rl67b0` both re-read `- Status: approved` | CARRIED FORWARD FROM ROUND 1 AND NOW CLOSED. The question (may this child edit both host runners to repair the two broken statuses?) was answered by the maintainer on 2026-09-07: option (b), fix the runners at the source. The CONCURRENCY concern the finding raised is real and survives, but it is a merge-ordering hazard rather than a gate, and it was recorded only inside the resolved question. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | E-02 now states the chosen repair DIRECTION explicitly (fix the runners, not the renderer), and the gate carries the sequencing instruction relative to `integpath`'s `51vw4y`/`rl67b0` as an operational constraint. |
+| PR-010 | HIGH | IN-SCOPE | G. executability; honest documentation | `has_unresolved_blocking_question` -> False; `approval_refusals` -> only the stale `no-go`; OQ-02's `- Blocking: no` | THE GATE ASSERTED ITS OWN BLOCKER WRONGLY. It read "EXECUTION IS BLOCKED ON OQ-02 ... OQ-02 carries `Blocking: yes`, so the pre-execution checkpoint refuses while it is open". OQ-02 is neither open nor blocking, no gate reads that sentence, and a reader would have waited for an answer that already existed. Same defect shape as the one found on this Set's orchestrator (`yeh7gc` F-11), which suggests it was propagated when the maintainer's rulings were recorded. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | Paragraph replaced with the measured correction plus the two things that DO constrain the plan: the merge-ordering hazard, and ordinary human approval. |
+| PR-011 | MEDIUM | IN-SCOPE | Evidence accuracy | all sites re-measured at round 2 | CITATION DRIFT IN FIVE PLACES, and it matters more here than in most plans because E-02's instruction is "replace the allowlist inside this block". The diagnostics block is now `:2152-2178` (was `:2124-2150`), its F-4 branch `:2166-2171` (was `:2138-2143`), and the runner sites are `oc_runipd.py:6554`/`:7246` and `agy_runipd.py:3815`/`:4467` (was `:6498-6512`/`:7204`/`:3798-3811`/`:4464`). The `run_viewer` citations did NOT move. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | All corrected in the Concern, F-1, F-4, E-02 and OQ-02, with round-1 values shown as superseded; E-02 now says to locate by the `# Failure / Dependency block diagnostics` comment or by symbol, never by line. |
+| PR-012 | MEDIUM | IN-SCOPE | E. testing; honest documentation | bare `python3 -m pytest` at round 2: `1 failed, 5648 passed, 3 skipped, 2 xfailed in 81.04s`; `tests/test_run_viewer.py` `46 passed` | THE BASELINE TOTAL MOVED (5632 -> 5648 passed) while the FAILURE SET did not change, which is this plan's own node-ids-not-totals rule demonstrated within a day. The one failure is still the live-status coupling in `test_orchestrator_retirement.py::RealRepositorySets`, unrelated to this child. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Baseline re-recorded with both measurements and the drift called out. |
+| PR-013 | LOW | UNDER-SCOPE | C. architecture; durable knowledge | AST walk over `render_stream.py`; `runner_shared.py:136` | E-01's siting argument (the ONLY reason the record lives in `render_stream`) existed only inside an E-item's prose. It is the plan's most easily-lost constraint: a later reader who thinks `runner_shared` is the natural home would have to re-derive the import graph to find out why it is not. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Promoted to finding F-7 with the measurement, so it is recorded as verified fact rather than as an instruction's aside. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-7 | PR-005/OQ-02 was round 1's blocking escalation. Keep it open, or close it? | CLOSE as FIXED; advance readiness to `go-pending-approval`. | Keep `Blocking: yes` / `no-go` until `51vw4y` and `rl67b0` have landed. | The maintainer RULED on 2026-09-07 and OQ-02 carries `- Blocking: no` / `- Status: resolved`; a question a human has answered is not open, and NO-GO is reserved for a genuine not-ready condition, not for a sequencing preference. Keeping it open would also be writing a blocker the maintainer declined. The residual concurrency risk is preserved where it belongs, as a merge-ordering instruction in the gate. | yes |
+| D-8 | Should the review re-verify round 1's four measurements, or trust them as one day old? | RE-EXECUTE all four. | Trust them and review only the deltas. | Round 1's own headline finding was that a stale measurement had been about to be frozen as a requirement, so trusting one-day-old numbers here would repeat the exact mistake the plan exists to record. The re-run was also productive: it produced the new `driver_error` control and caught five drifted citations. | yes |
+| D-9 | The `driver_error` control (same item, different field, renders fine) is new. Add it to the plan, or keep it in the record? | Add it to the plan, in both the Concern and F-4's evidence. | Leave it in the review record only. | It converts F-4 from "these two statuses do not render" into "these two do not render BECAUSE of the field name", which is a claim an executor can act on directly and a test can target. V-02 already demands the before/after contrast; the control tells the executor what the contrast is caused by. | yes |
+| D-10 | E-02 edits both host runners, which two approved `integpath` children are also editing. Is that a finding to escalate, or an instruction? | An INSTRUCTION in the gate (sequence after, or coordinate). | Escalate as a blocking question; or say nothing, since the runner isolates worktrees. | The runners already give each item an isolated worktree and merge through the revalidate gate, so an overlap is a conflict to resolve rather than a correctness failure; AGENTS.md explicitly says not to raise file overlap as a runtime hazard. But the maintainer named this cost when resolving OQ-02, so it belongs in the plan as a scheduling note rather than being dropped. | yes |
+
+No `Reversible: no` decision was taken in this round.
+
+### Round 2 addendum: one finding recorded and deliberately NOT fixed
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-014 | LOW | OVER-SCOPE | Tooling correctness (checker predicate, not this plan) | recorded stream `draft -> to-review -> reviewed -> to-review -> reviewed`; `validate_transition('reviewed','to-review')` -> not ok; flag reproduced against the pre-edit tree | `aw check plans` reports `check.lifecycle-transition-invalid` for this plan, but the offending `reviewed -> to-review` step is a REAL maintainer act performed via `aw set`, sending a reviewed plan back for another round. `validate_transition` treats any rank decrease as backwards and `check_lifecycle_transitions` exempts only off-sequence targets, so a legitimate re-review demotion has no representation. Identical to `yeh7gc` PR-017, so it is a pattern across this Set rather than a one-off. | C:Medium; U:Low; S:Low; F:Medium; Overall:Medium | DEFERRED | Documented in the plan's conventions with an explicit instruction NOT to edit the history to silence it. The predicate belongs to the check engine; a backlog item is warranted. |
+
+Deferral detail for PR-014:
+
+- Axis: functionality (and complexity).
+- Why it reaches the threshold: the only fix available from inside this plan is to rewrite its own
+  workflow history, deleting evidence of a maintainer decision and asserting a lifecycle that did not
+  happen. The real fix changes a predicate that gates every plan in the repository, which needs its own
+  plan and review.
+- Required decision or evidence: whether `validate_transition` should permit an explicit, attributed
+  re-review demotion (`reviewed`/`approved` -> `to-review`), or whether `check_lifecycle_transitions`
+  should exempt it.
+- Consequence if unresolved: every plan sent back for re-review carries a permanent false positive, which
+  desensitizes readers to a real rule; the worse outcome is an agent "fixing" it by falsifying history,
+  which the plan now explicitly forbids.
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-11 | `aw check plans` flags this plan's history. Fix the history, or record the gap? | RECORD the gap; leave the history intact and forbid future edits to it. | Delete or reorder the `to-review` line to make the checker green. | The line records a real, attributed maintainer act. Editing it to satisfy a checker would forge history, the same class of dishonesty as writing an unearned attestation. Verified the flag PRE-DATES this round, so it is not damage from this review, and the predicate lives in the check engine rather than in this plan's scope. | yes |
