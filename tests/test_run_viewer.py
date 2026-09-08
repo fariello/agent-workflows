@@ -1,33 +1,7 @@
 """Unit tests for `agent_workflows.run_viewer` (aw runs / run viewer).
 
-KNOWN HAZARD, measured 2026-08-30 (i79rgh E-04): 23 of the 36 tests in this file pass
-``dir="."`` or ``Path(".")`` and therefore assert against the LIVE repository (30 such
-occurrences in total). Their verdict depends on the machine they run on, not on the code
-under test, so a green run here does not by itself mean the run viewer is correct.
-
-The consequence is not hypothetical. ``.aw/records/runs/`` is GITIGNORED
-(``.aw/.gitignore:15``, "box-local, ephemeral working material ... never committed") and
-has ZERO tracked files, so the run records these tests read exist only on the machine that
-produced them. In any fresh checkout the directory is absent entirely and 15 of these tests
-fail, e.g. ``AssertionError: 'run-' not found in 'no matching runs found'``. Reproduce in
-one command::
-
-    git clone --no-local <repo> /tmp/x && cd /tmp/x \
-        && python3 -m pytest tests/test_run_viewer.py     # -> 15 failed, 20 passed
-
-That is also why CI is red: the same 15 test names fail in every ``unittest`` job of the
-``tests`` workflow. Two run ids are asserted BY NAME and are load-bearing on a developer
-box -- ``run-20260827T212854Z-2364829`` (the ``--since`` test) and
-``run-20260827T212958Z-2367239`` (asserted in seven tests) -- so deleting or archiving
-either breaks this file locally as well. Grep for the ids rather than trusting line
-numbers, which drift.
-
-Converting these 23 tests to temp-dir fixtures is deliberately NOT done here (see the
-i79rgh plan's "Deferred / out of scope"): it is a large mechanical rewrite that would make
-a targeted bug fix unreviewable. Until it lands, do not read a failure in this file as a
-regression in your own change, and do not add new tests that read ``dir="."`` -- build a
-fixture repo instead, as ``test_run_viewer_cli_issues_flag`` and
-``test_run_viewer_cli_issues_flag_empty_state`` do.
+Run records are intentionally gitignored, so tests construct the small, representative
+record set they need instead of reading a developer's live repository.
 """
 
 from __future__ import annotations
@@ -48,31 +22,121 @@ from agent_workflows.term import Term
 class RunViewerTests(TestCase):
     def setUp(self):
         self.maxDiff = None
+        self._temporary_directory = tempfile.TemporaryDirectory()
+        self.root = Path(self._temporary_directory.name)
+        self._create_run_fixtures()
+
+    def tearDown(self):
+        self._temporary_directory.cleanup()
+
+    def _run_dir(self, run_id):
+        return self.root / ".aw" / "records" / "runs" / run_id
+
+    def _create_run_fixtures(self):
+        records = (
+            (
+                "run-20260827T212854Z-2364829",
+                "2026-08-27T12:00:00+00:00",
+                [
+                    {
+                        "position": 1,
+                        "id6": "pre001",
+                        "setid": "ipddeps",
+                        "action": "execute",
+                        "status": "executed",
+                        "verification_status": "verified",
+                    }
+                ],
+            ),
+            (
+                "run-20260827T212958Z-2367239",
+                "2026-08-27T13:00:00+00:00",
+                [
+                    {
+                        "position": 1,
+                        "id6": "ryvoi5",
+                        "setid": "runnernorm",
+                        "action": "execute",
+                        "status": "partial",
+                        "last_outcome": {
+                            "disposition": "dependency-blocked",
+                            "summary": "Waiting for dependency.",
+                            "incomplete_requirements": ["dependency remains pending"],
+                        },
+                    },
+                    {
+                        "position": 2,
+                        "id6": "dg28i9",
+                        "setid": "runnernorm",
+                        "action": "execute",
+                        "status": "substantially-complete",
+                        "verification_status": "verified",
+                    },
+                    {
+                        "position": 3,
+                        "id6": "puot79",
+                        "setid": "runnernorm",
+                        "action": "execute",
+                        "status": "executed",
+                        "verification_status": "verified",
+                    },
+                ],
+            ),
+            (
+                "run-20260828T000000Z-999999",
+                "2026-08-28T00:00:00+00:00",
+                [
+                    {
+                        "position": 1,
+                        "id6": "last01",
+                        "setid": "other",
+                        "action": "execute",
+                        "status": "executed",
+                        "verification_status": "verified",
+                    }
+                ],
+            ),
+        )
+        for run_id, timestamp, queue in records:
+            run_dir = self._run_dir(run_id)
+            run_dir.mkdir(parents=True)
+            (run_dir / "state.json").write_text(
+                json.dumps(
+                    {
+                        "run_id": run_id,
+                        "created_at": timestamp,
+                        "updated_at": timestamp,
+                        "driver": {"path": "agent_workflows/oc_runipd.py"},
+                        "queue": queue,
+                    }
+                ),
+                encoding="utf-8",
+            )
 
     def test_discover_run_dirs(self):
-        runs = run_viewer.discover_run_dirs(Path("."))
+        runs = run_viewer.discover_run_dirs(self.root)
         self.assertTrue(len(runs) > 0)
         self.assertTrue(all(r.is_dir() for r in runs))
         self.assertTrue(all(r.name.startswith("run-") for r in runs))
 
     def test_resolve_target_runs_empty(self):
-        all_runs = run_viewer.discover_run_dirs(Path("."))
-        resolved = run_viewer.resolve_target_runs([], Path("."))
+        all_runs = run_viewer.discover_run_dirs(self.root)
+        resolved = run_viewer.resolve_target_runs([], self.root)
         self.assertEqual(len(resolved), len(all_runs))
 
     def test_resolve_target_runs_by_substring_and_setid(self):
-        resolved = run_viewer.resolve_target_runs(["2367239"], Path("."))
+        resolved = run_viewer.resolve_target_runs(["2367239"], self.root)
         self.assertEqual(len(resolved), 1)
         self.assertIn("2367239", resolved[0].name)
 
         # Match by setid
-        resolved_set = run_viewer.resolve_target_runs(["runnernorm"], Path("."))
+        resolved_set = run_viewer.resolve_target_runs(["runnernorm"], self.root)
         self.assertTrue(len(resolved_set) >= 1)
 
     def test_load_run_summary_state_json(self):
-        runs = run_viewer.resolve_target_runs(["2367239"], Path("."))
+        runs = run_viewer.resolve_target_runs(["2367239"], self.root)
         self.assertEqual(len(runs), 1)
-        summary = run_viewer.load_run_summary(runs[0], Path("."))
+        summary = run_viewer.load_run_summary(runs[0], self.root)
         self.assertIsNotNone(summary)
         self.assertEqual(summary.run_id, "run-20260827T212958Z-2367239")
         self.assertEqual(summary.driver, "OpenCode")
@@ -137,8 +201,8 @@ class RunViewerTests(TestCase):
 
     def test_format_run_human(self):
         term = Term(color=False)
-        run_d = Path(".aw/records/runs/run-20260827T212958Z-2367239")
-        summary = run_viewer.load_run_summary(run_d, Path("."))
+        run_d = self._run_dir("run-20260827T212958Z-2367239")
+        summary = run_viewer.load_run_summary(run_d, self.root)
         self.assertIsNotNone(summary)
         formatted = run_viewer.format_run_human(summary, term, detail=False)
         self.assertIn("run-20260827T212958Z-2367239", formatted)
@@ -164,7 +228,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_target_human(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=["run-20260827T212958Z-2367239"],
             set=None,
             ipd=None,
@@ -188,7 +252,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_short(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -304,7 +368,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_short_and_summary_only_conflict(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -330,7 +394,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_latest_only(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -359,7 +423,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_latest_only_single_run(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -387,7 +451,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_latest_only_conflict(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -416,7 +480,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_json(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=["run-20260827T212958Z-2367239"],
             set=None,
             ipd=None,
@@ -440,7 +504,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_agent(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=["run-20260827T212958Z-2367239"],
             set=None,
             ipd=None,
@@ -465,7 +529,7 @@ class RunViewerTests(TestCase):
     def test_run_viewer_cli_filters(self):
         # Filter by set
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set="ipddeps",
             ipd=None,
@@ -487,7 +551,7 @@ class RunViewerTests(TestCase):
 
         # Filter by status
         ns_st = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -512,7 +576,7 @@ class RunViewerTests(TestCase):
         buf = io.StringIO()
         with redirect_stdout(buf):
             try:
-                cli.main(["runs", "--last", "--no-color"])
+                cli.main(["runs", "--dir", str(self.root), "--last", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf.getvalue())
@@ -521,7 +585,7 @@ class RunViewerTests(TestCase):
         buf_l = io.StringIO()
         with redirect_stdout(buf_l):
             try:
-                cli.main(["runs", "-l", "--no-color"])
+                cli.main(["runs", "--dir", str(self.root), "-l", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf_l.getvalue())
@@ -530,7 +594,7 @@ class RunViewerTests(TestCase):
         buf_l2 = io.StringIO()
         with redirect_stdout(buf_l2):
             try:
-                cli.main(["runs", "-l", "2", "--json"])
+                cli.main(["runs", "--dir", str(self.root), "-l", "2", "--json"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         data_l2 = json.loads(buf_l2.getvalue())
@@ -540,7 +604,7 @@ class RunViewerTests(TestCase):
         buf_n = io.StringIO()
         with redirect_stdout(buf_n):
             try:
-                cli.main(["runs", "--last", "2", "--json"])
+                cli.main(["runs", "--dir", str(self.root), "--last", "2", "--json"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         data = json.loads(buf_n.getvalue())
@@ -550,7 +614,7 @@ class RunViewerTests(TestCase):
         buf_compat = io.StringIO()
         with redirect_stdout(buf_compat):
             try:
-                cli.main(["runs", "--latest", "--no-color"])
+                cli.main(["runs", "--dir", str(self.root), "--latest", "--no-color"])
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf_compat.getvalue())
@@ -559,7 +623,9 @@ class RunViewerTests(TestCase):
         buf2 = io.StringIO()
         with redirect_stdout(buf2):
             try:
-                cli.main(["runs", "list", "--last", "--no-color"])
+                cli.main(
+                    ["runs", "list", "--dir", str(self.root), "--last", "--no-color"]
+                )
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         self.assertIn("run-", buf2.getvalue())
@@ -568,7 +634,9 @@ class RunViewerTests(TestCase):
         buf3 = io.StringIO()
         with redirect_stdout(buf3):
             try:
-                cli.main(["runs", "list", "--last", "2", "--json"])
+                cli.main(
+                    ["runs", "list", "--dir", str(self.root), "--last", "2", "--json"]
+                )
             except SystemExit as exc:
                 self.assertEqual(exc.code, 0)
         data3 = json.loads(buf3.getvalue())
@@ -577,7 +645,7 @@ class RunViewerTests(TestCase):
         # aw runs --last 0 (validation error)
         with redirect_stdout(io.StringIO()):
             with self.assertRaises(SystemExit) as exc_ctx:
-                cli.main(["runs", "--last", "0"])
+                cli.main(["runs", "--dir", str(self.root), "--last", "0"])
             self.assertEqual(exc_ctx.exception.code, 2)
 
     def test_parse_since_timestamp_relative(self):
@@ -631,7 +699,7 @@ class RunViewerTests(TestCase):
     def test_run_viewer_cli_since_filter(self):
         # Filtering with --since 10y should return runs
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -653,7 +721,7 @@ class RunViewerTests(TestCase):
 
         # Filtering with a specific run ID should include that run and subsequent runs
         ns_run_id = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -676,7 +744,7 @@ class RunViewerTests(TestCase):
 
         # Filtering with an invalid --since should return code 2
         ns_bad = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -1034,7 +1102,7 @@ class RunViewerTests(TestCase):
 
     def test_multi_run_cli_json_summary(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
@@ -1346,7 +1414,7 @@ class RunViewerTests(TestCase):
 
     def test_run_viewer_cli_issues_conflict(self):
         ns = argparse.Namespace(
-            dir=".",
+            dir=str(self.root),
             target=[],
             set=None,
             ipd=None,
