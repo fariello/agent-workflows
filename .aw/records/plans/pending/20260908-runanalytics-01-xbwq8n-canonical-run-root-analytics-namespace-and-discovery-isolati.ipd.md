@@ -4,9 +4,10 @@
 - Kind: child
 - Concern: Give analytics one canonical, disposable home without allowing its outputs to masquerade as execution runs.
 - Scope: Centralize run-root resolution, reserve the analytics subtree, and make every discovery and target-resolution path reject that subtree.
-- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, tests/test_runner_shared.py, tests/test_run_viewer.py
+- Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/run_viewer.py, agent_workflows/completion.py, agent_workflows/run_cli.py, tests/test_runner_shared.py, tests/test_run_viewer.py, tests/test_completion.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: runanalytics
 - Order: 1
 - Highest E allocated: 03
@@ -15,48 +16,58 @@
 
 ## Workflow history
 
-- 2026-09-08 draft (Codex): created from the run-analytics implementation prompt after inspecting current run-root and viewer behavior.
+- 2026-09-08 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-101..PR-108, ALL EIGHT FIXED, no open questions. The verdict token is stated explicitly because `plan_readiness.newest_verdict` reads the newest review record's first verdict token and falls back to a negative scan when none is present. THE BLOCKER WAS THAT THIS PLAN DEFEATED ITS OWN PURPOSE: the Goal hardcoded `<repo>/.aw/records/runs/analytics/`, the literal whose duplication the IPD exists to remove. The runs root is RELOCATABLE (`project_context.py:783-790` resolves the records root from `records_backend` of `repository`/`companion`/`home`) while `runner_shared.state_root` returns `repo / ".aw" / "records" / "runs"` consulting no authority (`runner_shared.py:188-189`), so "reuse or supersede this authority" understated it: `state_root` IS the defect. Goal and E-01 now require resolution THROUGH project-context, and V-01 requires a non-`repository` backend be tested, because a test asserting only the repository path passes vacuously. THE SECOND STRUCTURAL FINDING WAS SCOPE: the literal is built at SIX live sites (`runner_shared.py:189`, `run_viewer.py:1080`, `completion.py:452`, `run_cli.py:257`, `oc_runipd.py:5023`, `worktree_lease.py:876`), and `Scope-Paths` declared only two modules, so the plan could have been finalized having consolidated a third of its own subject. `completion.py` and `run_cli.py` added. THE MEASUREMENT THAT MOST CHANGES THE WORK: there are THREE run enumerators, not the two named, and exercising all three showed the scan and name-matching already exclude a nested `analytics/snapshots/run-*` BY ACCIDENT OF DEPTH, while `resolve_target_runs` given that directory's EXPLICIT PATH RETURNS IT as a run (`run_viewer.py:1113-1129` tests only `is_dir()` plus `state.json`, with no containment check) and `completion.run_id_candidates` offers `analytics` as a completion candidate with no `run-` filter at all. So a test written against the directory scan would have passed BEFORE any fix; V-02 now requires the explicit-path branch and a demonstrated pre-fix failure. ALSO FIXED: the gate carried no execution contract (no scope fence, no paste-actual-output rule, no path-scoped commit / never-push, no lifecycle move); the "no real run corpus in this checkout" finding was FALSE (135 runs exist, single-host, three driver generations, zero Agy); the spec-sync section left "if execution discovers a controlling layout spec" for the executor to rediscover when `kw5y2s` (approved) is that spec and fixes `runs` only as a traversal exclusion, so this IPD does NOT amend it and must STOP rather than edit it; all three V-items demanded no pasted evidence; and 6 escaped backticks rendered literally. Recorded that `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` already makes the analytics tree worker-forbidden, so no child may weaken it to write analytics from a lane.
 - 2026-09-08 to-review (Codex): specified the canonical namespace, exclusion invariants, compatibility behavior, and falsifiable tests.
+- 2026-09-08 draft (Codex): created from the run-analytics implementation prompt after inspecting current run-root and viewer behavior.
 
 ## Goal
 
-Make \`<repo>/.aw/records/runs/analytics/\` the visible but disposable analytics home while preserving all existing run lookup behavior. No analytics cache, report, snapshot, or export may be discovered, resumed, repaired, summarized, or targeted as an execution run.
+Make `<resolved-runs-root>/analytics/` the visible but disposable analytics home while preserving all existing run lookup behavior. No analytics cache, report, snapshot, or export may be discovered, resumed, repaired, summarized, or targeted as an execution run.
+
+`<resolved-runs-root>` IS NOT A SPELLING OF `<repo>/.aw/records/runs`, AND THIS IS THE WHOLE POINT OF THIS IPD. An earlier wording of this Goal hardcoded the repo-backed path, which would have delivered the literal that the consolidation exists to remove. The runs root is RELOCATABLE: `project_context` resolves the records root from `records_backend`, which is `repository` (`<repo>/.aw/records`), `companion` (`<repo>.aw/records` or a configured `companion_dir`), or `home` (a per-project dir outside the repo) (`project_context.py:783-790`). In the repository-backed layout the runs root IS `<repo>/.aw/records/runs`, and that is the layout this checkout uses, but a companion or home layout places it elsewhere. So the deliverable is a resolver that ASKS the project-context authority, plus containment helpers derived from whatever it returns; a helper that returns `repo / ".aw" / "records" / "runs"` under a new name has consolidated nothing.
+
+DISPOSABLE, DESPITE THE NAME. The runs tree sits under `records/` but is gitignored (`.aw/.gitignore:12-14`, `records/runs/`) and is ephemeral, box-local working material. Analytics belongs there because it describes that local corpus and therefore needs no second lifecycle or cleanup policy. Do not reclassify either the runs tree or `analytics/` as durable tracked records.
 
 ## Detailed Implementation Checklist (TODO)
 
-Execution-state rule: mark an \`E-*\` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item addresses one concern and is executable in one focused pass.
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item addresses one concern and is executable in one focused pass.
 
 ### Task group 1: Canonical paths and reservation
 
-- [ ] E-01 Add shared path helpers and constants for the resolved runs root and its reserved analytics namespace.
+- [ ] E-01 Make `runner_shared.state_root` resolve the runs root through the PROJECT-CONTEXT authority instead of the hardcoded literal, and add side-effect-free constants and containment helpers for the reserved analytics namespace.
   - Depends on: none
-  - Expected outcome: callers obtain the canonical runs root from one helper; the helper exposes \`analytics/\`, \`analytics/cache/\`, \`analytics/snapshots/\`, and \`analytics/exports/\` without creating them during read-only discovery.
+  - Expected outcome: `state_root` returns the runs root derived from the resolved records root (so `records_backend` of `repository`, `companion`, and `home` each yield the correct location, and the repository case still yields `<repo>/.aw/records/runs` unchanged); the module exposes `analytics/`, `analytics/cache/`, `analytics/snapshots/`, and `analytics/exports/` plus a `path_is_within_analytics(path)` containment predicate that resolves symlinks and relative segments; NOTHING in this item creates a directory, so read-only discovery on a repo with no analytics tree is unchanged. A helper that merely renames the literal is a FAILED item.
   - Execution state: pending
-- [ ] E-02 Apply the reservation to run discovery and explicit target resolution while retaining documented legacy-root compatibility.
+- [ ] E-02 Apply the containment predicate to all three run enumerators and the ledger-path builder, replacing each duplicated literal with the E-01 resolver.
   - Depends on: E-01
-  - Expected outcome: only real driver directories satisfying the existing run predicate are returned; any path within a reserved analytics tree is rejected with an actionable diagnostic, including a directory deliberately named \`run-*\`.
+  - Expected outcome: `run_viewer.discover_run_dirs`, `run_viewer.resolve_target_runs` (BOTH the explicit directory-target and the `state.json`/`events.jsonl`/`execution-report.md` file-target branches, which is where the measured leak is), and `completion.run_id_candidates` (which today returns every non-dot child with no `run-` filter) all reject any path contained in a reserved analytics tree, including a directory deliberately named `run-*`; an explicitly-targeted analytics path is refused with an actionable diagnostic naming the reserved tree rather than silently returning nothing; `run_cli.py`'s ledger path and `oc_runipd.py:5023` derive from the E-01 resolver; legacy `.aw/runs` and `.agents/runs` remain supported for execution runs and gain the same reservation. `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` is NOT weakened.
   - Execution state: pending
-- [ ] E-03 Add path and routing regression coverage for canonical, legacy, missing, nested, symlinked, and adversarial analytics locations.
+- [ ] E-03 Add regression coverage for canonical, relocated, legacy, missing, nested, symlinked, and adversarial analytics locations, and a guard test that the literal is not re-introduced.
   - Depends on: E-02
-  - Expected outcome: tests prove analytics is invisible to list, target, resume, liveness, and repair selection, while existing real-run ordering and target matching remain unchanged.
+  - Expected outcome: tests prove analytics is invisible to list, explicit target, resume, liveness, repair selection, and shell completion, while existing real-run ordering and target matching are unchanged; the nested `analytics/snapshots/run-*` case is asserted through the EXPLICIT-PATH branch (the case measured to leak today), not only through the directory scan; at least one test exercises a non-`repository` `records_backend` so the E-01 resolution is proven rather than assumed; and a repo-wide guard test asserts no NEW `.aw/records/runs` path construction exists outside the single resolver (modeled on the existing `tests/test_runner_refork_guard.py` and the single-implementation assertion at `tests/test_render_stream.py:1475-1478`, and SYMMETRIC rather than naming one module: the one-sided versions of exactly that guard were RETIRED for being one-sided, which is how the `render_stream` re-fork went unnoticed, see the note at `tests/test_render_stream.py:1531-1532`).
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
 
-- \`runner_shared.state_root(repo)\` currently resolves \`.aw/records/runs\`; new code must reuse or deliberately supersede this authority rather than duplicate the path.
-- \`run_viewer.discover_run_dirs\` currently probes the canonical root plus \`.aw/runs\` and \`.agents/runs\` for compatibility.
-- \`run_viewer.resolve_target_runs\` accepts run directories and \`state.json\`, \`events.jsonl\`, or \`execution-report.md\` paths, so exclusion must cover explicit targets as well as directory scans.
-- The entire \`.aw/records/runs\` tree is ignored and disposable. Analytics belongs there because reports describe that local corpus and do not need a second lifecycle or cleanup policy.
-- \`aw runs\` has routing-sensitive fixed leaf names. This IPD changes discovery only; later IPDs own new leaf registration.
+- `runner_shared.state_root(repo)` (`runner_shared.py:188-189`) returns `repo / ".aw" / "records" / "runs"` and consults NO project-context authority, so it is the thing to be SUPERSEDED, not merely reused. Both runners import it (`oc_runipd.py:194`, `agy_runipd.py:199`) and build each run dir from it (`oc_runipd.py:2923`, `agy_runipd.py:1941`).
+- THE LITERAL IS DUPLICATED AT SIX LIVE CONSTRUCTION SITES, measured at review, which is the real size of the consolidation and is larger than an earlier version of this plan assumed: `runner_shared.py:189`, `run_viewer.py:1080`, `completion.py:452`, `run_cli.py:257`, `oc_runipd.py:5023`, and `worktree_lease.py:876` (a string hint, not a path build). Two more are prose-only in module docstrings (`oc_runipd.py:9`, `agy_runipd.py:10`) plus two in CLI help text (`cli.py:1982`, `cli.py:2111`), which are documentation rather than behavior and are Order 10's to correct.
+- THERE ARE THREE RUN ENUMERATORS, NOT ONE, AND THEY DISAGREE. `run_viewer.discover_run_dirs` (`run_viewer.py:1077-1092`) probes the canonical root plus `.aw/runs` and `.agents/runs`, keeping only children whose name starts with `run-`. `run_viewer.resolve_target_runs` (`run_viewer.py:1094-1156`) resolves explicit targets. `completion.run_id_candidates` (`completion.py:448-460`) is a THIRD, independent enumerator that returns EVERY non-dot child of the runs root with NO `run-` prefix filter, so it is the one that most obviously breaks.
+- MEASURED, SO EXECUTION KNOWS WHICH HALF IS ACTUALLY MISSING rather than re-deriving it: with a synthetic `analytics/snapshots/run-20260101T000000Z-1/state.json` in place, `discover_run_dirs` does NOT return it (the `run-` prefix test applies one level down, so nested output is skipped by depth) and `resolve_target_runs` by NAME or substring returns nothing. But `resolve_target_runs` given that directory's EXPLICIT PATH RETURNS IT as a run, because that branch (`run_viewer.py:1113-1129`) tests only `is_dir()` plus the presence of `state.json` and applies no containment check. And `completion.run_id_candidates` DOES offer `analytics` as a completion candidate as soon as the directory exists. So the missing work is (a) a containment test on the explicit directory-target and file-target branches, and (b) a filter in `run_id_candidates`; the directory scan needs the containment test for correctness of intent but currently passes by accident of depth.
+- `run_cli.py:257` builds a ledger path directly from the literal, so it inherits the same relocation bug even though it is not an enumerator.
+- The entire runs tree is gitignored and disposable (`.aw/.gitignore:12-14`).
+- `aw runs` has routing-sensitive fixed leaf names dispatched by `_ViewerOrLeafSubParsersAction` (`cli.py:1970-2010`). This IPD changes discovery only; Order 08 owns new leaf registration.
+- `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` already contains `.aw/records/runs/` (`worktree_lease.py:876`), so `path_is_worker_forbidden` ALREADY refuses every analytics path and `lane_containment` refuses such a request as a coordinator surface. That is correct and must be PRESERVED: analytics is produced by the human or coordinator invoking the analyzer, never inside a worker lane turn. Do not weaken that predicate to make analytics writable from a lane.
 
 ## Findings
 
 | Finding | Implementation consequence |
 |---|---|
-| No real run corpus is present in this checkout | Implement against source contracts and checked-in fixtures; the integration IPD must also validate against an opt-in external corpus when available. |
-| Current discovery recognizes children beginning with \`run-\` | Name shape alone is insufficient; reject by containment beneath the reserved analytics root before applying run predicates. |
+| CORRECTED AT REVIEW: a real run corpus IS present, 135 run directories, all carrying `state.json`, `events.jsonl` and `sessions/`. The earlier claim that this checkout has none was false. | Use it as a READ-ONLY smoke corpus for this IPD's discovery work (it is the cheapest proof that real-run enumeration is unchanged), but never commit any of it and never treat it as durable test evidence. Fixtures remain authoritative for assertions. |
+| The corpus is SINGLE-HOST and carries three driver generations: 120 runs name `agent_workflows/oc_runipd.py`, 13 the legacy `tools/ipdrunner/runipd.py`, 2 `tools/ipdrunner/ipdrunner.py`, and ZERO name `agy_runipd.py`. | Not this IPD's problem to solve (Orders 05 and 10 own ingestion breadth), but it means "existing real-run ordering and target matching remain unchanged" can be checked against real OpenCode-lineage runs and must not be claimed for Agy. |
+| Current discovery recognizes children beginning with `run-` | Name shape alone is insufficient; reject by containment beneath the reserved analytics root before applying run predicates. VERIFIED at review that the gap is specifically the explicit-path branch and `completion.run_id_candidates`, not the directory scan. |
+| The runs root is RELOCATABLE via `records_backend` (`repository`/`companion`/`home`), but `state_root` hardcodes the repo-backed literal and it is duplicated at six live construction sites. | This IPD's central deliverable is the resolver plus the replacement of those six, not a renamed constant. See the Goal and E-01. |
 | Reports and caches share the runs-root parent | Source run directories are read-only inputs, while the reserved analytics sibling is the only writable area. Document this boundary precisely. |
-| Legacy roots are still supported | Preserve them for execution runs, but reserve an \`analytics\` child under every resolved source root to avoid accidental ingestion. |
+| Legacy roots are still supported | Preserve them for execution runs, but reserve an `analytics` child under every resolved source root to avoid accidental ingestion. |
 
 ## Proposed changes (ordered, validatable)
 
@@ -77,13 +88,21 @@ Execution-state rule: mark an \`E-*\` item complete only after performing the ac
 
 ## Required tests / validation
 
-- Unit tests for canonical and legacy roots, absent directories, deterministic ordering, explicit file targets, nested \`run-*\` analytics output, symlink/relative-path containment, and ordinary real runs.
-- Existing run viewer and shared-runner test modules remain green.
-- Bare \`python3 -m pytest\` and \`git diff --check\` pass at execution closeout.
+- Unit tests for canonical, relocated (`companion`/`home` `records_backend`), and legacy roots; absent directories; deterministic ordering; explicit DIRECTORY targets and explicit FILE targets; nested `run-*` analytics output; symlink and `..`-relative containment; shell-completion candidates; and ordinary real runs.
+- A NEGATIVE-CONTROL requirement, because this is the difference between a real test and an existence check: for each of the three enumerators, the new assertion must be shown to FAIL against the pre-change code. The explicit-path leak is measured and reproducible today, so there is no excuse for a test that cannot distinguish fixed from unfixed.
+- A repo-wide guard that the `.aw/records/runs` literal is constructed in exactly ONE place, written symmetrically over all of `agent_workflows/` rather than naming specific modules.
+- Existing run viewer, shared-runner, and completion test modules remain green.
+- Bare `python3 -m pytest` and `git diff --check` pass at execution closeout, with the pre-change baseline stated.
 
 ## Spec / documentation sync
 
-No approved specification currently defines analytics storage. Order 10 documents the reserved namespace and disposable semantics in user-facing docs after the behavior is implemented. If execution discovers a controlling layout spec, amend it in that order before code relies on a conflicting rule.
+No approved specification defines ANALYTICS storage, so no spec text is forced by the reserved namespace itself. The conditional "if execution discovers a controlling layout spec" is RESOLVED at review rather than left for the executor to rediscover, because a plan that touches layout resolution must know this up front:
+
+- Spec `kw5y2s` (`- Status: approved`, unified workspace hierarchy) is the controlling layout spec, and it DOES fix `runs`, but only as one of the seven `traversal_exclusions` reproduced verbatim from `selectors.EXCLUDED_RECORD_DIRS` (spec Section 3.4 and the layout document in Section 6). It says nothing about how the runs ROOT is resolved and nothing about an `analytics/` child. This IPD's E-01 changes runs-root RESOLUTION, not record traversal, so it does NOT amend that spec. TREAT `kw5y2s` AS IMMUTABLE HERE: it is `approved`, so a plan-time edit would invalidate the human attestation, and this plan declares no spec file in `Scope-Paths`.
+- Spec `25kzda` (`- Status: approved`) fixes the `aw runs` LEAF TABLE. This IPD adds no leaf, so it does not amend it either; Orders 08 and 09 do, and they must declare it themselves.
+- CONSEQUENCE IF E-01 GOES FURTHER THAN PLANNED: if execution finds it cannot resolve the runs root without changing traversal exclusions or the emitted `layout.json` contract, that IS a `kw5y2s` amendment, and the correct response is to STOP and report rather than edit an approved spec or silently diverge. Only the maintainer may re-approve it.
+
+Order 10 documents the reserved namespace and disposable semantics in user-facing docs after the behavior is implemented, including correcting the four prose sites that still say the runs tree lives at a fixed repo path (`oc_runipd.py:9`, `agy_runipd.py:10`, `cli.py:1982`, `cli.py:2111`).
 
 ## Open questions
 
@@ -91,24 +110,34 @@ No open questions.
 
 ## Validation and cross-check (verify before reporting done)
 
-Validation-state rule: inspect evidence in a separate pass. Do not mark a \`V-*\` item complete from memory or from the matching execution checkmark.
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: focused tests show all analytics paths derive from the same resolved runs-root helper and read-only resolution creates no directories.
+  - Required evidence: PASTE the focused test output showing (a) `state_root` returns the correct runs root for `records_backend` of `repository`, `companion`, and `home`, with the `repository` case still `<repo>/.aw/records/runs`; (b) every analytics subpath derives from that one resolver; (c) `path_is_within_analytics` returns True for a symlinked and a `..`-containing path that resolves inside the tree, and False for a sibling whose name merely starts with `analytics`; and (d) resolving paths on a repo with NO analytics directory creates nothing (assert the directory still does not exist afterward). PASTE ALSO the grep or AST output proving `state_root`'s body no longer contains the hardcoded literal. A test that only asserts the repository-backed path passes vacuously and is NOT sufficient evidence.
   - Observed evidence:
   - Result: pending
 - [ ] V-02 validates E-02
-  - Required evidence: focused tests show scan and explicit-target APIs reject every analytics descendant while accepting canonical and legacy execution runs.
+  - Required evidence: PASTE test output showing all THREE enumerators plus the ledger builder reject a reserved-tree path: specifically that `resolve_target_runs` given the EXPLICIT PATH of `analytics/snapshots/run-<stamp>/` returns empty and emits the actionable diagnostic (this exact call RETURNS THAT DIRECTORY today, so a test that does not exercise the explicit-path branch would have passed before the fix and proves nothing), that the `state.json`/`events.jsonl`/`execution-report.md` file-target branch refuses likewise, and that `completion.run_id_candidates` no longer offers `analytics`. PASTE also the before/after for at least one case, showing the assertion FAILS against the pre-fix code. PASTE evidence that canonical, `.aw/runs`, and `.agents/runs` execution runs are still returned in unchanged order, and that `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` is byte-identical to its pre-change value.
   - Observed evidence:
   - Result: pending
 - [ ] V-03 validates E-03
-  - Required evidence: focused modules plus bare \`python3 -m pytest\` pass, and \`git diff --check\` is clean.
+  - Required evidence: PASTE the focused module runs, the repo-wide single-resolver guard test result, and the `N passed` summary line from a BARE `python3 -m pytest` (no added flags; the configured `addopts` already supply `-q -n auto -m 'not slow'`). PASTE `git diff --check` showing clean. Judge the suite on the DELTA against the pre-change baseline and state that baseline explicitly; do not report a pre-existing failure as this plan's, and do not report this plan's as pre-existing.
   - Observed evidence:
   - Result: pending
 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: one boundary concern spans the shared path authority and the two existing run selectors.
+- Cohesion rationale: one boundary concern spans the shared path authority and all three existing run selectors plus the ledger-path builder. They are one item's worth of concern because a containment rule applied to some enumerators and not others is not a boundary at all; the measured explicit-path leak is exactly that partial state.
 
-Execute only after this IPD is approved through the repository lifecycle. After all E and V items pass with concrete evidence, move it through the normal executed lifecycle; do not write approval or observed evidence during authoring.
+Execution requires explicit human approval (`- Status: approved`). This is Order 01 of the `runanalytics` Set and has no prerequisite children; Orders 02 through 10 depend on the resolver this delivers, so a partial or renamed-literal implementation propagates into nine plans.
+
+SCOPE FENCE, AS A DECLARATION AND NOT A HALT. Declared scope is the four source modules and three test modules in `Scope-Paths`. Do not expand scope casually; if the work genuinely requires a path outside the fence, MAKE THE EDIT AND JUSTIFY IT, because `aw ipd finalize` refuses to complete until every out-of-scope changed path carries a `--scope-reason` and every declared-but-unmodified path carries a `--scope-ack`. Do NOT stop the run over a scope question. TWO CONDITIONS DO WARRANT STOPPING: an unresolvable conflict with a co-worker's concurrent edit, and the `kw5y2s` case named in the spec-sync section (needing to change traversal exclusions or the `layout.json` contract), because that requires maintainer re-approval of an approved spec.
+
+CONCURRENT-EDIT WARNING, MEASURED: fourteen other pending plans declare `oc_runipd.py` or `agy_runipd.py` in their own `Scope-Paths`, and `oc_runipd.py:5023` is in this plan's work. Reconcile against HEAD rather than against this plan's authoring citations, and re-read the cited line numbers before editing, since they will drift.
+
+HARD MUST, HONESTY: when you report that tests or validation passed, PASTE THE ACTUAL RUNNER OUTPUT, including the `N passed` summary line from a BARE `python3 -m pytest`. Never claim a success you did not run, and never mark a `V-*` item from the matching execution checkmark. A `V-*` whose evidence does not distinguish fixed from unfixed code is a FAILED validation, which is why V-02 demands a pre-fix failure.
+
+COMMIT DISCIPLINE: commit ONLY the files you changed, path-scoped (`git commit -m msg -- <paths>`), never `git add -A`, never `-a`, and NEVER push. THIS IS A SHARED CHECKOUT: verify with `git diff --cached --name-only` before every commit and RE-VERIFY after any failed or hook-interrupted commit, since a rejected hook can leave paths you never staged in the index. Prefer the tooled path (`aw commit <plan> -- <paths>`).
+
+LIFECYCLE MOVE: on completion the transition is `aw ipd finalize <plan> --actor <agent/model> --message <summary> --apply`, which runs the pre/post-transition gates, writes the attributed newest-first history line, moves the file to `.aw/records/plans/executed/`, refreshes the index, and makes the path-scoped lifecycle commit in one transaction. Do not hand-move the file, do not hand-write the terminal `Status:`, and do not write approval or observed evidence during authoring.
