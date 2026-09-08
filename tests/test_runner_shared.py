@@ -1043,6 +1043,19 @@ class WrapperTests(unittest.TestCase):
         ("agy_runipd", "save_state"): 1,
     }
 
+    #: lanectn Order 02 (`nna8yz`) E-05, spec R5.4: the CLEAN-BASE GUARD is a NEW CALLER in BOTH
+    #: drivers, which is precisely the case this table exists to record. Each driver's `execute_item`
+    #: gained one refusal branch that persists the refusal before returning, so `save_state` gains one
+    #: call site per host. NO EXISTING CALL SITE WAS REWRITTEN, which is what the wrapper ruling
+    #: actually protects: the RULE itself is the shared `lane_containment.evaluate_clean_base`, and each
+    #: driver contributes only its own git invocation, so the guard did not thread a new dependency
+    #: through any existing call. Counted separately from the entries above so each ruling keeps its own
+    #: provenance rather than being folded into a single unexplained number.
+    CLEAN_BASE_GUARD_CALL_SITES = {
+        ("oc_runipd", "save_state"): 1,
+        ("agy_runipd", "save_state"): 1,
+    }
+
     def call_sites(self, runner: str, name: str) -> int:
         tree = ast.parse(module_source(_MODULES[runner]))
         return sum(
@@ -1081,6 +1094,7 @@ class WrapperTests(unittest.TestCase):
                 if name == "run_checked":
                     expected -= moved_callers_of_run_checked
                 expected += self.ADDED_CALL_SITES.get((runner, name), 0)
+                expected += self.CLEAN_BASE_GUARD_CALL_SITES.get((runner, name), 0)
                 self.assertEqual(
                     self.call_sites(runner, name),
                     expected,

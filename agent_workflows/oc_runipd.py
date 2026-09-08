@@ -1952,6 +1952,18 @@ def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
     return runner_shared.build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
 
+def evaluate_clean_base_for_launch(repo: Path) -> lane_containment.CleanBaseResult:
+    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an isolated turn?
+
+    Thin: this supplies THIS module's git runner and the `--untracked-files=no` scope; the RULE is
+    `lane_containment.evaluate_clean_base`, which the agy twin calls with its own runner so the two
+    hosts cannot drift (CID-3). See that function for why untracked files are excluded and for how
+    this differs from the integration-time `dirty_tree_overlap` above.
+    """
+    _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
+    return lane_containment.evaluate_clean_base(out)
+
+
 def integrate_lane_branch(
     repo: Path, handle: Any, id6: str, validation_runner: Any
 ) -> tuple[bool, str, str]:
@@ -5437,18 +5449,46 @@ def run_opencode(
         ]
     )
 
+    # lanectn Order 02 (`nna8yz`) E-04, spec R5.3: EVERY `--file` attachment for an isolated turn must
+    # resolve inside the lane. Both values below are therefore localized against the manifest E-01
+    # materialized, via the shared `localize_attachment` (the agy twin has no `--file` surface at all -
+    # it passes its prompt inline - so there is nothing to mirror there; see that driver's launch path).
+    #
+    # CORRECTION TO THIS PLAN'S FINDING F-3, recorded because the plan asserted the opposite and an
+    # executor trusting it would have fixed only half the defect. F-3 says "the plan path is ALREADY
+    # lane-local (the driver passes the lane-resolved plan)" and that only the runbook needed changing.
+    # MEASURED AT 44d4950d: FALSE for the argv. `execute_item` computes `lane_plan_path` and passes it
+    # to `build_prompt`, so the PROMPT TEXT names the lane copy - which is what F-3 actually observed -
+    # but the `run_opencode(...)` call a few lines later still passes the outer `plan_path`, which is
+    # `resolve_plan_path(repo, ...)` against MAIN. So BOTH attachments named the main checkout and both
+    # are localized here. The decisions register carries this as a DECISION with the evidence.
+    lane_root_for_attachments = Path(work_dir) if work_dir else None
+
     if (
         not is_review
         and not log_suffix
         and state.get("runbook")
         and Path(state["runbook"]).exists()
     ):
-        argv.extend(["--file", state["runbook"]])
+        argv.extend(
+            [
+                "--file",
+                lane_containment.localize_attachment(
+                    lane_root=lane_root_for_attachments,
+                    fallback=state["runbook"],
+                    input_class=lane_containment.INPUT_CLASS_RUNBOOK,
+                ),
+            ]
+        )
 
     argv.extend(
         [
             "--file",
-            str(plan_path),
+            lane_containment.localize_attachment(
+                lane_root=lane_root_for_attachments,
+                fallback=plan_path,
+                input_class=lane_containment.INPUT_CLASS_PLAN,
+            ),
             "--",
             prompt_path.read_text(encoding="utf-8"),
         ]
@@ -6053,6 +6093,48 @@ def execute_item(
     isolate = state.get("options", {}).get("isolate_worktree", True)
     wt_handle = None
     work_dir: str | None = None
+
+    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4: REFUSE an unattended isolated turn whose target
+    # checkout has dirty TRACKED paths, BEFORE anything is spawned or allocated.
+    #
+    # THE FAILURE THIS REMOVES: a lane is created from a COMMIT, so an uncommitted tracked edit in the
+    # target checkout is simply ABSENT from the lane, and nothing told the worker its base was
+    # incomplete. It would then reason about, test against, and commit on top of a tree missing a
+    # change the maintainer believed was there.
+    #
+    # PLACED HERE, ahead of `driver_begin` and `allocate_isolation_worktree`, because R5.4 requires the
+    # refusal to occur before any worker process is spawned and because refusing before begin leaves
+    # NO lifecycle side effect to unwind: no receipt is written, no lane is allocated, nothing to
+    # reconcile. Untracked files do NOT trigger this (see `evaluate_clean_base`).
+    if isolate and self_finalize and not is_review:
+        base = evaluate_clean_base_for_launch(repo)
+        if not base.clean:
+            attempt["ended_at"] = utc_now()
+            attempt["clean_base_refused"] = base.reason
+            attempt["clean_base_dirty_paths"] = list(base.dirty_paths)
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["clean_base_refusal"] = base.reason
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-refused",
+                    "id6": item["id6"],
+                    "dirty_paths": list(base.dirty_paths),
+                    "detail": base.reason,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {base.reason}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
     if self_finalize and not is_review:
         actor = driver_actor(state)
         # lanetruth Order 01 (af7i6p) E-04: verify, ONCE per process, that a pinned nested `aw`
@@ -6209,6 +6291,50 @@ def execute_item(
         # pre-lane draft it replaced.
         attempt["prompt_sha256"] = sha256_file(prompt_path)
         attempt["lane_plan_path"] = str(lane_plan_path)
+
+        # lanectn Order 02 (`nna8yz`) E-01/E-04, spec R5.1/R5.1a/R5.2/R5.3: COPY this turn's required
+        # inputs into the lane and record them in a sealed manifest, then attach the lane-local copy.
+        #
+        # WHY THE RUNBOOK NEEDS THIS AND THE PLAN DOES NOT (measured delta, plan finding F-3): the plan
+        # is a TRACKED file, so the lane already holds it at its own commit and `resolve_plan_path`
+        # above already resolves the lane's copy. The runbook is the opposite: `start` accepts
+        # `--runbook <anywhere on disk>` and SYNTHESIZES one under the coordinator's run directory when
+        # none is given, so `state["runbook"]` is a main-checkout/coordinator path that is NOT in the
+        # lane at any commit. It was nevertheless handed to the worker as `--file <that path>`, which
+        # is the one remaining attachment R5.3 fails on.
+        #
+        # The manifest records BOTH, not only the runbook: it is the record of what the worker was
+        # authorized to use, so omitting the plan because it happened to be present already would make
+        # the manifest an incomplete authorization record.
+        lane_manifest = lane_containment.materialize_lane_inputs(
+            lane_root=lane_root,
+            plan_path=lane_plan_path,
+            runbook_path=(
+                Path(state["runbook"])
+                if state.get("runbook") and Path(state["runbook"]).exists()
+                else None
+            ),
+            repo=lane_root,
+        )
+        attempt["lane_input_manifest"] = str(lane_manifest.manifest_path)
+        attempt["lane_input_revision"] = lane_manifest.revision
+        runbook_entry = lane_manifest.entry(lane_containment.INPUT_CLASS_RUNBOOK)
+        if runbook_entry is not None:
+            # The path the attachment will use. Lane-absolute (opencode resolves `--file` against its
+            # own cwd and we do not depend on that being the lane), but INSIDE the lane, which is what
+            # R5.3 requires.
+            attempt["lane_runbook_path"] = str(lane_root / runbook_entry.path)
+        append_jsonl(
+            run_dir / "events.jsonl",
+            {
+                "at": utc_now(),
+                "event": "lane-inputs-materialized",
+                "id6": item["id6"],
+                "revision": lane_manifest.revision,
+                "manifest": str(lane_manifest.manifest_path),
+                "inputs": [entry.path for entry in lane_manifest.entries],
+            },
+        )
         save_state(run_dir, state)
 
     try:

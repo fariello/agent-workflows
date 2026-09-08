@@ -48,8 +48,8 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any, NamedTuple
 
 from agent_workflows import runner_shared
@@ -1994,3 +1994,654 @@ def lane_preserved_for_missing_input(item: dict[str, Any]) -> bool:
         if attempt.get("lane_paused_for_missing_input"):
             return True
     return False
+
+
+# ---- R5.1 / R5.1a / R5.2: lane input materialization -----------------------------------------------
+#
+# WHY A MATERIALIZER EXISTS AT ALL, since a lane is already a `git worktree` at a commit and therefore
+# already holds every TRACKED file. The inputs a turn needs are not all tracked. The driver RUNBOOK is
+# the measured case: `runipd start` accepts `--runbook <path>` pointing anywhere on the operator's
+# disk, and when none is given it SYNTHESIZES one into the run directory (`<run_dir>/runbook.md`),
+# which lives under the coordinator's `.aw/records/runs/` and is NOT in the lane at any commit. So the
+# one input every execute turn is handed was, before this, guaranteed NOT to be in the lane.
+#
+# THE MODE IS COPY, AND ONLY COPY (spec R5.1). A symlink would resolve back into the coordinator's
+# tree, which reintroduces exactly the coupling the lane exists to remove; a HARD link would pass both
+# a symlink check and a digest comparison while still sharing an inode with the original, so a later
+# in-place write through either name would mutate the other (spec R5.2, plan F-1). `materialize_lane_inputs`
+# therefore writes fresh bytes and `verify_link_independence` establishes INODE IDENTITY, not merely
+# `not islink`.
+
+#: Lane-relative home for materialized inputs and their manifest.
+#:
+#: Under `.aw/state/` for the same reason `LANE_SUBMISSION_SUBDIR` is: that prefix is gitignored, and
+#: the lane is a worktree of the same commit, so a materialized input never appears as a dirty TRACKED
+#: path in the lane and cannot contaminate the integration diff. This matters MORE here than for
+#: submissions, because a materialized input is a COPY OF A TRACKED FILE in some cases (the plan
+#: snapshot), and landing one at its natural tracked path would look like the worker edited it.
+LANE_INPUT_SUBDIR = ".aw/state/lane-inputs"
+
+#: The manifest filename inside `LANE_INPUT_SUBDIR/<revision>/`.
+LANE_INPUT_MANIFEST_NAME = "manifest.json"
+
+#: The ONLY materialization mode this module writes (spec R5.1). Present as a recorded FIELD rather
+#: than implied by the manifest's existence, so a future mode cannot be introduced without the
+#: manifest saying so and `verify_lane_input_manifest` refusing what it does not recognize.
+MATERIALIZATION_MODE_COPY = "copy"
+
+#: Input CLASSES a manifest entry may carry. The class is what lets a reader answer "was the runbook
+#: materialized?" without pattern-matching a filename.
+INPUT_CLASS_PLAN = "plan"
+INPUT_CLASS_RUNBOOK = "runbook"
+_INPUT_CLASSES = (INPUT_CLASS_PLAN, INPUT_CLASS_RUNBOOK)
+
+#: Permission bits a sealed file carries: owner/group/other READ, no write bit anywhere (spec R5.1a
+#: parts (i) and (ii)).
+#:
+#: HONEST LIMIT, and it must be stated wherever this is used (spec R5.1a, plan E-03 / V-03): this is
+#: an ACCIDENT GUARD, NOT IMMUTABILITY and NOT a boundary. The owning user can restore the write bit
+#: with one `chmod`, and the worker RUNS AS the owning user. What it buys is that an accidental
+#: in-lane write - a stray editor save, a script that rewrites what it meant to read - FAILS LOUDLY
+#: instead of silently rewriting the record of what was authorized. Under the threat model in spec 0.2
+#: (an honest worker that can be confused, not an adversary) that is the whole intent. Any artifact
+#: describing this as immutability is WRONG and spec R5.1a forbids it.
+SEALED_FILE_MODE = 0o444
+
+
+class MaterializedInput(NamedTuple):
+    """One manifest entry (spec R5.1): what was copied, from where, and how.
+
+    `path` is LANE-RELATIVE and POSIX-style, so the manifest names nothing outside the lane and is
+    the same on any host (spec R1.1's discipline applied to the manifest itself). `source_path` is the
+    repo-relative path the bytes CAME from when that is knowable, and `None` for a coordinator-owned
+    input (a synthesized runbook under the run directory) which has no repo-relative location; it is
+    never an absolute coordinator path, for the same containment reason.
+    """
+
+    path: str
+    input_class: str
+    source_sha256: str
+    mode: str
+    bytes: int
+    source_path: str | None = None
+
+
+class LaneInputManifest(NamedTuple):
+    """The result of materializing one lane's inputs."""
+
+    revision: int
+    manifest_path: Path
+    root: Path
+    entries: tuple[MaterializedInput, ...]
+
+    def entry(self, input_class: str) -> MaterializedInput | None:
+        """The single entry of `input_class`, or `None`. Convenience for a caller that needs the
+        lane-local path of a specific input (E-04's attachment localization uses this)."""
+        for item in self.entries:
+            if item.input_class == input_class:
+                return item
+        return None
+
+
+def lane_input_root(lane_root: Path, revision: int) -> Path:
+    """`<lane>/.aw/state/lane-inputs/rev-<N>`, the home of ONE revision's inputs and manifest.
+
+    REVISION-SCOPED DIRECTORY, which is what makes spec R5.1a part (iii) mechanical rather than
+    aspirational: because a revision's inputs live in their own directory, adding an input CANNOT
+    require editing an existing entry - the new revision is a new directory with a new manifest, and
+    the old one stays exactly as it was written. See `revise_lane_inputs`.
+    """
+    return Path(lane_root) / LANE_INPUT_SUBDIR / f"rev-{int(revision)}"
+
+
+def lane_input_manifest_path(lane_root: Path, revision: int) -> Path:
+    return lane_input_root(lane_root, revision) / LANE_INPUT_MANIFEST_NAME
+
+
+def latest_lane_input_revision(lane_root: Path) -> int | None:
+    """The highest revision materialized into this lane, or `None` if none has been.
+
+    Read from the DIRECTORY NAMES rather than from a pointer file, so there is no second piece of
+    state that can disagree with what is actually on disk.
+    """
+    base = Path(lane_root) / LANE_INPUT_SUBDIR
+    revisions: list[int] = []
+    try:
+        children = list(base.iterdir())
+    except OSError:
+        return None
+    for child in children:
+        if not child.is_dir() or not child.name.startswith("rev-"):
+            continue
+        try:
+            revisions.append(int(child.name[4:]))
+        except ValueError:
+            continue
+    return max(revisions) if revisions else None
+
+
+def _seal_file(path: Path) -> None:
+    """Drop every write bit on `path` (spec R5.1a (i)/(ii)). An accident guard, NOT immutability."""
+    os.chmod(path, SEALED_FILE_MODE)
+
+
+def _unseal_for_write(path: Path) -> None:
+    """Restore the owner write bit so the DRIVER can replace a file it owns.
+
+    Needed because sealing is applied per revision and a caller may legitimately rewrite within the
+    revision it is currently building (an interrupted materialization re-run over the same directory).
+    That the driver can do this is not a hole in the seal: it is the same capability spec R5.1a
+    concedes the owning user has, which is precisely why the seal is documented as an accident guard.
+    """
+    with contextlib.suppress(OSError):
+        os.chmod(path, 0o644)
+
+
+def materialize_lane_inputs(
+    *,
+    lane_root: Path,
+    plan_path: Path | None = None,
+    runbook_path: Path | None = None,
+    repo: Path | None = None,
+    revision: int = 1,
+) -> LaneInputManifest:
+    """COPY the turn's required inputs into the lane and write a SEALED manifest (spec R5.1, R5.1a, R5.2).
+
+    Host-neutral by construction (spec R2.6, plan CID-2/CID-3): both drivers call THIS, and neither
+    reimplements any part of it. A rule implemented once per host is a forked rule even while the
+    copies agree.
+
+    WHAT IS COPIED. Each of `plan_path` and `runbook_path` when supplied and readable. A source that
+    does not exist is SKIPPED rather than fabricated, because writing an entry for a file whose bytes
+    we never read would make the manifest a claim we cannot support - and the manifest is consumed as
+    evidence of what the worker was authorized to use.
+
+    HOW IT IS COPIED. Fresh bytes through `_atomic_write_bytes`, never `os.link`, never `os.symlink`,
+    and never `shutil.copy2` (which would carry the source's mode across and fight the seal below).
+    The digest recorded is computed from the bytes ACTUALLY WRITTEN, not from the source, so a
+    truncated or partially-written copy cannot be recorded as a faithful one.
+
+    THE SEAL. Every copied input, and then the manifest itself, is left mode `0444` (R5.1a (i)/(ii)),
+    with the manifest sealed LAST so an interrupted run leaves an unsealed manifest rather than a
+    sealed one describing files that were never finished.
+
+    Returns the manifest. Idempotent for a given revision: re-running over an existing revision
+    directory replaces its contents, which is what recovery of an interrupted materialization needs.
+    """
+    lane_root = Path(lane_root)
+    root = lane_input_root(lane_root, revision)
+    root.mkdir(parents=True, exist_ok=True)
+
+    requested: list[tuple[str, Path]] = []
+    if plan_path is not None:
+        requested.append((INPUT_CLASS_PLAN, Path(plan_path)))
+    if runbook_path is not None:
+        requested.append((INPUT_CLASS_RUNBOOK, Path(runbook_path)))
+
+    entries: list[MaterializedInput] = []
+    for input_class, source in requested:
+        try:
+            payload = source.read_bytes()
+        except OSError:
+            # Absent or unreadable: record NOTHING. The missing-input cycle (spec R3, child `y5od1h`)
+            # owns reporting a genuinely required input that is not there; inventing a manifest entry
+            # here would hide it behind a record that looks satisfied.
+            continue
+        destination = root / f"{input_class}-{source.name}"
+        if destination.exists():
+            _unseal_for_write(destination)
+        _atomic_write_bytes(destination, payload)
+        # Digest the BYTES ON DISK, not `payload`: this is what makes the entry evidence about the
+        # lane's file rather than about a variable in this process.
+        written_digest = _sha256_file(destination)
+        source_rel: str | None = None
+        if repo is not None:
+            with contextlib.suppress(ValueError):
+                source_rel = (
+                    Path(source).resolve().relative_to(Path(repo).resolve()).as_posix()
+                )
+        entries.append(
+            MaterializedInput(
+                path=destination.relative_to(lane_root).as_posix(),
+                input_class=input_class,
+                source_sha256=written_digest,
+                mode=MATERIALIZATION_MODE_COPY,
+                bytes=len(payload),
+                source_path=source_rel,
+            )
+        )
+        _seal_file(destination)
+
+    manifest_path = root / LANE_INPUT_MANIFEST_NAME
+    document = {
+        "schema_version": 1,
+        "revision": int(revision),
+        "sealed": True,
+        # Stated IN the artifact because spec R5.1a requires the honest limit to travel with the
+        # claim, not only in this module's source.
+        "seal_note": (
+            "Read-only is an ACCIDENT GUARD, not immutability and not a boundary: the owning user "
+            "can restore the write bit. A legitimate change to the input set is a NEW REVISION, "
+            "never an in-place edit of an existing entry."
+        ),
+        "inputs": [entry._asdict() for entry in entries],
+    }
+    if manifest_path.exists():
+        _unseal_for_write(manifest_path)
+    _atomic_write_text(
+        manifest_path, json.dumps(document, indent=2, sort_keys=True) + "\n"
+    )
+    # Sealed LAST, deliberately: see the docstring. An interrupt before this line leaves a writable
+    # manifest, which is recoverable; the reverse would leave a sealed record of unfinished work.
+    _seal_file(manifest_path)
+
+    return LaneInputManifest(
+        revision=int(revision),
+        manifest_path=manifest_path,
+        root=root,
+        entries=tuple(entries),
+    )
+
+
+def read_lane_input_manifest(
+    lane_root: Path, revision: int | None = None
+) -> dict[str, Any] | None:
+    """One revision's manifest document, or `None`. `revision=None` reads the LATEST."""
+    if revision is None:
+        revision = latest_lane_input_revision(lane_root)
+        if revision is None:
+            return None
+    try:
+        return json.loads(
+            lane_input_manifest_path(lane_root, revision).read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return None
+
+
+def revise_lane_inputs(
+    *,
+    lane_root: Path,
+    plan_path: Path | None = None,
+    runbook_path: Path | None = None,
+    repo: Path | None = None,
+) -> LaneInputManifest:
+    """Materialize a NEW REVISION rather than editing an existing entry (spec R5.1a part (iii)).
+
+    NO PRODUCT CALLER, AND THAT IS STATED RATHER THAN IMPLIED, because spec R3.4 requires it. R3.4
+    ("copy on request") was WITHDRAWN by R3.3a: the repair cycle is now report-and-refuse only, so
+    nothing is ever materialized into a lane in response to a worker request and no caller needs to
+    revise a manifest today. R3.4 explicitly permits the MECHANISM to be built by the plan that owns
+    the manifest - this plan - on the condition that it "MUST state that it has no consumer rather
+    than implying one". This is that statement. The mechanism exists so R5.1a part (iii) is testable
+    and so a future lane-assembly change (the conforming fix R3.3a points at) has one correct way to
+    add an input; it is NOT evidence that a request-time copy path exists.
+
+    Mechanically it is just "next revision, new directory", which is what makes part (iii) hold: an
+    existing revision's manifest and inputs are never reopened, so there is no in-place edit to
+    forbid.
+    """
+    current = latest_lane_input_revision(lane_root)
+    return materialize_lane_inputs(
+        lane_root=lane_root,
+        plan_path=plan_path,
+        runbook_path=runbook_path,
+        repo=repo,
+        revision=1 if current is None else current + 1,
+    )
+
+
+class LinkIndependenceResult(NamedTuple):
+    """Whether every manifest-listed lane file has storage independent of its source (spec R5.2)."""
+
+    independent: bool
+    violations: tuple[str, ...]
+
+    @property
+    def reason(self) -> str:
+        if self.independent:
+            return "every manifest-listed lane path is an independent copy"
+        return "; ".join(self.violations)
+
+
+def verify_link_independence(
+    lane_root: Path, revision: int | None = None
+) -> LinkIndependenceResult:
+    """Establish LINK INDEPENDENCE for every manifest-listed lane file (spec R5.2, criterion A12).
+
+    WHY THIS IS NOT `not islink`, which is the whole point of R5.2 and of plan finding F-1. A HARD
+    LINK is not a symlink and its bytes are identical to the source, so a check asserting
+    `not os.path.islink(p)` AND `sha256(p) == sha256(src)` PASSES while `p` and the source share one
+    inode - meaning a later write through EITHER name mutates the other, which is exactly the coupling
+    the lane exists to remove. Digest equality is therefore evidence of FIDELITY and says nothing
+    whatsoever about INDEPENDENCE.
+
+    WHAT IS CHECKED, per entry, and all three are required:
+
+      1. the lane path is not a symlink (the easy case, still necessary);
+      2. its `st_nlink` is 1, so no OTHER name anywhere refers to this inode; and
+      3. when the entry records a `source_path` that still exists in the surrounding checkout, its
+         `(st_dev, st_ino)` differs from that source's, which catches the hard link DIRECTLY rather
+         than inferring it from a link count.
+
+    Check 2 is what makes this hold even when the source is GONE or unknown (a synthesized runbook
+    under the coordinator's run directory has no repo-relative source at all): a link count of 1 is
+    sufficient on its own to prove no second name shares the storage, whoever that second name might
+    have been. Check 3 is kept because it names the actual counterparty in the failure message, which
+    is what a human debugging a violation needs.
+    """
+    document = read_lane_input_manifest(lane_root, revision)
+    if document is None:
+        return LinkIndependenceResult(
+            independent=False, violations=("no lane input manifest to verify",)
+        )
+    lane_root = Path(lane_root)
+    violations: list[str] = []
+    entries = document.get("inputs") or []
+    if not entries:
+        return LinkIndependenceResult(
+            independent=False, violations=("manifest lists no inputs",)
+        )
+    for entry in entries:
+        rel = entry.get("path") or ""
+        target = lane_root / rel
+        if target.is_symlink():
+            violations.append(f"{rel}: is a symlink")
+            continue
+        try:
+            stat_result = os.stat(target, follow_symlinks=False)
+        except OSError as exc:
+            violations.append(f"{rel}: cannot stat ({exc})")
+            continue
+        if stat_result.st_nlink != 1:
+            violations.append(
+                f"{rel}: st_nlink={stat_result.st_nlink} (expected 1); another name shares this "
+                "inode, so it is a hard link and not an independent copy"
+            )
+        source_rel = entry.get("source_path")
+        if source_rel:
+            source = lane_root / source_rel
+            try:
+                source_stat = os.stat(source, follow_symlinks=False)
+            except OSError:
+                source_stat = None
+            if source_stat is not None and (
+                (stat_result.st_dev, stat_result.st_ino)
+                == (source_stat.st_dev, source_stat.st_ino)
+            ):
+                violations.append(
+                    f"{rel}: shares inode {stat_result.st_ino} with {source_rel}"
+                )
+    return LinkIndependenceResult(
+        independent=not violations, violations=tuple(violations)
+    )
+
+
+class SealResult(NamedTuple):
+    """Whether a revision satisfies all three parts of the seal definition (spec R5.1a)."""
+
+    sealed: bool
+    violations: tuple[str, ...]
+
+    @property
+    def reason(self) -> str:
+        if self.sealed:
+            return "manifest and every listed input carry no write bit"
+        return "; ".join(self.violations)
+
+
+def verify_lane_input_seal(lane_root: Path, revision: int | None = None) -> SealResult:
+    """Check seal parts (i) and (ii): no write bit on the manifest or on any listed input (R5.1a).
+
+    Part (iii) (a change arrives as a NEW REVISION, never an in-place edit) is STRUCTURAL and is not
+    checked here because it cannot be read off a single revision's permissions: it is established by
+    `revise_lane_inputs` writing a new `rev-<N>` directory and by `latest_lane_input_revision`
+    reporting it, which is what the test exercises.
+
+    NO WRITE BIT FOR ANYONE, not merely for the owner. R5.1a says "no write bit for the owning user",
+    which is the part that matters since the worker RUNS AS the owner; group/other are dropped too
+    because leaving them would make the mode misleading to a reader without weakening or strengthening
+    the actual guard.
+
+    STILL AN ACCIDENT GUARD. A passing result means an accidental write FAILS; it does not mean the
+    bytes cannot be changed, because the owner can `chmod` first. Do not describe a passing result as
+    immutability (R5.1a).
+    """
+    document = read_lane_input_manifest(lane_root, revision)
+    if document is None:
+        return SealResult(
+            sealed=False, violations=("no lane input manifest to verify",)
+        )
+    if revision is None:
+        revision = int(document.get("revision", 0))
+    lane_root = Path(lane_root)
+    violations: list[str] = []
+
+    manifest_path = lane_input_manifest_path(lane_root, revision)
+    try:
+        manifest_mode = os.stat(manifest_path).st_mode & 0o777
+    except OSError as exc:
+        return SealResult(sealed=False, violations=(f"cannot stat manifest ({exc})",))
+    if manifest_mode & 0o222:
+        violations.append(
+            f"{LANE_INPUT_MANIFEST_NAME}: mode {manifest_mode:04o} carries a write bit"
+        )
+
+    for entry in document.get("inputs") or []:
+        rel = entry.get("path") or ""
+        try:
+            mode = os.stat(lane_root / rel).st_mode & 0o777
+        except OSError as exc:
+            violations.append(f"{rel}: cannot stat ({exc})")
+            continue
+        if mode & 0o222:
+            violations.append(f"{rel}: mode {mode:04o} carries a write bit")
+
+    return SealResult(sealed=not violations, violations=tuple(violations))
+
+
+class ManifestVerification(NamedTuple):
+    """The composed R5.1/R5.1a/R5.2 verdict for one revision."""
+
+    conforming: bool
+    violations: tuple[str, ...]
+
+    @property
+    def reason(self) -> str:
+        if self.conforming:
+            return "manifest conforms: every entry a digested copy, sealed, link-independent"
+        return "; ".join(self.violations)
+
+
+def verify_lane_input_manifest(
+    lane_root: Path, revision: int | None = None
+) -> ManifestVerification:
+    """The whole R5 input contract for one revision, in ONE predicate (spec R6.1).
+
+    Composed rather than duplicated: the drivers, the tests, and any later retention reader all call
+    THIS, so "is this lane's input set conforming?" has one answer. It checks that every entry records
+    mode `copy` with a non-empty digest that matches the bytes on disk (R5.1), that the seal holds
+    (R5.1a i/ii), and that storage is independent (R5.2).
+    """
+    document = read_lane_input_manifest(lane_root, revision)
+    if document is None:
+        return ManifestVerification(
+            conforming=False, violations=("no lane input manifest",)
+        )
+    lane_root = Path(lane_root)
+    violations: list[str] = []
+    entries = document.get("inputs") or []
+    if not entries:
+        violations.append("manifest lists no inputs")
+    for entry in entries:
+        rel = entry.get("path") or "<unnamed>"
+        if entry.get("mode") != MATERIALIZATION_MODE_COPY:
+            violations.append(
+                f"{rel}: mode {entry.get('mode')!r} is not {MATERIALIZATION_MODE_COPY!r}"
+            )
+        if entry.get("input_class") not in _INPUT_CLASSES:
+            violations.append(f"{rel}: unrecognized class {entry.get('input_class')!r}")
+        digest = entry.get("source_sha256") or ""
+        if not digest:
+            violations.append(f"{rel}: records no source digest")
+            continue
+        target = lane_root / rel
+        try:
+            actual = _sha256_file(target)
+        except OSError as exc:
+            violations.append(f"{rel}: cannot read to digest ({exc})")
+            continue
+        if actual != digest:
+            violations.append(
+                f"{rel}: recorded digest {digest[:12]} does not match on-disk {actual[:12]}"
+            )
+    seal = verify_lane_input_seal(lane_root, revision)
+    if not seal.sealed:
+        violations.extend(seal.violations)
+    links = verify_link_independence(lane_root, revision)
+    if not links.independent:
+        violations.extend(links.violations)
+    return ManifestVerification(conforming=not violations, violations=tuple(violations))
+
+
+# ---- R5.4: the clean-base guard ---------------------------------------------------------------------
+
+
+def parse_porcelain_paths(porcelain: str) -> set[str]:
+    """Every path named by `git status --short`/`--porcelain` output.
+
+    THE ONE PORCELAIN PARSER (spec R6.1). It was previously written TWICE, inline and identically, in
+    `oc_runipd.dirty_tree_overlap` and `agy_runipd.dirty_tree_overlap`; both now delegate here, and
+    the clean-base guard below uses it rather than adding a third copy. Forking a rule is
+    non-conforming even while the copies agree (R6.1), and this one had already been copied once.
+
+    Format: `XY<space><path>`, where a rename or copy renders as `orig -> dest`. BOTH endpoints of a
+    rename are returned, because a rename dirties the origin and the destination and a caller asking
+    "is this path dirty?" must get `True` for either.
+    """
+    paths: set[str] = set()
+    for line in porcelain.splitlines():
+        if not line.strip():
+            continue
+        # Strip the two status columns and the following space: entries are `XY path` (min 3 chars).
+        entry = line[3:] if len(line) > 3 else line.strip()
+        if " -> " in entry:
+            orig, dest = entry.split(" -> ", 1)
+            paths.add(orig.strip())
+            paths.add(dest.strip())
+        else:
+            paths.add(entry.strip())
+    return {p for p in paths if p}
+
+
+class CleanBaseResult(NamedTuple):
+    """Whether a checkout is a valid base for an unattended isolated turn (spec R5.4)."""
+
+    clean: bool
+    dirty_paths: tuple[str, ...]
+
+    @property
+    def reason(self) -> str:
+        if self.clean:
+            return "target checkout has no dirty tracked paths"
+        return (
+            "refusing to launch an unattended isolated turn: the target checkout has "
+            f"{len(self.dirty_paths)} dirty TRACKED path(s), which a lane created from HEAD would "
+            "silently omit: " + ", ".join(self.dirty_paths)
+        )
+
+
+def evaluate_clean_base(
+    porcelain: str,
+) -> CleanBaseResult:
+    """Classify `git status --porcelain --untracked-files=no` output for the R5.4 guard.
+
+    PURE, taking the text rather than running git, so both drivers share the RULE while each supplies
+    its own runner (the two modules deliberately keep separate git wrappers), and so a test can drive
+    every case without a repository.
+
+    UNTRACKED FILES ARE EXCLUDED BY THE CALLER'S `--untracked-files=no`, and that exclusion is
+    DELIBERATE (spec R5.4, plan finding F-4). A lane is created from a COMMIT, so an untracked file's
+    absence from the lane is CORRECT and expected - nothing was silently omitted. An uncommitted
+    TRACKED edit is the opposite: it is a change to a file the lane DOES have, at a version the lane
+    does NOT, so the worker would silently work against a base missing it. Tightening this to include
+    untracked files would make an unattended run unstartable in essentially any working checkout, which
+    is why it must not be "fixed".
+
+    HOW THIS DIFFERS FROM THE INTEGRATION-TIME OVERLAP CHECK (`dirty_tree_overlap`), since both read
+    porcelain and the two are easy to confuse. That one runs AFTER a lane's work exists and asks a
+    NARROW, RELATIVE question: does the incoming lane's `changed_files` INTERSECT main's dirty paths,
+    i.e. would merging clobber an un-owned edit to those specific paths? This one runs BEFORE any
+    worker is spawned and asks a BROAD, ABSOLUTE question: is the whole tracked tree clean, i.e. is
+    HEAD a complete base? Neither subsumes the other: a dirty file OUTSIDE the incoming change is
+    irrelevant to integration but still makes the base incomplete here, and this check cannot run at
+    integration time because there is no `changed_files` yet.
+    """
+    dirty = sorted(parse_porcelain_paths(porcelain))
+    return CleanBaseResult(clean=not dirty, dirty_paths=tuple(dirty))
+
+
+# ---- R5.3: attachment localization ------------------------------------------------------------------
+
+
+def localize_attachment(
+    *,
+    lane_root: Path | None,
+    fallback: Path | str,
+    input_class: str,
+    revision: int | None = None,
+) -> str:
+    """The path an isolated turn's `--file` attachment must use (spec R5.3).
+
+    Returns the MATERIALIZED lane-local copy of `input_class` when this is an isolated turn and the
+    manifest lists one; otherwise returns `fallback` unchanged. So a NON-isolated turn is byte-for-byte
+    untouched (the same discipline spec R1.3 imposes on the prompt), and an isolated turn attaches only
+    what is provably inside its lane.
+
+    FALLBACK IS DELIBERATE AND IS NOT A HOLE IN R5.3. If materialization did not record this class, the
+    honest options are to attach the out-of-lane original or to attach nothing. Attaching nothing would
+    silently drop an input the turn was designed to have, so the caller keeps the original and the
+    R5.3 assertion FAILS LOUDLY in test rather than a missing attachment failing mysteriously at
+    runtime. In the product path the materializer runs immediately before this, so the fallback is
+    reached only when the source itself was absent - which is the missing-input cycle's business
+    (spec R3), not this function's.
+    """
+    if lane_root is None:
+        return str(fallback)
+    document = read_lane_input_manifest(lane_root, revision)
+    if document is None:
+        return str(fallback)
+    for entry in document.get("inputs") or []:
+        if entry.get("input_class") == input_class:
+            return str(Path(lane_root) / entry["path"])
+    return str(fallback)
+
+
+def attachment_values(argv: Sequence[str]) -> list[str]:
+    """Every `--file` value in a constructed argv, in order.
+
+    Exists so the R5.3 check reads the ARGV THE CHILD ACTUALLY RECEIVES rather than re-deriving what
+    it should have been, and so it covers ALL attachments instead of the one a test happened to think
+    of (spec A13 requires the assertion over every value, with at least two present).
+    """
+    values: list[str] = []
+    for index, token in enumerate(argv):
+        if token == "--file" and index + 1 < len(argv):
+            values.append(argv[index + 1])
+    return values
+
+
+def attachments_outside_lane(argv: Sequence[str], lane_root: Path) -> list[str]:
+    """The `--file` values that do NOT resolve inside `lane_root` (spec R5.3, criterion A13).
+
+    Resolved with `os.path.realpath` on BOTH sides before comparing, so a symlinked lane path or a
+    `..` segment cannot make an out-of-lane target look contained. A value that resolves to the lane
+    root itself is not an attachment to a file and counts as outside.
+    """
+    lane_real = Path(os.path.realpath(str(lane_root)))
+    outside: list[str] = []
+    for value in attachment_values(argv):
+        target = Path(os.path.realpath(value))
+        if target == lane_real or lane_real not in target.parents:
+            outside.append(value)
+    return outside
