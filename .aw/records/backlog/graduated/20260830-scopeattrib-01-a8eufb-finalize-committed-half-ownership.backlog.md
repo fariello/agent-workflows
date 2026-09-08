@@ -1,5 +1,5 @@
 - Id: a8eufb
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: scopeattrib
 - Priority: medium
@@ -7,7 +7,46 @@
 - Summary: finalize still demands a scope reason for a CONCURRENT agent's COMMITTED out-of-scope path (the committed half of the shared-checkout attribution defect)
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan wao266 (runtrailwire-01), NARROWED TO STEP (1) ONLY. Step (2) is ALREADY DONE: commit_backlog_close (oc_runipd.py:1331) holds the only offer_commit call in either runner (:1405) and agy_runipd.py IMPORTS it (:320), calling the shared process_backlog_close (:3907), so one call site serves both hosts and a second would regress the rununify extraction. Step (3) is OWNED by APPROVED plan h9cn0y, whose review F-13/F-14 independently reached this item's conclusion (authorship cannot partition actors, the run record is unreachable from finalize, so trailers are the ONLY identified attribution channel) and which explicitly defers trailers to a later plan naming a8eufb; re-graduating it would re-implement declared work, and h9cn0y also owns inverting the characterization test. The sequencing warning has weakened: 18 pending plans declare a runner file (not 21), four of seven lanectn children have EXECUTED, and the 'cheaper path already queued' is now the DEFAULT (isolate_worktree defaults True, oc_runipd.py:7661-7665). The plan adds a WRITER only, no reader, and does not bind RUN-COMMIT-CONTENTS/RUN-COMMIT-GATEWAY. Blocks-Release: next inherited.
 - 2026-09-03 set (aw backlog): RECLASSIFIED followup -> bug AND GATED, maintainer ruling 2026-09-03. Each of these three describes shipped behavior that does not match what the product claims, so under the all-bugs-block-release rule they are bugs, and the 'followup' label was the reason the 2026-09-03 gating audit skipped them. Work-Kind edited directly because 'aw backlog set' has no --work-kind flag (its 'aw ipd set' twin does); that tooling gap is filed separately.
+
+PARTIAL OBSOLESCENCE RECORDED 2026-09-08 AT GRADUATION. Graduated to plan `wao266` (`runtrailwire-01`),
+NARROWED TO STEP (1) ONLY of the three-step plan in the staleness correction below. Read this before
+acting on those steps, because two of the three are dead or owned elsewhere.
+
+STEP (2) IS ALREADY DONE. It says "give the antigravity runner the same commit path", on the measurement
+that `agy_runipd.py` does not call `offer_commit` at all. That is still literally true (ZERO hits) and no
+longer means what it meant: `commit_backlog_close` (`oc_runipd.py:1331`) holds the ONLY `offer_commit`
+call in either runner (`:1405`), and `agy_runipd.py` IMPORTS it (`:320`) and calls the shared
+`process_backlog_close` (`:3907`). Both hosts already reach one shared commit path, so passing trailers at
+that ONE site serves both, and building a second path would regress the rununify extraction.
+
+STEP (3) IS OWNED BY APPROVED PLAN `h9cn0y`. It says "teach finalize to attribute a committed path by
+trailer instead of by changed-since-base_head". `h9cn0y` (`scopeattr-01`, `- Status: approved`,
+`- From-Backlog: hyx1dg`) now owns finalize's committed-half attribution. Its review INDEPENDENTLY reached
+this item's conclusion: F-14 measured that git authorship cannot partition actors here (identical
+`%an`/`%ae` across five incident commits) and F-13 that the run record is unreachable from finalize, so
+trailers "are not merely a nicer future substrate, they are the ONLY identified way to attribute a commit
+to an execution here". It ships the weaker ownership-PREDICATE fix with a stated accepted cost and defers
+trailers to a later plan NAMING THIS ITEM. Re-graduating step (3) would re-implement declared work.
+`h9cn0y` also owns inverting the characterization test named at the end of this item, since that test pins
+finalize's refusal.
+
+THE SEQUENCING WARNING HAS WEAKENED, which is why this is graduable now rather than staying open.
+Re-measured: 18 pending plans declare a runner file in `Scope-Paths` (not 21), and FOUR of the seven
+`lanectn` children have EXECUTED (`cqx5v7`, `lhmrhx`, `y5od1h`, `604wra`), with three approved. More
+decisively, the "CHEAPER PATH ALREADY QUEUED" is now the DEFAULT: `isolate_worktree` defaults True
+(`oc_runipd.py:7661-7665`), so every execute turn is isolated unless opted out, and an isolated lane is
+immune by this item's own BLAST RADIUS analysis.
+
+WHAT THE PLAN CARRIES: step (1) only, passing `run_item_trailers(run_id, item_id6)` at the shared call
+site, plus the design decisions the item did not settle (omit rather than synthesize a trailer when there
+is no run id; runner commits only, not every `offer_commit` caller; a future reader must fail closed on an
+untrailered commit rather than inferring from absence). It adds NO reader, and does not bind
+`RUN-COMMIT-CONTENTS`/`RUN-COMMIT-GATEWAY`, which wait on a reader rather than a writer.
+
+NOTE the FIRST body paragraph below is superseded by the STALENESS CORRECTION that follows it; the plan
+starts from the corrected state.
 
 Plan `lbgzxg` fixed the WORKING-TREE half of finalize's out-of-scope attribution: an uncommitted path that the finalizing execution cannot be shown to own is now disregarded instead of demanding a --scope-reason. It deliberately did NOT touch the COMMITTED half, so this defect remains:
 

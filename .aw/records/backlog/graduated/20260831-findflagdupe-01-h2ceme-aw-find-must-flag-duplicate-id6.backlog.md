@@ -1,5 +1,5 @@
 - Id: h2ceme
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: findflagdupe
 - Priority: medium
@@ -7,7 +7,48 @@
 - Summary: aw find renders a duplicate id6 as an ordinary multi-result list with exit 0, bypassing the resolver's own UNIQUE_KINDS collision policy; it must flag the violation and name the remedy
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan paw8so (id6integ-02), RESHAPED because this item's recommended MESSAGE would be wrong. reviews/README.md requires a review record to carry its SUBJECT's id6 in the identity slot as the deliberate cross-tree join; measured 70 review files, all 70 declaring a Subject-Id, and all 70 of those ids resolving to more than one artifact, so the proposed warning would fire on every reviewed plan in the repo. The plan therefore turns on DISCRIMINATION using resolve's existing kind (measured: plans kind=id6 versus reviews kind=substring for the same token). Both measured examples are DEAD (y6mfgo and ntf6sx each return one plan; cleared in ba8bcf2e/6a29f9c0 the same commit that filed this item), so the plan's tests must use FIXTURES. The root-cause citation is STALE: the general path is cli._run_find -> _find_type_records, not plans_index.run_find:401-410. Recommendation 5's scope worry is ANSWERED (find already spans every type) but a new asymmetry was found: find spans reviews/comms/other while check_engine.SUPPORTED does not, so the plan shares the predicate rather than delegating. Recommendations 2 and 4 adopted as written. Blocks-Release: next inherited.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
+
+PARTIAL OBSOLESCENCE RECORDED 2026-09-08 AT GRADUATION. Graduated to plan `paw8so` (`id6integ-02`),
+RESHAPED around a finding that makes this item's RECOMMENDED MESSAGE WRONG. Read this before acting on
+recommendation 1 below.
+
+THE RECOMMENDED WARNING WOULD FIRE 70 TIMES. Recommendation 1 proposes
+`! id6 <x> is held by 2 artifacts (plans, walkthroughs); an id6 identifies exactly ONE file (D140)`.
+But `.aw/records/reviews/README.md` REQUIRES a review record to carry its SUBJECT's id6 in the filename
+identity slot, calling it "the load-bearing choice ... so the join survives a rename". MEASURED: 70
+review files exist, all 70 declare a `- Subject-Id:`, and all 70 of those ids resolve to more than one
+artifact across types. So that warning would fire on every reviewed plan in the repository, and a warning
+that cries wolf 70 times is how a real one gets ignored. The plan therefore turns on DISCRIMINATION
+rather than detection, and `resolve`'s existing `kind` is the discriminator: measured for `uyeko5`, plans
+resolve `kind=id6` (a declaration) while reviews resolve `kind=substring` (a filename reference).
+
+DEAD: BOTH MEASURED EXAMPLES. `aw find y6mfgo` and `aw find ntf6sx` each return ONE plan today; both
+were cleared in `ba8bcf2e`/`6a29f9c0` on 2026-08-31, the same commit that filed this item, and
+`aw attention` reports `valid: True`. The plan's tests are therefore required to use FIXTURES, never live
+records, precisely because these two evaporated between filing and graduation.
+
+LIVE, ON A THREE-CAUSE EXAMPLE: `aw find uyeko5` prints THREE rows with exit 0, from three different
+causes - the genuine owner plan, a PARSER ARTIFACT (research prompt `27rjro` whose `- Id: uyeko5` at
+`:60` is a quoted example; fixed by `sk7ggr` E-04), and a CORRECT review reference. That is exactly why
+this item's warning against one generic message is right, and why the plan depends on `sk7ggr`.
+
+STALE: THE ROOT-CAUSE CITATION. This item names `plans_index.run_find:401-410` as the bypass. The general
+CLI path is `cli._run_find` fanning out over every type via `_find_type_records`, which uses
+`scan_plans`+`query` for plans and `selectors.resolve_selectors` elsewhere; `resolve_one` is a
+back-compat shim that deliberately returns only `.paths`, dropping the `resolve_for_mutation` policy. So
+the bypass is REAL but sits at a different symbol. `plans_index.run_find` is still registered as the
+plans backend, so both paths exist.
+
+ANSWERED: RECOMMENDATION 5's SCOPE WORRY. It asks whether a plans-only `find` could see a walkthrough at
+all, warning the fix might be vacuous. `aw find` already spans every artifact type, so the cross-type
+case IS visible. A NEW asymmetry was found instead: `find` spans `reviews`, `comms` and `other` while
+`check_engine.SUPPORTED` does not, which is why the plan shares the collision PREDICATE rather than
+delegating to the checker's verdict (recommendation 3's principle, adapted).
+
+RECOMMENDATIONS 2 AND 4 ARE ADOPTED AS WRITTEN: distinct remedies per shape, and exit 0 for the human
+path with the signal in structured output. No `--check` flag is added.
 
 OBSERVED 2026-08-31, maintainer-requested. `aw find` presents a duplicate id6 as an ordinary
 multi-result answer, so the surface an operator uses to LOOK UP an artifact is also the surface most

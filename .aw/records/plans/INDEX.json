@@ -4944,9 +4944,39 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-hardreach-01-n5qca5-give-the-hardened-execution-profile-a-request-path-or-record.ipd.md",
+    "plan_id": "n5qca5",
+    "set_id": "hardreach",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-hookretry-01-lqly9m-retry-once-inside-the-isolated-commit-when-a-hook-rewrote-ou.ipd.md",
     "plan_id": "lqly9m",
     "set_id": "hookretry",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-id6integ-01-sk7ggr-mint-id6-against-the-unified-inventory-and-close-d140-s-decl.ipd.md",
+    "plan_id": "sk7ggr",
+    "set_id": "id6integ",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-id6integ-02-paw8so-surface-an-id6-collision-on-the-lookup-surfaces-instead-of-r.ipd.md",
+    "plan_id": "paw8so",
+    "set_id": "id6integ",
     "status": "to-review"
   },
   {
@@ -4967,6 +4997,16 @@
     "path": "pending/20260908-nopush-01-4h7tt0-decide-what-run-no-push-enforcement-means-before-binding-it.ipd.md",
     "plan_id": "4h7tt0",
     "set_id": "nopush",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-rcptstale-01-wmnmei-decide-what-a-frozen-begin-base-means-once-main-has-moved-an.ipd.md",
+    "plan_id": "wmnmei",
+    "set_id": "rcptstale",
     "status": "to-review"
   },
   {
@@ -5187,6 +5227,16 @@
     "path": "pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md",
     "plan_id": "fduoj4",
     "set_id": "runrecon",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md",
+    "plan_id": "wao266",
+    "set_id": "runtrailwire",
     "status": "to-review"
   },
   {

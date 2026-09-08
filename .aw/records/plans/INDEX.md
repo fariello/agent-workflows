@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 244 Sets; the full manifest is INDEX.json.
 
 ## actorparen
 
@@ -16,9 +16,18 @@ Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
 
 - `i4c0c3` [pending] 01 pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md
 
+## hardreach
+
+- `n5qca5` [pending] 01 pending/20260908-hardreach-01-n5qca5-give-the-hardened-execution-profile-a-request-path-or-record.ipd.md
+
 ## hookretry
 
 - `lqly9m` [pending] 01 pending/20260908-hookretry-01-lqly9m-retry-once-inside-the-isolated-commit-when-a-hook-rewrote-ou.ipd.md
+
+## id6integ
+
+- `sk7ggr` [pending] 01 pending/20260908-id6integ-01-sk7ggr-mint-id6-against-the-unified-inventory-and-close-d140-s-decl.ipd.md
+- `paw8so` [pending] 02 pending/20260908-id6integ-02-paw8so-surface-an-id6-collision-on-the-lookup-surfaces-instead-of-r.ipd.md
 
 ## nogitmsg
 
@@ -27,6 +36,10 @@ Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
 ## nopush
 
 - `4h7tt0` [pending] 01 pending/20260908-nopush-01-4h7tt0-decide-what-run-no-push-enforcement-means-before-binding-it.ipd.md
+
+## rcptstale
+
+- `wmnmei` [pending] 01 pending/20260908-rcptstale-01-wmnmei-decide-what-a-frozen-begin-base-means-once-main-has-moved-an.ipd.md
 
 ## rdattest
 
@@ -67,6 +80,10 @@ Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
 
 - `d91i3e` [pending] 01 pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
 - `fduoj4` [pending] 02 pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md
+
+## runtrailwire
+
+- `wao266` [pending] 01 pending/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md
 
 ## runverdict
 
@@ -187,28 +204,6 @@ Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
 ## skilldigest
 
 - `8fhjjc` [pending] 01 pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md
-
-## revsweep
-
-- `76gsmv` [executed] 01 executed/20260904-revsweep-01-76gsmv-document-the-reviews-selector-and-add-the-aw-host-review-ali.ipd.md
-- `6ypimw` [executed] 02 executed/20260904-revsweep-02-6ypimw-one-shared-needs-review-predicate-and-the-draft-admission-ga.ipd.md
-- `eyh1fu` [executed] 03 executed/20260904-revsweep-03-eyh1fu-make-the-review-record-artifact-neutral-with-subject-id-and.ipd.md
-- `5slbpi` [executed] 04 executed/20260904-revsweep-04-5slbpi-spec-review-and-the-attested-to-review-to-reviewed-transitio.ipd.md
-- `wpomxa` [executed] 05 executed/20260904-revsweep-05-wpomxa-rename-the-plan-named-review-gating-predicates-to-subject-ne.ipd.md
-
-## runbypass
-
-- `ki6tom` [not-executed] 01 not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md
-
-## runcodes
-
-- `wlxkoz` [executed] 01 executed/20260830-runcodes-01-wlxkoz-the-deterministic-run-finding-code-vocabulary-over-the-shipp.ipd.md
-- `zub5f1` [executed] 02 executed/20260903-runcodes-02-zub5f1-unverifiable-ok-aggregate-neutrality-within-its-two-spec-con.ipd.md
-- `sq61qd` [executed] 03 executed/20260903-runcodes-03-sq61qd-bounds-check-the-retry-budget-at-the-spec-s-0-10-on-the-ship.ipd.md
-
-## runflags
-
-- `uyeko5` [executed] 01 executed/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
 
 ## (singletons: no Set)
 
