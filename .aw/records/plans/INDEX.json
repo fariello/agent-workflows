@@ -4933,6 +4933,16 @@
     "date": "2026-09-08",
     "disposition": "pending",
     "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md",
+    "plan_id": "9iiqmm",
+    "set_id": "awinbox",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md",
     "plan_id": "b5sfwm",
@@ -5127,6 +5137,16 @@
     "path": "pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md",
     "plan_id": "76w6mq",
     "set_id": "idcapture",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-instdiff-01-at61gc-show-generated-skill-members-in-aw-install-diff-so-the-previ.ipd.md",
+    "plan_id": "at61gc",
+    "set_id": "instdiff",
     "status": "to-review"
   },
   {
@@ -5604,9 +5624,39 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-specreq-01-si24ia-decide-whether-spec-requirements-get-machine-readable-tracki.ipd.md",
+    "plan_id": "si24ia",
+    "set_id": "specreq",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-stopdisc-01-wqq8ua-name-the-stop-levels-where-an-operator-actually-meets-them-t.ipd.md",
+    "plan_id": "wqq8ua",
+    "set_id": "stopdisc",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md",
     "plan_id": "yaxr4i",
     "set_id": "ttyflags",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-wtisoptr-01-2iye0e-retire-the-stale-wtiso-ownership-claims-so-five-pointers-and.ipd.md",
+    "plan_id": "2iye0e",
+    "set_id": "wtisoptr",
     "status": "to-review"
   },
   {

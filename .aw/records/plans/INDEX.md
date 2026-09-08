@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 264 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 268 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -19,6 +19,7 @@ Showing the 40 most-recent of 264 Sets; the full manifest is INDEX.json.
 ## awinbox
 
 - `lznpv6` [pending] 01 pending/20260908-awinbox-01-lznpv6-add-aw-adopt-to-file-a-raw-inbox-drop-into-a-typed-records-t.ipd.md
+- `9iiqmm` [pending] 02 pending/20260908-awinbox-02-9iiqmm-count-waiting-aw-inbox-drops-in-aw-attention-by-listing-the.ipd.md
 
 ## bklgkind
 
@@ -79,6 +80,10 @@ Showing the 40 most-recent of 264 Sets; the full manifest is INDEX.json.
 ## idcapture
 
 - `76w6mq` [pending] 01 pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md
+
+## instdiff
+
+- `at61gc` [pending] 01 pending/20260908-instdiff-01-at61gc-show-generated-skill-members-in-aw-install-diff-so-the-previ.ipd.md
 
 ## integearn
 
@@ -194,10 +199,6 @@ Showing the 40 most-recent of 264 Sets; the full manifest is INDEX.json.
 ## specfresh
 
 - `wenmg4` [pending] 01 pending/20260908-specfresh-01-wenmg4-re-measure-spec-25kzda-s-infrastructure-paragraph-and-stop-i.ipd.md
-
-## ttyflags
-
-- `yaxr4i` [pending] 01 pending/20260908-ttyflags-01-yaxr4i-make-the-presentation-override-flags-uniform-and-settle-the.ipd.md
 
 ## (singletons: no Set)
 
