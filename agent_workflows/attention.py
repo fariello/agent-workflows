@@ -443,6 +443,16 @@ _READINESS_SORT_RANK = {
         getattr(A, "READINESS_ORDER", ("go", "go-pending-approval", "no-go"))
     )
 }
+_RUN_SORT_RANK = {
+    name: i
+    for i, name in enumerate(
+        getattr(
+            A,
+            "RUN_SORT_ORDER",
+            ("running", "merging", "queued", "done", "blocked", "failed"),
+        )
+    )
+}
 
 # The sentinel for "this item has no value for the selected key". Sorting is done on a
 # `(absent_flag, value, default_tail...)` tuple, where `absent_flag` is 1 for a missing value, so
@@ -532,6 +542,7 @@ def _order_key(
     order_by: str,
     depths: Optional[Dict[str, int]],
     repo_root: Optional[Path] = None,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> Tuple:
     """The PRIMARY sort component for one item under ``order_by``.
 
@@ -541,6 +552,14 @@ def _order_key(
     UNPRIORITIZED rather than being defaulted to `medium`). Values are made directly comparable
     (ints/strs, never None), so no branch can raise a TypeError on a mixed comparison.
     """
+    if order_by in ("runs", "run"):
+        st = _item_run_status(it, run_map)
+        if st and st != "-":
+            rank = _RUN_SORT_RANK.get(st.lower())
+            if rank is not None:
+                return (_PRESENT, rank)
+            return (_PRESENT, len(_RUN_SORT_RANK))
+        return (_ABSENT, len(_RUN_SORT_RANK))
     if order_by == "priority":
         rank = _PRIORITY_SORT_RANK.get((it.priority or "").lower())
         # PRIORITY_ORDER is high-first, so its index is already the descending position.
@@ -629,6 +648,7 @@ def sort_items(
     items: Sequence[Item],
     order_by: str = A.ORDER_CLASS,
     repo_root: Optional[Path] = None,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> List[Item]:
     """Return ``items`` ordered by ``order_by``. Never filters: the result is a PERMUTATION.
 
@@ -641,7 +661,9 @@ def sort_items(
     rather than per comparison. Cycles are reported through `sort_items_with_notices`; this function
     keeps the plain signature for callers that only want the order.
     """
-    ordered, _notices = sort_items_with_notices(items, order_by, repo_root=repo_root)
+    ordered, _notices = sort_items_with_notices(
+        items, order_by, repo_root=repo_root, run_map=run_map
+    )
     return ordered
 
 
@@ -649,6 +671,7 @@ def sort_items_with_notices(
     items: Sequence[Item],
     order_by: str = A.ORDER_CLASS,
     repo_root: Optional[Path] = None,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> Tuple[List[Item], List[str]]:
     """`sort_items` plus any human-facing notices the ordering produced (E-08).
 
@@ -672,6 +695,21 @@ def sort_items_with_notices(
                 )
             )
 
+    if any(k in ("runs", "run") for k in keys) and run_map is None:
+        if repo_root is None:
+            try:
+                from agent_workflows.project_context import (
+                    is_project_dir,
+                    resolve_verb_repo_root,
+                )
+
+                cand = resolve_verb_repo_root(None)
+                if is_project_dir(cand):
+                    repo_root = cand
+            except Exception:
+                pass
+        run_map = get_active_runs_map(repo_root) if repo_root else {}
+
     notices: List[str] = []
     depths: Optional[Dict[str, int]] = None
     if "depth" in keys:
@@ -685,7 +723,7 @@ def sort_items_with_notices(
 
     def key(it: Item) -> Tuple:
         return (
-            tuple(_order_key(it, k, depths, repo_root) for k in keys),
+            tuple(_order_key(it, k, depths, repo_root, run_map) for k in keys),
             A.ATTENTION_CLASS_ORDER.index(it.attention_class),
             it.path,
             it.id,
@@ -1202,6 +1240,35 @@ def parse_readiness_filters(raw_readiness: Sequence[str] | None) -> set[str]:
     return result
 
 
+_RUN_STATUS_ALIASES = {
+    "executed": "done",
+    "reviewed": "done",
+    "substantially-complete": "done",
+    "completed": "done",
+    "failed-safely": "failed",
+    "interrupted": "failed",
+    "dependency-blocked": "blocked",
+    "integration-blocked": "blocked",
+    "merge-conflict": "blocked",
+}
+
+
+def parse_run_status_filters(raw_run_statuses: Sequence[str] | None) -> set[str]:
+    """Parse run status filter arguments, normalizing hyphens, underscores, and synonyms."""
+    tokens = parse_filter_tokens(raw_run_statuses)
+    result: set[str] = set()
+    for t in tokens:
+        result.add(t)
+        if "_" in t:
+            result.add(t.replace("_", "-"))
+        elif "-" in t:
+            result.add(t.replace("-", "_"))
+        t_norm = t.replace("_", "-")
+        if t_norm in _RUN_STATUS_ALIASES:
+            result.add(_RUN_STATUS_ALIASES[t_norm])
+    return result
+
+
 def matches_status(it: Item, status_filters: set[str]) -> bool:
     """Return True if item matches any of the given status filters."""
     if not status_filters:
@@ -1293,6 +1360,27 @@ def matches_readiness(it: Item, readiness_filters: set[str]) -> bool:
         if tok_norm in (r, r_norm):
             return True
     return False
+
+
+def matches_run_status(
+    it: Item, run_status_filters: set[str], run_map: Optional[Dict[str, str]]
+) -> bool:
+    """Return True if item matches any of the given run status filters."""
+    if not run_status_filters:
+        return True
+    st = _item_run_status(it, run_map)
+    st = (st or "").lower()
+    has_run = bool(st and st != "-")
+    if not has_run:
+        return bool(run_status_filters & {"-", "none", "no", "false"})
+    if "any" in run_status_filters:
+        return True
+    candidates = {
+        st,
+        st.replace("_", "-"),
+        st.replace("-", "_"),
+    }
+    return bool(candidates & run_status_filters)
 
 
 def _colorize_tree_segment(term: T.Term, path: str, tree: str) -> str:
@@ -1588,6 +1676,17 @@ def _extract_identity_parts(it: Item) -> Tuple[str, str, str]:
     set_id = raw_stem if raw_stem else "-"
     id6 = it.id if it.id else "-"
     return date, set_id, id6
+
+
+def _item_run_status(it: Item, run_map: Optional[Dict[str, str]]) -> Optional[str]:
+    """Look up an item's run status in run_map using id, id6 stem, path, or filename."""
+    if not run_map:
+        return None
+    _, _, it_id6 = _extract_identity_parts(it)
+    for cand in (it.id, it_id6, it.path, Path(it.path).name):
+        if cand and cand in run_map:
+            return run_map[cand]
+    return None
 
 
 def _color_dep_id(dep: str, target: Optional[Item], term: T.Term, colored: bool) -> str:
@@ -2100,13 +2199,7 @@ def render_table(
     lines.append(term.colorize(header, "bold") if colored else header)
 
     for it in visible:
-        run_st = None
-        if runs_mode:
-            _, _, it_id6 = _extract_identity_parts(it)
-            for cand in (it.id, it_id6, it.path, Path(it.path).name):
-                if cand and cand in run_map:
-                    run_st = run_map[cand]
-                    break
+        run_st = _item_run_status(it, run_map) if runs_mode else None
         lines.append(
             _render_table_row(
                 it,
@@ -2211,13 +2304,7 @@ def render_board(
             visible = list(items)
 
         for it in visible:
-            run_st = None
-            if runs_mode and run_map:
-                _, _, it_id6 = _extract_identity_parts(it)
-                for cand in (it.id, it_id6, it.path, Path(it.path).name):
-                    if cand and cand in run_map:
-                        run_st = run_map[cand]
-                        break
+            run_st = _item_run_status(it, run_map) if runs_mode else None
             lines.append(
                 _render_item_row(
                     it,
@@ -2266,13 +2353,7 @@ def render_board(
             lines.append(f"## {header_title}")
 
         for it in group:
-            run_st = None
-            if runs_mode and run_map:
-                _, _, it_id6 = _extract_identity_parts(it)
-                for cand in (it.id, it_id6, it.path, Path(it.path).name):
-                    if cand and cand in run_map:
-                        run_st = run_map[cand]
-                        break
+            run_st = _item_run_status(it, run_map) if runs_mode else None
             lines.append(
                 _render_item_row(
                     it,
@@ -2508,6 +2589,26 @@ def run(args) -> int:
         ):
             items = [it for it in items if it.attention_class not in (A.DONE, A.PARKED)]
 
+    run_status_filters = parse_run_status_filters(getattr(args, "run_status", None))
+    has_terminal_run_status = any(
+        s in ("done", "failed", "completed", "executed", "any")
+        for s in run_status_filters
+    )
+    if has_terminal_run_status:
+        has_terminal_status = True
+
+    order_keys = [k.strip() for k in order_by.split(",") if k.strip()]
+    runs_in_order = any(k in ("runs", "run") for k in order_keys)
+    runs_arg = getattr(args, "runs", False)
+    runs_needed = bool(runs_arg) or bool(run_status_filters) or runs_in_order
+
+    run_map = get_active_runs_map(repo_root) if (runs_needed and repo_root) else {}
+
+    if run_status_filters:
+        items = [
+            it for it in items if matches_run_status(it, run_status_filters, run_map)
+        ]
+
     if (
         any(
             (
@@ -2516,6 +2617,7 @@ def run(args) -> int:
                 blocking_filters,
                 readiness_filters,
                 open_questions_filter,
+                run_status_filters,
             )
         )
         and drift
@@ -2529,7 +2631,7 @@ def run(args) -> int:
     # for `-o class` this is a no-op re-sort of an already-sorted list and the output is unchanged.
     if order_by != A.ORDER_CLASS:
         items, order_notices = sort_items_with_notices(
-            items, order_by, repo_root=repo_root
+            items, order_by, repo_root=repo_root, run_map=run_map
         )
 
     fmt = getattr(args, "format", None)
@@ -2640,8 +2742,7 @@ def run(args) -> int:
             getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
         )
         details = getattr(args, "details", False)
-        runs_arg = getattr(args, "runs", False)
-        run_map = get_active_runs_map(repo_root) if (runs_arg and repo_root) else {}
+        runs_mode = runs_needed
 
         if not colored:
             if is_explicit_order(order_by):
@@ -2655,7 +2756,7 @@ def run(args) -> int:
                     legend=False,
                     repo_root=repo_root,
                     order_by=order_by,
-                    runs_mode=bool(runs_arg),
+                    runs_mode=runs_mode,
                     run_map=run_map,
                 )
             else:
@@ -2677,7 +2778,7 @@ def run(args) -> int:
                     legend=False,
                     repo_root=repo_root,
                     order_by=order_by,
-                    runs_mode=bool(runs_arg),
+                    runs_mode=runs_mode,
                     run_map=run_map,
                 )
                 if blockers:
@@ -2695,13 +2796,7 @@ def run(args) -> int:
                     # Render each blocker in the SAME compact columnar form as active/ready/blocked
                     # (not a raw absolute path), so the section reads consistently with the board.
                     for it in blockers:
-                        run_st = None
-                        if runs_arg and run_map:
-                            _, _, it_id6 = _extract_identity_parts(it)
-                            for cand in (it.id, it_id6, it.path, Path(it.path).name):
-                                if cand and cand in run_map:
-                                    run_st = run_map[cand]
-                                    break
+                        run_st = _item_run_status(it, run_map) if runs_mode else None
                         board += (
                             _render_item_row(
                                 it,
@@ -2710,7 +2805,7 @@ def run(args) -> int:
                                 colored,
                                 long,
                                 details=details,
-                                runs_mode=bool(runs_arg),
+                                runs_mode=runs_mode,
                                 run_state=run_st,
                             )
                             + "\n"
@@ -2727,7 +2822,7 @@ def run(args) -> int:
                 repo_root=repo_root,
                 order_by=order_by,
                 id_map=all_items_by_id,
-                runs_mode=bool(runs_arg),
+                runs_mode=runs_mode,
                 run_map=run_map,
             )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the

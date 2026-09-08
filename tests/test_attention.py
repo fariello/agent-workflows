@@ -1839,6 +1839,110 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         args_runs = parser.parse_args(["att", "--runs"])
         self.assertTrue(getattr(args_runs, "runs", False))
 
+    def test_cli_run_status_argument(self):
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args_default = parser.parse_args(["att"])
+        self.assertEqual(getattr(args_default, "run_status", None), [])
+
+        args_one = parser.parse_args(["att", "--run-status", "running"])
+        self.assertEqual(args_one.run_status, ["running"])
+
+        args_alias = parser.parse_args(["att", "--runs-status", "done"])
+        self.assertEqual(args_alias.run_status, ["done"])
+
+        args_multi = parser.parse_args(
+            ["att", "--run-status", "running,queued", "--runs-status", "blocked"]
+        )
+        self.assertEqual(args_multi.run_status, ["running,queued", "blocked"])
+
+    def test_parse_run_status_filters_and_matches_run_status(self):
+        filters = att.parse_run_status_filters(
+            ["running,queued", "dependency-blocked", "failed_safely"]
+        )
+        self.assertIn("running", filters)
+        self.assertIn("queued", filters)
+        self.assertIn("dependency-blocked", filters)
+        self.assertIn("blocked", filters)
+        self.assertIn("failed-safely", filters)
+        self.assertIn("failed_safely", filters)
+        self.assertIn("failed", filters)
+
+        run_map = {
+            "run001": "running",
+            "done01": "done",
+            "blk001": "blocked",
+        }
+        it_running = att.Item(
+            "run001", "p/run001.md", "plans", "draft", A.READY, None, None
+        )
+        it_done = att.Item(
+            "done01", "p/done01.md", "plans", "draft", A.READY, None, None
+        )
+        it_none = att.Item(
+            "none01", "p/none01.md", "plans", "draft", A.READY, None, None
+        )
+
+        self.assertTrue(att.matches_run_status(it_running, {"running"}, run_map))
+        self.assertFalse(att.matches_run_status(it_done, {"running"}, run_map))
+        self.assertTrue(att.matches_run_status(it_done, {"done"}, run_map))
+
+        # "any" matches any active run item, but not items without run
+        self.assertTrue(att.matches_run_status(it_running, {"any"}, run_map))
+        self.assertFalse(att.matches_run_status(it_none, {"any"}, run_map))
+
+        # "-" or "none" matches items without active run
+        self.assertTrue(att.matches_run_status(it_none, {"-"}, run_map))
+        self.assertTrue(att.matches_run_status(it_none, {"none"}, run_map))
+        self.assertFalse(att.matches_run_status(it_running, {"-"}, run_map))
+
+    def test_run_status_filtering_in_att_run(self):
+        it_run = att.Item(
+            "run001", "p/run001.md", "plans", "draft", A.READY, None, None
+        )
+        it_que = att.Item(
+            "que002", "p/que002.md", "plans", "draft", A.READY, None, None
+        )
+        it_other = att.Item(
+            "oth003", "p/oth003.md", "plans", "draft", A.READY, None, None
+        )
+
+        run_map = {"run001": "running", "que002": "queued"}
+        with mock.patch.object(
+            att, "scan", return_value=([it_run, it_que, it_other], [])
+        ), mock.patch.object(att, "get_active_runs_map", return_value=run_map):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                args = argparse.Namespace(
+                    dir=None,
+                    check=False,
+                    format=None,
+                    order_by=A.ORDER_CLASS,
+                    agent=False,
+                    json=False,
+                    no_color=True,
+                    all=True,
+                    types=[],
+                    status=[],
+                    priority=[],
+                    blocking=[],
+                    readiness=[],
+                    open_questions=False,
+                    run_status=["running"],
+                    runs=False,
+                    selectors=[],
+                    long=False,
+                    details=False,
+                )
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            self.assertIn("run001", out)
+            self.assertNotIn("que002", out)
+            self.assertNotIn("oth003", out)
+            self.assertIn("[run: running]", out)
+
 
 if __name__ == "__main__":
     unittest.main()

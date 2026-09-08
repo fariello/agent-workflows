@@ -3472,6 +3472,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Show live runner session status for items in active runs.",
     )
     p_attention.add_argument(
+        "--run-status",
+        "--runs-status",
+        dest="run_status",
+        action="append",
+        default=[],
+        help="Filter by live runner session status (e.g. running, queued, merging, done, blocked, failed, -). Supports multiple flags or comma-separated lists.",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],

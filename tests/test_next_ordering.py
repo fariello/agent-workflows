@@ -1046,6 +1046,60 @@ class NewAttributeOrderTests(unittest.TestCase):
                 got = [it.id for it in att.sort_items(items, key, repo_root=root)]
                 self.assertEqual(got, ["real01", "miss01"])
 
+    def test_runs_and_run_order_and_absent_last(self):
+        items = [
+            _item("fail01", "p/fail.md"),
+            _item("run001", "p/run.md"),
+            _item("none01", "p/none.md"),
+            _item("done01", "p/done.md"),
+            _item("que001", "p/que.md"),
+            _item("merg01", "p/merg.md"),
+            _item("blk001", "p/blk.md"),
+        ]
+        run_map = {
+            "run001": "running",
+            "merg01": "merging",
+            "que001": "queued",
+            "done01": "done",
+            "blk001": "blocked",
+            "fail01": "failed",
+        }
+        expected = [
+            "run001",
+            "merg01",
+            "que001",
+            "done01",
+            "blk001",
+            "fail01",
+            "none01",
+        ]
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "runs", run_map=run_map)],
+            expected,
+        )
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "run", run_map=run_map)],
+            expected,
+        )
+
+    def test_runs_multi_attribute_order(self):
+        items = [
+            _item("r_low", "p/r_low.md", priority="low"),
+            _item("r_high", "p/r_high.md", priority="high"),
+            _item("q_med", "p/q_med.md", priority="medium"),
+            _item("q_high", "p/q_high.md", priority="high"),
+        ]
+        run_map = {
+            "r_low": "running",
+            "r_high": "running",
+            "q_med": "queued",
+            "q_high": "queued",
+        }
+        self.assertEqual(
+            [it.id for it in att.sort_items(items, "runs,priority", run_map=run_map)],
+            ["r_high", "r_low", "q_high", "q_med"],
+        )
+
 
 class TableSortPreservationTests(unittest.TestCase):
     """TTY table render_table preserves user-specified ordering when order_by != class."""

@@ -101,6 +101,8 @@ ORDER_KEYS: Tuple[str, ...] = (
     "rqs",  # resolved questions count (descending)
     "ctime",  # filesystem creation time (newest first)
     "mtime",  # filesystem modification time (newest first)
+    "runs",  # runner session status: running > merging > queued > done > blocked > failed
+    "run",  # alias for runs
 )
 
 # The priority ranks used by `-o priority`. DERIVED from one shared vocabulary rather than forked:
@@ -108,6 +110,14 @@ ORDER_KEYS: Tuple[str, ...] = (
 # the rank into DESCENDING sort position (high first) without introducing a second rank table.
 PRIORITY_ORDER: Tuple[str, ...] = ("high", "medium", "low")
 READINESS_ORDER: Tuple[str, ...] = ("go", "go-pending-approval", "no-go")
+RUN_SORT_ORDER: Tuple[str, ...] = (
+    "running",
+    "merging",
+    "queued",
+    "done",
+    "blocked",
+    "failed",
+)
 
 
 # --------------------------------------------------------------------------------------
