@@ -36,6 +36,7 @@ from __future__ import annotations
 import ast
 import inspect
 import unittest
+from functools import cache
 from pathlib import Path
 
 from agent_workflows import ipd_lifecycle, lane_containment, wtiso_gate
@@ -118,6 +119,7 @@ SET_RULES: dict[str, tuple[str, ...]] = {
 CONSUMERS = ("oc_runipd.py", "agy_runipd.py", "lane_containment.py", "wtiso_gate.py")
 
 
+@cache
 def top_level_definitions(path: Path) -> dict[str, int]:
     """Every name DEFINED at module top level in `path`, mapped to its line number.
 

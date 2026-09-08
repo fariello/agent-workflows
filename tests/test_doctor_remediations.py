@@ -362,8 +362,12 @@ class DoctorPypiProbeTests(unittest.TestCase):
 
     def test_env_evidence_carries_pypi_facts_for_machine_consumers(self) -> None:
         # Fact parity: the --agent/--json payload must expose the same facts the human
-        # renderer prints, including the not-checked case.
-        result = doctor.inspect_repo(self.repo_root)
+        # renderer prints, including the not-checked case. The assertion concerns the
+        # result envelope, so use an empty repository rather than scanning this source tree.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            result = doctor.inspect_repo(Path(tmp_dir))
         env = next(e for e in result.evidence if e.key == "env")
         self.assertIn("pypi_checked", env.value)
         self.assertIn("pypi_latest", env.value)
