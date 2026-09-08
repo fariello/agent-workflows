@@ -1746,6 +1746,8 @@ def _render_table_row(
     date_raw = date[:8]
     if colored and date_raw == "-":
         date_styled = term.color256("-", 244)
+    elif colored:
+        date_styled = term.color256(date_raw, code, bold=True)
     else:
         date_styled = date_raw
     date_pad = " " * (8 - len(date_raw))
@@ -1754,6 +1756,10 @@ def _render_table_row(
     set_val = it.path if long else set_id
     if colored and long:
         set_styled = _colorize_tree_segment(term, it.path, it.tree)
+    elif colored and set_val == "-":
+        set_styled = term.color256("-", 244)
+    elif colored:
+        set_styled = term.color256(set_val, code, bold=True)
     else:
         set_styled = set_val
     set_pad = " " * max(0, set_w - len(set_val))
@@ -1762,6 +1768,8 @@ def _render_table_row(
     id6_raw = id6[:6]
     if colored and id6_raw == "-":
         id6_styled = term.color256("-", 244)
+    elif colored:
+        id6_styled = term.color256(id6_raw, code, bold=True)
     else:
         id6_styled = id6_raw
     id6_pad = " " * (6 - len(id6_raw))

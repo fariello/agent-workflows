@@ -870,6 +870,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         term = att.T.Term(color=True)
         colored_out = att.render_board(items, [], show_all=True, term=term)
         stripped = re.sub(r"\033\[[0-9;]*m", "", colored_out)
+        # Date, SetID, and ID6 receive the Status color
+        self.assertIn("\033[1;38;5;40m20260903\033[0m", colored_out)
+        self.assertIn("\033[1;38;5;40mrunnerlayer\033[0m", colored_out)
+        self.assertIn("\033[1;38;5;40mcnwy8g\033[0m", colored_out)
 
         # Plain output
         plain_out = att.render_table(
