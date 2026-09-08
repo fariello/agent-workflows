@@ -2,9 +2,10 @@
 
 - Subject-Id: ki6tom
 - Subject-Type: ipd
-- Reviewed-At: 2026-09-05
+- Reviewed-At: 2026-09-07
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
-- Verdict: APPROVE WITH REVISIONS APPLIED
+- Verdict: REVIEWED - OPEN QUESTIONS
+- Readiness: no-go
 
 ## Round 1
 
@@ -60,3 +61,71 @@ the four named spellings are live violations.
 | D-2 | Should the review flip agy's verification or permission posture itself, or otherwise act on the safety question the withdrawn E-02 raised? | NO. Preserve every shipped default; the review changes only the PLAN. | Treating the `True` default as a real defect worth escalating to the maintainer as a new blocking question. Rejected on evidence: it is already decided, with a dated maintainer ruling, a normative spec requirement, a code comment, and a guard test - so raising it again would be re-litigating a settled call and would waste the maintainer's time on a question the repository answers. If someone later wants it changed, R4.1c already prescribes the route (own decision, own evidence the deadlock is gone, explicit supersession). | `7ckptx:92-99` (Non-goal 7 + ruling), `:277-283` (R4.1c and its supersession route); `tests/test_lane_permission_posture.py:315-351`; plan-review memory kernel item 5 (never guess a human decision) | yes |
 | D-3 | E-06 must decide whether the prohibited-spelling removal belongs in the shared `runner_shared` registry or stays a per-host parser edit. Should the review decide it now? | NO. Require the EXECUTOR to decide and record it, and add the candidate path to the fence so either answer is legal. | Deciding it here. Rejected because the answer depends on facts best established at the executing HEAD (whether the prohibition can be expressed in `RunPolicyFlag`'s existing fields without distorting them, and whether `register_run_policy_flags` is even reached by the aliases in question), and because prescribing the shared-registry shape without having attempted it would risk sending the executor into a refactor of a module 11 other pending plans touch. Recording the DECISION is mandatory; making it is the executor's. | `runner_shared.py:1242`, `:1381`, `:102-112`; measured 11 pending plans declaring the runner modules; plan-review rubric C (use existing canonical mechanisms) balanced against F. KISS | yes |
 | D-4 | Readiness: the plan carries `no-go`. Should the review change it, given the verdict is APPROVE WITH REVISIONS APPLIED? | NO. Keep `no-go`. | Upgrading to `go-pending-approval`. Rejected: OQ-01 is `Blocking: yes` and genuinely unresolved (it needs a maintainer reading of an approved spec's intent plus a safety-posture call), and the workflow's readiness rules make any open question a NO-GO regardless of verdict. The plan is correct to gate itself. | plan-review readiness definitions (NO-GO on any open question); plan OQ-01 `Blocking: yes`, `Status: open`, `Owner: maintainer` | yes |
+
+## Round 2
+
+Full re-review at HEAD `7ef72b72`. Structural preflight `aw ipd lint --phase author` conformed before
+semantic review; `--phase review-finalize` conformed after the revisions; `--phase pre-execution`
+correctly REFUSES on the new blocking OQ-02.
+
+METHOD. I re-parsed the REAL parsers over all four subparsers rather than trusting round 1's table, and
+I re-read the spec section the plan quotes rather than the plan's quotation of it. The second of those
+is what found the finding; the first only confirmed the plan's measurements were still accurate.
+
+THE PLAN IS NO LONGER WRONG ABOUT THE CODE. IT IS WRONG ABOUT THE CONTRACT. Every parser fact it states
+still holds at HEAD: `--no-verify`, `--no-audit` and `--no-validate` parse on oc `start` and oc
+`resume`; `--no-verify`, `--no-audit` and `--dangerous` parse on agy `start`; agy `resume` rejects all
+three; `--skip-audit` is rejected everywhere. Round 1's corrections were right and remain right. What
+changed is the spec: the sentence the plan exists to enforce was DELETED on 2026-09-06 at `844d195c`,
+on the maintainer's own 2026-09-05 ruling, and spec `:162` now records that `--dangerous` "is REMOVED
+from this prohibition and `7ckptx` R4.1c is the controlling authority on host permission posture".
+
+THE TIMING MATTERS AND EXONERATES ROUND 1. `844d195c` is an ancestor of HEAD but NOT of `d4c677c5`, the
+HEAD round 1 measured at, and it landed roughly eleven hours after that review. So round 1 did not miss
+this; it could not have seen it. This plan is a casualty of the very correction its own OQ-01 later
+argued for.
+
+WHY THIS IS A BLOCKER AND NOT A TRIM. The plan's remaining items are now wrong in DIRECTION, not in
+degree. E-02, E-03 and E-05 would each remove a flag the spec permits; E-01 would encode a deleted
+prohibition into a contract test that then fails forever against a conformant tree; E-05 would rewrite
+a shipped PASSING test into asserting the opposite of what the spec now says, which is the hardest kind
+of error to unwind. E-03 is the sharpest case: it would delete agy's only per-model verification
+control, which the plan's own OQ-01 Part One ruled must not be deleted before a replacement exists, and
+I measured that the replacement is NOT in place. `f2mrsw` did ship the per-profile `validate` tri-state
+and its precedence chain (`runner_profiles.py:1004-1017`), but the value is DEAD in both drivers:
+`resolve_launch_profile` passes no `validate=` argument and `ResolvedLaunch.validate` has no reader in
+either runner. The plan that would have wired it, `mn3gwr`, was RETIRED UNRUN as superseded, and the
+`hostdefault` Set that replaced it (`tm2cz8` approved, `ybkmzp` to-review) is unexecuted. So OQ-01's
+"hold E-04 until `kgpptv` and `f2mrsw` land" names the wrong successors as well.
+
+AND THERE IS NOTHING LEFT TO FIX. The one prohibition that survived is `--skip-audit` plus the GIT sense
+of `--no-verify`. `--skip-audit` is rejected on all four subparsers and greps to zero in both runner
+modules, which round 1's own F-10 already established. The GIT sense is enforced by the commit gateway
+rather than by a parser (`git_commit_helper.py:9`, `:365`, `:484`; `commit_lock.py:175`). So the plan
+has ZERO live violations remaining, and that is why the disposition is a maintainer decision rather than
+a narrower edit.
+
+I ALSO CHECKED WHETHER THE PLAN'S AUDIT MISSED A SITE, and it did, harmlessly: `agy_run.py:286`
+registers `--no-verify`/`--skip-verify`/`--no-audit`/`--skip-audit`. That module is `aw agy exec`, a
+separate single-target verb, and spec 2.1 governs `run` only, so the exclusion is correct. It is now
+recorded rather than left looking like an omission, since it is the only place `--skip-audit` is
+registered anywhere in the package.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-201 | BLOCKER | OVER-SCOPE | A. Correctness; G. Executability; honest documentation | `844d195c` (2026-09-06 09:19); spec `:161`, `:162`; `git merge-base --is-ancestor 844d195c d4c677c5` -> false, `... HEAD` -> true | **THE PROHIBITION THE PLAN ENFORCES WAS DELETED FROM THE SPEC, SO EVERY REMAINING ITEM IS WRONG IN DIRECTION.** The sentence quoted in the Concern was removed on the maintainer's 2026-09-05 ruling for three recorded reasons (external-model provenance, contradiction with approved `7ckptx` R4.1c, conflation of the git and runner senses of `--no-verify`). What survives at `:161` is only `--skip-audit` plus the GIT hook-bypass sense, and `:162` states `--dangerous` is REMOVED from the prohibition. Consequently E-02, E-03 and E-05 would each DELETE A FLAG THE SPEC PERMITS; E-01 would assert a prohibition the spec no longer makes and fail permanently against a conformant tree; and E-05 would convert a shipped passing test into encoding the deleted rule. E-03 is worst: it deletes agy's only per-model verification control, which OQ-01 Part One itself forbids before a replacement exists, and the replacement is measurably absent (the `f2mrsw` tri-state is dead in both drivers; `mn3gwr` was retired unrun; the `hostdefault` Set is unexecuted). The surviving prohibition needs no work at all (`--skip-audit` rejected on all four subparsers, git sense enforced by the commit gateway), so the plan has ZERO live violations | C:Low; U:Low; S:Medium; F:High; Overall:High | OPEN | NOT FIXABLE BY EDITING THE PLAN: the target no longer exists, and choosing between retiring it, re-pointing it at backlog `behjg6`'s spec correction, or narrowing it to a regression guard is a scope and release-priority decision. Escalated as OQ-02 with `- Blocking: yes` and `- Finding: PR-201`, owner maintainer, three costed options and a recommendation. Every E-item and V-item marked SUSPENDED in place with the reason; gate opens with DO NOT EXECUTE; Concern, Scope, Scope check, spec-sync and the honesty rule all corrected; F-13 and F-15 added |
+| PR-202 | HIGH | IN-SCOPE | A. Correctness (internal contradiction) | plan OQ-01 Part Two; backlog `behjg6`; `844d195c` predates the OQ-01 annotation by one day | **THE PLAN ALREADY CONTAINS THE FINDING THAT VOIDS IT AND DRAWS THE OPPOSITE CONCLUSION.** OQ-01 Part Two records the maintainer ruling that "THE SPEC IS WRONG TO FORBID THESE FLAGS" and files backlog `behjg6` to correct 2.1, then concludes "WHAT THIS PLAN MAY STILL DO, UNCHANGED. E-02's alias-only removal of the `--dangerous` SPELLING stands". That does not follow from its own premise: if the prohibition is wrong and being withdrawn, removing a spelling BECAUSE it is prohibited is removing it for a reason that no longer holds. The resolution was also written on 2026-09-07, the day AFTER the sentence was actually deleted, yet describes the correction as still pending rather than already landed, so the plan is one step behind its own record | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | F-14 records the contradiction and the one-day lag; E-02's suspension note states explicitly that its entire remaining rationale was "the spelling is prohibited while the capability is required" and that the first half is now false; OQ-02 supersedes OQ-01's "what this plan may still do" conclusion |
+| PR-203 | MEDIUM | IN-SCOPE | A. Correctness (stale successor graph) | `runner_profiles.py:112`, `:1004-1017`; `oc_runipd.py:2683-2691`; `mn3gwr` retirement header; `tm2cz8` / `ybkmzp` front matter | **OQ-01's DEFERRAL SEQUENCING NAMES THE WRONG SUCCESSORS, so E-04 would wait on the wrong event.** It defers E-04 "until `kgpptv` AND `f2mrsw` land". Measured: `f2mrsw` is already EXECUTED and its tri-state ships, but the value is DEAD IN BOTH DRIVERS (no `validate=` passed into `resolve()`, no reader of `ResolvedLaunch.validate`), so landing it changed nothing observable. The plan that would have wired it (`mn3gwr`) was RETIRED UNRUN as superseded, and the work now belongs to the `hostdefault` Set (`tm2cz8` approved, `ybkmzp` to-review, both `Blocks-Release: next`). `kgpptv` is approved and unexecuted. So the real gate for "verification becomes configuration" is the `hostdefault` Set, which OQ-01 does not mention | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | E-04's suspension note records the measured state of the tri-state, names `mn3gwr`'s unrun retirement and the `hostdefault` Set as the actual owner, and states that the flag E-04 was replacing is no longer forbidden anyway; E-03's note carries the same measurement as the reason not to delete the control |
+| PR-204 | LOW | UNDER-SCOPE | E. Testing (audit completeness) | `agy_run.py:9-11`, `:286`; `aw agy --help` | A FIFTH REGISTRATION SITE WAS NEVER MENTIONED. `agy_run.py:286` registers `--no-verify`/`--skip-verify`/`--no-audit`/`--skip-audit`, and it is the ONLY place `--skip-audit` is registered in the package. It is correctly out of scope, because that module is `aw agy exec`, a separate single-target verb, and spec 2.1 governs the `run` surface; but an audit that enumerates "four subparsers" without naming the fifth site looks incomplete, and a later reader checking `--skip-audit` by grep will find it there and doubt the plan | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-16 records the site, why it is excluded, and the `aw agy --help` evidence that `exec` is a distinct verb |
+| PR-205 | LOW | IN-SCOPE | Evidence accuracy | measured: agy `:4723-4730`, `:4737-4743`, `:2799`; oc `:7601-7607`, `:7672-7678`, `:8029-8030`; `tests/test_run_flag_surface.py:94-133` | EVERY LINE NUMBER HAS DRIFTED AGAIN, by roughly 330 lines in agy and 400 in oc since round 1, which is the second consecutive review at which this plan's citations were stale. Also recorded: `tests/test_run_flag_surface.py:94-133` still justifies its scoping by citing "the `--no-verify`/`--skip-audit`/`--dangerous` group that `:140` states does NOT exist on `run`", so a shipped test's stated rationale now describes a deleted sentence. The test passes and its scoping is still correct; only the reason is stale | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | E-06's note carries the re-measured numbers and states that following its own instruction is what found PR-201; the stale test comment is recorded in the spec-sync section as belonging with `behjg6` rather than with this plan, since that file is not in `Scope-Paths` |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | The plan's premise is void. Issue `REJECT - NEEDS REPLAN`, or `REVIEWED - OPEN QUESTIONS` with a blocking escalation? | `REVIEWED - OPEN QUESTIONS` with OQ-02 blocking. The review's job is to establish the facts and hand the human a decision, not to decide a plan's fate | `REJECT - NEEDS REPLAN`, rejected because REPLAN means "the approach is unsound and unrepairable with bounded edits", which presumes the work should still be done in some other shape. Here the work should probably NOT be done at all, and whether to retire, re-point, or narrow is a release-priority call the workflow forbids me to guess. Issuing REPLAN would also imply a replacement plan is wanted, which is exactly option (b) and only one of three | plan-review 2.4 (REPLAN scope) and memory kernel item 5 (never guess a human decision); the plan carries `Blocks-Release: next`, so retiring it has release consequences | yes |
+| D-6 | Should I retire the plan myself to `not-executed/`, given the evidence is unambiguous? | NO. Report and escalate; change only the PLAN's text | Moving it with `aw ipd set not-executed` / a retirement header, rejected on two grounds: `/plan-review` is explicitly forbidden from doing anything but reviewing and revising the plan, and the plan carries `- Blocks-Release: next`, so retiring it silently drops a release gate whose remaining work now lives in backlog `behjg6`. If the maintainer picks option (a), the retirement should also confirm `behjg6` inherits the gate | plan-review scope ("Review planning documents only"); plan `- Blocks-Release: next`; `behjg6` `- Blocks-Release: next` already set | no |
+| D-7 | Is E-02's alias removal salvageable independently, since round 1 hardened it specifically? | NO, and this is the finding PR-202 turns on. Its stated rationale was "a prohibited NAME for a required capability"; with the prohibition gone only "a required capability" remains, which argues for KEEPING the alias | Keeping E-02 as a tidiness edit, rejected: removing a working alias of an operationally required flag breaks operator muscle memory for no stated benefit, and the spec now names `7ckptx` R4.1c as controlling on this flag's posture. If the maintainer still wants the alias gone, that is a deliberate UX decision to state, not a conformance fix | spec `:162`; `7ckptx` R4.1c; plan OQ-01 Part Two's own premise | yes |
+| D-8 | Round 1's four hardening findings (PR-101..PR-105) are now moot. Strike them from the record? | NO. Leave Round 1 intact and let Round 2 supersede it. The gate reads only the CURRENT round | Editing Round 1's findings to mark them moot, rejected: the reviews tree's own README states rounds are appended and the last is current, and Round 1 was CORRECT at `d4c677c5`. Rewriting it would erase the evidence that the plan was overtaken by a later change rather than badly reviewed | `.aw/records/reviews/README.md` ("Rounds"); `git merge-base` timing evidence | yes |
