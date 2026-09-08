@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -311,6 +312,47 @@ class CompleteQueryArtifactTests(_DynamicRepoFixture):
     def test_run_id_from_runs_dir(self) -> None:
         got = completion.complete_query(["aw", "runs", "run-"], 2, self.root)
         self.assertIn("run-20260829T000000Z-1", got)
+
+    def test_run_id_candidates_excludes_analytics_and_non_run_dirs(self) -> None:
+        rec = self.root / ".aw" / "records"
+        (rec / "runs" / "analytics" / "snapshots" / "run-snapshot").mkdir(parents=True)
+        (rec / "runs" / "analytics").mkdir(parents=True, exist_ok=True)
+        (rec / "runs" / "not-a-run").mkdir(parents=True, exist_ok=True)
+        got = completion.run_id_candidates(self.root)
+        self.assertIn("run-20260829T000000Z-1", got)
+        self.assertNotIn("analytics", got)
+        self.assertNotIn("not-a-run", got)
+        self.assertNotIn("run-snapshot", got)
+
+    def test_run_id_candidates_relocated_records_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as alt_tmp:
+            alt_root = Path(alt_tmp)
+            (alt_root / ".aw" / "config").mkdir(parents=True)
+            companion_dir = alt_root / "custom_companion"
+            custom_runs = companion_dir / "records" / "runs"
+            (custom_runs / "run-20260901T120000Z-9").mkdir(parents=True)
+            (custom_runs / "analytics").mkdir(parents=True)
+            (alt_root / ".aw" / "config" / "project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_id": "testproj",
+                        "records_backend": "companion",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (alt_root / ".aw" / "config" / "local.json").write_text(
+                json.dumps(
+                    {
+                        "companion_dir": str(companion_dir),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            got = completion.run_id_candidates(alt_root)
+            self.assertIn("run-20260901T120000Z-9", got)
+            self.assertNotIn("analytics", got)
 
     def test_run_noun_completes_its_writer_leaves_not_targets(self) -> None:
         """E-08 decision: the WRITING noun still completes, but completes its own real surface.

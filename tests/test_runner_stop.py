@@ -383,7 +383,8 @@ class PathResolutionTests(unittest.TestCase):
                 Path("/repo"), "run-7", state_root=driver.state_root
             )
             self.assertEqual(
-                resolved, Path("/repo/.aw/records/runs/run-7/stop-request.json")
+                resolved,
+                driver.state_root(Path("/repo")) / "run-7" / "stop-request.json",
             )
 
     def test_module_constructs_no_state_root_of_its_own(self):

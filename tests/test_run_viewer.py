@@ -2118,3 +2118,116 @@ class RunsRepairHelpTests(TestCase):
         )
         details = run_viewer.render_step_details([st], term)
         self.assertTrue(any("elapsed: 00:19:27" in d for d in details))
+
+
+class AnalyticsIsolationTests(TestCase):
+    """Analytics isolation and reservation tests (runanalytics Order 01, `xbwq8n`).
+
+    Validates E-02 / V-02:
+      1. discover_run_dirs rejects reserved analytics trees and nested analytics snapshots.
+      2. resolve_target_runs (and resolve_target_runs_detailed) given the explicit path of
+         `analytics/snapshots/run-*` returns empty and reports the unresolvable target.
+      3. Explicit file targets (state.json, events.jsonl, execution-report.md) inside analytics
+         are also rejected.
+      4. Canonical, .aw/runs, and .agents/runs execution runs are returned in unchanged order.
+      5. format_unresolvable_target_message includes actionable diagnostic naming the reserved analytics tree.
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+
+        # Real runs in canonical root
+        self.runs_dir = self.root / ".aw" / "records" / "runs"
+        self.runs_dir.mkdir(parents=True)
+        self.run_1 = self.runs_dir / "run-20260901T000000Z-1"
+        self.run_1.mkdir()
+        (self.run_1 / "state.json").write_text(
+            json.dumps({"run_id": self.run_1.name, "setid": "realset1"}),
+            encoding="utf-8",
+        )
+        self.run_2 = self.runs_dir / "run-20260902T000000Z-2"
+        self.run_2.mkdir()
+        (self.run_2 / "state.json").write_text(
+            json.dumps({"run_id": self.run_2.name, "setid": "realset2"}),
+            encoding="utf-8",
+        )
+
+        # Analytics tree with nested snapshot runs
+        self.analytics_dir = self.runs_dir / "analytics"
+        self.snap_run = self.analytics_dir / "snapshots" / "run-20260903T000000Z-9"
+        self.snap_run.mkdir(parents=True)
+        (self.snap_run / "state.json").write_text(
+            json.dumps({"run_id": self.snap_run.name, "setid": "analyticsset"}),
+            encoding="utf-8",
+        )
+        (self.snap_run / "events.jsonl").write_text("{}", encoding="utf-8")
+        (self.snap_run / "execution-report.md").write_text("# Report", encoding="utf-8")
+
+        # Legacy runs
+        self.legacy_aw = self.root / ".aw" / "runs" / "run-20260904T000000Z-3"
+        self.legacy_aw.mkdir(parents=True)
+        (self.legacy_aw / "state.json").write_text(
+            json.dumps({"run_id": self.legacy_aw.name}),
+            encoding="utf-8",
+        )
+
+        self.legacy_agents = self.root / ".agents" / "runs" / "run-20260905T000000Z-4"
+        self.legacy_agents.mkdir(parents=True)
+        (self.legacy_agents / "state.json").write_text(
+            json.dumps({"run_id": self.legacy_agents.name}),
+            encoding="utf-8",
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_discover_run_dirs_excludes_analytics_and_nested_snapshots(self):
+        found = run_viewer.discover_run_dirs(self.root)
+        found_names = [p.name for p in found]
+        self.assertIn("run-20260901T000000Z-1", found_names)
+        self.assertIn("run-20260902T000000Z-2", found_names)
+        self.assertIn("run-20260904T000000Z-3", found_names)
+        self.assertIn("run-20260905T000000Z-4", found_names)
+        self.assertNotIn("run-20260903T000000Z-9", found_names)
+        self.assertNotIn("analytics", found_names)
+
+    def test_discover_run_dirs_preserves_order_across_roots(self):
+        found = run_viewer.discover_run_dirs(self.root)
+        expected = [self.run_1, self.run_2, self.legacy_aw, self.legacy_agents]
+        self.assertEqual(found, expected)
+
+    def test_resolve_target_runs_refuses_explicit_analytics_directory_target(self):
+        # Target explicitly by path to the snapshot directory (where the measured leak was)
+        resolved = run_viewer.resolve_target_runs([str(self.snap_run)], self.root)
+        self.assertEqual(resolved, [])
+
+        # Detailed resolution reports it as unresolved
+        resolved_dirs, unresolved = run_viewer.resolve_target_runs_detailed(
+            [str(self.snap_run)], self.root
+        )
+        self.assertEqual(resolved_dirs, [])
+        self.assertEqual(unresolved, [str(self.snap_run)])
+
+    def test_resolve_target_runs_refuses_explicit_analytics_file_targets(self):
+        for fname in ("state.json", "events.jsonl", "execution-report.md"):
+            file_target = self.snap_run / fname
+            resolved = run_viewer.resolve_target_runs([str(file_target)], self.root)
+            self.assertEqual(
+                resolved,
+                [],
+                f"File target {fname} inside analytics must not resolve to a run",
+            )
+            resolved_dirs, unresolved = run_viewer.resolve_target_runs_detailed(
+                [str(file_target)], self.root
+            )
+            self.assertEqual(resolved_dirs, [])
+            self.assertEqual(unresolved, [str(file_target)])
+
+    def test_format_unresolvable_target_message_names_reserved_analytics_tree(self):
+        msg = run_viewer.format_unresolvable_target_message(
+            [str(self.snap_run)], repo_root=self.root
+        )
+        self.assertIn("error: no run matched target", msg)
+        self.assertIn("reserved analytics tree", msg)
+        self.assertIn("analytics artifacts cannot be targeted as execution runs", msg)

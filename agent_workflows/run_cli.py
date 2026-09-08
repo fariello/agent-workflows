@@ -42,6 +42,7 @@ from typing import Any, Dict, List, Optional, Union
 from agent_workflows import run_engine, run_recovery, run_state
 from agent_workflows import run_evidence as evidence
 from agent_workflows import run_ledger_store as store
+from agent_workflows.runner_shared import path_is_within_analytics, state_root
 
 # ---- exit-code table (awoptimize Order 07 E-03) --------------------------------------------------
 # Distinct nonzero codes let a caller/CI distinguish outcome classes. Kept small and consistent:
@@ -245,21 +246,24 @@ def resolve_ledger_path(
         return None
 
     path_obj = Path(target)
+    root = Path(repo_root).resolve() if repo_root else Path.cwd().resolve()
+    if path_is_within_analytics(path_obj, root):
+        return None
+
     if path_obj.is_file():
         return path_obj.resolve()
 
-    root = Path(repo_root) if repo_root else Path.cwd()
     candidates = [
         path_obj,
         root / target,
         root / f"{target}.jsonl",
         root / ".aw" / "state" / "runs" / target / store.LEDGER_FILENAME,
-        root / ".aw" / "records" / "runs" / target / store.LEDGER_FILENAME,
+        state_root(root) / target / store.LEDGER_FILENAME,
         root / ".aw" / "state" / "runs" / target,
         root / ".aw" / "runs" / target / store.LEDGER_FILENAME,
     ]
     for c in candidates:
-        if c.is_file():
+        if c.is_file() and not path_is_within_analytics(c, root):
             return c.resolve()
 
     return None

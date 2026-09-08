@@ -5075,8 +5075,7 @@ def _apply_execution_profile(
     plan = build_sandbox_plan(
         lane_worktree=lane_root,
         lane_scratch=lane_scratch,
-        control_root=state.get("control_root")
-        or (repo_root / ".aw" / "records" / "runs"),
+        control_root=state.get("control_root") or state_root(repo_root),
         main_worktree=repo_root,
         sibling_lane_roots=sibling_lanes,
         git_common_dir=_git_common_dir(repo_root),
