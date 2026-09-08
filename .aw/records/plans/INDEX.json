@@ -4867,7 +4867,7 @@
     "path": "pending/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md",
     "plan_id": "r2i1b1",
     "set_id": "orchprobe",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-07",
@@ -4877,7 +4877,7 @@
     "path": "pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md",
     "plan_id": "8tgg6g",
     "set_id": "orchprobe",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-07",
