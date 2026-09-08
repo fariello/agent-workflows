@@ -8,6 +8,20 @@
 #     clean without re-mutating the migrated tree).
 # SAFETY hooks (gitleaks, large-file check, local-leaks) still apply everywhere, including these
 # paths, so secrets or oversized blobs cannot slip in.
+# Hook TYPES installed by `pre-commit install` (integpath 29wvmj, OQ-03 option (b)). `pre-commit` alone
+# is not enough: git runs `pre-merge-commit`, NOT `pre-commit`, for an AUTOMATED merge, so before this
+# key every automated merge that carried a plan into `executed/` bypassed the executed-transition gate
+# entirely. NOTE this changes what a FRESH install does and cannot retrofit an EXISTING clone: one hook
+# script is written per installed type, so a clone set up before this change has only
+# `.git/hooks/pre-commit` and must re-run `pre-commit install` to gain the new stage (see CONTRIBUTING).
+default_install_hook_types: [pre-commit, pre-merge-commit]
+
+# `default_stages` is PINNED to pre-commit deliberately. It otherwise defaults to ALL stages, so merely
+# installing the second hook type above would ALSO run every content-MUTATING hook (ruff --fix,
+# whitespace/eof fixers) during an automated merge, rewriting a merge result mid-merge. Only the
+# executed-transition gate opts into `pre-merge-commit`, via its own explicit `stages:` below.
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -50,14 +64,24 @@ repos:
       # (hand-edited `- Status: executed` or `git mv` into executed/ then a raw `git commit`, which
       # bypasses `aw ipd finalize`'s receipt/scope/attribution gates). Inspects the staged diff and,
       # for each plan gaining executed status / moved into executed/, requires matching finalize
-      # evidence in .aw/state/. Best-effort/local only (skippable with --no-verify); the deterministic
-      # backstop is the local proclint detector via `aw check`/`aw doctor`. No CI enforcement.
+      # evidence in .aw/state/ OR, during a MERGE, an incoming-side `lifecycle(<id6>): finalize` commit
+      # (integpath 29wvmj: the journal lives under gitignored .aw/state/, so it cannot travel with a
+      # lane branch and every integration of a genuinely finalized lane used to be refused).
+      # Best-effort/local only (skippable with --no-verify); the deterministic backstop is the local
+      # proclint detector via `aw check`/`aw doctor`. No CI enforcement.
+      #
+      # THE ONLY hook registered for `pre-merge-commit` as well as `pre-commit`, because that is the
+      # stage git runs for an AUTOMATED merge; without it an automated merge carrying a plan into
+      # executed/ is not gated at all. Honest limit: `pre-merge-commit` does NOT run for a
+      # fast-forward merge (no commit is created) or on the conflicted-then-resolved path (git runs
+      # prepare-commit-msg/commit-msg, and the final `git commit` there is covered by `pre-commit`).
       - id: ipd-executed-transition-gate
         name: no raw plan->executed commit (use aw ipd finalize)
         entry: python3 -m agent_workflows ipd-executed-gate
         language: system
         pass_filenames: false
         always_run: true
+        stages: [pre-commit, pre-merge-commit]
 
       # proclint 79li67: LOCAL prevention of a raw (untooled) INTERMEDIATE plan status change - the
       # sibling of the dulzpy terminal gate above. Inspects the staged diff and, for each plan whose
