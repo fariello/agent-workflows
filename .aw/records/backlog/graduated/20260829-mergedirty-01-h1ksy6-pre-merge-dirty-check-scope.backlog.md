@@ -1,5 +1,5 @@
 - Id: h1ksy6
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: mergedirty
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: driver pre-merge dirty check scopes to the lane's changed files, so a non-ff merge touching other paths reports a confusing merge-conflict instead of integration-blocked
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan fujm0y (to-review), which carries From-Backlog: h1ksy6 and inherits Blocks-Release: next.
 - 2026-09-02 open (aw set): Gate retargeted: owner 2c122z was retired to superseded/ in 70b5338a (wtiso Set retirement), so the artifact gate pointed at a plan that will never land. The defect is still real and now UNOWNED: dirty_tree_overlap remains in main in two copies (oc_runipd.py:1923, agy_runipd.py:1156) and lanectn did not inherit this fix. Reopening so it is actionable rather than blocked forever.
 - 2026-08-29 created (aw backlog): driver pre-merge dirty check scopes to the lane's changed files, so a non-ff merge touching other paths reports a confusing merge-conflict instead of integration-blocked
 
