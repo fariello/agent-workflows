@@ -1711,19 +1711,13 @@ def _build_parser() -> argparse.ArgumentParser:
     run_sub = p_run.add_subparsers(dest="run_command")
     #: The nine READ-ONLY leaves that live under `aw runs` (0soncw E-03). Everything else in the leaf
     #: table below stays under `aw run`.
-    _RUNS_VIEWER_LEAVES = frozenset(
-        {
-            "show",
-            "status",
-            "list",
-            "next",
-            "resume",
-            "decisions",
-            "questions",
-            "evidence",
-            "verify-ledger",
-        }
-    )
+    #:
+    #: READ FROM ONE PLACE (runsverify 7wei1o E-02): the unresolvable-target refusal names these
+    #: leaves as the suggestion set, so a second hardcoded copy would let the message and the
+    #: registration drift into disagreeing about what is actually registered.
+    from agent_workflows.run_viewer import RUNS_VIEWER_LEAF_NAMES as _RUNS_LEAF_NAMES
+
+    _RUNS_VIEWER_LEAVES = frozenset(_RUNS_LEAF_NAMES)
     _run_leaf_specs = (
         (
             "show",
@@ -1992,6 +1986,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "  A first positional equal to a leaf name routes to that LEAF. To view a run or Set whose id\n"
         "  collides with a leaf name, force viewer interpretation with `--`:\n"
         "  aw runs -- status                # `status` is a TARGET here, not the leaf\n"
+        "\n"
+        "AN UNRESOLVABLE TARGET IS REFUSED (exit 2)\n"
+        "  A target that matches no run is an error naming the token, not an empty success: a near\n"
+        "  miss like `aw runs verify <run-id>` (the leaf is `verify-ledger`) would otherwise render an\n"
+        "  ordinary report having verified nothing. A bare `aw runs` in a repository with no runs is\n"
+        "  still exit 0: asking for everything and finding nothing is not a failed request.\n"
     )
     _RUNS_DESCRIPTION = (
         "Inspect driver execution runs under .aw/records/runs/ and display a unified "

@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -16,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
 from agent_workflows.render_stream import format_tokens
@@ -1092,18 +1094,88 @@ def discover_run_dirs(repo_root: Path = Path(".")) -> list[Path]:
     return found
 
 
-def resolve_target_runs(
+def _state_setids(run_dir: Path) -> set[str]:
+    """The Set ids a run's `state.json` actually declares, read from the setid FIELDS.
+
+    runsverify 7wei1o E-07. This replaces a raw substring test over the whole file
+    (``if f'"{t_str}"' in content``), which matched any quoted JSON KEY or VALUE anywhere and so
+    resolved ordinary tokens to nearly every run in the repository. Measured against 106 live run
+    records before the fix: ``status``, ``run``, ``opencode``, ``driver``, ``run_id`` and
+    ``options`` each resolved 106 of 106, ``clean`` 105, ``main`` 96, ``json`` 79, ``execute`` 53,
+    ``approved`` 46, ``verified`` 13. None of those is a Set id.
+
+    That over-matching is LOAD-BEARING for the unresolvable-target refusal, not cosmetic: a token
+    that "resolves" to every run is never unresolved, so it would be silently EXEMPTED from the
+    refusal and keep reporting success. Reading the field instead of the text is what makes the
+    refusal reachable.
+
+    Reads the same two places ``load_run_summary`` does, so the resolver and the renderer cannot
+    disagree about what a run's Set is: each queue item's ``setid``, plus the run-level
+    ``selectors`` (the Set ids the run was LAUNCHED with, which a queue emptied by dependency
+    blocking would otherwise lose).
+    """
+    s_file = run_dir / "state.json"
+    if not s_file.is_file():
+        return set()
+    try:
+        state = json.loads(s_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return set()
+    if not isinstance(state, dict):
+        return set()
+
+    found: set[str] = set()
+    queue = state.get("queue")
+    if isinstance(queue, list):
+        for item in queue:
+            if isinstance(item, dict):
+                setid = item.get("setid")
+                if isinstance(setid, str) and setid.strip():
+                    found.add(setid.strip())
+    for key in ("selectors", "setids"):
+        vals = state.get(key)
+        if isinstance(vals, list):
+            for v in vals:
+                if isinstance(v, str) and v.strip():
+                    found.add(v.strip())
+        elif isinstance(vals, str) and vals.strip():
+            found.add(vals.strip())
+    setid = state.get("setid")
+    if isinstance(setid, str) and setid.strip():
+        found.add(setid.strip())
+    return found
+
+
+def resolve_target_runs_detailed(
     targets: Sequence[str | Path] | None = None,
     repo_root: Path = Path("."),
-) -> list[Path]:
-    """Resolve user-specified targets (directories, run_ids, setids, or substrings) to concrete run directories."""
+) -> tuple[list[Path], list[str]]:
+    """Resolve targets to run directories AND report which requested tokens matched NOTHING.
+
+    runsverify 7wei1o E-01. Returns ``(resolved, unresolved)``:
+
+      * ``resolved``   - the union of matched run directories, in discovery order per token
+                         (exactly what ``resolve_target_runs`` returns).
+      * ``unresolved`` - the requested tokens that matched no run at all, in the order given.
+
+    WHY THIS FUNCTION EXISTS: the union alone cannot distinguish "you asked for nothing specific"
+    from "everything you asked for is missing", because both arrive at the caller as an empty (or
+    partial) list. That ambiguity is the whole defect: ``aw runs verify <run-id>`` dropped the
+    unmatched ``verify`` token, rendered the run, and exited 0, so an operator asking for an
+    integrity check got a normal-looking report. One function owns the answer so no caller
+    re-derives it and drifts.
+
+    A bare call (no tokens) returns ``(all_runs, [])``: asking for EVERYTHING and finding nothing
+    is a legitimate empty repository, not a failed request.
+    """
     all_runs = discover_run_dirs(repo_root)
 
     if not targets:
-        return all_runs
+        return all_runs, []
 
     resolved: list[Path] = []
     seen = set()
+    unresolved: list[str] = []
 
     for target in targets:
         t_str = str(target).strip()
@@ -1139,21 +1211,31 @@ def resolve_target_runs(
                 matched = True
 
         if not matched:
-            # Check if target matches a Set ID inside state.json
+            # Check if the target names a Set the run declares (setid FIELDS, not raw text).
             for run_p in all_runs:
-                s_file = run_p / "state.json"
-                if s_file.is_file():
-                    try:
-                        content = s_file.read_text(encoding="utf-8")
-                        if f'"{t_str}"' in content:
-                            canon = run_p.resolve()
-                            if canon not in seen:
-                                seen.add(canon)
-                                resolved.append(run_p)
-                    except (OSError, json.JSONDecodeError):
-                        pass
+                if t_str in _state_setids(run_p):
+                    canon = run_p.resolve()
+                    if canon not in seen:
+                        seen.add(canon)
+                        resolved.append(run_p)
+                    matched = True
 
-    return resolved
+        if not matched:
+            unresolved.append(t_str)
+
+    return resolved, unresolved
+
+
+def resolve_target_runs(
+    targets: Sequence[str | Path] | None = None,
+    repo_root: Path = Path("."),
+) -> list[Path]:
+    """Resolve user-specified targets (directories, run_ids, setids, or substrings) to concrete run directories.
+
+    The union only. A caller that must distinguish an UNRESOLVABLE token from an absent one (so it
+    can refuse instead of silently reporting success) wants ``resolve_target_runs_detailed``.
+    """
+    return resolve_target_runs_detailed(targets, repo_root)[0]
 
 
 def _clean_timestamp(ts: str | None) -> str:
@@ -2354,6 +2436,102 @@ LIMITATION WORTH KNOWING
   `interrupted`, which understates it. Tracked as backlog `ydbhfd`."""
 
 
+#: The nine READ-ONLY leaves registered under `aw runs`. Kept as ONE list so the refusal message
+#: below and `cli._RUNS_VIEWER_LEAVES` cannot drift into disagreeing about what is registered; the
+#: parser imports this rather than holding a second copy (runsverify 7wei1o E-02).
+RUNS_VIEWER_LEAF_NAMES: tuple[str, ...] = (
+    "decisions",
+    "evidence",
+    "list",
+    "next",
+    "questions",
+    "resume",
+    "show",
+    "status",
+    "verify-ledger",
+)
+
+#: Exit code for an unresolvable target. Reuses the SHIPPED invalid-invocation code
+#: (`run_cli.EXIT_INVALID_INVOCATION` == 2) rather than inventing one, so this refusal reads the
+#: same as the analogous `aw runs verify-ledger <absent>` refusal that already exits 2.
+EXIT_UNRESOLVABLE_TARGET: int = 2
+
+
+def format_unresolvable_target_message(unresolved: Sequence[str]) -> str:
+    """The human refusal text for one or more targets that matched no run.
+
+    runsverify 7wei1o E-02. Names the unresolved token (a bare exit code leaves the operator
+    guessing WHICH token was wrong, which matters most in the mixed case where the rest of the
+    request rendered fine), the registered leaves, and the closest leaf match when there is one.
+
+    The motivating case is a one-edit typo: `aw runs verify <run-id>` names no leaf, so `verify`
+    became a TARGET, resolved to nothing, was silently dropped, and the command rendered an
+    ordinary report at exit 0 while verifying nothing. The suggestion turns that into
+    `verify-ledger`.
+    """
+    import difflib
+
+    tokens = list(unresolved)
+    if len(tokens) == 1:
+        head = f"error: no run matched target {tokens[0]!r}"
+    else:
+        joined = ", ".join(repr(t) for t in tokens)
+        head = f"error: no run matched targets {joined}"
+
+    lines = [head]
+    for tok in tokens:
+        close = difflib.get_close_matches(tok, RUNS_VIEWER_LEAF_NAMES, n=1, cutoff=0.6)
+        if close:
+            lines.append(f"  did you mean the leaf `aw runs {close[0]}`? (not {tok!r})")
+    lines.append(f"  leaves: {' '.join(RUNS_VIEWER_LEAF_NAMES)}")
+    lines.append(
+        "  a TARGET is a run id, a run directory path, or a Set id; "
+        "force viewer interpretation of a leaf-like name with `aw runs -- <target>`"
+    )
+    return "\n".join(lines)
+
+
+def _unresolvable_target_refusal(
+    unresolved: Sequence[str],
+    term: Term,
+    *,
+    is_agent: bool = False,
+    is_json: bool = False,
+) -> int:
+    """Emit the unresolvable-target refusal in whichever renderer is active. Returns the exit code.
+
+    runsverify 7wei1o E-02. HONORED IN ALL THREE RENDERERS deliberately. The empty-state used to
+    have a MACHINE branch returning `{"runs": []}` at exit 0 BEFORE the human line, and the machine
+    branch is the one automation actually reads, so a refusal implemented only on the human path
+    would leave the fail-open exactly where it silently misleads a script.
+
+    The machine record is a conformant `aw.agent/v1` error record carrying the nonzero `exit`, not a
+    bare payload, because the conformance matrix asserts an agent summary's `exit` agrees with the
+    process return code.
+    """
+    message = format_unresolvable_target_message(unresolved)
+    if is_agent or is_json:
+        record = {
+            "schema": _agent_schema.SCHEMA_VERSION,
+            "kind": "error",
+            "cmd": "runs",
+            "outcome": "cannot-run",
+            "exit": EXIT_UNRESOLVABLE_TARGET,
+            "verified": False,
+            "complete": False,
+            "findings": len(list(unresolved)),
+            "unresolved_targets": list(unresolved),
+            "error": message,
+            "next": None,
+        }
+        _agent_schema.assert_valid_agent_record(record)
+        print(json.dumps(record, indent=2 if is_json else None, ensure_ascii=False))
+        return EXIT_UNRESOLVABLE_TARGET
+    # Human: to STDERR, so a refusal never lands in a report a caller is parsing on stdout.
+    print(message, file=sys.stderr)
+    return EXIT_UNRESOLVABLE_TARGET
+
+
 def repair_run(run_dir: Path, repo_root: Path = Path(".")) -> tuple[int, str]:
     """ssk6nf E-04: durably reconcile a run abandoned without a terminal status.
 
@@ -2420,14 +2598,25 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             print()
             print(REPAIR_HELP)
             return 2
+        # runsverify 7wei1o E-08: refuse an UNRESOLVABLE repair target instead of silently
+        # succeeding. When nothing resolved, the loop body below never ran, so `rc` stayed 0 and
+        # NOTHING was printed (measured: `aw runs repair totalgibberish` -> exit 0, zero bytes).
+        # That is strictly worse than the read path, because `repair` is the one MUTATING verb on
+        # this surface and the operator was told nothing at all. The adjacent missing-target case
+        # two lines above was already correct, so this closes an inconsistency inside one function.
+        repair_dirs, repair_unresolved = resolve_target_runs_detailed(
+            targets, repo_root
+        )
+        if repair_unresolved:
+            return _unresolvable_target_refusal(repair_unresolved, Term(color=None))
         rc = 0
-        for run_dir in resolve_target_runs(targets, repo_root):
+        for run_dir in repair_dirs:
             code, message = repair_run(run_dir, repo_root)
             print(message)
             rc = rc or code
         return rc
 
-    run_dirs = resolve_target_runs(raw_targets, repo_root)
+    run_dirs, unresolved_targets = resolve_target_runs_detailed(raw_targets, repo_root)
 
     # Filtering options
     set_filter = getattr(args, "set", None)
@@ -2494,6 +2683,30 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
                 term.line(err_msg)
             return 2
 
+    # runsverify 7wei1o E-02/E-04: REFUSE a target that resolved to nothing, rather than dropping it
+    # and rendering a plausible report at exit 0.
+    #
+    # The motivating case: `aw runs verify <run-id>` names no leaf, so `verify` was read as a TARGET,
+    # matched nothing, was discarded, and the command rendered the run's ordinary report and exited
+    # 0. An operator (or an agent following a recovery message, which is what seven shipped strings
+    # in `run_evidence.py` told them to run) reasonably concluded the ledger had been checked.
+    #
+    # THE MIXED CASE IS REFUSED TOO, deliberately, and it is the variant that matters most:
+    # `aw runs totalgibberish <real-run-id>` printed the real run at exit 0 with the bogus token
+    # silently dropped, so the output LOOKED like a complete answer to the question asked. A
+    # partially-honored request that looks complete is precisely the defect being removed, so a
+    # request is either honored in full or refused; it is never quietly narrowed.
+    #
+    # Placed AFTER the flag-conflict and `--since` validation so those existing refusals keep their
+    # own messages and precedence, and BEFORE any rendering so no partial report is ever emitted.
+    # A bare `aw runs` yields no unresolved tokens by construction, so an empty repository stays
+    # exit 0: asking for EVERYTHING and finding nothing is a healthy state, not a failed request
+    # (OQ-01).
+    if unresolved_targets:
+        return _unresolvable_target_refusal(
+            unresolved_targets, term, is_agent=is_agent, is_json=is_json
+        )
+
     summaries: list[RunSummary] = []
     for r_dir in run_dirs:
         summary = load_run_summary(r_dir, repo_root)
@@ -2535,6 +2748,10 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
         else:
             summaries = []
 
+    # The genuine EMPTY STATE, which stays a SUCCESS. Every token the caller named resolved to a run
+    # (an unresolvable one was refused above), so reaching here means a FILTER excluded what matched,
+    # or the repository simply has no runs. Neither is a failed request, so both keep exit 0
+    # (runsverify 7wei1o, OQ-01).
     if not summaries and not issues_only:
         if is_agent or is_json:
             print(json.dumps({"runs": []}, indent=2 if is_json else None))

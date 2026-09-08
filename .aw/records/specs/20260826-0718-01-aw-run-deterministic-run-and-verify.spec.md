@@ -45,8 +45,10 @@ shipped enforcer by symbol (for the IPD execution checks that is `ipd_lint` phas
 LIKEWISE, SEVERAL COMMANDS IN SECTION 2.1's GRAMMAR DO NOT EXIST as written (measured 2026-09-05):
 `--json` is registered on neither runner; `--resume <run-id>` ships as the POSITIONAL subcommand
 `run resume <run-id>`, not a flag; the spelling `aw runs verify <run-id>` names no leaf at all (the
-real leaf is `verify-ledger`, and a first token that matches no leaf is silently absorbed as a target,
-so `aw runs verify <run-id>` EXITS 0 having verified nothing - backlog `6kq1lj`); `aw <host> prompt`
+real leaf is `verify-ledger`; AMENDED 2026-09-08 by plan `7wei1o`: that spelling now REFUSES with exit
+2 and a message naming the unresolved token and suggesting `verify-ledger`. It previously absorbed a
+first token matching no leaf as a TARGET and, when that target resolved to nothing, dropped it and
+EXITED 0 having verified nothing - backlog `6kq1lj`); `aw <host> prompt`
 does not exist (the nearest shipped surface is
 `aw agy exec --prompt/--file`); and the interactive phrase `run unverifiable`, `--allow-unverifiable`
 and `--unverifiable-ok` all grep to zero. Six shipped operator-facing recovery strings in
