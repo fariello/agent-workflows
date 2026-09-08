@@ -180,8 +180,8 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 ## integpath
 
 - `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
-- `29wvmj` [pending] 01 pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
-- `6sb3yu` [pending] 02 pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
+- `29wvmj` [executed] 01 executed/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md
+- `6sb3yu` [executed] 02 executed/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md
 - `51vw4y` [pending] 03 pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md
 - `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
 - `3v7wo6` [pending] 05 pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md

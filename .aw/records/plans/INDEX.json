@@ -4253,6 +4253,16 @@
     "date": "2026-09-01",
     "disposition": "executed",
     "kind": "child",
+    "order": 2,
+    "path": "executed/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
+    "plan_id": "nna8yz",
+    "set_id": "lanectn",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
+    "kind": "child",
     "order": 3,
     "path": "executed/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md",
     "plan_id": "lhmrhx",
@@ -4460,6 +4470,26 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-05",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 6,
+    "path": "executed/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md",
+    "plan_id": "kgpptv",
+    "set_id": "runprofile",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-05",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md",
+    "plan_id": "8fhjjc",
+    "set_id": "skilldigest",
+    "status": "executed"
+  },
+  {
     "date": "2026-09-06",
     "disposition": "executed",
     "kind": "child",
@@ -4477,6 +4507,46 @@
     "path": "executed/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md",
     "plan_id": "03zubf",
     "set_id": "attorderfix",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
+    "plan_id": "tm2cz8",
+    "set_id": "hostdefault",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md",
+    "plan_id": "4r0qp1",
+    "set_id": "idxuntrack",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md",
+    "plan_id": "29wvmj",
+    "set_id": "integpath",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 2,
+    "path": "executed/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md",
+    "plan_id": "6sb3yu",
+    "set_id": "integpath",
     "status": "executed"
   },
   {
@@ -4524,9 +4594,39 @@
     "disposition": "executed",
     "kind": "child",
     "order": 1,
+    "path": "executed/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
+    "plan_id": "7wei1o",
+    "set_id": "runsverify",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md",
+    "plan_id": "h9cn0y",
+    "set_id": "scopeattr",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
     "path": "executed/20260906-streamfmt-01-mm6wuz-structured-live-event-stream-formatting-and-verbosity-tiers.ipd.md",
     "plan_id": "mm6wuz",
     "set_id": "streamfmt",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md",
+    "plan_id": "eqzd0h",
+    "set_id": "sysproto",
     "status": "executed"
   },
   {
@@ -4633,50 +4733,10 @@
     "date": "2026-09-01",
     "disposition": "pending",
     "kind": "child",
-    "order": 2,
-    "path": "pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md",
-    "plan_id": "nna8yz",
-    "set_id": "lanectn",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "child",
     "order": 5,
     "path": "pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md",
     "plan_id": "xdr83v",
     "set_id": "lanectn",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-05",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 6,
-    "path": "pending/20260905-runprofile-06-kgpptv-let-the-verifier-turn-resolve-its-own-profile.ipd.md",
-    "plan_id": "kgpptv",
-    "set_id": "runprofile",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-05",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260905-skilldigest-01-8fhjjc-remove-the-per-package-verify-digest-py-scripts-and-prove-th.ipd.md",
-    "plan_id": "8fhjjc",
-    "set_id": "skilldigest",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md",
-    "plan_id": "tm2cz8",
-    "set_id": "hostdefault",
     "status": "approved"
   },
   {
@@ -4688,16 +4748,6 @@
     "plan_id": "ybkmzp",
     "set_id": "hostdefault",
     "status": "to-review"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md",
-    "plan_id": "4r0qp1",
-    "set_id": "idxuntrack",
-    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4743,26 +4793,6 @@
     "date": "2026-09-06",
     "disposition": "pending",
     "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md",
-    "plan_id": "29wvmj",
-    "set_id": "integpath",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md",
-    "plan_id": "6sb3yu",
-    "set_id": "integpath",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
     "order": 3,
     "path": "pending/20260906-integpath-03-51vw4y-add-the-integration-deferral-ladder-so-transient-dirt-does-n.ipd.md",
     "plan_id": "51vw4y",
@@ -4778,36 +4808,6 @@
     "plan_id": "rl67b0",
     "set_id": "integpath",
     "status": "to-review"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md",
-    "plan_id": "7wei1o",
-    "set_id": "runsverify",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md",
-    "plan_id": "h9cn0y",
-    "set_id": "scopeattr",
-    "status": "approved"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md",
-    "plan_id": "eqzd0h",
-    "set_id": "sysproto",
-    "status": "approved"
   },
   {
     "date": "2026-09-07",
