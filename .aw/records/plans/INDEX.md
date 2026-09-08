@@ -2,7 +2,21 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 221 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
+
+## runanalytics
+
+- `5lxvl3` [pending] 00 pending/20260908-runanalytics-00-5lxvl3-run-analytics-telemetry-cache-spa-and-data-sharing-orchestra.ipd.md
+- `xbwq8n` [pending] 01 pending/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md
+- `bzz5e6` [pending] 02 pending/20260908-runanalytics-02-bzz5e6-privacy-safe-incremental-per-run-analytics-cache.ipd.md
+- `lhccjf` [pending] 03 pending/20260908-runanalytics-03-lhccjf-cross-host-resource-telemetry-schema-collector-and-sampling.ipd.md
+- `5f2h8i` [pending] 04 pending/20260908-runanalytics-04-5f2h8i-opencode-and-agy-runner-telemetry-lifecycle-integration.ipd.md
+- `8hald1` [pending] 05 pending/20260908-runanalytics-05-8hald1-normalized-run-ingestion-fact-schema-and-conservation-checks.ipd.md
+- `aflsz3` [pending] 06 pending/20260908-runanalytics-06-aflsz3-activity-taxonomy-effective-dated-pricing-statistics-and-fin.ipd.md
+- `6eq3oq` [pending] 07 pending/20260908-runanalytics-07-6eq3oq-self-contained-offline-analytics-spa-and-report-bundle.ipd.md
+- `mm5p3v` [pending] 08 pending/20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md
+- `ixis0c` [pending] 09 pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md
+- `9xycbh` [pending] 10 pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md
 
 ## depreview
 
@@ -200,15 +214,6 @@ Showing the 40 most-recent of 221 Sets; the full manifest is INDEX.json.
 
 - `iy5u3m` [executed] 01 executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md
 - `158ds3` [executed] 02 executed/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md
-
-## detrun
-
-- `r4mbcw` [superseded] 00 superseded/20260830-detrun-00-r4mbcw-deterministic-run-and-verify-with-enforced-cross-item-depend.ipd.md
-- `bmh754` [superseded] 01 superseded/20260830-detrun-01-bmh754-item-dependencies-syntax-parser-pure-graph-evaluator-and-pha.ipd.md
-- `a54m79` [superseded] 02 superseded/20260830-detrun-02-a54m79-per-host-capability-descriptor-probe-harness-and-fail-closed.ipd.md
-- `kaygwo` [superseded] 03 superseded/20260830-detrun-03-kaygwo-multi-type-selector-resolution-mixed-type-gate-and-dag-queue.ipd.md
-- `k7o7el` [superseded] 04 superseded/20260830-detrun-04-k7o7el-isolated-worktree-fault-containment-quarantine-transaction-a.ipd.md
-- `7f7782` [superseded] 05 superseded/20260830-detrun-05-7f7782-fresh-skeptical-verifier-session-tamper-evident-run-ledger-a.ipd.md
 
 ## (singletons: no Set)
 
