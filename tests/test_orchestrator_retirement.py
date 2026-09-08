@@ -872,7 +872,7 @@ class RealRepositorySets(unittest.TestCase):
         d = rs.evaluate_set_retirement(REPO_ROOT, "runprofile")
         self.assertFalse(d.eligible)
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
-        self.assertEqual(dict(d.unfinished), {"kgpptv": "reviewed"})
+        self.assertEqual(dict(d.unfinished), {"kgpptv": "approved"})
         m = rs.read_set_membership(REPO_ROOT, "runprofile")
         assert m.orchestrator is not None
         unauth, parsed = rs.find_unauthored_child_rows(
