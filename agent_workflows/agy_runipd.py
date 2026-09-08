@@ -1246,23 +1246,29 @@ def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
     of paths that are BOTH dirty in main AND part of the incoming change. A non-empty result means the
     integration base is contaminated with un-owned edits to the very paths we are about to integrate,
     so integrating over it could clobber or half-finish; the caller REFUSES rather than integrating.
+
+    lanectn Order 02 (`nna8yz`) E-05, spec R6.1, the MIRROR of the oc twin: the porcelain parsing that
+    was written out inline here is now `lane_containment.parse_porcelain_paths`. It was duplicated
+    verbatim across the two drivers, which R6.1 forbids even while the copies agree; the R5.4
+    clean-base guard consumes the same predicate rather than adding a third copy.
     """
     incoming = {p for p in changed_files if p.strip()}
     if not incoming:
         return []
     _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
-    dirty: set[str] = set()
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        entry = line[3:] if len(line) > 3 else line.strip()
-        if " -> " in entry:
-            orig, dest = entry.split(" -> ", 1)
-            dirty.add(orig.strip())
-            dirty.add(dest.strip())
-        else:
-            dirty.add(entry.strip())
-    return sorted(incoming & dirty)
+    return sorted(incoming & lane_containment.parse_porcelain_paths(out))
+
+
+def evaluate_clean_base_for_launch(repo: Path) -> lane_containment.CleanBaseResult:
+    """lanectn Order 02 (`nna8yz`) E-05, spec R5.4: is `repo` a complete base for an isolated turn?
+
+    The MIRROR of the oc twin, and deliberately as thin as it: it supplies the git invocation and the
+    `--untracked-files=no` scope, while the RULE lives once in `lane_containment.evaluate_clean_base`.
+    Re-deciding here what counts as dirty would fork the rule (spec R6.1) and let the two hosts drift
+    on a containment guarantee (CID-3).
+    """
+    _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
+    return lane_containment.evaluate_clean_base(out)
 
 
 def integrate_lane_branch(
@@ -3290,6 +3296,40 @@ def execute_item(
     isolate = state.get("options", {}).get("isolate_worktree", True)
     wt_handle = None
     work_dir: str | None = None
+
+    # lanectn Order 02 (`nna8yz`) E-05, spec R5.4/CID-3: the MIRROR of the oc twin's clean-base guard.
+    # Same shared RULE (`lane_containment.evaluate_clean_base`), same placement ahead of begin and lane
+    # allocation, same untracked exclusion. A containment rule present on one host only is a DEFECT
+    # (CID-3), which is why this is wired here rather than left to the oc driver.
+    if isolate and self_finalize and not is_review:
+        base = evaluate_clean_base_for_launch(repo)
+        if not base.clean:
+            attempt["ended_at"] = utc_now()
+            attempt["clean_base_refused"] = base.reason
+            attempt["clean_base_dirty_paths"] = list(base.dirty_paths)
+            attempt["disposition"] = "blocked"
+            item["status"] = "blocked"
+            item["clean_base_refusal"] = base.reason
+            save_state(run_dir, state)
+            append_jsonl(
+                run_dir / "events.jsonl",
+                {
+                    "at": utc_now(),
+                    "event": "clean-base-refused",
+                    "id6": item["id6"],
+                    "dirty_paths": list(base.dirty_paths),
+                    "detail": base.reason,
+                },
+            )
+            print(
+                pal(
+                    f"\u2717 IPD {seq:02d}/{total} {item['id6']} refused: {base.reason}",
+                    "red",
+                ),
+                file=sys.stderr,
+            )
+            return
+
     if self_finalize and not is_review:
         actor = driver_actor(state)
         # lanetruth Order 01 (af7i6p) E-04: verify ONCE per process that a pinned nested `aw`
