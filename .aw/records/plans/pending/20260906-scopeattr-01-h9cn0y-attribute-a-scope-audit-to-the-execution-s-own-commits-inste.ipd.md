@@ -20,6 +20,10 @@
 - From-Backlog: hyx1dg
 
 ## Workflow history
+- 2026-09-08 executed (opencode its_direct/pt3-claude-opus-5-1m-us): all five E-items performed, all five V-items verified with pasted evidence, `aw ipd lint --phase pre-transition` conforming, `aw sanitize --agent` clean. Bare suite delta EMPTY: 33 failed / 5624 passed BEFORE at lane HEAD `0aea0771`, 33 failed / 5640 passed AFTER, with byte-identical failure sets (+16 net new passing tests). The 33-failure baseline is environmental, not this plan's: the lane runs `AW_EXECUTION_ROLE=worker`, so lifecycle-CLI tests hit the deliberate `AW-LIFECYCLE-ROLE-001` refusal (D3).
+  ONE DELIBERATE DEVIATION FROM THE PLAN'S LITERAL E-02, flagged for the maintainer (D1). E-02 said to apply "the SAME `_working_tree_path_is_owned` positive-evidence test to the committed half". Applied literally that is a TAUTOLOGY, because the predicate's second clause is `if path in set(committed): return True`, so passing the committed half as its own evidence excuses EVERY committed path, which is the whole-class exclusion V-03 names as the outcome to REPORT rather than fake, and which makes E-04's own acceptance number (exactly TWO reasons, not ten) unsatisfiable. I followed E-04's number, kept the ONE predicate, and gave the committed half real evidence: COMMIT COHESION. A commit is one atomic act by one actor, so a commit that touched a DECLARED path is this execution's and every path in it is attributable to it; a commit touching no declared path is not. Measured against the real incident: today's rule demands TEN reasons, cohesion demands the TWO the plan names. No forbidden channel is used (no run record, no authorship, no lane-branch diff, no `isolated_baseline`), each asserted by a permanent test on docstring-stripped source.
+  THE FAIL-CLOSED CASE EARNED ITS EMPHASIS. My first implementation over-excluded and broke a PRE-EXISTING test (`FinalizeTests::test_p7dqwz_counterexample_refuses_out_of_scope_path`): reading "no cohesive paths" as "nothing is owned" excused the committed half whenever a plan had no anchored commit, which is exactly the population the gate exists for. Fixed with `CommittedAttribution(anchored, paths)`, which fails closed when cohesion knows nothing, and pinned in both directions (D5).
+  ALSO INVERTED, as instructed by its own docstring and by backlog `a8eufb`: `test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation` became `..._is_now_disregarded_gap_CLOSED`, keeping its same-identity measurement as proof the fix does not depend on authorship. So E-05's "eleven unchanged" is honestly TEN unchanged plus ONE deliberately inverted (D2). ACCEPTED COST stated at the site: cohesion is a heuristic, so an executor's own committed out-of-scope path escapes the requirement when it rides in a commit with no declared path; commit trailers (`a8eufb`) remain the real fix.
 - 2026-09-08 approved (aw set): status set to approved
 
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; PR-001..PR-009. Structural lint conformed at `--phase author` and `--phase review-finalize`. Reviewed at HEAD `4cbee5fa`. THE DIAGNOSIS IS RIGHT AND THE DEFECT IS REAL, but THREE of the plan's load-bearing premises were false, and each would have sent the executor at a mechanism that does not exist. (1) PR-001, the shape-changing one: the ISOLATED case already attributes correctly, so the authored E-01 solved a non-problem. `_repo_root` returns the WORKTREE by design (`ipd_lifecycle.py:424-438`) and the runner passes `finalize_repo = Path(work_dir)` (`oc_runipd.py:6441`), so an in-lane finalize already diffs inside the lane; MEASURED, `git diff --name-only 6091014c..HEAD` returns ELEVEN paths in `aw/lane/mm6wuz_attempt3` and FORTY-SEVEN in the main checkout. The incident's real trigger is that `mm6wuz` never reached the runner's finalize at all (`status: substantially-complete`, `integration_signal: "suite-failed"`, `verifier_ran: False`) and a human finalized BY HAND from main, where thirteen foreign commits legitimately sit in the range. E-01 is now a characterization test of behavior that already holds. (2) PR-002: the discriminator E-01 named is unavailable. `isolated_baseline` is a `begin`-only parameter read from `AW_ISOLATED_BASELINE` in `run_begin` (`:2797`); the receipt does not persist it (keys verified) and `finalize` never receives it. A lane-branch diff would also be unsafe post-integration, since `teardown_worktree` deletes the branch (`worktree_lease.py:701`). (3) PR-003: E-02's evidence source is unreachable. `last_outcome.commits[].sha` exists but lives under gitignored `.aw/records/runs/`, is ABSENT from a lane worktree (measured), and finalize gets no run id (`run_id` occurs only inside `retire_orchestrator`). (4) PR-004: git AUTHORSHIP cannot substitute, because every actor commits as the maintainer; measured identical `%an`/`%ae` on the other actors' `976409e3`/`798c5cb5`/`efc7a1a1` and on `mm6wuz`'s own `16847597`/`6d56930e`. That retires E-03's "name the responsible sha" requirement, which would have put a FABRICATED attribution claim in operator-facing text, and it means the achievable fix is the ownership PREDICATE with a stated cost, not exact attribution. (5) PR-005: the plan nowhere admitted that excluding the committed class ALSO stops demanding a reason for the executor's OWN out-of-scope commit; that cost is now stated in Scope, in E-02 as a required code comment, and in the gate. (6) PR-006: V-03's fail-closed case as authored was unsatisfiable by the same unimplementable test, so it now demands either a demonstrated refusal or an explicit report that the class was wholly excluded, forbidding a manufactured pass. Baseline re-measured bare: `1 failed, 5613 passed, 3 skipped, 2 xfailed`, the failure pre-existing and unrelated.
@@ -36,50 +40,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: attribute the committed half by ownership
 
-- [ ] E-01 FIRST, PIN THE PROPERTY THAT ALREADY HOLDS, so this plan cannot regress it and so the next reader does not re-derive the wrong diagnosis. Add a test asserting that an ISOLATED finalize's committed half contains ONLY the lane's own commits, and that this is true TODAY, before any change in E-02.
+- [x] E-01 FIRST, PIN THE PROPERTY THAT ALREADY HOLDS, so this plan cannot regress it and so the next reader does not re-derive the wrong diagnosis. Add a test asserting that an ISOLATED finalize's committed half contains ONLY the lane's own commits, and that this is true TODAY, before any change in E-02.
   WHY THIS IS A CHARACTERIZATION TEST AND NOT A FIX (review F-12). The authored plan proposed teaching finalize to diff against the lane branch. That work is UNNECESSARY: `_repo_root` resolves to the WORKTREE by design (`ipd_lifecycle.py:424-438`) and `oc_runipd.py:6441` hands `finalize_repo = Path(work_dir)` to an isolated finalize, so `git diff base..HEAD` already runs INSIDE the lane and already excludes every foreign commit. MEASURED in `aw/lane/mm6wuz_attempt3`: eleven paths in the lane versus forty-seven for the same command in the main checkout.
   DO NOT ADD A LANE-BRANCH DIFF, and do not consume `isolated_baseline` here. That flag is a `begin`-only parameter (`ipd_lifecycle.py:865`, `:912`) transported by `AW_ISOLATED_BASELINE` and read at `:2797` in `run_begin`; `finalize` NEVER receives it and the receipt does NOT persist it (verified: receipt keys are `actor, base_head, kind, plan_content_digest, plan_id, plan_path, pre_execution, requirement_digest, schema_version, scope_paths, timestamp`). So the discriminator the authored plan named is not available at finalize time at all. A lane-branch diff would ALSO be actively wrong after integration, because `teardown_worktree` deletes the lane branch (`worktree_lease.py:701`) and its own docstring records the commit then survives only as an unreferenced object.
   - Depends on: none
   - Expected outcome: a test pins that an isolated finalize's committed half is lane-local; it passes at HEAD before E-02; no lane-branch diff and no `isolated_baseline` consumption is introduced into finalize.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Extend the EXISTING ownership filter to the committed half rather than writing a second one, for the case that actually misfires: a finalize computing `base..HEAD` in a tree other actors also committed to. `_working_tree_path_is_owned` (`:1282-1302`) already answers "is this path attributable to THIS execution" from positive evidence: it matches the frozen `Scope-Paths`, or it appears in the other half, or it is an implicit lifecycle allowance.
+- [x] E-02 Extend the EXISTING ownership filter to the committed half rather than writing a second one, for the case that actually misfires: a finalize computing `base..HEAD` in a tree other actors also committed to. `_working_tree_path_is_owned` (`:1282-1302`) already answers "is this path attributable to THIS execution" from positive evidence: it matches the frozen `Scope-Paths`, or it appears in the other half, or it is an implicit lifecycle allowance.
   THE EVIDENCE YOU MUST NOT RELY ON (review F-13). The authored plan said to consume `last_outcome.commits[].sha`. That record EXISTS (verified in the `mm6wuz` run state, carrying `paths`, `sha`, `subject`) but is UNREACHABLE from finalize, and shipping the plan as authored would have sent the executor looking for a channel that is not there. Three independent reasons: it lives under `.aw/records/runs/`, which is GITIGNORED (`.aw/.gitignore:14`) and ABSENT from a lane worktree (measured: no such directory in `.aw/worktrees/mm6wuz_attempt3/.aw/records/`); `finalize` receives no run id on any surface (`run_id` appears in `ipd_lifecycle.py` only at `:1940`/`:2014`, both inside `retire_orchestrator`); and it is written to state at `oc_runipd.py:6382` in the same function that calls `driver_finalize` at `:6456`, so a hand or out-of-band finalize has no such record at all. DO NOT introduce a run-record dependency into the lifecycle gate.
   GIT AUTHORSHIP CANNOT DISCRIMINATE EITHER, so do not reach for it as a substitute (review F-14). MEASURED across the incident's commits: `976409e3`, `798c5cb5`, `efc7a1a1` (other actors) and `16847597`, `6d56930e` (`mm6wuz`'s own) ALL carry the identical author and committer identity. Every agent commits as the maintainer, so `%an`/`%ae` partitions nothing. This is why the FIX IS THE OWNERSHIP PREDICATE and not an authorship lookup, and it is also the honest reason commit trailers remain the better long-term substrate (see Deferred).
   SO THE MECHANISM IS: apply the SAME `_working_tree_path_is_owned` positive-evidence test to the committed half at the existing split. `_changed_path_sources` (`:1170`) ALREADY SPLITS THE HALVES, and `_paths_changed_by_this_execution` is documented as "kept as the UNION-returning surface so every existing caller (notably `check_engine.check_scope_drift`) is unaffected". Add the filter at the split; DO NOT change the union surface's shape, or `aw check`'s scope-drift rule changes behavior as a side effect.
   NAME THE COST HONESTLY IN A CODE COMMENT, because it is real and it is the reason V-03 exists. With no per-commit attribution channel available, the predicate cannot distinguish "another actor committed this" from "this execution committed this outside its fence"; both are unowned-by-`Scope-Paths` committed paths. Excluding the class therefore ALSO stops demanding a reason for an executor's own out-of-scope COMMIT, which is a genuine weakening and is exactly the trade the working-tree half already accepted and documented ("ACCEPTED COST (Order 01 OQ-01/F3)"). Record it in the same voice, at the site.
   - Depends on: E-01
   - Expected outcome: the committed half is filtered by the SAME predicate as the working-tree half; the union surface's shape is unchanged so `check_scope_drift` is unaffected; no second ownership predicate, no run-record read, and no authorship lookup exists; the accepted cost is stated in a comment at the site.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: keep the gate honest
 
-- [ ] E-03 KEEP THE GATE FAIL-CLOSED for a path the predicate cannot disclaim, and make what IS excluded VISIBLE. This item is what stops the plan from becoming a way to skip scope justification.
+- [x] E-03 KEEP THE GATE FAIL-CLOSED for a path the predicate cannot disclaim, and make what IS excluded VISIBLE. This item is what stops the plan from becoming a way to skip scope justification.
   A PATH THE PREDICATE DOES NOT CLEAR STILL REQUIRES A REASON. The ownership filter's existing discipline is the model and must be preserved exactly: it "only ever REMOVES paths from the out-of-scope set; it never adds any", and it removes only on POSITIVE evidence. Concretely, a committed path that MATCHES `Scope-Paths` is in scope as today, and a committed path the predicate clears is excluded; nothing else changes, and no path is newly ADDED to the out-of-scope set.
   RECORD THE EXCLUSION THE WAY THE WORKING-TREE HALF ALREADY DOES, reusing the existing channel rather than inventing one: `evidence["scope_audit"]["disregarded_unowned_paths"]` already exists (`:1447-1452`) and is already surfaced in the precheck message (`:1459-1465`). Extend that same key and message to cover committed exclusions so the audit trail stays in ONE place and `aw check` readers do not need a second shape.
   DO NOT PROMISE TO NAME THE RESPONSIBLE SHA (review F-14 retires that requirement). The authored plan required the refusal to say "committed by `<sha>`, which is not this execution's". Nothing available can substantiate the second clause: as E-02 records, every actor commits under the identical author identity, and there is no per-commit run attribution to read, so a message naming a sha and asserting it is not this execution's would be a FABRICATED attribution claim in operator-facing text. State the checkable fact instead: that the path is outside this plan's declared `Scope-Paths` and was disregarded as not attributable to this execution. Naming the sha becomes correct only once commit trailers exist (see Deferred).
   DO NOT SUPPRESS THE INTERVENING-COMMIT SIGNAL. `_intervening_commits_touching` (`:1211`) computes which IN-SCOPE paths an intervening commit touched, and that collision signal is a different and still-wanted fact: another agent editing a path this plan DECLARED is worth surfacing. Leave it intact.
   - Depends on: E-02
   - Expected outcome: a committed path the predicate does not clear still demands a reason; an excluded committed path is recorded in the EXISTING `disregarded_unowned_paths` key and surfaced in the message; no message asserts an attribution it cannot substantiate; the intervening-commit collision signal is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it
 
-- [ ] E-04 Test the ATTRIBUTION deterministically, in a throwaway repository with simulated actors. Assert: a committed path INSIDE `Scope-Paths` behaves exactly as today; a committed path outside it that the predicate clears is excluded and recorded; and the intervening-commit signal still fires for an in-scope path another actor touched.
+- [x] E-04 Test the ATTRIBUTION deterministically, in a throwaway repository with simulated actors. Assert: a committed path INSIDE `Scope-Paths` behaves exactly as today; a committed path outside it that the predicate clears is excluded and recorded; and the intervening-commit signal still fires for an in-scope path another actor touched.
   ASSERT THE FAIL-CLOSED DIRECTION EXPLICITLY, and construct it honestly. Since the predicate clears a committed path on the SAME positive evidence the working-tree half uses, the case that must still refuse is a committed path the predicate does NOT clear. Build one (for example a path that matches no `Scope-Paths` entry, is not an implicit allowance, and is absent from the other half only in the arrangement your implementation actually distinguishes) and assert finalize still demands a reason. If your implementation admits NO such case, say so plainly in the evidence rather than fabricating a passing assertion: that would mean E-02 excluded the whole class, which V-03 must then report as the real (and more serious) outcome.
   REPRODUCE THE MEASURED INCIDENT as a regression fixture, using its real shape: a plan whose genuine out-of-scope path is `CHANGELOG.md` plus one test file, with further paths committed by other actors between begin and finalize IN THE SAME TREE the finalize runs in (that is the hand-finalize/in-place shape, per the Concern's corrected trigger). Assert finalize demands exactly TWO reasons, not ten.
   DO NOT BUILD AN ISOLATED-LANE ATTRIBUTION FIXTURE for the fix; E-01 already pins the lane case as a characterization test of behavior that is correct today.
   - Depends on: E-03
   - Expected outcome: the three attribution cases plus the incident fixture pass; the fixture demands two reasons rather than ten; the fail-closed case is either demonstrated or its absence is reported as a finding.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 Prove NOTHING ELSE MOVED, because this change touches a gate several other surfaces read. Assert `check_engine.check_scope_drift` behaves identically before and after, since `_paths_changed_by_this_execution`'s union surface exists precisely to keep it unaffected. Assert the in-scope-unmodified (`--scope-ack`) direction is untouched. Assert a finalize with genuinely zero out-of-scope paths still completes without prompting.
+- [x] E-05 Prove NOTHING ELSE MOVED, because this change touches a gate several other surfaces read. Assert `check_engine.check_scope_drift` behaves identically before and after, since `_paths_changed_by_this_execution`'s union surface exists precisely to keep it unaffected. Assert the in-scope-unmodified (`--scope-ack`) direction is untouched. Assert a finalize with genuinely zero out-of-scope paths still completes without prompting.
   ASSERT THE ELEVEN EXISTING OWNERSHIP TESTS STILL PASS UNCHANGED. `tests/test_finalize_scope_ownership.py` collects ELEVEN tests (measured) and pins the WORKING-TREE half's behavior including its accepted regression (`test_own_UNCOMMITTED_out_of_scope_edit_is_now_disregarded_ACCEPTED_REGRESSION`). E-02 changes the sibling half through the SAME predicate, so any drift shows up here first; paste the file's own summary line, not only the whole-suite line.
   RUN THE SUITE BARE (`python3 -m pytest`) and state before/after counts. MEASURE YOUR OWN BEFORE-BASELINE: the suite is NOT green at HEAD. Re-measured in review at HEAD `4cbee5fa`: `1 failed, 5613 passed, 3 skipped, 2 xfailed in 72.91s`, the single failure being the pre-existing `tests/test_orchestrator_retirement.py::RealRepositorySets::test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows` (`{'kgpptv': 'approved'} != {'kgpptv': 'reviewed'}`, which asserts against a SIBLING PLAN's live status and will keep drifting as that plan moves). The criterion is that the AFTER failure set minus the BEFORE set is EMPTY, never an absolute count.
   VALIDATE IN THE REAL CHECKOUT for anything reading `.aw/records/runs/`, which is gitignored and ABSENT from a lane worktree. Note E-02 forbids introducing any such dependency, so if a NEW test of yours needs that directory, that is a signal you took the retired approach.
   - Depends on: E-04
   - Expected outcome: `check_scope_drift` unchanged, the `--scope-ack` direction unchanged, the eleven existing ownership tests unchanged, a clean finalize still clean; bare suite delta empty with counts stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -188,30 +192,212 @@ The finalize precheck message is operator-facing: it must state only what the co
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the new characterization test and its ACTUAL passing output, run at HEAD BEFORE the E-02 change, proving an isolated finalize's committed half is already lane-local. Paste the two contrasting measurements (`git diff --name-only <base>..HEAD` inside a lane versus in the main checkout) with their counts. THEN paste a negative proof: `grep -n "isolated_baseline" agent_workflows/ipd_lifecycle.py` showing no new occurrence inside any finalize function, and confirm in one sentence that no lane-branch diff was added and `base_head` is unchanged in value and meaning.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: The test is `IsolatedFinalizeCommittedHalfIsLaneLocalTests` in `tests/test_finalize_isolated_commit.py` (two methods). RUN AT HEAD `0aea0771` BEFORE ANY PRODUCTION EDIT, with `git status --short -- agent_workflows/` printing NOTHING at the time (pasted below as proof the production tree was untouched):
 
-- [ ] V-02 validates E-02
+    ```
+    $ git diff --stat
+     tests/test_finalize_isolated_commit.py | 183 +++++++++++++++++++++++++++++++++
+     1 file changed, 183 insertions(+)
+    $ git status --short -- agent_workflows/
+    (no output)
+    $ python3 -m pytest -o addopts="" tests/test_finalize_isolated_commit.py::IsolatedFinalizeCommittedHalfIsLaneLocalTests -v
+    tests/test_finalize_isolated_commit.py::IsolatedFinalizeCommittedHalfIsLaneLocalTests::test_isolated_committed_half_contains_only_the_lanes_own_commits PASSED [ 50%]
+    tests/test_finalize_isolated_commit.py::IsolatedFinalizeCommittedHalfIsLaneLocalTests::test_finalize_consumes_no_isolated_baseline_and_no_lane_branch_diff PASSED [100%]
+
+    ============================== 2 passed in 0.39s ===============================
+    ```
+
+    So the property HOLDS AT HEAD with zero production change, which is exactly what a characterization test must show. THE CONTRASTING MEASUREMENT, re-measured live in a throwaway repo with a real `git worktree` lane plus three foreign commits landed on main in the same window:
+
+    ```
+    git diff --name-only 87259835..HEAD  INSIDE THE LANE : 2 paths -> ['agent_workflows/demo.py', 'tests/test_demo.py']
+    git diff --name-only 87259835..HEAD  IN MAIN CHECKOUT: 3 paths -> ['agent_workflows/other1.py', 'agent_workflows/other3.py', 'tests/test_other2.py']
+    overlap: set()
+    lane audit out_of_scope: [] disregarded: []
+    ```
+
+    The two halves are DISJOINT: the lane sees only its own commits and the main checkout sees only the foreign ones, which is the 11-versus-47 shape the plan measured on the real incident, reproduced deterministically. NEGATIVE PROOF, every `isolated_baseline` occurrence attributed to its enclosing function by AST rather than by eye:
+
+    ```
+    $ grep -n "isolated_baseline" agent_workflows/ipd_lifecycle.py   # 12 hits, all pre-existing
+    line 867: _baseline_ambiguity      line 914: begin      line 1040: begin
+    line 878: _baseline_ambiguity      line 933: begin      line 1044: begin
+    line 881: _baseline_ambiguity      line 946: begin      line 1058: begin
+    line 896: _baseline_ambiguity                          line 2974: run_begin
+                                                           line 3002: run_begin
+    ```
+
+    NO occurrence lies inside `finalize`, `finalize_precheck`, `_changed_path_sources`, `_working_tree_path_is_owned`, or the new cohesion helper; the count is unchanged from HEAD. Machine-checked too: stripping docstrings and comments and searching the executable code of all four finalize-path functions reports `forbidden_present=[]` for `isolated_baseline` and `aw/lane/` alike, and that check is now a permanent test (`test_finalize_consumes_no_isolated_baseline_and_no_lane_branch_diff`, `test_cohesion_uses_no_run_record_and_no_authorship_lookup`). NO lane-branch diff was added, and `base_head` is unchanged in both value and meaning: the receipt schema is untouched (asserted in the same test), the frozen value is still the sole comparison point, and the only new git call is `git log --no-merges --format=%H --name-only <base>..HEAD`, which reads the SAME range rather than a different baseline.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the committed-half filter code and confirm by inspection that it calls the SAME predicate as the working-tree half rather than adding a second one. Paste NEGATIVE proof of the two retired approaches: no read of `.aw/records/runs/` or of `last_outcome`, and no `%an`/`%ae`/author lookup anywhere in the new code (show the searches). Paste the accepted-cost comment at the site. THEN paste proof the union surface's shape is unchanged, and `check_engine.check_scope_drift`'s tests passing, since that compatibility is the documented reason the union exists.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: READ THE DEVIATION FIRST. E-02's LITERAL instruction (reuse the predicate with `committed=sources.committed`) is a TAUTOLOGY: the predicate's second clause is `if path in set(committed): return True`, so passing the committed half as its own evidence returns True for EVERY committed path and excludes the whole class. MEASURED, not reasoned: with `scope_paths=["agent_workflows/render_stream.py"]` and `committed=("CHANGELOG.md","agent_workflows/attention.py","agent_workflows/render_stream.py")` the predicate returns `owned=True` for all three including the two out of scope. That outcome contradicts E-04's own acceptance number (exactly TWO reasons, not ten, which a whole-class exclusion makes ZERO), so I followed E-04's number and gave the committed half real evidence: COMMIT COHESION. Recorded as DECISION 09-h9cn0y-D1 with the maintainer flagged.
 
-- [ ] V-03 validates E-03
+    THE FILTER SITE, and it calls the SAME predicate (`_working_tree_path_is_owned`) for both halves:
+
+    ```python
+            if p in committed_set:
+                # COMMITTED half: cohesion is the only positive evidence available. `committed=()`
+                # avoids the self-referential clause (see the predicate's docstring).
+                #
+                # FAIL CLOSED WHEN COHESION KNOWS NOTHING. With no anchored commit this execution has
+                # no recognizable commit footprint, so treat the committed path exactly as before the
+                # fix (owned, therefore reason required) rather than excusing it on absent evidence.
+                # This is what keeps a plan whose ONLY commit is out-of-scope refused.
+                owned = (
+                    _working_tree_path_is_owned(
+                        p, scope_paths=scope_paths, committed=(), plan_rel=plan_rel,
+                        cohesive_committed=cohesive.paths,
+                    )
+                    if cohesive.anchored
+                    else True
+                )
+            else:
+                owned = _working_tree_path_is_owned(
+                    p, scope_paths=scope_paths, committed=sources.committed, plan_rel=plan_rel,
+                )
+    ```
+
+    ONE PREDICATE ONLY, verified by enumeration rather than assertion: `grep -n "_is_owned\|def _.*owned" agent_workflows/ipd_lifecycle.py` shows exactly ONE definition (`:1392 def _working_tree_path_is_owned`) and two call sites, both above. The new `_execution_cohesive_committed_paths` is an EVIDENCE SOURCE, not a second judge: it returns paths, never a verdict.
+
+    NEGATIVE PROOF OF BOTH RETIRED APPROACHES, searched on EXECUTABLE CODE with docstrings and comments stripped by AST (necessary because those functions deliberately DISCUSS the retired approaches, so a raw substring search matches the explanation, which is what my first attempt at this check did):
+
+    ```
+    _execution_cohesive_committed_paths    forbidden_present=[]
+    _working_tree_path_is_owned            forbidden_present=[]
+    finalize_precheck                      forbidden_present=[]
+    finalize                               forbidden_present=[]
+    (searched: '.aw/records/runs', 'last_outcome', '%an', '%ae', '--author', 'isolated_baseline', 'aw/lane/')
+    ```
+
+    The helper's ONLY git invocation is `["log", "--no-merges", "--format=%H", "--name-only", f"{base_head}..HEAD"]`: no `--author`, no `%an`, no run-record path. This is now a permanent test (`test_cohesion_uses_no_run_record_and_no_authorship_lookup`), so the constraint cannot silently rot.
+
+    THE ACCEPTED COST IS STATED AT THE SITE, in the same voice the working-tree half uses. In the filter-site comment: "ACCEPTED COST (the honest bound, see `_working_tree_path_is_owned`): cohesion is a heuristic, not proof of authorship, so an executor's OWN committed out-of-scope path escapes the reason requirement when it rides in a commit containing no declared path. The mitigation is path-scoped commits; the real fix is commit trailers (backlog `a8eufb`)." The helper's docstring states the cost in BOTH directions (a false DEMAND when a co-worker touches declared territory in a mixed commit, a false EXCUSE for an unanchored own commit), and the predicate's docstring now enumerates the two accepted costs together.
+
+    THE UNION SURFACE IS UNCHANGED IN SHAPE AND VALUE. Its body is still the single line `return _changed_path_sources(repo_root, base_head).union()`; `git diff` shows no change to `_paths_changed_by_this_execution`'s signature, to `ChangedPathSources`, or to `union()`. Only its DOCSTRING changed (required by the plan's spec-sync section). Asserted behaviorally too: `test_union_of_the_split_equals_the_pre_split_union` still passes, and the new `test_check_scope_drift_still_sees_the_broad_time_window` proves a path finalize now DISREGARDS is still IN the union and still flagged by the drift rule.
+
+    `check_scope_drift`'s consumers pass:
+
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_phase4_hooks.py tests/test_event_derived_lifecycle.py tests/test_check_engine_receipt_liveness.py
+    ============================== 49 passed in 1.56s ==============================
+    ```
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: THIS IS THE ITEM THAT MATTERS MOST. Paste the FAIL-CLOSED case: a committed out-of-scope path the predicate does NOT clear STILL demands a `--scope-reason`, with actual output. If your implementation admits no such case, say so EXPLICITLY here and report that E-02 excluded the entire committed class, rather than pasting a case you constructed to look like a refusal; that outcome is a finding, not a pass. Paste the excluded path appearing in `disregarded_unowned_paths` and in the precheck message. Paste the message text and confirm in one sentence that it asserts no attribution the code cannot substantiate (no sha claimed as another actor's). Paste the intervening-commit signal still firing for an in-scope path another actor touched.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE IMPLEMENTATION ADMITS TWO GENUINE FAIL-CLOSED CLASSES, so this is a real refusal and not a constructed one. Class one: a COHESIVE out-of-scope path, riding in a commit that also touched declared territory. Class two: ANY committed out-of-scope path when the execution has NO anchored commit at all. Both are shown below with actual output.
 
-- [ ] V-04 validates E-04
+    FAIL-CLOSED CLASS ONE, run live with a foreign commit present in the SAME run so both directions are visible at once:
+
+    ```
+    FAIL-CLOSED exit code: 1 (EXIT_FINDINGS = 1 )
+    MESSAGE:
+     finalize needs scope reconciliation answers (plan left unmoved). Supply them with:
+      aw ipd finalize 20260830-demo-01-fc0001-demo.ipd.md --actor 'opencode/test' --message 'm' --apply --scope-reason CHANGELOG.md=<why-this-out-of-scope-edit-was-needed>
+    FINDINGS: ('out-of-scope path needs a --scope-reason: CHANGELOG.md',)
+    plan left unmoved: True
+    out_of_scope_paths (still demanded): ['CHANGELOG.md']
+    disregarded (foreign):              ['agent_workflows/theirs.py']
+    ```
+
+    `CHANGELOG.md` was committed ALONGSIDE the declared files, so it is this execution's and still demands a reason; `agent_workflows/theirs.py` came in its own foreign commit and is disregarded. Pinned by `test_FAIL_CLOSED_an_unattributable_committed_path_still_demands_a_reason`, which also proves a supplied reason still legitimizes it and is recorded verbatim in the terminal record (the gate is RESCOPED, not removed).
+
+    FAIL-CLOSED CLASS TWO EXISTS BECAUSE MY FIRST IMPLEMENTATION GOT IT WRONG, which is worth recording plainly since it is exactly the invisible-mistake direction this item guards. My first cut read "no cohesive paths" as "nothing is owned" and excused the whole committed half when a plan had no anchored commit. That broke a PRE-EXISTING test, `tests/test_ipd_lifecycle_cli.py::FinalizeTests::test_p7dqwz_counterexample_refuses_out_of_scope_path`, whose findings degraded to `('declared-but-unmodified path needs a --scope-ack: agent_workflows/demo.py',)` with the out-of-scope path no longer named. The fix is the `CommittedAttribution(anchored, paths)` pair: when nothing is anchored the committed half is treated exactly as pre-fix code treated it. Recorded as DECISION 09-h9cn0y-D5, and now pinned in both directions by `test_cohesion_reports_UNANCHORED_rather_than_an_empty_set` and `test_an_unanchored_execution_still_demands_a_reason`. The regressing test passes again:
+
+    ```
+    $ python3 -m pytest -o addopts="" "tests/test_ipd_lifecycle_cli.py::FinalizeTests::test_p7dqwz_counterexample_refuses_out_of_scope_path" tests/test_finalize_scope_ownership.py tests/test_finalize_isolated_commit.py
+    ============================= 32 passed in 19.51s ==============================
+    ```
+
+    THE EXCLUDED PATH IS RECORDED AND SURFACED, in the ONE existing channel (no second key was added):
+
+    ```
+    EXIT: 0
+    PRECHECK MESSAGE:
+    precheck passed (receipt valid, pre-transition conforming; scope delta computed). Disregarded 2 path(s) not owned by this execution (no reason required, recorded in the scope audit): agent_workflows/theirs_a.py, tests/test_theirs_b.py.
+
+    scope_audit.disregarded_unowned_paths: ['agent_workflows/theirs_a.py', 'tests/test_theirs_b.py']
+    scope_audit.out_of_scope_paths:       []
+
+    em dash present: False | en dash present: False
+    names a sha: False
+    ```
+
+    THE MESSAGE ASSERTS NO ATTRIBUTION THE CODE CANNOT SUBSTANTIATE: it says only that N paths are not owned by this execution and names them, so it claims no sha, blames no actor, and implies no operator error; the machine check above confirms no 40-character hex token appears in it. I also removed the now-false word "uncommitted" from BOTH message sites (`finalize_precheck` and `_disregarded_unowned_note`), since committed paths can now be disregarded too; `grep -rn "uncommitted path(s)" agent_workflows/ tests/` returns nothing.
+
+    THE INTERVENING-COMMIT SIGNAL STILL FIRES, unchanged and unfiltered, for a path another actor touched inside declared territory: `test_intervening_signal_still_fires_for_an_in_scope_path_another_actor_touched` asserts `tests/test_demo.py` (committed by another actor into declared territory) appears in `intervening_in_scope_commits`, and the pre-existing `test_intervening_commit_collision_computation_is_unchanged` still passes untouched. `_intervening_commits_touching` was not edited.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the ACTUAL output of the three attribution cases. Paste the INCIDENT FIXTURE and its assertion that finalize demands exactly TWO reasons; paste the same fixture against the PRE-FIX code demanding TEN, so the contrast is demonstrated rather than asserted. A fixture only ever run against the fixed code would pass even if the filter were inverted. Confirm in one sentence that the fixture puts the foreign commits in the SAME tree the finalize runs in.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE THREE ATTRIBUTION CASES PLUS THE FAIL-CLOSED CASE AND THE INCIDENT FIXTURE, actual output:
 
-- [ ] V-05 validates E-05
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_finalize_scope_ownership.py::MeasuredIncidentRegressionTests tests/test_finalize_scope_ownership.py::CommittedHalfAttributionTests -v
+    CommittedHalfAttributionTests::test_committed_path_inside_scope_paths_behaves_exactly_as_today PASSED [ 14%]
+    CommittedHalfAttributionTests::test_committed_out_of_scope_path_in_a_foreign_commit_is_excluded_and_recorded PASSED [ 28%]
+    CommittedHalfAttributionTests::test_FAIL_CLOSED_an_unattributable_committed_path_still_demands_a_reason PASSED [ 42%]
+    CommittedHalfAttributionTests::test_intervening_signal_still_fires_for_an_in_scope_path_another_actor_touched PASSED [ 57%]
+    MeasuredIncidentRegressionTests::test_the_incident_now_demands_TWO_reasons_not_TEN PASSED [ 71%]
+    MeasuredIncidentRegressionTests::test_the_incident_plan_now_finalizes_with_its_own_two_reasons_alone PASSED [ 85%]
+    MeasuredIncidentRegressionTests::test_the_same_fixture_demanded_TEN_reasons_under_the_PRE_FIX_rule PASSED [100%]
+    ============================== 7 passed in 1.34s ===============================
+    ```
+
+    Case 1, a committed path INSIDE `Scope-Paths`, behaves exactly as today (in scope, nothing disregarded, finalize completes). Case 2, a committed out-of-scope path in a FOREIGN commit, is excluded, recorded in `disregarded_unowned_paths`, surfaced in the message, and asserted to be present in `committed_paths` so the exclusion is provably a FILTER decision and not a collection gap. Case 3, the intervening-commit signal, still fires for a declared path another actor committed.
+
+    THE INCIDENT FIXTURE reproduces `mm6wuz` with its real numbers: the plan's own commit carries four declared files plus its two genuine out-of-scope paths (`CHANGELOG.md`, `tests/test_runner_stop_level3.py`), then three foreign commits land eight further paths (`attention.py` + `test_next_ordering.py`; `commit_lock.py` + `git_commit_helper.py` + `test_commit_lock.py` + `test_isolated_commit.py`; `ipd_lifecycle.py` + `test_finalize_isolated_commit.py`). It asserts `sorted(out_of_scope_paths) == ["CHANGELOG.md", "tests/test_runner_stop_level3.py"]`, that the count is exactly 2, and that all 8 foreign paths are disregarded.
+
+    THE CONTRAST IS DEMONSTRATED, NOT ASSERTED. `test_the_same_fixture_demanded_TEN_reasons_under_the_PRE_FIX_rule` re-applies the pre-fix rule (every committed path outside `Scope-Paths` demands a reason, working-tree half ownership-filtered only) to the SAME repository state and asserts it yields TEN, then asserts the post-fix audit on that same state yields TWO. So the 10 -> 2 improvement is measured within one test, and an inverted filter would fail it. I also confirmed the same arithmetic against the REAL incident commits in this repository before implementing: replaying `16847597`, `6d56930e`, `976409e3`, `798c5cb5`, `efc7a1a1` against `mm6wuz`'s frozen `Scope-Paths` gives 10 paths under today's rule and 2 under cohesion, and the 2 are precisely the pair the plan names.
+
+    A third test closes the loop end to end: the plan finalizes supplying reasons for ONLY its own two paths, reaches `executed/`, and its permanent record is asserted to contain NO `out-of-scope agent_workflows/attention.py`, `...commit_lock.py`, or `...ipd_lifecycle.py` entry, which is the record-corruption this plan exists to stop.
+
+    THE FIXTURE PUTS THE FOREIGN COMMITS IN THE SAME TREE THE FINALIZE RUNS IN: every commit, the plan's own and all three foreign ones, is made in `self.root` via `_commit_paths`, and `finalize_precheck`/`finalize` are then called with that same `self.root`, which is the hand-finalize/in-place shape the Concern's corrected trigger identifies. No isolated-lane attribution fixture was built for the fix, per E-04's instruction; the lane case is covered only by E-01's characterization test.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste `check_scope_drift`'s tests passing unchanged, the ELEVEN pre-existing `tests/test_finalize_scope_ownership.py` tests still passing (its own summary line), the `--scope-ack` (in-scope-unmodified) direction unchanged, and a clean finalize completing without prompting. Paste the BARE `python3 -m pytest` summary with before/after counts and show the AFTER-minus-BEFORE failure set is EMPTY. State that any test reading `.aw/records/runs/` was validated in the REAL checkout, or that none was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `check_scope_drift`'s consumers pass unchanged:
+
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_phase4_hooks.py tests/test_event_derived_lifecycle.py tests/test_check_engine_receipt_liveness.py
+    ============================== 49 passed in 1.56s ==============================
+    ```
+
+    Plus a NEW behavioral proof that the union surface still serves it: `test_check_scope_drift_still_sees_the_broad_time_window` asserts a foreign committed path that finalize now DISREGARDS is still present in `_paths_changed_by_this_execution` and is still flagged by `check_scope_drift`. That is the compatibility constraint stated as an assertion rather than a comment.
+
+    THE COUNT IS TEN UNCHANGED PLUS ONE DELIBERATELY INVERTED, NOT ELEVEN UNCHANGED, and I am flagging the discrepancy against E-05's literal wording rather than papering over it. Of the eleven pre-existing tests, TEN pass untouched. The eleventh, `CommittedHalfResidualGapTests::test_committed_half_of_a_coworker_is_STILL_refused_documented_limitation`, pinned the very behavior this plan changes, and its own docstring instructed the change: "pins post-fix behavior that MUST be INVERTED ... Do NOT delete this test to make that fix pass; invert it." Backlog `a8eufb` assigns that inversion to this plan by name. So it is INVERTED IN PLACE (now `test_committed_half_of_a_coworker_is_now_disregarded_gap_CLOSED`), keeping its SAME-IDENTITY measurement, which is now the positive evidence that cohesion rather than authorship did the work. Recorded as DECISION 09-h9cn0y-D2. The file went from 11 to 25 tests, all passing:
+
+    ```
+    $ python3 -m pytest -o addopts="" tests/test_finalize_scope_ownership.py
+    tests/test_finalize_scope_ownership.py .........................         [100%]
+    ============================== 25 passed in 3.87s ==============================
+    ```
+
+    THE `--scope-ack` DIRECTION IS UNTOUCHED: `test_the_in_scope_unmodified_scope_ack_direction_is_untouched` asserts a declared-but-unmodified path still produces `in_scope_unmodified`, still refuses with `--scope-ack` named in the message, still leaves the plan unmoved, and still proceeds once acknowledged. A CLEAN FINALIZE still completes silently: `test_a_clean_finalize_still_completes_without_prompting` asserts zero out-of-scope, zero disregarded, no `Disregarded` text in the message, and the plan reaching `executed/`.
+
+    BARE SUITE, BEFORE AND AFTER, with my own baseline measured in this lane as instructed:
+
+    ```
+    BEFORE (lane HEAD 0aea0771, no edits): 33 failed, 5624 passed, 3 skipped, 2 xfailed in 50.46s
+    AFTER  (all edits applied):            33 failed, 5640 passed, 3 skipped, 2 xfailed in 92.34s
+
+    $ comm -13 before-failures.txt after-failures.txt    # AFTER minus BEFORE
+    (empty)
+    $ diff before-failures.txt after-failures.txt && echo "IDENTICAL failure sets"
+    IDENTICAL failure sets
+    ```
+
+    THE AFTER-MINUS-BEFORE FAILURE SET IS EMPTY and the two sets are byte-identical, with 16 net new passing tests. NOTE THE BASELINE DIFFERS SHARPLY FROM THE PLAN'S RECORDED 1 failure / 5613 passed, and the cause is environmental, not mine: this lane runs with `AW_EXECUTION_ROLE=worker`, so every test that invokes the lifecycle CLI hits the deliberate `AW-LIFECYCLE-ROLE-001` refusal (`ipd_lifecycle.py:63-79`). Diagnosed on a representative case rather than assumed, and recorded as DECISION 09-h9cn0y-D3; I did NOT unset the variable, since that is a guard the runner set. Judged on the DELTA exactly as the plan directs.
+
+    DURING EXECUTION THE DELTA WAS BRIEFLY NON-EMPTY, and I am recording it because it is the substance of V-03: my first implementation added exactly one new failure, `tests/test_ipd_lifecycle_cli.py::FinalizeTests::test_p7dqwz_counterexample_refuses_out_of_scope_path`. That was a REAL over-exclusion in my code, not a stale test; it is fixed by the `anchored` fail-closed switch (DECISION 09-h9cn0y-D5) and the delta is now empty.
+
+    NO TEST READING `.aw/records/runs/` WAS ADDED. E-02 forbids that dependency and `test_cohesion_uses_no_run_record_and_no_authorship_lookup` asserts its absence from the executable code. Every new test runs against a throwaway `tempfile` git repository, so none depends on the real checkout's gitignored state.
+  - Result: pass
 
 ## Approval and execution gate
 
