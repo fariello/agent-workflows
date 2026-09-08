@@ -16,6 +16,7 @@
 - Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-08 validated (opencode its_direct/pt3-claude-opus-5-1m-us): E-01..E-04 verified as ALREADY IMPLEMENTED by maintainer commit `b79b6cbb`, checked line by line against each E-item's prescriptions rather than re-implemented; V-01..V-04 all pass with pasted evidence. Both named traps checked and neither hit: the `◈ think:` prefix from `4308015c` is intact (no bullet reintroduced) and the UNCOLLECTED `tools/ipdrunner/test_runagy.py` holds at `9 passed` with its pre-existing failure count still exactly 10. The plan's recorded `1 failed, 5613 passed` baseline is ~40 commits stale, so the delta was RE-MEASURED from a scratch worktree at `b79b6cbb~1` (`faa4c7ec`): BEFORE `15 failed, 5618 passed`, AFTER `16 failed, 5641 passed`, both with `AW_EXECUTION_ROLE` neutralized so the lane's 17 `AW-LIFECYCLE-ROLE-001` worker refusals do not distort the comparison. The single AFTER-only entry (`test_plan_readiness::...test_no_pending_plan_is_refused_on_a_verdict_today`) was PROVEN not to be this plan's: it reproduces at the pre-change CODE once HEAD's plans corpus is checked in, so it is drift from another lane's `integearn-01` `no-go` verdict (commit `8dc4e0bc`, not an ancestor of the baseline). Code-attributable delta EMPTY. `aw sanitize --agent` clean. No change to `agent_workflows/` or `tests/` this turn. Decisions D1, D2.
 - 2026-09-08 approved (aw set): status set to approved
 
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 all FIXED, no deferrals, no open questions. Reviewed at HEAD `4cbee5fa`; `aw ipd lint --phase author` conformed before review and `--phase review-finalize` after. METHOD: every empirical claim was re-measured against the corpus the plan is about (4,058 placeholder-bearing `text` events across 294 of 426 session logs under `.aw/records/runs/*/sessions/*.jsonl`) rather than trusted. THE PLAN'S OWN CENTRAL COUNT IS CORRECT AND WAS CONFIRMED: the regex it specifies matches exactly 20 distinct variants. Three claims were WRONG and each would have produced a visible defect. FIRST AND WORST, E-01 prescribed the output format `pal("• ", "cyan") + _one_line(text, 400)`, which HEAD REPLACED four commits ago (`4308015c`, `render_stream.py:603`): following the plan literally would have reverted the just-shipped `◈ think:` aligned prefix and broken `tests/test_render_stream.py:43` and the golden transcript at `:238`. SECOND, E-02 instructed edits to `render_agy_event` branches that DO NOT EXIST (that function reads no message/text field anywhere, `agy_runipd.py:510-625`) for a case measured at ZERO occurrences. THIRD, "suite remains green" is false at HEAD (`1 failed, 5613 passed`, the pre-existing `test_orchestrator_retirement::RealRepositorySets`). Two further measurements reshaped the design: the placeholder sits at POSITION 0 in 4,058 of 4,059 occurrences (so the unanchored iterative strip the plan specified bought nothing and risked eating a quotation of the token out of real narration, the exact text this very review round produces), and `tools/ipdrunner/test_runagy.py` pins `render_agy_event` through the `runagy.py` re-export shim but is NOT collected by a bare `python3 -m pytest` (`pyproject.toml:154` `testpaths = ["tests"]`), so an agy render change could break 9 tests invisibly.
@@ -32,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the shared helper and the OpenCode renderer
 
-- [ ] E-01 Add `strip_system_protocol_prefix` to `agent_workflows/render_stream.py` and apply it in `render_event`'s `text` branch.
+- [x] E-01 Add `strip_system_protocol_prefix` to `agent_workflows/render_stream.py` and apply it in `render_event`'s `text` branch.
   THE MATCHER. `_SYSTEM_PROTOCOL_MSG_RE = re.compile(r"\[System:\s*Empty\b[^\]]*\]", re.IGNORECASE)`. `re` is already imported (`render_stream.py:27`); do not add a second import. This exact pattern was validated against the real corpus and matches all 20 observed variants (F-1), including the one CHAINED occurrence (`...satisfy prot[System: Empty ...protocol]`), which it consumes in a single match because `[^\]]*` cannot cross the first `]`.
   ANCHOR AT THE START; DO NOT STRIP MID-TEXT. Remove only a LEADING RUN of placeholders (loop while the text, after `lstrip()`, starts with a match), then `strip()` the remainder. Measured: the placeholder is at POSITION 0 in 4,058 of 4,059 occurrences, and the single non-zero one is the inner half of that chained token, so anchoring loses NOTHING. This is a correctness requirement, not a style preference: an unanchored strip would also delete the token out of REAL agent narration that QUOTES it, which is exactly what an agent working on this very plan emits, and the operator would silently lose that sentence. F-4.
   ORDER OF OPERATIONS: strip FIRST on the raw `part.get("text")`, THEN `_one_line(...)`. Stripping after collapsing would work too, but stripping first keeps the `\n\n` separator case (observed, F-2) obvious rather than incidental.
@@ -41,38 +42,42 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   ALSO SANITIZE THE `JSONDecodeError` FALLBACK (`:594-595`) for defense in depth, returning `None` when a non-JSON line reduces to nothing. STATE THE HONEST BASIS: this case is measured at ZERO (23 non-JSON lines in 101,836, none containing the placeholder), so it is parity insurance, not an observed defect. F-6.
   - Depends on: none
   - Expected outcome: a text part that is only placeholders renders nothing; a text part with a leading placeholder renders its real text behind the unchanged `◈ think:` prefix; a placeholder QUOTED inside real narration is left intact; the aligned format and pad are byte-identical to HEAD.
-  - Execution state: pending
+  - Evidence: commit `b79b6cbb`; `render_stream.py:553` regex, `:556-576` helper, `:611-612` fallback, `:618` text branch
+  - Execution state: performed
 
 ### Task group 2: the Antigravity renderer (host parity)
 
-- [ ] E-02 In `agent_workflows/agy_runipd.py`, import `strip_system_protocol_prefix` from `agent_workflows.render_stream` and apply it to the code paths that ACTUALLY EXIST in `render_agy_event`.
+- [x] E-02 In `agent_workflows/agy_runipd.py`, import `strip_system_protocol_prefix` from `agent_workflows.render_stream` and apply it to the code paths that ACTUALLY EXIST in `render_agy_event`.
   READ THE FUNCTION BEFORE EDITING IT, because the earlier revision of this plan named branches that are not there. `render_agy_event` (`agy_runipd.py:481-625`) handles exactly `init`, `result`, and `step_update` with `step_type` in {`tool`, `agent_response`, `subagent`}, plus the `JSONDecodeError` fallback at `:515-516`. IT READS NO `message` OR `text` FIELD ANYWHERE, and `agent_response` already `return None`s at `:605-606`. So there is NO text branch to sanitize, and inventing one would be adding a renderer for an event shape this host has never been observed to emit. PR-004.
   WHAT TO ACTUALLY CHANGE, therefore: the `JSONDecodeError` fallback only. If `strip_system_protocol_prefix(line)` leaves nothing, `return None` instead of the dim raw line.
   BE HONEST THAT THIS IS UNEVIDENCED PARITY, not a fix for an observed problem. Measured: ZERO agy-shaped session logs exist in `.aw/records/runs/` (all 394 parseable session logs are OpenCode-shaped `type`/`part`), and the placeholder is a platform artifact of the OpenCode/Anthropic path. The justification is that `render_stream.py` exists precisely so a stream behavior added for one host reaches both (`agy_runipd.py:493-495`), so the helper is IMPORTED rather than duplicated. Do not claim a measured agy occurrence.
   IF A FUTURE `message`/`text` FIELD APPEARS in the agy schema, sanitizing it is the same one-line call; note that rather than pre-building the branch.
   - Depends on: E-01
   - Expected outcome: `render_agy_event` imports the shared helper (no second regex, no copied function) and suppresses a placeholder-only unparseable line; no new event branch is invented; every existing agy render path is byte-identical.
-  - Execution state: pending
+  - Evidence: commit `b79b6cbb`; `agy_runipd.py:81` re-export import, `:523-524` fallback guard; no new branch added
+  - Execution state: performed
 
 ### Task group 3: prove the OpenCode side
 
-- [ ] E-03 Add unit tests to `tests/test_render_stream.py` for the helper and for `render_event`.
+- [x] E-03 Add unit tests to `tests/test_render_stream.py` for the helper and for `render_event`.
   USE INLINE STRING LITERALS FOR THE VARIANTS. Copy the 20 observed variants into the test as literals; do NOT have the test read `.aw/records/runs/`. That tree is GITIGNORED (`.aw/.gitignore:14`, zero tracked files), so a corpus-reading test passes only on this machine and fails in a fresh clone, a bare worktree, and CI. It is legitimate local evidence and cannot be a fixture. PR-005.
   REQUIRED CASES: each of the 20 variants reduces to empty; the CHAINED variant reduces to empty; a leading placeholder plus real text yields the real text ONLY, still behind `EVENT_PREFIXES["think"].ljust(event_prefix_pad(True))`; a placeholder QUOTED MID-SENTENCE inside real narration is PRESERVED VERBATIM (the anchoring guarantee from E-01, and the case that proves the filter cannot eat real narration); a truncated `[System: Empty` with no closing bracket is left visible rather than half-eaten; a placeholder-only `JSONDecodeError` line returns `None`.
   PIN THE FORMAT, NOT JUST THE FILTER. At least one assertion must compare against the prefix built from `render_stream.EVENT_PREFIXES["think"]` and `event_prefix_pad(True)`, so a future attempt to reintroduce the bullet format fails here. The existing `test_text_event_renders_narration` (`:36-44`) is the pattern to follow.
   - Depends on: E-01
   - Expected outcome: the 20 variants, the chained case, the prefixed case, the quoted-mid-sentence preservation case, the truncated case, and the fallback case all pass; the aligned-format assertion is present; no test reads `.aw/records/runs/`.
-  - Execution state: pending
+  - Evidence: commit `b79b6cbb`; `tests/test_render_stream.py:128-158` the 20 inline literals, `:153-219` `SystemProtocolSuppressionTests` with 8 cases
+  - Execution state: performed
 
 ### Task group 4: prove the Antigravity side, including the module a bare suite does not collect
 
-- [ ] E-04 Cover the agy change in `tests/test_agy_runipd_cli.py` AND verify the UNCOLLECTED renderer module `tools/ipdrunner/test_runagy.py` did not regress.
+- [x] E-04 Cover the agy change in `tests/test_agy_runipd_cli.py` AND verify the UNCOLLECTED renderer module `tools/ipdrunner/test_runagy.py` did not regress.
   THE TRAP THIS ITEM EXISTS TO CATCH. `tools/ipdrunner/test_runagy.py::AgyEventRenderTests` asserts on `render_agy_event` output through the `runagy.py` re-export shim (`tools/ipdrunner/runagy.py:29-31`), but `pyproject.toml:154` sets `testpaths = ["tests"]`, so a bare `python3 -m pytest` NEVER COLLECTS IT. An agy render change can therefore break those tests while the suite reports green. PR-003.
   MEASURED BASELINES, so a pre-existing failure is not mistaken for a new one: `python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k AgyEventRender` is `9 passed, 16 deselected` at HEAD, and the WHOLE module is `10 failed, 15 passed` for reasons unrelated to rendering (`AttributeError: module 'runagy' has no attribute '_read_deps'` and siblings). Fixing those 10 is explicitly OUT of scope; the requirement is that the count stay exactly 10 and that the 9 render tests stay green.
   ADD the agy-side case to `tests/test_agy_runipd_cli.py` (a placeholder-only unparseable line renders nothing) so the behavior is pinned inside the COLLECTED tree too, not only in the module a bare run skips.
   - Depends on: E-02, E-03
   - Expected outcome: `-k AgyEventRender` still `9 passed`; the module's pre-existing failure count is still exactly 10; a collected test in `tests/test_agy_runipd_cli.py` pins the new agy behavior.
-  - Execution state: pending
+  - Evidence: commit `b79b6cbb`; `tests/test_agy_runipd_cli.py:1093-1101` collected case; uncollected module re-run explicitly, baselines held
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -169,25 +174,218 @@ The new helper's DOCSTRING is the authoritative prose for this behavior and must
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the final `strip_system_protocol_prefix` source and the `render_event` text branch. Confirm BY INSPECTION, in one sentence each, that (a) the emitted prefix is still `format_event_prefix("think", pal, use_unicode, style="cyan")` and no bullet was introduced, and (b) the strip is ANCHORED to a leading run. Paste an interpreter probe showing: a placeholder-only text part -> `None`; a leading placeholder plus real text -> the real text behind the `◈ think:` prefix; a placeholder QUOTED MID-SENTENCE -> rendered VERBATIM; a truncated `[System: Empty` -> left visible.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERDICT PASS. The helper is anchored via `re.match` and the `◈ think:` prefix is intact; a 7-case interpreter probe confirms every required behavior.
 
-- [ ] V-02 validates E-02
+    FINAL SOURCE, `agent_workflows/render_stream.py:553-576` (helper) and `:615-624` (text branch):
+
+    ```python
+    _SYSTEM_PROTOCOL_MSG_RE = re.compile(r"\[System:\s*Empty\b[^\]]*\]", re.IGNORECASE)
+
+
+    def strip_system_protocol_prefix(text: str) -> str:
+        """Strip a leading run of synthetic platform protocol placeholders from text.
+
+        THE STRIP IS ANCHORED TO A LEADING RUN: the placeholder sits at position 0 in
+        4,058 of 4,059 occurrences across historical session logs (F-3). Anchoring to a
+        leading run prevents deleting the placeholder when an agent legitimately quotes it
+        mid-sentence inside genuine narration (F-4).
+
+        FILTERING IS DISPLAY ONLY: raw session logs under ``.aw/records/runs/`` are written
+        and flushed before rendering, preserving the complete transcript on disk (F-5).
+
+        The Antigravity driver imports this helper for unevidenced host parity on unparseable
+        lines (F-9), ensuring identical suppression across hosts without duplicating logic.
+        """
+        s = text.lstrip()
+        while True:
+            match = _SYSTEM_PROTOCOL_MSG_RE.match(s)
+            if not match:
+                break
+            s = s[match.end() :].lstrip()
+        return s.strip()
+    ```
+
+    ```python
+        etype = event.get("type")
+        part = event.get("part") or {}
+        if etype == "text":
+            text = part.get("text") or ""
+            text = strip_system_protocol_prefix(text)
+            text = _one_line(text, 400)
+            if not text:
+                return None
+            prefix = format_event_prefix("think", pal, use_unicode, style="cyan")
+            return f"{prefix}{text}"
+    ```
+
+    INSPECTION (a): the emitted prefix is still `format_event_prefix("think", pal, use_unicode, style="cyan")` and the returned line is `f"{prefix}{text}"`, so NO bullet was introduced and commit `4308015c`'s aligned format is intact. INSPECTION (b): the strip is ANCHORED because the loop uses `_SYSTEM_PROTOCOL_MSG_RE.match(s)`, which matches only at position 0, never `search`/`sub`, so a token later in the string is unreachable. The regex is defined ONCE at `:553` and `re` was already imported at `:27` (no second import added).
+
+    INTERPRETER PROBE (actual output):
+
+    ```text
+    $ python3 - <<'PY' ... PY
+    think prefix repr: '◈ think: '
+    1 placeholder-only        -> None
+    2 leading + real text     -> '◈ think: Now let me look.'
+    3 quoted mid-sentence     -> '◈ think: We saw [System: Empty message content sanitised to satisfy protocol] in logs.'
+    4 truncated, no bracket   -> '◈ think: [System: Empty message content sanitised'
+    5 chained double token    -> None
+    6 non-JSON placeholder    -> None
+    7 non-JSON ordinary line  -> 'ordinary unparseable'
+    ```
+
+    Probe 1 gives `None` (placeholder-only suppressed), probe 2 shows the real text behind the `◈ think: ` prefix, probe 3 shows the mid-sentence quotation rendered VERBATIM with the token intact (the F-4 false-positive guarantee), and probe 4 shows the truncated `[System: Empty ...` left fully visible rather than half-eaten. Probe 5 confirms the chained token is consumed by the leading-run loop and probe 6 confirms the `JSONDecodeError` fallback suppression, while probe 7 confirms an ordinary unparseable line still renders.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the `render_agy_event` diff and confirm by inspection that it IMPORTS the shared helper (no second regex, no copied function) and that NO new event branch was added. Paste a probe showing a placeholder-only unparseable line returns `None` and that an `init`, a `result`, and a `tool` `step_update` render byte-identically to before the change.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERDICT PASS. The agy change is exactly three added lines that IMPORT the shared helper (identity-checked, no copy) and add no event branch; every pre-existing branch renders unchanged.
 
-- [ ] V-03 validates E-03
+    THE COMPLETE `agy_runipd.py` DIFF (`git show b79b6cbb -- agent_workflows/agy_runipd.py`), which is three added lines and nothing else:
+
+    ```diff
+    @@ -78,6 +78,7 @@ from agent_workflows.render_stream import (
+         format_event_prefix as format_event_prefix,
+         _relativize_path as _relativize_path,
+         _status_glyph_char as _status_glyph_char,
+    +    strip_system_protocol_prefix as strip_system_protocol_prefix,
+     )
+
+    @@ -519,6 +520,8 @@ def render_agy_event(
+         try:
+             event = json.loads(line)
+         except json.JSONDecodeError:
+    +        if not strip_system_protocol_prefix(line):
+    +            return None
+             return pal("  " + _one_line(line), "dim")
+    ```
+
+    INSPECTION: the helper is IMPORTED from `agent_workflows.render_stream` at `:81` in this module's established `as <same-name>` re-export form, so there is no second regex and no copied function; an identity probe confirms it is literally the same object. NO new event branch was added: the only executable change is the two-line guard inside the pre-existing `except json.JSONDecodeError:` handler, and no `message`/`text` branch was invented (F-8), matching E-02's explicit refusal.
+
+    PROBE (actual output), showing the fallback suppression AND that every pre-existing branch is unchanged:
+
+    ```text
+    shared helper is the SAME object (no copy): True
+    1 placeholder-only unparseable -> None
+    2 ordinary unparseable         -> '  ordinary unparseable'
+    3 init      -> '  • Initialized Antigravity (m) [session: abcdef12...]'
+    4 result    -> '  ✓ Antigravity turn finished: SUCCESS'
+    5 tool step -> '❯ bash:  run_command: ls -la (1.50s)'
+    ```
+
+    Probe 1 is the new behavior (`None` for a placeholder-only unparseable line); probe 2 proves an ordinary unparseable line still renders dimmed. Probes 3, 4, and 5 render `init`, `result`, and a `tool` `step_update` respectively, and each is byte-identical to before the change because the diff above touches no code they execute. The 9 `AgyEventRenderTests` in the uncollected `tools/ipdrunner/test_runagy.py`, which assert on these exact branch outputs through the shim, still pass (see V-04) and are the mechanical proof of that byte-identity.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the pytest output for `tests/test_render_stream.py`. Confirm the 20 variants are INLINE LITERALS and that no test reads `.aw/records/runs/` (paste the grep proving it). Paste `test_text_event_renders_narration` and the golden transcript test passing UNMODIFIED, which is what proves the aligned format was not reverted.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERDICT PASS. `tests/test_render_stream.py` is `89 passed`, the 20 variants are inline literals, nothing reads the gitignored corpus, and the format-pinning tests pass unmodified.
 
-- [ ] V-04 validates E-04
+    WHOLE MODULE:
+
+    ```text
+    $ python3 -m pytest tests/test_render_stream.py -o addopts="" -q
+    ........................................................................ [ 80%]
+    .................                                                        [100%]
+    89 passed in 0.57s
+    ```
+
+    THE NEW SUPPRESSION CASES PLUS THE FORMAT PIN, run together:
+
+    ```text
+    $ python3 -m pytest tests/test_render_stream.py -o addopts="" -q -k "SystemProtocolSuppression or test_text_event_renders_narration" -v
+    collected 89 items / 80 deselected / 9 selected
+    tests/test_render_stream.py .........                                    [100%]
+    ======================= 9 passed, 80 deselected in 0.22s =======================
+    ```
+
+    That is 8 `SystemProtocolSuppressionTests` cases plus `test_text_event_renders_narration`. The 8 cover exactly the required set: all 20 variants reduce to empty, the chained token reduces to empty, every variant as a placeholder-only text event renders `None`, a leading placeholder plus real text renders the real text behind the think prefix, a mid-sentence quotation is preserved verbatim, a truncated placeholder is preserved, a placeholder-only non-JSON line returns `None`, and an ordinary non-JSON line still renders dimmed.
+
+    THE GOLDEN TRANSCRIPT TESTS (`GoldenByteIdenticalTests`, `tests/test_render_stream.py:317`):
+
+    ```text
+    $ python3 -m pytest tests/test_render_stream.py -o addopts="" -q -k "golden or Golden or transcript" -v
+    collected 89 items / 86 deselected / 3 selected
+    ======================= 3 passed, 86 deselected in 0.20s =======================
+    ```
+
+    BOTH PASS UNMODIFIED. `git log --oneline b79b6cbb..HEAD -- tests/test_render_stream.py` returns EMPTY, so neither `test_text_event_renders_narration` nor the golden transcript assertions were edited after the implementation landed: the aligned `◈ think:` prefix was NOT reverted, and the probe in V-01 independently shows the prefix is still `'◈ think: '`.
+
+    THE 20 VARIANTS ARE INLINE LITERALS, declared as a module-level list at `tests/test_render_stream.py:128-158` (`_OBSERVED_SYSTEM_PROTOCOL_VARIANTS`), and `test_all_20_observed_variants_reduce_to_empty` asserts `len(...) == 20` so the count cannot silently drift.
+
+    NO TEST READS THE GITIGNORED CORPUS:
+
+    ```text
+    $ grep -n "records/runs" tests/test_render_stream.py
+    393:    here from literals. Nothing reads `.aw/records/runs/`, which is gitignored, absent in CI and in
+    ```
+
+    The single hit is a DOCSTRING at `:393` asserting hermeticity, not a filesystem read; there is no `Path`, `open`, or `glob` against that tree anywhere in the module.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste `python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k AgyEventRender` showing `9 passed` and the whole-module run showing the pre-existing failure count STILL EXACTLY 10. Paste the new collected `tests/test_agy_runipd_cli.py` case passing. THEN paste the BARE `python3 -m pytest` summary and show the AFTER-minus-BEFORE failure set is EMPTY against the `1 failed, 5613 passed` baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERDICT PASS. The uncollected renderer tests hold at `9 passed` with the pre-existing failure count still exactly 10, the new collected case passes, and the code-attributable AFTER-minus-BEFORE failure delta is EMPTY.
+
+    THE UNCOLLECTED RENDERER TESTS, run explicitly (WARNING THIRD):
+
+    ```text
+    $ python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q -k AgyEventRender
+    .........                                                                [100%]
+    9 passed, 16 deselected in 0.12s
+    ```
+
+    `9 passed`, matching the plan's baseline exactly, so the agy renderer did not regress through the `runagy.py` re-export shim.
+
+    ```text
+    $ python3 -m pytest tools/ipdrunner/test_runagy.py -o addopts="" -q
+    FAILED tools/ipdrunner/test_runagy.py::AgyExecutionLifecycleTests::test_concurrent_work_statement_in_prompts
+    10 failed, 15 passed in 5.98s
+    ```
+
+    The pre-existing failure count is STILL EXACTLY 10 (`_read_deps` and siblings, explicitly out of scope), so this change added no failure here.
+
+    THE NEW COLLECTED CASE:
+
+    ```text
+    $ python3 -m pytest tests/test_agy_runipd_cli.py -o addopts="" -q -k test_render_agy_event_suppresses_system_protocol_placeholder -v
+    collected 46 items / 45 deselected / 1 selected
+    tests/test_agy_runipd_cli.py .                                           [100%]
+    ======================= 1 passed, 45 deselected in 0.21s =======================
+    ```
+
+    THE BARE SUITE. The plan's `1 failed, 5613 passed` baseline was taken at review time (HEAD `4cbee5fa`); this lane sits ~40 commits later at `3ec92ca4`, so the delta was re-measured FROM SCRATCH against the actual parent of the implementation commit rather than trusting the recorded number. A detached scratch worktree at `b79b6cbb~1` (`faa4c7ec`, the last commit BEFORE this plan's code) gave the BEFORE set, and this lane gave the AFTER set:
+
+    ```text
+    BEFORE (worktree at b79b6cbb~1 = faa4c7ec):
+      15 failed, 5618 passed, 3 skipped, 2 xfailed in 128.37s (0:02:08)
+    AFTER  (this lane at 3ec92ca4):
+      16 failed, 5641 passed, 3 skipped, 2 xfailed in 50.33s
+    ```
+
+    ```text
+    $ comm -13 before.txt after.txt      # AFTER minus BEFORE (new failures)
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    $ comm -23 before.txt after.txt      # BEFORE minus AFTER (fixed)
+    (empty)
+    ```
+
+    THE ONE DELTA ENTRY IS NOT THIS PLAN'S, AND THAT IS PROVEN RATHER THAN ASSERTED. It is a real-corpus test over `.aw/records/plans/pending/`, and it fails on `20260906-integearn-01-32ij2j-...ipd.md`, whose `no-go` verdict was written by commit `8dc4e0bc` (`plan-review: harden integearn-01`). `git merge-base --is-ancestor 8dc4e0bc faa4c7ec` reports NOT an ancestor, i.e. that plan-review landed AFTER the BEFORE baseline, so the BEFORE run could not have seen it. The attribution was then confirmed by CONSTRUCTION: checking HEAD's `.aw/records/plans/` corpus into the BEFORE worktree while leaving its pre-change CODE untouched reproduces the failure there too:
+
+    ```text
+    $ git checkout 3ec92ca4 -- .aw/records/plans/   # in the b79b6cbb~1 worktree
+    $ python3 -m pytest tests/test_plan_readiness.py -o addopts="" -q -k test_no_pending_plan_is_refused
+    FAILED tests/test_plan_readiness.py::ApprovalGateRealCorpusTests::test_no_pending_plan_is_refused_on_a_verdict_today
+    1 failed, 66 deselected in 0.18s
+    ```
+
+    So the failure is caused by PLANS-CORPUS DRIFT from another lane's plan-review, not by any code this plan touched; it involves no stream rendering and neither `render_stream.py` nor `agy_runipd.py` appears in its import path. THE CODE-ATTRIBUTABLE AFTER-MINUS-BEFORE FAILURE SET IS THEREFORE EMPTY, which is the plan's stated criterion.
+
+    HONEST NOTE ON A LANE ARTIFACT, recorded so a reader is not misled by a raw re-run: a bare `python3 -m pytest` in this lane WITH the runner's `AW_EXECUTION_ROLE=worker` selector exported reports `33 failed, 5624 passed`, because 17 lifecycle tests shell out to `aw ipd begin`/`finalize` and receive the correct `AW-LIFECYCLE-ROLE-001` worker refusal (`ipd_lifecycle.py:67`). Those are the role guard working as designed, not defects, and they are absent from both figures above because BOTH runs used `env -u AW_EXECUTION_ROLE` for an apples-to-apples comparison. See DECISION 10-eqzd0h-D1.
+
+    The remaining 15 shared failures (14 `test_run_viewer` cases needing a populated `.aw/records/runs/`, which is gitignored and absent in an isolated worktree, plus the pre-existing `test_orchestrator_retirement::RealRepositorySets` status drift the plan already names in F-11) are present identically in BEFORE and AFTER and cancel in the delta.
+  - Result: pass
 
 ## Approval and execution gate
 
