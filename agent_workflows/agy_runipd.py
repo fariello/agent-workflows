@@ -600,6 +600,10 @@ def render_agy_event(
             tracker.update(inp=inp, out=out, cache=cache_val, cost=cost)
 
         if step_type == "tool":
+            # Active tool events are suppressed to prevent double output in live streams;
+            # the line is rendered once when the tool reaches a terminal state (DONE/ERROR/FAILED).
+            if state not in ("DONE", "ERROR", "FAILED"):
+                return None
             tool_info = step.get("tool_info") or {}
             tool_name = tool_info.get("name") or step.get("tool_name") or "tool"
             params = tool_info.get("parameters") or {}
@@ -669,14 +673,14 @@ def render_agy_event(
                     + _one_line(json.dumps(params, sort_keys=True, default=str), 200),
                     "dim",
                 )
-            if state in ("ACTIVE", "DONE", "ERROR", "FAILED"):
-                return head
-            return None
+            return head
 
         if step_type == "agent_response" and state == "DONE":
             return None
 
         if step_type == "subagent":
+            if state not in ("DONE", "ERROR", "FAILED"):
+                return None
             subagent = step.get("subagent_info") or {}
             subagents = subagent.get("subagents", [])
             count = len(subagents) if isinstance(subagents, list) else 1

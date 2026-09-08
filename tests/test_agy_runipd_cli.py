@@ -1259,10 +1259,48 @@ class AgyVerbosityFlagTests(unittest.TestCase):
                 },
             }
         )
-        agy_runipd.render_agy_event(
+        res_active = agy_runipd.render_agy_event(
             evt_active, pal, repo_root=repo_root, tracker=tracker
         )
+        self.assertIsNone(res_active)
         self.assertNotIn("src/in_progress.py", tracker.modified_files)
+
+    def test_render_agy_event_suppresses_active_tool_to_prevent_double_output(self):
+        pal = agy_runipd.Palette(False)
+        active_evt = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "ACTIVE",
+                    "step_type": "tool",
+                    "tool_info": {
+                        "name": "run_command",
+                        "parameters": {"CommandLine": "git status"},
+                    },
+                },
+            }
+        )
+        done_evt = json.dumps(
+            {
+                "event": "step_update",
+                "step_update": {
+                    "state": "DONE",
+                    "step_type": "tool",
+                    "duration_seconds": 0.22,
+                    "tool_info": {
+                        "name": "run_command",
+                        "parameters": {"CommandLine": "git status"},
+                    },
+                },
+            }
+        )
+        # ACTIVE must be suppressed so tool output is not doubled in the live terminal
+        self.assertIsNone(agy_runipd.render_agy_event(active_evt, pal))
+        # DONE must render once with duration
+        rendered_done = agy_runipd.render_agy_event(done_evt, pal)
+        self.assertIsNotNone(rendered_done)
+        self.assertIn("git status", rendered_done)
+        self.assertIn("0.22s", rendered_done)
 
     def test_tracker_wiring_in_agy_runipd_pipeline(self):
         import inspect

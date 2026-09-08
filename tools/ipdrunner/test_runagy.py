@@ -99,18 +99,8 @@ class AgyEventRenderTests(unittest.TestCase):
             }
         )
         active_rendered = driver.render_agy_event(active_line, self.pal)
-        self.assertIsNotNone(active_rendered)
-        self.assertIn("run_command", active_rendered)
-        self.assertIn("pytest tests/ -v", active_rendered)
-        # streamfmt (mm6wuz) E-06: the line now carries the SHARED `❯ bash:` class prefix, and its
-        # payload begins at the derived column, so agy and oc streams align with each other.
-        plain_active = render_stream._strip_ansi(active_rendered)
-        self.assertTrue(
-            plain_active.startswith(
-                render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)
-            ),
-            plain_active,
-        )
+        # ACTIVE events are suppressed to prevent double output in live streams
+        self.assertIsNone(active_rendered)
 
         done_line = json.dumps(
             {
@@ -132,6 +122,8 @@ class AgyEventRenderTests(unittest.TestCase):
         # `duration_seconds` is AGY-ONLY (the oc stream has no per-tool duration) and E-06 preserves
         # it deliberately; it is not something the shared format replaced.
         self.assertIn("1.25s", done_rendered)
+        self.assertIn("run_command", done_rendered)
+        self.assertIn("pytest tests/ -v", done_rendered)
         plain_done = render_stream._strip_ansi(done_rendered)
         self.assertTrue(
             plain_done.startswith(render_stream.EVENT_PREFIXES["bash"].ljust(self.pad)),
@@ -148,7 +140,7 @@ class AgyEventRenderTests(unittest.TestCase):
             {
                 "event": "step_update",
                 "step_update": {
-                    "state": "ACTIVE",
+                    "state": "DONE",
                     "step_type": "tool",
                     "tool_info": {
                         "name": "run_command",
