@@ -344,6 +344,19 @@ from agent_workflows.oc_runipd import (
     dependency_depth as dependency_depth,
     dependency_reasons as dependency_reasons,
     dependency_status as dependency_status,
+    # depreview 03ie04 E-03: `dependency_status_detailed` is RE-EXPORTED here, not defined. This
+    # module used to carry its own copy, and that copy was the reason a dependency fix could reach
+    # only ONE of this driver's two paths: the dispatch path called the re-exported
+    # `dependency_status` (whose body resolves `dependency_status_detailed` in OC's globals) while
+    # the DRAIN path called the local copy. Measured before the deletion:
+    # `agy.dependency_status_detailed is oc.dependency_status_detailed` -> False. The copy was also
+    # BROKEN in three ways that the shared implementation is not: it never called `edge_satisfied`;
+    # it never called `parse_dependency_token`, so it used the raw token as an id6 and reported
+    # "no plan resolves to this id6 in the repo" for a perfectly valid `executed:<id6>`; and it had
+    # no `orchestrate` clause, so an orchestrator item bypassed `decide_orchestrator_dispatch` on
+    # that path. `tests/test_runner_item_dependencies.py`'s `_SHARED_NAMES` now pins this name, so
+    # the copy cannot come back silently.
+    dependency_status_detailed as dependency_status_detailed,
     dependency_target_id6 as dependency_target_id6,
     edge_satisfied as edge_satisfied,
     parse_dependency_token as parse_dependency_token,
@@ -2237,6 +2250,16 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     evadable by switching host. This wrapper exists only because neither runner imports the other (the
     duplication the in-flight `rununify` Set exists to fix); it holds no threshold and no severity
     comparison of its own.
+
+    RETAINED FOR THE CROSS-DRIVER API-SYMMETRY CONTRACT, AND NOT CALLED FROM THIS MODULE (depreview
+    03ie04 E-03). Its only two call sites were both inside the local `dependency_status_detailed`
+    copy that E-03 DELETED, so the live gate now runs in `oc_runipd` through the re-exported
+    implementation. It is kept rather than deleted because
+    `tests/test_review_findings_cascade.py::SharedPredicateTests` asserts BOTH that this attribute
+    exists on this module and that this module's source names `subject_gating_blocks`; removing it
+    would change that test's contract, which is a wider decision about what cross-driver API symmetry
+    should mean and is deliberately outside this plan's fence. Do NOT read it as a second
+    implementation of the gate: there is one, in `review_findings.subject_gating_blocks`.
     """
     try:
         from agent_workflows import review_findings as _rf
@@ -2249,78 +2272,21 @@ def _findings_block_reason(repo: Path, dep: str) -> str | None:
     return "; ".join(b.describe() for b in blocks)
 
 
-# `dependency_status` is deliberately NOT defined here: it is RE-EXPORTED from `oc_runipd` in the
-# import block above, so both drivers bind the SAME object and a fix cannot land in only one of them
-# (asserted by tests/test_runner_item_dependencies.py::test_the_implementation_is_shared_not_copied).
-# The merge of revgate 7nkcgp and 8guhs0 briefly produced BOTH a re-export and a local copy here; the
-# copy is the one that had to go.
-
-
-def dependency_status_detailed(
-    item: dict[str, Any], state: dict[str, Any]
-) -> tuple[bool, list[str], dict[str, str]]:
-    """As :func:`dependency_status`, plus a ``{dep_id6: reason}`` map naming each ROOT CAUSE.
-
-    revgate Order 03 (7nkcgp) E-01/E-02 + E-04, mirroring ``oc_runipd`` exactly: an execute-action
-    dependency is satisfied by reaching `executed` ONLY IF it also carries no recorded unresolved
-    gating findings, applied to BOTH the in-queue and out-of-queue resolution paths so the gate is not
-    evadable by whether the target is in the same run. A `review`-action item is not findings-gated,
-    since only an `executed:` edge asserts completed-and-verified work.
-    """
-    by_id = {entry["id6"]: entry for entry in state["queue"]}
-    repo = Path(state["repo"])
-    unsatisfied: list[str] = []
-    reasons: dict[str, str] = {}
-    is_exec = item.get("action") != "review"
-    required_states = EXECUTION_SUCCESS_STATES if is_exec else SUCCESS_STATES
-
-    def _block(dep: str, reason: str) -> None:
-        unsatisfied.append(dep)
-        reasons[dep] = reason
-
-    for dep in item.get("dependencies", []):
-        if dep in by_id:
-            dep_status = by_id[dep]["status"]
-            if dep_status not in required_states:
-                _block(
-                    dep,
-                    f"{dep}: queue status is `{dep_status}`, not one of "
-                    f"{sorted(required_states)}",
-                )
-                continue
-            if is_exec:
-                why = _findings_block_reason(repo, dep)
-                if why:
-                    _block(dep, why)
-            continue
-        try:
-            dep_path = resolve_plan_path(repo, "", dep)
-        except DriverError:
-            _block(dep, f"{dep}: no plan resolves to this id6 in the repo")
-            continue
-        bucket = plan_bucket(dep_path)
-        if is_exec:
-            if bucket != "executed":
-                _block(dep, f"{dep}: plan is in `{bucket}/`, not `executed/`")
-                continue
-            why = _findings_block_reason(repo, dep)
-            if why:
-                _block(dep, why)
-        else:
-            if bucket not in ("executed", "reviewed", "approved"):
-                _block(
-                    dep,
-                    f"{dep}: plan is in `{bucket}/`, not executed/reviewed/approved",
-                )
-    return not unsatisfied, unsatisfied, reasons
-
-
-# NOTE (8guhs0 E-01/E-03): `dependency_status` is NOT defined here. It is IMPORTED from `oc_runipd`
-# above, so the runtime satisfaction semantics exist exactly ONCE. The deleted copy was a verbatim
-# duplicate of oc's, which is how both drivers came to be equally unable to read the canonical field:
-# a fix applied to one silently left the other broken. `plan_bucket` is byte-identical between the
-# two modules and `resolve_plan_path` differs only in formatting (verified), so the imported
-# implementation behaves identically here.
+# NEITHER `dependency_status` NOR `dependency_status_detailed` IS DEFINED HERE. Both are RE-EXPORTED
+# from `oc_runipd` in the import block above, so both drivers bind the SAME objects and the runtime
+# satisfaction semantics exist exactly ONCE (asserted by
+# tests/test_runner_item_dependencies.py::test_the_implementation_is_shared_not_copied, whose
+# `_SHARED_NAMES` list now names both).
+#
+# THE HISTORY IS WHY THIS COMMENT IS EMPHATIC, because the same defect recurred here twice. The merge
+# of revgate 7nkcgp and 8guhs0 briefly produced BOTH a re-export and a local copy of
+# `dependency_status`; that copy went. The `_detailed` sibling's copy SURVIVED that cleanup because
+# `_SHARED_NAMES` never listed it, so the guard passed over a live divergence for months: this
+# driver's DISPATCH path called the re-exported `dependency_status` (which resolves `_detailed` in
+# OC's globals) while its DRAIN path called the local copy, and the copy could not even parse a typed
+# `executed:<id6>` token. depreview 03ie04 E-03 deleted it and E-04 closed the guard hole. `plan_bucket`
+# is byte-identical between the two modules and `resolve_plan_path` differs only in formatting
+# (verified), so the imported implementations behave identically here.
 
 
 def build_review_prompt(

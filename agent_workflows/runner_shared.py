@@ -1147,6 +1147,31 @@ def resolve_plan_path(repo: Path, configured: str, id6: str) -> Path:
 
 
 def plan_bucket(path: Path) -> str | None:
+    """Which lifecycle DIRECTORY is this plan path in? Returns the segment name, or None.
+
+    A BUCKET IS A DIRECTORY; READINESS IS A FIELD. That distinction is the whole contract of this
+    function and getting it wrong has already cost one defect (depreview 03ie04). In this layout a
+    plan STAYS in `pending/` for its entire non-terminal life, moving through `- Status: draft` ->
+    `to-review` -> `reviewed` -> `approved`, and only a TERMINAL state moves the file. So a caller
+    that wants to know "is this plan reviewed/approved yet" CANNOT learn it here: it must read the
+    `- Status:` front-matter field with `selectors.read_front_matter_status`. `oc_runipd.edge_satisfied`
+    is the worked precedent, and the reason it had to change: it compared this function's result
+    against `("executed", "reviewed", "approved")`, which made two thirds of that tuple DEAD CODE
+    because every non-terminal plan buckets as `pending`.
+
+    `reviewed`, `approved` and `active` ARE RECOGNIZED DEFENSIVELY AND DO NOT OCCUR IN THIS LAYOUT.
+    `.aw/records/plans/` holds only `executed`, `not-executed`, `pending`, `reusable` and
+    `superseded`, and `run_selection_policy.TERMINAL_DIRECTORY_SEGMENTS` corroborates that in code by
+    naming exactly the four terminal ones (`executed`, `superseded`, `not-executed`, `reusable`) and
+    neither `reviewed` nor `approved`. They are kept rather than removed because the members are
+    PINNED by `tests/test_oc_runipd.py::PlanBucketRecognitionTests` and because two callers (each
+    driver's `parse_plan_file`) consume the result AS a default status (`status = bucket or
+    "to-review"`) rather than comparing it, so deleting a member would silently change a DERIVED
+    STATUS rather than merely skip a comparison.
+
+    This function does no IO and must not learn to: teaching a path inspector to read file contents
+    would change the meaning of every one of its call sites (OQ-03).
+    """
     parts = path.parts
     for bucket in (
         "executed",
