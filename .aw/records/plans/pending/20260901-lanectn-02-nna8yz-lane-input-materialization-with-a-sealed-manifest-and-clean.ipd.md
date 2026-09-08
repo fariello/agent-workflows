@@ -41,29 +41,29 @@ WHY R5.3 IS HERE AND NOT IN `cqx5v7`: making every attachment lane-local require
 
 ### Task group 1: materialize inputs by copy (R5.1, R5.1a, R5.2)
 
-- [ ] E-01 IMPLEMENTS R5.1. Add a lane input materializer that COPIES the plan/IPD snapshot and the runbook into the lane at lane-local paths and writes a manifest recording, per entry, the repo-relative path, its class, a source digest, and the materialization mode. Copy-only is the point: a link of any kind back to the original checkout reintroduces the coupling the lane exists to remove.
+- [x] E-01 IMPLEMENTS R5.1. Add a lane input materializer that COPIES the plan/IPD snapshot and the runbook into the lane at lane-local paths and writes a manifest recording, per entry, the repo-relative path, its class, a source digest, and the materialization mode. Copy-only is the point: a link of any kind back to the original checkout reintroduces the coupling the lane exists to remove.
   - Depends on: none
   - Expected outcome: after materializing a lane, the lane holds the copies and a manifest whose every entry records mode `copy` with a non-empty source digest matching the bytes actually written.
-  - Execution state: pending
-- [ ] E-02 IMPLEMENTS R5.2. Guarantee LINK INDEPENDENCE, not merely symlink absence. A hard link satisfies a symlink check AND a digest comparison while still sharing an inode with the original, so the materializer must produce files whose identity is independent of the source, and the check must establish that.
+  - Execution state: performed
+- [x] E-02 IMPLEMENTS R5.2. Guarantee LINK INDEPENDENCE, not merely symlink absence. A hard link satisfies a symlink check AND a digest comparison while still sharing an inode with the original, so the materializer must produce files whose identity is independent of the source, and the check must establish that.
   - Depends on: E-01
   - Expected outcome: for every manifest-listed lane file: it is not a symlink, and its inode identity differs from the source file's, so no listed path shares storage with a file outside the lane.
-  - Execution state: pending
-- [ ] E-03 IMPLEMENTS R5.1a. SEAL the manifest, which spec R5.1a defines as three things and not one: the manifest file itself is written without the owner write bit, each materialized input file is likewise read-only, and any legitimate change to the input set arrives as a NEW REVISION rather than an in-place edit. Label it in the code comment as an accident guard and NOT immutability, because the owning user can restore the write bit.
+  - Execution state: performed
+- [x] E-03 IMPLEMENTS R5.1a. SEAL the manifest, which spec R5.1a defines as three things and not one: the manifest file itself is written without the owner write bit, each materialized input file is likewise read-only, and any legitimate change to the input set arrives as a NEW REVISION rather than an in-place edit. Label it in the code comment as an accident guard and NOT immutability, because the owning user can restore the write bit.
   - Depends on: E-02
   - Expected outcome: the manifest file and every materialized input have no owner write bit; the code comment states the accident-guard limit; the revision mechanism exists for a later caller (child `y5od1h`) to use without editing entries in place.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: attachments and base (R5.3, R5.4)
 
-- [ ] E-04 IMPLEMENTS R5.3. Make every `--file` style attachment for an isolated turn resolve inside the lane. MEASURED DELTA so this is narrower than it sounds: the plan path is ALREADY lane-local (the driver passes the lane-resolved plan), but the runbook is still attached by its main-checkout path. Attach the lane-local copy E-01 makes; do not copy it a second time.
+- [x] E-04 IMPLEMENTS R5.3. Make every `--file` style attachment for an isolated turn resolve inside the lane. MEASURED DELTA so this is narrower than it sounds: the plan path is ALREADY lane-local (the driver passes the lane-resolved plan), but the runbook is still attached by its main-checkout path. Attach the lane-local copy E-01 makes; do not copy it a second time.
   - Depends on: E-01
   - Expected outcome: for an isolated turn, every attachment value in the constructed argv resolves inside the lane, checked over ALL such values with at least two present.
-  - Execution state: pending
-- [ ] E-05 IMPLEMENTS R5.4, and WIRES the agy twin to the shared materializer. Add a pre-launch guard that refuses an unattended isolated turn when the target checkout has dirty TRACKED paths, naming them, before any worker process is spawned. Untracked files are deliberately EXCLUDED (a lane is made from a commit, so untracked content was never silently omitted the way an uncommitted tracked edit is, and refusing on it would make an unattended run unstartable in any working checkout). REUSE the existing porcelain parser rather than writing a second one, and state in the comment how this differs from the integration-time overlap check: that one asks whether an incoming lane's changed set intersects dirty paths, this one asks whether the whole tracked tree is clean before launch.
+  - Execution state: performed
+- [x] E-05 IMPLEMENTS R5.4, and WIRES the agy twin to the shared materializer. Add a pre-launch guard that refuses an unattended isolated turn when the target checkout has dirty TRACKED paths, naming them, before any worker process is spawned. Untracked files are deliberately EXCLUDED (a lane is made from a commit, so untracked content was never silently omitted the way an uncommitted tracked edit is, and refusing on it would make an unattended run unstartable in any working checkout). REUSE the existing porcelain parser rather than writing a second one, and state in the comment how this differs from the integration-time overlap check: that one asks whether an incoming lane's changed set intersects dirty paths, this one asks whether the whole tracked tree is clean before launch.
   - Depends on: E-04
   - Expected outcome: a dirty tracked file causes refusal before spawn with the paths named; a clean tree proceeds; an untracked file does NOT trigger refusal; and the agy driver satisfies the same assertions as the oc driver.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -137,26 +137,382 @@ Spec `7ckptx` is normative; this plan cites requirement ids. No public command s
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01 (proves R5.1; spec A12)
+- [x] V-01 validates E-01 (proves R5.1; spec A12)
   - Required evidence: paste the materialized lane listing and the full manifest contents, showing every entry records mode `copy` with a non-empty source digest, and paste a digest comparison proving each lane copy matches the source bytes. SABOTAGE REQUIRED: make the materializer skip the digest (or record a wrong one), paste the FAILING check, restore, paste it passing plus `git status` proving the product is unmodified.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02 (proves R5.2; spec A12)
+  - Observed evidence: PASS. Lane listing, full manifest, and digest comparison pasted below; every entry records mode `copy` with a non-empty digest matching the bytes on disk. Sabotage (wrong digest) FAILED 4 tests, restored, 24 passed, 0 sabotage markers remain.
+
+    MATERIALIZED LANE LISTING (note every mode is `-r--r--r--`, i.e. 0444):
+
+    ```
+    $ ls -la <lane>/.aw/state/lane-inputs/rev-1
+    total 20
+    drwxr-xr-x 2 ... 4096 Sep  8 00:06 .
+    drwxr-xr-x 3 ... 4096 Sep  8 00:06 ..
+    -r--r--r-- 1 ...  848 Sep  8 00:06 manifest.json
+    -r--r--r-- 1 ...   12 Sep  8 00:06 plan-plan.ipd.md
+    -r--r--r-- 1 ...   16 Sep  8 00:06 runbook-runbook.md
+    ```
+
+    FULL MANIFEST CONTENTS:
+
+    ```json
+    {
+      "inputs": [
+        {
+          "bytes": 12,
+          "input_class": "plan",
+          "mode": "copy",
+          "path": ".aw/state/lane-inputs/rev-1/plan-plan.ipd.md",
+          "source_path": "plan.ipd.md",
+          "source_sha256": "1c653131076feca0cbc421d7ed543846484638ca444c2c5d816f260abbeaae3f"
+        },
+        {
+          "bytes": 16,
+          "input_class": "runbook",
+          "mode": "copy",
+          "path": ".aw/state/lane-inputs/rev-1/runbook-runbook.md",
+          "source_path": null,
+          "source_sha256": "9bf40062e6cb9d0da8756c0bb0591942e36a161355debcef5bd4709e62826623"
+        }
+      ],
+      "revision": 1,
+      "schema_version": 1,
+      "seal_note": "Read-only is an ACCIDENT GUARD, not immutability and not a boundary: the owning user can restore the write bit. A legitimate change to the input set is a NEW REVISION, never an in-place edit of an existing entry.",
+      "sealed": true
+    }
+    ```
+
+    Every entry records `"mode": "copy"` with a non-empty `source_sha256`. `source_path` is `null` for
+    the runbook because it came from the coordinator's run directory and has NO repo-relative location;
+    an absolute coordinator path is deliberately never recorded (R1.1 applied to the manifest itself).
+
+    DIGEST COMPARISON, lane copy vs source bytes:
+
+    ```
+    plan:    recorded=1c653131076feca0 lane=1c653131076feca0 source=1c653131076feca0 match=True
+    runbook: recorded=9bf40062e6cb9d0d lane=9bf40062e6cb9d0d source=9bf40062e6cb9d0d match=True
+    ```
+
+    SABOTAGE (recorded digest replaced with 64 zeros instead of digesting the written bytes):
+
+    ```
+    === SABOTAGE V-01 ACTIVE: digest not computed from written bytes ===
+    FAILED tests/test_lane_input_manifest.py::SealTests::test_part_iii_a_change_is_a_new_revision_not_an_edit
+    FAILED tests/test_lane_input_manifest.py::MaterializationTests::test_a_wrong_recorded_digest_is_caught
+    FAILED tests/test_lane_input_manifest.py::MaterializationTests::test_every_entry_is_a_copy_with_a_matching_digest
+    FAILED tests/test_lane_input_manifest.py::LinkIndependenceTests::test_restored_copy_passes_again
+    ========================= 4 failed, 20 passed in 2.29s =========================
+    ```
+
+    RESTORED, passing, and the product provably unmodified (0 sabotage markers remain):
+
+    ```
+    === RESTORED; V-01 sabotage reverted ===
+    tests/test_lane_input_manifest.py ........................               [100%]
+    ============================== 24 passed in 2.05s ==============================
+    $ grep -c "SABOTAGE" agent_workflows/lane_containment.py
+    0
+    ```
+  - Result: pass
+- [x] V-02 validates E-02 (proves R5.2; spec A12)
   - Required evidence: paste, for every manifest-listed lane file, evidence that it is not a symlink AND that its inode identity differs from the source file's. A test asserting only `not islink` plus digest equality does NOT satisfy this item: state explicitly why (a hard link passes both). SABOTAGE REQUIRED: replace one copy with a HARD LINK to the source, paste the FAILING check proving the check catches it, restore, paste it passing.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03 (proves R5.1a; spec A12b)
+  - Observed evidence: PASS. Hard-link sabotage proves the naive check (`not islink` + digest equality) says OK while the real check FAILS on `st_nlink=2` and identical inode 26107245; symlink and restore cases included. Detail below.
+
+    WHY `not islink` PLUS DIGEST EQUALITY IS INSUFFICIENT, demonstrated rather than asserted. A hard
+    link is not a symlink, and its bytes are identical to the source, so both halves of the naive check
+    PASS while the lane file still shares one inode with the original - meaning a later write through
+    either name mutates the other, which is exactly the coupling the lane exists to remove. Digest
+    equality is evidence of FIDELITY and says nothing about INDEPENDENCE.
+
+    ```
+    --- BEFORE sabotage: real check ---
+    independent: True
+    --- AFTER replacing the copy with a HARD LINK ---
+    NAIVE check (not islink AND digest equal) says OK: True
+      st_nlink=2  lane inode=26107245  source inode=26107245  same=True
+    REAL check independent: False
+    REAL check violations: ('.aw/state/lane-inputs/rev-1/plan-plan.ipd.md: st_nlink=2 (expected 1); another name shares this inode, so it is a hard link and not an independent copy', '.aw/state/lane-inputs/rev-1/plan-plan.ipd.md: shares inode 26107245 with plan.ipd.md')
+    composed manifest conforming: False
+    ```
+
+    So the naive check reports OK for the arrangement R5.2 forbids, and `verify_link_independence`
+    catches it on BOTH grounds: `st_nlink != 1` and identical `(st_dev, st_ino)`.
+
+    PER-FILE EVIDENCE for every manifest-listed lane file on the clean path
+    (`test_a_fresh_copy_is_link_independent` asserts all three per entry): not a symlink,
+    `st_nlink == 1`, and `(st_dev, st_ino)` differing from the source's.
+
+    SABOTAGE, RESTORE, AND PASS, as automated tests so they re-run forever:
+
+    ```
+    tests/test_lane_input_manifest.py::LinkIndependenceTests::test_hard_link_is_caught PASSED
+    tests/test_lane_input_manifest.py::LinkIndependenceTests::test_symlink_is_caught PASSED
+    tests/test_lane_input_manifest.py::LinkIndependenceTests::test_restored_copy_passes_again PASSED
+    tests/test_lane_input_manifest.py::LinkIndependenceTests::test_a_fresh_copy_is_link_independent PASSED
+    ============================== 24 passed in 2.31s ==============================
+    ```
+
+    HONEST NOTE on the link-count check: `st_nlink == 1` is sufficient on its own to prove no second
+    name shares the storage, which is what makes this hold even when the source is GONE or has no
+    repo-relative path (the synthesized runbook). The inode comparison is kept because it NAMES the
+    counterparty in the failure message.
+  - Result: pass
+- [x] V-03 validates E-03 (proves R5.1a; spec A12b)
   - Required evidence: paste the manifest file's mode and each materialized input's mode showing no owner write bit; paste evidence that an attempted in-place edit of an existing manifest entry is refused while a legitimate input change appears as a NEW REVISION; and quote the code comment stating this is an accident guard and NOT immutability. A claim of sealing without all three parts fails this item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-04 validates E-04 (proves R5.3; spec A13)
+  - Observed evidence: PASS. Manifest and both inputs are mode 0444; in-place edits raise PermissionError; a legitimate change appears as rev-2 with rev-1 byte-identical; the accident-guard/NOT-immutability comment is quoted below.
+
+    PART (i) and (ii), MODES with no write bit anywhere:
+
+    ```
+    === MODES (R5.1a parts i and ii) ===
+    manifest manifest.json: 0444
+    input .aw/state/lane-inputs/rev-1/plan-plan.ipd.md: 0444
+    input .aw/state/lane-inputs/rev-1/runbook-runbook.md: 0444
+
+    verify_lane_input_seal: True
+    verify_lane_input_manifest: True
+    ```
+
+    PART (iii), in-place edit REFUSED and a legitimate change arriving as a NEW REVISION:
+
+    ```
+    === R5.1a (iii): in-place edit REFUSED, change arrives as a NEW REVISION ===
+    in-place manifest edit REFUSED: PermissionError Permission denied
+    in-place input edit REFUSED: PermissionError Permission denied
+    new revision: rev-2 at rev-2
+    rev-1 manifest byte-identical after the revision: True
+    latest revision: 2
+    both revisions conform: True True
+    ```
+
+    Note `rev-1 manifest byte-identical after the revision: True`: the earlier revision's record is not
+    reopened, which is what makes part (iii) structural rather than a convention.
+
+    THE CODE COMMENT, quoted verbatim from `agent_workflows/lane_containment.py` on `SEALED_FILE_MODE`:
+
+    ```
+    #: HONEST LIMIT, and it must be stated wherever this is used (spec R5.1a, plan E-03 / V-03): this is
+    #: an ACCIDENT GUARD, NOT IMMUTABILITY and NOT a boundary. The owning user can restore the write bit
+    #: with one `chmod`, and the worker RUNS AS the owning user. What it buys is that an accidental
+    #: in-lane write - a stray editor save, a script that rewrites what it meant to read - FAILS LOUDLY
+    #: instead of silently rewriting the record of what was authorized. Under the threat model in spec 0.2
+    #: (an honest worker that can be confused, not an adversary) that is the whole intent. Any artifact
+    #: describing this as immutability is WRONG and spec R5.1a forbids it.
+    ```
+
+    The same limit travels IN the artifact (the manifest's own `seal_note` field, quoted under V-01), so
+    a reader of the manifest alone cannot mistake the seal for immutability.
+    `test_the_artifact_states_the_accident_guard_limit` asserts the property on both surfaces, and
+    `test_a_restored_write_bit_is_detected` sabotages the seal and proves the check refuses it.
+
+    ON THE REVISION MECHANISM'S CONSUMER, recorded because this plan's prose implies one that cannot
+    exist: spec R3.4 was WITHDRAWN by R3.3a, so nothing is ever materialized on request and no caller
+    needs to revise a manifest. R3.4 permits the MECHANISM to be built by the plan owning the manifest
+    "on the condition that it MUST state that it has no consumer rather than implying one", so
+    `revise_lane_inputs` states exactly that, and
+    `RevisionMechanismHasNoProductCallerTests::test_revise_lane_inputs_is_not_called_by_product_code`
+    enforces it by AST over the whole package (not grep, per execution-contract rule 4). See decision
+    03-nna8yz-D2.
+  - Result: pass
+- [x] V-04 validates E-04 (proves R5.3; spec A13)
   - Required evidence: paste the constructed argv for an isolated turn and an assertion over ALL attachment values showing each resolves inside the lane, with at least two values checked so the assertion provably covers both the runbook and the plan. Inspecting a single attachment does not satisfy this item.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-05 validates E-05 (proves R5.4 and twin parity; spec A14, CID-3)
+  - Observed evidence: PASS. Real `opencode run` argv captured from the product path: both `--file` values resolve inside the lane, neither main-checkout path appears, asserted over ALL values. Corrects this plan's finding F-3 (see decision D1). Detail below.
+
+    THE REAL ARGV, captured from the product `run_opencode` path (Popen intercepted at the
+    `opencode run` invocation, so this is what the child would have received):
+
+    ```
+    ['opencode', 'run', '--dir', '/tmp/tmp5cieznjd/lane', '--format', 'json', '--auto',
+     '--title', 'aw-exec-run-x-lanectn-nna8yz',
+     '--file', '/tmp/tmp5cieznjd/lane/.aw/state/lane-inputs/rev-1/runbook-runbook.md',
+     '--file', '/tmp/tmp5cieznjd/lane/.aw/state/lane-inputs/rev-1/plan-20260901-lanectn-02-nna8yz-x.ipd.md',
+     '--', 'do the thing']
+    ```
+
+    ASSERTION OVER ALL ATTACHMENT VALUES (two present, covering BOTH the runbook and the plan):
+
+    ```
+    ALL --file values (count=2):
+        /tmp/tmp5cieznjd/lane/.aw/state/lane-inputs/rev-1/runbook-runbook.md
+        /tmp/tmp5cieznjd/lane/.aw/state/lane-inputs/rev-1/plan-20260901-lanectn-02-nna8yz-x.ipd.md
+
+    lane root: /tmp/tmp5cieznjd/lane
+    attachments OUTSIDE the lane: []
+
+    RESULT: all 2 attachments resolve INSIDE the lane
+
+    main-checkout plan path passed in : /tmp/tmp5cieznjd/main/.aw/records/plans/pending/20260901-...ipd.md
+      present in argv? False
+    coordinator runbook path in state: /tmp/tmp5cieznjd/coordinator/runbook.md
+      present in argv? False
+    ```
+
+    The assertion is over ALL values via `attachment_values` / `attachments_outside_lane` (realpath on
+    both sides, so a symlinked lane or a `..` segment cannot masquerade as contained), not over one
+    hand-picked attachment.
+
+    THIS PLAN'S FINDING F-3 IS WRONG AND THE CORRECTION IS PART OF THE RESULT. F-3 states the plan
+    attachment "is ALREADY lane-local (the driver passes the lane-resolved plan)" and that only the
+    runbook needed changing. MEASURED at `44d4950d`: `execute_item` passes `lane_plan_path` to
+    `build_prompt` (so the PROMPT names the lane copy, which is what F-3 actually observed) but passes
+    the OUTER `plan_path` - `resolve_plan_path(repo, ...)` against MAIN, line 5922 - to
+    `run_opencode`, which is what becomes `--file`. So BOTH attachments named the main checkout and
+    both are now localized. Following F-3 literally would have left R5.3 false for one of two
+    attachments. Recorded as decision 03-nna8yz-D1.
+
+    SABOTAGE, as a permanent test: `test_an_out_of_lane_attachment_is_detected` feeds the PRE-CHANGE
+    argv shape and proves the check reports the out-of-lane value, so a regression cannot pass silently.
+
+    ```
+    tests/test_lane_input_manifest.py::AttachmentLocalizationTests::test_both_attachments_are_localized PASSED
+    tests/test_lane_input_manifest.py::AttachmentLocalizationTests::test_an_out_of_lane_attachment_is_detected PASSED
+    tests/test_lane_input_manifest.py::AttachmentLocalizationTests::test_a_non_isolated_turn_is_untouched PASSED
+    tests/test_lane_input_manifest.py::AttachmentLocalizationTests::test_traversal_cannot_masquerade_as_contained PASSED
+    ```
+
+    ASYMMETRY WITH THE AGY TWIN IS REAL, NOT AN OMISSION: that driver has no `--file` surface at all
+    (it passes the prompt inline via `-p`), so there is no attachment to localize.
+    `test_agy_driver_has_no_file_attachment_surface` pins that premise, so a later `--file` addition
+    there fails loudly instead of silently escaping R5.3.
+  - Result: pass
+- [x] V-05 validates E-05 (proves R5.4 and twin parity; spec A14, CID-3)
   - Required evidence: paste three cases: a dirty TRACKED file causing refusal BEFORE spawn (spawn patched and asserted never called, or the raised error shown) with the dirty paths named; a clean tree proceeding; and an UNTRACKED file NOT triggering refusal. Paste evidence the porcelain parsing REUSES the existing helper rather than a second parser (show the call). Then paste the parameterized run proving both drivers satisfy the same assertions, and both whole-suite invocations with expected counts stated separately per invocation.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All three R5.4 cases hold for BOTH drivers (dirty tracked refuses and names paths, clean proceeds, untracked does NOT refuse), guard precedes spawn and allocation, parser reuse removed a pre-existing fork, two sabotage directions caught. Both suite invocations compared by identity: zero new failures. Detail below.
+
+    THE THREE CASES, on a real git checkout, PARAMETERIZED OVER BOTH DRIVERS (each test loops the
+    `DRIVERS` tuple, so every assertion below holds for `oc_runipd` and `agy_runipd` alike):
+
+    ```
+    tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_1_a_dirty_tracked_file_refuses_and_names_it PASSED
+    tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_1_a_staged_tracked_change_also_refuses PASSED
+    tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_2_a_clean_tree_proceeds PASSED
+    tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_3_an_untracked_file_does_NOT_refuse PASSED
+    tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_both_drivers_agree_on_every_case PASSED
+    ```
+
+    Case 1 asserts the dirty path is BOTH in `result.dirty_paths` and NAMED in `result.reason`; case 3
+    asserts `clean` is True and `dirty_paths` is empty with two untracked files present.
+    `test_both_drivers_agree_on_every_case` walks clean -> untracked-only -> dirty-tracked and asserts
+    the two hosts return the SAME verdict at each step, giving `[True, True, False]`.
+
+    BEFORE SPAWN, asserted structurally on each driver's `execute_item`
+    (`test_guard_precedes_spawn_and_allocation`): the guard's position precedes BOTH the launch call
+    (`run_opencode(` / `run_agy_turn(`) and `allocate_isolation_worktree(`. It is placed ahead of
+    `driver_begin` too, so a refusal leaves NO lifecycle side effect to unwind - no receipt, no lane.
+    `test_refusal_records_the_dirty_paths_on_the_attempt` proves the refusal is auditable
+    (`attempt["clean_base_dirty_paths"]` plus a `clean-base-refused` event), not merely printed.
+
+    THE PARSER IS REUSED, NOT FORKED, and this actually REMOVED a pre-existing duplicate. The porcelain
+    parsing was written out twice, verbatim, in `oc_runipd.dirty_tree_overlap` and
+    `agy_runipd.dirty_tree_overlap`; both now call the shared predicate, and the guard uses the same one
+    rather than adding a third copy:
+
+    ```python
+    # both drivers, dirty_tree_overlap:
+    _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
+    return sorted(incoming & lane_containment.parse_porcelain_paths(out))
+
+    # both drivers, evaluate_clean_base_for_launch:
+    _rc, out, _err = _run_git(repo, ["status", "--porcelain", "--untracked-files=no"])
+    return lane_containment.evaluate_clean_base(out)
+    ```
+
+    `test_both_guards_delegate_to_the_shared_rule` and
+    `test_dirty_tree_overlap_no_longer_forks_the_parser` assert the delegation AND the absence of the
+    hand-rolled loop, for both hosts. `test_overlap_behaviour_is_preserved_after_the_refactor` proves
+    the refactor did not change what `dirty_tree_overlap` answers.
+
+    THE TWO CHECKS ANSWER DIFFERENT QUESTIONS, asserted as behaviour rather than only stated in a
+    comment (`test_the_two_checks_answer_different_questions`): with `b.txt` dirty and an incoming
+    change of `a.txt` only, `dirty_tree_overlap` returns `[]` (no overlap, integration permitted) while
+    the clean-base guard REFUSES (the base is incomplete regardless of which paths a lane will touch).
+
+    SABOTAGE, both directions. (1) Guard forced to always report clean:
+
+    ```
+    === SABOTAGE V-05 ACTIVE: guard always reports clean ===
+    FAILED tests/test_lane_clean_base.py::CleanBaseRuleTests::test_dirty_tracked_paths_are_named
+    FAILED tests/test_lane_clean_base.py::CleanBaseRuleTests::test_a_rename_dirties_both_endpoints
+    FAILED tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_both_drivers_agree_on_every_case
+    FAILED tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_1_a_dirty_tracked_file_refuses_and_names_it
+    FAILED tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_1_a_staged_tracked_change_also_refuses
+    FAILED tests/test_lane_clean_base.py::SharedPredicateTests::test_the_two_checks_answer_different_questions
+    ========================= 6 failed, 9 passed in 0.45s ==========================
+    ```
+
+    (2) The OPPOSITE sabotage, guarding against the tempting wrong "fix" of tightening the guard to
+    include untracked files (which finding F-4 forbids). Note it trips the CID-3 parity test too:
+
+    ```
+    === SABOTAGE ACTIVE: oc guard tightened to include untracked files ===
+    E   AssertionError: hosts disagree: [(False, ('untracked.txt',)), (True, ())]
+    FAILED tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_case_3_an_untracked_file_does_NOT_refuse
+    FAILED tests/test_lane_clean_base.py::CleanBaseOnARealRepositoryTests::test_both_drivers_agree_on_every_case
+    ========================= 2 failed, 13 passed in 0.48s ==========================
+    ```
+
+    RESTORED and passing, with no sabotage markers left in the product:
+
+    ```
+    === RESTORED ===
+    agent_workflows/oc_runipd.py:0
+    agent_workflows/lane_containment.py:0
+    tests/test_lane_input_manifest.py ........................               [ 61%]
+    tests/test_lane_clean_base.py ...............                            [100%]
+    ============================== 39 passed in 2.32s ==============================
+    ```
+
+    BOTH WHOLE-SUITE INVOCATIONS, WITH EXPECTATIONS STATED SEPARATELY PER INVOCATION. Baselines were
+    MEASURED THIS TURN, not copied from this plan, and failures are compared BY TEST IDENTITY.
+
+    (a) BARE `python3 -m pytest`. Expectation per this plan: zero failures. ACTUAL: 15 failures both
+    before and after, all ENVIRONMENTAL and none in this plan's scope, so the honest expectation for a
+    lane-executed run is "the failing set is unchanged by identity". Run with `env -u AW_EXECUTION_ROLE`
+    because this turn's own worker role marking otherwise fails 17 further tests that assert the driver
+    is not worker-marked (see decision 03-nna8yz-D3 for the per-group attribution).
+
+    ```
+    BEFORE: 15 failed, 5634 passed, 3 skipped, 2 xfailed in 92.43s
+    AFTER:  15 failed, 5673 passed, 3 skipped, 2 xfailed in 67.61s
+
+    $ diff baseline_ids.txt final_ids.txt
+    IDENTICAL: no new failures by identity (15 pre-existing, all environmental)
+    ```
+
+    The +39 passed is exactly this plan's two new modules (24 + 15). The 15 pre-existing failures are 14
+    in `tests/test_run_viewer.py` (its `discover_run_dirs` needs a non-empty gitignored
+    `.aw/records/runs/`, absent in a fresh lane) plus `test_runprofile_refuses_for_R2_...` (pins plan
+    `kgpptv` as `reviewed` while main now has it `approved`).
+
+    (b) `make test-all`. Expectation per this plan: a KNOWN set of pre-existing CLI-surface declaration
+    failures that are not this plan's to fix. Identified by NAME through my own measurement (my changes
+    stashed, then restored) rather than trusting any recorded number:
+
+    ```
+    BASELINE (my changes stashed): 57 failed, 6095 passed, 3 skipped, 2 xfailed in 236.74s
+    AFTER:                         21 failed, 6131 passed, 3 skipped, 2 xfailed in 385.70s
+
+    === NEW failures introduced by my change ===
+    (none)
+
+    === excluding my two new modules from both sides ===
+    baseline: 21   after: 21
+    IDENTICAL: 21 pre-existing failures, unchanged
+    ```
+
+    The 57 -> 21 drop is an artifact of the baseline measurement: with my product code stashed, my own
+    36 new tests failed. Excluding my two modules from BOTH sides gives 21 = 21, byte-identical by node
+    id. The 21 pre-existing failures are the CLI-surface declaration set
+    (`test_cli_conformance_matrix.py` x2, `test_command_surface_declarations.py`,
+    `test_installer.py`, `test_cli.py`, `test_runner_stop_triggers.py`), the 14 `test_run_viewer.py`
+    tests, and the orchestrator-retirement test named above.
+
+    ONE OUT-OF-SCOPE EDIT, disclosed rather than hidden: `tests/test_runner_shared.py` pins call-site
+    COUNTS to prove no existing call site was rewritten, and the guard's refusal branch adds one
+    `save_state` caller per driver. Recorded as a documented additive entry exactly as the file's two
+    prior rulings were (decision 03-nna8yz-D4); it will carry a `--scope-reason` at finalize.
+    `python3 -m pytest tests/test_runner_shared.py` -> 43 passed.
+  - Result: pass
 
 ## Approval and execution gate
 
