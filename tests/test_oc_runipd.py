@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import contextlib
 import io
 import json
@@ -3182,6 +3183,82 @@ class FailClosedIntegrationGuardTests(unittest.TestCase):
             )
             # No incoming files -> never blocked.
             self.assertEqual(driver.dirty_tree_overlap(repo, []), [])
+
+    def test_the_integration_helpers_are_the_SHARED_ones(self):
+        """integpath-02 (`6sb3yu`): this module no longer carries its own copies.
+
+        Asserted HERE, in the driver's own suite, and not only in the shared harness: a reader of
+        `oc_runipd`'s tests should be able to see that these three symbols are bound rather than
+        defined, since that is what makes a fix to the refusal logic reach BOTH drivers.
+        """
+        from agent_workflows import runner_shared
+
+        # The pure move is the SAME OBJECT.
+        self.assertIs(driver.dirty_tree_overlap, runner_shared.dirty_tree_overlap)
+        # The other two keep a thin host-binding wrapper (for `run_checked` / `host_label`), so they
+        # are NOT the same object; what must hold is that this module defines no second BODY.
+        src = Path(str(driver.__file__)).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for name in ("build_lane_outcome", "integrate_lane_branch"):
+            node = next(
+                n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef) and n.name == name
+            )
+            statements = [
+                s
+                for s in node.body
+                if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
+            ]
+            self.assertEqual(len(statements), 1, f"{name} must be a one-line wrapper")
+            self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
+
+    def test_this_hosts_merge_subject_still_says_aw_oc_run(self):
+        """The ONE value the extraction parameterized, checked against a REAL merge on this host.
+
+        A wrong label would misattribute an integration in main's git history and stay invisible until
+        someone audited the log, so it is asserted positively AND negatively.
+        """
+        from agent_workflows import worktree_lease
+
+        def git(cwd, *args):
+            return subprocess.run(
+                ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+            ).stdout.strip()
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "wir001")
+            base = git(repo, "rev-parse", "HEAD")
+            git(repo, "branch", "aw/lane/wir001")
+            wt = Path(temp) / "wt"
+            git(repo, "worktree", "add", "-q", str(wt), "aw/lane/wir001")
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "x.py").write_text("lane\n", encoding="utf-8")
+            git(wt, "add", "src/x.py")
+            git(wt, "commit", "-qm", "lane writes src/x.py")
+            # Advance main so `--ff-only` fails and the labelled `--no-ff` merge is taken.
+            (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+            git(repo, "add", "other.txt")
+            git(repo, "commit", "-qm", "main advances")
+
+            handle = worktree_lease.WorktreeHandle(
+                lane_id="wir001",
+                path=wt,
+                branch="aw/lane/wir001",
+                base_commit=base,
+            )
+            integrated, reason, kind = driver.integrate_lane_branch(
+                repo, handle, "wir001", lambda _d, _f: True
+            )
+
+            self.assertTrue(integrated, reason)
+            self.assertEqual(kind, "integrated")
+            subject = git(repo, "log", "-1", "--pretty=%s")
+            self.assertEqual(
+                subject, "integrate(aw oc run): merge verified lane wir001 to main"
+            )
+            self.assertNotIn("aw agy run", subject)
 
 
 class TestIsolatedTurnPromptPointsAtTheLane(unittest.TestCase):

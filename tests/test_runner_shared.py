@@ -38,6 +38,7 @@ exempting the riskiest symbols is how a harness becomes decorative:
 from __future__ import annotations
 
 import ast
+import builtins
 import json
 import pathlib
 import re
@@ -80,6 +81,44 @@ INJECTED: dict[str, str] = {
     "git_head": "run_checked",
     "git_status": "run_checked",
     "git_common_dir": "run_checked",
+}
+
+# integpath-02 (`6sb3yu`): the lane->main integration seam, extracted LATER than the 34 above and
+# therefore held to a DIFFERENT standard, stated here so the split is deliberate rather than an
+# exemption. `INJECTED` above is pinned against `runner_shared_premove_fingerprints.json`, a capture
+# of the PRE-MOVE source at HEAD `1ecc5891`; these three symbols do not appear in that fixture
+# because they did not exist in it, so they have no pre-move fingerprint to match and adding them to
+# `INJECTED` would make the fixture-backed tests raise `KeyError` rather than prove anything.
+# `LaneIntegrationExtractionTests` is what replaces the fingerprint for them: it asserts the same
+# three properties (no re-definition, object identity or a delegating wrapper, and no runner import)
+# plus the host-label binding that a fingerprint could not express.
+LANE_INTEGRATION_MOVED = (
+    "dirty_tree_overlap",
+    "build_lane_outcome",
+    "integrate_lane_branch",
+)
+
+# Which of the three keep a runner-local WRAPPER (because they need a host-specific value) and which
+# is bound by plain re-export. `dirty_tree_overlap` needs nothing from its host, so it is the SAME
+# OBJECT in both runners; the other two are not, and asserting identity for them would be wrong.
+LANE_INTEGRATION_WRAPPED = ("build_lane_outcome", "integrate_lane_branch")
+
+# The host label each runner MUST bind into `integrate_lane_branch`. This value lands in a merge
+# commit subject on MAIN, so it records WHICH driver integrated a lane; the shared function gives it
+# no default precisely so a mis-binding cannot be silent.
+HOST_LABELS = {"oc_runipd": "aw oc run", "agy_runipd": "aw agy run"}
+
+# Symbols that MOVED into `runner_shared` while CALLING `run_checked`, mapped to how many calls each
+# body makes. Two independent tests read this ONE table: the call-site census subtracts the total
+# (those calls relocated, they were not rewritten), and the injection test asserts this is exactly
+# the set of shared functions that call `run_checked` at all. Driving both from one place is what
+# stops the two from disagreeing after the next extraction.
+RELOCATED_RUN_CHECKED_CALLERS: dict[str, int] = {
+    "git_head": 1,
+    "git_status": 1,
+    "git_common_dir": 1,
+    # integpath-02 (`6sb3yu`): `git rev-parse`, `git diff --name-only`, `git diff`.
+    "build_lane_outcome": 3,
 }
 
 # The 2 symbols that could NOT move, with the reason pinned in `UnmovableSymbolTests`.
@@ -606,6 +645,250 @@ class ObjectIdentityTests(unittest.TestCase):
                     self.assertIs(getattr(_MODULES[runner], name), expected)
 
 
+class LaneIntegrationExtractionTests(unittest.TestCase):
+    """integpath-02 (`6sb3yu`): the guard for the lane->main integration extraction.
+
+    WHY A SEPARATE CLASS AND NOT THREE MORE FIXTURE ENTRIES. The 34 symbols above are pinned against
+    a PRE-MOVE fingerprint captured at HEAD `1ecc5891`. These three did not exist in that capture, so
+    there is no fingerprint to compare and pretending otherwise would make the fixture-backed tests
+    fail on a missing key rather than prove anything. This class asserts the same three independent
+    properties in a form that does not need the fixture, plus one the fixture could not express.
+
+    WHY IT IS DRIVEN BY A SYMBOL LIST rather than three copy-pasted assertion blocks: a guard whose
+    shape discourages extension is how the NEXT re-fork slips through. Extending it is adding a name
+    to `LANE_INTEGRATION_MOVED`.
+
+    WHY EVERY ASSERTION COVERS BOTH RUNNERS. This is a recorded failure in this repository, not a
+    hypothesis: `render_stream` was extracted with a guard that checked only `oc_runipd`, and
+    `agy_runipd` then re-forked `Palette`, `_one_line`, `_strip_ansi` and `Heartbeat` with nothing
+    noticing (the `rununify` orchestrator's F10). A one-sided guard is how an extraction silently
+    un-does itself.
+    """
+
+    def test_the_shared_module_defines_all_three(self):
+        defined = top_level_definitions(runner_shared)
+        for name in LANE_INTEGRATION_MOVED:
+            with self.subTest(symbol=name):
+                self.assertIn(name, defined)
+
+    def test_neither_runner_redefines_an_unwrapped_symbol(self):
+        """The pure move must leave NO runner-local definition behind.
+
+        Object identity alone would pass while a stale duplicate sat in the file shadowed by a later
+        import, which is a trap rather than a fix.
+        """
+        unwrapped = [
+            n for n in LANE_INTEGRATION_MOVED if n not in LANE_INTEGRATION_WRAPPED
+        ]
+        violations = []
+        for runner in BOTH:
+            defined = top_level_definitions(_MODULES[runner])
+            for name in unwrapped:
+                line = defined.get(name)
+                if line is not None:
+                    violations.append(f"{runner}.py:{line} re-defines `{name}`")
+        self.assertEqual(
+            violations,
+            [],
+            "RE-DEFINITION FOUND. The lane->main integration logic must have ONE "
+            "definition; the whole point of the extraction is that this Set's behavior "
+            "changes land once.\n  " + "\n  ".join(violations),
+        )
+
+    def test_an_unwrapped_symbol_is_the_SAME_OBJECT_in_both_runners(self):
+        for name in LANE_INTEGRATION_MOVED:
+            if name in LANE_INTEGRATION_WRAPPED:
+                continue
+            expected = getattr(runner_shared, name)
+            for runner in BOTH:
+                with self.subTest(symbol=name, runner=runner):
+                    self.assertIs(
+                        getattr(_MODULES[runner], name),
+                        expected,
+                        f"{runner}.{name} must BE `runner_shared.{name}`, not merely "
+                        "behave like it",
+                    )
+
+    def test_a_wrapped_symbol_is_a_single_delegating_statement(self):
+        """A wrapper is permitted; a wrapper that GREW A BODY is a re-fork with extra steps.
+
+        `build_lane_outcome` and `integrate_lane_branch` legitimately keep a runner-local `def`,
+        because each must bind a host-specific value. So the bar is structural rather than identity:
+        one statement, naming the shared function.
+        """
+        for name in LANE_INTEGRATION_WRAPPED:
+            for runner in BOTH:
+                with self.subTest(symbol=name, runner=runner):
+                    node = next(
+                        (
+                            n
+                            for n in ast.parse(module_source(_MODULES[runner])).body
+                            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            and n.name == name
+                        ),
+                        None,
+                    )
+                    self.assertIsNotNone(
+                        node,
+                        f"{runner}.{name} must keep a wrapper at its original name",
+                    )
+                    assert node is not None
+                    statements = [
+                        s
+                        for s in node.body
+                        if not (
+                            isinstance(s, ast.Expr)
+                            and isinstance(s.value, ast.Constant)
+                        )
+                    ]
+                    self.assertEqual(
+                        len(statements),
+                        1,
+                        f"{runner}.{name} has {len(statements)} statements; a wrapper "
+                        "that grows logic is a re-fork with extra steps",
+                    )
+                    self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
+
+    def test_each_wrapper_keeps_the_ORIGINAL_signature(self):
+        """No call site may have had to change, so no wrapper may expose the injected parameter."""
+        originals = {
+            "build_lane_outcome": ["repo", "handle", "id6"],
+            "integrate_lane_branch": ["repo", "handle", "id6", "validation_runner"],
+        }
+        for name in LANE_INTEGRATION_WRAPPED:
+            for runner in BOTH:
+                with self.subTest(symbol=name, runner=runner):
+                    node = next(
+                        n
+                        for n in ast.parse(module_source(_MODULES[runner])).body
+                        if isinstance(n, ast.FunctionDef) and n.name == name
+                    )
+                    self.assertEqual([a.arg for a in node.args.args], originals[name])
+                    self.assertEqual([a.arg for a in node.args.kwonlyargs], [])
+
+    def test_exactly_one_definition_package_wide(self):
+        """Pairwise is not enough: a pairwise check passes while a third copy sits elsewhere.
+
+        Scoped to the runners and the shared module for the reason the older twin gives: an unrelated
+        module may legitimately share a NAME with a different body, and that is a collision rather
+        than a re-fork.
+        """
+        pkg = pathlib.Path(runner_shared.__file__).parent
+        in_scope = {"runner_shared.py", "oc_runipd.py", "agy_runipd.py"}
+        for name in LANE_INTEGRATION_MOVED:
+            if name in LANE_INTEGRATION_WRAPPED:
+                continue
+            sites = []
+            for path in sorted(pkg.glob("*.py")):
+                if path.name not in in_scope:
+                    continue
+                for node in ast.parse(path.read_text(encoding="utf-8")).body:
+                    if (
+                        isinstance(
+                            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+                        )
+                        and node.name == name
+                    ):
+                        sites.append(f"{path.name}:{node.lineno}")
+            with self.subTest(symbol=name):
+                self.assertEqual(len(sites), 1, f"`{name}` sites: {sites}")
+                self.assertTrue(sites[0].startswith("runner_shared.py:"), sites)
+
+    def test_the_host_label_has_NO_DEFAULT_in_the_shared_function(self):
+        """The one parameterized VALUE must be impossible to inherit silently.
+
+        `host_label` lands in a merge commit subject ON MAIN, so it records which driver integrated a
+        lane. A default would let a new caller attribute its integrations to the wrong driver, and
+        that misattribution is invisible until someone audits the log.
+        """
+        node = next(
+            n
+            for n in ast.parse(module_source(runner_shared)).body
+            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
+        )
+        names = [a.arg for a in node.args.kwonlyargs]
+        self.assertIn("host_label", names)
+        default = node.args.kw_defaults[names.index("host_label")]
+        self.assertIsNone(
+            default, "`host_label` must have NO default; see this test's docstring"
+        )
+
+    def test_each_runner_binds_its_OWN_host_label(self):
+        """And it must be the RIGHT one: a swapped pair would still satisfy "has a label"."""
+        for runner in BOTH:
+            with self.subTest(runner=runner):
+                node = next(
+                    n
+                    for n in ast.parse(module_source(_MODULES[runner])).body
+                    if isinstance(n, ast.FunctionDef)
+                    and n.name == "integrate_lane_branch"
+                )
+                call = next(
+                    sub
+                    for sub in ast.walk(node)
+                    if isinstance(sub, ast.Call)
+                    and "runner_shared.integrate_lane_branch" in ast.unparse(sub.func)
+                )
+                bound = {
+                    kw.arg: ast.unparse(kw.value)
+                    for kw in call.keywords
+                    if kw.arg is not None
+                }
+                self.assertEqual(
+                    ast.literal_eval(bound["host_label"]), HOST_LABELS[runner]
+                )
+                self.assertEqual(bound.get("run_checked"), "run_checked")
+
+    def test_the_shared_bodies_reference_no_name_from_either_runner(self):
+        """The de-duplication must not have smuggled in a dependency on a host.
+
+        Checked over the WHOLE module rather than by trusting the import guard, because a lazy
+        function-level import would satisfy that guard's module-level reading. `NoRunnerImportTests`
+        covers the import statements; this covers these three bodies' free names.
+        """
+        tree = ast.parse(module_source(runner_shared))
+        shared_names = {
+            n.name
+            for n in tree.body
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        } | {
+            t.id
+            for n in tree.body
+            if isinstance(n, ast.Assign)
+            for t in n.targets
+            if isinstance(t, ast.Name)
+        }
+        for name in LANE_INTEGRATION_MOVED:
+            node = next(
+                n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef) and n.name == name
+            )
+            local = {a.arg for a in node.args.args} | {
+                a.arg for a in node.args.kwonlyargs
+            }
+            called = {
+                sub.func.id
+                for sub in ast.walk(node)
+                if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name)
+            }
+            # Every function this body CALLS by bare name must be resolvable inside this module or be
+            # one of its own parameters or a builtin. A name from a runner could not be.
+            unresolved = {
+                c
+                for c in called
+                if c not in shared_names and c not in local and not hasattr(builtins, c)
+            }
+            with self.subTest(symbol=name):
+                self.assertEqual(
+                    unresolved,
+                    set(),
+                    f"`{name}` calls {sorted(unresolved)}, which `runner_shared` "
+                    "cannot resolve; a name from a runner would be a hidden host "
+                    "dependency wearing a de-duplication's clothes",
+                )
+
+
 class NoRunnerImportTests(unittest.TestCase):
     """The shared module must not import either runner, at module level OR lazily."""
 
@@ -783,8 +1066,15 @@ class WrapperTests(unittest.TestCase):
         `run_checked`, and they MOVED to `runner_shared` in this same seam. Their calls did not
         change, they relocated with the functions that make them. The subtraction is stated
         explicitly rather than absorbed into a fudged expected number.
+
+        A FURTHER 3 RELOCATED under integpath-02 (`6sb3yu`), for the same reason and by the same
+        mechanism: `build_lane_outcome` moved to `runner_shared` and its body makes THREE
+        `run_checked` calls (`git rev-parse`, `git diff --name-only`, `git diff`). So the subtraction
+        is now 6 per runner, and it is a RELOCATION rather than a rewrite: no surviving call site in
+        either runner was touched, and the wrapper each keeps passes `run_checked` as a NAME (an
+        injection, not a call), which is why it adds nothing back.
         """
-        moved_callers_of_run_checked = 3
+        moved_callers_of_run_checked = sum(RELOCATED_RUN_CHECKED_CALLERS.values())
         for (runner, name), premove in sorted(self.PREMOVE_CALL_SITES.items()):
             with self.subTest(runner=runner, symbol=name):
                 expected = premove
@@ -799,38 +1089,49 @@ class WrapperTests(unittest.TestCase):
                 )
 
     def test_the_relocated_run_checked_callers_still_call_it_by_injection(self):
-        """The other half of the subtraction above, and the reason `run_checked` is injected 3x.
+        """The other half of the subtraction above, and the reason `run_checked` is injected at all.
 
         `git_head`, `git_status` and `git_common_dir` moved in the SAME seam as `run_checked`, and
         their bodies call it. Their calls did not disappear, they RELOCATED into `runner_shared` - and
         because `run_checked` gained a parameter, each now receives the runner's own wrapper by
-        injection rather than resolving a module global.
+        injection rather than resolving a module global. `build_lane_outcome` joined them under
+        integpath-02 (`6sb3yu`) with three such calls.
 
-        This test also guards against the tempting WRONG repair, which is to rewrite these three onto
-        the shared `_run_git` sitting directly above them. That would change `git_head` from raising
-        `DriverError` to returning "" and would drop `git_status`'s `--short`, and both feed every
-        run's outcome record. If someone makes that change, the call set below empties and this fails.
+        This test also guards against the tempting WRONG repair, which is to rewrite these onto the
+        shared `_run_git` sitting nearby. For `git_head` that would change raising `DriverError` into
+        returning "" and would drop `git_status`'s `--short`, and both feed every run's outcome record.
+        For `build_lane_outcome` it is worse and less visible: a failed `git rev-parse`/`git diff`
+        would stop raising and instead build a `LaneOutcome` from EMPTY STRINGS, which the integration
+        gate would then happily revalidate as an empty change and merge. If someone makes that change,
+        the call set below shrinks and this fails.
+
+        BOTH ASSERTIONS ARE DRIVEN BY `RELOCATED_RUN_CHECKED_CALLERS` rather than by literals, so the
+        next extraction that brings a `run_checked` caller into this module extends ONE table instead
+        of editing two hand-written sets that can silently disagree.
         """
         tree = ast.parse(module_source(runner_shared))
-        callers = set()
+        callers: dict[str, int] = {}
         for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                for sub in ast.walk(node):
-                    if (
-                        isinstance(sub, ast.Call)
-                        and isinstance(sub.func, ast.Name)
-                        and sub.func.id == "run_checked"
-                    ):
-                        callers.add(node.name)
+                count = sum(
+                    1
+                    for sub in ast.walk(node)
+                    if isinstance(sub, ast.Call)
+                    and isinstance(sub.func, ast.Name)
+                    and sub.func.id == "run_checked"
+                )
+                if count:
+                    callers[node.name] = count
         self.assertEqual(
             callers,
-            {"git_head", "git_status", "git_common_dir"},
-            "the three git helpers must still call `run_checked` (by injection); "
-            "rewriting them onto `_run_git` would be a BEHAVIOR CHANGE",
+            RELOCATED_RUN_CHECKED_CALLERS,
+            "the shared `run_checked` callers (and their call counts) must match "
+            "`RELOCATED_RUN_CHECKED_CALLERS`; rewriting one onto `_run_git` would be a "
+            "BEHAVIOR CHANGE, and an unrecorded new caller breaks the call-site census",
         )
-        # And each of the three takes it as a parameter rather than closing over a global, which is
-        # what makes the call resolvable at all.
-        for name in ("git_head", "git_status", "git_common_dir"):
+        # And each takes it as a parameter rather than closing over a global, which is what makes the
+        # call resolvable at all.
+        for name in sorted(RELOCATED_RUN_CHECKED_CALLERS):
             with self.subTest(symbol=name):
                 node = next(
                     n
@@ -1252,6 +1553,222 @@ class PrintStatusRenderingTests(unittest.TestCase):
         self.assertIn("antigravity", out["agy_runipd"])
         self.assertNotIn("opencode", out["agy_runipd"])
         self.assertNotEqual(out["oc_runipd"], out["agy_runipd"])
+
+
+class LaneIntegrationBehaviorTests(unittest.TestCase):
+    """integpath-02 (`6sb3yu`) E-05: the extraction's claim is "NOTHING CHANGED", proven on BOTH hosts
+    against REAL GIT rather than mocks.
+
+    WHY REAL REPOSITORIES AND WHY BOTH HOSTS. The two driver suites are ASYMMETRIC (the agy side has
+    far fewer tests), so an agy-only regression can leave both suites green - which is exactly how the
+    50 diverged symbols in this package got that way. Each case below therefore runs through EACH
+    RUNNER'S OWN wrapper, so the host-specific bindings (`run_checked`, `host_label`) are exercised
+    and not bypassed by calling the shared function directly.
+
+    The four cases are the four behaviors the extraction had to preserve: a clean integration and its
+    per-host merge subject, the dirty-overlap refusal, the rename endpoints, and the conflict abort.
+    """
+
+    def _repo(self, tmp: pathlib.Path) -> pathlib.Path:
+        """A throwaway repo with one commit on `main` and a lane branch off it."""
+        import subprocess
+
+        repo = tmp / "repo"
+        repo.mkdir()
+        run = lambda *a: subprocess.run(  # noqa: E731 - terse local helper
+            list(a), cwd=repo, check=True, capture_output=True, text=True
+        )
+        run("git", "init", "-q", "-b", "main")
+        run("git", "config", "user.email", "test@example.invalid")
+        run("git", "config", "user.name", "Test")
+        run("git", "config", "commit.gpgsign", "false")
+        (repo / "base.txt").write_text("base\n", encoding="utf-8")
+        run("git", "add", "base.txt")
+        run("git", "commit", "-qm", "base")
+        return repo
+
+    def _git(self, repo: pathlib.Path, *args: str) -> str:
+        import subprocess
+
+        return subprocess.run(
+            ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+        ).stdout.strip()
+
+    def _lane(self, repo: pathlib.Path, id6: str, *, path: str, body: str):
+        """Commit ``body`` at ``path`` on a lane branch and return a handle for it."""
+        from agent_workflows import worktree_lease
+
+        base = self._git(repo, "rev-parse", "HEAD")
+        branch = f"aw/lane/{id6}"
+        self._git(repo, "branch", branch)
+        wt = repo.parent / f"wt-{id6}"
+        self._git(repo, "worktree", "add", "-q", str(wt), branch)
+        target = wt / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+        self._git(wt, "add", path)
+        self._git(wt, "commit", "-qm", f"lane {id6}: write {path}")
+        return worktree_lease.WorktreeHandle(
+            lane_id=id6, path=wt, branch=branch, base_commit=base
+        )
+
+    def _passing_runner(self):
+        return lambda _diff, _files: True
+
+    def test_a_clean_lane_still_integrates_and_carries_ITS_OWN_host_label(self):
+        """The clean path, plus the ONE value E-02 parameterized and so the one most likely miswired.
+
+        A wrong label is invisible until someone audits main's log, which is why it is asserted
+        POSITIVELY (this host's label present) AND NEGATIVELY (the other host's label absent).
+        """
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "aaa111", path="src/x.py", body="lane\n")
+                # Advance main so the `--ff-only` attempt fails and the CONTROLLED `--no-ff` merge
+                # (the only place the host label appears) is the path actually taken.
+                (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+                self._git(repo, "add", "other.txt")
+                self._git(repo, "commit", "-qm", "main advances")
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "aaa111", self._passing_runner()
+                )
+
+                self.assertTrue(integrated, reason)
+                self.assertEqual(kind, "integrated")
+                subject = self._git(repo, "log", "-1", "--pretty=%s")
+                self.assertEqual(
+                    subject,
+                    f"integrate({HOST_LABELS[runner]}): merge verified lane aaa111 to main",
+                )
+                other = next(v for k, v in HOST_LABELS.items() if k != runner)
+                self.assertNotIn(other, subject)
+                # The lane's file really is on main now.
+                self.assertEqual(
+                    (repo / "src" / "x.py").read_text(encoding="utf-8"), "lane\n"
+                )
+
+    def test_a_dirty_overlapping_path_still_refuses_with_main_untouched(self):
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "bbb222", path="src/x.py", body="lane\n")
+                head_before = self._git(repo, "rev-parse", "HEAD")
+                # Un-owned dirt in MAIN on the very path the lane changed.
+                (repo / "src").mkdir(parents=True, exist_ok=True)
+                (repo / "src" / "x.py").write_text("un-owned dirt\n", encoding="utf-8")
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "bbb222", self._passing_runner()
+                )
+
+                self.assertFalse(integrated)
+                self.assertEqual(kind, "integration-blocked")
+                self.assertIn("src/x.py", reason)
+                # Main untouched: HEAD unmoved, the un-owned edit NOT clobbered, lane preserved.
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+                self.assertEqual(
+                    (repo / "src" / "x.py").read_text(encoding="utf-8"),
+                    "un-owned dirt\n",
+                )
+                self.assertIn(
+                    handle.branch,
+                    self._git(repo, "branch", "--format=%(refname:short)"),
+                )
+
+    def test_a_rename_still_makes_BOTH_endpoints_count_as_dirty(self):
+        """Load-bearing for this Set: a rename is how a plan moves into `executed/`.
+
+        Dropping either endpoint would silently NARROW the refusal and let an integration proceed over
+        a path it should have refused, so the origin is asserted as well as the destination.
+        """
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                (repo / "orig.txt").write_text("content\n", encoding="utf-8")
+                self._git(repo, "add", "orig.txt")
+                self._git(repo, "commit", "-qm", "add orig")
+                self._git(repo, "mv", "orig.txt", "dest.txt")
+                porcelain = self._git(repo, "status", "--short")
+                self.assertIn("->", porcelain, porcelain)
+
+                overlap = _MODULES[runner].dirty_tree_overlap
+                self.assertEqual(overlap(repo, ["dest.txt"]), ["dest.txt"])
+                self.assertEqual(overlap(repo, ["orig.txt"]), ["orig.txt"])
+                self.assertEqual(
+                    overlap(repo, ["orig.txt", "dest.txt"]), ["dest.txt", "orig.txt"]
+                )
+                # Disjoint dirt is still ignored, and no incoming files is never blocked.
+                self.assertEqual(overlap(repo, ["unrelated.txt"]), [])
+                self.assertEqual(overlap(repo, []), [])
+
+    def test_a_real_conflict_still_aborts_leaving_main_clean(self):
+        import tempfile
+
+        for runner in BOTH:
+            with self.subTest(runner=runner), tempfile.TemporaryDirectory() as tmp:
+                repo = self._repo(pathlib.Path(tmp))
+                handle = self._lane(repo, "ccc333", path="clash.txt", body="lane\n")
+                # Main COMMITS a conflicting change to the same path: the gate is diff-based and
+                # passes, so the real `git merge` is what conflicts.
+                (repo / "clash.txt").write_text("main\n", encoding="utf-8")
+                self._git(repo, "add", "clash.txt")
+                self._git(repo, "commit", "-qm", "main writes clash.txt")
+                head_before = self._git(repo, "rev-parse", "HEAD")
+
+                integrated, reason, kind = _MODULES[runner].integrate_lane_branch(
+                    repo, handle, "ccc333", self._passing_runner()
+                )
+
+                self.assertFalse(integrated, reason)
+                self.assertEqual(kind, "merge-conflict")
+                # Main is CLEAN: HEAD unmoved, no partial merge, no markers in the file.
+                self.assertEqual(self._git(repo, "rev-parse", "HEAD"), head_before)
+                self.assertEqual(self._git(repo, "status", "--short"), "")
+                self.assertNotIn(
+                    "<<<<<<<", (repo / "clash.txt").read_text(encoding="utf-8")
+                )
+                # No in-progress merge left behind: `MERGE_HEAD` exists only mid-merge, so its absence
+                # is what proves the abort ran rather than the merge merely having failed.
+                git_dir = pathlib.Path(
+                    self._git(repo, "rev-parse", "--absolute-git-dir")
+                )
+                self.assertFalse((git_dir / "MERGE_HEAD").exists())
+                # The lane branch survives for a human/serial resolution.
+                self.assertIn(
+                    handle.branch,
+                    self._git(repo, "branch", "--format=%(refname:short)"),
+                )
+
+    def test_the_kind_vocabulary_is_UNCHANGED_by_the_extraction(self):
+        """The three `kind` values are a CONTRACT read by callers and by run state.
+
+        Child 03 changes what `integration-blocked` means for `TERMINAL_STATES`; this child must not,
+        and asserting the vocabulary here is what keeps a "pure move" from smuggling that in.
+        """
+        src = module_source(runner_shared)
+        node = next(
+            n
+            for n in ast.parse(src).body
+            if isinstance(n, ast.FunctionDef) and n.name == "integrate_lane_branch"
+        )
+        returned = {
+            ast.literal_eval(elt)
+            for sub in ast.walk(node)
+            if isinstance(sub, ast.Return) and isinstance(sub.value, ast.Tuple)
+            for elt in [sub.value.elts[-1]]
+            if isinstance(elt, ast.Constant)
+        }
+        self.assertEqual(
+            returned, {"integrated", "integration-blocked", "merge-conflict"}
+        )
 
 
 if __name__ == "__main__":
