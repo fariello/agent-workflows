@@ -1118,51 +1118,27 @@ def _delegate_plan_executed_to_finalize(
     return overall
 
 
-def _index_paths_for_types(touched_types: set[str], repo_root: Path) -> list[str]:
-    """Repo-relative INDEX.json/INDEX.md paths for the indexed types just refreshed (jgcm68 E-05)."""
-    out: list[str] = []
-    for rtype in sorted(touched_types):
-        base = None
-        if rtype == "plans":
-            with contextlib.suppress(Exception):
-                from agent_workflows import plans_index as _pidx
-
-                _repo, base = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
-        elif rtype == "research":
-            with contextlib.suppress(Exception):
-                from agent_workflows import research_index as _ridx
-
-                _repo, base = _ridx._roots(argparse.Namespace(dir=str(repo_root)))
-        if base is None:
-            continue
-        for name in ("INDEX.json", "INDEX.md"):
-            p = base / name
-            if p.exists():
-                try:
-                    out.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
-                except ValueError:
-                    out.append(p.as_posix())
-    return out
-
-
 def _offer_self_commit(
     args: argparse.Namespace | None,
     repo_root: Path,
     touched_paths: list[str],
-    touched_types: set[str],
     target_status: str,
     scoped_type_canonical: str | None,
 ) -> None:
     """selfcommit jgcm68 E-05: offer to path-scoped-commit exactly the artifact file(s) this `set`
-    rewrote (+ regenerated INDEX). ONE integration in the shared engine covers every `set` variant
+    rewrote. ONE integration in the shared engine covers every `set` variant
     (`aw set`/`ipd set`/`spec set`/`prompts set`/`backlog set`). Interactive-gated via child-01
     ``offer_commit``: TTY prompts, non-interactive-without-``--commit`` is a NO-OP; path-scoped, no
-    push, no ``add -A``, unrelated dirty files never folded in."""
+    push, no ``add -A``, unrelated dirty files never folded in.
+
+    The regenerated INDEX.json/INDEX.md are deliberately NOT in this path-set. They are still
+    refreshed on disk by `_auto_index_types` and still REPORTED in the agent-mode changes list; they
+    are simply generated output that no `aw` verb commits (idxuntrack `4r0qp1` E-02)."""
     if not touched_paths:
         return
     from agent_workflows import git_commit_helper as _gch
 
-    paths = list(touched_paths) + _index_paths_for_types(touched_types, repo_root)
+    paths = list(touched_paths)
     label = scoped_type_canonical or "records"
     # jgcm68 D2: unstage exactly these touched paths first (a no-op for in-place set rewrites) so the
     # helper cleanly re-stages them; scoped to the verb's own paths, never global.
@@ -1465,7 +1441,6 @@ def run_set_command(
             args,
             repo_root,
             touched_paths,
-            touched_types,
             target_status,
             scoped_type_canonical,
         )
@@ -1505,7 +1480,6 @@ def run_set_command(
         args,
         repo_root,
         touched_paths,
-        touched_types,
         target_status,
         scoped_type_canonical,
     )

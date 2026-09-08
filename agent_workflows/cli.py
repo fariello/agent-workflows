@@ -8625,12 +8625,13 @@ def _run_noun_verb(
     from agent_workflows.plans_refs import MutationResult
 
     rc = 0
-    # selfcommit jgcm68 E-07: for group/rename, backends RETURN a MutationResult (touched +
-    # index paths) and perform NO commit; we aggregate across the (possibly several) types and
+    # selfcommit jgcm68 E-07: for group/rename, backends RETURN a MutationResult (the touched
+    # paths) and perform NO commit; we aggregate across the (possibly several) types and
     # place the self-commit offer ONCE here at the dispatch site (PR-012: never inside a shared
     # backend, so `aw group research` fires exactly once from here and NOT again in the backend).
+    # The backends still REGENERATE their INDEX.json/INDEX.md, but those manifests are generated
+    # output and are deliberately NOT part of this commit path-set (idxuntrack `4r0qp1` E-03).
     touched_all: list[str] = []
-    index_all: list[str] = []
     for t in types:
         fn = at.resolve_backend(t, verb)
         if fn is None:
@@ -8641,10 +8642,9 @@ def _run_noun_verb(
         if isinstance(result, MutationResult):
             rc = max(rc, result.rc)
             touched_all.extend(result.touched_paths)
-            index_all.extend(result.index_paths)
         elif isinstance(result, int):
             rc = max(rc, result)
-    if verb in ("group", "rename") and (touched_all or index_all):
+    if verb in ("group", "rename") and touched_all:
         from agent_workflows.project_context import resolve_verb_repo_root
 
         repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
@@ -8652,7 +8652,7 @@ def _run_noun_verb(
         _offer_records_commit(
             args,
             repo_root,
-            paths=[*touched_all, *index_all],
+            paths=touched_all,
             message=f"refactor({','.join(types)}): {verb} {sel} and rewrite refs",
         )
     return rc
@@ -11141,12 +11141,14 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
                 mr = rr.run_mv(args)
                 _verb = "mv"
                 _sel = str(getattr(args, "id", None) or "records")
-            if mr.touched_paths or mr.index_paths:
+            # The regenerated research INDEX.json/INDEX.md are deliberately absent from this
+            # path-set: still refreshed on disk, never committed (idxuntrack `4r0qp1` E-03).
+            if mr.touched_paths:
                 repo_root = resolve_verb_repo_root(getattr(args, "dir", None))
                 _offer_records_commit(
                     args,
                     repo_root,
-                    paths=[*mr.touched_paths, *mr.index_paths],
+                    paths=list(mr.touched_paths),
                     message=f"refactor(research): {_verb} {_sel} and rewrite refs",
                 )
             return mr.rc

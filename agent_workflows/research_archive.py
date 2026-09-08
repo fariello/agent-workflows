@@ -271,12 +271,9 @@ def apply_moves(repo_root: Path, research_root: Path, moves: List[Move]) -> List
     (research_root / RI.INDEX_MD).write_text(
         RI.build_index_md(entries), encoding="utf-8"
     )
-    for name in (RI.INDEX_JSON, RI.INDEX_MD):
-        p = research_root / name
-        try:
-            touched.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
-        except ValueError:
-            touched.append(p.as_posix())
+    # The regenerated INDEX.json/INDEX.md are deliberately NOT appended to `touched`: they are
+    # refreshed on disk just above, but generated manifests are not committed by any `aw` verb
+    # (idxuntrack `4r0qp1` E-07), and the caller commits this list verbatim.
     seen: dict = {}
     for t in touched:
         seen.setdefault(t, None)
@@ -387,10 +384,12 @@ def run_archive(args: argparse.Namespace) -> int:
 def _offer_archive_commit(
     args: argparse.Namespace, repo_root: Path, touched: List[str]
 ) -> None:
-    """selfcommit jgcm68 E-02: offer to path-scoped-commit exactly the archived moves + regenerated
-    INDEX. Interactive-gated via child-01 ``offer_commit`` (TTY prompts; non-interactive-without
-    ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``; unrelated dirty files never
-    folded in. A commit failure is non-fatal (the archive already happened)."""
+    """selfcommit jgcm68 E-02: offer to path-scoped-commit exactly the archived moves. The
+    regenerated INDEX is NOT included (idxuntrack `4r0qp1` E-07): it is refreshed on disk but never
+    committed. Interactive-gated via child-01 ``offer_commit`` (TTY prompts;
+    non-interactive-without ``--commit`` is a NO-OP); path-scoped, no push, no ``add -A``;
+    unrelated dirty files never folded in. A commit failure is non-fatal (the archive already
+    happened)."""
     if not touched:
         return
     from agent_workflows import git_commit_helper as _gch

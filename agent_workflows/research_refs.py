@@ -307,21 +307,6 @@ def _apply_renames(
     return tuple(seen.keys())
 
 
-def _index_paths_for(research_root: Path, repo_root: Path) -> Tuple[str, ...]:
-    """Repo-relative INDEX.json/INDEX.md for the research tree (only those that exist)."""
-    from agent_workflows import research_index as _ridx
-
-    out: List[str] = []
-    for name in (_ridx.INDEX_JSON, _ridx.INDEX_MD):
-        p = research_root / name
-        if p.exists():
-            try:
-                out.append(p.resolve().relative_to(repo_root.resolve()).as_posix())
-            except ValueError:
-                out.append(p.as_posix())
-    return tuple(out)
-
-
 def run_set_assign(args: argparse.Namespace) -> "MutationResult":
     repo_root = _repo_root(args)
     research_root = R.resolve_research_root(repo_root)
@@ -344,8 +329,7 @@ def run_set_assign(args: argparse.Namespace) -> "MutationResult":
         print(f"error: {err}")
         return MutationResult(2)
     touched = _apply_renames(repo_root, plans or [], getattr(args, "apply", False))
-    idx = _index_paths_for(research_root, repo_root) if touched else ()
-    return MutationResult(0, touched, idx)
+    return MutationResult(0, touched)
 
 
 def run_mv(args: argparse.Namespace) -> "MutationResult":
@@ -364,8 +348,7 @@ def run_mv(args: argparse.Namespace) -> "MutationResult":
     touched = _apply_renames(
         repo_root, [plan] if plan else [], getattr(args, "apply", False), verb="rename"
     )
-    idx = _index_paths_for(research_root, repo_root) if touched else ()
-    return MutationResult(0, touched, idx)
+    return MutationResult(0, touched)
 
 
 def run_check_refs(args: argparse.Namespace) -> int:

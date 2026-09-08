@@ -59,28 +59,6 @@ def _dedup(items: List[str]) -> Tuple[str, ...]:
     return tuple(seen.keys())
 
 
-def _index_paths_for(artifact_type: str, repo_root: Path) -> Tuple[str, ...]:
-    """Repo-relative INDEX.json/INDEX.md for an indexed artifact type (jgcm68 self-commit paths)."""
-    out: List[str] = []
-    if artifact_type == "plans":
-        from agent_workflows import plans_index as _pidx
-
-        _repo, base = _pidx._dirs(argparse.Namespace(dir=str(repo_root)))
-        names = (_pidx.INDEX_JSON, _pidx.INDEX_MD)
-    elif artifact_type == "research":
-        from agent_workflows import research_index as _ridx
-
-        _repo, base = _ridx._roots(argparse.Namespace(dir=str(repo_root)))
-        names = (_ridx.INDEX_JSON, _ridx.INDEX_MD)
-    else:
-        return ()
-    for name in names:
-        p = base / name
-        if p.exists():
-            out.append(_rel_to_repo(p, repo_root))
-    return tuple(out)
-
-
 def find_target_record(
     repo_root: Path, artifact_type: str, selector: str
 ) -> Optional[Path]:
@@ -625,8 +603,13 @@ def run_rename_generic(
             print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
 
-    # Auto-index if supported
-    index_paths: Tuple[str, ...] = ()
+    # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
+    # `artifact_types.TYPE_BACKENDS` routes plans -> `plans_refs` and research ->
+    # `research_refs`, so this module only ever receives specs/prompts/backlog/
+    # walkthroughs/roadmaps/releases/other and this condition is never true. It is left in
+    # place (rather than deleted) because removing the regeneration is a separate refactor;
+    # its commit-path contribution WAS removed, since generated manifests are no longer
+    # committed by any `aw` verb (idxuntrack `4r0qp1` E-03).
     if artifact_type in {"plans", "research"}:
         try:
             if artifact_type == "plans":
@@ -655,11 +638,10 @@ def run_rename_generic(
                         quiet=True,
                     )
                 )
-            index_paths = _index_paths_for(artifact_type, repo_root)
         except Exception:
             pass
 
-    return MutationResult(0, _dedup(touched), index_paths)
+    return MutationResult(0, _dedup(touched))
 
 
 def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "MutationResult":
@@ -771,8 +753,13 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
             print(f"rewrote {e.hits}x '{e.old}' -> '{e.new}' in {rel_f}")
             touched.append(rel_f)
 
-    # Auto-index if indexed type
-    index_paths: Tuple[str, ...] = ()
+    # Auto-index if supported. NOTE: this block is UNREACHABLE dead code at present.
+    # `artifact_types.TYPE_BACKENDS` routes plans -> `plans_refs` and research ->
+    # `research_refs`, so this module only ever receives specs/prompts/backlog/
+    # walkthroughs/roadmaps/releases/other and this condition is never true. It is left in
+    # place (rather than deleted) because removing the regeneration is a separate refactor;
+    # its commit-path contribution WAS removed, since generated manifests are no longer
+    # committed by any `aw` verb (idxuntrack `4r0qp1` E-03).
     if artifact_type in {"plans", "research"}:
         try:
             if artifact_type == "plans":
@@ -801,11 +788,10 @@ def run_group_generic(args: argparse.Namespace, artifact_type: str) -> "Mutation
                         quiet=True,
                     )
                 )
-            index_paths = _index_paths_for(artifact_type, repo_root)
         except Exception:
             pass
 
-    return MutationResult(0, _dedup(touched), index_paths)
+    return MutationResult(0, _dedup(touched))
 
 
 def run_rename_backlog(args: argparse.Namespace) -> "MutationResult":
