@@ -7,13 +7,13 @@
   THE COST IS ALREADY PAID AND RECORDED. Recovering five lanes stranded by run `run-20260905T050043Z-639569` required `--no-verify` on four of five merges (`eyh1fu`, `txc9l1`, `uyeko5`, `eulhzt`), each with maintainer authorization, each documenting the bypass. Finalize had provably run on every one: commits `c9db21a3`, `43c87af5`, `251b7399`, `dd996d73`, each titled `lifecycle(<id6>): finalize <id6> -> executed`. A gate that must be bypassed as ROUTINE PRACTICE teaches operators and agents that `--no-verify` is normal, which is exactly how a real hand-edit would later pass unremarked. The hook's docstring is honest that it is local best-effort prevention; "skippable" was meant as a limitation, not as the expected workflow.
   THIS CHILD IS ORDER 01, BUT NOT FOR THE REASON FIRST WRITTEN, and the correction matters because the original reason was measurably false. The claim was that children 03 and 04 make integration happen more often so "every one of those integrations would trip this hook". MEASURED FALSE at review 2026-09-07: git runs `pre-merge-commit` (NOT `pre-commit`) for an automated merge, this repository installs only `pre-commit`, and a `--ff-only` merge creates no commit at all, so the runner's own `integrate_lane_branch` path does NOT trip this hook and never did. The four recorded bypasses were all HAND merges (`git merge --no-commit` then `git commit`), which IS a `pre-commit` path. So the honest ordering rationale is narrower: this child is Order 01 because it is the only child that touches NO runner module, so it can land and be verified while siblings 02 through 04 contend over the two driver files, and because it removes the bypass habit from the recovery path a human still uses. See the note above Task group 1, and OQ-03 for the `pre-merge-commit` gap this exposes.
 - Scope: Add a MERGE-AWARE evidence path to the hook: during a merge, accept IN-TREE evidence (a `lifecycle(<id6>): finalize` commit reachable from the incoming side) as proof that finalize performed the transition, while keeping the hand-edit case refused exactly as today. Fix nothing else about the hook's behavior.
-- Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, tests/test_executed_transition_gate.py
+- Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, .pre-commit-config.yaml, CONTRIBUTING.md, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
 - Status: reviewed
 - Readiness: go-pending-approval
 - Set: integpath
 - Order: 1
-- Highest E allocated: 05
+- Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 29wvmj
 - From-Backlog: rnl3b7
@@ -77,6 +77,13 @@ READ THIS BEFORE E-01, because it changes what "during a merge" means and was ME
   Run the suite BARE (`python3 -m pytest`) and state before/after counts.
   - Depends on: E-04
   - Expected outcome: a test that FAILS on today's hook and passes after; both merge directions, the id6 binding, the four non-merge refusals, and the worktree case all pinned; bare suite green with counts stated.
+  - Execution state: pending
+
+- [ ] E-06 INSTALL THE GATE ON THE `pre-merge-commit` STAGE TOO, closing the automated-merge hole F-14 measured (OQ-03, resolved 2026-09-08 to option (b)). Add `default_install_hook_types: [pre-commit, pre-merge-commit]` to `.pre-commit-config.yaml` and register `ipd-executed-transition-gate` for BOTH stages, so an automated merge carrying a plan into `executed/` is gated exactly as a hand commit is. Today the repo installs ONLY `pre-commit`, so every automated merge bypasses this gate entirely.
+  DOCUMENT THE STALE-CLONE CONSEQUENCE IN `CONTRIBUTING.md`, because it cannot be fixed by config alone: `pre-commit install` writes one hook script per installed type, so an EXISTING clone has only `.git/hooks/pre-commit` and will not run the new stage until its owner re-runs `pre-commit install`. Adding the key changes what a FRESH install does and cannot retrofit an existing one. State the required command explicitly where hook setup is already documented.
+  DO NOT WEAKEN THE FAIL-CLOSED RULE while widening the stage. Absent `MERGE_HEAD` still means not-a-merge, hence refuse. This item may only ever make the gate fire in MORE places, never fewer, and must not add a path where an unclassifiable merge is waved through.
+  - Depends on: E-05
+  - Expected outcome: `.pre-commit-config.yaml` declares both hook types and registers the gate for both stages; `CONTRIBUTING.md` states the re-install requirement for existing clones; the fail-closed behavior is unchanged.
   - Execution state: pending
 
 ## Project conventions discovered (Step 0)
@@ -167,9 +174,14 @@ No SPEC change is authorized here: the gate is local tooling, not a specified co
 ### OQ-03: Should this child also install the gate as a `pre-merge-commit` hook, closing the automated-merge hole F-14 exposes?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: RAISED AT REVIEW from a MEASUREMENT (F-14), and left OPEN because it is a scope decision, not a fact. THE HOLE IS REAL AND PRE-EXISTING: git runs `pre-merge-commit` for an automated merge and this repository installs only `pre-commit`, so ANY automated merge that carries a plan into `executed/` bypasses this gate entirely today, with or without this plan. That is a wider hole than the one this child fixes, and it was NOT introduced by this child.
+- Resolution or deferral rationale: RESOLVED 2026-09-08 BY MAINTAINER RULING: OPTION (b), WIDEN THIS CHILD TO INSTALL THE SECOND HOOK TYPE. Close the automated-merge hole here rather than deferring it: add `default_install_hook_types: [pre-commit, pre-merge-commit]` to `.pre-commit-config.yaml` and register the `ipd-executed-transition-gate` hook for BOTH stages, so an automated merge that carries a plan into `executed/` is gated exactly as a hand commit is.
+  SCOPE IS WIDENED DELIBERATELY, AND THE FENCE MUST BE UPDATED TO MATCH. `- Scope-Paths:` now carries `.pre-commit-config.yaml` in addition to the hook module and its test. That was the stated reason for NOT doing this (the file sits outside the original two-file fence), and the maintainer has overridden it, so the fence follows the decision rather than the reverse. Do not treat the added path as out-of-scope drift at finalize time.
+  THE CONTRIBUTOR-SETUP CONSEQUENCE IS REAL AND MUST BE STATED, NOT DISCOVERED. `pre-commit install` writes ONE hook script per installed type, so an existing clone has only `.git/hooks/pre-commit` and will NOT run the new stage until its owner re-runs `pre-commit install` (or `pre-commit install --install-hooks`). Adding `default_install_hook_types` changes what a FRESH install does; it cannot retrofit an existing clone. So this item MUST also: (1) say so in `CONTRIBUTING.md` where the hook setup is documented, and (2) make the run-time behavior fail-closed-and-visible rather than silently absent, since a stale clone is now the difference between a gated and an ungated automated merge.
+  VERIFY THE STAGE ACTUALLY FIRES, DO NOT ASSUME IT. `pre-merge-commit` runs only for an automated merge that creates a commit WITHOUT opening an editor; git skips it when the merge is fast-forward (no commit at all) and runs `prepare-commit-msg`/`commit-msg` on the conflicted-then-resolved path instead. The V-item for this work must paste a real automated merge that carries a plan into `executed/` being REFUSED, and a legitimate evidenced one being ACCEPTED, on the `pre-merge-commit` stage specifically. A test that only asserts the YAML contains the string is NOT evidence the gate runs.
+  FAIL-CLOSED BEHAVIOR IS UNCHANGED AND MUST STAY THAT WAY: absent `MERGE_HEAD` means not-a-merge, hence refuse. Widening the stage TIGHTENS the gate; it must not introduce a path where a merge is waved through because the hook could not classify it.
+  ORIGINAL ESCALATION RATIONALE, retained for the record: raised at review from a MEASUREMENT (F-14), and left OPEN because it was a scope decision, not a fact. THE HOLE IS REAL AND PRE-EXISTING: git runs `pre-merge-commit` for an automated merge and this repository installs only `pre-commit`, so ANY automated merge that carries a plan into `executed/` bypasses this gate entirely today, with or without this plan. That is a wider hole than the one this child fixes, and it was NOT introduced by this child.
   WHY IT IS NOT SIMPLY PULLED IN: adding a second hook type means `default_install_hook_types` in `.pre-commit-config.yaml` plus a re-`pre-commit install` on every existing clone, which changes contributor setup for everyone and is exactly the kind of environment change a hook fix should not smuggle in. It also touches a path outside this plan's two-file `Scope-Paths`.
   WHY IT IS NON-BLOCKING: this child is a strict improvement without it. It converts the hand recovery path from "always refuses, so always bypassed" to "accepts real evidence, still refuses hand-edits", and the automated path is no worse than today. NOTHING IN THIS PLAN DEPENDS ON THE ANSWER, and the fix must fail CLOSED when it cannot tell (absent `MERGE_HEAD` means not-a-merge, hence refuse), so a later `pre-merge-commit` installation would tighten the gate rather than break it.
   THE DECISION NEEDED: (a) file the `pre-merge-commit` gap as its own backlog item and leave this child as-is (recommended, since it keeps this child's two-file scope and lets the environment change be reviewed on its own merits); (b) widen this child to install the second hook type; or (c) accept the automated-merge hole permanently and record why. If (a), the executor should file the item and cite it here rather than leaving the measurement only in this plan's findings.
@@ -203,6 +215,13 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste the new test and PROOF IT IS FALSIFIABLE: run it against the pre-fix hook (stash or revert E-01/E-02) and paste the FAILURE, then paste the pass after. A test never observed to fail is not evidence it detects the bug. Paste the real-merge before/after demonstration, the worktree case, and the BARE `python3 -m pytest` summary line with before/after counts. Confirm no test mocks `MERGE_HEAD` in place of performing a real merge.
   - Observed evidence:
   - Result: pending
+- [ ] V-06 validates E-06
+  - Required evidence: PROVE THE STAGE ACTUALLY FIRES; a test asserting the YAML contains the string is NOT evidence. Paste a REAL automated merge that carries a plan into `executed/` being REFUSED on the `pre-merge-commit` stage, and a legitimate evidenced one being ACCEPTED, both with the hook installed via `pre-commit install --hook-type pre-merge-commit` (or `default_install_hook_types`) in a throwaway repository. Paste the `.git/hooks/` listing showing BOTH hook scripts present, since that is the artifact `default_install_hook_types` actually produces.
+    NAME THE STAGES GIT SKIPS, so a passing test is not mistaken for full coverage: `pre-merge-commit` does NOT run for a fast-forward merge (no commit is created) and does NOT run on the conflicted-then-resolved path (git runs `prepare-commit-msg`/`commit-msg` instead). State which of those this Set's own integration path takes, since `integrate_lane_branch` attempts `--ff-only` FIRST and only falls back to `--no-ff`; if the common case is fast-forward, say plainly that this item does not gate it and why that is acceptable.
+    Paste the `CONTRIBUTING.md` diff stating the re-install requirement for existing clones, and confirm the fail-closed rule is untouched: an absent `MERGE_HEAD` still refuses (paste it).
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 

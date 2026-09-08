@@ -4570,6 +4570,16 @@
     "status": "not-executed"
   },
   {
+    "date": "2026-09-04",
+    "disposition": "not-executed",
+    "kind": "child",
+    "order": 1,
+    "path": "not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
+    "plan_id": "ki6tom",
+    "set_id": "runbypass",
+    "status": "not-executed"
+  },
+  {
     "date": "2026-08-29",
     "disposition": "pending",
     "kind": "orchestrator",
@@ -4628,16 +4638,6 @@
     "plan_id": "rh5tt6",
     "set_id": "wslayout",
     "status": "approved"
-  },
-  {
-    "date": "2026-09-04",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md",
-    "plan_id": "ki6tom",
-    "set_id": "runbypass",
-    "status": "reviewed"
   },
   {
     "date": "2026-09-05",

@@ -117,7 +117,7 @@ Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
 
 ## runbypass
 
-- `ki6tom` [pending] 01 pending/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md
+- `ki6tom` [not-executed] 01 not-executed/20260904-runbypass-01-ki6tom-remove-the-spec-prohibited-bypass-flags-from-both-host-runne.ipd.md
 
 ## runcodes
 
