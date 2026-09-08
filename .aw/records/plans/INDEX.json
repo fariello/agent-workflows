@@ -4727,7 +4727,7 @@
     "path": "pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md",
     "plan_id": "cczotj",
     "set_id": "integpath",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4737,7 +4737,7 @@
     "path": "pending/20260906-integpath-01-29wvmj-teach-the-executed-transition-gate-to-recognize-a-legitimate.ipd.md",
     "plan_id": "29wvmj",
     "set_id": "integpath",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4747,7 +4747,7 @@
     "path": "pending/20260906-integpath-02-6sb3yu-extract-the-integration-refusal-and-dirty-overlap-check-into.ipd.md",
     "plan_id": "6sb3yu",
     "set_id": "integpath",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4787,7 +4787,7 @@
     "path": "pending/20260906-scopeattr-01-h9cn0y-attribute-a-scope-audit-to-the-execution-s-own-commits-inste.ipd.md",
     "plan_id": "h9cn0y",
     "set_id": "scopeattr",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-06",
@@ -4797,7 +4797,7 @@
     "path": "pending/20260906-sysproto-01-eqzd0h-suppress-synthetic-system-protocol-messages-in-run-streams.ipd.md",
     "plan_id": "eqzd0h",
     "set_id": "sysproto",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-07",
@@ -4807,7 +4807,7 @@
     "path": "pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md",
     "plan_id": "03ie04",
     "set_id": "depreview",
-    "status": "reviewed"
+    "status": "approved"
   },
   {
     "date": "2026-09-07",

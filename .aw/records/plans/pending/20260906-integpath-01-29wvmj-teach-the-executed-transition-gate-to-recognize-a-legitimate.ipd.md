@@ -9,16 +9,18 @@
 - Scope: Add a MERGE-AWARE evidence path to the hook: during a merge, accept IN-TREE evidence (a `lifecycle(<id6>): finalize` commit reachable from the incoming side) as proof that finalize performed the transition, while keeping the hand-edit case refused exactly as today. Fix nothing else about the hook's behavior.
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, .pre-commit-config.yaml, CONTRIBUTING.md, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: integpath
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 29wvmj
+- Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 - From-Backlog: rnl3b7
 
 ## Workflow history
+- 2026-09-08 approved (aw set): status set to approved
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101..PR-106 all FIXED, no unfixed BLOCKER/HIGH; OQ-03 added NON-BLOCKING for the measured pre-merge-commit gap; Readiness go-pending-approval
 
 - 2026-09-07 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): OQ-01 RESOLVED BY MEASUREMENT, correcting this plan's own deferral rationale. Asked what the plan's open question was and, before answering from the plan text, checked whether its stated cost was real: it was not. The deferral claimed the answer needed "archaeology on a five-commit sequence whose lanes are now deleted"; the lane BRANCHES are gone but every relevant COMMIT survives, so the question took minutes. THE ANSWER IS THE JOURNAL'S LIFETIME, not git: `_clear_finalize_journal` DELETES the journal on successful completion (`ipd_lifecycle.py:2649`) and on every rollback path, so it exists only between finalize and its consumption, and `76gsmv` merged 22 minutes BEFORE its three siblings (12:51:00 versus 13:13-13:17) and happened to still have one. Exactly ONE journal survives in the whole repository today. The item's rename explanation is conclusively ruled out: all four merges are identical in diff shape (`R061`, `R063`, `R061`, `R060`, each a rename into `executed/` plus the two INDEX files), and four identical shapes with two different outcomes cannot be explained by the shape. Added F-12 (the journal is EPHEMERAL WITHIN a tree, not merely invisible across trees, which doubles the argument for in-tree evidence) and F-13 (the measured diff shapes). Nothing in the plan's scope changed: E-02 already removes the timing dependence entirely, so this strengthens the premise rather than altering the fix. Lint conforming before and after; both OQs are now resolved.

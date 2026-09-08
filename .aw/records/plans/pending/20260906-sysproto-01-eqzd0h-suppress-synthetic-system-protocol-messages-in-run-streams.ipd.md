@@ -6,15 +6,17 @@
 - Scope: Suppress the LLM platform protocol placeholder `[System: Empty ...]` from the LIVE TERMINAL DISPLAY of a run, by filtering it in the shared renderer `agent_workflows/render_stream.py` (used by `aw oc run`) and, for host parity, in `agent_workflows/agy_runipd.py` (used by `aw agy run`). A text part that is NOTHING BUT placeholders renders nothing; a text part carrying a LEADING placeholder renders its real remaining text. This changes DISPLAY ONLY: the durable session log is written before rendering and keeps every byte, and `--output raw` is untouched.
 - Scope-Paths: agent_workflows/render_stream.py, agent_workflows/agy_runipd.py, tests/test_render_stream.py, tests/test_agy_runipd_cli.py, tools/ipdrunner/test_runagy.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: sysproto
 - Order: 1
 - Highest E allocated: 04
 - Author: antigravity/gemini-2.5-pro
 - Id: eqzd0h
+- Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-08 approved (aw set): status set to approved
 
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; PR-001..PR-011 all FIXED, no deferrals, no open questions. Reviewed at HEAD `4cbee5fa`; `aw ipd lint --phase author` conformed before review and `--phase review-finalize` after. METHOD: every empirical claim was re-measured against the corpus the plan is about (4,058 placeholder-bearing `text` events across 294 of 426 session logs under `.aw/records/runs/*/sessions/*.jsonl`) rather than trusted. THE PLAN'S OWN CENTRAL COUNT IS CORRECT AND WAS CONFIRMED: the regex it specifies matches exactly 20 distinct variants. Three claims were WRONG and each would have produced a visible defect. FIRST AND WORST, E-01 prescribed the output format `pal("• ", "cyan") + _one_line(text, 400)`, which HEAD REPLACED four commits ago (`4308015c`, `render_stream.py:603`): following the plan literally would have reverted the just-shipped `◈ think:` aligned prefix and broken `tests/test_render_stream.py:43` and the golden transcript at `:238`. SECOND, E-02 instructed edits to `render_agy_event` branches that DO NOT EXIST (that function reads no message/text field anywhere, `agy_runipd.py:510-625`) for a case measured at ZERO occurrences. THIRD, "suite remains green" is false at HEAD (`1 failed, 5613 passed`, the pre-existing `test_orchestrator_retirement::RealRepositorySets`). Two further measurements reshaped the design: the placeholder sits at POSITION 0 in 4,058 of 4,059 occurrences (so the unanchored iterative strip the plan specified bought nothing and risked eating a quotation of the token out of real narration, the exact text this very review round produces), and `tools/ipdrunner/test_runagy.py` pins `render_agy_event` through the `runagy.py` re-export shim but is NOT collected by a bare `python3 -m pytest` (`pyproject.toml:154` `testpaths = ["tests"]`), so an agy render change could break 9 tests invisibly.
 - 2026-09-06 to-review (antigravity/gemini-2.5-pro): Completed review-ready IPD suppressing synthetic system protocol messages.

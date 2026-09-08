@@ -8,17 +8,19 @@
 - Scope: Move `dirty_tree_overlap` and `integrate_lane_branch` into `runner_shared.py` as ONE implementation each, parameterizing the single host-varying value (the merge commit subject's host label) and injecting the driver-specific collaborators each already needs. Both runners bind the shared objects instead of defining their own. NO behavior change on either host: the refusal conditions, the gate call, the merge strategy, the abort path, and every returned `kind` stay exactly as they are.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: executed:29wvmj
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: integpath
 - Order: 2
 - Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 6sb3yu
+- Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 - From-Backlog: 5wdoze
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-08 approved (aw set): status set to approved
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-201..PR-207 all FIXED, no unfixed BLOCKER/HIGH, no open questions; Readiness go-pending-approval
 
 - 2026-09-06 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Authored as the shared-code seam three of the four `integdefer` backlog items independently ask for ("The ladder belongs in shared code with both calling it, not copy-pasted twice" in `5wdoze`; "Put it in `runner_shared.py` with both runners calling it, NOT copy-pasted into two files" in `p8ni63`; both citing `cnwy8g` on the 40-symbol import coupling). Splitting it out as its own child is a deliberate decision rather than folding it into the ladder: a pure move with an identity assertion is verifiable in a way that a move-plus-behavior-change is not, and children 03 and 04 both edit this same logic, so extracting first means each writes its change ONCE. MEASURED AT HEAD `a4279302`, and the measurement is what makes the move safe rather than merely desirable: `dirty_tree_overlap` differs between hosts ONLY by three comment/docstring lines (executable statements byte-identical), and `integrate_lane_branch`'s 44-line diff is entirely docstring and comment EXCEPT one string, the merge subject's `aw agy run` versus `aw oc run` label. Also verified: neither symbol is in `runner_shared.py` today, and `agy_runipd.py` already imports 46 names from `oc_runipd.py`, so binding shared objects is the established pattern here, not a new one. Item-Dependencies declares `executed:29wvmj` because this child's own validation requires merging a lane, which child 01 must first make possible without `--no-verify`.
