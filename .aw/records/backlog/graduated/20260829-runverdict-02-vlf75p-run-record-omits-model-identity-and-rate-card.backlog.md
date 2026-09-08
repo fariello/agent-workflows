@@ -1,5 +1,5 @@
 - Id: vlf75p
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: runverdict
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Run records cannot attribute a turn to a model or price it: state.json records model=null and 0 of 9757 cost-bearing steps carry a modelID, while the rate card that produced the recorded costs lives only in the user's opencode.json outside the repo
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): PARTIALLY graduated to plan w33lrl (runverdict-07); see the PARTIAL OBSOLESCENCE AND SCOPE HANDOFF section appended to this item. NOT graduated as ALREADY SHIPPED: the record-a-provenance-object half of gap 1, delivered by executed plan 3cm15q (launch_profile_record, present in 33 of 135 runs). NOT graduated as OWNED BY THE PENDING runanalytics SET, owner named per clause: per-turn model capture (5f2h8i E-01/E-02), effective-dated pricing and the recorded-versus-estimated split (aflsz3 E-02), normalized pricing-key facts (8hald1 E-02), the aw runs query surface (mm5p3v), and tests (b), (d), (e). GRADUATED: the producer those plans consume and that does not exist today, namely the resolved host-default model and the four-component rate card frozen per run with a digest, unknowns named rather than omitted, and the recorded card made authoritative. Gaps 2 and 3 held in full on re-measurement (28158 cost-bearing steps, 0 with a model id). Inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the run record captures per-step COST but neither the MODEL that
@@ -65,3 +66,51 @@ consumed) and t74o5q (verifier turn dies on a stale plan path; verification skip
 this one concerns a record that cannot attribute or price what it observed. Consumes research x0spmh,
 whose session-allocation policy REQUIRES a runtime cache-read/context signal that this gap currently
 denies.
+
+## PARTIAL OBSOLESCENCE AND SCOPE HANDOFF, measured 2026-09-08 at HEAD 44d4950d during graduation
+
+GAP 1 IS PARTLY CLOSED BY SHIPPED WORK. This item says `options.model` is null "on every run". Measured
+across all 135 run directories: it is SET in 5 of 135 (the runs where an operator passed `--model`), and
+more importantly `runprofile` Order 03 (`3cm15q`, EXECUTED) shipped `launch_profile_record`
+(`oc_runipd.py:2740`), which freezes a provenance object into 33 of 135 runs carrying `model`, `variant`,
+`agent`, `config_source`, `config_present`, `config_digest` and a per-field `provenance` map. So the
+RECORD-A-PROVENANCE-OBJECT half of gap 1 is DONE and must not be rebuilt.
+
+WHAT SURVIVES OF GAP 1: in all 33 the provenance reads `{"model": "host-default", ...}` unless `--model`
+was passed, and `PROVENANCE_HOST_DEFAULT` is documented as "nothing supplied it; pass no argument"
+(`runner_profiles.py:378`). The record now honestly NAMES the gap instead of filling it. Filling that
+value is what was graduated.
+
+GAPS 2 AND 3 HELD IN FULL on re-measurement. Gap 2: 28158 cost-bearing steps across every session log,
+0 carrying any `modelID`/`modelId`/`model` key, 0 distinct model ids (this item measured 9757 steps; the
+corpus tripled and the ratio is still exactly zero). Gap 3: the rate card is not in the repository at
+all, and `aw oc update-models` demonstrably mutates the host config from a LiteLLM admin endpoint
+(`oc_models.sync_provider`, `:607`).
+
+MOST OF THE FIX SKETCH AND THREE OF THE FIVE TESTS ARE OWNED BY THE PENDING `runanalytics` SET, not by
+this item, and are therefore NOT graduated here. That Set is 11 plans (orchestrator `5lxvl3`) and its
+children DECLARE the downstream work by name:
+- `5f2h8i` (Order 04) E-01/E-02: telemetry "records resolved run/set/IPD/attempt/phase/model/provider/
+  variant metadata" per invocation, and "the execution ID, attempt, phase, start/end times, model
+  identity, and node pseudonym must be recorded per file and must not be inferred later from a single
+  run-level snapshot". That is the PER-TURN capture this item's fix sketch asks for.
+- `aflsz3` (Order 06) E-02: "effective-dated pricing", with "price schedules carry provider/model/variant,
+  input/output/cache rates, currency, effective interval, and source/version", plus the recorded
+  convention "Model prices changed over time. A timeless price map would rewrite history and is
+  forbidden". That is the effective-dated card, the recorded-versus-estimated split, and the
+  missingness/uncertainty handling.
+- `8hald1` (Order 05) E-02: the normalized fact schema carrying "runner/model/variant" and "pricing-key"
+  facts.
+- `mm5p3v` (Order 08): the `aw runs` query/analyze surface.
+SO NOT GRADUATED: the fix-sketch clauses about per-TURN capture, effective-dated schedules,
+pooled-aggregate exclusion, and `aw runs` cost views computing from a card; and TESTS (b)
+(cost recomputed to the cent), (d) (unknown-card runs excluded from pooled aggregates) and (e)
+(per-model aggregation over verification outcomes).
+
+WHAT WAS GRADUATED (plan `w33lrl`, runverdict-07): the ONE thing that Set cannot do for itself. Those
+plans CONSUME a model identity and a rate card from the run record, and today the run record contains
+NEITHER, so a telemetry integration that "records resolved model" would record `host-default` and a
+pricing engine would have no in-repo card to be effective-dated. `w33lrl` is the PRODUCER: resolve and
+freeze the host's own default model and the four-component card with a digest, per RUN, with unknowns
+named rather than omitted, and make the recorded card authoritative so a later host-config edit cannot
+reprice history. Tests (a) and (c) are graduated with it.

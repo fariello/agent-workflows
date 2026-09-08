@@ -1,5 +1,5 @@
 - Id: ydbhfd
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: runrecon
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw runs reports abandoned? for a crashed driver step whose outcome file on disk already records the real disposition: run_viewer flips running -> abandoned? on a dead lock holder without ever reading outcomes/*.json
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan fduoj4 (runrecon-02): make the interrupted-step reconciler consult the step's own outcomes/<NN>-<id6>.json through reconcile_disposition's EXISTING precedence before falling back to the directory guess, on both hosts, preserving both anti-fabrication gates. Every cross-link in this item checked out on re-measurement: run_viewer never reads outcomes/ anywhere (its only mention is the REPAIR_HELP prose naming this item), reconcile_disposition (oc_runipd.py:5843) does read it while reconcile_interrupted (:6782) does not, and ssk6nf genuinely stops short of it by design. Two findings the item did not have: both functions are duplicated per host and are NOT shared objects, so E-01 extracts first; and the outcome consultation must not weaken the self-claimed-executed downgrade or the force-interrupt refusal (spec c4gd2h R22). Question 3 resolved by shipped precedent (ssk6nf rejected read-time mutation on GUIDING_PRINCIPLES P10). Sibling sv8z1e NOT touched. Inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-09-02 by the maintainer, after `aw oc run e32j35 97df1z` was killed by a server + network

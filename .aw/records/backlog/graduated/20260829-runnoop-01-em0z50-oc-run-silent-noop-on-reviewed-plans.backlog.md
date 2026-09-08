@@ -1,5 +1,5 @@
 - Id: em0z50
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: runnoop
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw oc run silently skips matched artifacts with no per-artifact reason and no end-of-run disposition summary (surfaced by reviewed plans counting as SUCCESS_STATES: 8/8 skipped, zero output explaining why)
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to the runnoop Set: orchestrator 7ewc74 with children zz5yxq (split reviewed out of the run success bar), m85gxh (per-artifact disposition line for every matched artifact) and bsc457 (end-of-run disposition summary with counts and remedies; closes this item). Fixes (a), (b) and (c) each became a child. Every claim re-measured at HEAD 44d4950d: SUCCESS_STATES is at oc_runipd.py:327 not :90 and is duplicated (not shared) at agy_runipd.py:388; the 12 call sites answer five different questions so no bulk substitution is safe; and removing 'reviewed' from SUCCESS_STATES outright would re-break review-mode Set runs per the in-tree docstring at oc_runipd.py:4186. Inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 OBSERVED 2026-08-29: 'aw oc run wtiso' with all 8 wtiso plans at Status: reviewed. Output was ONLY the run id, the state dir, and 'No OpenCode session was captured for this run.' The run dir WAS created (unlike i2fjf8) and 'aw runs <id>' shows '8 steps: 8 reviewed' with action=execute, Attempts: 0 for every row, an empty outcomes/, and a single 'run-created' event. Nothing was attempted and nothing explained why.
