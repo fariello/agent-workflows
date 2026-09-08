@@ -4914,6 +4914,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-actmodel-01-btot17-decide-the-unit-a-model-attaches-to-before-building-per-acti.ipd.md",
+    "plan_id": "btot17",
+    "set_id": "actmodel",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-actorparen-01-fn2l1u-reject-an-unparseable-actor-at-the-setter-instead-of-wedging.ipd.md",
     "plan_id": "fn2l1u",
     "set_id": "actorparen",
@@ -5044,6 +5054,26 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-ledgerhonest-01-i1hlgx-say-plainly-that-no-driver-run-writes-a-ledger-instead-of-re.ipd.md",
+    "plan_id": "i1hlgx",
+    "set_id": "ledgerhonest",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-lintreach-01-k9awrq-run-the-ipd-lint-family-from-the-repo-wide-sweep-so-a-lint-r.ipd.md",
+    "plan_id": "k9awrq",
+    "set_id": "lintreach",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md",
     "plan_id": "quqyc4",
     "set_id": "nogitmsg",
@@ -5087,6 +5117,16 @@
     "path": "pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md",
     "plan_id": "xipfy1",
     "set_id": "retrywire",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-reverify-01-mp289j-run-the-existing-verifier-prompt-against-an-already-executed.ipd.md",
+    "plan_id": "mp289j",
+    "set_id": "reverify",
     "status": "to-review"
   },
   {
@@ -5357,6 +5397,46 @@
     "path": "pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md",
     "plan_id": "xo3244",
     "set_id": "selfmdialect",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260908-setidhard-00-yku4ga-make-a-setid-a-hard-cross-type-unique-identity-and-replace-s.ipd.md",
+    "plan_id": "yku4ga",
+    "set_id": "setidhard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-setidhard-01-drzbs9-resolve-every-pre-existing-cross-type-setid-collision-before.ipd.md",
+    "plan_id": "drzbs9",
+    "set_id": "setidhard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-setidhard-02-bwgyum-add-the-graduated-to-forward-link-and-its-dangling-check-mir.ipd.md",
+    "plan_id": "bwgyum",
+    "set_id": "setidhard",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260908-setidhard-03-dw7i3m-mint-a-fresh-child-setid-on-graduation-and-prevent-a-cross-t.ipd.md",
+    "plan_id": "dw7i3m",
+    "set_id": "setidhard",
     "status": "to-review"
   },
   {

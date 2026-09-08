@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
+
+## actmodel
+
+- `btot17` [pending] 01 pending/20260908-actmodel-01-btot17-decide-the-unit-a-model-attaches-to-before-building-per-acti.ipd.md
 
 ## actorparen
 
@@ -47,6 +51,14 @@ Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
 
 - `u06zo2` [pending] 01 pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md
 
+## ledgerhonest
+
+- `i1hlgx` [pending] 01 pending/20260908-ledgerhonest-01-i1hlgx-say-plainly-that-no-driver-run-writes-a-ledger-instead-of-re.ipd.md
+
+## lintreach
+
+- `k9awrq` [pending] 01 pending/20260908-lintreach-01-k9awrq-run-the-ipd-lint-family-from-the-repo-wide-sweep-so-a-lint-r.ipd.md
+
 ## nogitmsg
 
 - `quqyc4` [pending] 01 pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md
@@ -66,6 +78,10 @@ Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
 ## retrywire
 
 - `xipfy1` [pending] 01 pending/20260908-retrywire-01-xipfy1-spend-the-frozen-retry-budget-on-a-retryable-failure-so-the.ipd.md
+
+## reverify
+
+- `mp289j` [pending] 01 pending/20260908-reverify-01-mp289j-run-the-existing-verifier-prompt-against-an-already-executed.ipd.md
 
 ## runanalytics
 
@@ -117,6 +133,13 @@ Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
 ## selfmdialect
 
 - `xo3244` [pending] 01 pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md
+
+## setidhard
+
+- `yku4ga` [pending] 00 pending/20260908-setidhard-00-yku4ga-make-a-setid-a-hard-cross-type-unique-identity-and-replace-s.ipd.md
+- `drzbs9` [pending] 01 pending/20260908-setidhard-01-drzbs9-resolve-every-pre-existing-cross-type-setid-collision-before.ipd.md
+- `bwgyum` [pending] 02 pending/20260908-setidhard-02-bwgyum-add-the-graduated-to-forward-link-and-its-dangling-check-mir.ipd.md
+- `dw7i3m` [pending] 03 pending/20260908-setidhard-03-dw7i3m-mint-a-fresh-child-setid-on-graduation-and-prevent-a-cross-t.ipd.md
 
 ## ttyflags
 
@@ -174,32 +197,6 @@ Showing the 40 most-recent of 250 Sets; the full manifest is INDEX.json.
 ## attorderfix
 
 - `03zubf` [executed] 01 executed/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md
-
-## hostdefault
-
-- `tm2cz8` [pending] 01 pending/20260906-hostdefault-01-tm2cz8-move-the-verification-default-into-the-per-host-runner-regis.ipd.md
-- `ybkmzp` [pending] 02 pending/20260906-hostdefault-02-ybkmzp-wire-the-resolved-verification-decision-into-both-host-drive.ipd.md
-
-## idxuntrack
-
-- `4r0qp1` [pending] 01 pending/20260906-idxuntrack-01-4r0qp1-stop-committing-the-generated-index-manifests-while-keeping.ipd.md
-- `yvvf98` [pending] 02 pending/20260906-idxuntrack-02-yvvf98-untrack-the-four-generated-index-manifests-and-reconcile-sta.ipd.md
-
-## integearn
-
-- `32ij2j` [pending] 01 pending/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md
-- `xtklpd` [pending] 02 pending/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md
-
-## orchretire
-
-- `84j8d7` [executed] 00 executed/20260906-orchretire-00-84j8d7-runner-owned-orchestrator-retirement-adopt-spec-77tr3o.ipd.md
-- `5942n7` [executed] 01 executed/20260906-orchretire-01-5942n7-the-shared-on-disk-set-completeness-decision-predicate.ipd.md
-- `ueg5cf` [executed] 02 executed/20260906-orchretire-02-ueg5cf-the-runner-owned-orchestrator-retirement-transition.ipd.md
-- `pgq326` [executed] 03 executed/20260906-orchretire-03-pgq326-wire-both-host-dispatch-paths-and-correct-the-documented-cla.ipd.md
-
-## runsverify
-
-- `7wei1o` [pending] 01 pending/20260906-runsverify-01-7wei1o-refuse-an-unresolvable-aw-runs-target-instead-of-silently-re.ipd.md
 
 ## (singletons: no Set)
 
