@@ -2,7 +2,19 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 228 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 233 Sets; the full manifest is INDEX.json.
+
+## bklgkind
+
+- `b5sfwm` [pending] 01 pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md
+
+## hookretry
+
+- `lqly9m` [pending] 01 pending/20260908-hookretry-01-lqly9m-retry-once-inside-the-isolated-commit-when-a-hook-rewrote-ou.ipd.md
+
+## nogitmsg
+
+- `quqyc4` [pending] 01 pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md
 
 ## nopush
 
@@ -21,6 +33,14 @@ Showing the 40 most-recent of 228 Sets; the full manifest is INDEX.json.
 - `mm5p3v` [pending] 08 pending/20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md
 - `ixis0c` [pending] 09 pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md
 - `9xycbh` [pending] 10 pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md
+
+## runrecon
+
+- `d91i3e` [pending] 01 pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
+
+## selfmdialect
+
+- `xo3244` [pending] 01 pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md
 
 ## depreview
 
@@ -188,31 +208,6 @@ Showing the 40 most-recent of 228 Sets; the full manifest is INDEX.json.
 ## ocvariant
 
 - `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
-
-## wslayout
-
-- `rh5tt6` [pending] 00 pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md
-- `wpu5zu` [executed] 01 executed/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md
-- `zvk796` [executed] 02 executed/20260901-wslayout-02-zvk796-consolidate-artifact-types-py-and-selectors-py-into-layout-m.ipd.md
-- `rodj06` [executed] 03 executed/20260901-wslayout-03-rodj06-consolidate-record-producers-py-and-project-schema-py-into-l.ipd.md
-- `hauwqh` [executed] 04 executed/20260901-wslayout-04-hauwqh-install-time-layout-json-and-schema-emission-in-engine-py.ipd.md
-- `30jug9` [executed] 05 executed/20260901-wslayout-05-30jug9-add-aw-layout-cli-command-and-workspace-health-check-rule.ipd.md
-
-## apprvguard
-
-- `d7bnhc` [executed] 01 executed/20260831-apprvguard-01-d7bnhc-aw-set-approved-must-refuse-a-plan-whose-newest-review-verdi.ipd.md
-
-## novalnomerge
-
-- `evgi9n` [executed] 01 executed/20260831-novalnomerge-01-evgi9n-decouple-self-finalize-from-the-verifier-turn-and-earn-integ.ipd.md
-
-## resumedupe
-
-- `txc9l1` [executed] 01 executed/20260831-resumedupe-01-txc9l1-route-a-resumed-turn-whose-lane-already-holds-its-work-to-ve.ipd.md
-
-## setgraph
-
-- `4ot0r6` [executed] 01 executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md
 
 ## (singletons: no Set)
 

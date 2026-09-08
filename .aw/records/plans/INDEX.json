@@ -4292,6 +4292,16 @@
   {
     "date": "2026-09-01",
     "disposition": "executed",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "executed/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
+    "plan_id": "rh5tt6",
+    "set_id": "wslayout",
+    "status": "executed"
+  },
+  {
+    "date": "2026-09-01",
+    "disposition": "executed",
     "kind": "child",
     "order": 1,
     "path": "executed/20260901-wslayout-01-wpu5zu-core-layout-model-and-json-schema-in-layout-py.ipd.md",
@@ -4630,16 +4640,6 @@
     "status": "approved"
   },
   {
-    "date": "2026-09-01",
-    "disposition": "pending",
-    "kind": "orchestrator",
-    "order": 0,
-    "path": "pending/20260901-wslayout-00-rh5tt6-unified-workspace-hierarchy-and-install-time-layout-emission.ipd.md",
-    "plan_id": "rh5tt6",
-    "set_id": "wslayout",
-    "status": "approved"
-  },
-  {
     "date": "2026-09-05",
     "disposition": "pending",
     "kind": "child",
@@ -4914,6 +4914,36 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md",
+    "plan_id": "b5sfwm",
+    "set_id": "bklgkind",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-hookretry-01-lqly9m-retry-once-inside-the-isolated-commit-when-a-hook-rewrote-ou.ipd.md",
+    "plan_id": "lqly9m",
+    "set_id": "hookretry",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-nogitmsg-01-quqyc4-offer-the-install-when-the-no-project-message-lands-in-a-git.ipd.md",
+    "plan_id": "quqyc4",
+    "set_id": "nogitmsg",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-nopush-01-4h7tt0-decide-what-run-no-push-enforcement-means-before-binding-it.ipd.md",
     "plan_id": "4h7tt0",
     "set_id": "nopush",
@@ -5027,6 +5057,26 @@
     "path": "pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md",
     "plan_id": "9xycbh",
     "set_id": "runanalytics",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md",
+    "plan_id": "d91i3e",
+    "set_id": "runrecon",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md",
+    "plan_id": "xo3244",
+    "set_id": "selfmdialect",
     "status": "to-review"
   },
   {
