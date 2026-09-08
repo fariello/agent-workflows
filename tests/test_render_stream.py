@@ -125,6 +125,102 @@ class RenderEventUnitTests(unittest.TestCase):
         self.assertLessEqual(len(line), 420)
 
 
+_OBSERVED_SYSTEM_PROTOCOL_VARIANTS = [
+    "[System: Empty message content sandbox to satisfy protocol]",
+    "[System: Empty message content sanitised to assistant protocol]",
+    "[System: Empty message content sanitised to justify protocol]",
+    "[System: Empty message content sanitised to satisfy parameter]",
+    "[System: Empty message content sanitised to satisfy parity]",
+    "[System: Empty message content sanitised to satisfy partial protocol]",
+    "[System: Empty message content sanitised to satisfy platform protocol]",
+    "[System: Empty message content sanitised to satisfy polocol]",
+    "[System: Empty message content sanitised to satisfy portico protocol]",
+    "[System: Empty message content sanitised to satisfy portocol]",
+    "[System: Empty message content sanitised to satisfy propecol]",
+    "[System: Empty message content sanitised to satisfy propriety]",
+    "[System: Empty message content sanitised to satisfy prot[System: Empty message content sanitised to satisfy protocol]",
+    "[System: Empty message content sanitised to satisfy protocol]",
+    "[System: Empty message description sanitised to satisfy protocol]",
+    "[System: Empty method content sanitised]",
+    "[System: Empty module content sanitised]",
+    "[System: Empty money content sanitised to satisfy protocol]",
+    "[System: Empty name sanitised to satisfy protocol]",
+    "[System: Empty number content sanitised to satisfy protocol]",
+]
+
+
+class SystemProtocolSuppressionTests(unittest.TestCase):
+    """Tests for synthetic platform protocol placeholder suppression (plan eqzd0h)."""
+
+    def setUp(self) -> None:
+        self.pal = render_stream.Palette(False)
+        self.pad = render_stream.event_prefix_pad(True)
+        self.think_prefix = render_stream.EVENT_PREFIXES["think"].ljust(self.pad)
+
+    def test_all_20_observed_variants_reduce_to_empty(self):
+        self.assertEqual(len(_OBSERVED_SYSTEM_PROTOCOL_VARIANTS), 20)
+        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
+            with self.subTest(variant=variant):
+                stripped = render_stream.strip_system_protocol_prefix(variant)
+                self.assertEqual(stripped, "")
+
+    def test_chained_placeholder_reduces_to_empty(self):
+        chained = (
+            "[System: Empty message content sanitised to satisfy protocol]"
+            "[System: Empty message content sanitised to satisfy protocol]"
+        )
+        self.assertEqual(render_stream.strip_system_protocol_prefix(chained), "")
+
+    def test_placeholder_only_text_events_render_none(self):
+        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
+            with self.subTest(variant=variant):
+                evt = json.dumps(
+                    {"type": "text", "part": {"type": "text", "text": variant}}
+                )
+                self.assertIsNone(render_stream.render_event(evt, self.pal))
+
+    def test_leading_placeholder_with_real_text_renders_text_behind_think_prefix(self):
+        raw_text = (
+            "[System: Empty message content sanitised to satisfy protocol]\n\n"
+            "Now let me look at the key structural question."
+        )
+        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
+        rendered = render_stream.render_event(evt, self.pal)
+        self.assertEqual(
+            rendered,
+            f"{self.think_prefix}Now let me look at the key structural question.",
+        )
+
+    def test_placeholder_quoted_mid_sentence_is_preserved_verbatim(self):
+        raw_text = "We observed [System: Empty message content sanitised to satisfy protocol] in logs."
+        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
+        rendered = render_stream.render_event(evt, self.pal)
+        self.assertEqual(
+            rendered,
+            f"{self.think_prefix}{raw_text}",
+        )
+
+    def test_truncated_placeholder_without_closing_bracket_is_preserved(self):
+        raw_text = "[System: Empty message content sanitised"
+        evt = json.dumps({"type": "text", "part": {"type": "text", "text": raw_text}})
+        rendered = render_stream.render_event(evt, self.pal)
+        self.assertEqual(
+            rendered,
+            f"{self.think_prefix}{raw_text}",
+        )
+
+    def test_placeholder_only_non_json_line_returns_none(self):
+        for variant in _OBSERVED_SYSTEM_PROTOCOL_VARIANTS:
+            with self.subTest(variant=variant):
+                self.assertIsNone(render_stream.render_event(variant, self.pal))
+
+    def test_non_placeholder_non_json_line_renders_dimmed(self):
+        line = "regular unparseable log line"
+        rendered = render_stream.render_event(line, self.pal)
+        self.assertIsNotNone(rendered)
+        self.assertIn(line, rendered)
+
+
 class PaletteUnitTests(unittest.TestCase):
     """Palette applies/omits color per the enabled flag."""
 

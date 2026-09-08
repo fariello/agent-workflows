@@ -550,6 +550,31 @@ TOOL_PREFIX_KIND: dict[str, str] = {
 #: effects, whereas `bash`, `edit` and `write` are the mutating operations.
 VERBOSE_ONLY_TOOLS = frozenset({"read", "grep", "glob"})
 
+_SYSTEM_PROTOCOL_MSG_RE = re.compile(r"\[System:\s*Empty\b[^\]]*\]", re.IGNORECASE)
+
+
+def strip_system_protocol_prefix(text: str) -> str:
+    """Strip a leading run of synthetic platform protocol placeholders from text.
+
+    THE STRIP IS ANCHORED TO A LEADING RUN: the placeholder sits at position 0 in
+    4,058 of 4,059 occurrences across historical session logs (F-3). Anchoring to a
+    leading run prevents deleting the placeholder when an agent legitimately quotes it
+    mid-sentence inside genuine narration (F-4).
+
+    FILTERING IS DISPLAY ONLY: raw session logs under ``.aw/records/runs/`` are written
+    and flushed before rendering, preserving the complete transcript on disk (F-5).
+
+    The Antigravity driver imports this helper for unevidenced host parity on unparseable
+    lines (F-9), ensuring identical suppression across hosts without duplicating logic.
+    """
+    s = text.lstrip()
+    while True:
+        match = _SYSTEM_PROTOCOL_MSG_RE.match(s)
+        if not match:
+            break
+        s = s[match.end() :].lstrip()
+    return s.strip()
+
 
 def render_event(
     raw_line: str,
@@ -583,11 +608,14 @@ def render_event(
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
+        if not strip_system_protocol_prefix(line):
+            return None
         return pal(_one_line(line), "dim")
     etype = event.get("type")
     part = event.get("part") or {}
     if etype == "text":
         text = part.get("text") or ""
+        text = strip_system_protocol_prefix(text)
         text = _one_line(text, 400)
         if not text:
             return None

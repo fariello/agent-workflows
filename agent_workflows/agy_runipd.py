@@ -78,6 +78,7 @@ from agent_workflows.render_stream import (
     format_event_prefix as format_event_prefix,
     _relativize_path as _relativize_path,
     _status_glyph_char as _status_glyph_char,
+    strip_system_protocol_prefix as strip_system_protocol_prefix,
 )
 
 # runorder (prpipy) E-07: an intentional RE-EXPORT, in the `as <same-name>` form this module uses for
@@ -519,6 +520,8 @@ def render_agy_event(
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
+        if not strip_system_protocol_prefix(line):
+            return None
         return pal("  " + _one_line(line), "dim")
 
     event_type = event.get("event")

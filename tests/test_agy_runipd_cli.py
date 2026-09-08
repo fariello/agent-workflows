@@ -1090,6 +1090,16 @@ class AgyVerbosityFlagTests(unittest.TestCase):
             reloaded = json.loads((run_dir / "state.json").read_text(encoding="utf-8"))
             self.assertEqual(reloaded["options"]["verbosity"], 1)
 
+    def test_render_agy_event_suppresses_system_protocol_placeholder(self):
+        pal = agy_runipd.Palette(False)
+        placeholder = "[System: Empty message content sanitised to satisfy protocol]"
+        self.assertIsNone(agy_runipd.render_agy_event(placeholder, pal))
+
+        unparseable = "unparseable raw line"
+        res = agy_runipd.render_agy_event(unparseable, pal)
+        self.assertIsNotNone(res)
+        self.assertIn(unparseable, res)
+
 
 if __name__ == "__main__":
     unittest.main()
