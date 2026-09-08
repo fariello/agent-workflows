@@ -33,7 +33,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: schema and resolution
 
-- [ ] E-01 Add an OPTIONAL `verify_with` profile reference to the `runner_profiles` schema (`f2mrsw` E-01's version 1 object), on a profile and on the top-level `defaults`, and resolve it deterministically.
+- [x] E-01 Add an OPTIONAL `verify_with` profile reference to the `runner_profiles` schema (`f2mrsw` E-01's version 1 object), on a profile and on the top-level `defaults`, and resolve it deterministically.
   IT IS A PROFILE REFERENCE, NOT AN INLINE MODEL. Storing a bare model string here would fork the one place a launch identity is defined and let a verifier launch bypass the schema's own validation (`f2mrsw` forbids arbitrary argv, environment, executable, prompt, permission, token and API-key fields, and an inline verifier model would be the first field to escape that). A reference reuses the whole validated profile, including its `agent` and `variant`.
   ABSENT MEANS "SAME AS THE EXECUTOR", and that is the entire backward-compatibility story: every profile written before this change, and every run started without one, resolves the verifier to the executor's own frozen launch and behaves exactly as it does today. Use the SAME tri-state discipline `f2mrsw` E-03 already mandates for `validate`: absent at one level falls through to the next, and absent overall is NOT an error and NOT a null model.
   FOLLOW THE PRECEDENCE CHAIN THAT ALREADY EXISTS rather than inventing a second one: profile's own `verify_with` > `defaults.verify_with` > same-as-executor. Do NOT add a CLI flag in this item (E-02 owns that) and do NOT reorder the existing `validate` chain.
@@ -42,9 +42,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   SO DECIDE AND RECORD THE FORWARD-COMPATIBILITY ANSWER: adding `verify_with` to `ALLOWED_PROFILE_KEYS` while leaving `SCHEMA_VERSION = 1` means a document written by the NEW aw is REFUSED OUTRIGHT by an older aw (not degraded, refused), which for a user-local config shared across machines or aw versions is a hard failure with a misleading "upgrade aw" message. Bumping to version 2 and adding 1 and 2 to `SUPPORTED_SCHEMA_VERSIONS` states the compatibility contract honestly instead. Either is defensible; choosing silently is not. Whichever you choose, do NOT add `verify_with` to `FORBIDDEN_PROFILE_KEYS`' neighborhood of injection-surface fields: it is a profile NAME, not argv, env, or a credential, which is exactly why the reference form is safe.
   - Depends on: none
   - Expected outcome: the schema accepts an optional `verify_with` at both levels; resolution yields one auditable verifier launch or explicitly "same as executor"; dangling references and unknown profiles are refused with typed errors; the one-hop-versus-transitive decision recorded (with the cycle check only if transitive); the schema-version compatibility decision recorded with its consequence for an older aw reading a newer document; an absent value never means `false` or `null`.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Freeze BOTH resolutions into durable run state at run creation, and add the CLI override.
+- [x] E-02 Freeze BOTH resolutions into durable run state at run creation, and add the CLI override.
   THE FREEZE IS THE LOAD-BEARING PART, and it is why this plan sits behind `3cm15q`: that plan's E-04 establishes that "Resume MUST NOT reload runner-profiles.json; editing, deleting, or repointing `gem` after run creation cannot alter that run." The verifier resolution inherits that rule exactly. Store it BESIDE the executor's frozen launch, never derived on demand, so a resumed verifier turn uses the model the run was created with even if the profile changed since.
   `3cm15q` HAS EXECUTED, SO THE MECHANISM YOU EXTEND IS SHIPPED CODE, NOT A PLANNED DESIGN. Re-read it before adding a second one (measured at HEAD `9089f2cd`, locate by symbol): `resolve_launch_profile(args)` (`oc_runipd.py:2619`) delegates to `runner_profiles.resolve(..., runner="oc")` and is deliberately the FIRST statement of `initialize_run` (`:2685`) so a bad profile refuses before any durable write; `launch_profile_record(resolved)` (`:2657`) builds the provenance object; and `initialize_run` freezes `model`/`variant`/`agent` plus `"launch_profile": launch_profile_record(resolved_launch)` into `options` (`:2955-2963`). The resume path already documents the no-re-resolution rule in place (`:7901`).
   SO THE SHAPE OF THIS ITEM IS: resolve the verifier launch in the SAME pre-side-effect position (a dangling `verify_with` must refuse before a run directory exists, exactly as an unknown `--profile` does), and freeze a SECOND record beside `launch_profile` rather than mutating it. Reusing `launch_profile_record` for both is the KISS answer; say so if you do, and if you do not, justify the divergence.
@@ -52,35 +52,35 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT INVENT A "NO VERIFIER MODEL" SENTINEL. Whether verification happens at all is the `validate` tri-state (`f2mrsw` E-03), a SEPARATE control; this field only says WHICH profile verifies when it does. Conflating them would give two independent switches for one behavior, which is the defect `f2mrsw` E-03's precedence chain exists to prevent.
   - Depends on: E-01
   - Expected outcome: both resolutions are frozen at creation and visible in run state; `--verify-with` parses on start and on resume with `default=None`; a resumed run uses the frozen verifier launch after the source profile is edited or deleted; `validate` and `verify_with` remain independent.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: use it, and only for the verifier turn
 
-- [ ] E-03 Make the verifier turn's argv use the frozen VERIFIER launch while every other turn keeps the executor's.
+- [x] E-03 Make the verifier turn's argv use the frozen VERIFIER launch while every other turn keeps the executor's.
   THE PRECISE SEAM, RE-MEASURED at HEAD `9089f2cd` (every line number in the authored plan had drifted; locate by symbol): `run_opencode` is at `oc_runipd.py:5172`, appends `--model` from `options["model"]` at `:5223` (then `--variant` and `--agent` immediately after), and has exactly TWO call sites, the execute turn at `:5998` and the verifier turn at `:6243`. So the change is at a call site, as the plan says. Keep ONE argv builder: a second builder for the verifier is how the two hosts' flag surfaces diverged in the first place.
   THE PLAN'S "FOUR TURN KINDS" FRAMING IS WRONG AT THE CALL-SITE LEVEL AND MUST NOT DRIVE THE IMPLEMENTATION. Measured: there are only TWO `run_opencode` call sites, and a REVIEW turn is not a third one; it is the SAME execute call site with `item["action"] == "review"`, which `run_opencode` reads internally only to pick a `--title` label (`:5231`, `is_review`). So "keep the executor's model for review turns" requires NO code at all: it is automatic, because review shares the executor's call site. Do not add a branch to preserve it.
   DISTINGUISH THE VERIFIER BY THE CALL SITE, NOT BY `fresh_session`. This is the trap: `fresh_session=True` is passed by the verifier, but `run_opencode` computes `session = None if (fresh_session or isolated_turn or is_rotation) else raw_session` (`:5217`), so an ISOLATED EXECUTE turn also runs session-free (the comment at `:5202-5211` records the `xd9sll` incident that made isolation always-fresh). Keying the verifier launch off `fresh_session`, or off "no session", would hand the VERIFIER's model to every isolated execute turn - which is the default, since `isolate_worktree` defaults `True`. Pass the launch explicitly from the verifier call site instead.
   MIND THE SESSION AND WORKTREE COUPLING: the verifier already forces a fresh session and, when isolated, runs in the worktree (it passes `work_dir=work_dir` at its call site), so changing the model must not disturb which directory the turn runs in or whether the session is fresh. A model swap that silently reused the executor's session would destroy the independence this plan exists to create.
   - Depends on: E-02
   - Expected outcome: the verifier turn's argv carries the verifier launch's model/variant/agent; the execute call site (including its review and recovery uses) carries the executor's; ONE argv builder serves both; the verifier is selected by call site rather than by `fresh_session`, proven by an isolated execute turn still carrying the EXECUTOR's model; fresh-session and worktree behavior unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Prove the end-to-end routing and the no-op default, and record the honest limit.
+- [x] E-04 Prove the end-to-end routing and the no-op default, and record the honest limit.
   TWO CASES ARE LOAD-BEARING AND ONE IS EASY TO FAKE. (a) A profile with `verify_with` produces DIFFERENT models in the execute and verifier argv, shown side by side from one run. (b) A profile WITHOUT it produces IDENTICAL argv to today, which is the backward-compatibility claim and the one a reviewer should distrust most, because a test that only checks case (a) would pass while every existing user's runs changed.
   STATE THE LIMIT PLAINLY IN THE PLAN'S OWN REPORT: this delivers cross-MODEL verification on ONE host. Cross-HOST (execute under agy, verify under oc) is NOT delivered, is deferred by choice, and is recorded in OQ-01 with its measured cost. Do not describe this as "verify with any runner".
   THE ISOLATED-EXECUTE CASE IS THE THIRD LOAD-BEARING CASE and it is the one a naive implementation gets wrong (E-03): with `isolate_worktree` defaulting `True`, an isolated execute turn is session-free just as the verifier is, so prove that turn still carries the EXECUTOR's model. A suite proving only (a) and (b) would pass while every isolated execution silently ran under the verifier's model.
   - Depends on: E-03
   - Expected outcome: differing execute/verifier models demonstrated from one run; an unset `verify_with` demonstrated byte-identical to current behavior; an ISOLATED execute turn demonstrated still carrying the executor's model; the cross-host limit stated rather than implied.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 RECORD THE HOST ASYMMETRY AND THE STALE-SIBLING FACTS, so no reader infers parity this plan does not deliver and no executor acts on a superseded instruction.
+- [x] E-05 RECORD THE HOST ASYMMETRY AND THE STALE-SIBLING FACTS, so no reader infers parity this plan does not deliver and no executor acts on a superseded instruction.
   (a) THE agy HOST HAS NO PROFILE INTEGRATION AT ALL. Measured at HEAD `9089f2cd`: `runner_profiles`, `resolve_launch_profile`, and `launch_profile` all grep to ZERO in `agy_runipd.py`. So `verify_with` is oc-only BY CONSTRUCTION, not merely by this plan's fence, and a profile whose `runner` is `agy` can be written and resolved while no agy run ever reads it. State this in whatever user-facing text results, because "the verifier can use a different profile" reads as host-agnostic and is not.
   (b) `3cm15q`'s E-04 IS ALREADY AMENDED AND THE PLAN HAS ALREADY EXECUTED. This plan's Spec/documentation sync instruction to amend it is SATISFIED, not pending: `3cm15q`'s history carries the 2026-09-05 amendment naming this plan (`kgpptv`) and its `Item-Dependencies: executed:3cm15q`, and the plan is now in `plans/executed/`. Do NOT edit an executed plan; per the repository's own rule, a post-execution gap is closed by a new corrective IPD, never an in-place edit. Confirm the amendment is present and record that no further action is needed.
   (c) THE `runprofile` SET IS NO LONGER UNIFORMLY `approved`. Measured: `f2mrsw`, `p0l1to`, `3cm15q` and `ygzq71` are EXECUTED; only `3m0urk` (Order 00) and `p7xhhm` (Order 05) remain `approved` and pending. F-4's "All six `runprofile` plans are `Status: approved`" is stale. Re-measure before citing it.
   (d) THE DOCS OWNER HAS NOT RUN YET, which makes the documentation hand-off real rather than hypothetical: `p7xhhm` is `approved` and pending and declares `docs/runner-profiles.md`, `docs/cli-human-guide.md`, and `README.md`. Since it will document the schema AFTER this plan may add a field, either it must document `verify_with` or this plan must note the gap explicitly. Decide and record which, WITHOUT editing `p7xhhm` (it carries human sign-off; if it needs a new obligation, say so as a finding for the maintainer rather than silently amending an approved plan).
   - Depends on: none
   - Expected outcome: the agy no-integration fact recorded and reflected in any user-facing wording; `3cm15q`'s amendment confirmed already-present with no edit attempted; F-4's status claim re-measured and corrected; the `p7xhhm` documentation hand-off decided and recorded without editing that plan.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -174,30 +174,232 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the schema accepting `verify_with` at BOTH the profile and `defaults` levels, and the resolution result for each precedence case (profile's own, `defaults`, absent-so-same-as-executor). Paste the typed refusals for a dangling reference and an unknown profile, plus the self-cycle refusal ONLY if you chose transitive resolution; if you chose one hop, paste the recorded decision instead and state that a cycle is unreachable by construction. Prove explicitly that an ABSENT value resolves to same-as-executor and is neither an error nor a null model, since conflating absent with `false` is the exact defect `f2mrsw` E-03 warns about for `validate`. Paste the RECORDED SCHEMA-VERSION DECISION with its consequence spelled out: if `SCHEMA_VERSION` stays 1, paste an older-aw read of a new document failing closed (or state precisely why that is acceptable); if you bumped it, paste `SUPPORTED_SCHEMA_VERSIONS` accepting both and a v1 document still loading (F-9).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in a separate pass at HEAD `3798d236`, in the PRIMARY lane checkout, against the COMMITTED code.
 
-- [ ] V-02 validates E-02
+    `python3 -m pytest tests/test_runner_profiles.py -o addopts="" -q -k "VerifyWith or SchemaVersionCompat" -s`
+
+    ```
+    ....independent: validate=False with verify_with=strong; validate=True with verify_with=None
+    .absent verify_with resolves to same-as-executor: not false, not null-model, not host-default, not an error
+    .one hop: executor=example-vendor/flash-3.7 verifier=example-gw/inhouse/pt3-sonnet-5-1m-us; verifier's own verify_with='a' is inert
+    ..writes schema_version 2; reads [1, 2]
+    .v1 document loads, resolves, and is not rewritten on read
+    ..older aw on a v2 document: unsupported schema_version 2; this aw understands [1]. Upgrade aw rather than editing the file: treating an unknown shape as empty would silently launch the wrong model.
+    ..profile-level verify_with accepted: cheap -> strong
+    ..an inline model in verify_with is refused by the profile-name grammar: invalid profile name 'example-gw/inhouse/pt3-sonnet-5-1m-us': use lowercase letters, digits and
+    .defaults-level verify_with accepted: defaults.verify_with = strong
+    ....dangling profile reference refused: profile 'cheap' 'verify_with' points at 'nope', which does not exist (known profiles: cheap). Remove the reference or cr
+    ....
+    24 passed, 75 deselected in 0.15s
+    ```
+
+    BOTH LEVELS ACCEPTED: `VerifyWithSchemaTests.test_accepted_at_the_profile_level` ("cheap -> strong") and `test_accepted_at_the_defaults_level` ("defaults.verify_with = strong").
+
+    ALL FOUR PRECEDENCE CASES, each its own test in `VerifyWithPrecedenceTests`: explicit (`--verify-with` beats the stored value, provenance `explicit`), the profile's own field beating `defaults` (provenance `profile`), `defaults` applying when the profile is silent (provenance `defaults`), the per-runner DEFAULT profile supplying it (provenance `default-profile`), and absent-everywhere.
+
+    ABSENT IS SAME-AS-EXECUTOR, NOT `false`, NOT a null model, NOT `host-default`, NOT an error, asserted for a v1 document AND for a wholly empty config: "absent verify_with resolves to same-as-executor: not false, not null-model, not host-default, not an error". It gets its OWN provenance value `same-as-executor`, deliberately distinct from `host-default`, because the two absences mean different things (pass no argument versus pass the executor's own argument).
+
+    ONE HOP CHOSEN (DECISION 06-kgpptv-D1, recorded in the lane's `decisions-and-questions.md`), SO A CYCLE IS UNREACHABLE BY CONSTRUCTION and NO cycle check exists or is needed. Proven rather than asserted: a mutual pair `a.verify_with=b`, `b.verify_with=a` RESOLVES rather than looping, the verifier launches with `b`'s own model, and `b`'s own `verify_with` is carried but INERT: "one hop: executor=example-vendor/flash-3.7 verifier=example-gw/inhouse/pt3-sonnet-5-1m-us; verifier's own verify_with='a' is inert".
+
+    TYPED REFUSALS, all `ProfileSchemaError`: a dangling PROFILE-level reference at load ("profile 'cheap' 'verify_with' points at 'nope', which does not exist (known profiles: cheap)..."), a dangling `defaults.verify_with` at load, an explicit `--verify-with` naming an unknown profile at RESOLUTION, a hand-built `ProfileConfig` smuggling one (refused at resolve AND at save), and the `set_verify_with_default` setter. The message names the CONSEQUENCE, not just the fact: "a dangling verifier reference would silently verify with the EXECUTOR's own model, so an operator would believe an independent model checked the work when the same model did."
+
+    An INLINE MODEL is refused by the profile-name grammar itself, which is the structural reason the reference form is safe: "invalid profile name 'example-gw/inhouse/pt3-sonnet-5-1m-us'".
+
+    SCHEMA-VERSION DECISION: BUMPED to 2, reading BOTH (DECISION 06-kgpptv-D2). `SCHEMA_VERSION == 2`, `SUPPORTED_SCHEMA_VERSIONS == {1, 2}`: "writes schema_version 2; reads [1, 2]". A v1 document still LOADS, still RESOLVES, and is NOT rewritten on read (bytes compared before and after): "v1 document loads, resolves, and is not rewritten on read". A v1 document may even carry `verify_with` (the reader is version-agnostic about the field; only the writer pins a version). THE CONSEQUENCE, measured rather than described: an older aw (simulated exactly, by restricting `SUPPORTED_SCHEMA_VERSIONS` to `{1,}`, which is literally what the constant was before this change) reading a v2 document fails CLOSED with "unsupported schema_version 2; this aw understands [1]. Upgrade aw rather than editing the file: treating an unknown shape as empty would silently launch the wrong model." That message points at the real fix instead of inviting a hand edit, which is why the bump was chosen over leaving the version at 1 (where the old aw would have blamed the FIELD). `save`'s refuse-to-overwrite-a-newer-file guard is also asserted, so the newer document cannot be clobbered by the older writer ("Nothing was changed", previous bytes byte-identical).
+
+    PRE-CHANGE MEASUREMENT of the fail-closed behavior, taken at HEAD `699c1fc7` BEFORE any edit, which is what made this a versioning decision rather than an additive one:
+    ```
+    PRE-CHANGE (old aw) profile-level verify_with -> ProfileSchemaError: profile 'gem': unknown field(s) ['verify_with']; allowed: ['agent', 'model', 'runner', 'validate', 'variant']
+    PRE-CHANGE (old aw) defaults.verify_with -> ProfileSchemaError: defaults: unknown field(s) ['verify_with']; allowed: ['profiles', 'validate']
+    PRE-CHANGE (old aw) schema_version 2 -> ProfileSchemaError: unsupported schema_version 2; this aw understands [1]. Upgrade aw rather than editing the file: ...
+    ```
+
+    `verify_with` was NOT added to `FORBIDDEN_PROFILE_KEYS`' neighborhood, and a test asserts it stays out, because it is a profile NAME rather than argv, environment, or a credential.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste run state showing BOTH frozen launches side by side. Paste a resume that uses the frozen verifier launch after the source profile was edited, repointed, and deleted, which is `3cm15q` E-04's rule extended to this field. Paste `--verify-with` in `--help` for start and resume, and a resume with the flag OMITTED showing the frozen value survived. Paste evidence that `validate` and `verify_with` are INDEPENDENT: verification off with a verifier profile set, and on with none. Paste proof the verifier resolution happens BEFORE any durable side effect: a run started with a DANGLING `verify_with` must exit nonzero having created NO run directory, events, or `state.json`, which is the guarantee `3cm15q` established by making `resolve_launch_profile` the first statement of `initialize_run` (F-13).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in a separate pass at HEAD `3798d236`. These tests drive the REAL `runipd` binary as a subprocess against a REAL git repo with a REAL isolated XDG store, so the state asserted is state actually written to disk.
 
-- [ ] V-03 validates E-03
+    `python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k "VerifierLaunchFreeze" -s`
+
+    ```
+    start --verify-with help: [--verify-with PROFILE] [--auto | --no-auto]
+    resume --verify-with help: [--verify-with PROFILE] [--quiet | --raw] [-v]
+    .frozen pair: executor model=vendor/flash-1 variant=low; verifier model=vendor/opus-9 variant=high agent=build
+    .unchanged identity line: - Launch: model=vendor/opus-9 (profile); variant=high (profile); agent=build (profile); profile=strong (requested)
+    .report identity line: - Launch: model=vendor/flash-1 (profile); variant=low (profile); profile=cheap (requested); verify-model=vendor/opus-9; verify-variant=high; verify-agent=build; verify-profile=strong (profile)
+    .no verifier profile configured: no verify_* keys frozen; provenance=same-as-executor
+    ..independent: validate=False with a verifier profile frozen; validate=True with none
+    .dangling --verify-with refused with no durable state: runipd: runner profile: verify_with points at 'ghost', which does not exist (known profiles: cheap, strong). Remove the reference or create
+    .resume --verify-with refused: runipd: --verify-with 'cheap' cannot be changed on resume: the verifier launch is frozen when the run is created, because honoring a profile name here
+    after repointing AND deleting the store, the frozen verifier launch is still vendor/opus-9
+    ..
+    10 passed, 163 deselected in 4.39s
+    ```
+
+    BOTH FROZEN LAUNCHES SIDE BY SIDE, read from the `state.json` a real run wrote: "frozen pair: executor model=vendor/flash-1 variant=low; verifier model=vendor/opus-9 variant=high agent=build". The executor's `launch_profile` keeps its EXACT shipped shape (`applied=cheap`) and the verifier's record sits BESIDE it as `verify_launch_profile` (`applied=strong`) plus flat `verify_model`/`verify_variant`/`verify_agent` mirroring the existing three keys (DECISION 06-kgpptv-D4). Both records share ONE `config_digest`, asserted, which is what resolving from a single store read buys. No credential-shaped key in the new record.
+
+    RESOLUTION PRECEDES EVERY DURABLE SIDE EFFECT (F-13's guarantee extended): a run started with a dangling `--verify-with ghost` exits 2, prints "verify_with points at 'ghost', which does not exist (known profiles: cheap, strong)", and the run directory listing is compared BEFORE and AFTER and is IDENTICAL. No run id, no directory, no events, no `state.json`, and no "Run ID:" on stdout.
+
+    THE FREEZE SURVIVES THE STORE BEING REPOINTED AND THEN DELETED: the profile `strong` is repointed at `EVIL/other` and then the whole store file is `unlink`ed, and the run still reports `verify_model == vendor/opus-9` with an UNCHANGED `verify_launch_profile.config_digest`: "after repointing AND deleting the store, the frozen verifier launch is still vendor/opus-9". That is `3cm15q` E-04's no-re-resolution rule extended to this field, asserted through the REAL `status --json` path.
+
+    `--verify-with` REGISTERED ON BOTH, with `default=None` on both (asserted from a parsed namespace, not from help text alone), so an OMITTED flag can never clobber a frozen value: "start --verify-with help: [--verify-with PROFILE]" / "resume --verify-with help: [--verify-with PROFILE]".
+
+    ON RESUME THE FLAG IS REFUSED, NOT APPLIED (DECISION 06-kgpptv-D5, recorded with its reasoning): passing it exits 2 with "--verify-with 'cheap' cannot be changed on resume: the verifier launch is frozen when the run is created, because honoring a profile name here would mean re-reading runner-profiles.json", and the frozen `verify_model` is re-read afterwards and is UNCHANGED. This matches the SHIPPED treatment of the only comparable input, a profile NAME (`as <profile>` is refused on non-start commands), and avoids the store read that `3cm15q` E-04 forbids. OMITTING it preserves the frozen value, which is the requirement E-02 actually states.
+
+    `validate` AND `verify_with` PROVEN INDEPENDENT at the run-state level: `--no-validate` with a verifier profile configured freezes `validate=False` AND `verify_model=vendor/opus-9`; `--validate` with a profile that names no verifier freezes `validate=True` and NO `verify_launch_profile` at all: "independent: validate=False with a verifier profile frozen; validate=True with none". Also proven at the resolver level in V-01, including that an explicit `--verify-with` does NOT turn verification on.
+
+    AN EXPLICIT FLAG BEATS THE STORED REFERENCE (`--verify-with cheap` on a profile whose stored `verify_with` is `strong` freezes `verify_model=vendor/flash-1`, provenance `explicit`).
+
+    THE OPERATOR-FACING SURFACE: the report/status identity line NAMES the verifier when one applies ("verify-model=vendor/opus-9; verify-variant=high; verify-agent=build; verify-profile=strong (profile)") and is UNCHANGED when none does (no `verify-model`, no `verify-profile` anywhere in the report). A run frozen before this field existed still renders rather than raising.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the execute-turn argv and the verifier-turn argv from ONE run, showing different models. Paste a REVIEW turn's argv carrying the EXECUTOR's model AND state that this required no code because review shares the execute call site (F-11); an executor who reports adding a review branch has misread the seam. THE DECISIVE NEGATIVE CASE: paste an ISOLATED execute turn (`isolate_worktree` default `True`, so `fresh_session` is effectively true for it) carrying the EXECUTOR's model, proving the verifier launch is keyed on the CALL SITE and not on `fresh_session` or on session-absence (F-10). Paste evidence one argv builder still serves both call sites (no second builder). Paste evidence the verifier still forces a fresh session and still runs in the worktree when isolated.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in a separate pass at HEAD `3798d236`. Every argv below is the REAL list `run_opencode` handed to `subprocess.Popen`, captured by patching `Popen` only; the builder itself is not stubbed.
 
-- [ ] V-04 validates E-04
+    `python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k "VerifierTurnArgvRouting" -s`
+
+    ```
+    .verifier argv launch: ('vendor/opus-9', 'high', 'build')
+    .controlled negative: a fresh_session-keyed implementation gives the isolated EXECUTE turn ('vendor/opus-9', 'high', 'build'), which this suite catches
+    ..isolated execute turn (default config): session-free yet launch=('vendor/flash-1', 'low', None)
+    .one builder, two call sites: ['exit_code, session_id, log_path, argv = run_opencode(', 'v_rc, _v_session, _v_log, _v_argv = run_opencode(']
+    .verifier turn: fresh session preserved, still runs in the worktree
+    .execute argv launch:  ('vendor/flash-1', 'low', None)
+    .review argv launch:   ('vendor/flash-1', 'low', None) (no branch required)
+    .
+    9 passed, 164 deselected in 0.31s
+    ```
+
+    DIFFERENT MODELS FROM ONE FROZEN RUN, the two argv side by side (from `VerifierRoutingNoOpDefaultTests.test_differing_models_from_one_run_side_by_side`, same frozen state for both):
+    ```
+    ROUTED   execute:  opencode run --dir /tmp/tmp4ln2hvki --format json --model vendor/flash-1 --variant low --auto --title
+    ROUTED   verifier: opencode run --dir /tmp/tmpqrwvevmm --format json --model vendor/opus-9 --variant high --agent build
+    ```
+
+    THE REVIEW TURN CARRIES THE EXECUTOR'S MODEL AND THIS REQUIRED NO CODE. F-11 is confirmed against the shipped seam: a review turn is NOT a third call site, it IS the execute call site with `item["action"] == "review"`, which `run_opencode` reads only to choose the `--title` label. The test asserts both facts together (`--title` contains `aw-review-`, and the launch is the executor's): "review argv launch: ('vendor/flash-1', 'low', None) (no branch required)". NO review branch was added; adding one would have been misreading the seam.
+
+    THE DECISIVE NEGATIVE CASE, and it is the DEFAULT configuration: an ISOLATED execute turn is session-free exactly like the verifier (asserted: no `--session` in its argv, the `xd9sll` always-fresh rule) and YET carries the EXECUTOR's launch, with `vendor/opus-9` asserted absent from the whole argv: "isolated execute turn (default config): session-free yet launch=('vendor/flash-1', 'low', None)". A bare `fresh_session=True` execute turn is asserted the same way. So the verifier launch is keyed on the CALL SITE (`use_verifier_launch=True`, passed only from the verifier site) and not on `fresh_session` or session-absence (F-10).
+
+    THE NEGATIVE CASE IS NOT VACUOUS: a MUTATION control injects the defect exactly as a naive implementation would write it (route by `fresh_session`/`work_dir` instead of by call site) and shows the isolated execute turn then gets `('vendor/opus-9', 'high', 'build')`, i.e. the assertion above genuinely fails when the defect is present: "controlled negative: a fresh_session-keyed implementation gives the isolated EXECUTE turn ('vendor/opus-9', 'high', 'build'), which this suite catches".
+
+    ONE ARGV BUILDER, TWO CALL SITES, asserted STRUCTURALLY against the driver source (one `def run_opencode(`, exactly two callers): "one builder, two call sites: ['exit_code, session_id, log_path, argv = run_opencode(', 'v_rc, _v_session, _v_log, _v_argv = run_opencode(']". No second builder was added.
+
+    SESSION AND WORKTREE COUPLING UNDISTURBED: with an executor session present in frozen state AND a lane worktree, the verifier turn still passes NO `--session` and still passes `--dir <lane>`, while carrying the verifier launch: "verifier turn: fresh session preserved, still runs in the worktree". A model swap that had silently reused the executor's session would have destroyed the independence this plan exists to buy.
+
+    THE RECOVERY TURN (`log_suffix="recovery"`) also keeps the executor's launch.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: THE BACKWARD-COMPATIBILITY PROOF FIRST, because it is the one a reviewer should distrust most: a profile WITHOUT `verify_with`, and a run with NO profile, producing argv byte-identical to pre-change behavior for every turn kind. A green suite that only exercises the new routing would pass while changing every existing user's runs. Then the differing-models demonstration. Then the isolated-execute-turn case from V-03 restated as an end-to-end result, since that is the default configuration and the likeliest silent regression. Then state the cross-host limit explicitly and confirm no report or help text implies "verify with any runner" or implies the agy host participates. Then the bare full suite with counts compared against your own pre-change measurement, and `aw check all` no-worsening against your own baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in a separate pass at HEAD `3798d236`, in the PRIMARY lane checkout.
 
-- [ ] V-05 validates E-05
+    THE BACKWARD-COMPATIBILITY PROOF FIRST. `python3 -m pytest tests/test_oc_runipd.py -o addopts="" -q -k "VerifierRoutingNoOp" -s`
+
+    ```
+    no verify_with -> execute           launch=('vendor/flash-1', 'low', 'build')
+    no verify_with -> isolated-execute  launch=('vendor/flash-1', 'low', 'build')
+    no verify_with -> recovery          launch=('vendor/flash-1', 'low', 'build')
+    no verify_with -> review            launch=('vendor/flash-1', 'low', 'build')
+    no verify_with -> verifier          launch=('vendor/flash-1', 'low', 'build')
+    .pre-field run: verifier turn falls back to the executor launch ('vendor/flash-1', 'low', None)
+    .ROUTED   execute:  opencode run --dir /tmp/tmp9ehyxggx --format json --model vendor/flash-1 --variant low --auto --title
+    ROUTED   verifier: opencode run --dir /tmp/tmphmcdj29d --format json --model vendor/opus-9 --variant high --agent build
+    UNROUTED execute:  opencode run --dir /tmp/tmpyxne7aup --format json --model vendor/flash-1 --variant low --auto --title
+    UNROUTED verifier: opencode run --dir /tmp/tmp0ywra6oe --format json --model vendor/flash-1 --variant low --auto --title
+    ..
+    4 passed, 169 deselected in 0.35s
+    ```
+
+    EVERY TURN KIND UNCHANGED without `verify_with`, INCLUDING the verifier turn: all five carry the identical executor launch. The comparison is exact rather than approximate: before this plan, `run_opencode` read `options["model"|"variant"|"agent"]` UNCONDITIONALLY, which is precisely what `use_verifier_launch=False` (the default, and the only value any pre-existing caller supplies) does now. Three further absences make the no-op total: a run with NO launch fields passes no `--model`/`--variant`/`--agent` at all, for the verifier turn too; a run frozen BEFORE this field existed has `use_verifier_launch` inert and falls back to the executor launch ("pre-field run: verifier turn falls back to the executor launch"); and at the STATE level a run with no verifier configured freezes NO `verify_*` keys whatsoever (V-02), so its `state.json` is byte-identical in shape to a pre-change run's.
+
+    THE UNROUTED PAIR IS IDENTICAL AND THE ROUTED PAIR DIFFERS, from one state each, side by side in the output above: UNROUTED execute and verifier both `--model vendor/flash-1 --variant low`; ROUTED execute `--model vendor/flash-1 --variant low` versus verifier `--model vendor/opus-9 --variant high --agent build`.
+
+    THE ISOLATED-EXECUTE CASE, restated as an end-to-end result because it is the DEFAULT configuration (`isolate_worktree` defaults `True`) and the likeliest silent regression: an isolated execute turn is session-free like the verifier and still carries `('vendor/flash-1', 'low', None)`, with the verifier's model asserted ABSENT from its argv; a mutation control proves the assertion fails when the defect is injected (V-03).
+
+    THE CROSS-HOST LIMIT, STATED PLAINLY: THIS DELIVERS CROSS-MODEL VERIFICATION ON THE OPENCODE HOST ONLY. Cross-HOST verification (execute under agy, verify under oc) is NOT delivered and is deferred by the maintainer's 2026-09-05 choice (OQ-01). No report line, help text, or doc sentence says or implies "verify with any runner": the `--verify-with` help ends "OpenCode host only" (asserted by test), the doc says "IT IS OPENCODE ONLY ... this routes the model, not the host" (asserted by test), and the agy host does not participate at all (V-05).
+
+    BARE FULL SUITE, both measurements mine, both in the PRIMARY lane checkout, `python3 -m pytest` with no added flags:
+    ```
+    BASELINE (HEAD 699c1fc7, before any edit):
+      33 failed, 5619 passed, 3 skipped, 2 xfailed in 155.74s (0:02:35)
+    AFTER (this change):
+      33 failed, 5668 passed, 3 skipped, 2 xfailed in 107.08s (0:01:47)
+    ```
+    The failure SETS are IDENTICAL, not merely the counts: `diff` of the sorted `FAILED` lines is empty, so 0 new failures and 0 fixed. +49 passing tests are the ones this plan added. The 33 pre-existing failures are unrelated to this change (they are worker-role/lane-integration and `run_viewer` tests that fail in this worktree at the base commit); they are NOT claimed as passing.
+
+    `aw check all` NO-WORSENING against my own fresh baseline, and the delta is ACCOUNTED FOR RATHER THAN WAVED THROUGH. I do NOT claim it passes; it exits 1 at both measurements.
+    ```
+    BASELINE: 138 finding(s) detected across 616 all   (errors 138, warnings 0)
+    AFTER:    166 finding(s) detected across 616 all   (errors 166, warnings 0)
+    ```
+    PER-RULE, only ONE rule moved; every other rule's count is unchanged:
+    ```
+    check.from-backlog-gate-mismatch        1 ->   1
+    check.ipd-dependency-findings-blocked   1 ->   1
+    check.lifecycle-transition-invalid     18 ->  18
+    check.review-finding-unescalated        2 ->   2
+    check.system-layout-missing             1 ->   1
+    check.scope-drift                      92 -> 120   (+28)
+    ```
+    ALL 28 ADDED FINDINGS NAME A FILE THIS PLAN CHANGED; not one names an unrelated path (measured by comparing each finding's `observed` path against `git status --porcelain`). They split into two groups:
+      * 2 are MY OWN plan's, and they are CORRECT: `docs/runner-profiles.md` and `tests/test_runner_profiles_e2e.py` are genuinely outside `- Scope-Paths:`. Both are deliberate (DECISION 06-kgpptv-D3) and are declared to `aw ipd finalize` with `--scope-reason` rather than made silently.
+      * 26 belong to SIX OTHER plans whose live begin receipts attribute THIS lane's commit to THEM. That is the KNOWN, ALREADY-TRIAGED defect backlog `hyx1dg` ("finalize's scope audit attributes every concurrent agent's commits to the finalizing plan, because it diffs against the begin receipt's `base_head` instead of the execution's own commits"), status `graduated`, handed off to plan `h9cn0y`. It is a property of a shared checkout with concurrent live receipts, not of this plan's code: the same +N would appear for ANY commit landing here. Per-plan delta: lanectn-02 +5, lanectn-05 +2, hostdefault-01 +3, idxuntrack-01 +6, integpath-01 +6, depreview-01 +4.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste the agy grep showing zero `runner_profiles`/`resolve_launch_profile`/`launch_profile` hits, and the user-facing sentence you wrote that reflects it (or state which text you checked and found already accurate). Paste the `3cm15q` history lines showing the E-04 amendment naming `kgpptv` AND the plan's location under `plans/executed/`, plus an explicit statement that you did NOT edit it and why (post-execution gaps take a corrective IPD). Paste the re-measured statuses of all six `runprofile` plans, correcting F-4. Paste the recorded `p7xhhm` documentation decision, with confirmation that `p7xhhm` itself was NOT edited.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED in a separate pass at HEAD `3798d236`.
+
+    (a) THE agy HOST HAS ZERO PROFILE INTEGRATION, re-measured at this HEAD:
+    ```
+    $ for s in runner_profiles resolve_launch_profile launch_profile verify_with; do printf "%-24s %s hits\n" "$s" "$(grep -c "$s" agent_workflows/agy_runipd.py || echo 0)"; done
+    runner_profiles          0 hits
+    resolve_launch_profile   0 hits
+    launch_profile           0 hits
+    verify_with              0 hits
+    ```
+    So `verify_with` is OpenCode-only BY CONSTRUCTION, not merely by this plan's fence. A test now PINS this so the claim cannot rot silently (`VerifierRoutingHostAsymmetryTests.test_the_agy_runner_has_no_profile_integration_at_all`, and a second assertion inside the doc-contract test): "agy_runipd references runner_profiles/resolve_launch_profile/launch_profile/verify_with exactly 0 times: profile routing is OC-only by construction".
+
+    THE USER-FACING SENTENCES I WROTE that reflect it, in `docs/runner-profiles.md` (asserted by `test_the_doc_states_the_verify_with_limits_rather_than_implying_parity`): "IT IS OPENCODE ONLY. The Antigravity runner does not read runner profiles at all, so it neither honors `verify_with` nor any other profile field. Verifying under a DIFFERENT RUNNER than the one that executed is also not available: this routes the model, not the host." The `--verify-with` help text ends "OpenCode host only" and is asserted too.
+
+    (b) `3cm15q`'s AMENDMENT IS ALREADY PRESENT AND THE PLAN HAS EXECUTED, so this plan's spec-sync obligation was SATISFIED on arrival. Located at `.aw/records/plans/executed/20260829-runprofile-03-3cm15q-opencode-runner-model-variant-profile-and-durable-state-inte.ipd.md` (i.e. under `plans/executed/`), and it names `kgpptv` twice. Its history line: "2026-09-05 approved ...: E-04 AMENDED IN PLACE, no scope or Order change ... New Order 6 (`kgpptv`, `Item-Dependencies: executed:3cm15q`) adds an optional `verify_with` profile reference giving the independent fresh-session verifier its own SEPARATELY FROZEN launch, which preserves the invariant. NOTHING IN THIS PLAN'S EXECUTABLE SCOPE CHANGES". Its E-04 body carries the same amendment inline.
+
+    I DID NOT EDIT IT, and the reason is the repository rule: it sits in a TERMINAL directory, so a post-execution gap is closed by a NEW corrective IPD, never by an in-place edit (the `no raw plan->executed commit` pre-commit hook enforces the neighbouring rule). Proven, not asserted:
+    ```
+    $ git log --oneline 699c1fc7..HEAD -- .aw/records/plans/executed/20260829-runprofile-03-3cm15q-*.ipd.md
+    (no output)
+    ```
+    NOTHING FURTHER IS NEEDED for this obligation, and I do NOT claim to have amended `3cm15q`.
+
+    (c) F-4's STATUS CLAIM RE-MEASURED AND CORRECTED. F-4 (as revised at review) said four had executed and that `3m0urk` and `p7xhhm` remained approved-and-pending. THAT IS NOW ALSO STALE: `p7xhhm` HAS EXECUTED. Measured at this HEAD:
+    ```
+    01-f2mrsw   executed/   executed
+    02-p0l1to   executed/   executed
+    03-3cm15q   executed/   executed
+    04-ygzq71   executed/   executed
+    05-p7xhhm   executed/   executed
+    00-3m0urk   pending/    approved
+    06-kgpptv   pending/    approved   (this plan)
+    ```
+    So FIVE of the seven have executed, and only the Order-00 orchestrator `3m0urk` plus this plan remain pending. The original authored claim "All six `runprofile` plans are `Status: approved`" is false and is not cited anywhere in my report.
+
+    (d) THE `p7xhhm` DOCUMENTATION HAND-OFF, DECIDED AND RECORDED (DECISION 06-kgpptv-D3 in the lane's `decisions-and-questions.md`). The question as posed has NO LIVE OWNER, because `p7xhhm` has executed (c). Options and the decision: `p7xhhm` could not be edited (executed, human sign-off, forbidden); "note the gap and document nothing" was NOT actually available, because the SHIPPED test `tests/test_runner_profiles_e2e.py::PublishedContractParityTests::test_every_field_the_doc_says_is_refused_really_is` pins `sorted(rp.ALLOWED_PROFILE_KEYS)` against the doc's own list, so adding the schema field without the doc ships a RED suite, and weakening that test would violate "do not weaken checks". So THIS plan documents `verify_with` in `docs/runner-profiles.md`, an ACKNOWLEDGED out-of-scope path declared to `aw ipd finalize` with a `--scope-reason`, and `p7xhhm` needed NO new obligation.
+
+    `p7xhhm` WAS NOT EDITED:
+    ```
+    $ git log --oneline 699c1fc7..HEAD -- .aw/records/plans/executed/20260829-runprofile-05-p7xhhm-*.ipd.md
+    (no output)
+    ```
+
+    RAISED FOR THE MAINTAINER (a finding, not a blocker): the doc change lives in this plan rather than in a docs-owned IPD. It is one new section plus three table rows and is trivially movable if you would rather it were separate.
+
+    (e) SPEC `25kzda` CHECKED, per the Spec/documentation sync section: it governs the runner surface but says NOTHING about per-role model routing, so no amendment is required and none was made. I did not touch any `.spec.md`, consistent with `- Scope-Paths:` declaring none. This plan carries no `From-Spec` deliberately: no spec required this capability; the driver was the maintainer's 2026-09-05 direction.
+  - Result: pass
 
 ## Approval and execution gate
 
