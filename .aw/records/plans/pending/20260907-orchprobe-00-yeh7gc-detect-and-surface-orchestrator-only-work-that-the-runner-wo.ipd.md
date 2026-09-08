@@ -138,11 +138,11 @@ THE SPEC AMENDMENT IS OWED AND ITS TARGET IS NAMED HERE, because "amend the spec
 
 ### OQ-02: What happens to the four APPROVED orchestrators this gate will immediately block?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-005
-- Resolution or deferral rationale: NOT RESOLVABLE FROM THE REPOSITORY, and it is a scope/priority call rather than a technical one. Measured: `5e4sb6`, `h0zljh`, `rh5tt6` and `3m0urk` are `Status: approved` in `pending/` and each carries parent-only work per CID-2, so once child 03 lands, every run that queues one of them refuses (unattended) or prompts (interactive), and the remedy the message must recommend is authoring a new child for each. THREE COSTED OPTIONS. (a) SHIP AND ABSORB: land the gate, let the four prompt, and clear them as they come up. Cheapest now; the cost is that four approved Sets become un-runnable unattended until authored, and an operator who meets the prompt four times learns to reach for the override, which is how a gate stops working. (b) CLEAR FIRST: author the missing children for the four before child 03 lands. Highest up-front cost (four child plans, each needing its own review and approval) and it makes this Set's own delivery depend on unrelated Sets, but the gate then arrives on a clean corpus and its first firing is a real defect rather than known debt. (c) SHIP GATED BY AN ALLOWLIST: land the gate with the four recorded as known-and-accepted so they do not prompt, and clear them on their own schedule. Keeps the gate credible on new work; the risk is that an allowlist is a place for entries to go and never leave, so it needs an expiry or a check that it is shrinking. Recommendation: (c) with a stated expiry, falling back to (a) if an allowlist is judged not worth its mechanism. A human decides; do NOT execute child 03 while this is open.
+- Resolution or deferral rationale: RESOLVED 2026-09-07 by the maintainer: option (b), CLEAR FIRST. Author the missing children for `5e4sb6`, `h0zljh`, `rh5tt6` and `3m0urk` BEFORE child 03 lands, so the gate arrives on a clean corpus and its first firing is a real defect rather than known debt. The allowlist option (c) was REJECTED for the reason the review named: an allowlist is a place entries go and never leave, and an operator who meets the same prompt four times learns to reach for the override, which is how a gate stops protecting anything. CONSEQUENCE ACCEPTED DELIBERATELY: this Set's delivery now depends on four child plans belonging to OTHER Sets, each needing its own authoring, review and approval. Those four are NOT in this Set's scope and must not be authored by it. Child 03 MUST NOT execute until all four are authored and their parents no longer carry uncovered work.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

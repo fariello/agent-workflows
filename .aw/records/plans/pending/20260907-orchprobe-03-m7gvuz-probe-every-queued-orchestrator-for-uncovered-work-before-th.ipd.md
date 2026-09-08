@@ -149,25 +149,25 @@ WHY `77tr3o` IS THE RIGHT SPEC, stated because the pre-revision text said only "
 ### OQ-01: Which model answers the probe, and does it follow the run's profile?
 
 - Blocking: no
-- Status: open
-- Owner: executor
-- Resolution or deferral rationale: NARROWED AT REVIEW, because the pre-revision text overstated what exists. There is NO per-role profile machinery: `runner_profiles` contains no `role` concept, `resolve_launch_profile` (`oc_runipd.py:2660`) resolves ONE launch identity for the whole run, and `kgpptv` (which would give the verifier turn its own profile) is `approved` and UNEXECUTED. So the executor must NOT try to reuse a per-role resolver; it should use the run's already-resolved profile, RECORD which model that was with the verdict (child 02 stores the field for exactly this reason), and add no role routing here. A cheap model is defensible for a yes/no question, but the verdict is cached and trusted later, so the recording is the load-bearing half.
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED 2026-09-07 by the maintainer: USE THE RUN'S ALREADY-RESOLVED MODEL, record which model answered alongside each verdict (child 02 stores the field for exactly this reason), and add NO role routing here. Confirmed there is no per-role machinery to reuse: `runner_profiles` has no role concept, `resolve_launch_profile` (`oc_runipd.py:2660`) resolves one identity for the whole run, and `kgpptv` is approved but unexecuted and addresses the VERIFIER specifically, not an arbitrary new action. The general capability (per-action model settings) is to be filed as a BACKLOG ITEM rather than an IPD, because it is a decided-but-unscoped design question and not a task list; it graduates into a plan later if it earns it. Caching bounds the cost meanwhile.
 
 ### OQ-02: May a run be gated on a model call at all?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-002
-- Resolution or deferral rationale: NOT RESOLVABLE FROM THE REPOSITORY, and it is the question this child's whole shape rests on. Every gate `aw <host> run` has today is DETERMINISTIC: the dependency preflight, the draft-admission gate, the mixed-type gate, the capability gate, the retirement predicate. This child would add the FIRST gate whose verdict comes from a language model, and it fails closed, which means a model that is unavailable, rate-limited, slow, or merely confused BLOCKS THE RUN (E-02 makes an empty or chatty reply `unknown`, and `unknown` blocks). That is the correct bias for safety and it also hands a new failure mode to every run that queues an orchestrator. THREE OPTIONS. (a) AS DESIGNED, fail closed on `unknown`; safest, and it means a model outage stops runs that would otherwise be fine. (b) FAIL OPEN ON UNAVAILABILITY BUT NOT ON DOUBT: distinguish "could not ask" (network, no binary, timeout) from "asked and got something unparsable", blocking only the second; keeps outages from stopping work at the cost of a real hole an operator could induce. (c) ADVISORY FIRST: ship the probe reporting only, gate later once the false-positive rate is measured on the live corpus; cheapest to reverse and it means the defect stays live meanwhile. Recommendation: (b) for the availability split, plus (c)'s discipline of measuring the false-positive rate before the gate becomes fatal. A human decides; the honest framing is that this trades a silent-bad-state risk for a run-availability risk, and only the maintainer can price that.
+- Resolution or deferral rationale: RESOLVED 2026-09-07 by the maintainer: option (b) PLUS A RETRY BUDGET. Distinguish COULD NOT ASK (unreachable, no binary, timeout, rate-limited) from ASKED AND GOT SOMETHING UNUSABLE. Retry a could-not-ask up to a maximum, default 3, configurable by flag or config variable. After the budget is exhausted, a could-not-ask does NOT block the run: it proceeds with a loud warning, so a model outage cannot halt work that is otherwise fine. An answer that WAS received but is unparsable, or that reports a problem, DOES block. This trades a narrow induced-hole risk for run availability, and the maintainer priced it deliberately.
 
 ### OQ-03: What happens to the four APPROVED orchestrators this gate blocks on day one?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-005
-- Resolution or deferral rationale: INHERITED from the parent (`yeh7gc` OQ-02) and restated here because THIS child is the one that makes it live. Measured: `5e4sb6`, `h0zljh`, `rh5tt6` and `3m0urk` are `- Status: approved` in `pending/` and each carries parent-only work per the parent's CID-2 classification, so the day this child lands, every run queueing one of them refuses (unattended) or prompts (interactive), with "author a new child" as the remedy. The parent records three costed options (ship-and-absorb, clear-first, ship-gated-by-an-allowlist-with-an-expiry) and recommends the allowlist with a stated expiry. Do not execute this child while the parent's OQ-02 is unresolved; resolving it there resolves this.
+- Resolution or deferral rationale: RESOLVED 2026-09-07 with the parent (`yeh7gc` OQ-02): CLEAR FIRST. The missing children for `5e4sb6`, `h0zljh`, `rh5tt6` and `3m0urk` are authored BEFORE this child lands, so the gate never fires on known debt and the override never becomes reflex. This child MUST NOT execute until that holds.
 
 ## Validation and cross-check (verify before reporting done)
 

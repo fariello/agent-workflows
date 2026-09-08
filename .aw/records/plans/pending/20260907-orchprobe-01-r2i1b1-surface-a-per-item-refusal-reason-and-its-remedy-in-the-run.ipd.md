@@ -129,17 +129,17 @@ ONE THING TO CHECK RATHER THAN ASSUME: if `aw runs`' `--json`/`--agent` payload 
 ### OQ-01: Should an existing refusal be retrofitted to carry a remedy?
 
 - Blocking: no
-- Status: open
-- Owner: executor
-- Resolution or deferral rationale: NARROWED AT REVIEW so it cannot license breaking a pin. The three statuses that already render have their exact strings asserted at `tests/test_run_summary_table.py:211-214`; those three assertions MUST NOT be rewritten by this child. Adding a remedy to `dependency-blocked` is therefore only permissible as an ADDITIONAL line or field that leaves the asserted string intact, and note the recovery hint it would carry already exists per host (`DEPENDENCY_BLOCK_RECOVERY_HINT`) and is already rendered in the report (`oc_runipd.py:3183-3185`), so the work is plumbing it into the summary rather than composing new text. If it cannot be done without editing an asserted string, do NOT do it: record that and leave it. The two statuses E-02 REPAIRS are different and are not covered by this question, since they assert nothing today.
+- Status: resolved
+- Owner: none
+- Resolution or deferral rationale: RESOLVED 2026-09-07 by the maintainer, and BROADENED beyond the original narrow question. The requirement is now explicit: every refusal must state BOTH what went wrong AND the likely correct fix, and it must appear in FOUR places: (1) the end-of-run summary, the one thing a human is guaranteed to read; (2) the START of the output; (3) the END of the output, because agents habitually pipe through `head` or `tail` and would otherwise miss it; and (4) both the `aw runs` report and the durable run logs. The start/end duplication is deliberate redundancy, accepted as the price of neither reader missing it. THE REASON IS THE WHOLE POINT: a message saying only 'abd123 contains items that are not allowed' very likely gets 'fixed' by DELETING items someone thought important enough to write, when a correct non-destructive fix exists. The three pinned strings at `tests/test_run_summary_table.py:211-214` must stay byte-identical; add the remedy as an ADDITIONAL line or field. If a given message cannot carry it without editing an asserted string, record that and leave the string alone.
 
 ### OQ-02: Is repairing the two broken statuses inside this child's fence?
 
-- Blocking: yes
-- Status: open
-- Owner: maintainer
+- Blocking: no
+- Status: resolved
+- Owner: none
 - Finding: PR-005
-- Resolution or deferral rationale: NOT RESOLVABLE FROM THE REPOSITORY, because it is a fence question the plan's own scope cannot answer. F-4 shows `integration-blocked` and `merge-conflict` render nothing, and E-02 now repairs that. The catch is WHERE the mismatch lives: the renderer reads `driver_error`, the runners write `integration_deferral`, so a fix is either (a) IN THE RENDERER, reading `integration_deferral` too, which keeps this child inside `render_stream.py` and is the smaller change, or (b) IN BOTH RUNNERS, also setting `driver_error`, which touches `oc_runipd.py:6498-6512` and `agy_runipd.py:3798-3811`, functions the `integpath` Set's children 03 (`51vw4y`) and 04 (`rl67b0`) are actively editing, and which risks a conflict for no gain. THIRD OPTION (c): declare it OUT of this child, file it as its own backlog item, and have E-02 repair only the general branch. Recommendation: (a), because the renderer is this child's own surface and the producing code needs no change for the reason to be readable. A human should confirm, since (c) is a legitimate call and would shrink this child back toward its original size. Do NOT execute E-02's repair half while this is open.
+- Resolution or deferral rationale: RESOLVED 2026-09-07 by the maintainer: option (b), FIX BOTH RUNNERS to write the reason under the name the renderer reads. This is the more correct fix at the source rather than teaching the display a second name. ACCEPTED COST, stated because the review raised it: this touches `oc_runipd.py:6498-6512` and `agy_runipd.py:3798-3811`, which the `integpath` children `51vw4y` and `rl67b0` are actively editing, so a merge conflict is possible; sequence this after those land, or coordinate. NOTE this bug is live and already cost the maintainer twice: `ueg5cf` and `pgq326` both reported an unhelpful reason because the renderer reads `driver_error` while the runners write `integration_deferral`.
 
 ## Validation and cross-check (verify before reporting done)
 
