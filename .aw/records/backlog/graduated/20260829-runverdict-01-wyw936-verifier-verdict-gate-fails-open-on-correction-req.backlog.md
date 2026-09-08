@@ -1,5 +1,5 @@
 - Id: wyw936
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: runverdict
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Both runners' verifier gate fails OPEN: only BLOCKED/NOT CONFORMING downgrade, so the schema's own CORRECTION_REQUIRED verdict (and any typo/empty/garbage) is recorded 'verified' and proceeds to finalize+merge
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan 1bfppy (runverdict-05): map the verifier verdict through one shared fail-closed table in runner_shared, consuming the existing run_state/verify_roles authority neither driver imports. Every claim re-verified at HEAD 44d4950d: the eight-string truth table reproduced exactly (six of eight fail open), the two gate bodies are still BYTE-IDENTICAL across hosts (extracted and compared programmatically), and the corpus is still 34/34 VERIFIED with zero rejections. Item citations were stale by ~4250 lines (gate is at oc_runipd.py:6422-6434, not :2169-2184) and its advice to fix t74o5q first is obsolete. The correction_required -> runnable REQUEUE is deferred to OQ-01 with the reason (it changes retry accounting). Inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
 ROOT CAUSE (in-tree, verified): the verifier PROMPT asks for a three-value verdict, but the GATE that
