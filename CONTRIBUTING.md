@@ -56,6 +56,38 @@ Never hand-edit generated files. Use the owning CLI verb:
 - **IPD Checklists and Verification IDs (`E-*`, `V-*`)**: `aw ipd sync <plan.md>`.
 - **Version Metadata (`.aw/system/VERSION`)**: `make version-file VERSION=<X.Y.Z>`.
 
+## Git hooks (install TWO hook types)
+
+The local hooks are managed by `pre-commit`. Install them with:
+
+```bash
+pre-commit install
+```
+
+That installs BOTH hook types this repo declares in `.pre-commit-config.yaml`
+(`default_install_hook_types: [pre-commit, pre-merge-commit]`), writing
+`.git/hooks/pre-commit` and `.git/hooks/pre-merge-commit`.
+
+**If you cloned or set up this repo before the `pre-merge-commit` type was added, re-run
+`pre-commit install`.** `pre-commit` writes one hook script per installed type at install time, so
+adding a hook type to the config changes only what a FRESH install produces; it cannot retrofit an
+existing clone. Until you re-run it, your clone has `.git/hooks/pre-commit` alone. Verify with
+`ls .git/hooks/` and expect to see both scripts.
+
+Why the second type matters: git runs `pre-merge-commit`, not `pre-commit`, for an automated
+`git merge` that creates the merge commit itself. The `ipd-executed-transition-gate` hook (which
+refuses a raw, non-`aw ipd finalize` plan-to-`executed` transition) is registered for both stages, so
+without the second hook script an automated merge carrying a plan into `.aw/records/plans/executed/`
+is not gated at all. Two honest limits: `pre-merge-commit` does not run for a fast-forward merge
+(no commit is created), and on a conflicted-then-resolved merge git runs `prepare-commit-msg` and
+`commit-msg` instead, though the final `git commit` there is covered by `pre-commit`. As always these
+are LOCAL, best-effort hooks; `aw check` and `aw doctor` are the deterministic backstop.
+
+Merging a lane on which `aw ipd finalize` genuinely ran is ACCEPTED by that gate: it looks for the
+`lifecycle(<id6>): finalize` commit on the incoming side of the merge. You should not need
+`--no-verify` to integrate a finalized lane. If the gate refuses one, treat it as a finding to report
+rather than a hook to skip.
+
 ## Secret scanning
 
 Committed secrets and PII/PHI must never enter this repo, including its git history.

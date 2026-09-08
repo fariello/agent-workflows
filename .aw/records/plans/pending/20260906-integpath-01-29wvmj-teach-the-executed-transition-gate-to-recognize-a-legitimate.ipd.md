@@ -38,24 +38,24 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 READ THIS BEFORE E-01, because it changes what "during a merge" means and was MEASURED at review 2026-09-07. GIT DOES NOT RUN `pre-commit` FOR AN AUTOMATED MERGE. It runs `pre-merge-commit`, and this repository installs ONLY `pre-commit` (`ls .git/hooks/` shows `pre-commit` alone; `.pre-commit-config.yaml` declares no `default_install_hook_types`). Measured in a throwaway repo with both hooks installed: `git merge --no-ff -m ... lane` fired `pre-merge-commit` ONLY, and `MERGE_HEAD` was ABSENT when it ran; `git merge --ff-only` created NO commit at all and fired NOTHING; only the HAND sequence (`git merge --no-ff --no-commit` then a separate `git commit`) fired `pre-commit` WITH `MERGE_HEAD` present. Three consequences the plan must own rather than discover at execution: (1) the runner's own integration path (`integrate_lane_branch` does `merge --ff-only`, falling back to `merge --no-ff --no-edit -m ...`) NEVER trips this hook today, so children 03 and 04 will not multiply the bypass through THIS hook and E-01's stated urgency is weaker than the Concern claims; (2) the case this plan actually fixes is the HAND recovery sequence, which is exactly where all four measured `--no-verify` bypasses happened, so the plan is still worth doing and its evidence is real; (3) the fix is INCOMPLETE against a future `pre-merge-commit` installation unless the predicate ALSO works when `MERGE_HEAD` is absent but a merge is being committed. Handle that by treating the detector's negative answer as "not a merge" and refusing, which is fail-closed and is today's behavior, and by recording the `pre-merge-commit` gap as OQ-03 rather than silently widening scope to install a second hook type.
 
-- [ ] E-01 Add a merge-context detector to `agent_workflows/hooks/executed_transition_gate.py`. A commit is a merge in progress when `MERGE_HEAD` exists in the repository's git dir; RESOLVE THE GIT DIR PROPERLY rather than assuming `<root>/.git` is a directory, because in a WORKTREE `.git` is a FILE pointing elsewhere and this repository uses lane worktrees routinely (`git worktree list` shows them). Use `git rev-parse --git-dir` (the hook already shells out through its `_git` helper) so the check works from a worktree, a submodule, and a normal clone alike. VERIFIED AT REVIEW that this hazard is real and the remedy works: in a lane worktree `.git` is a FILE (`ls -la` confirms) and `git rev-parse --git-dir` returns `.../.git/worktrees/<name>`, so a hardcoded `<root>/.git/MERGE_HEAD` would silently never match there.
+- [x] E-01 Add a merge-context detector to `agent_workflows/hooks/executed_transition_gate.py`. A commit is a merge in progress when `MERGE_HEAD` exists in the repository's git dir; RESOLVE THE GIT DIR PROPERLY rather than assuming `<root>/.git` is a directory, because in a WORKTREE `.git` is a FILE pointing elsewhere and this repository uses lane worktrees routinely (`git worktree list` shows them). Use `git rev-parse --git-dir` (the hook already shells out through its `_git` helper) so the check works from a worktree, a submodule, and a normal clone alike. VERIFIED AT REVIEW that this hazard is real and the remedy works: in a lane worktree `.git` is a FILE (`ls -la` confirms) and `git rev-parse --git-dir` returns `.../.git/worktrees/<name>`, so a hardcoded `<root>/.git/MERGE_HEAD` would silently never match there.
   RESOLVE `MERGE_HEAD` RELATIVE TO THE RESOLVED GIT DIR, not to the worktree root, since `git rev-parse --git-dir` may return a RELATIVE path (it returns a bare `.git` in a normal clone); join it against the directory the command was run in before testing existence.
   RETURN THE INCOMING COMMIT, NOT JUST A BOOLEAN, because E-02 needs it: read `MERGE_HEAD`'s contents (a commit sha) rather than only testing existence. A detector that returns `bool` would force E-02 to re-read the same file, and the two could then disagree about which side is incoming.
   - Depends on: none
   - Expected outcome: a helper returns the incoming merge commit sha during a merge and `None` otherwise; it resolves the git dir via git rather than a hardcoded `.git/` path, so it is correct inside a lane worktree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the IN-TREE finalize-evidence predicate: for a plan arriving in `executed/` during a merge, accept the transition when a commit reachable from the INCOMING side (and NOT from `HEAD`) carries a `lifecycle(<id6>): finalize` subject naming THAT plan's id6. In-tree is the whole point: unlike the gitignored journal, a commit survives the branch, which is what makes the evidence portable (the item's own second option, "make the evidence portable", is the same insight arrived at from the other direction).
+- [x] E-02 Add the IN-TREE finalize-evidence predicate: for a plan arriving in `executed/` during a merge, accept the transition when a commit reachable from the INCOMING side (and NOT from `HEAD`) carries a `lifecycle(<id6>): finalize` subject naming THAT plan's id6. In-tree is the whole point: unlike the gitignored journal, a commit survives the branch, which is what makes the evidence portable (the item's own second option, "make the evidence portable", is the same insight arrived at from the other direction).
   BIND THE EVIDENCE TO THE SPECIFIC PLAN, exactly as `_finalize_evidence_ok` already binds the journal to the staged destination path (`:167-171`). A merge that carries a finalize commit for plan A must NOT authorize plan B arriving in `executed/` in the same merge. Match the id6 from the subject line and require it to equal the staged plan's `- Id:`.
   SCOPE THE SEARCH TO THE INCOMING SIDE ONLY, using the range `HEAD..<MERGE_HEAD>`, so a finalize commit that was already on main long ago cannot be replayed as evidence for a different plan arriving now.
   DO NOT REPLACE THE JOURNAL PATH. Keep `_finalize_evidence_ok` as-is and consult it FIRST; the new predicate is an additional accepting path used only when the journal is absent AND a merge is in progress. A non-merge commit therefore behaves byte-identically to today, which is what keeps the hand-edit case refused.
   - Depends on: E-01
   - Expected outcome: during a merge, a plan whose id6 has a `lifecycle(<id6>): finalize` commit on the incoming side passes; the same plan without such a commit still refuses; a finalize commit for a DIFFERENT id6 does not authorize it; outside a merge nothing changes.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: keep the abuse refused
 
-- [ ] E-03 Prove and preserve the refusals, which is the half of this change that must not regress. FOUR cases must still be refused, and each is a distinct way the fix could be made too permissive:
+- [x] E-03 Prove and preserve the refusals, which is the half of this change that must not regress. FOUR cases must still be refused, and each is a distinct way the fix could be made too permissive:
   (a) a hand-edited `- Status: executed` with NO merge in progress (today's behavior, unchanged);
   (b) a `git mv` into `executed/` with no merge in progress;
   (c) a plan staged into `executed/` DURING a merge with NO finalize commit anywhere on the incoming side. This is the case the item explicitly warns about: "a fix that simply exempts all merges would let someone stage a hand-edit inside a merge commit". A merge must not be a blanket exemption;
@@ -63,30 +63,30 @@ READ THIS BEFORE E-01, because it changes what "during a merge" means and was ME
   DO NOT WEAKEN THE MESSAGE for the non-merge cases. Operators and agents have learned the current wording; keep it and ADD merge-specific wording only where a merge was detected.
   - Depends on: E-02
   - Expected outcome: all four refusal cases refuse, with (c) refusing specifically because no matching finalize commit exists on the incoming side rather than because a merge was detected.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Make the refusal ACTIONABLE in the merge case, because a refusal an operator cannot act on becomes another `--no-verify`. When a merge is detected and the incoming side carries no matching finalize commit, say so explicitly: name the plan, state that the merge carries no `lifecycle(<id6>): finalize` commit for it, and point at the real remedy (finalize on the lane, or `aw ipd finalize` if the plan legitimately has not been finalized).
+- [x] E-04 Make the refusal ACTIONABLE in the merge case, because a refusal an operator cannot act on becomes another `--no-verify`. When a merge is detected and the incoming side carries no matching finalize commit, say so explicitly: name the plan, state that the merge carries no `lifecycle(<id6>): finalize` commit for it, and point at the real remedy (finalize on the lane, or `aw ipd finalize` if the plan legitimately has not been finalized).
   DO NOT TELL THE OPERATOR TO COMMIT, STASH, RESET, OR CLEAN ANYTHING. Executed plan `z2isfg` is prior art for a begin-time dirty gate AND for the lesson that a refusal message must not instruct the operator to touch work `AGENTS.md` forbids them to touch; reuse that wording discipline. Do not suggest `--no-verify` either: naming the bypass in the refusal is how it becomes routine.
   - Depends on: E-03
   - Expected outcome: the merge-case refusal names the plan, the missing evidence, and a remedy that does not involve bypassing the hook or mutating a co-worker's tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it end to end
 
-- [ ] E-05 Test through a REAL GIT MERGE, not by mocking the detector, because the defect is precisely that real merge state was never consulted. Build the fixture the way this plan's reproduction did: a throwaway repository, a lane branch carrying a plan in `executed/` committed with a `lifecycle(<id6>): finalize <id6> -> executed` subject, then `git merge --no-ff --no-commit`, then invoke the hook's `check()`/`main()` with `MERGE_HEAD` genuinely present.
+- [x] E-05 Test through a REAL GIT MERGE, not by mocking the detector, because the defect is precisely that real merge state was never consulted. Build the fixture the way this plan's reproduction did: a throwaway repository, a lane branch carrying a plan in `executed/` committed with a `lifecycle(<id6>): finalize <id6> -> executed` subject, then `git merge --no-ff --no-commit`, then invoke the hook's `check()`/`main()` with `MERGE_HEAD` genuinely present.
   COVER BOTH DIRECTIONS AND THE BINDING. Assert: the merge with matching finalize evidence now PASSES (exit 0); the same merge WITHOUT that commit still REFUSES (exit 1); a merge whose finalize commit names a DIFFERENT id6 still refuses for the plan in question; and each of E-03's four non-merge refusals still refuses.
   ASSERT THE WORKTREE CASE, since E-01 exists because of it: run the hook from a `git worktree` where `.git` is a FILE, and show the git-dir resolution finds `MERGE_HEAD`. A test that only ever runs in a normal clone would pass even if E-01 hardcoded `<root>/.git`, leaving the bug live in exactly the lane worktrees this Set is about.
   Run the suite BARE (`python3 -m pytest`) and state before/after counts.
   - Depends on: E-04
   - Expected outcome: a test that FAILS on today's hook and passes after; both merge directions, the id6 binding, the four non-merge refusals, and the worktree case all pinned; bare suite green with counts stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 INSTALL THE GATE ON THE `pre-merge-commit` STAGE TOO, closing the automated-merge hole F-14 measured (OQ-03, resolved 2026-09-08 to option (b)). Add `default_install_hook_types: [pre-commit, pre-merge-commit]` to `.pre-commit-config.yaml` and register `ipd-executed-transition-gate` for BOTH stages, so an automated merge carrying a plan into `executed/` is gated exactly as a hand commit is. Today the repo installs ONLY `pre-commit`, so every automated merge bypasses this gate entirely.
+- [x] E-06 INSTALL THE GATE ON THE `pre-merge-commit` STAGE TOO, closing the automated-merge hole F-14 measured (OQ-03, resolved 2026-09-08 to option (b)). Add `default_install_hook_types: [pre-commit, pre-merge-commit]` to `.pre-commit-config.yaml` and register `ipd-executed-transition-gate` for BOTH stages, so an automated merge carrying a plan into `executed/` is gated exactly as a hand commit is. Today the repo installs ONLY `pre-commit`, so every automated merge bypasses this gate entirely.
   DOCUMENT THE STALE-CLONE CONSEQUENCE IN `CONTRIBUTING.md`, because it cannot be fixed by config alone: `pre-commit install` writes one hook script per installed type, so an EXISTING clone has only `.git/hooks/pre-commit` and will not run the new stage until its owner re-runs `pre-commit install`. Adding the key changes what a FRESH install does and cannot retrofit an existing one. State the required command explicitly where hook setup is already documented.
   DO NOT WEAKEN THE FAIL-CLOSED RULE while widening the stage. Absent `MERGE_HEAD` still means not-a-merge, hence refuse. This item may only ever make the gate fire in MORE places, never fewer, and must not add a path where an unclassifiable merge is waved through.
   - Depends on: E-05
   - Expected outcome: `.pre-commit-config.yaml` declares both hook types and registers the gate for both stages; `CONTRIBUTING.md` states the re-install requirement for existing clones; the fail-closed behavior is unchanged.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -152,6 +152,12 @@ The hook's MODULE DOCSTRING states the evidence rule ("a transaction JOURNAL und
 
 If `CONTRIBUTING.md` or `AGENTS.md` documents this hook or tells a reader that a lane merge requires `--no-verify`, correct it in the same change and say so in the commit; a doc that still prescribes the bypass would keep the habit alive after the reason is gone. MEASURED AT REVIEW 2026-09-07: neither file mentions `executed_transition_gate` or `executed-transition` at all, and `AGENTS.md`'s single `--no-verify` mention (`:175`) is the honest general statement that local hooks are skippable, which is CORRECT and must NOT be edited. So expect this to be a no-op; re-grep at execution time and, if it is still a no-op, SAY SO rather than inventing a doc change. Write no em or en dashes in user-facing prose.
 
+DONE AT EXECUTION 2026-09-08. The MODULE DOCSTRING was updated: it now states TWO accepting paths, the journal one first and unchanged, then the in-tree merge path with the reason (`.aw/state/` is gitignored AND the journal is ephemeral within a tree), the explicit statement that a merge is NOT a blanket exemption, and the fail-closed rule.
+
+THE DOC RE-GREP WAS A NO-OP AS PREDICTED, and I am saying so rather than inventing a change: at execution `grep -c 'executed_transition_gate\|executed-transition'` over `CONTRIBUTING.md` and `AGENTS.md` returned 0 for both before my edit, and `AGENTS.md`'s single `--no-verify` mention (now `:182`, moved by unrelated churn) is still the honest general statement that local hooks are skippable. It was NOT edited.
+
+`CONTRIBUTING.md` WAS EDITED ANYWAY, for a reason that arose from E-06 rather than from the re-grep: OQ-03's ruling requires the re-install consequence to be stated where hook setup is documented, and there was NO hook-setup section at all. A new section "Git hooks (install TWO hook types)" was added, covering `pre-commit install`, the re-install requirement for existing clones, why the second hook type is needed, both stages git skips, and the statement that integrating a finalized lane should not need `--no-verify`. `CONTRIBUTING.md` is a declared `Scope-Paths` entry (added by the OQ-03 ruling), so this is in-fence. No em or en dashes were written in it.
+
 No SPEC change is authorized here: the gate is local tooling, not a specified contract surface.
 
 ## Open questions
@@ -192,37 +198,215 @@ No SPEC change is authorized here: the gate is local tooling, not a specified co
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the detector and show it returning the incoming commit sha during a real merge and `None` outside one. Paste the git-dir resolution line and confirm in one sentence that it does not hardcode `<root>/.git`. Paste output from inside a `git worktree` (where `.git` is a FILE, show that with `ls -la`) proving `MERGE_HEAD` is still found.
     ALSO paste the F-14 hook-type evidence, since E-01's premise depends on it: show WHICH git hook fires for (a) `git merge --ff-only`, (b) an automated `git merge --no-ff -m ...`, and (c) `git merge --no-ff --no-commit` followed by a separate `git commit`, and whether `MERGE_HEAD` is present in each. State plainly that this repository installs only `pre-commit`, so case (b) does not reach this gate, and confirm the detector FAILS CLOSED (absent `MERGE_HEAD` means not-a-merge, hence refuse) rather than treating an unknown state as a merge.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. Detector returns the incoming sha(s) during a real merge and an empty list outside one, resolves the git dir through git (proven from a worktree where `.git` is a FILE), and fails closed. F-14's hook-type measurement is reproduced below, INCLUDING the correction that `MERGE_HEAD` is absent at `pre-merge-commit` (DECISION 01-29wvmj-D1).
+    PASS, with ONE CORRECTION TO THE PLAN'S PREMISE that changed the implementation. F-14's own note that `MERGE_HEAD` is ABSENT at `pre-merge-commit` is CONFIRMED, and it contradicts E-01 as written: a detector keyed only on `MERGE_HEAD` returns "not a merge" at that stage, so E-06's registration would have refused EVERY automated merge, including legitimately finalized ones. Resolved as DECISION 01-29wvmj-D1 (full reasoning, options, and the environment-variable trust caveat are in the register): `MERGE_HEAD` is read FIRST, and only when absent does the detector fall back to git's own `GITHEAD_<sha>` variables, validating each sha resolves to a commit that is NOT already an ancestor of `HEAD`.
+    F-14 HOOK-TYPE MEASUREMENT re-run here (git 2.43.0), script `probe_hook_types.sh`:
+    ```
+    (a) git merge --ff-only
+        exit=0 (nothing printed above means NO hook fired)
+    (b) automated git merge --no-ff -m ...
+        FIRED hook=pre-merge-commit MERGE_HEAD=absent
+    (c) git merge --no-ff --no-commit  THEN a separate git commit
+        FIRED hook=pre-commit MERGE_HEAD=present
+    ```
+    So F-14 is confirmed in full: (a) creates no commit and fires nothing, (b) fires `pre-merge-commit` with `MERGE_HEAD` ABSENT, (c) fires `pre-commit` with `MERGE_HEAD` PRESENT. The claim that this repository installed only `pre-commit` was also true at the start of this turn (`ls .git/hooks/` showed `pre-commit` alone), which is exactly the hole E-06 closes; case (b) NOW reaches this gate because E-06 registers it there.
+    WHAT `pre-merge-commit` EXPOSES INSTEAD, measured (`probe_premerge_state.sh`, `probe_githead_usable.sh`): the incoming side is present as an environment variable `GITHEAD_<sha>`, the merge result is ALREADY in the index (`git diff --cached --name-status -M` shows the plan arriving in `executed/`), and `HEAD..$GITHEAD_sha` correctly lists only the incoming finalize commit. `AUTO_MERGE` was REJECTED as a substitute because it is strategy-specific (`probe_automerge_marker.sh`: present for `ort`, ABSENT for octopus and `-s resolve`).
+    GIT-DIR RESOLUTION, not hardcoded. `_git_dir()` shells `git rev-parse --git-dir` and joins a relative result against the invocation directory; there is no `<root>/.git` literal in the module (`grep -c '"\.git"' agent_workflows/hooks/executed_transition_gate.py` -> 0).
+    WORKTREE PROOF, where `.git` is a FILE (`probe_worktree_and_predicate.sh`):
+    ```
+        ls -la .git ->
+          -rw-r--r-- 1 <user> <user> 46 Sep  7 23:25 .git
+        git rev-parse --git-dir -> /tmp/awprobe.5oL6QT/.git/worktrees/wt
+        _git_dir(): /tmp/awprobe.5oL6QT/.git/worktrees/wt
+        MERGE_HEAD found from the worktree? True incoming=['50caef8cc249']
+        check() exit=0 (0 = the evidenced lane merge is accepted from inside a worktree)
+    ```
+    Pinned by `test_detector_resolves_git_dir_from_a_worktree_where_dot_git_is_a_file`, which asserts `.git` really is a file before merging.
+    DETECTOR RETURNS THE SHA, NOT A BOOL, and is EMPTY outside a merge: `test_detector_returns_incoming_sha_during_merge_and_empty_outside` asserts `[] ` before the merge and `[lane_head]` during it.
+    FAILS CLOSED: `test_detector_fails_closed_when_no_merge_head` asserts an empty list with no merge in progress, and `check()` therefore refuses. Demonstrated end to end in `out_e06_stage_fires.txt` CASE 3, where the lane DOES carry a finalize commit but no merge is in progress and the raw commit is still refused with `measured UNPIPED exit=1`.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste the predicate. Show FOUR probes during a real merge: matching finalize commit for the staged plan (accept); no finalize commit (refuse); a finalize commit naming a DIFFERENT id6 (refuse for the staged plan); and a finalize commit that exists on `HEAD` but not the incoming side (refuse, proving the `HEAD..MERGE_HEAD` scoping). Confirm the journal path is still consulted first and unmodified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All four probes behave as specified through REAL merges: matching evidence accepts, missing refuses, a different id6 refuses, and a finalize commit already on HEAD refuses. The journal path is consulted first and is byte-identical.
+    PASS. THE PREDICATE (`agent_workflows/hooks/executed_transition_gate.py`):
+    ```python
+    def _intree_finalize_evidence_ok(
+        repo_root: Path, plan_id: str, incoming_commits: List[str]
+    ) -> bool:
+        subject = f"lifecycle({plan_id}): finalize"
+        for incoming in incoming_commits:
+            rc, out, _err = _git(repo_root, ["log", "--format=%s", f"HEAD..{incoming}"])
+            if rc != 0:
+                continue
+            for line in out.splitlines():
+                if line.strip().startswith(subject):
+                    return True
+        return False
+    ```
+    It takes a LIST because an octopus merge has several incoming sides (DECISION 01-29wvmj-D1); each is searched with the same `HEAD..<incoming>` scoping the plan specified.
+    THE FOUR PROBES, all through REAL merges (`probe_worktree_and_predicate.sh`, output `out_worktree_and_predicate.txt`):
+    ```
+    === V-02 probe 1: MATCHING finalize commit on the incoming side -> accept ===
+        detector incoming: ['50caef8cc249']
+        plan=zzz999 in-tree evidence accepted? True
+        check() exit=0
+    === V-02 probe 2: NO finalize commit -> refuse ===
+        detector incoming: ['002cdd9bbfd0']
+        plan=yyy888 in-tree evidence accepted? False
+        check() exit=1
+    === V-02 probe 3: finalize commit names a DIFFERENT id6 -> refuse ===
+        detector incoming: ['ee19bca89fa6']
+        plan=zzz999 in-tree evidence accepted? False
+        check() exit=1
+    === V-02 probe 4: finalize commit is on HEAD but NOT the incoming side -> refuse (HEAD..MERGE_HEAD) ===
+        detector incoming: ['002cdd9bbfd0']
+        plan=yyy888 in-tree evidence accepted? False
+        check() exit=1
+    ```
+    Probe 3 is the PLAN-BINDING proof: the merge genuinely carries `lifecycle(yyy888): finalize`, yet the plan arriving in `executed/` is `zzz999`, and it is refused. Probe 4 is the SCOPING proof: an empty commit with subject `lifecycle(yyy888): finalize yyy888 -> executed` was added to `HEAD` before merging, and it did not authorize anything. Each is also pinned as a test: `test_merge_with_matching_finalize_commit_passes`, `test_merge_without_finalize_commit_still_refused`, `test_merge_with_finalize_commit_for_a_different_id6_is_refused`, `test_finalize_commit_already_on_head_is_not_evidence`.
+    THE JOURNAL PATH IS CONSULTED FIRST AND IS UNMODIFIED. `check()` does `if _finalize_evidence_ok(root, plan_id, staged_path): continue` BEFORE any merge consideration, and `_finalize_evidence_ok` is byte-identical to its pre-change form: `git diff -- agent_workflows/hooks/executed_transition_gate.py` shows no hunk touching its body, and its six pre-existing tests (`test_finalize_journal_at_ready_to_commit_passes`, `test_stale_journal_wrong_dest_refused`, `test_journal_wrong_phase_refused`, `test_real_finalize_own_commit_passes_via_installed_hook`, `test_grandfathered_plan_without_finalize_is_refused`, `test_hand_edited_status_executed_without_receipt_refused`) still pass unchanged.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the exit code (UNPIPED) and message for each of the four refusal cases: hand-edited status outside a merge; `git mv` outside a merge; a plan staged into `executed/` DURING a merge with no finalize commit on the incoming side; and a plan with no readable `- Id:`. Case (c) is the one that matters most: confirm the message attributes the refusal to missing evidence, NOT to the presence of a merge, and state in one sentence why a blanket merge exemption would have been wrong.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. All four refusal cases still refuse, with case (c) refusing because evidence is ABSENT rather than because a merge was detected, and the non-merge wording unchanged.
+    PASS, all four refuse.
+    CASE (a) HAND-EDITED `- Status: executed` OUTSIDE A MERGE. `test_hand_edit_outside_a_merge_still_refused` asserts exit 1, that the message contains the UNCHANGED wording `NO matching finalize evidence in .aw/state/`, and that it does NOT contain the new merge wording. Also demonstrated through the installed hook, UNPIPED, in `out_e06_stage_fires.txt` CASE 3:
+    ```
+        staged: A	.aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md D	.aw/records/plans/pending/20260824-demo-01-zzz999-demo.ipd.md
+        no raw plan->executed commit (use aw ipd finalize).......................Failed
+        - hook id: ipd-executed-transition-gate
+        - exit code: 1
+          - .aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md (zzz999): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run `aw ipd finalize zzz999 --actor <agent/model> --message <summary> --apply` (which runs the receipt/scope/attribution gates and makes the lifecycle commit).
+    measured UNPIPED exit=1 (1 = refused; the lane HAS a finalize commit but no merge is in progress)
+    ```
+    That case is doubly informative: the repository's lane DID carry `lifecycle(zzz999): finalize`, and it was still refused because no merge was in progress, which is the fail-closed rule working.
+    CASE (b) `git mv` OUTSIDE A MERGE: `test_git_mv_outside_a_merge_still_refused` asserts exit 1 with `moved into executed/` in the message.
+    CASE (c) STAGED INTO `executed/` DURING A MERGE WITH NO EVIDENCE, the case that matters most. UNPIPED, through the installed hook on the real `pre-merge-commit` stage (`out_e06_stage_fires.txt` CASE 1): `measured UNPIPED exit=1`, and `HEAD subject=[diverge]` confirms NO merge commit was created. The message:
+    ```
+      - .aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md (zzz999): this merge carries this plan into executed/ (moved into executed/) but the incoming side (5a4020af3169) has NO 'lifecycle(zzz999): finalize' commit for it, so nothing here shows `aw ipd finalize` performed this transition. ...
+    ```
+    THE REFUSAL IS ATTRIBUTED TO ABSENT EVIDENCE, NOT TO THE MERGE: it says the incoming side "has NO 'lifecycle(zzz999): finalize' commit for it", and the merge is mentioned only to locate where evidence was sought. A blanket merge exemption would have been wrong because the merge commit is itself a commit an agent authors: `if merging: return 0` would let a hand-edited `- Status: executed` through simply by staging it inside a merge, which is the whole abuse the gate exists to catch, wearing a merge as a disguise. Pinned by `test_merge_without_finalize_commit_still_refused`.
+    CASE (d) NO READABLE `- Id:`: `test_plan_without_readable_id_refused_even_during_a_merge` strips the `- Id:` line and merges a lane that DOES carry the finalize commit; exit 1 with `no readable` in the message. So a merge does not rescue an unidentifiable plan, which matters because the in-tree predicate has no id6 to bind to.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste the merge-case refusal text verbatim. Confirm it names the plan, names the missing `lifecycle(<id6>): finalize` evidence, and offers a remedy. Confirm by inspection that it does NOT mention `--no-verify` and does NOT instruct the operator to commit, stash, reset, or clean anything, citing the `z2isfg` wording discipline. Paste the non-merge refusal text and confirm it is unchanged from today.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The merge-case refusal names the plan, names the missing `lifecycle(<id6>): finalize` evidence and the sha it searched, and gives a remedy; it names no bypass and tells the operator to mutate nothing.
+    PASS. THE MERGE-CASE REFUSAL, VERBATIM from the installed hook (`out_e06_stage_fires.txt` CASE 1):
+    ```
+      - .aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md (zzz999): this merge carries this plan into executed/ (moved into executed/) but the incoming side (5a4020af3169) has NO 'lifecycle(zzz999): finalize' commit for it, so nothing here shows `aw ipd finalize` performed this transition. Merging a lane on which finalize genuinely ran is accepted; run `aw ipd finalize zzz999 --actor <agent/model> --message <summary> --apply` on the branch that owns this plan (which runs the receipt/scope/attribution gates and makes the lifecycle commit), then merge that branch.
+    ```
+    It NAMES THE PLAN (path plus `zzz999`), NAMES THE MISSING EVIDENCE (`has NO 'lifecycle(zzz999): finalize' commit for it`, and the incoming sha it searched), and OFFERS A REMEDY that is the actual fix: finalize on the branch that owns the plan, then merge it. It also states affirmatively that a genuinely finalized lane IS accepted, so an operator who believes finalize ran learns their belief is testable rather than concluding the gate is simply in the way.
+    IT DOES NOT NAME THE BYPASS AND DOES NOT TELL THE OPERATOR TO MUTATE A TREE. By inspection of the message string in `check()`: no `--no-verify`, no `git stash`, no `git reset`, no `git clean`, no instruction to commit anything other than via `aw ipd finalize` on the owning branch. This is the `z2isfg` wording discipline (a refusal must not instruct the operator to touch work `AGENTS.md` forbids them to touch, and naming the bypass in the refusal is how the bypass becomes routine). Machine-checked, not merely asserted, by `test_merge_case_refusal_is_actionable_and_names_no_bypass`, which asserts the presence of the plan id, the `lifecycle(...)` phrase and `aw ipd finalize`, and the ABSENCE of each of `--no-verify`, `git stash`, `git reset`, `git clean`.
+    HONEST NOTE ON ONE STRING I DID NOT CHANGE: the hook's `main()` epilogue still prints "(This is a LOCAL best-effort hook; `--no-verify` bypasses it ...)". That predates this plan, is a true statement of the hook's honest limits rather than a suggestion to use it, and lives outside the refusal message this item governs, so it was left alone rather than quietly edited.
+    THE NON-MERGE REFUSAL IS UNCHANGED. Verbatim from `out_e06_stage_fires.txt` CASE 3: "raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run `aw ipd finalize zzz999 --actor <agent/model> --message <summary> --apply` (which runs the receipt/scope/attribution gates and makes the lifecycle commit)." The `git diff` of the module shows that branch's string moved into an `else:` arm with its text untouched, and `test_hand_edit_outside_a_merge_still_refused` asserts the old wording is still produced.
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the new test and PROOF IT IS FALSIFIABLE: run it against the pre-fix hook (stash or revert E-01/E-02) and paste the FAILURE, then paste the pass after. A test never observed to fail is not evidence it detects the bug. Paste the real-merge before/after demonstration, the worktree case, and the BARE `python3 -m pytest` summary line with before/after counts. Confirm no test mocks `MERGE_HEAD` in place of performing a real merge.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-06 validates E-06
+  - Observed evidence: PASS. The new tests were OBSERVED FAILING against the pre-fix hook (11 of 17) and pass after; no test mocks `MERGE_HEAD`; bare-suite delta is +17 passed with an IDENTICAL pre-existing failure set (see DECISION 01-29wvmj-D3 for the runner-set env var that inflates a raw bare run).
+    PASS. FALSIFIABILITY PROVEN FIRST, because a test never observed to fail is not evidence. With E-01/E-02/E-06 stashed and the tests kept (`git stash push -- agent_workflows/hooks/executed_transition_gate.py .pre-commit-config.yaml`), 11 of the 17 new tests FAIL (`out_falsifiability.txt`):
+    ```
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_detector_fails_closed_when_no_merge_head
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_detector_resolves_git_dir_from_a_worktree_where_dot_git_is_a_file
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_detector_returns_incoming_sha_during_merge_and_empty_outside
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_installed_pre_commit_hook_accepts_evidenced_hand_merge
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_installed_pre_merge_commit_hook_accepts_evidenced_automated_merge
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_merge_case_refusal_is_actionable_and_names_no_bypass
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_merge_with_matching_finalize_commit_passes
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_merge_without_finalize_commit_still_refused
+    FAILED tests/test_executed_transition_gate.py::MergeAwareInTreeEvidenceTests::test_octopus_merge_evidence_is_found_on_every_incoming_side
+    FAILED tests/test_executed_transition_gate.py::PreCommitConfigStageRegistrationTests::test_both_hook_types_are_installed_by_default
+    FAILED tests/test_executed_transition_gate.py::PreCommitConfigStageRegistrationTests::test_only_the_gate_opts_into_pre_merge_commit
+    11 failed, 16 passed in 3.58s
+    ```
+    The 6 that pass pre-fix are the REFUSAL tests, correctly so: the pre-fix hook refuses everything, so they cannot distinguish it. That is why the accepting cases carry the detection weight.
+    THE PRE-FIX FAILURE IS EXACTLY THIS PLAN'S CONCERN, reproduced as an assertion rather than by hand:
+    ```
+        def test_merge_with_matching_finalize_commit_passes(self):
+            branch = self._make_lane("abc123", finalize_commit=True)
+            self._diverge("d1")
+            self._begin_hand_merge(branch)
+            rc, msgs = GATE.check(self.root)
+    >       self.assertEqual(rc, 0, msgs)
+    E       AssertionError: 1 != 0 : ['.aw/records/plans/executed/20260824-demo-01-abc123-demo.ipd.md (abc123): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. ...']
+    ```
+    AFTER THE FIX, the same file passes in full:
+    ```
+    collected 27 items
+    tests/test_executed_transition_gate.py ...........................       [100%]
+    ============================== 27 passed in 3.36s ==============================
+    ```
+    REAL-MERGE BEFORE/AFTER AND THE WORKTREE CASE are in V-01 and V-02 above (`out_e06_stage_fires.txt`, `out_worktree_and_predicate.txt`); the worktree assertion is `test_detector_resolves_git_dir_from_a_worktree_where_dot_git_is_a_file`, which asserts `.git` is a FILE before merging so it cannot silently degrade into a normal-clone test.
+    NO TEST MOCKS `MERGE_HEAD`. Every case performs a real `git merge`; `_begin_hand_merge` additionally ASSERTS the fixture precondition that a real `MERGE_HEAD` exists before the gate is called, so a fixture that stopped producing merge state would fail loudly rather than pass vacuously. There is no `mock`/`patch`/`monkeypatch` import in the file.
+    BARE SUITE, BEFORE AND AFTER, WITH THE COUNTS AND AN HONEST CORRECTION (see DECISION 01-29wvmj-D3). A bare `python3 -m pytest` in this lane reports `32 failed, 5617 passed, 3 skipped, 2 xfailed`; 17 of those failures are caused by `AW_EXECUTION_ROLE=worker`, which THE RUNNER sets for this turn and which makes `ipd_lifecycle` refuse begin/finalize with `AW-LIFECYCLE-ROLE-001`. Judged without that runner variable:
+    ```
+    BEFORE (env -u AW_EXECUTION_ROLE python3 -m pytest, at HEAD 489ab293):
+    15 failed, 5634 passed, 3 skipped, 2 xfailed in 65.99s (0:01:05)
+    AFTER (same command, with this plan's changes):
+    15 failed, 5651 passed, 3 skipped, 2 xfailed in 128.96s (0:02:08)
+    ```
+    The failure SET is IDENTICAL before and after (compared name by name, kept in `failed_after.txt`): 14 are `tests/test_run_viewer.py` asserting the live repo has `.aw/records/runs/`, which does not exist in this worktree, and the 15th is the pre-existing `test_orchestrator_retirement.py::RealRepositorySets::test_runprofile_refuses_for_R2_and_NOT_for_unauthored_rows`, now failing as `{'kgpptv': 'approved'} != {'kgpptv': 'reviewed'}` from corpus drift rather than the exact form the plan predicted. NONE is mine, and none touches this plan's files. The delta is +17 passed, exactly the 17 tests added here.
+  - Result: pass
+- [x] V-06 validates E-06
   - Required evidence: PROVE THE STAGE ACTUALLY FIRES; a test asserting the YAML contains the string is NOT evidence. Paste a REAL automated merge that carries a plan into `executed/` being REFUSED on the `pre-merge-commit` stage, and a legitimate evidenced one being ACCEPTED, both with the hook installed via `pre-commit install --hook-type pre-merge-commit` (or `default_install_hook_types`) in a throwaway repository. Paste the `.git/hooks/` listing showing BOTH hook scripts present, since that is the artifact `default_install_hook_types` actually produces.
     NAME THE STAGES GIT SKIPS, so a passing test is not mistaken for full coverage: `pre-merge-commit` does NOT run for a fast-forward merge (no commit is created) and does NOT run on the conflicted-then-resolved path (git runs `prepare-commit-msg`/`commit-msg` instead). State which of those this Set's own integration path takes, since `integrate_lane_branch` attempts `--ff-only` FIRST and only falls back to `--no-ff`; if the common case is fast-forward, say plainly that this item does not gate it and why that is acceptable.
     Paste the `CONTRIBUTING.md` diff stating the re-install requirement for existing clones, and confirm the fail-closed rule is untouched: an absent `MERGE_HEAD` still refuses (paste it).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: PASS. The `pre-merge-commit` stage was proven to FIRE by real merges through the installed hook (unevidenced automated merge REFUSED, evidenced one ACCEPTED), both hook scripts present after a plain `pre-commit install`; the stages git skips are named; `CONTRIBUTING.md` states the re-install requirement; fail-closed unchanged.
+    PASS, and READ DECISION 01-29wvmj-D1 FIRST: implementing this item literally would have made the gate refuse every legitimate automated merge, because `MERGE_HEAD` is absent at `pre-merge-commit` time. The detector now falls back to git's own `GITHEAD_<sha>` variables at that stage. That is a correction to the plan's premise, not a workaround, and the environment-variable trust question is flagged for human review in the register.
+    THE STAGE ACTUALLY FIRES, PROVEN BY REAL MERGES (`probe_e06_stage_fires.sh`, full output `out_e06_stage_fires.txt`). The probe copies the REAL `.pre-commit-config.yaml`, reduced to this one hook, and runs `pre-commit install` with NO `--hook-type` flags so the config alone decides. `.git/hooks/` listing, which is the artifact `default_install_hook_types` produces:
+    ```
+    === what `pre-commit install` actually produces (no --hook-type flags; the config decides) ===
+        .git/hooks/pre-commit
+        .git/hooks/pre-merge-commit
+    ```
+    CASE 1, AUTOMATED MERGE CARRYING A PLAN INTO `executed/` WITH NO EVIDENCE -> REFUSED on the `pre-merge-commit` stage:
+    ```
+    no raw plan->executed commit (use aw ipd finalize).......................Failed
+    - hook id: ipd-executed-transition-gate
+    - exit code: 1
+      - .aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md (zzz999): this merge carries this plan into executed/ (moved into executed/) but the incoming side (5a4020af3169) has NO 'lifecycle(zzz999): finalize' commit for it, ...
+    Not committing merge; use 'git commit' to complete the merge.
+    measured UNPIPED exit=128
+    HEAD subject=[diverge]  <- no merge commit was created
+    ```
+    (The `exit=128` on the second, unpiped invocation is git refusing to start a new merge while the first is unconcluded; the gate's own refusal is the `exit code: 1` above, and the load-bearing fact is that NO merge commit was created.)
+    CASE 2, THE SAME AUTOMATED MERGE WITH THE FINALIZE COMMIT -> ACCEPTED:
+    ```
+    no raw plan->executed commit (use aw ipd finalize).......................Passed
+    Merge made by the 'ort' strategy.
+     .aw/records/plans/executed/20260824-demo-01-zzz999-demo.ipd.md | 4 ++++
+     .aw/records/plans/pending/20260824-demo-01-zzz999-demo.ipd.md  | 4 ----
+    HEAD subject=[integrate zzz999] parents=[4e52c67 26ba09a]
+    plan in executed/? 20260824-demo-01-zzz999-demo.ipd.md
+    ```
+    Two parents and the plan in `executed/`, so the merge really completed. Pinned by `test_installed_pre_merge_commit_hook_gates_an_automated_merge` and `test_installed_pre_merge_commit_hook_accepts_evidenced_automated_merge`, which install the hook and run real merges rather than asserting on YAML. The YAML-shape assertions exist too (`PreCommitConfigStageRegistrationTests`) but are labelled in their own docstring as configuration checks that are NOT evidence the stage fires.
+    THE STAGES GIT SKIPS, NAMED SO A PASS IS NOT MISTAKEN FOR FULL COVERAGE. (1) FAST-FORWARD: no commit is created, so no hook runs. Measured as CASE 4 of the probe: `git merge --ff-only` moved HEAD with `parents=[71d097d]` (single parent) and produced NO hook output. (2) CONFLICTED-THEN-RESOLVED: git runs `prepare-commit-msg`/`commit-msg` for the merge itself, but the operator's resolving `git commit` is a `pre-commit` invocation WITH `MERGE_HEAD` present, so that path IS gated by the stage this hook already had (measured in `probe_githead_robust2.sh`: `pre-commit: MERGE_HEAD=[41bd48be...]`).
+    WHICH PATH THIS SET'S OWN INTEGRATION TAKES, AND THE HONEST CONSEQUENCE. `integrate_lane_branch` attempts `--ff-only` FIRST and falls back to `--no-ff` (`oc_runipd.py:2039`, `:2044-2052`). So the COMMON runner case is fast-forward, which this item does NOT gate and cannot: there is no commit to hook. That is acceptable because a fast-forward creates no new commit and therefore no new claim; every commit it lands, including the `lifecycle(<id6>): finalize` commit itself, was already gated on the lane where it was authored. The `--no-ff` fallback IS now gated, and so is the hand recovery path where all four measured `--no-verify` bypasses actually happened.
+    `CONTRIBUTING.md` DIFF, stating the re-install requirement (new section "Git hooks (install TWO hook types)"):
+    ```
+    +**If you cloned or set up this repo before the `pre-merge-commit` type was added, re-run
+    +`pre-commit install`.** `pre-commit` writes one hook script per installed type at install time, so
+    +adding a hook type to the config changes only what a FRESH install produces; it cannot retrofit an
+    +existing clone. Until you re-run it, your clone has `.git/hooks/pre-commit` alone. Verify with
+    +`ls .git/hooks/` and expect to see both scripts.
+    ```
+    The section also states why the second type matters, names both honest limits above, and tells the reader that merging a finalized lane should NOT need `--no-verify` and that a refusal is a finding to report rather than a hook to skip.
+    THE FAIL-CLOSED RULE IS UNTOUCHED: an absent merge signal still means not-a-merge, hence refuse. `test_detector_fails_closed_when_no_merge_head` asserts the detector returns `[]`, and CASE 3 of the probe proves the consequence end to end, on a repository whose lane DOES carry a finalize commit:
+    ```
+    === CASE 3 fail-closed control: NON-merge raw commit into executed/ -> must still be REFUSED ===
+        no raw plan->executed commit (use aw ipd finalize).......................Failed
+        - exit code: 1
+          - ... (zzz999): raw plan->executed transition (moved into executed/) with NO matching finalize evidence in .aw/state/. ...
+    measured UNPIPED exit=1 (1 = refused; the lane HAS a finalize commit but no merge is in progress)
+    ```
+    This item only ever makes the gate fire in MORE places: `default_stages` is pinned to `pre-commit` (DECISION 01-29wvmj-D2) so no OTHER hook's behavior changed, and no path was added where an unclassifiable merge is waved through.
+  - Result: pass
 
 
 ## Approval and execution gate

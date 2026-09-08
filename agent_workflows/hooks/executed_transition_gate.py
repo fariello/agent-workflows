@@ -14,14 +14,27 @@ Honest limits (never oversold): git hooks are LOCAL, not cloned by default, and 
 `--no-verify`. This is a PREVENTION layer, not an absolute gate; the deterministic local backstop is the
 `proclint` detector (`aw check`/`aw doctor`). There is deliberately NO remote/CI enforcement.
 
-Finalize evidence (DECISION 14-dulzpy-D1): `aw ipd finalize` leaves, at commit time, a durable
-transaction JOURNAL under `.aw/state/runtime/transactions/ipd_finalize_<id6>.json` whose phase is a
-finalize-transaction phase (`ready-to-commit` during finalize's own commit, then `committed-incomplete`
-/`complete`) and which records the plan id + the executed destination path. The hook accepts a
-plan->executed staged transition iff such a journal exists for the plan (matching id + dest), which
-faithfully realizes OQ-01's "finalize ran this transition" predicate against the artifacts finalize
-actually leaves (the begin receipt carries the pending-time digest and is consumed only after the
-commit, so the journal is the present-at-commit-time proof). A raw hand-edit has NO such journal.
+TWO ACCEPTING PATHS (integpath Order 29wvmj added the second):
+
+1. THE JOURNAL (DECISION 14-dulzpy-D1), consulted FIRST and unchanged: `aw ipd finalize` leaves, at
+   commit time, a durable transaction JOURNAL under
+   `.aw/state/runtime/transactions/ipd_finalize_<id6>.json` whose phase is a finalize-transaction
+   phase (`ready-to-commit` during finalize's own commit, then `committed-incomplete`/`complete`) and
+   which records the plan id + the executed destination path. The hook accepts a plan->executed staged
+   transition iff such a journal exists for the plan (matching id + dest), which faithfully realizes
+   OQ-01's "finalize ran this transition" predicate against the artifacts finalize actually leaves
+   (the begin receipt carries the pending-time digest and is consumed only after the commit, so the
+   journal is the present-at-commit-time proof). A raw hand-edit has NO such journal.
+
+2. IN-TREE EVIDENCE DURING A MERGE (integpath 29wvmj), used ONLY when the journal is absent AND a
+   merge is in progress: a `lifecycle(<id6>): finalize` commit reachable from the INCOMING side of the
+   merge (`HEAD..MERGE_HEAD`) and naming THAT plan's id6. The journal cannot travel with a lane branch
+   because `.aw/state/` is gitignored, and it is also EPHEMERAL WITHIN a tree (finalize deletes it on
+   completion), so before this path EVERY integration of a genuinely finalized lane was refused and
+   `--no-verify` became routine practice. A commit, unlike the journal, survives the branch. The merge
+   is NOT a blanket exemption: a plan staged into `executed/` inside a merge whose incoming side
+   carries no matching finalize commit is still REFUSED, and a finalize commit for a DIFFERENT id6
+   does not authorize this plan. Absent `MERGE_HEAD` means not-a-merge, hence refuse (fail closed).
 """
 
 from __future__ import annotations
@@ -173,12 +186,116 @@ def _finalize_evidence_ok(repo_root: Path, plan_id: str, staged_path: str) -> bo
     return True
 
 
+def _git_dir(repo_root: Path) -> Optional[Path]:
+    """The repository's GIT DIR, resolved THROUGH git rather than assumed to be ``<root>/.git``.
+
+    Inside a WORKTREE `.git` is a FILE pointing elsewhere, and this repository uses lane worktrees as
+    its normal execution mode, so a hardcoded `<root>/.git/MERGE_HEAD` would silently never match
+    there. `git rev-parse --git-dir` may also return a RELATIVE path (a bare `.git` in a normal
+    clone), so it is joined against the directory the command ran in before use.
+    """
+    rc, out, _err = _git(repo_root, ["rev-parse", "--git-dir"])
+    if rc != 0 or not out.strip():
+        return None
+    git_dir = Path(out.strip())
+    if not git_dir.is_absolute():
+        git_dir = repo_root / git_dir
+    return git_dir
+
+
+def _merge_incoming_commits(repo_root: Path) -> List[str]:
+    """The INCOMING commit sha(s) of a merge in progress; EMPTY when no merge is in progress (E-01).
+
+    A LIST, not a single sha, and TWO signals, not one, because the two git hook stages this gate runs
+    on expose the merge differently. Both were MEASURED (git 2.43.0) rather than assumed:
+
+      * `pre-commit`, i.e. the HAND sequence `git merge --no-commit` then a separate `git commit`, and
+        the conflicted-then-resolved path: `MERGE_HEAD` EXISTS in the git dir and holds one sha per
+        incoming side. No `GITHEAD_*` variable is set.
+      * `pre-merge-commit`, i.e. an AUTOMATED `git merge` that creates the commit itself: `MERGE_HEAD`
+        is ABSENT (git has not written it yet), and the incoming side is exposed only as an
+        ENVIRONMENT variable named `GITHEAD_<sha>` per incoming side. `AUTO_MERGE` is NOT a usable
+        substitute: it is written by the `ort` strategy and is absent for octopus and `-s resolve`.
+
+    An OCTOPUS merge legitimately has several incoming sides (measured: three `GITHEAD_*` variables for
+    a three-lane merge, and `MERGE_HEAD` carries one sha per line), so evidence is searched across all
+    of them. An empty result means "not a merge", which makes the caller REFUSE (fail closed).
+    """
+    git_dir = _git_dir(repo_root)
+    shas: List[str] = []
+    if git_dir is not None:
+        merge_head = git_dir / "MERGE_HEAD"
+        try:
+            if merge_head.is_file():
+                for line in merge_head.read_text(encoding="utf-8").splitlines():
+                    sha = line.strip()
+                    if sha and sha not in shas:
+                        shas.append(sha)
+        except OSError:
+            pass
+    if shas:
+        return shas
+    # `pre-merge-commit`: no MERGE_HEAD yet, so fall back to git's own GITHEAD_<sha> variables. This is
+    # NOT a weaker check: each sha is verified below to be a real commit that is NOT already reachable
+    # from HEAD, so an unrelated or forged variable buys nothing an attacker did not already have.
+    import os
+    import re
+
+    for name in os.environ:
+        m = re.fullmatch(r"GITHEAD_([0-9a-f]{7,64})", name)
+        if not m:
+            continue
+        sha = m.group(1)
+        rc, out, _err = _git(repo_root, ["cat-file", "-t", sha])
+        if rc != 0 or out.strip() != "commit":
+            continue
+        # Must be an INCOMING side: a commit already reachable from HEAD is not being merged in.
+        rc_anc, _o, _e = _git(repo_root, ["merge-base", "--is-ancestor", sha, "HEAD"])
+        if rc_anc == 0:
+            continue
+        if sha not in shas:
+            shas.append(sha)
+    return shas
+
+
+def _intree_finalize_evidence_ok(
+    repo_root: Path, plan_id: str, incoming_commits: List[str]
+) -> bool:
+    """True iff an INCOMING side of this merge carries `aw ipd finalize`'s own commit for ``plan_id``.
+
+    In-tree evidence is the point (E-02): unlike the gitignored, ephemeral journal, a COMMIT survives
+    the lane branch, so a genuinely finalized lane can be integrated without `--no-verify`.
+
+    Three bindings keep this from becoming a blanket merge exemption:
+      * PLAN-BOUND: the subject's id6 must equal the staged plan's `- Id:`, exactly as the journal
+        predicate binds to ``plan_id`` + ``dest_path``. Finalize for plan A cannot authorize plan B.
+      * INCOMING-SIDE-ONLY: the search range is ``HEAD..<incoming>``, so a finalize commit already on
+        HEAD long ago cannot be replayed as evidence for a different plan arriving now.
+      * EXACT SUBJECT FORM (OQ-02): only `lifecycle(<id6>): finalize`, the subject `aw ipd finalize`
+        itself writes. A looser match would let an ordinary work commit that happens to name the plan
+        authorize the transition, which is the hand-edit case wearing a different hat.
+    """
+    subject = f"lifecycle({plan_id}): finalize"
+    for incoming in incoming_commits:
+        rc, out, _err = _git(repo_root, ["log", "--format=%s", f"HEAD..{incoming}"])
+        if rc != 0:
+            continue
+        for line in out.splitlines():
+            if line.strip().startswith(subject):
+                return True
+    return False
+
+
 def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
     """Run the gate. Returns (exit_code, messages). exit 0 = ok/no-op, 1 = refused."""
     root = _repo_root(repo_root or Path("."))
     transitions = _staged_plan_executed_transitions(root)
     if not transitions:
         return 0, []  # fast no-op: no plan executed-transition staged
+
+    # A merge in progress unlocks the SECOND (in-tree) accepting path, never a blanket exemption.
+    # EMPTY means not-a-merge, in which case behavior is byte-identical to before integpath 29wvmj.
+    incoming_commits = _merge_incoming_commits(root)
 
     refusals: List[str] = []
     for staged_path, plan_id, reason in transitions:
@@ -188,7 +305,26 @@ def check(repo_root: Optional[Path] = None) -> Tuple[int, List[str]]:
                 "'- Id:' handle to verify a finalize receipt against; run `aw ipd finalize` instead."
             )
             continue
-        if not _finalize_evidence_ok(root, plan_id, staged_path):
+        if _finalize_evidence_ok(root, plan_id, staged_path):
+            continue
+        if incoming_commits and _intree_finalize_evidence_ok(
+            root, plan_id, incoming_commits
+        ):
+            continue
+        if incoming_commits:
+            # MERGE-CASE refusal (E-04): the refusal is attributed to ABSENT EVIDENCE, never to the
+            # presence of a merge, and the remedy neither names `--no-verify` nor tells the operator to
+            # commit, stash, reset, or clean anything (the `z2isfg` wording discipline).
+            refusals.append(
+                f"{staged_path} ({plan_id}): this merge carries this plan into executed/ ({reason}) "
+                f"but the incoming side ({', '.join(c[:12] for c in incoming_commits)}) has NO "
+                f"'lifecycle({plan_id}): finalize' commit for it, so nothing here shows `aw ipd "
+                f"finalize` performed this transition. Merging a lane on which finalize genuinely ran "
+                f"is accepted; run `aw ipd finalize {plan_id} --actor <agent/model> --message "
+                f"<summary> --apply` on the branch that owns this plan (which runs the receipt/scope/"
+                f"attribution gates and makes the lifecycle commit), then merge that branch."
+            )
+        else:
             refusals.append(
                 f"{staged_path} ({plan_id}): raw plan->executed transition ({reason}) with NO matching "
                 f"finalize evidence in .aw/state/. Do not hand-edit/`git mv` a plan to executed; run "
