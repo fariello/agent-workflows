@@ -25,7 +25,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable, NamedTuple, Sequence
+from typing import Any, Callable, Iterable, NamedTuple
 
 # stallfp kaga7s: `Heartbeat` was a byte-identical INLINE COPY here, so a display fix in
 # `render_stream` silently did not reach `aw agy run`. It is now imported, like `Statusline`,
@@ -167,6 +167,13 @@ from agent_workflows.runner_shared import (
 )
 from agent_workflows.runner_shared import (
     conflicted_paths as conflicted_paths,
+)
+
+# integpath-02 (`6sb3yu`): a PURE move, bound by re-export rather than wrapped (its two neighbours
+# need this host's `run_checked`/`host_label` and so keep wrappers). The `as <same-name>` form marks
+# it as a deliberate re-export so `ruff` does not "clean up" a symbol this module never calls itself.
+from agent_workflows.runner_shared import (
+    dirty_tree_overlap as dirty_tree_overlap,
 )
 from agent_workflows.runner_shared import (
     format_merge_conflict_reason as format_merge_conflict_reason,
@@ -1197,31 +1204,23 @@ def sync_receipt_into_worktree(repo: Path, worktree: Path, id6: str) -> None:
     return None
 
 
+# integpath-02 (`6sb3yu`): `build_lane_outcome`, `dirty_tree_overlap` and `integrate_lane_branch` were
+# defined HERE AND in `oc_runipd`, and had already drifted. The implementations are now the single
+# shared ones in `runner_shared`; what remains is a wrapper at the ORIGINAL name and signature per
+# symbol, so no call site in this module changed. See the fuller note at the oc twin.
+#
+# THE `host_label` BINDING BELOW IS THIS FILE'S WHOLE STAKE IN THE MOVE: the shared function gives it
+# no default, and this wrapper is what keeps a merge commit on main reading `integrate(aw agy run)`
+# rather than silently claiming the other driver did the integration.
+
+
 def build_lane_outcome(repo: Path, handle: Any, id6: str) -> Any:
-    """Build a single `orchestrate_isolation.LaneOutcome` for a finalized lane branch.
+    """Build this host's `orchestrate_isolation.LaneOutcome` for a finalized lane branch.
 
-    base_commit = the worktree base; head_commit = the lane branch HEAD; changed_files + diff from
-    `git diff base..branch`."""
-    from agent_workflows import orchestrate_isolation
-
-    base = handle.base_commit
-    head = run_checked(["git", "rev-parse", handle.branch], cwd=repo)
-    name_out = run_checked(
-        ["git", "diff", "--name-only", f"{base}..{handle.branch}"], cwd=repo
-    )
-    changed = tuple(p for p in name_out.splitlines() if p.strip())
-    diff = run_checked(["git", "diff", f"{base}..{handle.branch}"], cwd=repo)
-    return orchestrate_isolation.LaneOutcome(
-        lane_id=id6,
-        actor_role="driver",
-        base_commit=base,
-        head_commit=head,
-        worktree_path=str(handle.path),
-        changed_files=changed,
-        diff=diff,
-        per_lane_validation_passed=True,
-        status=orchestrate_isolation.STATUS_COMPLETED,
-    )
+    integpath-02 (`6sb3yu`): one-line wrapper over the single shared implementation, binding THIS
+    host's `run_checked` (which itself binds `pinned_child_env`).
+    """
+    return runner_shared.build_lane_outcome(repo, handle, id6, run_checked=run_checked)
 
 
 def make_integration_validation_runner(
@@ -1238,108 +1237,24 @@ def make_integration_validation_runner(
     return _runner
 
 
-def dirty_tree_overlap(repo: Path, changed_files: Sequence[str]) -> list[str]:
-    """driverfin-03 (7kbtkw) E-01: report the MAIN tree's un-owned dirty paths that overlap an
-    incoming lane's ``changed_files``.
-
-    Inspect ``git status --short`` in the MAIN repo (working tree + index) and return the sorted set
-    of paths that are BOTH dirty in main AND part of the incoming change. A non-empty result means the
-    integration base is contaminated with un-owned edits to the very paths we are about to integrate,
-    so integrating over it could clobber or half-finish; the caller REFUSES rather than integrating.
-    """
-    incoming = {p for p in changed_files if p.strip()}
-    if not incoming:
-        return []
-    _rc, out, _err = _run_git(repo, ["status", "--short", "--untracked-files=all"])
-    dirty: set[str] = set()
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        entry = line[3:] if len(line) > 3 else line.strip()
-        if " -> " in entry:
-            orig, dest = entry.split(" -> ", 1)
-            dirty.add(orig.strip())
-            dirty.add(dest.strip())
-        else:
-            dirty.add(entry.strip())
-    return sorted(incoming & dirty)
-
-
 def integrate_lane_branch(
     repo: Path, handle: Any, id6: str, validation_runner: Any
 ) -> tuple[bool, str, str]:
-    """Integrate a verified lane branch back to main behind the REUSED integration gate, failing
-    closed on a contaminated base or a non-passing gate result.
+    """Integrate a verified lane branch back to main behind the REUSED integration gate.
 
-    0. driverfin-03 (7kbtkw) E-01 DIRTY-TREE GUARD: BEFORE invoking the gate, refuse if the MAIN tree
-       has un-owned dirty paths overlapping the incoming lane's `changed_files` (kind
-       ``"integration-blocked"``; main untouched, branch/worktree preserved).
-    Calls `orchestrate_isolation.execute_merge_and_revalidate_gate` (detect conflict/stale-base +
-    revalidate), then performs the real git integration onto main (`git merge --ff-only`, falling back
-    to a controlled `--no-ff` merge; a git conflict aborts, leaving main clean). A non-passing gate
-    result / real conflict yields kind ``"merge-conflict"`` (driverfin-03 E-02); a human/serial
-    ordering resolves it via the preserved lane branch. Returns ``(integrated, reason, kind)`` with
-    ``kind`` one of ``"integrated"``, ``"integration-blocked"``, ``"merge-conflict"``."""
-    from agent_workflows import orchestrate_isolation
-
-    lane = build_lane_outcome(repo, handle, id6)
-
-    # E-01: fail closed on a contaminated integration base BEFORE running the gate.
-    overlap = dirty_tree_overlap(repo, lane.changed_files)
-    if overlap:
-        return (
-            False,
-            (
-                "integration refused: main tree has un-owned dirty paths overlapping the incoming "
-                f"change: {', '.join(overlap)}"
-            ),
-            "integration-blocked",
-        )
-
-    result = orchestrate_isolation.execute_merge_and_revalidate_gate(
-        integration_base_commit=handle.base_commit,
-        lane_outcomes=[lane],
-        merge_order=[id6],
-        full_validation_runner=validation_runner,
-    )
-    if not result.passed:
-        failing = "; ".join(
-            f"{f.check_name}[{f.lane_id}]: {f.message}" for f in result.findings
-        )
-        detail = failing or result.message
-        return (
-            False,
-            f"integration gate did not pass ({result.status}): {detail}",
-            "merge-conflict",
-        )
-
-    # NOTE the ff-only attempt's output is DELIBERATELY discarded: its failure is the EXPECTED
-    # "main advanced" case, not an error, so it must never reach the operator-facing reason (mergemsg).
-    rc, _out, _err = _run_git(repo, ["merge", "--ff-only", handle.branch])
-    if rc == 0:
-        return True, "fast-forward integrated to main", "integrated"
-    rc, out2, err2 = _run_git(
+    integpath-02 (`6sb3yu`): the IMPLEMENTATION is the single shared `runner_shared
+    .integrate_lane_branch`, whose docstring carries the full contract (the dirty-tree refusal, the
+    gate call, `--ff-only` then the controlled `--no-ff` fallback, the abort that leaves main clean,
+    and the three returned `kind` values). This wrapper binds THIS host's `run_checked` and its OWN
+    `host_label`.
+    """
+    return runner_shared.integrate_lane_branch(
         repo,
-        [
-            "merge",
-            "--no-ff",
-            "--no-edit",
-            "-m",
-            f"integrate(aw agy run): merge verified lane {id6} to main",
-            handle.branch,
-        ],
-    )
-    if rc == 0:
-        return True, "controlled non-ff merge integrated to main", "integrated"
-    # Capture the conflicted paths BEFORE aborting - the abort clears the index state they live in.
-    conflicted = conflicted_paths(repo)
-    _run_git(repo, ["merge", "--abort"])
-    return (
-        False,
-        format_merge_conflict_reason(
-            repo, merge_stdout=out2, merge_stderr=err2, paths=conflicted
-        ),
-        "merge-conflict",
+        handle,
+        id6,
+        validation_runner,
+        host_label="aw agy run",
+        run_checked=run_checked,
     )
 
 

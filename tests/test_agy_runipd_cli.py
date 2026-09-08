@@ -7,6 +7,7 @@ runner - including the runner's own `--help` and its implicit-`start` shim.
 
 from __future__ import annotations
 
+import ast
 import io
 import json
 import subprocess
@@ -690,6 +691,79 @@ class AgyFailClosedIntegrationGuardTests(unittest.TestCase):
                 ["src/x.py"],
             )
             self.assertEqual(agy_runipd.dirty_tree_overlap(repo, []), [])
+
+    def test_the_integration_helpers_are_the_SHARED_ones(self):
+        """integpath-02 (`6sb3yu`): this module no longer carries its own copies.
+
+        The agy twin of the oc assertion, and it exists BECAUSE the one-sided version is a recorded
+        failure here: `render_stream` was extracted with an oc-only guard and this module then
+        re-forked four of its symbols with nothing noticing.
+        """
+        from agent_workflows import runner_shared
+
+        self.assertIs(agy_runipd.dirty_tree_overlap, runner_shared.dirty_tree_overlap)
+        src = Path(str(agy_runipd.__file__)).read_text(encoding="utf-8")
+        tree = ast.parse(src)
+        for name in ("build_lane_outcome", "integrate_lane_branch"):
+            node = next(
+                n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef) and n.name == name
+            )
+            statements = [
+                s
+                for s in node.body
+                if not (isinstance(s, ast.Expr) and isinstance(s.value, ast.Constant))
+            ]
+            self.assertEqual(len(statements), 1, f"{name} must be a one-line wrapper")
+            self.assertIn(f"runner_shared.{name}", ast.unparse(statements[0]))
+
+    def test_this_hosts_merge_subject_still_says_aw_agy_run(self):
+        """The host label on THIS driver, from a REAL merge.
+
+        Without this the extraction's riskiest wiring would be proven on one host only, and the agy
+        suite is the thinner of the two, which is exactly where a silent regression would live.
+        """
+        from agent_workflows import worktree_lease
+
+        def git(cwd, *args):
+            return subprocess.run(
+                ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+            ).stdout.strip()
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp) / "repo"
+            _init_repo_with_conforming_plan(repo, "agy001")
+            base = git(repo, "rev-parse", "HEAD")
+            git(repo, "branch", "aw/lane/agy001")
+            wt = Path(temp) / "wt"
+            git(repo, "worktree", "add", "-q", str(wt), "aw/lane/agy001")
+            (wt / "src").mkdir(parents=True, exist_ok=True)
+            (wt / "src" / "x.py").write_text("lane\n", encoding="utf-8")
+            git(wt, "add", "src/x.py")
+            git(wt, "commit", "-qm", "lane writes src/x.py")
+            # Advance main so `--ff-only` fails and the labelled `--no-ff` merge is taken.
+            (repo / "other.txt").write_text("moved on\n", encoding="utf-8")
+            git(repo, "add", "other.txt")
+            git(repo, "commit", "-qm", "main advances")
+
+            handle = worktree_lease.WorktreeHandle(
+                lane_id="agy001",
+                path=wt,
+                branch="aw/lane/agy001",
+                base_commit=base,
+            )
+            integrated, reason, kind = agy_runipd.integrate_lane_branch(
+                repo, handle, "agy001", lambda _d, _f: True
+            )
+
+            self.assertTrue(integrated, reason)
+            self.assertEqual(kind, "integrated")
+            subject = git(repo, "log", "-1", "--pretty=%s")
+            self.assertEqual(
+                subject, "integrate(aw agy run): merge verified lane agy001 to main"
+            )
+            self.assertNotIn("aw oc run", subject)
 
     def test_expand_selectors_reviews(self):
         manifest = {
