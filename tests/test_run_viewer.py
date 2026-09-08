@@ -2231,3 +2231,13 @@ class AnalyticsIsolationTests(TestCase):
         self.assertIn("error: no run matched target", msg)
         self.assertIn("reserved analytics tree", msg)
         self.assertIn("analytics artifacts cannot be targeted as execution runs", msg)
+
+    def test_resolve_ledger_path_rejects_analytics_tree(self):
+        from agent_workflows.run_cli import resolve_ledger_path
+
+        snap_ledger = self.snap_run / "ledger.jsonl"
+        snap_ledger.write_text("{}", encoding="utf-8")
+        self.assertIsNone(resolve_ledger_path(str(snap_ledger), self.root))
+        self.assertIsNone(
+            resolve_ledger_path(f"analytics/snapshots/{self.snap_run.name}", self.root)
+        )
