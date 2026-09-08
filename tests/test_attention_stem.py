@@ -40,7 +40,9 @@ class AttentionStemTests(unittest.TestCase):
         out = _strip(
             attention.render_board(items, [], show_all=True, term=T.Term(color=True))
         )
-        self.assertIn("20260815-demo-01-aaa111", out)
+        self.assertIn("20260815", out)
+        self.assertIn("demo", out)
+        self.assertIn("aaa111", out)
         self.assertNotIn(".aw/records/backlog/open/", out)
 
     def test_long_shows_full_path(self):

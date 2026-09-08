@@ -241,10 +241,12 @@ class ScanTests(unittest.TestCase):
         # Default colored board shows the compact identity stem (not the folded prefix / full path);
         # a non-clustered name like `r.md` falls back to `r`.
         self.assertNotIn(".agents/docs/research/r.md (active)", stripped)
-        self.assertRegex(stripped, r"active\s+research\s+-\s+-\s+-\s+0\s+0\s+-\s+-\s+r")
+        self.assertRegex(
+            stripped, r"active\s+research\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+r\s+i1"
+        )
         self.assertRegex(
             stripped,
-            r"deferred\s+spec\s+-\s+-\s+-\s+0\s+0\s+-\s+-\s+s\s+-\s+\[gate artifact: TODO.md\]",
+            r"deferred\s+spec\s+-\s+-\s+-\s+-\s+-\s+-\s+-\s+s\s+i2\s+-\s+\[gate artifact: TODO.md\]",
         )
         self.assertNotIn("## blocked", stripped)
         # No trailing " tree" tag after the status.
@@ -774,7 +776,7 @@ class StaleResearchReclassifyTests(unittest.TestCase):
 
             # Interactive output is a table with header
             self.assertIn(
-                "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID",
+                "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     ",
                 stripped,
             )
             self.assertIn("Deps", stripped)
@@ -878,40 +880,45 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in stripped.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID               Deps",
+            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID       ID6    Deps",
         )
 
         # Verify exact sorted lines:
         # 1. Type: backlog (medium, 2.0.0)
         self.assertEqual(
             lines[1],
-            "open      backlog    2.0.0 medium   -            0    0      -      -  20260903-runnerlayer-01-cnwy8g  -",
+            "open     backlog   2.0.0 medium   -           -    -     - 20260903 runnerlayer cnwy8g -",
         )
         self.assertEqual(
             lines[2],
-            "open      backlog    2.0.0 medium   -            0    0      -      -  20260904-rununbound-01-d07nz2   -",
+            "open     backlog   2.0.0 medium   -           -    -     - 20260904 rununbound  d07nz2 -",
         )
         # 2. Type: plan (non-blocking first, then blocking)
         self.assertEqual(
             lines[3],
-            "reviewed  plan           - -        -            0    0      -      -  20260829-runprofile-02-p0l1to   -",
+            "reviewed plan          - -        -           -    -     - 20260829 runprofile  p0l1to -",
         )
         self.assertEqual(
             lines[4],
-            "approved  plan       2.0.0 -        -            0    0      -      -  20260829-rununify-00-5e4sb6     -",
+            "approved plan      2.0.0 -        -           -    -     - 20260829 rununify    5e4sb6 -",
         )
         self.assertEqual(
             lines[5],
-            "reviewed  plan       2.0.0 -        go-pendin    0    0      -      -  20260830-runcodes-01-wlxkoz     -",
+            "reviewed plan      2.0.0 -        go-pendin   -    -     - 20260830 runcodes    wlxkoz -",
         )
         self.assertEqual(
             lines[6],
-            "to-revie  plan       2.0.0 -        -            0    0      -      -  20260904-revsweep-01-76gsmv     -",
+            "to-revie plan      2.0.0 -        -           -    -     - 20260904 revsweep    76gsmv -",
         )
         # 3. Type: spec
         self.assertEqual(
             lines[7],
-            "implemen  spec       2.0.0 -        -            0    0      -      -  20260829-c4gd2h-01-c4gd2h       -",
+            "implemen spec      2.0.0 -        -           -    -     - 20260829 c4gd2h      c4gd2h -",
+        )
+        # 4. Legend
+        self.assertEqual(
+            lines[8],
+            "OQs = Open Questions (open/total), Exec = Executed items, Valid = Validated items, Deps = Dependencies (met, ready, draft, or in backlog)",
         )
 
     def test_oq_count_in_table_and_parser(self):
@@ -951,10 +958,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         lines = [line for line in out.splitlines() if line.strip()]
         self.assertEqual(
             lines[0],
-            "Status    Type    Blocking Priority Readiness  OQs  RQs  Exec   Valid  Artifact Set / ID  Deps",
+            "Status   Type     Blocks Priority Readiness OQs Exec Valid Date     SetID ID6    Deps",
         )
         self.assertIn(
-            "to-revie  plan           - -        -            2    1      -      -  p                  -",
+            "to-revie plan          - -        -         2/3    -     - -        p     1      -",
             lines[1],
         )
 
@@ -1004,10 +1011,10 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
         # None first, then low, med, high
-        self.assertEqual(lines[0].split()[-2], "c")
-        self.assertEqual(lines[1].split()[-2], "b")
-        self.assertEqual(lines[2].split()[-2], "d")
-        self.assertEqual(lines[3].split()[-2], "a")
+        self.assertEqual(lines[0].split()[-3], "c")
+        self.assertEqual(lines[1].split()[-3], "b")
+        self.assertEqual(lines[2].split()[-3], "d")
+        self.assertEqual(lines[3].split()[-3], "a")
 
     def test_name_sorting(self):
         items = [
@@ -1041,9 +1048,9 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         ]
         out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
         lines = [line for line in out.splitlines() if line.strip()][1:]
-        self.assertEqual(lines[0].split()[-2], "a-item")
-        self.assertEqual(lines[1].split()[-2], "m-item")
-        self.assertEqual(lines[2].split()[-2], "z-item")
+        self.assertEqual(lines[0].split()[-3], "a-item")
+        self.assertEqual(lines[1].split()[-3], "m-item")
+        self.assertEqual(lines[2].split()[-3], "z-item")
 
 
 class AttentionFilteringTests(unittest.TestCase):
@@ -1572,23 +1579,72 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             valid_progress=(2, 2),
             item_dependencies=("executed:6sb3yu",),
         )
-        items = [it_none, it_zero, it_partial, it_full]
+        dep_exec = att.Item(
+            "29wvmj",
+            ".aw/records/plans/executed/20260906-integpath-01-29wvmj.ipd.md",
+            "plans",
+            "executed",
+            A.DONE,
+            None,
+            None,
+        )
+        dep_appr = att.Item(
+            "51vw4y",
+            ".aw/records/plans/pending/20260906-integpath-02-51vw4y.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+        dep_draft = att.Item(
+            "6sb3yu",
+            ".aw/records/plans/pending/20260906-integpath-03-6sb3yu.ipd.md",
+            "plans",
+            "to-review",
+            A.READY,
+            None,
+            None,
+        )
+        dep_bk = att.Item(
+            "bk1111",
+            ".aw/records/backlog/open/bk1111.backlog.md",
+            "backlog",
+            "open",
+            A.READY,
+            None,
+            None,
+        )
+        it_bk_dep = att.Item(
+            "p4",
+            ".aw/records/plans/pending/p4.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+            item_dependencies=("exists:backlog:bk1111",),
+        )
+        id_map = {it.id: it for it in [dep_exec, dep_appr, dep_draft, dep_bk]}
+        items = [it_none, it_zero, it_partial, it_full, it_bk_dep]
 
         # Plain text rendering
-        plain = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        plain = att.render_table(
+            items, [], show_all=True, term=att.T.Term(color=False), id_map=id_map
+        )
         lines = [line for line in plain.splitlines() if line.strip()][1:]
-        self.assertIn("      -      -  p0", lines[0])
+        self.assertIn("   -    -     - -        p0", lines[0])
         self.assertTrue(lines[0].endswith("-"))
-        self.assertIn("    0/2    0/2  p1", lines[1])
+        self.assertIn(" 0/2   0/2 -        p1", lines[1])
         self.assertTrue(lines[1].endswith("-"))
-        self.assertIn("    1/2    0/2  p2", lines[2])
+        self.assertIn(" 1/2   0/2 -        p2", lines[2])
         self.assertTrue(lines[2].endswith("29wvmj, 51vw4y"))
-        self.assertIn("    2/2    2/2  p3", lines[3])
+        self.assertIn(" 2/2   2/2 -        p3", lines[3])
         self.assertTrue(lines[3].endswith("6sb3yu"))
 
         # Colored text rendering: check color codes
         colored = att.render_table(
-            items, [], show_all=True, term=att.T.Term(color=True)
+            items, [], show_all=True, term=att.T.Term(color=True), id_map=id_map
         )
         # 0/2 is styled in color 244
         self.assertIn("\033[38;5;244m0/2\033[0m", colored)
@@ -1596,8 +1652,19 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("\033[1;38;5;214m1/2\033[0m", colored)
         # 2/2 is styled in bold green (color 40)
         self.assertIn("\033[1;38;5;40m2/2\033[0m", colored)
-        # Deps string 29wvmj, 51vw4y is styled in color 250
-        self.assertIn("\033[38;5;250m29wvmj, 51vw4y\033[0m", colored)
+        # Executed dep 29wvmj is styled in bold green (color 40)
+        self.assertIn("\033[1;38;5;40m29wvmj\033[0m", colored)
+        # Approved dep 51vw4y is styled in bold orange (color 214)
+        self.assertIn("\033[1;38;5;214m51vw4y\033[0m", colored)
+        # To-review dep 6sb3yu is styled in bold blue (color 39)
+        self.assertIn("\033[1;38;5;39m6sb3yu\033[0m", colored)
+        # Backlog dep bk1111 is styled in bold red (color 196)
+        self.assertIn("\033[1;38;5;196mbk1111\033[0m", colored)
+        # Legend items
+        self.assertIn("\033[1;38;5;40mmet\033[0m", colored)
+        self.assertIn("\033[1;38;5;214mready\033[0m", colored)
+        self.assertIn("\033[1;38;5;39mdraft\033[0m", colored)
+        self.assertIn("\033[1;38;5;196mbacklog\033[0m", colored)
 
 
 if __name__ == "__main__":
