@@ -28,6 +28,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Optional
@@ -229,8 +230,14 @@ class AliasEquivalenceTests(unittest.TestCase):
             text=True,
         )
 
+    def _run_all(self, *argv):
+        """Run the read-only alias probes concurrently against the same fixture."""
+        with ThreadPoolExecutor(max_workers=len(self.NAMES)) as pool:
+            futures = {name: pool.submit(self._run, name, *argv) for name in self.NAMES}
+            return {name: futures[name].result() for name in self.NAMES}
+
     def test_all_four_names_agree_bare(self):
-        outs = {n: self._run(n, "--no-color") for n in self.NAMES}
+        outs = self._run_all("--no-color")
         for n, proc in outs.items():
             self.assertEqual(proc.returncode, 0, f"{n} exited {proc.returncode}")
         first = outs["next"].stdout
@@ -239,7 +246,7 @@ class AliasEquivalenceTests(unittest.TestCase):
 
     def test_all_four_names_agree_under_format_json(self):
         """`aw todo --format json` FAILED with 'unrecognized arguments' before E-01."""
-        outs = {n: self._run(n, "--format", "json") for n in self.NAMES}
+        outs = self._run_all("--format", "json")
         for n, proc in outs.items():
             self.assertEqual(
                 proc.returncode,
@@ -252,7 +259,7 @@ class AliasEquivalenceTests(unittest.TestCase):
 
     def test_all_four_names_agree_under_check(self):
         """`aw todo --check` FAILED with 'unrecognized arguments' before E-01."""
-        outs = {n: self._run(n, "--check", "--no-color") for n in self.NAMES}
+        outs = self._run_all("--check", "--no-color")
         first = (outs["next"].returncode, outs["next"].stdout)
         for n in self.NAMES:
             self.assertEqual(
@@ -261,7 +268,7 @@ class AliasEquivalenceTests(unittest.TestCase):
 
     def test_all_four_names_agree_under_details_and_long(self):
         for flag in ("--details", "--long"):
-            outs = {n: self._run(n, flag, "--no-color") for n in self.NAMES}
+            outs = self._run_all(flag, "--no-color")
             for n, proc in outs.items():
                 self.assertEqual(
                     proc.returncode, 0, f"{n} {flag} exited {proc.returncode}"
@@ -272,7 +279,7 @@ class AliasEquivalenceTests(unittest.TestCase):
 
     def test_all_four_names_agree_under_order_by(self):
         for key in A.ORDER_KEYS:
-            outs = {n: self._run(n, "-o", key, "--format", "json") for n in self.NAMES}
+            outs = self._run_all("-o", key, "--format", "json")
             first = outs["next"].stdout
             for n in self.NAMES:
                 self.assertEqual(outs[n].stdout, first, f"{n} -o {key} differs")
@@ -481,21 +488,42 @@ class AbsentValueTests(unittest.TestCase):
             got = [it.id for it in att.sort_items(items, key)]
             self.assertEqual(got, ["ok0001", "odd001"])
 
-    def test_live_item_count_is_identical_across_every_order(self):
-        base = _run_json()
-        self.assertEqual(base["exit"], 0)
-        n = len(base["payload"]["items"])
-        ids = sorted(it["id"] for it in base["payload"]["items"])
-        for key in A.ORDER_KEYS:
-            got = _run_json(order_by=key)
-            self.assertEqual(
-                len(got["payload"]["items"]), n, f"-o {key} changed the item count"
+    def test_item_count_is_identical_across_every_order(self):
+        """Every ordering runs against a realistic, isolated record tree.
+
+        The invariant is that ordering changes sequence only, never membership. A
+        temporary tree keeps that contract deterministic and avoids rescanning this
+        repository's growing records once for every ordering key.
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            _write(
+                root / ".aw/records/backlog/open/20260101-s-01-bak001-a.backlog.md",
+                _backlog("bak001", priority="high"),
             )
-            self.assertEqual(
-                sorted(it["id"] for it in got["payload"]["items"]),
-                ids,
-                f"-o {key} changed the item SET rather than only its order",
+            _write(
+                root / ".aw/records/backlog/blocked/20260101-s-02-bak002-b.backlog.md",
+                _backlog("bak002", status="blocked", priority="low"),
             )
+            _write(
+                root / ".aw/records/plans/pending/20260101-s-03-pln001-p.ipd.md",
+                _plan("pln001"),
+            )
+            base = _run_json(dir=str(root))
+            self.assertEqual(base["exit"], 0)
+            n = len(base["payload"]["items"])
+            ids = sorted(it["id"] for it in base["payload"]["items"])
+            self.assertEqual(n, 3)
+            for key in A.ORDER_KEYS:
+                got = _run_json(dir=str(root), order_by=key)
+                self.assertEqual(
+                    len(got["payload"]["items"]), n, f"-o {key} changed the item count"
+                )
+                self.assertEqual(
+                    sorted(it["id"] for it in got["payload"]["items"]),
+                    ids,
+                    f"-o {key} changed the item SET rather than only its order",
+                )
 
 
 class DependencyDepthTests(unittest.TestCase):
