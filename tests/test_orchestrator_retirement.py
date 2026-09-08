@@ -521,7 +521,18 @@ class ExecutedIsAnAllowlist(SyntheticSetCase):
 
         m = rs.read_set_membership(REPO_ROOT, "lanectn")
         by_id = {c.id6: c.status for c in m.children}
-        self.assertEqual(by_id.get("nna8yz"), "approved")
+        # THE INVARIANT IS THE SECOND ASSERT, NOT THE FIRST. What the docstring above must not rot
+        # into is the claim that `substantially-complete` reaches this predicate from real plan data;
+        # that value lives only in a run's `state.json`. The plan's own status legitimately ADVANCES
+        # over time (measured 2026-09-08: `nna8yz` moved `approved` -> `executed` when its stranded
+        # lane was recovered and finalized), so pinning one specific value made this test assert the
+        # repository's transient state rather than the guard. Assert membership in the real status
+        # vocabulary instead, which holds at every point in the lifecycle.
+        self.assertIn(
+            by_id.get("nna8yz"),
+            {"approved", "executed"},
+            "nna8yz must carry a real plan-file status, not a run-scoped disposition",
+        )
         self.assertNotIn("substantially-complete", set(by_id.values()))
 
     def test_a_child_with_no_status_bullet_is_refused_not_assumed_done(self):
@@ -850,13 +861,21 @@ class RealRepositorySets(unittest.TestCase):
         self.assertTrue(d.eligible, d.detail)
         self.assertEqual(d.reason, rs.RETIRE_ELIGIBLE)
 
-    def test_lanectn_refuses_naming_its_two_unfinished_children(self):
+    def test_lanectn_refuses_naming_its_one_unfinished_child(self):
+        """RE-MEASURED 2026-09-08, per this class's own instruction to re-measure rather than loosen.
+
+        Was `{"nna8yz": "approved", "xdr83v": "approved"}`. `nna8yz`'s lane had been STRANDED (its
+        integration refused by the binary whole-repo suite gate, `integration_signal: suite-failed`),
+        and when that lane was recovered and finalized the child became `executed`, leaving `xdr83v`
+        as the sole unfinished member. The REFUSAL and its reason are unchanged, which is the property
+        this test exists to pin; only the membership of the unfinished set moved, and it moved because
+        real work legitimately landed.
+        """
+
         d = rs.evaluate_set_retirement(REPO_ROOT, "lanectn")
         self.assertFalse(d.eligible)
         self.assertEqual(d.reason, rs.RETIRE_REFUSED_UNFINISHED_CHILDREN)
-        self.assertEqual(
-            dict(d.unfinished), {"nna8yz": "approved", "xdr83v": "approved"}
-        )
+        self.assertEqual(dict(d.unfinished), {"xdr83v": "approved"})
 
     def test_rununify_refuses_for_unauthored_rows_not_for_unfinished_children(self):
         """The 2.5 case: both children ARE executed, so a naive rule would retire `5e4sb6`."""

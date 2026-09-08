@@ -67,6 +67,13 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 
 - `76w6mq` [pending] 01 pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md
 
+## integearn
+
+- `32ij2j` [superseded] 01 superseded/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md
+- `xtklpd` [superseded] 02 superseded/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md
+- `daexj1` [pending] 03 pending/20260908-integearn-03-daexj1-ask-the-agent-to-adjudicate-a-failing-suite-instead-of-refus.ipd.md
+- `ys1dor` [pending] 04 pending/20260908-integearn-04-ys1dor-report-a-run-whose-work-never-landed-as-not-done-in-red-from.ipd.md
+
 ## lcpolicy
 
 - `u06zo2` [pending] 01 pending/20260908-lcpolicy-01-u06zo2-specify-the-lifecycle-automation-policy-before-any-verb-impl.ipd.md
@@ -196,10 +203,6 @@ Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 - `r2i1b1` [pending] 01 pending/20260907-orchprobe-01-r2i1b1-surface-a-per-item-refusal-reason-and-its-remedy-in-the-run.ipd.md
 - `8tgg6g` [pending] 02 pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md
 - `m7gvuz` [pending] 03 pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md
-
-## specvis
-
-- `st5klo` [pending] 01 pending/20260907-specvis-01-st5klo-announce-declared-spec-edits-on-both-hosts-at-run-start-and.ipd.md
 
 ## (singletons: no Set)
 

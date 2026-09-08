@@ -4762,26 +4762,6 @@
   {
     "date": "2026-09-06",
     "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md",
-    "plan_id": "32ij2j",
-    "set_id": "integearn",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 2,
-    "path": "pending/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md",
-    "plan_id": "xtklpd",
-    "set_id": "integearn",
-    "status": "reviewed"
-  },
-  {
-    "date": "2026-09-06",
-    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md",
@@ -5107,6 +5087,26 @@
     "path": "pending/20260908-idcapture-01-76w6mq-bound-identity-extraction-to-the-metadata-region-so-a-quoted.ipd.md",
     "plan_id": "76w6mq",
     "set_id": "idcapture",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260908-integearn-03-daexj1-ask-the-agent-to-adjudicate-a-failing-suite-instead-of-refus.ipd.md",
+    "plan_id": "daexj1",
+    "set_id": "integearn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 4,
+    "path": "pending/20260908-integearn-04-ys1dor-report-a-run-whose-work-never-landed-as-not-done-in-red-from.ipd.md",
+    "plan_id": "ys1dor",
+    "set_id": "integearn",
     "status": "to-review"
   },
   {
@@ -5797,6 +5797,26 @@
     "path": "superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md",
     "plan_id": "tch3bo",
     "set_id": "lanecontain",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 1,
+    "path": "superseded/20260906-integearn-01-32ij2j-earn-integration-from-a-suite-failure-delta-against-the-froz.ipd.md",
+    "plan_id": "32ij2j",
+    "set_id": "integearn",
+    "status": "superseded"
+  },
+  {
+    "date": "2026-09-06",
+    "disposition": "superseded",
+    "kind": "child",
+    "order": 2,
+    "path": "superseded/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md",
+    "plan_id": "xtklpd",
+    "set_id": "integearn",
     "status": "superseded"
   },
   {
