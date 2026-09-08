@@ -9,17 +9,17 @@
 - Scope: Add a MERGE-AWARE evidence path to the hook: during a merge, accept IN-TREE evidence (a `lifecycle(<id6>): finalize` commit reachable from the incoming side) as proof that finalize performed the transition, while keeping the hand-edit case refused exactly as today. Fix nothing else about the hook's behavior.
 - Scope-Paths: agent_workflows/hooks/executed_transition_gate.py, .pre-commit-config.yaml, CONTRIBUTING.md, tests/test_executed_transition_gate.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: integpath
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 29wvmj
-- Approval: 2026-09-08, recorded via aw ipd set: status set to approved
 - From-Backlog: rnl3b7
 
 ## Workflow history
+- 2026-09-08 executed (opencode/its_direct/pt3-claude-opus-5-1m-us): Lane recovered and merged during the stranded-lane recovery; integration had been refused by the binary whole-repo suite gate (32ij2j/xtklpd)
 - 2026-09-08 approved (aw set): status set to approved
 - 2026-09-07 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-101..PR-106 all FIXED, no unfixed BLOCKER/HIGH; OQ-03 added NON-BLOCKING for the measured pre-merge-commit gap; Readiness go-pending-approval
 
