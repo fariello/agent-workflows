@@ -2,7 +2,11 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 228 Sets; the full manifest is INDEX.json.
+
+## nopush
+
+- `4h7tt0` [pending] 01 pending/20260908-nopush-01-4h7tt0-decide-what-run-no-push-enforcement-means-before-binding-it.ipd.md
 
 ## runanalytics
 
@@ -22,6 +26,14 @@ Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
 
 - `03ie04` [pending] 01 pending/20260907-depreview-01-03ie04-read-a-dependency-target-s-status-field-instead-of-its-direc.ipd.md
 
+## dirtybase
+
+- `3i0aaz` [pending] 01 pending/20260907-dirtybase-01-3i0aaz-guard-the-ungated-dirty-base-cases-nna8yz-leaves-open-untrac.ipd.md
+
+## durablecapture
+
+- `rnkqrc` [pending] 01 pending/20260907-durablecapture-01-rnkqrc-require-a-durable-carrier-for-an-unfixed-defect-an-ipd-names.ipd.md
+
 ## integpath
 
 - `cczotj` [pending] 00 pending/20260906-integpath-00-cczotj-make-the-lane-to-main-integration-path-survive-transient-con.ipd.md
@@ -31,6 +43,10 @@ Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
 - `rl67b0` [pending] 04 pending/20260906-integpath-04-rl67b0-add-an-integrate-verb-and-make-resume-merge-finished-lanes-i.ipd.md
 - `3v7wo6` [pending] 05 pending/20260907-integpath-05-3v7wo6-verify-the-whole-set-against-both-measured-incidents-and-rec.ipd.md
 
+## mergedirty
+
+- `fujm0y` [pending] 01 pending/20260907-mergedirty-01-fujm0y-widen-the-pre-merge-dirty-check-to-every-path-the-merge-woul.ipd.md
+
 ## orchprobe
 
 - `yeh7gc` [pending] 00 pending/20260907-orchprobe-00-yeh7gc-detect-and-surface-orchestrator-only-work-that-the-runner-wo.ipd.md
@@ -38,10 +54,18 @@ Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
 - `8tgg6g` [pending] 02 pending/20260907-orchprobe-02-8tgg6g-cache-an-orchestrator-probe-verdict-against-a-content-digest.ipd.md
 - `m7gvuz` [pending] 03 pending/20260907-orchprobe-03-m7gvuz-probe-every-queued-orchestrator-for-uncovered-work-before-th.ipd.md
 
+## specvis
+
+- `st5klo` [pending] 01 pending/20260907-specvis-01-st5klo-announce-declared-spec-edits-on-both-hosts-at-run-start-and.ipd.md
+
 ## streamfx
 
 - `tlou48` [executed] 01 executed/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md
 - `xs19dk` [executed] 02 executed/20260907-streamfx-02-xs19dk-compact-stream-prefixes-merge-reason-into-think-rename-subag.ipd.md
+
+## testiso
+
+- `utwr6y` [pending] 01 pending/20260907-testiso-01-utwr6y-make-the-run-viewer-tests-own-their-data-instead-of-borrowin.ipd.md
 
 ## attorder
 
@@ -189,31 +213,6 @@ Showing the 40 most-recent of 222 Sets; the full manifest is INDEX.json.
 ## setgraph
 
 - `4ot0r6` [executed] 01 executed/20260831-setgraph-01-4ot0r6-parse-the-orchestrator-child-table-robustly-instead-of-silen.ipd.md
-
-## worksequence
-
-- `i6015i` [executed] 01 executed/20260831-worksequence-01-i6015i-rename-attention-to-aw-next-and-add-an-explicit-order-by-inc.ipd.md
-
-## attcompact
-
-- `af1dxn` [executed] 01 executed/20260830-attcompact-01-af1dxn-compact-attention-board-layout-with-continuous-sections-and.ipd.md
-
-## attdetails
-
-- `8h4eoc` [executed] 01 executed/20260830-attdetails-01-8h4eoc-add-details-flag-to-aw-attention-to-surface-item-summary-and.ipd.md
-
-## atttype
-
-- `3vx9sj` [executed] 01 executed/20260830-atttype-01-3vx9sj-add-type-flag-to-aw-attention-for-single-and-multi-type-arti.ipd.md
-
-## attux
-
-- `y9pj2h` [executed] 01 executed/20260830-attux-01-y9pj2h-deduplicate-release-blockers-move-setup-notice-and-legend-to.ipd.md
-
-## boxstat
-
-- `iy5u3m` [executed] 01 executed/20260830-boxstat-01-iy5u3m-boxed-rounded-border-statusline-layout-with-split-token-metr.ipd.md
-- `158ds3` [executed] 02 executed/20260830-boxstat-02-158ds3-statusline-column-layout-with-action-and-artifact-category-a.ipd.md
 
 ## (singletons: no Set)
 
