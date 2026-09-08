@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 259 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -11,6 +11,10 @@ Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
 ## actorparen
 
 - `fn2l1u` [pending] 01 pending/20260908-actorparen-01-fn2l1u-reject-an-unparseable-actor-at-the-setter-instead-of-wedging.ipd.md
+
+## awinbox
+
+- `lznpv6` [pending] 01 pending/20260908-awinbox-01-lznpv6-add-aw-adopt-to-file-a-raw-inbox-drop-into-a-typed-records-t.ipd.md
 
 ## bklgkind
 
@@ -22,13 +26,29 @@ Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
 - `kbqpkn` [pending] 01 pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md
 - `y9vpvv` [pending] 02 pending/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md
 
+## depblock
+
+- `akzy45` [pending] 01 pending/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md
+
 ## depverb
 
 - `f6idxs` [pending] 01 pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md
 
+## durablecapture
+
+- `rnkqrc` [pending] 01 pending/20260907-durablecapture-01-rnkqrc-require-a-durable-carrier-for-an-unfixed-defect-an-ipd-names.ipd.md
+- `m867ox` [pending] 02 pending/20260908-durablecapture-02-m867ox-scan-the-releases-tree-the-attention-contract-already-declar.ipd.md
+- `diof9n` [pending] 03 pending/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md
+
 ## gatejrnl
 
 - `i4c0c3` [pending] 01 pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md
+
+## graduate
+
+- `y9s4vm` [pending] 00 pending/20260908-graduate-00-y9s4vm-show-what-a-source-already-graduated-to-before-authoring-ano.ipd.md
+- `jxxec8` [pending] 01 pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md
+- `iuxtjy` [pending] 02 pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md
 
 ## hardreach
 
@@ -130,6 +150,10 @@ Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
 - `fzxfph` [pending] 06 pending/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md
 - `w33lrl` [pending] 07 pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md
 
+## runviewdisc
+
+- `vdabn5` [pending] 02 pending/20260908-runviewdisc-02-vdabn5-stop-flagging-an-interrupted-item-as-a-status-discrepancy-wh.ipd.md
+
 ## selfmdialect
 
 - `xo3244` [pending] 01 pending/20260908-selfmdialect-01-xo3244-teach-the-selector-both-front-matter-dialects-so-research-me.ipd.md
@@ -152,10 +176,6 @@ Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
 ## dirtybase
 
 - `3i0aaz` [pending] 01 pending/20260907-dirtybase-01-3i0aaz-guard-the-ungated-dirty-base-cases-nna8yz-leaves-open-untrac.ipd.md
-
-## durablecapture
-
-- `rnkqrc` [pending] 01 pending/20260907-durablecapture-01-rnkqrc-require-a-durable-carrier-for-an-unfixed-defect-an-ipd-names.ipd.md
 
 ## integpath
 
@@ -180,23 +200,6 @@ Showing the 40 most-recent of 255 Sets; the full manifest is INDEX.json.
 ## specvis
 
 - `st5klo` [pending] 01 pending/20260907-specvis-01-st5klo-announce-declared-spec-edits-on-both-hosts-at-run-start-and.ipd.md
-
-## streamfx
-
-- `tlou48` [executed] 01 executed/20260907-streamfx-01-tlou48-align-think-prefix-and-remove-redundant-stream-status-glyphs.ipd.md
-- `xs19dk` [executed] 02 executed/20260907-streamfx-02-xs19dk-compact-stream-prefixes-merge-reason-into-think-rename-subag.ipd.md
-
-## testiso
-
-- `utwr6y` [pending] 01 pending/20260907-testiso-01-utwr6y-make-the-run-viewer-tests-own-their-data-instead-of-borrowin.ipd.md
-
-## attorder
-
-- `8ldrlx` [executed] 01 executed/20260906-attorder-01-8ldrlx-multi-attribute-sorting-and-tty-table-sort-preservation-in-a.ipd.md
-
-## attorderfix
-
-- `03zubf` [executed] 01 executed/20260906-attorderfix-01-03zubf-honor-explicit-ordering-in-the-non-colored-attention-board-a.ipd.md
 
 ## (singletons: no Set)
 

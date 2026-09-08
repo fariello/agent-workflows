@@ -4934,6 +4934,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-awinbox-01-lznpv6-add-aw-adopt-to-file-a-raw-inbox-drop-into-a-typed-records-t.ipd.md",
+    "plan_id": "lznpv6",
+    "set_id": "awinbox",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md",
     "plan_id": "b5sfwm",
     "set_id": "bklgkind",
@@ -4974,9 +4984,39 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md",
+    "plan_id": "akzy45",
+    "set_id": "depblock",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md",
     "plan_id": "f6idxs",
     "set_id": "depverb",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-durablecapture-02-m867ox-scan-the-releases-tree-the-attention-contract-already-declar.ipd.md",
+    "plan_id": "m867ox",
+    "set_id": "durablecapture",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md",
+    "plan_id": "diof9n",
+    "set_id": "durablecapture",
     "status": "to-review"
   },
   {
@@ -4987,6 +5027,36 @@
     "path": "pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md",
     "plan_id": "i4c0c3",
     "set_id": "gatejrnl",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260908-graduate-00-y9s4vm-show-what-a-source-already-graduated-to-before-authoring-ano.ipd.md",
+    "plan_id": "y9s4vm",
+    "set_id": "graduate",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-graduate-01-jxxec8-report-every-existing-plan-for-a-source-before-a-tenth-is-au.ipd.md",
+    "plan_id": "jxxec8",
+    "set_id": "graduate",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-graduate-02-iuxtjy-make-a-spec-or-backlog-selector-reachable-for-the-plan-actio.ipd.md",
+    "plan_id": "iuxtjy",
+    "set_id": "graduate",
     "status": "to-review"
   },
   {
@@ -5387,6 +5457,16 @@
     "path": "pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md",
     "plan_id": "w33lrl",
     "set_id": "runverdict",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-runviewdisc-02-vdabn5-stop-flagging-an-interrupted-item-as-a-status-discrepancy-wh.ipd.md",
+    "plan_id": "vdabn5",
+    "set_id": "runviewdisc",
     "status": "to-review"
   },
   {
