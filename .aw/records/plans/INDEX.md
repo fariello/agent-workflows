@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 233 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
 
 ## bklgkind
 
@@ -34,9 +34,29 @@ Showing the 40 most-recent of 233 Sets; the full manifest is INDEX.json.
 - `ixis0c` [pending] 09 pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md
 - `9xycbh` [pending] 10 pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md
 
+## runnerlayer
+
+- `lyo1tz` [pending] 00 pending/20260908-runnerlayer-00-lyo1tz-make-the-two-host-drivers-peers-by-re-homing-the-host-neutra.ipd.md
+- `9kmbr0` [pending] 01 pending/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.ipd.md
+- `1f7xno` [pending] 02 pending/20260908-runnerlayer-02-1f7xno-re-home-the-host-neutral-names-into-runner-shared-in-reviewa.ipd.md
+
+## runnoop
+
+- `7ewc74` [pending] 00 pending/20260908-runnoop-00-7ewc74-report-every-matched-artifact-s-disposition-instead-of-exiti.ipd.md
+- `zz5yxq` [pending] 01 pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md
+- `m85gxh` [pending] 02 pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md
+- `bsc457` [pending] 03 pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md
+
 ## runrecon
 
 - `d91i3e` [pending] 01 pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
+- `fduoj4` [pending] 02 pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md
+
+## runverdict
+
+- `1bfppy` [pending] 05 pending/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md
+- `fzxfph` [pending] 06 pending/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md
+- `w33lrl` [pending] 07 pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md
 
 ## selfmdialect
 
@@ -190,24 +210,6 @@ Showing the 40 most-recent of 233 Sets; the full manifest is INDEX.json.
 ## findpaths
 
 - `v8xdz4` [executed] 01 executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md
-
-## lanecontain
-
-- `tch3bo` [superseded] 01 superseded/20260901-lanecontain-01-tch3bo-port-lane-containment-onto-current-main-one-authoritative-si.ipd.md
-
-## lanectn
-
-- `h0zljh` [pending] 00 pending/20260901-lanectn-00-h0zljh-worker-lane-containment-adopt-spec-7ckptx.ipd.md
-- `cqx5v7` [executed] 01 executed/20260901-lanectn-01-cqx5v7-lane-relative-prompt-and-closed-loop-submission-collection.ipd.md
-- `nna8yz` [pending] 02 pending/20260901-lanectn-02-nna8yz-lane-input-materialization-with-a-sealed-manifest-and-clean.ipd.md
-- `lhmrhx` [executed] 03 executed/20260901-lanectn-03-lhmrhx-per-host-permission-posture-and-driver-side-turn-bounds.ipd.md
-- `y5od1h` [executed] 04 executed/20260901-lanectn-04-y5od1h-bounded-missing-input-repair-without-original-checkout-acces.ipd.md
-- `xdr83v` [pending] 05 pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md
-- `604wra` [executed] 06 executed/20260901-lanectn-06-604wra-shared-containment-predicates-and-their-fail-loud-discipline.ipd.md
-
-## ocvariant
-
-- `429f30` [executed] 01 executed/20260901-ocvariant-01-429f30-add-variant-flag-to-aw-oc-run-for-forwarding-model-reasoning.ipd.md
 
 ## (singletons: no Set)
 

@@ -5062,11 +5062,121 @@
   {
     "date": "2026-09-08",
     "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260908-runnerlayer-00-lyo1tz-make-the-two-host-drivers-peers-by-re-homing-the-host-neutra.ipd.md",
+    "plan_id": "lyo1tz",
+    "set_id": "runnerlayer",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.ipd.md",
+    "plan_id": "9kmbr0",
+    "set_id": "runnerlayer",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-runnerlayer-02-1f7xno-re-home-the-host-neutral-names-into-runner-shared-in-reviewa.ipd.md",
+    "plan_id": "1f7xno",
+    "set_id": "runnerlayer",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "orchestrator",
+    "order": 0,
+    "path": "pending/20260908-runnoop-00-7ewc74-report-every-matched-artifact-s-disposition-instead-of-exiti.ipd.md",
+    "plan_id": "7ewc74",
+    "set_id": "runnoop",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md",
+    "plan_id": "zz5yxq",
+    "set_id": "runnoop",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md",
+    "plan_id": "m85gxh",
+    "set_id": "runnoop",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 3,
+    "path": "pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md",
+    "plan_id": "bsc457",
+    "set_id": "runnoop",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
     "kind": "child",
     "order": 1,
     "path": "pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md",
     "plan_id": "d91i3e",
     "set_id": "runrecon",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md",
+    "plan_id": "fduoj4",
+    "set_id": "runrecon",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md",
+    "plan_id": "1bfppy",
+    "set_id": "runverdict",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 6,
+    "path": "pending/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md",
+    "plan_id": "fzxfph",
+    "set_id": "runverdict",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 7,
+    "path": "pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md",
+    "plan_id": "w33lrl",
+    "set_id": "runverdict",
     "status": "to-review"
   },
   {
