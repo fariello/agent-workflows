@@ -2,7 +2,7 @@
 
 # Research index
 
-Showing the most-recent 40 of 74 hot docs (archive excluded).
+Showing the most-recent 40 of 79 hot docs (archive excluded).
 
 ## Needs addressing (todo)
 
@@ -16,7 +16,6 @@ Showing the most-recent 40 of 74 hot docs (archive excluded).
 - `0my8eb` 20260826-awclia-02-0my8eb-aw-cli-naming-ia.sonnet5.research-report.md - sonnet5 report.
 - `3uh9j3` 20260826-awclia-03-3uh9j3-aw-cli-naming-ia.gemini31pro.research-report.md - gemini31pro report.
 - `v912ed` 20260826-awclia-04-v912ed-aw-cli-naming-ia.reconciliation.reconciliation-report.md - Synthesis of the model reports.
-- `27rjro` 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
 - `3nlmug` 20260826-awrunverify-00-3nlmug-aw-run-and-verify-design-prompts.research-prompt.md - The two-pass frontier-model design prompts (initial checking-spec + addendum + revision followup) that produced spec 25kzda's aw-run deterministic run-and-verify design
 - `q65sz3` 20260831-cross-platform-agent-write-confinement-00-q65sz3-cross-platform-agent-write-confinement.research-prompt.md - How to confine a coding agent's writes to one directory on macOS, Windows and Linux without a container
 - `sx0cqv` 20260905-host-skill-runtime-discovery-and-authoring-00-sx0cqv-host-skill-runtime-discovery-and-authoring.research-prompt.md - What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable
@@ -30,7 +29,12 @@ Showing the most-recent 40 of 74 hot docs (archive excluded).
 
 ## Most recent
 
-- `27rjro` [todo] 20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
+- `27rjro` [reference] reference/202609/20260905-awmetastore-00-27rjro-where-aw-metadata-should-live.research-prompt.md - Where aw-only artifact metadata (front matter, workflow history, readiness, disposition) should be stored: inline markdown, sidecar JSON/JSONL, or a database, optimizing agent token cost against tooling correctness
+- `2o895n` [reference] reference/202609/20260905-awmetastore-02-2o895n-where-aw-metadata-should-live.sonnet5high.research-report.md - Sonnet 5 High: hybrid inline front matter plus sidecar history, with an explicit section 0 accounting of which prompt claims were verified against the live source and which could not be
+- `6mye7n` [reference] reference/202609/20260905-awmetastore-05-6mye7n-where-aw-metadata-should-live.reconciliation.reconciliation-report.md - Consolidated finding across GPT-5.6 Sol High, Sonnet 5 High, Gemini 3.1 Pro High and Gemini 3.8 Flash High: all four converge on inline front matter plus git-tracked per-artifact JSONL history keyed by id6, ordered by an explicit per-artifact seq rather than by date; the live-verified disagreements are the inline residue, IPD-S405, and write locking
+- `pavnai` [reference] reference/202609/20260905-awmetastore-04-pavnai-where-aw-metadata-should-live.gemini38flashhigh.research-report.md - Gemini 3.8 Flash High: recommended hybrid of per-artifact JSONL plus a one-line inline status, evaluated against a live checkout and scoring four storage options
+- `takpys` [reference] reference/202609/20260905-awmetastore-01-takpys-where-aw-metadata-should-live.gpt56solhigh.research-report.md - GPT-5.6 Sol High: keep current-state front matter inline, move unbounded workflow history to git-tracked per-artifact JSONL event journals keyed by the stable Id; do not make the single global history.jsonl or SQLite the git-carried authority
+- `xn6f6u` [reference] reference/202609/20260905-awmetastore-03-xn6f6u-where-aw-metadata-should-live.gemini31prohigh.research-report.md - Gemini 3.1 Pro High: move Workflow history into per-artifact JSONL sidecars under a history dir keyed by id6, keep front matter inline
 - `sx0cqv` [todo] 20260905-host-skill-runtime-discovery-and-authoring-00-sx0cqv-host-skill-runtime-discovery-and-authoring.research-prompt.md - What do real agent/IDE skill runtimes actually discover and reward: does any host require .agents/skills, and what makes a SKILL.md reliable
 - `ti73qs` [todo] 20260905-skill-authoring-best-practice-00-ti73qs-skill-authoring-best-practice.research-prompt.md - How to author and generate SKILL.md routers that agents reliably select and execute, for a pointer-based toolkit with 45 workflows
 - `tvnq50` [todo] 20260903-rununify-00-tvnq50-runner-symbol-inventory-four-class-partition.findings.md - Function-by-function four-class partition of oc_runipd.py and agy_runipd.py (E-01 of plan 5e4sb6), measured by AST comparison at HEAD 769989ce
@@ -65,8 +69,3 @@ Showing the most-recent 40 of 74 hot docs (archive excluded).
 - `2bodwq` [active] 20260813-awnamespace-04-2bodwq-aw-slash-command-namespace.reconciliation.reconciliation-report.md - Deciding doc. Adopt a single /aw dispatcher fed by one host-neutral verb registry (public syntax /aw <verb> [args...]); do not install /aw-<verb> flat commands by default, offer them only per selected compatibility-risk host.
 - `jc105r` [reference] reference/202608/20260813-awnamespace-03-jc105r-aw-slash-command-namespace.gemini31pro.research-report.md - gemini31pro report.
 - `obveju` [reference] reference/202608/20260813-awnamespace-01-obveju-aw-slash-command-namespace.gpt56medium.research-report.md - gpt56medium report.
-- `og3el1` [reference] reference/202608/20260813-awnamespace-02-og3el1-aw-slash-command-namespace.sonnet5.research-report.md - sonnet5 report.
-- `6zf5av` [reference] reference/202608/20260810-gemini-actually-validate-playbook-00-6zf5av-gemini-actually-validate-playbook.gpt56medium.research-report.md - Gemini/agy-specific controls to make headless Gemini actually run validation and stop green-washing
-- `bv6n38` [reference] reference/202608/20260808-attention-registry-cross-tree-status-and-whatnext-00-bv6n38-attention-registry-cross-tree-status-and-whatnext.survey.md - Design survey for a cross-tree attention registry: standardized status vocabulary, deterministic aw attention scanner+writer, and whatnext-as-reader
-- `b1msgn` [reference] reference/202608/20260808-attention-registry-spec-review-03-b1msgn-attention-registry-spec-review.reconciliation.reconciliation-report.md - Consolidated reconciliation of the gpt-5.6/Gemini/Sonnet-5 reviews of the attention-registry spec
-- `fc2n5j` [reference] reference/202608/20260808-attention-registry-spec-review-02-fc2n5j-attention-registry-spec-review.sonnet5.assessment.md - Sonnet-5 review of the attention-registry spec

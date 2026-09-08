@@ -66,6 +66,49 @@ class VocabTests(unittest.TestCase):
         self.assertFalse(res.ok)
         self.assertIn("unknown model", res.message)
 
+    def test_reasoning_effort_tokens_accepted_for_every_family(self):
+        """Effort is part of the model identity, and not a gpt56-only privilege.
+
+        The vocabulary originally encoded effort for gpt56 alone, so a genuine high-effort Sonnet or
+        Gemini report could not be named at all. Each token here is a configuration that produced a
+        real report in the `awmetastore` comparison set.
+        """
+
+        for token in (
+            "gpt56solhigh",
+            "sonnet5high",
+            "gemini31prohigh",
+            "gemini38flashhigh",
+        ):
+            with self.subTest(token=token):
+                res = R.normalize_model(token)
+                self.assertTrue(res.ok, msg=res.message)
+                self.assertEqual(res.value, token)
+
+    def test_effort_spelling_drift_normalizes(self):
+        self.assertEqual(R.normalize_model("sonnet-5-high").value, "sonnet5high")
+        self.assertEqual(R.normalize_model("gpt56-sol-high").value, "gpt56solhigh")
+        self.assertEqual(
+            R.normalize_model("gemini-31-pro-high").value, "gemini31prohigh"
+        )
+        self.assertEqual(
+            R.normalize_model("gemini38flash-high").value, "gemini38flashhigh"
+        )
+
+    def test_gemini38flash_is_a_distinct_model_not_a_36_variant(self):
+        """A new model must never be normalized onto an older one's token.
+
+        `gemini38flash` and `gemini36flash` are different models. Collapsing them (which the
+        validator's closest-match HINT would invite) would file a report under a model that did not
+        write it, destroying the provenance the facet exists to record.
+        """
+
+        self.assertEqual(R.normalize_model("gemini38flash").value, "gemini38flash")
+        self.assertNotEqual(
+            R.normalize_model("gemini38flash").value,
+            R.normalize_model("gemini36flash").value,
+        )
+
 
 class KebabTests(unittest.TestCase):
     def test_kebab(self):
