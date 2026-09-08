@@ -1671,6 +1671,174 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         self.assertIn("\033[1mDeps\033[0m = Dependencies", colored)
         self.assertNotIn("(met", colored)
 
+    def test_render_table_runs_mode_column_and_legend(self):
+        it1 = att.Item(
+            "111111",
+            ".aw/records/plans/p1.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+        it2 = att.Item(
+            "222222",
+            ".aw/records/plans/p2.ipd.md",
+            "plans",
+            "to-review",
+            A.READY,
+            None,
+            None,
+        )
+        it3 = att.Item(
+            "333333",
+            ".aw/records/plans/p3.ipd.md",
+            "plans",
+            "draft",
+            A.READY,
+            None,
+            None,
+        )
+        it4 = att.Item(
+            "444444",
+            ".aw/records/plans/p4.ipd.md",
+            "plans",
+            "draft",
+            A.READY,
+            None,
+            None,
+        )
+        items = [it1, it2, it3, it4]
+        run_map = {
+            "111111": "running",
+            "222222": "queued",
+            "333333": "done",
+        }
+
+        # Default (runs_mode=False): Run column is absent
+        plain_off = att.render_table(
+            items, [], show_all=True, term=att.T.Term(color=False), runs_mode=False
+        )
+        header_off = plain_off.splitlines()[0]
+        self.assertNotIn("Run", header_off)
+        self.assertNotIn("Active runner state", plain_off)
+
+        # Enabled (runs_mode=True): Run column is present immediately after Status
+        plain_on = att.render_table(
+            items,
+            [],
+            show_all=True,
+            term=att.T.Term(color=False),
+            runs_mode=True,
+            run_map=run_map,
+        )
+        lines_on = plain_on.splitlines()
+        header_on = lines_on[0]
+        self.assertTrue(header_on.startswith("Status   Run     Type"))
+        self.assertIn("Run = Active runner state", plain_on)
+
+        # Check values
+        row1 = [ln for ln in lines_on if "111111" in ln][0]
+        self.assertIn("approved running plan", row1)
+        row2 = [ln for ln in lines_on if "222222" in ln][0]
+        self.assertIn("to-revie queued  plan", row2)
+        row3 = [ln for ln in lines_on if "333333" in ln][0]
+        self.assertIn("draft    done    plan", row3)
+        row4 = [ln for ln in lines_on if "444444" in ln][0]
+        self.assertIn("draft    -       plan", row4)
+
+        # Colored formatting
+        colored = att.render_table(
+            items,
+            [],
+            show_all=True,
+            term=att.T.Term(color=True),
+            runs_mode=True,
+            run_map=run_map,
+        )
+        # running in cyan (51)
+        self.assertIn("\033[1;38;5;51mrunning\033[0m", colored)
+        # queued in yellow (220)
+        self.assertIn("\033[38;5;220mqueued\033[0m", colored)
+        # done in green (40)
+        self.assertIn("\033[1;38;5;40mdone\033[0m", colored)
+        # - in gray (244)
+        self.assertIn("\033[38;5;244m-\033[0m", colored)
+        # Legend bolded Run
+        self.assertIn("\033[1mRun\033[0m = Active runner state", colored)
+
+    def test_get_active_runs_map_logic(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            repo = Path(td)
+            runs_dir = repo / ".aw" / "records" / "runs"
+            runs_dir.mkdir(parents=True)
+
+            live_dir = runs_dir / "run-20260908T000000Z-100"
+            live_dir.mkdir()
+            (live_dir / "driver.lock").write_text("pid=100\n", encoding="utf-8")
+            (live_dir / "state.json").write_text(
+                json.dumps(
+                    {
+                        "queue": [
+                            {"id6": "run001", "status": "running"},
+                            {"id6": "que002", "status": "queued"},
+                            {"id6": "exe003", "status": "executed"},
+                            {"id6": "mrg004", "status": "merging"},
+                            {"id6": "fld005", "status": "failed-safely"},
+                            {"id6": "blk006", "status": "dependency-blocked"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            dead_dir = runs_dir / "run-20260908T000000Z-200"
+            dead_dir.mkdir()
+            (dead_dir / "driver.lock").write_text("pid=200\n", encoding="utf-8")
+            (dead_dir / "state.json").write_text(
+                json.dumps(
+                    {
+                        "queue": [
+                            {"id6": "dead01", "status": "running"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def mock_holder(r_dir):
+                if "100" in str(r_dir):
+                    return "live"
+                return "none"
+
+            with patch(
+                "agent_workflows.run_viewer.driver_holder_state",
+                side_effect=mock_holder,
+            ):
+                rmap = att.get_active_runs_map(repo)
+
+            self.assertEqual(rmap.get("run001"), "running")
+            self.assertEqual(rmap.get("que002"), "queued")
+            self.assertEqual(rmap.get("exe003"), "done")
+            self.assertEqual(rmap.get("mrg004"), "merging")
+            self.assertEqual(rmap.get("fld005"), "failed")
+            self.assertEqual(rmap.get("blk006"), "blocked")
+            # Dead run item should NOT be included
+            self.assertNotIn("dead01", rmap)
+
+    def test_cli_runs_argument(self):
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args_default = parser.parse_args(["att"])
+        self.assertFalse(getattr(args_default, "runs", False))
+
+        args_runs = parser.parse_args(["att", "--runs"])
+        self.assertTrue(getattr(args_runs, "runs", False))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1461,6 +1461,8 @@ def _render_item_row(
     long: bool,
     details: bool = False,
     gate_in_header: bool = False,
+    runs_mode: bool = False,
+    run_state: Optional[str] = None,
 ) -> str:
     """Render ONE board row for an item, in the compact columnar human form (colored) or the
     stable machine form (uncolored). Extracted so the release-blockers section renders items
@@ -1497,6 +1499,17 @@ def _render_item_row(
                 A.escape_detail(g.get("ref", "")), long=bool(long)
             )
             inline_gate = f"  [gate {g.get('kind')}: {ref_txt}]"
+        run_txt = ""
+        if runs_mode and run_state and run_state != "-":
+            run_code = {
+                "running": 51,
+                "queued": 220,
+                "merging": 201,
+                "done": 40,
+                "failed": 196,
+                "blocked": 214,
+            }.get(run_state, 244)
+            run_txt = "  " + term.color256(f"[run:{run_state}]", run_code, bold=True)
         prio = ""
         if it.priority:
             pcode = {"high": 196, "medium": 214, "low": 244}.get(it.priority, 244)
@@ -1504,7 +1517,7 @@ def _render_item_row(
         blocking = ""
         if it.blocks_release:
             blocking = "  " + term.color256("[blocking]", 196, bold=True)
-        line = f"- {lead}{status_padded}  {type_prefix}{path_txt}{prio}{blocking}{inline_gate}"
+        line = f"- {lead}{status_padded}  {type_prefix}{path_txt}{run_txt}{prio}{blocking}{inline_gate}"
         if details and it.detail_text:
             tag = it.detail_kind or "summary"
             tag_txt = term.color256(f"{tag}:", 244)
@@ -1515,7 +1528,10 @@ def _render_item_row(
     if it.gate:
         g = it.gate
         suffix = f"  [gate {g.get('kind')}: {A.escape_detail(g.get('ref', ''))}]"
-    line = f"- [{it.tree}] {it.path} ({status_word}){suffix}"
+    run_sfx = ""
+    if runs_mode and run_state and run_state != "-":
+        run_sfx = f"  [run: {run_state}]"
+    line = f"- [{it.tree}] {it.path} ({status_word}){run_sfx}{suffix}"
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         line += f"\n      {tag}: {it.detail_text}"
@@ -1614,6 +1630,116 @@ def _extract_dependency_id6s(it: Item) -> List[str]:
     return ids
 
 
+def _resolve_runs_repo_root(repo_root: Path) -> Path:
+    """Resolve the repository root that owns .aw/records/runs (handling git worktrees)."""
+    if (repo_root / ".aw" / "records" / "runs").is_dir():
+        return repo_root
+    git_ref = repo_root / ".git"
+    if git_ref.is_file():
+        try:
+            txt = git_ref.read_text(encoding="utf-8").strip()
+            if txt.startswith("gitdir:"):
+                gdir = Path(txt.split(":", 1)[1].strip()).resolve()
+                candidate = gdir.parent.parent.parent
+                if (candidate / ".aw" / "records" / "runs").is_dir():
+                    return candidate
+        except Exception:
+            pass
+    if ".aw/worktrees" in str(repo_root.resolve()):
+        for parent in repo_root.resolve().parents:
+            if (parent / ".aw" / "records" / "runs").is_dir():
+                return parent
+    return repo_root
+
+
+def get_active_runs_map(repo_root: Path) -> Dict[str, str]:
+    """Scan active runner sessions and return a mapping of id6/path to runner state.
+
+    Only live runs (whose driver process currently holds driver.lock) are inspected.
+    States are mapped to: 'running', 'queued', 'merging', 'done', 'failed', 'blocked'.
+    """
+    from agent_workflows import run_viewer
+
+    run_map: Dict[str, str] = {}
+    target_root = _resolve_runs_repo_root(repo_root)
+    try:
+        runs = run_viewer.discover_run_dirs(target_root)
+    except Exception:
+        return run_map
+
+    live_runs = [
+        r for r in runs if run_viewer.driver_holder_state(r) == run_viewer.HOLDER_LIVE
+    ]
+    if not live_runs:
+        return run_map
+
+    priority_order = {
+        "running": 6,
+        "merging": 5,
+        "queued": 4,
+        "done": 3,
+        "blocked": 2,
+        "failed": 1,
+    }
+
+    for run_dir in live_runs:
+        state_file = run_dir / "state.json"
+        if not state_file.is_file():
+            continue
+        try:
+            state_data = json.loads(state_file.read_text(encoding="utf-8"))
+            queue = state_data.get("queue") or []
+            for item in queue:
+                id6 = item.get("id6")
+                cfg_file = item.get("configured_file")
+                raw_st = (item.get("status") or "").lower()
+
+                if raw_st == "running":
+                    mapped = "running"
+                elif raw_st == "merging":
+                    mapped = "merging"
+                elif raw_st == "queued":
+                    mapped = "queued"
+                elif raw_st in (
+                    "executed",
+                    "reviewed",
+                    "substantially-complete",
+                    "done",
+                    "completed",
+                ):
+                    mapped = "done"
+                elif raw_st in ("failed", "failed-safely", "interrupted"):
+                    mapped = "failed"
+                elif raw_st in (
+                    "blocked",
+                    "dependency-blocked",
+                    "integration-blocked",
+                    "merge-conflict",
+                ):
+                    mapped = "blocked"
+                else:
+                    mapped = raw_st[:7] if raw_st else "-"
+
+                new_prio = priority_order.get(mapped, 0)
+
+                keys_to_update = []
+                if id6:
+                    keys_to_update.append(id6)
+                if cfg_file:
+                    keys_to_update.append(cfg_file)
+                    keys_to_update.append(Path(cfg_file).name)
+
+                for k in keys_to_update:
+                    curr = run_map.get(k)
+                    curr_prio = priority_order.get(curr, 0) if curr else -1
+                    if new_prio >= curr_prio:
+                        run_map[k] = mapped
+        except Exception:
+            continue
+
+    return run_map
+
+
 def _render_table_row(
     it: Item,
     term: T.Term,
@@ -1627,6 +1753,8 @@ def _render_table_row(
     exec_w: int = 4,
     valid_w: int = 5,
     id_map: Optional[Dict[str, Item]] = None,
+    runs_mode: bool = False,
+    run_state: Optional[str] = None,
 ) -> str:
     st_raw = it.native_status[:8]
     if colored:
@@ -1637,6 +1765,30 @@ def _render_table_row(
     else:
         st_styled = st_raw
     st_col = st_styled + (" " * (8 - len(st_raw)))
+
+    if runs_mode:
+        run_raw = (run_state or "-")[:7]
+        if colored:
+            if run_raw == "-":
+                run_styled = term.color256("-", 244)
+            elif run_raw == "running":
+                run_styled = term.color256(run_raw, 51, bold=True)
+            elif run_raw == "queued":
+                run_styled = term.color256(run_raw, 220, bold=False)
+            elif run_raw == "merging":
+                run_styled = term.color256(run_raw, 201, bold=True)
+            elif run_raw == "done":
+                run_styled = term.color256(run_raw, 40, bold=True)
+            elif run_raw == "failed":
+                run_styled = term.color256(run_raw, 196, bold=True)
+            elif run_raw == "blocked":
+                run_styled = term.color256(run_raw, 214, bold=False)
+            else:
+                run_styled = term.color256(run_raw, 244)
+        else:
+            run_styled = run_raw
+        run_pad = " " * (7 - len(run_raw))
+        run_col = f"{run_styled}{run_pad}"
 
     type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
     tp_raw = type_word[:8]
@@ -1792,10 +1944,16 @@ def _render_table_row(
         )
         inline_gate = f"  [gate {it.gate.get('kind')}: {ref_txt}]"
 
-    row_line = (
-        f"{st_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
-        f"{exec_col} {valid_col} {date_col} {set_col} {id6_col} {deps_col}{inline_gate}"
-    )
+    if runs_mode:
+        row_line = (
+            f"{st_col} {run_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
+            f"{exec_col} {valid_col} {date_col} {set_col} {id6_col} {deps_col}{inline_gate}"
+        )
+    else:
+        row_line = (
+            f"{st_col} {tp_col} {blk_col} {prio_col} {rd_col} {oq_col} "
+            f"{exec_col} {valid_col} {date_col} {set_col} {id6_col} {deps_col}{inline_gate}"
+        )
     if details and it.detail_text:
         tag = it.detail_kind or "summary"
         tag_txt = term.color256(f"{tag}:", 244) if colored else f"{tag}:"
@@ -1821,10 +1979,12 @@ def render_table(
     order_by: Optional[str] = None,
     legend: bool = True,
     id_map: Optional[Dict[str, Item]] = None,
+    runs_mode: bool = False,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> str:
     """Render items in a compact columnar table for interactive/TTY viewing.
 
-    Columns: Status (8), Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, ID6 (6), Deps.
+    Columns: Status (8), [Run (7)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, ID6 (6), Deps.
     Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
     """
     if term is None:
@@ -1843,6 +2003,11 @@ def render_table(
                 repo_root = cand
         except Exception:
             pass
+
+    if runs_mode and run_map is None and repo_root is not None:
+        run_map = get_active_runs_map(repo_root)
+    elif run_map is None:
+        run_map = {}
 
     lines: List[str] = []
     if drift:
@@ -1921,13 +2086,27 @@ def render_table(
     set_hdr = col_title.ljust(set_w)
     id6_hdr = "ID6".ljust(6)
 
-    header = (
-        f"{st_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
-        f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {id6_hdr} Deps"
-    )
+    if runs_mode:
+        run_hdr = "Run".ljust(7)
+        header = (
+            f"{st_hdr} {run_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
+            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {id6_hdr} Deps"
+        )
+    else:
+        header = (
+            f"{st_hdr} {tp_hdr} {blk_hdr} {prio_hdr} {rd_hdr} {oq_hdr} "
+            f"{exec_hdr} {valid_hdr} {date_hdr} {set_hdr} {id6_hdr} Deps"
+        )
     lines.append(term.colorize(header, "bold") if colored else header)
 
     for it in visible:
+        run_st = None
+        if runs_mode:
+            _, _, it_id6 = _extract_identity_parts(it)
+            for cand in (it.id, it_id6, it.path, Path(it.path).name):
+                if cand and cand in run_map:
+                    run_st = run_map[cand]
+                    break
         lines.append(
             _render_table_row(
                 it,
@@ -1942,6 +2121,8 @@ def render_table(
                 exec_w=exec_w,
                 valid_w=valid_w,
                 id_map=id_map,
+                runs_mode=runs_mode,
+                run_state=run_st,
             )
         )
 
@@ -1950,10 +2131,17 @@ def render_table(
         exec_lbl = term.colorize("Exec", "bold") if colored else "Exec"
         valid_lbl = term.colorize("Valid", "bold") if colored else "Valid"
         deps_lbl = term.colorize("Deps", "bold") if colored else "Deps"
-        lines.append(
-            f"{oqs_lbl} = Open Questions (open/total), {exec_lbl} = Executed items, "
-            f"{valid_lbl} = Validated items, {deps_lbl} = Dependencies"
-        )
+        if runs_mode:
+            run_lbl = term.colorize("Run", "bold") if colored else "Run"
+            lines.append(
+                f"{run_lbl} = Active runner state, {oqs_lbl} = Open Questions (open/total), {exec_lbl} = Executed items, "
+                f"{valid_lbl} = Validated items, {deps_lbl} = Dependencies"
+            )
+        else:
+            lines.append(
+                f"{oqs_lbl} = Open Questions (open/total), {exec_lbl} = Executed items, "
+                f"{valid_lbl} = Validated items, {deps_lbl} = Dependencies"
+            )
 
     return "\n".join(lines).rstrip("\n") + "\n"
 
@@ -1969,11 +2157,13 @@ def render_board(
     repo_root: Path | None = None,
     order_by: Optional[str] = None,
     id_map: Optional[Dict[str, Item]] = None,
+    runs_mode: bool = False,
+    run_map: Optional[Dict[str, str]] = None,
 ) -> str:
     """Render the attention board.
 
     When ``term`` is colored (a real TTY / FORCE_COLOR), the human view renders the columnar
-    table (Status, Type, Blocks, Priority, Readiness, OQs, Exec, Valid, Date, SetID, ID6, Deps). When color is OFF
+    table (Status, [Run], Type, Blocks, Priority, Readiness, OQs, Exec, Valid, Date, SetID, ID6, Deps). When color is OFF
     (piped / agent / NO_COLOR / no ``term``), it emits the stable machine-readable
     ``- [tree] path (status){gate}`` form so agents and grep keep a fixed, parseable shape. Under an
     explicit order, the non-colored board emits a single flat, globally-ordered list (sections are
@@ -1994,6 +2184,8 @@ def render_board(
             order_by=order_by,
             legend=True if legend is None else legend,
             id_map=id_map,
+            runs_mode=runs_mode,
+            run_map=run_map,
         )
     if legend is None:
         legend = colored
@@ -2019,6 +2211,13 @@ def render_board(
             visible = list(items)
 
         for it in visible:
+            run_st = None
+            if runs_mode and run_map:
+                _, _, it_id6 = _extract_identity_parts(it)
+                for cand in (it.id, it_id6, it.path, Path(it.path).name):
+                    if cand and cand in run_map:
+                        run_st = run_map[cand]
+                        break
             lines.append(
                 _render_item_row(
                     it,
@@ -2028,6 +2227,8 @@ def render_board(
                     long,
                     details=details,
                     gate_in_header=False,
+                    runs_mode=runs_mode,
+                    run_state=run_st,
                 )
             )
         return "\n".join(lines).rstrip("\n") + "\n" if lines else ""
@@ -2065,6 +2266,13 @@ def render_board(
             lines.append(f"## {header_title}")
 
         for it in group:
+            run_st = None
+            if runs_mode and run_map:
+                _, _, it_id6 = _extract_identity_parts(it)
+                for cand in (it.id, it_id6, it.path, Path(it.path).name):
+                    if cand and cand in run_map:
+                        run_st = run_map[cand]
+                        break
             lines.append(
                 _render_item_row(
                     it,
@@ -2074,6 +2282,8 @@ def render_board(
                     long,
                     details=details,
                     gate_in_header=bool(shared_gate),
+                    runs_mode=runs_mode,
+                    run_state=run_st,
                 )
             )
     if colored and legend:
@@ -2430,6 +2640,8 @@ def run(args) -> int:
             getattr(args, "all", False) or bool(selectors_arg) or has_terminal_status
         )
         details = getattr(args, "details", False)
+        runs_arg = getattr(args, "runs", False)
+        run_map = get_active_runs_map(repo_root) if (runs_arg and repo_root) else {}
 
         if not colored:
             if is_explicit_order(order_by):
@@ -2443,6 +2655,8 @@ def run(args) -> int:
                     legend=False,
                     repo_root=repo_root,
                     order_by=order_by,
+                    runs_mode=bool(runs_arg),
+                    run_map=run_map,
                 )
             else:
                 blockers = release_blockers(items, repo_root)
@@ -2463,6 +2677,8 @@ def run(args) -> int:
                     legend=False,
                     repo_root=repo_root,
                     order_by=order_by,
+                    runs_mode=bool(runs_arg),
+                    run_map=run_map,
                 )
                 if blockers:
                     # Name the release the blockers gate (id6 + version), not just a count, so the
@@ -2479,6 +2695,13 @@ def run(args) -> int:
                     # Render each blocker in the SAME compact columnar form as active/ready/blocked
                     # (not a raw absolute path), so the section reads consistently with the board.
                     for it in blockers:
+                        run_st = None
+                        if runs_arg and run_map:
+                            _, _, it_id6 = _extract_identity_parts(it)
+                            for cand in (it.id, it_id6, it.path, Path(it.path).name):
+                                if cand and cand in run_map:
+                                    run_st = run_map[cand]
+                                    break
                         board += (
                             _render_item_row(
                                 it,
@@ -2487,6 +2710,8 @@ def run(args) -> int:
                                 colored,
                                 long,
                                 details=details,
+                                runs_mode=bool(runs_arg),
+                                run_state=run_st,
                             )
                             + "\n"
                         )
@@ -2502,6 +2727,8 @@ def run(args) -> int:
                 repo_root=repo_root,
                 order_by=order_by,
                 id_map=all_items_by_id,
+                runs_mode=bool(runs_arg),
+                run_map=run_map,
             )
         # bklggrad orb9zb E-06: advisory release-gate warnings (human view only; NEVER affect the
         # exit code). Surfaces orphaned-live-blocker (an open blocking item already handed off to a

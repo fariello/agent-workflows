@@ -3465,6 +3465,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Filter to show only artifacts with unresolved open questions.",
     )
     p_attention.add_argument(
+        "--runs",
+        dest="runs",
+        action="store_true",
+        default=False,
+        help="Show live runner session status for items in active runs.",
+    )
+    p_attention.add_argument(
         "selectors",
         nargs="*",
         default=[],
