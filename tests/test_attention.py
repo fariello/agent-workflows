@@ -14,7 +14,7 @@ import os
 import re
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -766,8 +766,9 @@ class StaleResearchReclassifyTests(unittest.TestCase):
             )
             buf = io.StringIO()
             term = att.T.Term(stream=buf, color=True)
-            with mock.patch("sys.stdout", buf), mock.patch(
-                "agent_workflows.attention.T.Term", return_value=term
+            with (
+                mock.patch("sys.stdout", buf),
+                mock.patch("agent_workflows.attention.T.Term", return_value=term),
             ):
                 rc = att.run(args)
             self.assertEqual(rc, 0)
@@ -1909,9 +1910,12 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
         )
 
         run_map = {"run001": "running", "que002": "queued"}
-        with mock.patch.object(
-            att, "scan", return_value=([it_run, it_que, it_other], [])
-        ), mock.patch.object(att, "get_active_runs_map", return_value=run_map):
+        with (
+            mock.patch.object(
+                att, "scan", return_value=([it_run, it_que, it_other], [])
+            ),
+            mock.patch.object(att, "get_active_runs_map", return_value=run_map),
+        ):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 args = argparse.Namespace(
@@ -1942,6 +1946,300 @@ class ExecValidAndDepsColumnsTests(unittest.TestCase):
             self.assertNotIn("que002", out)
             self.assertNotIn("oth003", out)
             self.assertIn("[run: running]", out)
+
+    def test_cli_id6_only_argument_and_mutual_exclusivity(self):
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args_default = parser.parse_args(["att"])
+        self.assertFalse(getattr(args_default, "id6_only", False))
+        self.assertFalse(getattr(args_default, "paths", False))
+        self.assertFalse(getattr(args_default, "filenames", False))
+        self.assertFalse(getattr(args_default, "long", False))
+
+        args_id = parser.parse_args(["att", "--id6-only"])
+        self.assertTrue(args_id.id6_only)
+
+        args_id_short = parser.parse_args(["att", "-id"])
+        self.assertTrue(args_id_short.id6_only)
+
+        args_paths = parser.parse_args(["att", "--paths"])
+        self.assertTrue(args_paths.paths)
+
+        args_files = parser.parse_args(["att", "--filenames"])
+        self.assertTrue(args_files.filenames)
+
+        # Mutually exclusive pairs:
+        for bad in (
+            ["att", "-id", "--paths"],
+            ["att", "-id", "--filenames"],
+            ["att", "-id", "--long"],
+            ["att", "--paths", "--filenames"],
+            ["att", "--paths", "--long"],
+            ["att", "--filenames", "--long"],
+        ):
+            with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                parser.parse_args(bad)
+
+    def test_cli_active_and_not_active_arguments_and_mutual_exclusivity(self):
+        from agent_workflows import cli
+
+        parser = cli._build_parser()
+        args_active = parser.parse_args(["att", "--active"])
+        self.assertTrue(args_active.active)
+        self.assertFalse(args_active.not_active)
+
+        for flag in ("-a", "-ac", "-act"):
+            args = parser.parse_args(["att", flag])
+            self.assertTrue(args.active)
+
+        args_not_active = parser.parse_args(["att", "--not-active"])
+        self.assertTrue(args_not_active.not_active)
+        self.assertFalse(args_not_active.active)
+
+        for flag in ("-na", "-nac", "-not"):
+            args = parser.parse_args(["att", flag])
+            self.assertTrue(args.not_active)
+
+        args_arcive = parser.parse_args(["att", "--arcive-state", "running"])
+        self.assertEqual(args_arcive.run_status, ["running"])
+        self.assertEqual(args_arcive.arcive_state, ["running"])
+
+        args_active_state = parser.parse_args(
+            ["att", "--active-state", "running,queued"]
+        )
+        self.assertEqual(args_active_state.run_status, ["running,queued"])
+        self.assertEqual(args_active_state.active_state, ["running,queued"])
+
+        # Multiple --arcive-state flags
+        args_multi = parser.parse_args(["att", "-as", "running", "-ars", "queued"])
+        self.assertEqual(args_multi.run_status, ["running", "queued"])
+
+        # Mutual exclusivity:
+        for bad in (
+            ["att", "--active", "--not-active"],
+            ["att", "-a", "-na"],
+            ["att", "--arcive-state", "running", "--active"],
+            ["att", "--arcive-state", "running", "--not-active"],
+            ["att", "-as", "running", "-a"],
+            ["att", "-ars", "running", "-nac"],
+        ):
+            with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+                parser.parse_args(bad)
+
+    def test_id6_only_output_in_att_run(self):
+        it1 = att.Item(
+            "id0001",
+            ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+        it2 = att.Item(
+            "id0002",
+            ".aw/records/plans/pending/20260901-test-02-id0002-slug.ipd.md",
+            "plans",
+            "open",
+            A.READY,
+            None,
+            None,
+        )
+        it_done = att.Item(
+            "id0003",
+            ".aw/records/plans/executed/20260901-test-03-id0003-slug.ipd.md",
+            "plans",
+            "executed",
+            A.DONE,
+            None,
+            None,
+        )
+
+        with mock.patch.object(att, "scan", return_value=([it1, it2, it_done], [])):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                args = argparse.Namespace(
+                    dir=None,
+                    check=False,
+                    format=None,
+                    order_by=A.ORDER_CLASS,
+                    agent=False,
+                    json=False,
+                    no_color=True,
+                    all=False,
+                    types=[],
+                    status=[],
+                    priority=[],
+                    blocking=[],
+                    readiness=[],
+                    open_questions=False,
+                    run_status=[],
+                    runs=False,
+                    selectors=[],
+                    long=False,
+                    details=False,
+                    id6_only=True,
+                    paths=False,
+                    filenames=False,
+                    active=False,
+                    not_active=False,
+                )
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            lines = [
+                line.strip() for line in buf.getvalue().splitlines() if line.strip()
+            ]
+            self.assertEqual(lines, ["id0001", "id0002"])
+
+            # With --all, it_done is also included
+            buf_all = io.StringIO()
+            with redirect_stdout(buf_all):
+                args.all = True
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            lines_all = [
+                line.strip() for line in buf_all.getvalue().splitlines() if line.strip()
+            ]
+            self.assertEqual(lines_all, ["id0001", "id0002", "id0003"])
+
+    def test_paths_and_filenames_output_in_att_run(self):
+        it1 = att.Item(
+            "id0001",
+            ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
+            "plans",
+            "approved",
+            A.READY,
+            None,
+            None,
+        )
+        with mock.patch.object(att, "scan", return_value=([it1], [])):
+            # paths
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                args = argparse.Namespace(
+                    dir=None,
+                    check=False,
+                    format=None,
+                    order_by=A.ORDER_CLASS,
+                    agent=False,
+                    json=False,
+                    no_color=True,
+                    all=False,
+                    types=[],
+                    status=[],
+                    priority=[],
+                    blocking=[],
+                    readiness=[],
+                    open_questions=False,
+                    run_status=[],
+                    runs=False,
+                    selectors=[],
+                    long=False,
+                    details=False,
+                    id6_only=False,
+                    paths=True,
+                    filenames=False,
+                    active=False,
+                    not_active=False,
+                )
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            self.assertEqual(
+                buf.getvalue().strip(),
+                ".aw/records/plans/pending/20260901-test-01-id0001-slug.ipd.md",
+            )
+
+            # filenames
+            buf_f = io.StringIO()
+            with redirect_stdout(buf_f):
+                args.paths = False
+                args.filenames = True
+                rc = att.run(args)
+            self.assertEqual(rc, 0)
+            self.assertEqual(
+                buf_f.getvalue().strip(),
+                "20260901-test-01-id0001-slug.ipd.md",
+            )
+
+    def test_active_and_not_active_filtering_in_att_run(self):
+        it_run = att.Item(
+            "run001", "p/run001.md", "plans", "approved", A.READY, None, None
+        )
+        it_idle = att.Item(
+            "idl002", "p/idl002.md", "plans", "approved", A.READY, None, None
+        )
+        run_map = {"run001": "running"}
+
+        with (
+            mock.patch.object(att, "scan", return_value=([it_run, it_idle], [])),
+            mock.patch.object(att, "get_active_runs_map", return_value=run_map),
+        ):
+            # Test --active: shows only it_run
+            buf_act = io.StringIO()
+            with redirect_stdout(buf_act):
+                args_act = argparse.Namespace(
+                    dir=None,
+                    check=False,
+                    format=None,
+                    order_by=A.ORDER_CLASS,
+                    agent=False,
+                    json=False,
+                    no_color=True,
+                    all=False,
+                    types=[],
+                    status=[],
+                    priority=[],
+                    blocking=[],
+                    readiness=[],
+                    open_questions=False,
+                    run_status=[],
+                    runs=False,
+                    selectors=[],
+                    long=False,
+                    details=False,
+                    id6_only=True,
+                    paths=False,
+                    filenames=False,
+                    active=True,
+                    not_active=False,
+                )
+                rc = att.run(args_act)
+            self.assertEqual(rc, 0)
+            self.assertEqual(buf_act.getvalue().strip().splitlines(), ["run001"])
+
+            # Test --not-active: shows only it_idle
+            buf_idle = io.StringIO()
+            with redirect_stdout(buf_idle):
+                args_idle = argparse.Namespace(
+                    dir=None,
+                    check=False,
+                    format=None,
+                    order_by=A.ORDER_CLASS,
+                    agent=False,
+                    json=False,
+                    no_color=True,
+                    all=False,
+                    types=[],
+                    status=[],
+                    priority=[],
+                    blocking=[],
+                    readiness=[],
+                    open_questions=False,
+                    run_status=[],
+                    runs=False,
+                    selectors=[],
+                    long=False,
+                    details=False,
+                    id6_only=True,
+                    paths=False,
+                    filenames=False,
+                    active=False,
+                    not_active=True,
+                )
+                rc = att.run(args_idle)
+            self.assertEqual(rc, 0)
+            self.assertEqual(buf_idle.getvalue().strip().splitlines(), ["idl002"])
 
 
 if __name__ == "__main__":
