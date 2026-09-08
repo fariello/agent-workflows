@@ -1,5 +1,5 @@
 - Id: s9p5x5
-- Status: open
+- Status: graduated
 - Blocks-Release: next
 - Set: grouporder
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: aw group plans --set X --rename without --order silently renumbers every named plan from Order 0, demoting a child to the orchestrator-reserved slot and producing an IPD-M104 violation aw check cannot see
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to plan e3hzyc (groupord-01). Nothing obsolete: the root cause is unchanged at plans_refs.py:432/:437 with the ambiguous default at :212. THE ITEM'S ONE OPEN QUESTION IS ANSWERED AND IT SUPPLIES THE FIX: it asks whether aw rename shares the defect and notes it was NOT tested. It does NOT. run_mv preserves Order with a three-tier fallback (explicit flag, then front-matter Order, then filename NN) and a comment citing vf03z3 that 'a bare rename must NOT clobber Order to 0' (plans_refs.py:467-475), and it carries a regression test PlansMvPreservesOrderAndDateTests (tests/test_awnaming_grammar_and_producers.py:312) that group lacks. So the two verbs DIVERGED, one got the fix and the other did not, which makes this a PORT rather than a design task and leaves no blocking question. Reproduced deterministically in a throwaway repo before authoring. Blocks-Release: next inherited by the plan. Authoring note: scaffolding into Set grouporder collided with THIS item (the sjsoqq setid-reuse defect) and regrouping to groupord required passing --order explicitly, precisely to avoid the bug the plan fixes: the defect's third live occurrence.
 - 2026-09-08 created (aw backlog): aw group plans --set X --rename without --order silently renumbers every named plan from Order 0, demoting a child to the orchestrator-reserved slot and producing an IPD-M104 violation aw check cannot see
 
 DISCOVERED 2026-09-08 while graduating backlog `sjsoqq`, and filed late: it was recorded only in the

@@ -1,11 +1,12 @@
 - Id: f8m2z2
-- Status: open
+- Status: graduated
 - Set: findtwotier
 - Priority: medium
 - Work-Kind: feature
 - Summary: re-author aw find as two-tier filesystem-first (maintainer ruling 2026-08-31 displaced e32j35's index-first design): filename listing 20ms vs 357ms, content fallback mandatory for status queries and 8 legacy records
 
 ## Workflow history
+- 2026-09-08 graduated (aw set): Graduated to the findtier Set: 826o13 (Order 01, filename-first candidate filter) and 3i6rso (Order 02, report records whose declared Id or Set is absent from their filename). Every measurement re-verified and THREE MOVED. (1) The timing gap WIDENED: 6ms for a filename listing versus 429ms for aw find, against the item's 20ms/357ms, because the corpus grew to 582 indexed plans. (2) The status-query trap re-measured: -iname '*approved*' returns 5 files NONE of which is approved, while 17 pending plans genuinely are (item recorded 3 and 16). (3) The absent-from-filename set is NINE, not 8, and the ninth is NOT a legacy name: it is uyeko5 'declared' by research prompt 27rjro, the quoted-example parser artifact owned by cqytxf/76w6mq, so it must not be counted as a permanent exception. THE ARTIFACTS-NOT-REFERENCES CONTRACT WAS TESTED: -iname '*wtiso*' returns 12 files including the different Set wtisoland, while aw find plans wtiso returns 3. THE DESIGN IS CONSTRAINED BY THE ITEM'S OWN INHERITED CORRECTION: PrecedenceForcesFrontMatterReadsTests proves a stem or substring query cannot be read-free while _PRECEDENCE is frozen, so tier 1 is authored as a CANDIDATE FILTER rather than a precedence change, and the mandatory content fallback stays. Order 02 exists because the exception set must be VISIBLE and shrinking before that fallback can ever be retired. Noted overlap: three pending plans (76w6mq, xo3244, paw8so) already edit selectors.py. No Blocks-Release on the item, so neither plan inherits one.
 - 2026-09-01 created (aw backlog): filed by IPD e32j35: its OQ-03 resolution re-scoped the design but the plan's E-items still encoded the displaced index-first premise
 
 FILED BY IPD `e32j35` DURING EXECUTION. That plan carried the maintainer's 2026-08-31 re-scope in its
