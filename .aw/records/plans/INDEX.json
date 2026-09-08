@@ -4914,9 +4914,29 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-actorparen-01-fn2l1u-reject-an-unparseable-actor-at-the-setter-instead-of-wedging.ipd.md",
+    "plan_id": "fn2l1u",
+    "set_id": "actorparen",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md",
     "plan_id": "b5sfwm",
     "set_id": "bklgkind",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md",
+    "plan_id": "i4c0c3",
+    "set_id": "gatejrnl",
     "status": "to-review"
   },
   {
@@ -4952,6 +4972,16 @@
   {
     "date": "2026-09-08",
     "disposition": "pending",
+    "kind": "child",
+    "order": 2,
+    "path": "pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md",
+    "plan_id": "8v5pwa",
+    "set_id": "rdattest",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
     "kind": "orchestrator",
     "order": 0,
     "path": "pending/20260908-runanalytics-00-5lxvl3-run-analytics-telemetry-cache-spa-and-data-sharing-orchestra.ipd.md",
@@ -4977,7 +5007,7 @@
     "path": "pending/20260908-runanalytics-02-bzz5e6-privacy-safe-incremental-per-run-analytics-cache.ipd.md",
     "plan_id": "bzz5e6",
     "set_id": "runanalytics",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5057,6 +5087,16 @@
     "path": "pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md",
     "plan_id": "9xycbh",
     "set_id": "runanalytics",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.ipd.md",
+    "plan_id": "zyw4n3",
+    "set_id": "runghostid",
     "status": "to-review"
   },
   {
@@ -5156,6 +5196,16 @@
     "order": 5,
     "path": "pending/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md",
     "plan_id": "1bfppy",
+    "set_id": "runverdict",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 5,
+    "path": "pending/20260908-runverdict-05-bxx9af-consume-the-verifier-evidence-the-runner-already-asks-for-an.ipd.md",
+    "plan_id": "bxx9af",
     "set_id": "runverdict",
     "status": "to-review"
   },

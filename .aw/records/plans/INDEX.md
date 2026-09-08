@@ -2,11 +2,19 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 240 Sets; the full manifest is INDEX.json.
+
+## actorparen
+
+- `fn2l1u` [pending] 01 pending/20260908-actorparen-01-fn2l1u-reject-an-unparseable-actor-at-the-setter-instead-of-wedging.ipd.md
 
 ## bklgkind
 
 - `b5sfwm` [pending] 01 pending/20260908-bklgkind-01-b5sfwm-give-aw-backlog-set-the-work-kind-and-priority-setters-its-p.ipd.md
+
+## gatejrnl
+
+- `i4c0c3` [pending] 01 pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md
 
 ## hookretry
 
@@ -19,6 +27,10 @@ Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
 ## nopush
 
 - `4h7tt0` [pending] 01 pending/20260908-nopush-01-4h7tt0-decide-what-run-no-push-enforcement-means-before-binding-it.ipd.md
+
+## rdattest
+
+- `8v5pwa` [pending] 02 pending/20260908-rdattest-02-8v5pwa-make-the-auto-approve-predicate-require-the-review-evidence.ipd.md
 
 ## runanalytics
 
@@ -33,6 +45,10 @@ Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
 - `mm5p3v` [pending] 08 pending/20260908-runanalytics-08-mm5p3v-agent-friendly-aw-runs-analyze-and-query-interface.ipd.md
 - `ixis0c` [pending] 09 pending/20260908-runanalytics-09-ixis0c-sanitized-export-explicit-submission-and-setup-wizard-contro.ipd.md
 - `9xycbh` [pending] 10 pending/20260908-runanalytics-10-9xycbh-integration-fixtures-documentation-packaging-and-regression.ipd.md
+
+## runghostid
+
+- `zyw4n3` [pending] 01 pending/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.ipd.md
 
 ## runnerlayer
 
@@ -55,6 +71,7 @@ Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
 ## runverdict
 
 - `1bfppy` [pending] 05 pending/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.ipd.md
+- `bxx9af` [pending] 05 pending/20260908-runverdict-05-bxx9af-consume-the-verifier-evidence-the-runner-already-asks-for-an.ipd.md
 - `fzxfph` [pending] 06 pending/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.ipd.md
 - `w33lrl` [pending] 07 pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md
 
@@ -192,24 +209,6 @@ Showing the 40 most-recent of 236 Sets; the full manifest is INDEX.json.
 ## runflags
 
 - `uyeko5` [executed] 01 executed/20260903-runflags-01-uyeko5-wire-the-spec-2-1-run-flag-surface-onto-both-host-runners.ipd.md
-
-## runorder
-
-- `prpipy` [executed] 01 executed/20260903-runorder-01-prpipy-honor-the-operator-s-typed-run-order-and-announce-every-reor.ipd.md
-
-## rununify
-
-- `5e4sb6` [pending] 00 pending/20260829-rununify-00-5e4sb6-unify-the-two-host-runners-onto-one-shared-runner-library-ph.ipd.md
-- `2r306y` [executed] 01 executed/20260903-rununify-01-2r306y-delete-the-already-extracted-re-forks-and-make-the-anti-re-f.ipd.md
-- `818uru` [executed] 02 executed/20260903-rununify-02-818uru-extract-the-34-common-symbols-into-a-shared-runner-library-p.ipd.md
-
-## ctlroot
-
-- `eulhzt` [executed] 01 executed/20260901-ctlroot-01-eulhzt-anchor-control-state-on-the-checkout-not-the-cwd-close-dh0un.ipd.md
-
-## findpaths
-
-- `v8xdz4` [executed] 01 executed/20260901-findpaths-01-v8xdz4-update-cli-output-contract-and-aw-find-to-emit-plain-token-e.ipd.md
 
 ## (singletons: no Set)
 
