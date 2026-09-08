@@ -4,8 +4,8 @@
 - Subject-Type: ipd
 - Reviewed-At: 2026-09-07
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
-- Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Verdict: APPROVE WITH REVISIONS APPLIED
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -65,3 +65,80 @@ Finding-disposition round recording a MAINTAINER RULING and the STRUCTURAL chang
 | ID | Question | Chosen | Alternatives considered | Basis | Reversible |
 |----|----------|--------|-------------------------|-------|------------|
 | D-5 | Option (b) requires authoring a new child and stripping this parent's E-items. Is that inside a finding-disposition round's remit? | YES, and it was done in the plan, not here. This row RECORDS it; the structural change lives in `9438f3ce`. | (a) Record the ruling and leave the restructure for the executor, rejected as actively unsafe: resolving the OQ removes the approval block, so a run could retire this parent before any executor read the note. (b) Keep E-01/E-02 here with a stronger warning, rejected on measured evidence: `84j8d7` already carried a forceful warning and was rollup-retired anyway. | `ipd_lifecycle.ROLLUP_OMITTED_GATES['pre-transition-ev-checkpoint']`; `84j8d7` E-01 `Execution state: pending` in `executed/`; `retire_orchestrator` refuses `Kind: child` | no |
+
+## Round 3
+
+Full re-review at HEAD `0426a0fa`. Structural preflight `aw ipd lint --phase author` conformed before
+semantic review; `--phase review-finalize` conformed after the revisions.
+
+METHOD. Round 2 was a finding-disposition round recording a maintainer ruling; this is the first FULL
+review of the plan in its post-restructure shape. Because the restructure REMOVED the mechanism that was
+protecting this plan (an unresolved `Blocking: yes` question made it unapprovable), I treated "is the
+replacement protection real?" as the review's central question and answered it by running the three
+predicates rather than by reading the ruling.
+
+THE REPLACEMENT PROTECTION IS REAL, ON ALL THREE PATHS. (1) `plan_readiness.approval_refusals` returns
+EMPTY for this plan once readiness reads `go-pending-approval`, confirming the blocking question is no
+longer doing any work and that readiness is now the only gate. (2) `evaluate_set_retirement` gates
+retirement on EVERY child's on-disk `- Status:` being exactly `executed` (an allowlist,
+`SET_RETIREMENT_DONE_STATUS`), and `3v7wo6` is one of the five it now names, so the rollup CANNOT retire
+this parent before child 05's enforced `pre-transition` E/V checkpoint has passed. (3) With children
+unexecuted, `decide_orchestrator_dispatch(repo,'integpath','cczotj',[])` returns `terminate`, not
+`retire`, naming all five unfinished children, so an approved parent dispatched today ends the run with a
+reason instead of being silently retired. That is protection in code on every path, which is exactly what
+the `84j8d7` precedent lacked. On that basis readiness moves to GO - PENDING HUMAN APPROVAL.
+
+THE FINDING THAT MATTERED MOST IS STALE RESIDUE OF THE RESTRUCTURE ITSELF, and it is the kind that
+survives a careful edit because it lives in the sections nobody re-reads. Four passages still described
+this parent's E-01/E-02 as the whole-Set verification and the residuals walkthrough: `Proposed changes`
+items 2 and 3 still read "Verify the whole Set ... (E-01)" and "Record the residuals ... (E-02)";
+`Required tests` said "this orchestrator's E-01 adds the WHOLE-SET verification"; the gate's closing
+emphasis said "V-01 is what earns it"; and two `p8ni63` passages said a bare "E-01" that now names the
+sequencing item. The checklist itself is correct and carries a forceful note against re-adding
+verification, but an executor who reads `Proposed changes` as the work list (a reasonable reading, since
+that is what the section is for) would have performed on the parent precisely the work OQ-04 moved off
+it. That is the defect the restructure exists to prevent, reintroduced by documentation drift.
+
+A SECOND MECHANICAL CONSEQUENCE HAD BEEN MISSED. `- Scope-Paths:` still declared
+`.aw/records/walkthroughs` and `tests`. Neither is writable by this parent any more: the walkthrough is
+child 05's E-02 deliverable and child 05 declares that path itself, and this parent runs no tests now
+that verification moved. A declared-but-unmodified path is not inert, because `aw ipd finalize` refuses
+to complete until each carries a `--scope-ack` (`ipd_lifecycle.py:2320`), so the executor would have been
+forced to acknowledge two paths it was correctly told not to touch, and the declaration would have
+signalled that this parent still owns the walkthrough.
+
+ON THE MEASUREMENTS, ONE OF THE PLAN'S OWN CORRECTIONS WAS ITSELF WRONG. F-1 asserted that "$165.90
+appears nowhere in the durable record". It does: state.json's per-attempt `cost` fields sum to exactly
+$165.90, which is what the backlog item cited, while `aw runs` prints $183.95. The $18.05 gap is ONE
+item, `i6015i`, which was INTERRUPTED and whose attempt record carries `cost: None`, so state-derived
+arithmetic misses it while `run_viewer.extract_log_metrics` re-derives cost from the session JSONL's
+`step_finish` events and counts what was actually spent. Both figures are real and measure different
+things, so a reconciliation replaces the correction. The loss figure verified exactly:
+18.92 + 23.73 + 18.97 + 26.61 = $88.23.
+
+WHAT I RE-VERIFIED AND FOUND UNCHANGED, so the plan's evidence base is sound: the two functions are still
+duplicated in both runners and absent from `runner_shared` at 0.717 and 0.651 similarity (5 and 36
+differing lines); all three `aw/lane/mm6wuz*` branches still exist and both cited recovery commits
+resolve; `84j8d7` still sits in `executed/` with `Execution state: pending` on E-01 and `Result: pending`
+on V-01; the child table's five rows all resolve (`find_unauthored_child_rows` -> `((), True)`); and each
+of the three closable backlog items is closed by its own child, with `p8ni63` untouched.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-010 | HIGH | IN-SCOPE | A. Correctness; G. Executability; honest documentation | plan `Proposed changes` items 2-3, `Required tests` bullet 1, gate closing paragraph, and two `p8ni63` passages (all pre-edit) | **STALE RESIDUE OF THE OQ-04 RESTRUCTURE WOULD HAVE PUT THE VERIFICATION BACK ON THE PARENT.** Four passages still describe this parent's E-01/E-02 as the whole-Set incident reproduction and the residuals walkthrough, which MOVED to child 05. `Proposed changes` is the section an executor most plausibly reads as the work list, and it still said "Verify the whole Set against both measured incidents on both hosts (E-01)". The checklist is correct and warns against re-adding verification, but the plan contradicts itself in four places, and the reading that loses is the one the restructure exists to prevent: work performed on a parent whose rollup skips the E/V checkpoint is marked complete unperformed (`84j8d7`) | C:Low; U:Low; S:Low; F:High; Overall:Medium | FIXED | `Proposed changes` rewritten so item 2 attributes the verification to child 05 and item 3 states this parent sequences and confirms the ledger only, with a note recording what the old wording would have caused; `Required tests` bullet corrected and states that this parent's E-01 is sequencing; the gate's closing emphasis now reads "CHILD 05's V-01 is what earns it, not this parent's"; both `p8ni63` passages qualified to "CHILD 05's E-01" |
+| PR-011 | MEDIUM | IN-SCOPE | A. Correctness (lifecycle transaction) | plan `- Scope-Paths:` (pre-edit); child 05 `- Scope-Paths:`; `ipd_lifecycle.py:2320` | **THE PARENT DECLARED TWO SCOPE PATHS IT CAN NO LONGER WRITE.** `.aw/records/walkthroughs` was E-02's deliverable and is now child 05's (which declares it itself); `tests` was for the verification that moved. `aw ipd finalize` refuses to complete until every declared-but-unmodified path carries a `--scope-ack`, so the executor would have had to acknowledge two paths it was correctly forbidden to touch, and the declaration falsely signals that this parent still owns the walkthrough | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | `- Scope-Paths:` narrowed to `.aw/records/plans/pending`; the Scope check records the narrowing, the finalize mechanism that makes it matter, and that child 05 owns the walkthrough path |
+| PR-012 | MEDIUM | IN-SCOPE | Evidence accuracy | state.json per-attempt `cost` sum `$165.90`; `aw runs` `$183.95`; `i6015i` attempt 1 `cost: None`, status `interrupted`; `run_viewer.py:556-634` | **F-1's OWN CORRECTION WAS FALSE IN ITS STRONGEST CLAIM.** It states "$165.90 appears nowhere in the durable record", but state.json's per-attempt costs sum to exactly that. Both figures are real: `aw runs` re-derives cost from session `step_finish` events and so counts the INTERRUPTED item `i6015i` ($18.05) whose attempt record carries `cost: None`, while state arithmetic cannot see it. A review correction that overstates itself is worse than the error it fixes, because it teaches the next reader to distrust the record instead of the arithmetic | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-1 rewritten as a RECONCILIATION naming both figures, the one item that explains the gap, and the mechanism; the Concern's cost sentence now says "reconciles ... rather than correcting"; the exact loss arithmetic (18.92+23.73+18.97+26.61 = $88.23) is spelled out |
+| PR-013 | LOW | IN-SCOPE | Evidence accuracy | state.json: 4 `dependency-blocked` of which `5e4sb6` has `dependencies: []` | THE "THREE CASCADED" COUNT IS RIGHT BUT THE RUN SHOWS FOUR `dependency-blocked` ITEMS, and the fourth is the `rununify` ORCHESTRATOR (`5e4sb6`), blocked with NO declared dependencies rather than by the cascade. Unstated, a reader reconciling "three cascaded" against the run's four-item count concludes the plan miscounted, when in fact it correctly excluded a differently-caused block | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | F-1 now names the three cascaded items individually (`6ypimw`, `5slbpi`, `wpomxa`) so the count is checkable and the fourth `dependency-blocked` item is visibly not among them |
+| PR-014 | LOW | IN-SCOPE | Evidence accuracy | re-measured: 9 pending Sets declare a runner module, 8 excluding `integpath` | The contention count said SEVEN other pending Sets declare the two runner modules; it is now EIGHT, since `orchprobe` was authored after this plan. The claim is not load-bearing (the plan correctly says file overlap does NOT justify sequencing) but a stale count in a paragraph warning about contention invites re-derivation | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Count corrected to eight with `orchprobe` named and the reason for the change stated |
+| PR-015 | LOW | IN-SCOPE | A. Correctness (verification of a claim, not a defect) | `evaluate_set_retirement` -> `unfinished-children` over five; `parse_declared_child_orders` -> `(('01'..'05'), True)`; `find_unauthored_child_rows` -> `((), True)`; `decide_orchestrator_dispatch` -> `terminate`; `approval_refusals` -> `[]` | The retirement paragraph's parenthetical still cited a FOUR-row measurement taken before child 05 existed, and the plan nowhere demonstrated the property that makes the OQ-04 restructure safe rather than merely tidier: that retirement is gated on child 05 itself reaching `executed`. Without that, "the verification now lives on a child" is an assertion about intent rather than about code | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | The retirement paragraph re-verified over all FIVE children with the measured outputs pasted, and now states the load-bearing consequence explicitly: retirement requires every child including `3v7wo6` to be `executed`, so the rollup cannot retire the parent before child 05's enforced checkpoint. The gate gained a paragraph recording all three measured protections (approval, retirement, dispatch) |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-6 | Readiness: round 1 set `no-go` on the blocking OQ-04, which is now resolved. Move to `go-pending-approval`, or hold `no-go` because approving an orchestrator is what the old block prevented? | MOVE to `go-pending-approval`, but only after verifying the replacement protection mechanically | Hold `no-go` as a belt-and-braces measure, rejected because it would be dishonest bookkeeping: the workflow defines `no-go` as a genuine not-ready condition (an open question or an unfixed BLOCKER/HIGH), and there is now neither. Using readiness as a substitute for a structural gate is the same category error as using prose, and it would block a plan whose protection is real | `approval_refusals` -> `[]`; `evaluate_set_retirement` gates on every child incl. `3v7wo6`; `decide_orchestrator_dispatch` -> `terminate` not `retire`; plan-review readiness definitions | yes |
+| D-7 | The walkthrough moved to child 05. Should this parent keep `.aw/records/walkthroughs` declared for provenance? | NO. Narrow `- Scope-Paths:` to the plans directory | Keep it declared, rejected on the finalize mechanism: a declared-but-unmodified path forces a `--scope-ack`, so keeping it would make the executor acknowledge a path it must not write, and would imply the parent still owns the artifact. Provenance is carried by the child table row and the OQ-04 resolution, which are the right places | `ipd_lifecycle.py:2320`; child 05 `- Scope-Paths: .aw/records/walkthroughs, .aw/records/plans/pending` | yes |
+| D-8 | Should the review fix F-1's cost figures itself, or flag them for the executor? | FIX them here, as a reconciliation rather than a correction | Flag only, rejected: the plan's own text made a falsifiable claim ("appears nowhere in the durable record") that I disproved in one command, so leaving it would knowingly ship a false statement in a findings table other plans cite for the incident's cost | state.json `cost` sum `$165.90`; `aw runs` `$183.95`; `i6015i` `cost: None`; `run_viewer.py:556-634` | yes |
+| D-9 | Round 2 was a finding-disposition round, not a full review. Should this round re-open PR-002? | NO. PR-002 stays FIXED and this round adds PR-015 instead, which VERIFIES the fix rather than re-litigating it | Re-opening PR-002 to demand the mechanical proof, rejected: the finding was that verification parked on a parent is discharged unperformed, and the restructure genuinely fixed that. What was missing was evidence, not a fix, and a finding whose remedy is "paste the measurement" is a new finding | plan OQ-04 resolution; `retire_orchestrator` refuses `Kind: child`; the three predicates measured this round | yes |
