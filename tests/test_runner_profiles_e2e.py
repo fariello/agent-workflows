@@ -621,15 +621,18 @@ class NegativeE2E(_EmptyXdgFixture):
             side_effect=lambda a=None: calls.append(list(a or [])) or 0,
         ):
             rc, out = _cli("run", "as", "gg", "demo01")
-        # MEASURED behavior, and the stricter of the two possible refusals: version 1's registry
-        # (`runner_profiles.RUNNER_REGISTRY`) admits `oc` ONLY, so `agy` is refused at STORE LOAD
-        # by the schema, before the router ever reaches its adapter table. Either way the
-        # OpenCode driver is NOT called, which is the claim that matters: a profile for another
-        # host is never quietly run by this one.
+        # MEASURED behavior, and WHERE THE REFUSAL COMES FROM MOVED in `hostdefault-01`. It used to
+        # happen at STORE LOAD, because the schema registry admitted `oc` only, so `agy` was
+        # rejected before the router ever reached its adapter table. The schema now registers `agy`
+        # too (that is where the host's verification posture lives), so the store LOADS and the
+        # refusal comes one step later, from `run_dispatch.adapter_for`'s
+        # registered-but-unimplemented branch: a known runner with no adapter in this build.
+        # THE GUARANTEE IS UNCHANGED AND IS THE POINT: the OpenCode driver is NOT called, so a
+        # profile written for another host is never quietly run by this one.
         self.assertEqual(rc, 2, out)
         self.assertEqual(calls, [], "the wrong host driver was launched")
-        self.assertIn("unknown runner 'agy'", out)
-        self.assertIn("registers: oc", out)
+        self.assertIn("no dispatch adapter", out)
+        self.assertIn("'agy'", out)
 
     def test_a_declined_interview_leaves_no_store_to_dispatch_from(self):
         self.setup_step(["n"])

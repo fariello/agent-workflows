@@ -68,8 +68,11 @@ MAX_ATTEMPTS = 5
 #: accept none of these, and a provider may accept something not listed (hence the custom option).
 COMMON_VARIANTS: Tuple[str, ...] = ("low", "medium", "high", "max")
 
-#: The runner this wizard configures. Version 1 of the schema registers OpenCode only
-#: (`runner_profiles.RUNNER_REGISTRY`); a second host needs its own adapter, not a widened wizard.
+#: The runner this wizard configures. The schema's registry (`runner_profiles.RUNNER_REGISTRY`)
+#: now holds a second row (`agy`), but this wizard still writes OpenCode profiles ONLY, and that
+#: is deliberate rather than an oversight: a second host needs its own adapter, not a widened
+#: wizard. `agy` has no dispatch adapter (`run_dispatch.RUNNER_ADAPTERS`), so offering it here
+#: would let a user create by wizard a profile nothing in this build can launch.
 RUNNER = "oc"
 
 _CANCEL_WORDS = frozenset(("q", "quit", "cancel", "abort"))

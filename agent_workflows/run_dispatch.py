@@ -98,11 +98,17 @@ def _dispatch_opencode(argv: Sequence[str]) -> int:
 #: Canonical runner name -> adapter. THE HOST SEAM, and deliberately DATA rather than a
 #: `register()` mutator so nothing at runtime can widen the set of hosts a run may reach.
 #:
-#: Version 1 registers OpenCode only, matching `runner_profiles.RUNNER_REGISTRY`. A runner that
-#: is a valid SCHEMA value but has no row here is "registered but not implemented", which is a
-#: distinct and separately-reported failure from "not a runner at all": the first is a roadmap
-#: gap, the second is a typo, and telling the operator which one they hit is the difference
-#: between a five-second fix and a bug report.
+#: This table registers OpenCode only, and it DELIBERATELY NO LONGER MATCHES
+#: `runner_profiles.RUNNER_REGISTRY`, which registers both `oc` and `agy` (`hostdefault-01`).
+#: THAT DISAGREEMENT IS WHAT MAKES THE SECOND REFUSAL BELOW REACHABLE, so a reader who assumes
+#: the two tables are kept in sync will not understand why `adapter_for` refuses a runner name the
+#: schema happily accepted. A runner that is a valid SCHEMA value but has no row here is
+#: "registered but not implemented", which is a distinct and separately-reported failure from
+#: "not a runner at all": the first is a roadmap gap, the second is a typo, and telling the
+#: operator which one they hit is the difference between a five-second fix and a bug report.
+#: `agy` is exactly that roadmap gap today: a store may name it (so the schema can record that
+#: host's verification posture), and every dispatch route refuses it fail-closed rather than
+#: launching the wrong driver.
 RUNNER_ADAPTERS: Dict[str, Callable[[Sequence[str]], int]] = {
     "oc": _dispatch_opencode,
 }

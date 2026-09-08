@@ -157,13 +157,22 @@ class RunnerCanonicalizationTests(unittest.TestCase):
         print("canonicalization: opencode/OpenCode/oc -> oc")
 
     def test_only_registered_runners_are_accepted(self):
-        self.assertEqual(sorted(RP.RUNNER_REGISTRY), ["oc"])
-        for name in ("agy", "antigravity", "codex", "claude", "", None, 3):
+        # THE PROPERTY IS THAT THE REGISTRY IS CLOSED, not that it holds one row. `hostdefault-01`
+        # added the `agy` row (so the schema can record that host's opposite verification
+        # posture), so `agy`/`antigravity` MOVED from the refused list to the accepted one; every
+        # unregistered host and every non-name is still refused, which is the guarantee that stops
+        # a runtime from widening the accepted host set.
+        self.assertEqual(sorted(RP.RUNNER_REGISTRY), ["agy", "oc"])
+        for name, canonical in (("agy", "agy"), ("antigravity", "agy"), ("AGY", "agy")):
+            with self.subTest(accepted=name):
+                self.assertEqual(RP.canonical_runner(name), canonical)
+        for name in ("codex", "claude", "kiro", "", None, 3):
             with self.subTest(runner=name):
                 with self.assertRaises(RP.ProfileSchemaError):
                     RP.canonical_runner(name)
         print(
-            "version 1 registers exactly: ['oc']; agy/codex/claude refused (no parity claim)"
+            "registry is CLOSED and registers exactly: ['agy', 'oc']; "
+            "codex/claude/kiro refused (no parity claim)"
         )
 
     def test_profile_runner_is_stored_canonicalized(self):
@@ -647,8 +656,15 @@ class MutationTests(unittest.TestCase):
         cfg = RP.set_default_runner(RP.empty_config(), "opencode")
         self.assertEqual(cfg.default_runner, "oc")
         self.assertIsNone(RP.set_default_runner(cfg, None).default_runner)
+        # The setter canonicalizes any REGISTERED host and refuses an unregistered one. `agy` is
+        # registered since `hostdefault-01`, so it now canonicalizes (and is storable, though no
+        # dispatch adapter can launch it); `codex` stands in as the still-unregistered host, so
+        # this test keeps proving BOTH halves of the setter's contract.
+        self.assertEqual(
+            RP.set_default_runner(cfg, "antigravity").default_runner, "agy"
+        )
         with self.assertRaises(RP.ProfileSchemaError):
-            RP.set_default_runner(cfg, "agy")
+            RP.set_default_runner(cfg, "codex")
 
     def test_validate_default_setter_supports_unset(self):
         cfg = RP.set_validate_default(RP.empty_config(), True)
@@ -753,11 +769,22 @@ class ResolutionPrecedenceTests(unittest.TestCase):
     def test_unknown_and_wrong_runner_profiles_fail_rather_than_fall_back(self):
         with self.assertRaises(RP.ProfileNotFoundError):
             RP.resolve(self.cfg, runner="oc", profile="ghost")
-        with self.assertRaises(RP.ProfileSchemaError):
+        # `agy` is a REGISTERED runner since `hostdefault-01`, so an `oc` profile requested on it
+        # is no longer an unknown-runner schema error: it is the WRONG-HOST refusal
+        # (`ProfileResolutionError`, "profile 'gem' runs on 'oc', but 'agy' was requested"). That
+        # is a STRICTLY BETTER test of the same property this case always pinned - a profile is
+        # never silently run on a host it was not written for - because it exercises the real
+        # cross-host mismatch rather than a name the registry rejected before it got that far.
+        with self.assertRaises(RP.ProfileResolutionError):
             RP.resolve(self.cfg, runner="agy", profile="gem")
+        # An UNREGISTERED runner is still the schema refusal, so both halves stay covered.
+        with self.assertRaises(RP.ProfileSchemaError):
+            RP.resolve(self.cfg, runner="codex", profile="gem")
         with self.assertRaises(RP.ProfileSchemaError):
             RP.resolve(self.cfg, runner="oc", profile="As")
-        print("unknown profile / unregistered runner: raise, never silently fall back")
+        print(
+            "unknown profile / wrong host / unregistered runner: raise, never silently fall back"
+        )
 
     def test_explicit_field_values_are_validated_at_resolution(self):
         for field_name, value in (
@@ -932,6 +959,162 @@ class ValidatePrecedenceMatrixTests(unittest.TestCase):
             f"same command line, different verification decision: strong={strong.validate} "
             f"cheap={cheap.validate}"
         )
+
+
+class PerHostValidateDefaultTests(unittest.TestCase):
+    """`hostdefault-01` E-06: what a SECOND registry row makes newly expressible.
+
+    Tier 4 of the `validate` chain used to be one module global, which could only ever be correct
+    for one host. The two shipped hosts want OPPOSITE defaults on measured grounds (`oc` gates its
+    verifier turn on `--validate`, which defaults FALSE; `agy` gates on `not --no-verify`, which
+    verifies by default), so the value now lives on each host's `RUNNER_REGISTRY` row. These cases
+    pin that it is per host, that it stays the FLOOR of the chain rather than an override, that
+    every row declares its posture deliberately AND as a real `bool`, and that the tri-state still
+    falls through on the new host. The existing `ValidatePrecedenceMatrixTests` cover the three
+    configured tiers on `oc` and are deliberately not duplicated here.
+
+    NO STORE IS TOUCHED: every case builds a config in memory (`RP.empty_config()` /
+    `RP.from_document`), so nothing reads or writes the maintainer's real `runner-profiles.json`.
+    The one case that needs a filesystem path uses a `TemporaryDirectory` and points
+    `XDG_CONFIG_HOME` at it.
+    """
+
+    def test_tier_4_is_per_host(self):
+        # (a) EMPTY config, no flag, no profile: each host gets ITS OWN shipped posture.
+        oc = RP.resolve(RP.empty_config(), runner="oc")
+        agy = RP.resolve(RP.empty_config(), runner="agy")
+        self.assertIs(oc.validate, False)
+        self.assertIs(agy.validate, True)
+        self.assertEqual(oc.provenance["validate"], RP.PROVENANCE_SHIPPED)
+        self.assertEqual(agy.provenance["validate"], RP.PROVENANCE_SHIPPED)
+        # Each equals its own row, so the resolver reads the ROW and not a constant.
+        self.assertIs(oc.validate, RP.RUNNER_REGISTRY["oc"].validate_default)
+        self.assertIs(agy.validate, RP.RUNNER_REGISTRY["agy"].validate_default)
+        print(
+            f"tier 4 per host: oc={oc.validate} agy={agy.validate} "
+            f"(both provenance {RP.PROVENANCE_SHIPPED!r})"
+        )
+
+    def test_a_row_never_beats_an_operator(self):
+        # (b) THE ROW IS A FLOOR, NOT AN OVERRIDE. An explicit flag wins on BOTH hosts, in BOTH
+        # polarities, and `defaults.validate` wins over the row too. The agy+`defaults.validate:
+        # false` case is the load-bearing direction: it proves a row cannot force verification ON
+        # against a configured OFF.
+        for runner in ("oc", "agy"):
+            for flag in (True, False):
+                with self.subTest(runner=runner, flag=flag):
+                    got = RP.resolve(RP.empty_config(), runner=runner, validate=flag)
+                    self.assertIs(got.validate, flag)
+                    self.assertEqual(got.provenance["validate"], RP.PROVENANCE_EXPLICIT)
+            for level in (True, False):
+                with self.subTest(runner=runner, defaults=level):
+                    cfg = RP.set_validate_default(RP.empty_config(), level)
+                    got = RP.resolve(cfg, runner=runner)
+                    self.assertIs(got.validate, level)
+                    self.assertEqual(got.provenance["validate"], RP.PROVENANCE_DEFAULTS)
+        off_on_agy = RP.resolve(
+            RP.set_validate_default(RP.empty_config(), False), runner="agy"
+        )
+        self.assertIs(off_on_agy.validate, False)
+        print(
+            "row is a FLOOR: explicit flag and `defaults.validate` both beat it on oc and agy "
+            "(agy + defaults.validate:false -> False)"
+        )
+
+    def test_every_registered_row_declares_a_real_bool_posture(self):
+        # (c) THE GUARD THAT MAKES HOST THREE A DECISION rather than an inheritance. Two halves,
+        # and the second is why a mere membership check is not enough: `RunnerSpec` is a
+        # `NamedTuple`, whose annotations are NOT checked at runtime, so `validate_default="yes"`
+        # constructs fine and is TRUTHY, which would resolve tier 4 to a silent ON. `1 in (True,
+        # False)` is also True in Python, so `assertIn` would let an int through. `isinstance(...,
+        # bool)` is therefore the required assertion (chosen over `type(...) is bool` because
+        # `bool` has no subclasses in practice and `isinstance` is the idiomatic form here).
+        for name, row in sorted(RP.RUNNER_REGISTRY.items()):
+            with self.subTest(runner=name):
+                self.assertIsInstance(
+                    row.validate_default,
+                    bool,
+                    f"row {name!r} must declare a real bool verification posture",
+                )
+        # The retained compatibility constant must not drift from the row it claims to mirror.
+        # E-02 keeps it a LITERAL (defining it from the registry is a module-level forward
+        # reference that raises NameError at import), so this assertion is what keeps it honest.
+        self.assertIs(
+            RP.SHIPPED_VALIDATE_DEFAULT, RP.RUNNER_REGISTRY["oc"].validate_default
+        )
+        print(
+            "every row declares a bool posture: "
+            + json.dumps(
+                {n: r.validate_default for n, r in sorted(RP.RUNNER_REGISTRY.items())},
+                sort_keys=True,
+            )
+        )
+
+    def test_the_tristate_does_not_collapse_on_the_new_host(self):
+        # (d) ABSENT IS NOT FALSE, on the host whose row says True. A profile OMITTING `validate`
+        # inherits the row; one explicitly saying `validate: false` is a DECISION and wins.
+        doc = {
+            "schema_version": 1,
+            "profiles": {
+                "quiet": {"runner": "agy", "model": _FLASH_MODEL},
+                "loud": {"runner": "agy", "model": _SOL_MODEL, "validate": False},
+            },
+        }
+        cfg = RP.from_document(doc)
+        absent = RP.resolve(cfg, runner="agy", profile="quiet")
+        present_false = RP.resolve(cfg, runner="agy", profile="loud")
+        self.assertIs(absent.validate, True)
+        self.assertEqual(absent.provenance["validate"], RP.PROVENANCE_SHIPPED)
+        self.assertIs(present_false.validate, False)
+        self.assertEqual(present_false.provenance["validate"], RP.PROVENANCE_PROFILE)
+        print(
+            "agy tri-state: absent -> row True (shipped-default); present-false -> False (profile)"
+        )
+
+
+class RegisteredRowFieldSupportTests(unittest.TestCase):
+    """`hostdefault-01` E-03/E-08: a row's `supports_*` flags bind BOTH the store and the caller."""
+
+    def test_a_stored_profile_is_refused_per_row(self):
+        # `agy` accepts `--model` only, so a STORED profile carrying either field is refused with
+        # the per-row message. This is what makes `supports_variant=False` load-bearing rather
+        # than decorative.
+        base = {"runner": "antigravity", "model": _FLASH_MODEL}
+        ok = RP.parse_profile("gg", base)
+        self.assertEqual(ok.runner, "agy")
+        for field_name in ("variant", "agent"):
+            with self.subTest(field=field_name):
+                with self.assertRaises(RP.ProfileSchemaError) as ctx:
+                    RP.parse_profile("gg", {**base, field_name: "high"})
+                self.assertIn("agy", str(ctx.exception))
+                self.assertIn("does not support", str(ctx.exception))
+        # The `oc` row supports both, so the same fields are accepted there: the refusal is about
+        # the ROW, not about the fields.
+        both = RP.parse_profile(
+            "g",
+            {"runner": "oc", "model": _FLASH_MODEL, "variant": "high", "agent": "b"},
+        )
+        self.assertEqual((both.variant, both.agent), ("high", "b"))
+
+    def test_an_explicit_unsupported_field_is_refused_at_resolution(self):
+        # E-08's RECORDED DECISION: `resolve()` refuses an explicit `variant`/`agent` for a row
+        # that declares no support, matching `parse_profile`. Accepting it would silently drop a
+        # field the operator typed, and would make the same value legal on the command line while
+        # illegal in the store. Before the `agy` row this path was unreachable (`runner="agy"`
+        # raised in `canonical_runner`), so it is a decision only now.
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.resolve(RP.empty_config(), runner="agy", variant="high")
+        self.assertIn("agy", str(ctx.exception))
+        self.assertIn("does not support a model variant", str(ctx.exception))
+        with self.assertRaises(RP.ProfileSchemaError) as ctx:
+            RP.resolve(RP.empty_config(), runner="agy", agent="build")
+        self.assertIn("agy", str(ctx.exception))
+        self.assertIn("does not support an agent", str(ctx.exception))
+        # Unchanged for a host that DOES support them.
+        got = RP.resolve(RP.empty_config(), runner="oc", variant="high", agent="build")
+        self.assertEqual((got.variant, got.agent), ("high", "build"))
+        self.assertEqual(got.provenance["variant"], RP.PROVENANCE_EXPLICIT)
+        print("explicit variant/agent: refused for agy (no support), honored for oc")
 
 
 class NoSilentFallbackTests(unittest.TestCase):
