@@ -196,8 +196,105 @@ def new_run_id() -> str:
     return f"run-{stamp}-{os.getpid()}"
 
 
-def state_root(repo: Path) -> Path:
-    return repo / ".aw" / "records" / "runs"
+def state_root(repo: Path | str | None = None) -> Path:
+    """Resolve the canonical runs root through the project-context authority.
+
+    Pure, side-effect-free runs-root resolver. Derived from the resolved records root,
+    so records_backend settings (repository, companion, home) each yield the correct
+    location, while repository-backed projects continue to resolve to <repo>/.aw/records/runs.
+    """
+    from agent_workflows.project_context import resolve_project_context
+
+    target = (
+        Path(repo).expanduser().resolve() if repo is not None else Path.cwd().resolve()
+    )
+    ctx = resolve_project_context(target_repo=str(target))
+    records_dir = Path(ctx.logical_roots["records"]).resolve()
+    if not records_dir.exists() and (target / ".aw" / "records").is_dir():
+        records_dir = (target / ".aw" / "records").resolve()
+    return records_dir / "runs"
+
+
+# ---- analytics namespace reservation -------------------------------------------------------------
+
+ANALYTICS_DIRNAME: str = "analytics"
+ANALYTICS_CACHE_SUBDIR: str = "cache"
+ANALYTICS_SNAPSHOTS_SUBDIR: str = "snapshots"
+ANALYTICS_EXPORTS_SUBDIR: str = "exports"
+
+
+def analytics_root(repo: Path | str | None = None) -> Path:
+    """The reserved analytics directory under the resolved runs root."""
+    return state_root(repo) / ANALYTICS_DIRNAME
+
+
+def analytics_cache_dir(repo: Path | str | None = None) -> Path:
+    """The disposable analytics cache directory."""
+    return analytics_root(repo) / ANALYTICS_CACHE_SUBDIR
+
+
+def analytics_snapshots_dir(repo: Path | str | None = None) -> Path:
+    """The disposable analytics snapshots directory."""
+    return analytics_root(repo) / ANALYTICS_SNAPSHOTS_SUBDIR
+
+
+def analytics_exports_dir(repo: Path | str | None = None) -> Path:
+    """The disposable analytics exports directory."""
+    return analytics_root(repo) / ANALYTICS_EXPORTS_SUBDIR
+
+
+def path_is_within_analytics(path: str | Path, repo: Path | str | None = None) -> bool:
+    """Pure containment predicate: True if `path` resolves inside a reserved analytics tree.
+
+    Resolves symlinks and relative segments (e.g. `..`).
+    Checks canonical resolved runs root as well as legacy roots (.aw/runs, .agents/runs).
+    Returns False for sibling paths whose names merely start with 'analytics' (e.g. 'analytics_backup').
+    Pure and side-effect free: does NOT create any files or directories.
+    """
+    if not path:
+        return False
+
+    target_p = Path(path).expanduser().resolve()
+
+    repo_candidates: list[Path] = []
+    if repo is not None:
+        repo_candidates.append(Path(repo).expanduser().resolve())
+    else:
+        try:
+            from agent_workflows.project_context import find_project_root
+
+            discovered = find_project_root(target_p)
+            if discovered:
+                repo_candidates.append(discovered.resolve())
+        except Exception:
+            pass
+        cwd = Path.cwd().resolve()
+        if cwd not in repo_candidates:
+            repo_candidates.append(cwd)
+
+    analytics_roots: list[Path] = []
+    for r in repo_candidates:
+        try:
+            analytics_roots.append(analytics_root(r).resolve())
+        except Exception:
+            pass
+        analytics_roots.append((r / ".aw" / "runs" / ANALYTICS_DIRNAME).resolve())
+        analytics_roots.append((r / ".agents" / "runs" / ANALYTICS_DIRNAME).resolve())
+
+    for a_root in analytics_roots:
+        try:
+            target_p.relative_to(a_root)
+            return True
+        except ValueError:
+            continue
+
+    # Also structurally check if target_p has an 'analytics' directory whose parent is named 'runs'
+    for parent in [target_p, *target_p.parents]:
+        if parent.name == ANALYTICS_DIRNAME:
+            if parent.parent.name == "runs":
+                return True
+
+    return False
 
 
 def resolve_run_dir(repo_arg: str, run_id: str) -> Path:

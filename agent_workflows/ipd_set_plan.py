@@ -1032,7 +1032,6 @@ def _run_resume_report(args: object, run_id: str, *, agent: bool = False) -> int
     unreconciled unknown outcome, never replaying completed side effects). Returns 0 resumable /
     1 nothing resumable-or-terminal / 2 cannot locate the ledger / 3 unknown outcome pending."""
     import json as _json
-    from pathlib import Path as _Path
 
     repo_root, _plans_dir = _resolve_repo_and_plans(args)
     try:
@@ -1043,14 +1042,9 @@ def _run_resume_report(args: object, run_id: str, *, agent: bool = False) -> int
 
     # A ledger owns `ledger.jsonl`, never the runner's own `events.jsonl` in the same dir: reading
     # that foreign format as a ledger reported healthy data as corrupt (`e6b9kt`).
-    ledger = (
-        _Path(repo_root)
-        / ".aw"
-        / "records"
-        / "runs"
-        / run_id
-        / run_ledger_store.LEDGER_FILENAME
-    )
+    from agent_workflows.runner_shared import state_root
+
+    ledger = state_root(repo_root) / run_id / run_ledger_store.LEDGER_FILENAME
     if not ledger.is_file():
         print(
             "error: no run ledger found for {0} ({1})".format(run_id, ledger),

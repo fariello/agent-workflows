@@ -1742,8 +1742,10 @@ def _extract_dependency_id6s(it: Item) -> List[str]:
 
 
 def _resolve_runs_repo_root(repo_root: Path) -> Path:
-    """Resolve the repository root that owns .aw/records/runs (handling git worktrees)."""
-    if (repo_root / ".aw" / "records" / "runs").is_dir():
+    """Resolve the repository root that owns runs (handling git worktrees)."""
+    from agent_workflows.runner_shared import state_root
+
+    if state_root(repo_root).is_dir():
         return repo_root
     git_ref = repo_root / ".git"
     if git_ref.is_file():
@@ -1752,13 +1754,13 @@ def _resolve_runs_repo_root(repo_root: Path) -> Path:
             if txt.startswith("gitdir:"):
                 gdir = Path(txt.split(":", 1)[1].strip()).resolve()
                 candidate = gdir.parent.parent.parent
-                if (candidate / ".aw" / "records" / "runs").is_dir():
+                if state_root(candidate).is_dir():
                     return candidate
         except Exception:
             pass
     if ".aw/worktrees" in str(repo_root.resolve()):
         for parent in repo_root.resolve().parents:
-            if (parent / ".aw" / "records" / "runs").is_dir():
+            if state_root(parent).is_dir():
                 return parent
     return repo_root
 

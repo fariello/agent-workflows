@@ -446,15 +446,22 @@ def set_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
 
 
 def run_id_candidates(repo_root: Optional[Path] = None) -> List[str]:
-    """Run ids: the directory names directly under ``.aw/records/runs/`` (NOT a `selectors` record
+    """Run ids: the directory names directly under the resolved runs root (NOT a `selectors` record
     type - runs are enumerated straight from the filesystem)."""
+    from agent_workflows.runner_shared import path_is_within_analytics, state_root
+
     root = _repo_root(repo_root)
-    runs_dir = root / ".aw" / "records" / "runs"
+    runs_dir = state_root(root)
     out: List[str] = []
     try:
-        for child in runs_dir.iterdir():
-            if child.is_dir() and not child.name.startswith("."):
-                out.append(child.name)
+        if runs_dir.is_dir():
+            for child in sorted(runs_dir.iterdir()):
+                if (
+                    child.is_dir()
+                    and child.name.startswith("run-")
+                    and not path_is_within_analytics(child, root)
+                ):
+                    out.append(child.name)
     except OSError:
         pass
     return out

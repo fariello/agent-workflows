@@ -42,6 +42,7 @@ import builtins
 import json
 import pathlib
 import re
+import tempfile
 import unittest
 from typing import Any
 
@@ -147,6 +148,21 @@ HOST_NAMING_ONLY = ("print_status",)
 # here is still held to STRICT equality including its docstring. Keep this list SHORT, and add a name
 # only together with the reason the new documentation was needed.
 DOCUMENTED_SINCE_MOVE = ("plan_bucket",)
+
+# Symbols whose implementations have been SUPERSEDED by design in subsequent approved IPDs, and whose
+# post-move bodies deliberately no longer match the pre-move capture. ENUMERATED, in the same spirit
+# as `INJECTED` and `DOCUMENTED_SINCE_MOVE`.
+#
+# WHY THE EXEMPTION IS LEGITIMATE HERE. `state_root` moved in rununify Order 02 (`818uru`) with the
+# hardcoded repo-backed literal `.aw/records/runs`. IPD `xbwq8n` (`runanalytics` Order 01) identified
+# this hardcoded literal as a defect because the runs root is relocatable via `records_backend`
+# (repository, companion, home). E-01 replaced the hardcoded literal with dynamic resolution through
+# `project_context.resolve_project_context`.
+#
+# Holding `state_root` to byte-identical AST of the pre-move literal would freeze the defect in place.
+# The superseded symbol is tested rigorously in its own dedicated test suite (`CanonicalRunsRootTests`)
+# covering relocated backends, pure side-effect-free guarantees, and AST checks.
+SUPERSEDED_SINCE_MOVE = ("state_root",)
 
 
 def load_fixture() -> dict[str, Any]:
@@ -373,9 +389,11 @@ class PureMoveFingerprintTests(unittest.TestCase):
         clean = [
             n
             for n in self.moved_symbols()
-            if n not in INJECTED and n not in HOST_NAMING_ONLY
+            if n not in INJECTED
+            and n not in HOST_NAMING_ONLY
+            and n not in SUPERSEDED_SINCE_MOVE
         ]
-        self.assertEqual(len(clean), 25, "the clean-move count must not drift silently")
+        self.assertEqual(len(clean), 24, "the clean-move count must not drift silently")
         for name in clean:
             with self.subTest(symbol=name):
                 # A name in `DOCUMENTED_SINCE_MOVE` is compared with its docstring subtracted; every
@@ -392,6 +410,23 @@ class PureMoveFingerprintTests(unittest.TestCase):
                         if documented
                         else ""
                     ),
+                )
+
+    def test_a_superseded_symbol_is_accounted_for(self):
+        """A symbol listed in `SUPERSEDED_SINCE_MOVE` must genuinely differ from the pre-move capture.
+
+        Proves the exemption is necessary and not decorative: `state_root` must not match the
+        pre-move capture at HEAD `1ecc5891` (because it now resolves through project_context),
+        and must be covered by dedicated tests in `CanonicalRunsRootTests`.
+        """
+        data = load_fixture()
+        expected = data["fingerprints"]["oc_runipd"]
+        for name in SUPERSEDED_SINCE_MOVE:
+            with self.subTest(symbol=name):
+                self.assertNotEqual(
+                    fingerprint_of(runner_shared, name),
+                    _normalize_dump(expected[name]),
+                    f"`{name}` matches STRICTLY; remove it from SUPERSEDED_SINCE_MOVE",
                 )
 
     def test_a_documented_symbol_is_still_held_to_its_executable_body(self):
@@ -1782,6 +1817,345 @@ class LaneIntegrationBehaviorTests(unittest.TestCase):
         }
         self.assertEqual(
             returned, {"integrated", "integration-blocked", "merge-conflict"}
+        )
+
+
+class CanonicalRunsRootTests(unittest.TestCase):
+    """Canonical run-root and analytics namespace tests (runanalytics Order 01, `xbwq8n`).
+
+    Validates E-01 / V-01:
+      1. `state_root` resolves through project-context authority for repository, companion, and home.
+      2. Side-effect-free analytics constants and helpers derive from `state_root`.
+      3. `path_is_within_analytics` handles canonical, nested, symlinked, relative (`..`), and legacy roots,
+         and rejects sibling paths starting with 'analytics'.
+      4. Resolution creates NO directories on disk (pure).
+      5. `state_root` AST contains no hardcoded `.aw/records/runs` literal.
+    """
+
+    def test_state_root_resolves_through_project_context_repository_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "preset": "private-target",
+                        "records_backend": "repository",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resolved = runner_shared.state_root(repo)
+            self.assertEqual(resolved, (repo / ".aw" / "records" / "runs").resolve())
+
+    def test_state_root_resolves_through_project_context_companion_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "preset": "public-target-private-companion",
+                        "records_backend": "companion",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resolved = runner_shared.state_root(repo)
+            expected = (
+                pathlib.Path(f"{repo.resolve()}.aw") / "records" / "runs"
+            ).resolve()
+            self.assertEqual(resolved, expected)
+
+    def test_state_root_resolves_through_project_context_home_backend(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "project_id": "test-proj-home-42",
+                        "records_backend": "home",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resolved = runner_shared.state_root(repo)
+            from agent_workflows.project_context import resolve_project_context
+
+            ctx = resolve_project_context(target_repo=str(repo))
+            expected = pathlib.Path(ctx.logical_roots["records"]).resolve() / "runs"
+            self.assertEqual(resolved, expected)
+            self.assertIn("test-proj-home-42", str(resolved))
+
+    def test_analytics_subpaths_derive_from_state_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"schema_version": 2, "records_backend": "repository"}),
+                encoding="utf-8",
+            )
+            s_root = runner_shared.state_root(repo)
+            self.assertEqual(runner_shared.analytics_root(repo), s_root / "analytics")
+            self.assertEqual(
+                runner_shared.analytics_cache_dir(repo), s_root / "analytics" / "cache"
+            )
+            self.assertEqual(
+                runner_shared.analytics_snapshots_dir(repo),
+                s_root / "analytics" / "snapshots",
+            )
+            self.assertEqual(
+                runner_shared.analytics_exports_dir(repo),
+                s_root / "analytics" / "exports",
+            )
+
+    def test_path_is_within_analytics_canonical_and_nested(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"schema_version": 2, "records_backend": "repository"}),
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    runner_shared.analytics_root(repo), repo
+                )
+            )
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    runner_shared.analytics_cache_dir(repo), repo
+                )
+            )
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    runner_shared.analytics_snapshots_dir(repo)
+                    / "run-20260101T000000Z-1",
+                    repo,
+                )
+            )
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    runner_shared.analytics_exports_dir(repo) / "summary.json",
+                    repo,
+                )
+            )
+            # A real run directory is NOT within analytics
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    runner_shared.state_root(repo) / "run-20260101T000000Z-1",
+                    repo,
+                )
+            )
+
+    def test_path_is_within_analytics_symlink_and_relative(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"schema_version": 2, "records_backend": "repository"}),
+                encoding="utf-8",
+            )
+            snap_dir = (
+                runner_shared.analytics_snapshots_dir(repo) / "run-20260101T000000Z-1"
+            )
+            snap_dir.mkdir(parents=True)
+
+            # Symlink outside pointing inside analytics
+            outside_link = repo / "symlink_to_snapshot"
+            outside_link.symlink_to(snap_dir)
+            self.assertTrue(runner_shared.path_is_within_analytics(outside_link, repo))
+
+            # Relative path with .. resolving inside analytics
+            rel_inside = (
+                runner_shared.state_root(repo)
+                / "run-20260101T000000Z-1"
+                / ".."
+                / "analytics"
+                / "cache"
+            )
+            self.assertTrue(runner_shared.path_is_within_analytics(rel_inside, repo))
+
+            # Relative path starting with analytics/ but escaping via ..
+            rel_outside = (
+                runner_shared.analytics_root(repo) / ".." / "run-20260101T000000Z-1"
+            )
+            self.assertFalse(runner_shared.path_is_within_analytics(rel_outside, repo))
+
+    def test_path_is_within_analytics_rejects_sibling_starting_with_analytics(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            cfg_dir = repo / ".aw" / "config"
+            cfg_dir.mkdir(parents=True)
+            (cfg_dir / "project.json").write_text(
+                json.dumps({"schema_version": 2, "records_backend": "repository"}),
+                encoding="utf-8",
+            )
+            s_root = runner_shared.state_root(repo)
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    s_root / "analytics_backup", repo
+                )
+            )
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    s_root / "analytics-backup", repo
+                )
+            )
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(s_root / "analytics.json", repo)
+            )
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    s_root / "analytics-extra" / "run-1", repo
+                )
+            )
+
+    def test_path_is_within_analytics_legacy_roots(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td)
+            # Legacy .aw/runs/analytics
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    repo / ".aw" / "runs" / "analytics" / "cache", repo
+                )
+            )
+            # Legacy .agents/runs/analytics
+            self.assertTrue(
+                runner_shared.path_is_within_analytics(
+                    repo / ".agents" / "runs" / "analytics" / "snapshots" / "run-1",
+                    repo,
+                )
+            )
+            # Legacy non-analytics runs
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    repo / ".aw" / "runs" / "run-1", repo
+                )
+            )
+            self.assertFalse(
+                runner_shared.path_is_within_analytics(
+                    repo / ".agents" / "runs" / "run-1", repo
+                )
+            )
+
+    def test_state_root_and_analytics_resolution_is_pure_and_creates_no_directories(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as td:
+            repo = pathlib.Path(td) / "empty_repo"
+            repo.mkdir()
+            # Do NOT create any subdirectories
+            _ = runner_shared.state_root(repo)
+            _ = runner_shared.analytics_root(repo)
+            _ = runner_shared.analytics_cache_dir(repo)
+            _ = runner_shared.analytics_snapshots_dir(repo)
+            _ = runner_shared.analytics_exports_dir(repo)
+            _ = runner_shared.path_is_within_analytics(
+                repo / ".aw" / "records" / "runs" / "analytics" / "test", repo
+            )
+            # Assert no directory was created
+            self.assertFalse((repo / ".aw").exists())
+            self.assertFalse(runner_shared.state_root(repo).exists())
+            self.assertFalse(runner_shared.analytics_root(repo).exists())
+
+    def test_state_root_ast_no_hardcoded_literal(self):
+        src = module_source(runner_shared)
+        tree = ast.parse(src)
+        fn = next(
+            (
+                n
+                for n in tree.body
+                if isinstance(n, ast.FunctionDef) and n.name == "state_root"
+            ),
+            None,
+        )
+        self.assertIsNotNone(fn, "state_root definition not found in runner_shared.py")
+        assert fn is not None
+        fn_src = ast.unparse(fn)
+        self.assertNotIn(
+            '".aw" / "records" / "runs"',
+            fn_src,
+            "state_root body must not hardcode the repository-backed runs literal",
+        )
+        self.assertIn(
+            "resolve_project_context",
+            fn_src,
+            "state_root must resolve through resolve_project_context",
+        )
+
+
+class SingleStateRootConstructionGuardTests(unittest.TestCase):
+    """Repo-wide symmetric guard: no module in agent_workflows constructs .aw/records/runs directly.
+
+    Modeled on test_runner_refork_guard and test_render_stream: single authority for runs-root resolution.
+    """
+
+    def test_no_module_constructs_hardcoded_runs_root_path(self):
+        pkg_dir = pathlib.Path(runner_shared.__file__).parent
+        violations = []
+        for py_file in sorted(pkg_dir.glob("*.py")):
+            tree = ast.parse(py_file.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+                    if (
+                        isinstance(node.right, ast.Constant)
+                        and node.right.value == "runs"
+                    ):
+                        left = node.left
+                        if isinstance(left, ast.BinOp) and isinstance(left.op, ast.Div):
+                            if (
+                                isinstance(left.right, ast.Constant)
+                                and left.right.value == "records"
+                            ):
+                                left_left = left.left
+                                if isinstance(left_left, ast.BinOp) and isinstance(
+                                    left_left.op, ast.Div
+                                ):
+                                    if (
+                                        isinstance(left_left.right, ast.Constant)
+                                        and left_left.right.value == ".aw"
+                                    ):
+                                        violations.append(
+                                            f"{py_file.name}:{node.lineno} constructs '.aw/records/runs' path via '/'"
+                                        )
+                elif isinstance(node, ast.Call):
+                    func_name = ""
+                    if (
+                        isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "join"
+                    ):
+                        func_name = "join"
+                    if func_name == "join":
+                        arg_constants = [
+                            a.value
+                            for a in node.args
+                            if isinstance(a, ast.Constant) and isinstance(a.value, str)
+                        ]
+                        if (
+                            ".aw" in arg_constants
+                            and "records" in arg_constants
+                            and "runs" in arg_constants
+                        ):
+                            violations.append(
+                                f"{py_file.name}:{node.lineno} constructs '.aw/records/runs' via os.path.join"
+                            )
+
+        self.assertEqual(
+            violations,
+            [],
+            "Direct .aw/records/runs path construction found outside the single authority:\n  "
+            + "\n  ".join(violations),
         )
 
 

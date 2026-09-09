@@ -21,6 +21,11 @@ from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
 from agent_workflows.render_stream import format_tokens
+from agent_workflows.runner_shared import (
+    analytics_root,
+    path_is_within_analytics,
+    state_root,
+)
 from agent_workflows.term import Term, strip_ansi
 
 
@@ -1117,7 +1122,7 @@ def load_run_summary(run_dir: Path, repo_root: Path = Path(".")) -> RunSummary |
 def discover_run_dirs(repo_root: Path = Path(".")) -> list[Path]:
     """Discover all run directories across canonical and legacy record roots."""
     roots = [
-        repo_root / ".aw" / "records" / "runs",
+        state_root(repo_root),
         repo_root / ".aw" / "runs",
         repo_root / ".agents" / "runs",
     ]
@@ -1126,7 +1131,12 @@ def discover_run_dirs(repo_root: Path = Path(".")) -> list[Path]:
     for r in roots:
         if r.is_dir():
             for p in sorted(r.iterdir()):
-                if p.is_dir() and p.name.startswith("run-") and p.name not in seen:
+                if (
+                    p.is_dir()
+                    and p.name.startswith("run-")
+                    and not path_is_within_analytics(p, repo_root)
+                    and p.name not in seen
+                ):
                     seen.add(p.name)
                     found.append(p)
     return found
@@ -1222,6 +1232,9 @@ def resolve_target_runs_detailed(
 
         p = Path(t_str)
         if p.is_dir() and (p / "state.json").is_file():
+            if path_is_within_analytics(p, repo_root):
+                unresolved.append(t_str)
+                continue
             canon = p.resolve()
             if canon not in seen:
                 seen.add(canon)
@@ -1232,6 +1245,9 @@ def resolve_target_runs_detailed(
             and p.parent.is_dir()
             and p.name in ("state.json", "events.jsonl", "execution-report.md")
         ):
+            if path_is_within_analytics(p.parent, repo_root):
+                unresolved.append(t_str)
+                continue
             canon = p.parent.resolve()
             if canon not in seen:
                 seen.add(canon)
@@ -2495,7 +2511,10 @@ RUNS_VIEWER_LEAF_NAMES: tuple[str, ...] = (
 EXIT_UNRESOLVABLE_TARGET: int = 2
 
 
-def format_unresolvable_target_message(unresolved: Sequence[str]) -> str:
+def format_unresolvable_target_message(
+    unresolved: Sequence[str],
+    repo_root: Path = Path("."),
+) -> str:
     """The human refusal text for one or more targets that matched no run.
 
     runsverify 7wei1o E-02. Names the unresolved token (a bare exit code leaves the operator
@@ -2518,9 +2537,19 @@ def format_unresolvable_target_message(unresolved: Sequence[str]) -> str:
 
     lines = [head]
     for tok in tokens:
-        close = difflib.get_close_matches(tok, RUNS_VIEWER_LEAF_NAMES, n=1, cutoff=0.6)
-        if close:
-            lines.append(f"  did you mean the leaf `aw runs {close[0]}`? (not {tok!r})")
+        if path_is_within_analytics(tok, repo_root):
+            lines.append(
+                f"  note: {tok!r} is within the reserved analytics tree "
+                f"({analytics_root(repo_root)}); analytics artifacts cannot be targeted as execution runs"
+            )
+        else:
+            close = difflib.get_close_matches(
+                tok, RUNS_VIEWER_LEAF_NAMES, n=1, cutoff=0.6
+            )
+            if close:
+                lines.append(
+                    f"  did you mean the leaf `aw runs {close[0]}`? (not {tok!r})"
+                )
     lines.append(f"  leaves: {' '.join(RUNS_VIEWER_LEAF_NAMES)}")
     lines.append(
         "  a TARGET is a run id, a run directory path, or a Set id; "
@@ -2533,6 +2562,7 @@ def _unresolvable_target_refusal(
     unresolved: Sequence[str],
     term: Term,
     *,
+    repo_root: Path = Path("."),
     is_agent: bool = False,
     is_json: bool = False,
 ) -> int:
@@ -2547,7 +2577,7 @@ def _unresolvable_target_refusal(
     bare payload, because the conformance matrix asserts an agent summary's `exit` agrees with the
     process return code.
     """
-    message = format_unresolvable_target_message(unresolved)
+    message = format_unresolvable_target_message(unresolved, repo_root=repo_root)
     if is_agent or is_json:
         record = {
             "schema": _agent_schema.SCHEMA_VERSION,
@@ -2646,7 +2676,9 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
             targets, repo_root
         )
         if repair_unresolved:
-            return _unresolvable_target_refusal(repair_unresolved, Term(color=None))
+            return _unresolvable_target_refusal(
+                repair_unresolved, Term(color=None), repo_root=repo_root
+            )
         rc = 0
         for run_dir in repair_dirs:
             code, message = repair_run(run_dir, repo_root)
@@ -2742,7 +2774,11 @@ def run_viewer_cli(args: argparse.Namespace) -> int:
     # (OQ-01).
     if unresolved_targets:
         return _unresolvable_target_refusal(
-            unresolved_targets, term, is_agent=is_agent, is_json=is_json
+            unresolved_targets,
+            term,
+            repo_root=repo_root,
+            is_agent=is_agent,
+            is_json=is_json,
         )
 
     summaries: list[RunSummary] = []
