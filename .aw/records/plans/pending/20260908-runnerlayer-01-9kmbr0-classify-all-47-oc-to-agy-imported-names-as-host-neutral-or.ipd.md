@@ -12,7 +12,7 @@
   THE SET SIZE IS "WHATEVER THE AST SAYS AT EXECUTION TIME", NOT A NUMBER FROM THIS PLAN. Stated in Scope because it defines what "every name" obliges: the count was 40 at filing, 47 at authoring and 48 at review, so a run that classifies "the 47" has left a name unclassified. Classify the set you MEASURE, report the count you found, and note any delta against this plan's prose. A count differing from 48 is CORRECT and expected, not a discrepancy to reconcile away.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_runner_layering.py, tests/test_runner_item_dependencies.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Set: runnerlayer
 - Order: 1
@@ -22,6 +22,7 @@
 - From-Backlog: cnwy8g
 
 ## Workflow history
+- 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-C01..PR-C09 all FIXED; readiness go-pending-approval
 
 - 2026-09-09 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-C01..PR-C09, all nine FIXED, none deferred. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading.
   THE DESIGN IS SOUND AND SURVIVED WHOLESALE. Classification-before-move is the right split, the criterion offered is the only checkable formulation on the table, and freezing the SET rather than the count is correct for exactly the churn measured. Confirmed by measurement: the reverse direction really is zero, all 48 names really are `oc_runipd`-owned definitions, `DriverError` really is one object, and the criterion's three worked examples hold.
