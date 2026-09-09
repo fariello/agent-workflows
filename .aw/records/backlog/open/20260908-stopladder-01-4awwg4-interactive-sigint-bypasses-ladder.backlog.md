@@ -1,7 +1,7 @@
 - Id: 4awwg4
 - Status: open
 - Set: stopladder
-- Priority: high
+- Priority: low
 - Work-Kind: bug
 - Summary: on a TTY the first Ctrl-C requests level 4 (now-force), not level 1: the interactive interrupt menu bypasses SIGINT_LADDER entirely, contradicting spec c4gd2h R12
 

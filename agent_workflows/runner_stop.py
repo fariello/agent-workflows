@@ -177,6 +177,7 @@ __all__ = [
     "pause_live_children",
     "resume_live_children",
     "prompt_interrupt_action",
+    "interrupt_menu_is_safe",
     "handle_interactive_interrupt",
     "run_liveness",
     "LIVENESS_LIVE",
@@ -1779,6 +1780,59 @@ INTERRUPT_ACTION_CLEANUP = 3
 INTERRUPT_ACTION_TERMINATE_NO_CLEANUP = 4
 
 
+def _stream_is_tty(stream: object) -> bool:
+    """Whether `stream` is a real terminal, treating a detached/closed stream as not one."""
+
+    try:
+        return bool(getattr(stream, "isatty", None) and stream.isatty())  # type: ignore[union-attr]
+    except (ValueError, OSError):
+        return False
+
+
+def interrupt_menu_is_safe(
+    stdin: TextIO | None = None,
+    stream: TextIO | None = None,
+) -> bool:
+    """Whether it is SAFE to render the interactive Ctrl-C menu and block on an answer.
+
+    `stdin.isatty()` ALONE IS NOT CONSENT, and this repository has already paid for that mistake
+    once. The identical predicate error in `ipd_lifecycle.run_finalize` (see the `ttywedge` note at
+    that call site) wedged a real finalize for 1h49m while it held its run lock: a parent spawns a
+    child with stdout/stderr PIPED but stdin INHERITED, so the child sees the operator's terminal,
+    decides it may prompt, writes the prompt into a pipe nobody is reading, and then blocks forever
+    on an answer nobody knows is wanted.
+
+    THIS SITE IS STRICTLY MORE DANGEROUS THAN THAT ONE, which is why the guard is not optional:
+    the menu runs inside a SIGNAL HANDLER, while the run holds its lock, and `readline()` here has
+    no timeout. A wedge here therefore blocks the operator's own escape path.
+
+    THREE CONDITIONS, mirroring the proven fix rather than inventing a second policy:
+      1. stdin must be a TTY (we can read an answer);
+      2. the OUTPUT stream must ALSO be a TTY (a human can actually SEE the question); and
+      3. no explicit "nobody is watching" signal is set (`AW_NONINTERACTIVE` / `CI`).
+
+    `AW_FORCE_INTERACTIVE_INTERRUPT=1` remains an explicit override for tests and for an operator
+    who knows better, and it bypasses conditions 1 and 2 but NOT the forced-noninteractive signals:
+    a deliberate CI setting must win over a stale force flag, since CI is the environment where an
+    unbounded wait is least recoverable.
+
+    Returning False is FAIL-SAFE, not a refusal to serve: the caller falls back to the documented
+    `SIGINT_LADDER` escalation, which needs no answer from anybody.
+    """
+
+    forced_noninteractive = any(
+        str(os.environ.get(var, "")).strip().lower() not in ("", "0", "false", "no")
+        for var in ("AW_NONINTERACTIVE", "CI")
+    )
+    if forced_noninteractive:
+        return False
+    if os.environ.get("AW_FORCE_INTERACTIVE_INTERRUPT") == "1":
+        return True
+    in_stream = stdin if stdin is not None else sys.stdin
+    out_stream = stream if stream is not None else sys.stderr
+    return _stream_is_tty(in_stream) and _stream_is_tty(out_stream)
+
+
 def pause_live_children() -> list[Any]:
     """Send SIGSTOP to all currently running child processes and their process groups."""
     from agent_workflows import runner_shutdown
@@ -1947,11 +2001,10 @@ def install_stop_signal_handlers(
         global _SIGINT_PRESSES
         _SIGINT_PRESSES += 1
 
-        is_interactive = (
-            getattr(sys.stdin, "isatty", None) and sys.stdin.isatty()
-        ) or os.environ.get("AW_FORCE_INTERACTIVE_INTERRUPT") == "1"
-
-        if is_interactive:
+        # ttywedge: `stdin.isatty()` alone is NOT consent to block on a prompt. See
+        # `interrupt_menu_is_safe` for the measured incident this guard exists to prevent. When the
+        # menu is not safe, fall through to the SIGINT_LADDER below, which needs no answer.
+        if interrupt_menu_is_safe(stream=stream):
             action = handle_interactive_interrupt(
                 run_dir=_HANDLER_RUN_DIR or run_dir,
                 requester=requester,
