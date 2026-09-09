@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 274 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 275 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -52,6 +52,10 @@ Showing the 40 most-recent of 274 Sets; the full manifest is INDEX.json.
 - `rnkqrc` [pending] 01 pending/20260907-durablecapture-01-rnkqrc-require-a-durable-carrier-for-an-unfixed-defect-an-ipd-names.ipd.md
 - `m867ox` [pending] 02 pending/20260908-durablecapture-02-m867ox-scan-the-releases-tree-the-attention-contract-already-declar.ipd.md
 - `diof9n` [pending] 03 pending/20260908-durablecapture-03-diof9n-close-the-todo-md-trap-so-work-written-there-cannot-vanish-a.ipd.md
+
+## finalback
+
+- `zzcrlo` [pending] 01 pending/20260908-finalback-01-zzcrlo-send-a-refused-finalize-back-to-the-same-agent-with-the-gate.ipd.md
 
 ## findtier
 
@@ -187,10 +191,6 @@ Showing the 40 most-recent of 274 Sets; the full manifest is INDEX.json.
 
 - `d91i3e` [pending] 01 pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
 - `fduoj4` [pending] 02 pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md
-
-## runtrailwire
-
-- `wao266` [pending] 01 pending/20260908-runtrailwire-01-wao266-wire-the-run-ownership-trailers-the-runner-already-writes-no.ipd.md
 
 ## (singletons: no Set)
 

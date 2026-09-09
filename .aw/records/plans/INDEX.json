@@ -5044,6 +5044,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-finalback-01-zzcrlo-send-a-refused-finalize-back-to-the-same-agent-with-the-gate.ipd.md",
+    "plan_id": "zzcrlo",
+    "set_id": "finalback",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-findtier-01-826o13-add-a-filename-first-tier-to-aw-find-as-a-candidate-filter-u.ipd.md",
     "plan_id": "826o13",
     "set_id": "findtier",
