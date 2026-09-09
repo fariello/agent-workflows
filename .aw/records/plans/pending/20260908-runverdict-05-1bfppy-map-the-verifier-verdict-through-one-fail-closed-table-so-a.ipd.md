@@ -14,7 +14,7 @@
   THE KNOWN SET IS FOUR VALUES, NOT THREE, AND THE FOURTH IS DECIDED HERE. `CONFORMING` is in live use by twelve existing tests and is not in the prompt. Mapping it is IN SCOPE and is not a prompt change; changing the PROMPT to advertise it is OUT of scope and belongs to whoever owns the schema. If the decision is that `CONFORMING` must NOT pass, then updating those twelve call sites is in scope and must be done in the same change rather than left as a red suite.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 5
@@ -25,6 +25,7 @@
 - From-Backlog: wyw936
 
 ## Workflow history
+- 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-D01..PR-D11, ten FIXED, PR-D06 open as non-blocking OQ-03; readiness go-pending-approval
 
 - 2026-09-09 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-D01..PR-D11, ten FIXED and one (PR-D06) left OPEN as non-blocking OQ-03. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runverdict-05-1bfppy-map-the-verifier-verdict-through-one-fail-closed-table-so-a.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-MEASURING rather than re-reading.
   THE DEFECT AND THE FIX BOTH SURVIVED WHOLESALE. The eight-string truth table reproduced exactly (six of eight inputs return `verified`), both gate spans are still BYTE-IDENTICAL across hosts, the state authority genuinely exists and is genuinely unimported by both drivers, `run_state` imports no first-party module so the proposed import cannot cycle, the corpus is unanimous so the fix breaks no historical turn, and `integration_is_earned` really does preserve the lane on a non-verified verdict. Siting the mapping in `runner_shared` is right, and `runner_shared` already consumes `run_recovery` lazily, which is direct precedent.
