@@ -625,10 +625,40 @@ class FindingNamingConventionTests(_RepoCase):
         self.assertIn("Finding", S.OQ_FIELDS)
 
     def test_finding_subfield_does_not_break_structural_lint(self):
-        """The escalation must be legal IPD structure: an extra subfield parses and does not error."""
+        """The escalation must be legal IPD structure: an extra subfield parses and does not error.
+
+        NARROWED (askme): this test's fixture defaults to `Blocking: yes` / `Status: open`, which the
+        askme gate now flags on its own merits, correctly and independently of the `Finding:` subfield
+        under test here. Asserting an EMPTY diagnostic list would therefore assert the absence of a
+        different, unrelated rule, so the assertion is narrowed to this test's actual claim: the extra
+        subfield PARSES and contributes NO structural diagnostic of its own. The blocking-open case is
+        covered by `test_askme_gate_*` in `tests/test_askme_blocking_gate.py`; a RESOLVED question with
+        a `Finding:` subfield is asserted below to be fully clean, which is the stronger form of the
+        original claim.
+        """
         plan = _plan(self.repo, open_questions=_oq(finding="F-1"))
         text = plan.read_text(encoding="utf-8")
         parsed = ipd_lint.parse(text)
+        self.assertEqual(parsed.open_questions[0].get("Finding"), "F-1")
+        diags = ipd_lint.check_open_questions(parsed)
+        # Nothing the `Finding:` subfield contributes: the only permitted diagnostic is the
+        # blocking-open one this fixture independently earns.
+        self.assertEqual(
+            [d.message for d in diags if "BLOCKING question is still" not in d.message],
+            [],
+        )
+
+    def test_finding_subfield_on_a_resolved_question_is_fully_clean(self):
+        """The same claim without the confound: a RESOLVED question carrying `Finding:` lints clean.
+
+        This is the stronger version of the assertion above, and it is the one that would catch a
+        regression in which the extra subfield itself started producing a diagnostic.
+        """
+        plan = _plan(
+            self.repo,
+            open_questions=_oq(blocking="yes", status="resolved", finding="F-1"),
+        )
+        parsed = ipd_lint.parse(plan.read_text(encoding="utf-8"))
         self.assertEqual(parsed.open_questions[0].get("Finding"), "F-1")
         self.assertEqual(ipd_lint.check_open_questions(parsed), [])
 

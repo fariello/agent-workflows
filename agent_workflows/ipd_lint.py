@@ -617,6 +617,34 @@ def check_open_questions(doc: ParsedDoc) -> List[Diagnostic]:
                     "{0}: {1}".format(oq.get("id", "OQ"), err),
                 )
             )
+        # askme: an UNRESOLVED BLOCKING question is refused at EVERY checkpoint, not only at
+        # `pre-execution`. The narrow version was measured insufficient on 2026-09-08: plan `xipfy1`
+        # carried `Blocking: yes` / `Status: open` and a default `aw ipd lint` reported CONFORMING, so
+        # an agent could author, hand over, and report a plan whose load-bearing question was never
+        # put to the human. The question is the author's to ASK (`/askme`), not to carry silently.
+        #
+        # SCOPED TO `Blocking: yes` DELIBERATELY, on the maintainer's ruling of 2026-09-08 after the
+        # alternative was measured: 66 of 103 pending plans carry a NON-blocking open question, which
+        # is the normal, healthy state of a plan in progress (a noted minor choice with a stated
+        # lean). Firing on those would have declared the repository broken and would have forced an
+        # agent to edit other agents' in-flight plans to get its own commit through. Only 14 plans
+        # carry a blocking one, and those are exactly the cases where a real decision is being
+        # skipped. Widening this to every open question needs a maintainer decision, not a tweak.
+        #
+        # The pre-execution checkpoint rule below is intentionally NOT removed: it is reached through
+        # a different call path (`aw ipd begin`), and GUIDING_PRINCIPLES 6 prefers a redundant gate
+        # over a gap when the two fire at different moments.
+        elif blocking == "yes" and status == "open":
+            diags.append(
+                Diagnostic(
+                    int(oq.get("line", "0")),
+                    1,
+                    C_OQ,
+                    "{0}: BLOCKING question is still 'open'. Ask the human and record the answer "
+                    "(run `/askme`, then set 'Status: resolved' with a rationale). If it does not "
+                    "actually block, set 'Blocking: no'.".format(oq.get("id", "OQ")),
+                )
+            )
     return diags
 
 

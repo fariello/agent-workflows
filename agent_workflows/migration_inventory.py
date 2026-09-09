@@ -239,6 +239,16 @@ _COMMAND_FAMILY: Dict[str, str] = {
     "migrate": "incident/migrate/benchmark",
     "benchmark": "incident/migrate/benchmark",
     "scaffold": "scaffold",
+    # askme: the interactive open-question asker. Registered here because this table FAILS CLOSED
+    # (`_command_disposition` raises for an unassigned command), which is what caught this row rather
+    # than defaulting it silently.
+    #
+    # ITS OWN FAMILY, not the `whatnext/handoff/...` guided tier it otherwise resembles, for one
+    # load-bearing reason: every command in that family is OPTIONALLY interactive, while this one is
+    # interactive BY DEFINITION. Its entire purpose is to reach a human, and under a runner it does not
+    # degrade to a quieter version of itself, it stops asking and records a deferral instead. Filing it
+    # with the optional-interaction commands would erase the distinction that makes it worth having.
+    "askme": "askme",
 }
 
 # Per-family disposition defaults (execution mode, skill, orchestration, evidence) reflecting the
@@ -354,6 +364,34 @@ _FAMILY_DEFAULTS: Dict[str, Dict[str, str]] = {
     "scaffold": {
         "execution_mode": "deterministic",
         "skill_decision": "thin-entry",
+        "orchestration_decision": "single-context",
+        "evidence_level": "artifact",
+        "risk": "low",
+        "interaction": "interactive",
+        "migration_owner": "order-16",
+    },
+    # askme. Each value chosen against the shipped body rather than copied from a neighbouring row:
+    #
+    # * `guided`: ONE linear body an agent reads top to bottom. No lens or persona indirection, no
+    #   shared harness, no deterministic runtime behind it.
+    # * `skill`: its manifest row carries a non-empty `arg-hint`, which is what
+    #   `host_adapters.classify_discovery_policy` reads to emit a skill package, so `thin-entry` would
+    #   contradict the generator. Verified by building the package: `validate_skill_package` -> [].
+    # * `single-context`: one file, no step packets loaded one at a time.
+    # * `artifact` evidence: a run's output is a DURABLE recorded answer in the owning artifact's
+    #   `## Open questions` block (`Status: resolved` plus a rationale), which an existing approval
+    #   gate then reads. `inspection` would understate output that is load-bearing for a lifecycle
+    #   gate.
+    # * `low` risk: it edits planning artifacts and never code.
+    # * `interactive`, NOT `optional`, and this is the value that earns the separate family: reaching a
+    #   human is the whole point. Under a runner it does not quietly degrade; it records the decision
+    #   as deferred and says so.
+    # * `order-16`: the compact single-body guided tier, alongside `spec`, `handoff`, `incident` and
+    #   `spec-review`. NOT `order-14`, whose ownership fence admits only the shared assess/advise
+    #   families and the plan-review collapse.
+    "askme": {
+        "execution_mode": "guided",
+        "skill_decision": "skill",
         "orchestration_decision": "single-context",
         "evidence_level": "artifact",
         "risk": "low",
