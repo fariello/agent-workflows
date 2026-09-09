@@ -36,18 +36,18 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: Canonical paths and reservation
 
-- [ ] E-01 Make `runner_shared.state_root` resolve the runs root through the PROJECT-CONTEXT authority instead of the hardcoded literal, and add side-effect-free constants and containment helpers for the reserved analytics namespace.
+- [x] E-01 Make `runner_shared.state_root` resolve the runs root through the PROJECT-CONTEXT authority instead of the hardcoded literal, and add side-effect-free constants and containment helpers for the reserved analytics namespace.
   - Depends on: none
   - Expected outcome: `state_root` returns the runs root derived from the resolved records root (so `records_backend` of `repository`, `companion`, and `home` each yield the correct location, and the repository case still yields `<repo>/.aw/records/runs` unchanged); the module exposes `analytics/`, `analytics/cache/`, `analytics/snapshots/`, and `analytics/exports/` plus a `path_is_within_analytics(path)` containment predicate that resolves symlinks and relative segments; NOTHING in this item creates a directory, so read-only discovery on a repo with no analytics tree is unchanged. A helper that merely renames the literal is a FAILED item.
-  - Execution state: pending
-- [ ] E-02 Apply the containment predicate to all three run enumerators and the ledger-path builder, replacing each duplicated literal with the E-01 resolver.
+  - Execution state: performed
+- [x] E-02 Apply the containment predicate to all three run enumerators and the ledger-path builder, replacing each duplicated literal with the E-01 resolver.
   - Depends on: E-01
   - Expected outcome: `run_viewer.discover_run_dirs`, `run_viewer.resolve_target_runs` (BOTH the explicit directory-target and the `state.json`/`events.jsonl`/`execution-report.md` file-target branches, which is where the measured leak is), and `completion.run_id_candidates` (which today returns every non-dot child with no `run-` filter) all reject any path contained in a reserved analytics tree, including a directory deliberately named `run-*`; an explicitly-targeted analytics path is refused with an actionable diagnostic naming the reserved tree rather than silently returning nothing; `run_cli.py`'s ledger path and `oc_runipd.py:5023` derive from the E-01 resolver; legacy `.aw/runs` and `.agents/runs` remain supported for execution runs and gain the same reservation. `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` is NOT weakened.
-  - Execution state: pending
-- [ ] E-03 Add regression coverage for canonical, relocated, legacy, missing, nested, symlinked, and adversarial analytics locations, and a guard test that the literal is not re-introduced.
+  - Execution state: performed
+- [x] E-03 Add regression coverage for canonical, relocated, legacy, missing, nested, symlinked, and adversarial analytics locations, and a guard test that the literal is not re-introduced.
   - Depends on: E-02
   - Expected outcome: tests prove analytics is invisible to list, explicit target, resume, liveness, repair selection, and shell completion, while existing real-run ordering and target matching are unchanged; the nested `analytics/snapshots/run-*` case is asserted through the EXPLICIT-PATH branch (the case measured to leak today), not only through the directory scan; at least one test exercises a non-`repository` `records_backend` so the E-01 resolution is proven rather than assumed; and a repo-wide guard test asserts no NEW `.aw/records/runs` path construction exists outside the single resolver (modeled on the existing `tests/test_runner_refork_guard.py` and the single-implementation assertion at `tests/test_render_stream.py:1475-1478`, and SYMMETRIC rather than naming one module: the one-sided versions of exactly that guard were RETIRED for being one-sided, which is how the `render_stream` re-fork went unnoticed, see the note at `tests/test_render_stream.py:1531-1532`).
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -114,18 +114,30 @@ No open questions.
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: PASTE the focused test output showing (a) `state_root` returns the correct runs root for `records_backend` of `repository`, `companion`, and `home`, with the `repository` case still `<repo>/.aw/records/runs`; (b) every analytics subpath derives from that one resolver; (c) `path_is_within_analytics` returns True for a symlinked and a `..`-containing path that resolves inside the tree, and False for a sibling whose name merely starts with `analytics`; and (d) resolving paths on a repo with NO analytics directory creates nothing (assert the directory still does not exist afterward). PASTE ALSO the grep or AST output proving `state_root`'s body no longer contains the hardcoded literal. A test that only asserts the repository-backed path passes vacuously and is NOT sufficient evidence.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-02 validates E-02
+  - Observed evidence: RECOVERED-LANE VERIFICATION. The code was written on lane `aw/lane/xbwq8n` (commits `661643bb`, `ff092eae`) and stranded unmerged; this evidence was gathered after merging that lane into `main` at `a8303398`, in worktree `integrate/xbwq8n`, by re-running the checks rather than trusting the original run's verifier record.
+    (a) THREE BACKENDS, each its own named test, `python3 -m pytest tests/test_runner_shared.py -k CanonicalRunsRootTests -o addopts="" -v` -> `10 passed`:
+    `test_state_root_resolves_through_project_context_repository_backend PASSED`, `test_state_root_resolves_through_project_context_companion_backend PASSED`, `test_state_root_resolves_through_project_context_home_backend PASSED`. The repository case is therefore proven, not assumed, and the plan's "a test that only asserts the repository-backed path passes vacuously" bar is met by the two non-repository tests.
+    (b) `test_analytics_subpaths_derive_from_state_root PASSED` (every analytics subpath derives from the one resolver).
+    (c) `test_path_is_within_analytics_symlink_and_relative PASSED` and `test_path_is_within_analytics_rejects_sibling_starting_with_analytics PASSED`; also `test_path_is_within_analytics_canonical_and_nested PASSED` and `test_path_is_within_analytics_legacy_roots PASSED`.
+    (d) `test_state_root_and_analytics_resolution_is_pure_and_creates_no_directories PASSED` (resolution on a repo with no analytics tree creates nothing).
+    NO HARDCODED LITERAL, proven by AST rather than grep: `test_state_root_ast_no_hardcoded_literal PASSED`. Read directly, `state_root`'s body is `resolve_project_context(target_repo=...)` -> `Path(ctx.logical_roots["records"]).resolve()` -> `records_dir / "runs"`, so it is a genuine supersession and not the "helper that merely renames the literal" this item calls a FAILED item.
+  - Result: pass
+- [x] V-02 validates E-02
   - Required evidence: PASTE test output showing all THREE enumerators plus the ledger builder reject a reserved-tree path: specifically that `resolve_target_runs` given the EXPLICIT PATH of `analytics/snapshots/run-<stamp>/` returns empty and emits the actionable diagnostic (this exact call RETURNS THAT DIRECTORY today, so a test that does not exercise the explicit-path branch would have passed before the fix and proves nothing), that the `state.json`/`events.jsonl`/`execution-report.md` file-target branch refuses likewise, and that `completion.run_id_candidates` no longer offers `analytics`. PASTE also the before/after for at least one case, showing the assertion FAILS against the pre-fix code. PASTE evidence that canonical, `.aw/runs`, and `.agents/runs` execution runs are still returned in unchanged order, and that `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` is byte-identical to its pre-change value.
-  - Observed evidence:
-  - Result: pending
-- [ ] V-03 validates E-03
+  - Observed evidence: `python3 -m pytest tests/test_run_viewer.py -k AnalyticsIsolationTests -o addopts="" -v` -> `6 passed, 69 deselected`: `test_resolve_target_runs_refuses_explicit_analytics_directory_target PASSED`, `test_resolve_target_runs_refuses_explicit_analytics_file_targets PASSED`, `test_discover_run_dirs_excludes_analytics_and_nested_snapshots PASSED`, `test_format_unresolvable_target_message_names_reserved_analytics_tree PASSED` (the actionable diagnostic), `test_resolve_ledger_path_rejects_analytics_tree PASSED` (the ledger builder), `test_discover_run_dirs_preserves_order_across_roots PASSED` (canonical + `.aw/runs` + `.agents/runs` still returned in unchanged order). `completion.run_id_candidates`: `python3 -m pytest tests/test_completion.py -k candidates -o addopts=""` -> `3 passed, 85 deselected`.
+    BEFORE/AFTER, the specific proof this item demands ("a test that does not exercise the explicit-path branch would have passed before the fix and proves nothing"). I checked out the FOUR pre-fix product modules at the lane base `69403678` while KEEPING the new tests, and re-ran: `4 failed, 2 passed, 69 deselected`, failing `test_resolve_target_runs_refuses_explicit_analytics_directory_target`, `test_resolve_target_runs_refuses_explicit_analytics_file_targets`, `test_format_unresolvable_target_message_names_reserved_analytics_tree`, `test_resolve_ledger_path_rejects_analytics_tree`. So the explicit-path branch and the ledger builder genuinely regress without this change. Restoring the fixed modules returned `6 passed`.
+    `worktree_lease.FORBIDDEN_WORKER_PATH_HINTS` NOT WEAKENED, proven by diff rather than by reading: `git diff 69403678 HEAD -- agent_workflows/worktree_lease.py` -> ZERO lines, i.e. the file is byte-identical to its pre-change state.
+    APPLICATION SITES read directly: `run_viewer.py` calls `path_is_within_analytics` at 4 sites including both the explicit-directory (`:1235`) and file-target (`:1248`) branches; `completion.py:462`; `run_cli.py:250` and `:266`. Every remaining `.aw/records/runs` occurrence in the package is a docstring or CLI help string, which this plan assigns to Order 10.
+  - Result: pass
+- [x] V-03 validates E-03
   - Required evidence: PASTE the focused module runs, the repo-wide single-resolver guard test result, and the `N passed` summary line from a BARE `python3 -m pytest` (no added flags; the configured `addopts` already supply `-q -n auto -m 'not slow'`). PASTE `git diff --check` showing clean. Judge the suite on the DELTA against the pre-change baseline and state that baseline explicitly; do not report a pre-existing failure as this plan's, and do not report this plan's as pre-existing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: REPO-WIDE GUARD: `python3 -m pytest tests/test_runner_shared.py -k SingleStateRootConstructionGuardTests -o addopts=""` -> `1 passed, 69 deselected`. `git diff --check` -> clean (no output).
+    BARE SUITE, no added flags: `python3 -m pytest` -> `5906 passed, 3 skipped, 2 xfailed in 55.10s`.
+    BASELINE STATED EXPLICITLY, as this item requires. Pre-change baseline is `main` at `a8303398` in a clean worktree: `5886 passed, 3 skipped, 2 xfailed`. Delta is therefore `+20 passed, 0 failed`, the 20 being this plan's new tests. NOTHING regressed.
+    ONE PRE-EXISTING FAILURE NAMED SO IT IS NOT MISATTRIBUTED IN EITHER DIRECTION: a bare run in the PRIMARY checkout reports `1 failed, 5885 passed` on `tests/test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose`. It is ENVIRONMENTAL and NOT this plan's: the test's `rglob` does not skip the gitignored `opencode-recovery/` directory (1746 untracked files, `.gitignore:49`), which exists only in the primary checkout. Proven pre-existing by running `tests/test_reporting_contract.py` in a clean worktree at `a8303398` WITHOUT this lane -> `53 passed`, and again WITH the lane merged -> still passing within the 5906. So it is neither introduced nor fixed here.
+  - Result: pass
 
 ## Approval and execution gate
 
