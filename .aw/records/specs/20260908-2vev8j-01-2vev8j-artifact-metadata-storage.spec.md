@@ -1,7 +1,7 @@
 # Spec: Artifact metadata storage: per-artifact history journals and explicit event ordering
 
 - Date: 2026-09-08
-- Status: reviewed
+- Status: approved
 - Id: 2vev8j
 - Author: aw specs new
 - Scope: Where aw-owned artifact metadata lives: front matter stays inline; unbounded workflow history moves to git-tracked per-artifact JSONL keyed by id6, ordered by an explicit per-artifact seq
@@ -318,5 +318,6 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 
 ## Workflow history
+- 2026-09-09 approved (aw set, --by-human): status set to approved
 
 - 2026-09-08 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 all FIXED. Ready for the human approval gate; the caveat a human should weigh is that this was a SELF-REVIEW (same session as authoring), so the design is re-measured but not independently judged. Next step: aw spec set approved 2vev8j --by-human. No Readiness field was written (prohibition (a): a spec has no such field and inventing one creates a machine signal no consumer may act on).
