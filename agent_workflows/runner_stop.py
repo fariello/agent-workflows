@@ -170,9 +170,10 @@ __all__ = [
     "render_trigger_support",
     "reset_signal_ladder",
     "signal_presses",
+    "INTERRUPT_ACTION_RESUME",
+    "INTERRUPT_ACTION_FINISH_CURRENT",
     "INTERRUPT_ACTION_CLEANUP",
     "INTERRUPT_ACTION_TERMINATE_NO_CLEANUP",
-    "INTERRUPT_ACTION_RESUME",
     "pause_live_children",
     "resume_live_children",
     "prompt_interrupt_action",
@@ -1772,9 +1773,10 @@ def signal_presses() -> int:
     return _SIGINT_PRESSES
 
 
-INTERRUPT_ACTION_CLEANUP = 1
-INTERRUPT_ACTION_TERMINATE_NO_CLEANUP = 2
-INTERRUPT_ACTION_RESUME = 3
+INTERRUPT_ACTION_RESUME = 1
+INTERRUPT_ACTION_FINISH_CURRENT = 2
+INTERRUPT_ACTION_CLEANUP = 3
+INTERRUPT_ACTION_TERMINATE_NO_CLEANUP = 4
 
 
 def pause_live_children() -> list[Any]:
@@ -1797,19 +1799,21 @@ def prompt_interrupt_action(
 ) -> int:
     """Prompt the user interactively on Ctrl-C.
 
-    1. Clean up and terminate.
-    2. Just terminate with no clean up.
-    3. Resume.
+    1. Resume?
+    2. Finish current item, clean up, and exit?
+    3. Clean up and exit?
+    4. Exit, leaving a mess?
     """
     in_stream = stdin if stdin is not None else sys.stdin
     out_stream = stream if stream is not None else sys.stderr
 
     prompt_text = (
         "\nStopped on Ctrl-C. Choose an action:\n\n"
-        "1. Clean up and terminate.\n"
-        "2. Just terminate with no clean up.\n"
-        "3. Resume.\n\n"
-        "Choice [1-3]: "
+        "1. Resume?\n"
+        "2. Finish current item, clean up, and exit?\n"
+        "3. Clean up and exit?\n"
+        "4. Exit, leaving a mess?\n\n"
+        "Choice [1-4]: "
     )
     out_stream.write(prompt_text)
     out_stream.flush()
@@ -1823,12 +1827,14 @@ def prompt_interrupt_action(
                 return INTERRUPT_ACTION_CLEANUP
             choice = line.strip()
             if choice == "1":
-                return INTERRUPT_ACTION_CLEANUP
-            if choice == "2":
-                return INTERRUPT_ACTION_TERMINATE_NO_CLEANUP
-            if choice == "3":
                 return INTERRUPT_ACTION_RESUME
-            out_stream.write("Please enter 1, 2, or 3: ")
+            if choice == "2":
+                return INTERRUPT_ACTION_FINISH_CURRENT
+            if choice == "3":
+                return INTERRUPT_ACTION_CLEANUP
+            if choice == "4":
+                return INTERRUPT_ACTION_TERMINATE_NO_CLEANUP
+            out_stream.write("Please enter 1, 2, 3, or 4: ")
             out_stream.flush()
         except KeyboardInterrupt:
             out_stream.write("\n(Repeated Ctrl-C; cleaning up and terminating)\n")
@@ -1862,6 +1868,14 @@ def handle_interactive_interrupt(
         out.write("\nResuming...\n")
         out.flush()
         return INTERRUPT_ACTION_RESUME
+
+    if action == INTERRUPT_ACTION_FINISH_CURRENT:
+        resume_live_children(paused_children)
+        render_stream.resume_active_statusline()
+        out = stream if stream is not None else sys.stderr
+        out.write("\nFinishing current item before stopping...\n")
+        out.flush()
+        return INTERRUPT_ACTION_FINISH_CURRENT
 
     resume_live_children(paused_children)
     render_stream.pause_active_statusline()
@@ -1944,6 +1958,9 @@ def install_stop_signal_handlers(
                 stream=stream,
             )
             if action == INTERRUPT_ACTION_RESUME:
+                return
+            if action == INTERRUPT_ACTION_FINISH_CURRENT:
+                _record(LEVEL_AFTER_CALL)
                 return
             if action == INTERRUPT_ACTION_TERMINATE_NO_CLEANUP:
                 _record(LEVEL_NOW_FORCE)

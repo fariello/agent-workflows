@@ -1633,5 +1633,48 @@ class StatuslineActionDerivationTests(unittest.TestCase):
         self.assertNotIn("Review", line)
 
 
+class StatuslinePauseResumeTests(unittest.TestCase):
+    def test_pause_and_resume_do_not_deadlock_when_drawn(self):
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[attr-defined]
+        pal = render_stream.Palette(False)
+        st = render_stream.Statusline(
+            pal=pal,
+            stream=stream,
+            interval=0,
+            setid="testset",
+            id6="item01",
+        )
+        st.redraw()
+        self.assertTrue(st._has_drawn)
+
+        st.pause()
+        self.assertTrue(st._paused)
+        self.assertFalse(st._has_drawn)
+
+        st.resume()
+        self.assertFalse(st._paused)
+        self.assertTrue(st._has_drawn)
+
+    def test_global_pause_resume_active_statusline(self):
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[attr-defined]
+        pal = render_stream.Palette(False)
+        st = render_stream.Statusline(
+            pal=pal,
+            stream=stream,
+            interval=0,
+            setid="testset",
+            id6="item01",
+        )
+        with st:
+            st.redraw()
+            self.assertTrue(st._has_drawn)
+            render_stream.pause_active_statusline()
+            self.assertTrue(st._paused)
+            render_stream.resume_active_statusline()
+            self.assertFalse(st._paused)
+
+
 if __name__ == "__main__":
     unittest.main()

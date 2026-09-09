@@ -18,34 +18,41 @@ from agent_workflows import agy_runipd, oc_runipd, runner_shared, runner_stop
 
 
 class InterruptMenuPromptTests(unittest.TestCase):
-    def test_prompt_choice_1_cleanup(self):
+    def test_prompt_choice_1_resume(self):
         stdin = io.StringIO("1\n")
         stderr = io.StringIO()
         choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
-        self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_CLEANUP)
+        self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_RESUME)
         output = stderr.getvalue()
-        self.assertIn("1. Clean up and terminate.", output)
-        self.assertIn("2. Just terminate with no clean up.", output)
-        self.assertIn("3. Resume.", output)
+        self.assertIn("1. Resume?", output)
+        self.assertIn("2. Finish current item, clean up, and exit?", output)
+        self.assertIn("3. Clean up and exit?", output)
+        self.assertIn("4. Exit, leaving a mess?", output)
 
-    def test_prompt_choice_2_terminate_no_cleanup(self):
+    def test_prompt_choice_2_finish_current(self):
         stdin = io.StringIO("2\n")
+        stderr = io.StringIO()
+        choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
+        self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_FINISH_CURRENT)
+
+    def test_prompt_choice_3_cleanup(self):
+        stdin = io.StringIO("3\n")
+        stderr = io.StringIO()
+        choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
+        self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_CLEANUP)
+
+    def test_prompt_choice_4_terminate_no_cleanup(self):
+        stdin = io.StringIO("4\n")
         stderr = io.StringIO()
         choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
         self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_TERMINATE_NO_CLEANUP)
 
-    def test_prompt_choice_3_resume(self):
-        stdin = io.StringIO("3\n")
-        stderr = io.StringIO()
-        choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
-        self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_RESUME)
-
     def test_prompt_invalid_input_retries(self):
-        stdin = io.StringIO("invalid\n1\n")
+        stdin = io.StringIO("invalid\n3\n")
         stderr = io.StringIO()
         choice = runner_stop.prompt_interrupt_action(stdin=stdin, stream=stderr)
         self.assertEqual(choice, runner_stop.INTERRUPT_ACTION_CLEANUP)
-        self.assertIn("Please enter 1, 2, or 3:", stderr.getvalue())
+        self.assertIn("Please enter 1, 2, 3, or 4:", stderr.getvalue())
 
     def test_prompt_eof_defaults_to_cleanup(self):
         stdin = io.StringIO("")  # immediate EOF
@@ -96,6 +103,39 @@ class HandleInteractiveInterruptTests(unittest.TestCase):
         mock_res_sl.assert_called_once()
         mock_shutdown.assert_not_called()
         self.assertIn("Resuming...", stderr.getvalue())
+
+    @mock.patch("agent_workflows.runner_stop.prompt_interrupt_action")
+    @mock.patch("agent_workflows.runner_stop.pause_live_children")
+    @mock.patch("agent_workflows.runner_stop.resume_live_children")
+    @mock.patch("agent_workflows.render_stream.pause_active_statusline")
+    @mock.patch("agent_workflows.render_stream.resume_active_statusline")
+    @mock.patch("agent_workflows.runner_shutdown.clean_shutdown")
+    def test_finish_current_action_resumes_children_and_statusline(
+        self,
+        mock_shutdown,
+        mock_res_sl,
+        mock_pause_sl,
+        mock_res_ch,
+        mock_pause_ch,
+        mock_prompt,
+    ):
+        mock_proc = mock.MagicMock()
+        mock_pause_ch.return_value = [mock_proc]
+        mock_prompt.return_value = runner_stop.INTERRUPT_ACTION_FINISH_CURRENT
+
+        stderr = io.StringIO()
+        action = runner_stop.handle_interactive_interrupt(
+            run_dir=Path("/tmp/fake-run"),
+            requester="test",
+            stream=stderr,
+        )
+        self.assertEqual(action, runner_stop.INTERRUPT_ACTION_FINISH_CURRENT)
+        mock_pause_ch.assert_called_once()
+        mock_pause_sl.assert_called_once()
+        mock_res_ch.assert_called_once_with([mock_proc])
+        mock_res_sl.assert_called_once()
+        mock_shutdown.assert_not_called()
+        self.assertIn("Finishing current item before stopping...", stderr.getvalue())
 
     @mock.patch("agent_workflows.runner_stop.prompt_interrupt_action")
     @mock.patch("agent_workflows.runner_stop.pause_live_children")
@@ -340,18 +380,23 @@ class InteractiveSigintSignalTests(unittest.TestCase):
         sigint_fn = signal.getsignal(signal.SIGINT)
 
         with mock.patch.dict("os.environ", {"AW_FORCE_INTERACTIVE_INTERRUPT": "1"}):
-            # Choice 3: Resume
+            # Choice 1: Resume
             mock_handle.return_value = runner_stop.INTERRUPT_ACTION_RESUME
             sigint_fn(signal.SIGINT, None)  # Should return without raising
 
-            # Choice 1: Clean up and terminate
+            # Choice 2: Finish current item
+            mock_handle.return_value = runner_stop.INTERRUPT_ACTION_FINISH_CURRENT
+            sigint_fn(signal.SIGINT, None)  # Should return without raising
+            mock_request.assert_called_with(run_dir, runner_stop.LEVEL_AFTER_CALL, "")
+
+            # Choice 3: Clean up and terminate
             mock_handle.return_value = runner_stop.INTERRUPT_ACTION_CLEANUP
             with self.assertRaises(KeyboardInterrupt) as ctx:
                 sigint_fn(signal.SIGINT, None)
             self.assertEqual(str(ctx.exception), "clean-up-and-terminate")
             mock_request.assert_called_with(run_dir, runner_stop.LEVEL_NOW_FORCE, "")
 
-            # Choice 2: Just terminate with no cleanup
+            # Choice 4: Just terminate with no cleanup
             mock_handle.return_value = runner_stop.INTERRUPT_ACTION_TERMINATE_NO_CLEANUP
             with self.assertRaises(KeyboardInterrupt) as ctx:
                 sigint_fn(signal.SIGINT, None)

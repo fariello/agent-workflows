@@ -1197,7 +1197,7 @@ class Statusline:
         self._last_activity = mono_now
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._is_tty = bool(getattr(stream, "isatty", None) and stream.isatty())
         self._has_drawn = False
         self._paused = False
@@ -1303,9 +1303,9 @@ class Statusline:
             self.redraw()
 
     def clear(self) -> None:
-        if not self._is_tty or not self._has_drawn:
-            return
         with self._lock:
+            if not self._is_tty or not self._has_drawn:
+                return
             self.stream.write("\033[3A\r\033[K\n\r\033[K\n\r\033[K\n\r\033[K\033[3A\r")
             self.stream.flush()
             self._has_drawn = False
