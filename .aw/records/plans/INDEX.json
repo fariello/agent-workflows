@@ -4897,7 +4897,7 @@
     "path": "pending/20260908-actmodel-01-btot17-decide-the-unit-a-model-attaches-to-before-building-per-acti.ipd.md",
     "plan_id": "btot17",
     "set_id": "actmodel",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5087,7 +5087,7 @@
     "path": "pending/20260908-gatejrnl-01-i4c0c3-stop-the-executed-transition-gate-firing-on-a-follow-up-edit.ipd.md",
     "plan_id": "i4c0c3",
     "set_id": "gatejrnl",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5457,6 +5457,16 @@
     "path": "pending/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.ipd.md",
     "plan_id": "zyw4n3",
     "set_id": "runghostid",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
+    "path": "pending/20260908-runnerbugs-01-hp9rot-runner-correctness-and-safety-bug-fixes-for-oc-runipd-and-ag.ipd.md",
+    "plan_id": "hp9rot",
+    "set_id": "runnerbugs",
     "status": "to-review"
   },
   {

@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 276 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 277 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -178,18 +178,15 @@ Showing the 40 most-recent of 276 Sets; the full manifest is INDEX.json.
 
 - `zyw4n3` [pending] 01 pending/20260908-runghostid-01-zyw4n3-emit-a-refusal-record-when-an-orchestrator-is-deferred-so-a.ipd.md
 
+## runnerbugs
+
+- `hp9rot` [pending] 01 pending/20260908-runnerbugs-01-hp9rot-runner-correctness-and-safety-bug-fixes-for-oc-runipd-and-ag.ipd.md
+
 ## runnerlayer
 
 - `lyo1tz` [pending] 00 pending/20260908-runnerlayer-00-lyo1tz-make-the-two-host-drivers-peers-by-re-homing-the-host-neutra.ipd.md
 - `9kmbr0` [pending] 01 pending/20260908-runnerlayer-01-9kmbr0-classify-all-47-oc-to-agy-imported-names-as-host-neutral-or.ipd.md
 - `1f7xno` [pending] 02 pending/20260908-runnerlayer-02-1f7xno-re-home-the-host-neutral-names-into-runner-shared-in-reviewa.ipd.md
-
-## runnoop
-
-- `7ewc74` [pending] 00 pending/20260908-runnoop-00-7ewc74-report-every-matched-artifact-s-disposition-instead-of-exiti.ipd.md
-- `zz5yxq` [pending] 01 pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md
-- `m85gxh` [pending] 02 pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md
-- `bsc457` [pending] 03 pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md
 
 ## (singletons: no Set)
 
