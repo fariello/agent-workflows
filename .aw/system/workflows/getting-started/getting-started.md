@@ -58,6 +58,7 @@ inside the prompt itself so it is decidable from the prompt alone (GUIDING_PRINC
 - "Measure or understand performance (with environment context)" -> `benchmark`
 - "Turn a fuzzy idea into a spec" -> `spec`; then `advise spec-editor` to harden it
 - "Get expert questions on my design/plan" -> `advise <persona>`
+- "Put the open decisions in front of me so I can answer them" -> `askme`
 - "Plan a risky migration" -> `migrate`
 - "Write release notes / bump the version" -> `release-notes`
 - "Do a post-mortem" -> `incident`

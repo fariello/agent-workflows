@@ -133,6 +133,8 @@ Before asking, silently confirm:
 - Is the reason for asking clear?
 - Have I avoided repeating the tool's choices?
 
+The `askme` workflow is the invocable entry point that applies this principle to a repository's open questions: it sorts them into what the repository can answer, what only the human can decide, and what can wait, then asks and records the answers. It references this principle rather than restating it (P8). It exists because this principle alone was measured insufficient: agents that have it loaded still finish work with the human's questions unasked, so `aw ipd lint` refuses a question marked blocking that is still open, and names that workflow as the remedy (see DECISIONS D151).
+
 ## 13. Style rules for prose apply to user-facing text, not internal artifacts
 
 Prose style rules whose whole purpose is to keep human-facing text from reading as machine-written apply ONLY to user-facing text you author: READMEs, the CHANGELOG, and documentation meant for end users. The specific rule here is the no em/en dash convention (use hyphens or parenthetical dashes), but the principle is general: the goal is that user-facing prose not feel auto-generated.

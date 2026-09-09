@@ -166,8 +166,10 @@ A family of core workflows spanning onboarding (`/getting-started`), discovery (
 build/review (`/release-review`, `/release-review-plan`, `/plan-review`, `/plan-review-long`,
 `/verify`, `/verify-execution`), performance (`/benchmark`), ship (`/release-notes`), operate
 (`/incident`), high-risk change (`/migrate`), setup (`/setup-repo`, `/scaffold`), and discovery
-of the toolkit itself (`/list-workflows`), plus two parameterized commands, `/assess <concern>`
-(single-concern assessments) and `/advise <persona>` (expert interrogation and coaching).
+of the toolkit itself (`/list-workflows`), decisions (`/askme`, which puts a plan's open
+questions in front of you and records your answers), plus two parameterized commands,
+`/assess <concern>` (single-concern assessments) and `/advise <persona>` (expert interrogation
+and coaching).
 
 ### CLI output modes (human and agent)
 
@@ -236,6 +238,7 @@ installer will not clobber your version. See the
 | `/incident` | Blameless post-mortem: timeline, impact, systemic contributing factors, and follow-up actions emitted as IPDs. | Guided; writes a post-mortem plus action IPDs |
 | `/release-notes` | Decides the version bump from actual changes and drafts changelog plus human release notes. Never publishes, tags, pushes, or deploys. | Guided; updates changelog/version files |
 | `/migrate` | Plans a high-risk migration (framework/DB/dependency-major/layout): blast radius, invariants, and a staged, reversible plan with per-stage rollback and verify checks. | No (emits a plan) |
+| `/askme` | Puts the open decisions in front of you: sorts a plan's open questions into what the repository can answer, what only you can decide, and what can wait, then asks yours one prompt at a time in plain English with a labelled recommendation, and records each answer in the artifact that raised it. | No (records answers in planning docs) |
 
 ### Assessments (`/assess <concern>`)
 

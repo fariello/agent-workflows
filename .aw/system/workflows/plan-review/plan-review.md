@@ -279,7 +279,8 @@ Judge `Reversible` on the COST OF BEING WRONG, not on your confidence:
 A `Reversible: no` decision MUST NOT rest on your authority alone. Record the row AND do one of:
 
 - raise it in the reviewed plan as an open question carrying `- Blocking: yes`, so the existing
-  pre-execution gate stops the run until the human answers; or
+  lint gate refuses the plan at EVERY checkpoint until the human answers (since 2026-09-08 this
+  fires from `author` onward, not only at `pre-execution`, so the stop happens earlier); or
 - tell the maintainer directly and note that on the row (e.g. `Basis: ... ; maintainer told
   2026-08-29`), which is the honest path in a non-interactive run where no blocking question
   would be seen in time.
@@ -335,7 +336,8 @@ For each reviewed plan confirm:
   repository's gate threshold (`review_findings_gate.block_at` in `.aw/config/project.json`, default
   `HIGH`) is ALSO raised in the plan as an open question carrying `- Blocking: yes` and
   `- Finding: <ID>` naming that finding. `check.review-finding-unescalated` enforces this, and the
-  escalated question is then caught by the existing `pre-execution` gate, so an unfixed serious
+  escalated question is then caught by the existing lint gate at EVERY checkpoint (not only
+  `pre-execution`, since 2026-09-08), so an unfixed serious
   finding actually stops execution instead of merely being reported.
 
   This does NOT contradict "Severity is for reporting only" below. Severity still does not decide

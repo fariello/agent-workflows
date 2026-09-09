@@ -56,6 +56,7 @@ agent-workflows/
         migrate/            Assess-and-plan a high-risk migration
         list-workflows/     Toolkit discovery (capabilities and installed version)
         getting-started/    Guided in-agent tour and router for newcomers
+        askme/              Ask the human the open decisions and record the answers
     records/                Durable project records (tracked or companion-routed)
       plans/                IPD documents (pending/, executed/, reusable/, superseded/, not-executed/)
       specs/                Specifications

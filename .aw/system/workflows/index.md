@@ -224,6 +224,19 @@ sensitivity/privacy gate, and never auto-commits (the human promotes it). Togeth
 the reserved bare `/research` and the distinct `aw research` doc verb), these form the
 `agent-continuity-workflows` family.
 
+**`askme`** puts the open decisions in front of the human. It sorts an artifact's open
+questions into three piles (what the repository itself can answer, what only the human can
+decide, and what can genuinely wait), asks the human's questions ONE INTERACTIVE PROMPT AT A
+TIME with enough context to decide from the prompt alone, and records each answer in the
+artifact that raised it so it survives the session. It is the invocable counterpart to
+GUIDING_PRINCIPLES principle 12, whose composition rules it references rather than restates.
+Where `advise` asks the human probing questions to COACH them, `askme` asks for DECISIONS and
+writes the answers down. It exists because P12 alone was measured insufficient: agents that
+have the rule loaded still finish work with the human's questions unasked, so `aw ipd lint`
+now refuses a `Blocking: yes` question left `open` at every checkpoint and names this workflow
+as the remedy. Under a runner there is nobody to ask, so it records and defers rather than
+blocking.
+
 ## Notes
 
 - `release-review-plan` shares the `release-review` body; it runs that runbook in

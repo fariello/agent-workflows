@@ -361,7 +361,7 @@ Allowed values are:
 
 State rules:
 
-- `Blocking: yes` and `Status: open` is permitted during authoring and review but rejected at `pre-execution`.
+- `Blocking: yes` and `Status: open` is rejected at EVERY checkpoint, including `author` and `review-finalize`. AMENDED 2026-09-08 (askme): this rule previously read "permitted during authoring and review but rejected at `pre-execution`", and the narrower version was measured insufficient. Because `check_open_questions` is called unconditionally while `check_checkpoint` is not, a DEFAULT `aw ipd lint` reported `conforming` for a plan carrying `Blocking: yes` / `Status: open`, so an agent could author a plan, hand it to a human, and report completion with its load-bearing question never asked. Permitting the state during authoring assumed the question would be asked before `pre-execution`; nothing enforced that, and nothing recorded whether it had happened. The question is the author's to ASK (`/askme`), so the state is now refused wherever it is seen. Refusal names the remedy: ask and record (`Status: resolved` plus a rationale), or, if it does not actually block, set `Blocking: no`. NOTE the scope: only `Blocking: yes` is refused. A `Blocking: no` open question stays legal at every checkpoint, per the rule below, because that is the normal state of a plan in progress (measured 2026-09-08: 66 of 103 pending plans carried one, against 14 carrying a blocking one).
 - `Blocking: yes` and `Status: deferred` is invalid.
 - `Status: resolved` requires a nonempty `Resolution or deferral rationale:`.
 - `Status: deferred` requires `Blocking: no`, a nonempty owner or trigger, and a nonempty rationale.
@@ -443,8 +443,8 @@ An incompatible `Status:`, directory, kind, and requested phase combination MUST
 
 | Checkpoint | Minimum state requirements |
 |---|---|
-| `author` | Required structure is present; IDs and mappings are valid for all authored items; execution may remain `pending`; validation results remain `pending`; placeholders are allowed only where the schema explicitly permits them during drafting. |
-| `review-finalize` | No structural placeholders remain; every action has an observable expected outcome; every validation row has nonplaceholder required evidence; the size assessment is consistent; structural question fields are valid. Semantic adequacy is reviewed separately. |
+| `author` | Required structure is present; IDs and mappings are valid for all authored items; execution may remain `pending`; validation results remain `pending`; placeholders are allowed only where the schema explicitly permits them during drafting; no `Blocking: yes` question is `open` (amended 2026-09-08, askme; see Section 7). |
+| `review-finalize` | No structural placeholders remain; every action has an observable expected outcome; every validation row has nonplaceholder required evidence; the size assessment is consistent; structural question fields are valid; no `Blocking: yes` question is `open` (amended 2026-09-08, askme; see Section 7). Semantic adequacy is reviewed separately. |
 | `pre-execution` | `review-finalize` passes; no declared blocking question remains unresolved; the persisted lifecycle state authorizes execution; no action has an illegal pre-execution state; a `Scope-Paths` value is present (Section 4.5) - a plan with NO `Scope-Paths` field is a blocking error, a `Scope-Paths: grandfathered` marker is advisory-satisfied (non-blocking), and a real allowlist is validated against the Section 4.5 grammar (malformed is a blocking error). This same `Scope-Paths` requirement also applies to any plan whose persisted `Status` is at the ready-to-execute tier (`approved`/`auto-approved`), so an approved plan cannot slip through without it. |
 | `pre-transition` | Every current `E-*` is checked with `Execution state: performed`; every `V-*` is checked with `Result: pass`; every `Observed evidence:` is nonempty; no unresolved blocking condition remains; the plan is not already in a terminal directory or status. |
 | `post-transition` | `pre-transition` evidence remains valid; terminal status, workflow-history entry, terminal directory, and lifecycle commit agree under repository conventions. |
@@ -717,7 +717,7 @@ Each case below is mandatory. The implementation IPD Set MUST map each case to a
 
 ### 16.4 Question and size tests
 
-- open blocking question rejected at `pre-execution`;
+- open blocking question rejected at EVERY checkpoint (amended 2026-09-08, askme; formerly `pre-execution` only, see Section 7);
 - resolved blocking question accepted with rationale;
 - deferred blocking question rejected;
 - deferred nonblocking question requires owner/trigger and rationale;
