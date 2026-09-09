@@ -1,7 +1,7 @@
 # Spec: Artifact metadata storage: per-artifact history journals and explicit event ordering
 
 - Date: 2026-09-08
-- Status: to-review
+- Status: reviewed
 - Id: 2vev8j
 - Author: aw specs new
 - Scope: Where aw-owned artifact metadata lives: front matter stays inline; unbounded workflow history moves to git-tracked per-artifact JSONL keyed by id6, ordered by an explicit per-artifact seq
@@ -44,10 +44,17 @@ Measured in-repo at HEAD `57143149` on 2026-09-08, and these supersede every fig
 
 | Fact | Value |
 |---|---|
-| Plans corpus | 591 `*.ipd.md`, 15,639,697 chars |
-| Global sidecar | 177 records: 150 backlog, 26 specs, **1 plans** |
+| Plans corpus | 604 `*.ipd.md`, 16,270,178 chars |
+| Global sidecar | 182 records: 153 backlog, 28 specs, **1 plans** |
 | Modules referencing the heading | **18** (the reports and `ms06pi` say 19) |
 | `check.lifecycle-transition-invalid` | 15 |
+
+THESE COUNTS DRIFT FAST AND THAT IS ITSELF EVIDENCE. Re-measured at review time (2026-09-08, hours
+after authoring), the corpus had moved from 591 plans / 15,639,697 chars to the values above: +13
+plans and +630,481 chars in one working session. The sidecar moved 177 -> 182 records with plans
+still at 1. So an implementer MUST re-derive every absolute number and percentage at implementation
+time rather than quoting this table; the two figures that are STABLE and load-bearing are the
+PLANS-AT-1 sidecar count (the migration has not moved) and the 18-module refactor surface.
 
 Three findings verified here rather than taken on trust, two of which CORRECT the reports:
 
@@ -80,12 +87,68 @@ Three findings verified here rather than taken on trust, two of which CORRECT th
   approved` visible in a review diff is worth more than the ~4.7% it costs.
 - C5 `[Must]` No writer may record an event for a transition that did not happen, and no status
   change may succeed while its durable history write silently fails.
-- C6 `[Want]` Remove the unbounded, append-forever ~10.2% of plan-corpus tokens from routine agent
-  context while keeping it retrievable on demand.
+- C6 `[Want]` Remove the unbounded, append-forever history from routine agent context while keeping it
+  retrievable on demand. DIRECTIONAL, NOT A TARGET: the ~10.2% figure is inherited from the reports and
+  is not re-derived here (see 3c), so no acceptance criterion asserts a percentage. What IS testable is
+  that history no longer lives in the artifact body, which AC-6 and AC-8 cover.
 - C7 `[Constraint]` No new runtime dependency. `filelock` is the only one and is already present.
 - C8 `[Constraint]` Migration must be INCREMENTAL and interruptible. The previous attempt
   (`awhistory`) stalled at this exact tree with plans at 1 record; a design requiring an
   all-at-once rewrite will stall again.
+
+## 3a. Non-goals
+
+Named because a reader would otherwise reasonably assume each is in scope.
+
+- N1 NOT a rewrite of the existing artifact prose, front-matter grammar, or any status vocabulary.
+  Only the HISTORY storage and its ordering change.
+- N2 NOT a decision about whether backward lifecycle edges are legal. The event store EXPOSES that
+  contradiction (see OQ-1) and deliberately does not resolve it.
+- N3 NOT a migration of backlog and specs off the global sidecar in this spec's scope. C2 forces a
+  fix for their clone-time data loss, but WHICH fix is OQ-2.
+- N4 NOT a performance or query-latency project. A SQLite cache is PERMITTED (4.6) and specified as
+  disposable; building it is not required by any acceptance criterion here.
+- N5 NOT the two out-of-scope defects in Section 7, which are filed separately so this spec does not
+  silently absorb them.
+
+## 3b. Acceptance criteria
+
+Every MUST criterion in Section 3 maps to at least one criterion here, and every criterion names the
+EVIDENCE that would satisfy it, so a reviewer can refuse a false claim of completion. The failure and
+refusal paths are included deliberately, not only the happy path.
+
+| ID | Covers | Criterion | Evidence that satisfies it |
+|---|---|---|---|
+| AC-1 | C1 | A reader of any artifact's history obtains events in a single unambiguous order that does NOT depend on file position, line order, or dates. | A test that writes events in one order, reads them back, and asserts the sequence; plus a test that SHUFFLES the journal lines on disk and asserts the read order is UNCHANGED. |
+| AC-2 | C1, C6 | `events.reverse()` and every date-sort / lifecycle-rank tiebreak are GONE from the read path. | `grep` for `events.reverse` returns no hit in `ipd_lifecycle.py`; `check.lifecycle-transition-invalid` reports 0 on migrated plans, with the count pasted. |
+| AC-3 | C2 | A fresh clone carries the full durable history of every migrated artifact. | Clone the repo to a new directory, read a migrated artifact's history, and paste the full event list obtained with NO access to the original working tree. |
+| AC-4 | C3 | Two agents transitioning DIFFERENT artifacts never write the same file. | A test asserting the journal path is a pure function of `<id6>`; plus a two-branch merge test on two different artifacts' journals that merges CLEANLY (the converse of E1). |
+| AC-5 | C3, C5 | Two concurrent writers to the SAME artifact cannot interleave or lose an event. | A concurrency test with two processes appending under the lock, asserting every event is present, `seq` is contiguous, and no line is malformed. |
+| AC-6 | C4 | Front-matter current state remains inline and a status change is still visible in a review diff. | A `git diff` of a status transition showing the `- Status:` change, pasted. |
+| AC-7 | C5 | A REFUSED or `--dry-run` transition leaves NO event, and a failed history write FAILS the status change rather than succeeding silently. | A test that refuses a transition and asserts the journal is byte-unchanged; a test with the journal write forced to fail, asserting the status did NOT change. |
+| AC-8 | 4.5 | The single inline line is byte-reproducible from the journal head, and NO gate depends on its content. | A drift check that regenerates the line and byte-compares; plus a test that EVICTS the `executed` line (via `executed -> superseded`) and asserts IPD-S405 still passes. |
+| AC-9 | 4.7, C8 | Legacy lines are imported without inventing precision, and no false transition failure is reported across them. | For a plan with legacy history: every original raw line is present in the journal with an `ordering_confidence` marker, and forward-transition validation reports nothing across pre-checkpoint records. |
+| AC-10 | C7 | No new runtime dependency. | `pyproject.toml` `dependencies` is unchanged, pasted. |
+| AC-11 | C8 | Migration is interruptible: a partially migrated corpus is a VALID state that both readers handle. | With one artifact migrated and one not, the same read API returns correct history for BOTH, with output pasted. |
+
+## 3c. Honest limits
+
+What this spec does NOT prove, stated so no consumer over-reads it:
+
+- It does NOT prove the design is optimal. It proves four independent reports converged on it, which
+  is strong evidence of soundness and NOT a proof of optimality.
+- It does NOT establish the token savings. The percentages in Section 2 are inherited from the reports
+  and the absolute counts drift within hours (see the note under the evidence table). Treat C6 as a
+  DIRECTIONAL want whose magnitude is unmeasured here.
+- It DOES now resolve whether a backward lifecycle edge is legal (4.8, maintainer decision), but it
+  does NOT enumerate the full set of legal backward edges. Only `approved -> reviewed` is named; any
+  other edge is illegal until the lifecycle contract enumerates it, and an implementation must fail
+  closed rather than infer legality.
+- It does NOT specify the event schema field-by-field. It fixes the ORDERING AUTHORITY (`seq`), the
+  LOCATION (per-artifact, keyed on id6), and the AUTHORITY SPLIT; the concrete field list is
+  implementation work constrained by the acceptance criteria above.
+- Its migration sequencing is a PLAN, not a measured result. The claim that lint-gate-first makes the
+  migration incremental is reasoned from the previous stall, not demonstrated.
 
 ## 4. Design decisions
 
@@ -106,7 +169,10 @@ have to be moved by every lifecycle transition. This DECIDES AGAINST `2o895n`'s
 ### 4.3 Ordering is an explicit per-artifact `seq`; timestamps are for display only
 
 Every event carries a contiguous per-artifact integer `seq`. That, and nothing else, is the ordering
-authority. A full RFC 3339 UTC timestamp is retained for audit and display and is NEVER used to
+authority. `seq` ORIGIN, stated because 4.7 introduces a checkpoint and the two must agree: for a
+MIGRATED artifact `seq` 0 is the checkpoint event and real events start at 1; for an artifact BORN
+under this contract `seq` starts at 1 with no checkpoint. Contiguity is per artifact, with no gaps in
+either case. A full RFC 3339 UTC timestamp is retained for audit and display and is NEVER used to
 order. All four reports agree; `2o895n` calls `seq` "the one piece of this recommendation I'd call
 non-negotiable" and `takpys` states the consequence: "Timestamps are never the sequencing authority.
 That eliminates both the day-granularity defect and the UTC-versus-local-date inversion."
@@ -149,6 +215,40 @@ real chain from a `seq` 0 checkpoint accepting the current inline snapshot, and 
 forward-transition validation across unordered pre-checkpoint records. This is what lets the 3
 irreducible cross-day cases stop being false failures WITHOUT fabricating an order, and it is why
 `aw check plans` can go green honestly.
+
+### 4.8 A backward lifecycle edge is LEGAL as an explicit recovery transition
+
+MAINTAINER DECISION, 2026-09-08, made during spec review in answer to OQ-1 (finding SR-007). This
+resolves the spec's only blocking question.
+
+THE CONTRADICTION IT SETTLES: `validate_transition` rejects EVERY backward rank movement, so
+`approved -> reviewed` is illegal; yet the corpus contains an INTENTIONAL `approved -> reviewed ->
+approved` round trip and the runner spec instructs returning a plan to `reviewed` to recover from an
+invalid automated approval. The tooling forbade what the documented recovery procedure required.
+
+THE DECISION: such an edge is LEGAL. `approved -> reviewed` is a NAMED RECOVERY TRANSITION, and
+`validate_transition` must be taught to permit it rather than treating every rank decrease as wrong.
+
+WHAT FOLLOWS, and an implementer must not miss the second point:
+
+1. The residual `check.lifecycle-transition-invalid` cases that no reader could classify are
+   RECLASSIFIED AS VALID, not suppressed. That is what lets the rule reach 0 HONESTLY rather than by
+   weakening the check, and it is the difference between fixing `tk1gqo` and hiding it.
+2. THE FORWARD-ONLY INVARIANT IS GONE, and that is a real cost accepted deliberately. `aw check` may
+   no longer infer that a rank decrease is a defect, so the transition table must ENUMERATE which
+   backward edges are legal instead of deriving legality from rank order. An implementation that
+   simply removes the rank comparison would permit EVERY backward edge, which is NOT what was decided.
+3. The set of legal backward edges beyond `approved -> reviewed` is NOT fixed here. Enumerate it in
+   the plan status lifecycle contract (the IPD spec is the natural home) as part of the implementing
+   work, and treat any edge not enumerated as illegal (fail closed).
+
+ALTERNATIVE REJECTED: treating the corpus round trip as a defect and changing the runner's recovery
+instruction. Rejected because it contradicts shipped behavior and a working recovery procedure, and
+would require inventing a replacement mechanism for a problem that already has one.
+
+IRREVERSIBILITY: this changes a PUBLIC CONTRACT (which statuses a plan may legally move between), so
+artifacts authored under it will rely on it. Reversing it later would retroactively invalidate those
+histories.
 
 ## 5. Constraints the implementation MUST bind
 
@@ -206,11 +306,9 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 ## 8. Open questions
 
-- OQ-1 `[Blocking]` Are backward lifecycle edges (`approved -> reviewed`) LEGAL? The corpus contains
-  an intentional one and the runner spec instructs returning a plan to `reviewed` to recover from an
-  invalid automated approval, yet `validate_transition` rejects all of them. The event store makes
-  the question unavoidable but does not answer it. A human must decide, because it defines what
-  `aw check` may call a violation.
+- OQ-1 `[RESOLVED 2026-09-08 by the maintainer]` See decision 4.8. A backward lifecycle edge is
+  LEGAL as an explicit recovery transition. The question is retained rather than deleted so the
+  reasoning that produced 4.8 stays visible.
 - OQ-2 `[Non-blocking]` Do backlog and specs MIGRATE to per-artifact journals too, or stay on the
   global sidecar? `2o895n` explicitly does not argue for undoing them. C2 says they cannot stay as
   they are (gitignored full log plus one inline line loses data on clone), but "track the global
@@ -221,4 +319,4 @@ Both are real and neither is a storage decision. They must NOT be absorbed silen
 
 ## Workflow history
 
-- 2026-09-08 note (aw specs): APPROVAL DELIBERATELY NOT WRITTEN, and the refusal is CORRECT. The maintainer's instruction to address 'ms06pi needs a spec' would ordinarily let this be approved in the same pass under the AGENTS.md graduation contract, so approval was ATTEMPTED: 'aw specs set approved --by-human' refused with 'illegal transition to-review -> approved'. The floor requires reviewed FIRST, and reviewed requires a conforming review record; verified via review_findings.review_attestation_missing, which reports 'no review record names 2vev8j as its - Subject-Id:'. NO REVIEW HAS HAPPENED, so writing either status would forge an attestation that a gate reads, which is exactly what the never-write-another-role's-attestation rule forbids. Recorded here instead of worked around. Note the graduation contract and this floor are in genuine tension for SPECS (the contract anticipates recording an instruction as the approval; the spec floor demands a review record first), and the floor WINS because it is mechanical and fail-closed. CONSEQUENCE FOR THE HANDOFF: ms06pi can still graduate, because a to-review spec is a real, citable design artifact and the From-Backlog + Blocks-Release gate carries forward regardless of the spec's readiness. What is NOT yet licensed is IMPLEMENTATION. NEXT STEP FOR A HUMAN, in order: run /aw plan-review (or an equivalent review producing a record with '- Subject-Id: 2vev8j'), which also forces OQ-1 to be answered since it is BLOCKING and is a policy call no repository evidence can make (are backward lifecycle edges approved -> reviewed legal?); then 'aw spec set reviewed 2vev8j'; then 'aw spec set approved 2vev8j --by-human'. Readiness stays ABSENT throughout: it is the review's output, and its absence is what keeps the auto-approve predicate failing closed.
+- 2026-09-08 note (aw specs): /spec-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-007 all FIXED. Ready for the human approval gate; the caveat a human should weigh is that this was a SELF-REVIEW (same session as authoring), so the design is re-measured but not independently judged. Next step: aw spec set approved 2vev8j --by-human. No Readiness field was written (prohibition (a): a spec has no such field and inventing one creates a machine signal no consumer may act on).
