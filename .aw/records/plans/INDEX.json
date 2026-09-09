@@ -4967,7 +4967,7 @@
     "path": "pending/20260908-commitguard-00-ao1rb7-commit-path-safety-wire-the-existing-gates-and-make-the-tool.ipd.md",
     "plan_id": "ao1rb7",
     "set_id": "commitguard",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -4977,7 +4977,7 @@
     "path": "pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md",
     "plan_id": "kbqpkn",
     "set_id": "commitguard",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5017,7 +5017,7 @@
     "path": "pending/20260908-depclosure-01-dhycim-build-the-with-dependencies-transitive-closure-expansion-bef.ipd.md",
     "plan_id": "dhycim",
     "set_id": "depclosure",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5027,7 +5027,7 @@
     "path": "pending/20260908-depverb-01-f6idxs-refuse-a-dangling-dependency-target-pre-write-and-add-a-remo.ipd.md",
     "plan_id": "f6idxs",
     "set_id": "depverb",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5117,7 +5117,7 @@
     "path": "pending/20260908-graduate-00-y9s4vm-show-what-a-source-already-graduated-to-before-authoring-ano.ipd.md",
     "plan_id": "y9s4vm",
     "set_id": "graduate",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5147,7 +5147,7 @@
     "path": "pending/20260908-groupord-01-e3hzyc-preserve-each-plan-order-in-aw-group-the-way-aw-rename-alrea.ipd.md",
     "plan_id": "e3hzyc",
     "set_id": "groupord",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5247,7 +5247,7 @@
     "path": "pending/20260908-lanestrand-01-pr5b0t-report-every-stranded-lane-in-aw-attention-and-fail-its-chec.ipd.md",
     "plan_id": "pr5b0t",
     "set_id": "lanestrand",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5307,7 +5307,7 @@
     "path": "pending/20260908-rcptstale-01-wmnmei-decide-what-a-frozen-begin-base-means-once-main-has-moved-an.ipd.md",
     "plan_id": "wmnmei",
     "set_id": "rcptstale",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
@@ -5617,7 +5617,7 @@
     "path": "pending/20260908-runverdict-07-w33lrl-freeze-the-resolved-model-identity-and-rate-card-into-the-ru.ipd.md",
     "plan_id": "w33lrl",
     "set_id": "runverdict",
-    "status": "to-review"
+    "status": "reviewed"
   },
   {
     "date": "2026-09-08",
