@@ -6,15 +6,17 @@
 - Scope: Verified runner defects in `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/runner_stop.py`, and their focused regression tests.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_stop.py, tests/test_runner_stop_level3.py, tests/test_runner_backlog_close.py, tests/test_runner_item_dependencies.py, tests/test_runner_shared.py, tests/test_stall_progress.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: runnerbugs
 - Order: 1
 - Highest E allocated: 13
 - Author: antigravity
 - Id: hp9rot
+- Approval: 2026-09-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-09 approved (aw set): status set to approved
 - 2026-09-09 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-004 fixed
 
 - 2026-09-08 to-review (antigravity): /assess bugs: assessed the bugs/correctness concern across oc_runipd.py and agy_runipd.py; identified 15 findings (2 Critical, 8 High, 5 Medium/Low); proposed 11 ordered, validatable changes across verification gating, process lifecycle, signal handling, and queue initialization. Wrote this IPD and run record under workflow-artifacts/assess-bugs/20260908-211500/.
