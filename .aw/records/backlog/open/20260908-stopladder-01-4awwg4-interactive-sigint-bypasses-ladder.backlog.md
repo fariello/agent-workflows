@@ -8,6 +8,57 @@
 ## Workflow history
 - 2026-09-08 created (aw backlog): Found while graduating backlog 1m3nul (plan wqq8ua), which deliberately does NOT fix it: resolving this means either removing shipped maintainer-authored behavior (646be41f) or amending an approved spec requirement, and neither is an agent's call. Filed high because it is a correctness and spec-conformance defect on the operator's primary escape path, not a documentation gap.
 
+PARTLY OBSOLETE 2026-09-09, AND THE SEVERITY DROPS. Commit `42c975b2` ("render_stream, runner_stop:
+fix Statusline pause deadlock and provide 4-choice interrupt menu") landed after this item was filed and
+fixed THE HARM, though not the spec conformance. Read this header before acting on the body below: the
+Summary line is now wrong in its central claim.
+
+WHAT CHANGED. The menu gained a FOURTH choice and `_sigint` now routes it to level 1:
+
+    1. Resume?
+    2. Finish current item, clean up, and exit?     <- NEW, records LEVEL_AFTER_CALL
+    3. Clean up and exit?
+    4. Exit, leaving a mess?
+
+At `runner_stop.py:1962-1964`, `INTERRUPT_ACTION_FINISH_CURRENT` records `LEVEL_AFTER_CALL` and returns
+without raising. So the gentle "let the in-flight turn finish" behavior that spec R12 promises for a
+first Ctrl-C IS NOW REACHABLE on a TTY, which it was not when this item was filed. The measured harm in
+the Summary ("the first Ctrl-C requests level 4") is FIXED: choosing 2 requests level 1, and only
+choices 3 and 4 record `LEVEL_NOW_FORCE`.
+
+WHAT SURVIVES, and it is narrower and less urgent. The ladder is still BYPASSED on a TTY: `_sigint`
+(`runner_stop.py:1954`) still branches on `is_interactive` and returns before `SIGINT_LADDER` is ever
+indexed (`:1971-1972`), so on a terminal the escalation sequence R12 specifies (1 -> 3 -> 4 across
+repeated presses) does not run. Two consequences remain:
+
+  1. SPEC R12 IS STILL NOT SATISFIED AS WRITTEN. R12 (`c4gd2h:106`) says "First SIGINT (Ctrl-C) requests
+     level 1. Repeated SIGINT escalates 1 -> 3 -> 4, with a printed hint that pressing again stops
+     harder." The shipped interactive behavior is a MENU, not an escalating ladder, and there is no
+     printed escalation hint because there is no escalation. The spec text describes a design the code
+     deliberately no longer implements on a TTY.
+  2. LEVEL 2 (after-set) IS UNREACHABLE FROM THE MENU, as it is from the ladder. That is consistent with
+     the documented decision at `runner_stop.py:1617-1620` ("level 2 is reachable ONLY out-of-band via
+     `stop --after-set`"), so it is not a new defect, just a thing to state.
+
+REPEATED Ctrl-C IS HANDLED, so the impatient-operator case is safe: `prompt_interrupt_action`
+(`:1840-1842`) catches a second `KeyboardInterrupt` during the prompt and returns `CLEANUP` rather than
+asking again.
+
+WHAT THIS ITEM IS NOW, restated so nobody re-reads the stale Summary as live: a SPEC-VERSUS-CODE
+RECONCILIATION, not a correctness bug. The remaining decision is unchanged in KIND but much lower in
+stakes: either amend R12 to describe the interactive menu as the TTY path (keeping the ladder as the
+non-interactive path, which is what the code does today and is defensible, since an explicit menu is
+arguably better UX than an invisible escalating ladder), or restore the ladder on a TTY and drop the
+menu. The first is now clearly the better option BECAUSE the menu delivers R12's INTENT (a first Ctrl-C
+can stop gently) through a different mechanism. Still a maintainer call: it means editing an approved,
+release-gating spec, or deleting maintainer-authored behavior.
+
+SUGGESTED REPRIORITIZATION: `high` -> `low`, since nothing is broken for an operator and the surviving
+work is documentation of a design that already exists. Left at `high` pending the maintainer's read,
+because dropping a priority on someone else's filed severity is not an agent's call either.
+
+ORIGINAL ITEM TEXT FOLLOWS, whose Summary and first paragraph are now superseded by the above.
+
 A MAINTAINER DECISION, WHICH IS WHY IT IS AN ITEM AND NOT A PLAN. Two shipped things disagree, and
 choosing between them means either deleting behavior the maintainer wrote by hand or amending an
 approved spec requirement. An agent may not pick.
