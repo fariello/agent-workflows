@@ -11,7 +11,7 @@
 - Scope: Split `unverified` into distinguishable recorded facts so "verification never ran" is not reported as "verification was inconclusive", and make the stale-path fallback refuse loudly instead of proceeding with a path it knows may be wrong. EXCLUDES the verdict MAPPING for a verdict that WAS written (sibling `1bfppy`, this Set's Order 05, which owns the fail-closed table); excludes re-fixing the prompt path (already fixed at `1549c018`); excludes the model/rate-card record (`vlf75p`) and the unconsumed-evidence defect (`rbftpl`); excludes changing whether the verifier turn runs at all.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_refork_guard.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: go-pending-approval
 - Set: runverdict
 - Order: 6
@@ -22,6 +22,7 @@
 - From-Backlog: t74o5q
 
 ## Workflow history
+- 2026-09-09 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-F01..PR-F10 all FIXED; OQ-01 and OQ-02 resolved from evidence; readiness go-pending-approval
 
 - 2026-09-09 /plan-review (opencode its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; PR-F01..PR-F10, all ten FIXED, none deferred. Readiness `go-pending-approval`. Record: `.aw/records/reviews/20260908-runverdict-06-fzxfph-distinguish-verification-that-never-ran-from-verification-th.review.md`. `aw ipd lint --phase author` conformed BEFORE semantic review and `--phase review-finalize` conforms after, so nothing here was structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW resting on RE-MEASUREMENT.
   THE OBSOLESCENCE ANALYSIS IS THIS PLAN'S BEST WORK AND IT REPRODUCED IN FULL, which is worth stating first because it is the hardest kind of finding to trust second-hand. Re-scanned at review with the corpus grown to 140 run directories, 58 verify logs and 35 outcome files: still EXACTLY 23 `File not found` logs, in exactly the three named pre-fix runs with exactly the 13/3/7 split, and the decisive half is stronger than claimed, since 105 runs were created AFTER the fix timestamp with ZERO occurrences. The `1549c018` regression re-ran `1 passed`. So refusing to graduate the item's fix (1) and tests (a)/(c)/(d) was correct, and the two surviving fixes are genuinely live at HEAD.
