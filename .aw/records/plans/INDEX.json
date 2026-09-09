@@ -4670,6 +4670,16 @@
     "status": "executed"
   },
   {
+    "date": "2026-09-08",
+    "disposition": "executed",
+    "kind": "child",
+    "order": 1,
+    "path": "executed/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md",
+    "plan_id": "xbwq8n",
+    "set_id": "runanalytics",
+    "status": "executed"
+  },
+  {
     "date": "2026-07-12",
     "disposition": "not-executed",
     "kind": null,
@@ -5348,16 +5358,6 @@
     "plan_id": "5lxvl3",
     "set_id": "runanalytics",
     "status": "reviewed"
-  },
-  {
-    "date": "2026-09-08",
-    "disposition": "pending",
-    "kind": "child",
-    "order": 1,
-    "path": "pending/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md",
-    "plan_id": "xbwq8n",
-    "set_id": "runanalytics",
-    "status": "approved"
   },
   {
     "date": "2026-09-08",

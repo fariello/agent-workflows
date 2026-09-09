@@ -163,7 +163,7 @@ Showing the 40 most-recent of 277 Sets; the full manifest is INDEX.json.
 ## runanalytics
 
 - `5lxvl3` [pending] 00 pending/20260908-runanalytics-00-5lxvl3-run-analytics-telemetry-cache-spa-and-data-sharing-orchestra.ipd.md
-- `xbwq8n` [pending] 01 pending/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md
+- `xbwq8n` [executed] 01 executed/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md
 - `bzz5e6` [pending] 02 pending/20260908-runanalytics-02-bzz5e6-privacy-safe-incremental-per-run-analytics-cache.ipd.md
 - `lhccjf` [pending] 03 pending/20260908-runanalytics-03-lhccjf-cross-host-resource-telemetry-schema-collector-and-sampling.ipd.md
 - `5f2h8i` [pending] 04 pending/20260908-runanalytics-04-5f2h8i-opencode-and-agy-runner-telemetry-lifecycle-integration.ipd.md
