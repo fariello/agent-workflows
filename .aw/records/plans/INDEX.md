@@ -111,6 +111,7 @@ Showing the 40 most-recent of 277 Sets; the full manifest is INDEX.json.
 - `xtklpd` [superseded] 02 superseded/20260906-integearn-02-xtklpd-report-a-stranded-lane-honestly-instead-of-as-a-completed-ru.ipd.md
 - `daexj1` [pending] 03 pending/20260908-integearn-03-daexj1-ask-the-agent-to-adjudicate-a-failing-suite-instead-of-refus.ipd.md
 - `ys1dor` [pending] 04 pending/20260908-integearn-04-ys1dor-report-a-run-whose-work-never-landed-as-not-done-in-red-from.ipd.md
+- `9lyg5h` [pending] 05 pending/20260908-integearn-05-9lyg5h-give-the-adjudicating-agent-a-parallel-pre-work-suite-baseli.ipd.md
 
 ## lanestrand
 

@@ -5233,6 +5233,16 @@
     "date": "2026-09-08",
     "disposition": "pending",
     "kind": "child",
+    "order": 5,
+    "path": "pending/20260908-integearn-05-9lyg5h-give-the-adjudicating-agent-a-parallel-pre-work-suite-baseli.ipd.md",
+    "plan_id": "9lyg5h",
+    "set_id": "integearn",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
     "order": 1,
     "path": "pending/20260908-lanestrand-01-pr5b0t-report-every-stranded-lane-in-aw-attention-and-fail-its-chec.ipd.md",
     "plan_id": "pr5b0t",
