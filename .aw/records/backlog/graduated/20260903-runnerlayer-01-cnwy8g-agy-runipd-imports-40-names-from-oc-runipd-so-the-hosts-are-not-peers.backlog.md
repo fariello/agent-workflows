@@ -1,12 +1,12 @@
 - Id: cnwy8g
 - Status: graduated
-- Blocks-Release: next
 - Set: runnerlayer
 - Priority: medium
 - Work-Kind: bug
 - Summary: agy_runipd imports 40 names from oc_runipd, so the two host runners are not peers: a host driver depends on the other host's driver module, which the rununify shared library must correct rather than preserve
 
 ## Workflow history
+- 2026-09-09 graduated (aw set): Clear the stray Blocks-Release: next. The item's own ## Gate section says 'No Blocks-Release gate. This is a layering correction, not a live failure', and its 2026-09-08 re-measurement states twice that consequence 1 (DriverError) is DISCHARGED by executed plan 818uru E-03 which carried the gate, so 'this item correctly carries NO Blocks-Release gate, and the graduated plans deliberately carry none either'. The front-matter field disagreed with the body, which made aw check report check.from-backlog-gate-mismatch on all three graduated runnerlayer plans (lyo1tz, 9kmbr0, 1f7xno) for faithfully carrying no gate. Fixing the field, not the plans.
 - 2026-09-08 graduated (aw set): Graduated to the runnerlayer Set: orchestrator lyo1tz with children 9kmbr0 (classify all 47 against a stated criterion and FREEZE the sorted set so accretion fails a test) and 1f7xno (re-home the host-neutral names into runner_shared in reviewable batches; closes this item). Split into two because this item's own first requirement is 'Classify all 40 first ... Do not bulk-move'. See the RE-MEASUREMENT AND CORRECTIONS section appended: the count is 47 not 40 across eight statements not six, nine names arrived and two left in five days, consequence 1 (DriverError) is DISCHARGED by executed plan 818uru E-03 so no Blocks-Release gate is carried or invented, the cited wrapper at agy_runipd.py:87-93 is gone, the module is runner_shared.py not runner_common.py, and the 818uru sequencing precondition is satisfied (executed, with a fence explicitly excluding this work).
 - 2026-09-03 set (aw backlog): RECLASSIFIED followup -> bug AND GATED, maintainer ruling 2026-09-03. Each of these three describes shipped behavior that does not match what the product claims, so under the all-bugs-block-release rule they are bugs, and the 'followup' label was the reason the 2026-09-03 gating audit skipped them. Work-Kind edited directly because 'aw backlog set' has no --work-kind flag (its 'aw ipd set' twin does); that tooling gap is filed separately.
 

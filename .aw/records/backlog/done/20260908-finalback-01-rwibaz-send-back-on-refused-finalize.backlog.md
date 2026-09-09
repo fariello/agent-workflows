@@ -1,5 +1,5 @@
 - Id: rwibaz
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: finalback
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: a finalize refused on unchecked E/V state ends the run as SUCCESS instead of sending the item back to the agent: spec 25kzda 4.6 requires RETRY for IPD-EXEC-E-COMPLETE, V-EVIDENCE and PRE-TRANSITION, and no code implements it
 
 ## Workflow history
+- 2026-09-09 done (aw set): CLOSED via HANDOFF, not because the code is written. The design is graduated to plan zzcrlo (finalback-01, .aw/records/plans/pending/20260908-finalback-01-zzcrlo-send-a-refused-finalize-back-to-the-same-agent-with-the-gate.ipd.md), which carries - From-Backlog: rwibaz and the SAME - Blocks-Release: next, so the 2.0.0 release gate is PROVABLY PRESERVED rather than dropped by this close. Verified rather than assumed: check_engine.evaluate_blocking_close(repo, <this item>, 'done') returns severity 'ok' with reason "gate 'next' handed off to a From-Backlog plan or spec", which is the same predicate the setter, the aw check rules and the opt-in pre-commit hook all consult, so this is the HANDOFF fix and not a de-gating. WHY THE CLOSE IS CORRECT NOW: aw attention raised check.orphaned-live-blocker, whose whole point is that an OPEN release-blocking item already handed to a plan is double-counted; the release blocker now lives on zzcrlo, and leaving the item open would report one gate twice. WHAT IS EXPLICITLY NOT CLAIMED: the bug is NOT fixed. zzcrlo is at to-review with two OPEN questions, so it is neither approved nor executed. The underlying defect stands (spec 25kzda 4.6 requires RETRY for IPD-EXEC-E-COMPLETE, V-EVIDENCE and PRE-TRANSITION-REFUSED, while a finalize refused on unchecked E/V state currently ends the run as SUCCESS). Anyone reading this item as 'shipped' is misreading it: done here means the DESIGN is handed off and the gate travels with the plan. The release gate is discharged only when zzcrlo is executed. Item not authored by me; closed on the maintainer's instruction after verifying the handoff is real.
 - 2026-09-08 created (aw backlog): Measured in run-20260908T213552Z-3724920 (agy, plan xbwq8n): the agent wrote correct code and committed it to a lane, never ticked its E/V boxes, finalize refused with nine IPD-S404 findings, and the runner recorded substantially-complete, printed COMPLETED, exited 0, and stranded the work. Spec 25kzda is approved and MANDATES RETRY plus a bounded correction packet for exactly these three checks; the IPD-EXEC-* codes grep to zero files, which the spec itself admits at :39. Filed with Blocks-Release: next because this is a spec-conformance gap on an approved release-gating spec, not a feature request.
 
 THE REFUSAL IS CORRECT. WHAT IS MISSING IS THE SEND-BACK. Nothing here asks for a weaker gate: the

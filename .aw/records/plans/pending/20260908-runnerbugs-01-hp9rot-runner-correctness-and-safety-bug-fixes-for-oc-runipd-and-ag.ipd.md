@@ -3,19 +3,23 @@
 - Date: 2026-09-08
 - Kind: child
 - Concern: bugs/correctness (assess-bugs)
-- Scope: `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/runner_stop.py`, `agent_workflows/runner_shutdown.py`, and regression tests in `tests/`
-- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, agent_workflows/runner_shutdown.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_stop.py, tests/test_runner_shutdown.py
+- Scope: Verified runner defects in `agent_workflows/oc_runipd.py`, `agent_workflows/agy_runipd.py`, `agent_workflows/runner_stop.py`, and their focused regression tests.
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_stop.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_runner_stop.py, tests/test_runner_stop_level3.py, tests/test_runner_backlog_close.py, tests/test_runner_item_dependencies.py, tests/test_runner_shared.py, tests/test_stall_progress.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
+- Readiness: go-pending-approval
 - Set: runnerbugs
 - Order: 1
-- Highest E allocated: 12
+- Highest E allocated: 13
 - Author: antigravity
 - Id: hp9rot
+- Approval: 2026-09-09, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-09 approved (aw set): status set to approved
+- 2026-09-09 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED; PR-001 through PR-004 fixed
 
-- 2026-09-08 to-review (antigravity): /assess bugs: assessed the bugs/correctness concern across oc_runipd.py and agy_runipd.py; identified 15 findings (2 Critical, 8 High, 5 Medium/Low); proposed 12 ordered, validatable changes across verification gating, process lifecycle, signal handling, and queue initialization. Wrote this IPD and run record under workflow-artifacts/assess-bugs/20260908-211500/.
+- 2026-09-08 to-review (antigravity): /assess bugs: assessed the bugs/correctness concern across oc_runipd.py and agy_runipd.py; identified 15 findings (2 Critical, 8 High, 5 Medium/Low); proposed 11 ordered, validatable changes across verification gating, process lifecycle, signal handling, and queue initialization. Wrote this IPD and run record under workflow-artifacts/assess-bugs/20260908-211500/.
 
 ## Goal
 
@@ -32,10 +36,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: An independent verification turn that reports `CORRECTION_REQUIRED` or fails to write an outcome JSON file is never promoted to `verified` or auto-finalized.
   - Execution state: pending
 
-- [ ] E-02 Remove `substantially-complete` from `EXECUTION_SUCCESS_STATES` in `agent_workflows/oc_runipd.py:337` and `agent_workflows/agy_runipd.py:409` (backlog `rwibaz`), ensuring that a refused finalize on unchecked E/V checklists reports incomplete and exits nonzero rather than falsely declaring `COMPLETED` and exiting 0 while stranding lane branches.
-  - Depends on: none
-  - Expected outcome: Runs with unfinalized items exit nonzero with status reflecting unfinished work instead of falsely claiming completion.
-  - Execution state: pending
 
 - [ ] E-03 In `execute_item` (`oc_runipd.py` and `agy_runipd.py`), update `attempt["ending_head"]` and `attempt["ending_status"]` to match `git_head(repo)` and `git_status(repo)` upon successful completion of `integrate_lane_branch()`, allowing `collect_earned_paths` to discover non-IPD backlog carriers from merged lane commits.
   - Depends on: none
@@ -49,10 +49,6 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `ToolIdentityError` aborts the run cleanly with exit code 2 and an explanatory diagnostic on stderr.
   - Execution state: pending
 
-- [ ] E-05 In `agent_workflows/runner_stop.py:896-904`, update `is_agy_safe_checkpoint` to accept both `"event": "step_update"` and `"type": "step_update"`, restoring level-3 safe checkpoint stop detection for real Antigravity streaming events.
-  - Depends on: none
-  - Expected outcome: `is_agy_safe_checkpoint` returns `True` on real Antigravity step completed events, unblocking level-3 graceful stops.
-  - Execution state: pending
 
 - [ ] E-06 In both `agent_workflows/oc_runipd.py` and `agent_workflows/agy_runipd.py`, do not swallow `KeyboardInterrupt` during independent verification turns, and catch `runner_stop.StopNowForce` and `runner_stop.StopAtCheckpoint` during the verification turn to record stop metadata on the item and re-raise.
   - Depends on: none
@@ -88,9 +84,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: Choosing discard on an interrupted lane removes the worktree directory from disk while keeping the branch ref.
   - Execution state: pending
 
-- [ ] E-12 In `execute_item` (`oc_runipd.py:6441-6467` and `agy_runipd.py:3518-3544`), ensure `StallTimeout` handling records `item["preserved_worktree"]` and invokes dirty work snapshotting before returning.
+- [ ] E-12 In `execute_item` (`oc_runipd.py:6441-6467` and `agy_runipd.py:3518-3544`), make the `StallTimeout` early-return path preserve the isolated lane identity and snapshot dirty work before returning.
   - Depends on: none
-  - Expected outcome: Stalled turns running in isolated worktrees record their preserved lane identity in `state.json` and persist dirty uncommitted work.
+  - Expected outcome: A stalled isolated turn records its preserved lane identity in `state.json`; dirty uncommitted work is recoverable before the return.
+  - Execution state: pending
+
+- [ ] E-13 Serialize watchdog and main-thread termination of one child process in both runners so a timeout cannot issue competing termination/stream-close operations.
+  - Depends on: none
+  - Expected outcome: One timeout produces one ordered termination sequence, preserves the existing timeout outcome, and never leaves stream cleanup to a racing second caller.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -109,13 +110,11 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 |---|---|---|---|---|---|---|
 | BUG-01 | CRITICAL | C:Low U:Low S:Low F:Low; Overall:Low | QA / Data Integrity | Verifier Gating | `oc_runipd.py:6637-6648`, `agy_runipd.py:3687-3698` | Permissive verification parser treats `CORRECTION_REQUIRED` as `verified` because it only checks for `BLOCKED` and `NOT CONFORMING`. Also defaults missing outcome files to `verified` if exit code is 0. Auto-finalizes and merges flawed code. |
 | BUG-02 | CRITICAL | C:Low U:Low S:Low F:Low; Overall:Low | Software Engineer | Tool Identity | `agy_runipd.py:4414-4419` | Missing `raise` in `except ToolIdentityError:` in `run_queue`. Caught exception leaves item `running` and loops indefinitely instead of aborting. |
-| BUG-03 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Systems Engineer | Stop Checkpoints | `runner_stop.py:896-904`, `agy_runipd.py:2861` | Schema mismatch: `is_agy_safe_checkpoint` checks `event.get("type") == "step_update"`, but Antigravity CLI emits `{"event": "step_update"}`. Fails 100% of real checkpoints. |
 | BUG-04 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | QA Engineer | Queue Init & Deps | `oc_runipd.py:2978-2980`, `agy_runipd.py:2011-2013`, `oc_runipd.py:3375-3383` | In-run executed plans are coerced to status `reviewed` during queue initialization. Execution items requiring `EXECUTION_SUCCESS_STATES` (`executed`, `substantially-complete`) fail dependency checks and remain deadlocked. |
 | BUG-05 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Reliability | Signal Handling | `oc_runipd.py:6649-6651`, `agy_runipd.py:3699-3701` | `KeyboardInterrupt` caught and swallowed during verifier turn. Run continues, merges turn 1 code, and launches next item instead of exiting. |
 | BUG-06 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Reliability | Stop Handling | `oc_runipd.py:6630-6665`, `agy_runipd.py:3655-3701` | `StopNowForce` and `StopAtCheckpoint` unhandled during verification turn. Bubbles unhandled to `run_queue`, leaving item `running` and causing exit code 1. |
 | BUG-07 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Data Integrity | Backlog Closes | `oc_runipd.py:6496, 6828-6865`, `agy_runipd.py:3562, 3875-3910` | `ending_head` recorded before lane integration and not updated after merge. `git diff starting_head..ending_head` sees no diff, refusing non-IPD backlog closes. |
 | BUG-08 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Security & Safety | CLI Flags | `oc_runipd.py:6927-6940`, `agy_runipd.py:3967-3980` | `--action review --full-auto` unconditionally mutates `item["action"] = "execute"` upon auto-approval, executing plans when user requested review only. |
-| BUG-09 | HIGH | C:Low U:Low S:Low F:Low; Overall:Low | Data Integrity | Finalize & Success | `oc_runipd.py:337`, `agy_runipd.py:409` (backlog `rwibaz`) | `substantially-complete` in `EXECUTION_SUCCESS_STATES`. A refused finalize on unchecked E/V checkboxes marks item `substantially-complete` and exits 0 claiming COMPLETED while stranding lane commits. |
 | BUG-10 | HIGH | C:Med U:Low S:Low F:Low; Overall:Med | Systems Engineer | Process Reaping | `runner_shutdown.py:181-184, 487-490` | If parent process exits while background grandchild processes (test runners, subagents) are alive, `poll() is not None` skips `killpg()`, orphaning grandchildren to PID 1. |
 | BUG-11 | MEDIUM | C:Low U:Low S:Low F:Low; Overall:Low | Reliability | Watchdog / Recovery | `oc_runipd.py:6441-6467`, `agy_runipd.py:3518-3544` | Early `return` on `StallTimeout` bypasses `item["preserved_worktree"]` recording and dirty lane snapshotting. |
 | BUG-12 | MEDIUM | C:Low U:Low S:Low F:Low; Overall:Low | Concurrency | StallWatchdog | `oc_runipd.py:710-713, 5949-5958`, `agy_runipd.py:778-782, 3070-3075` | Double-termination race: watchdog thread and main thread both invoke `terminate_process` on the same `Popen` object after `join(1.0)` timeout. |
@@ -126,22 +125,20 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 ## Proposed changes (ordered, validatable)
 
 1. Fix verifier outcome evaluation to whitelist `VERIFIED` and treat `CORRECTION_REQUIRED` and missing outcomes as `unverified` / `partial` (BUG-01).
-2. Remove `substantially-complete` from `EXECUTION_SUCCESS_STATES` so unfinalized items fail the run (BUG-09).
-3. Update `ending_head` and `ending_status` after lane integration in isolated mode so backlog carrier diffs are detected (BUG-07).
-4. Add missing `raise` for `ToolIdentityError` in `agy_runipd.py` (BUG-02).
-5. Support `"event": "step_update"` in `is_agy_safe_checkpoint` (BUG-03).
-6. Handle `KeyboardInterrupt`, `StopNowForce`, and `StopAtCheckpoint` properly during verification turns in both runners (BUG-05, BUG-06).
-7. Probe `work_dir` for git status during stop recording in isolated mode (BUG-14).
-8. Preserve terminal statuses during queue initialization so executed plans do not block dependents (BUG-04).
-9. Guard full-auto execution mutation against `--action review` (BUG-08).
-10. Populate `kind` in `expand_selectors` when resolving file paths (BUG-15).
-11. Call `teardown_worktree` when operator chooses `discard` in `reclaim_lanes_on_interrupt` (BUG-13).
-12. Record `preserved_worktree` and snapshot dirty work in `StallTimeout` handler (BUG-11).
+2. Update `ending_head` and `ending_status` after lane integration in isolated mode so backlog carrier diffs are detected (BUG-07).
+3. Add missing `raise` for `ToolIdentityError` in `agy_runipd.py` (BUG-02).
+4. Handle `KeyboardInterrupt`, `StopNowForce`, and `StopAtCheckpoint` properly during verification turns in both runners (BUG-05, BUG-06).
+5. Probe `work_dir` for git status during stop recording in isolated mode (BUG-14).
+6. Preserve terminal statuses during queue initialization so executed plans do not block dependents (BUG-04).
+7. Guard full-auto execution mutation against `--action review` (BUG-08).
+8. Populate `kind` in `expand_selectors` when resolving file paths (BUG-15).
+9. Call `teardown_worktree` when operator chooses `discard` in `reclaim_lanes_on_interrupt` (BUG-13).
+10. Record `preserved_worktree` and snapshot dirty work in `StallTimeout` handler (BUG-11).
+11. Serialize timeout termination so watchdog and main-thread cleanup cannot race (BUG-12).
 
 ## Deferred / out of scope (with reason)
 
 - BUG-10 (process group grandchildren orphaned on direct child exit): Remediation Risk is Medium on Complexity/Functionality due to platform differences and potential signal escalation hazards across diverse process tree structures. Deferred to a dedicated runner shutdown hardening pass.
-- BUG-12 (concurrent double-termination in StallWatchdog): Low operational impact because `_close_process_streams` handles closed streams gracefully. Deferred to keep this IPD focused.
 
 ## Scope check
 
@@ -153,7 +150,10 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 - `python3 -m pytest tests/test_oc_runipd.py`
 - `python3 -m pytest tests/test_agy_runipd_cli.py`
 - `python3 -m pytest tests/test_runner_stop.py`
-- `python3 -m pytest tests/test_runner_shutdown.py`
+- `python3 -m pytest tests/test_runner_backlog_close.py`
+- `python3 -m pytest tests/test_runner_item_dependencies.py`
+- `python3 -m pytest tests/test_runner_shared.py`
+- `python3 -m pytest tests/test_stall_progress.py`
 - Bare test suite: `python3 -m pytest`
 - `python3 -m agent_workflows ipd lint --phase pre-transition <this-plan>`
 
@@ -162,17 +162,16 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 | E | Exact command | Named fixture/input | Required positive assertion | Required failure condition |
 |---|---|---|---|---|
 | E-01 | `python3 -m pytest tests/test_oc_runipd.py -k test_verifier_gate` | Verifier output with `CORRECTION_REQUIRED` | Outcome is `unverified`, disposition is `partial`, finalize is NOT called | Flawed code is finalized or merged |
-| E-02 | `python3 -m pytest tests/test_oc_runipd.py -k test_substantially_complete_fails` | Plan with unchecked E/V checkboxes | Run exits nonzero, status is not COMPLETED | Run reports COMPLETED and exits 0 |
 | E-03 | `python3 -m pytest tests/test_runner_backlog_close.py` | Isolated lane run addressing backlog with code carriers | Backlog item closes with carriers found | Backlog item close is refused |
 | E-04 | `python3 -m pytest tests/test_agy_runipd_cli.py -k test_tool_identity_aborts` | Mismatched child tool identity | Runner raises ToolIdentityError and terminates | Runner enters infinite execution loop |
-| E-05 | `python3 -m pytest tests/test_runner_stop.py -k test_agy_checkpoint` | Streaming event `{"event": "step_update", "state": "DONE"}` | `is_agy_safe_checkpoint` returns True | Returns False |
 | E-06 | `python3 -m pytest tests/test_runner_stop.py -k test_verifier_stop` | Level 3/4 stop during verification turn | Item stopped metadata recorded, exit code preserved | Item left in `running` status |
 | E-07 | `python3 -m pytest tests/test_runner_stop.py -k test_stop_isolated_git_status` | Stop with dirty work in isolated worktree | Recorded git state lists modified files | Recorded git state claims clean tree |
 | E-08 | `python3 -m pytest tests/test_runner_item_dependencies.py -k test_in_run_executed` | Queue containing an executed plan and a dependent plan | Dependent plan satisfies dependency and runs | Dependent plan blocked with 'needs executed' |
 | E-09 | `python3 -m pytest tests/test_oc_runipd.py -k test_review_action_full_auto` | `--action review --full-auto` with approved review | Plan is auto-approved, not executed | Plan action mutated to execute |
 | E-10 | `python3 -m pytest tests/test_runner_shared.py -k test_path_selector_kind` | Path selector to orchestrator IPD | Manifest entry retains `kind: orchestrator` | Kind is None |
 | E-11 | `python3 -m pytest tests/test_oc_runipd.py -k test_discard_lane_reclaim` | Operator chooses `discard` at interrupt prompt | Worktree directory is removed | Worktree remains on disk |
-| E-12 | `python3 -m pytest tests/test_stall_progress.py -k test_stall_preserved_worktree` | Stall timeout in isolated worktree | `item["preserved_worktree"]` is populated | Key missing from item |
+| E-12 | `python3 -m pytest tests/test_stall_progress.py -k test_stall_preserved_worktree` | Stall timeout in isolated worktree | Preserved lane identity and dirty snapshot are recorded before return | Lane identity or dirty snapshot is missing |
+| E-13 | `python3 -m pytest tests/test_stall_progress.py -k test_timeout_termination` | Timed-out child with watchdog active | Exactly one ordered termination/cleanup path is observed | Competing termination or stream-close calls occur |
 
 ## Spec / documentation sync
 
@@ -181,12 +180,6 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 ## Open questions
 
-### OQ-01: Should `substantially-complete` retry immediately or leave for operator retry?
-
-- Blocking: no
-- Status: resolved
-- Owner: human maintainer
-- Resolution or deferral rationale: In this bugfix IPD, removing `substantially-complete` from `EXECUTION_SUCCESS_STATES` ensures the run fails closed when finalize is refused. Full automated retry and correction packet emission is tracked under backlog item `rwibaz` and Set `finalback`.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -197,11 +190,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Observed evidence:
   - Result: pending
 
-- [ ] V-02 validates E-02
-  - Required evidence: Test showing refused finalize exits nonzero and does not report `Outcome: COMPLETED`.
-  - Observed evidence:
-  - Result: pending
-
 - [ ] V-03 validates E-03
   - Required evidence: Test showing `ending_head` matches main HEAD post-merge and backlog closes with code carriers.
   - Observed evidence:
@@ -209,11 +197,6 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: Test showing `ToolIdentityError` raises and aborts rather than looping.
-  - Observed evidence:
-  - Result: pending
-
-- [ ] V-05 validates E-05
-  - Required evidence: Test showing `is_agy_safe_checkpoint` returns True for `{"event": "step_update"}` lines.
   - Observed evidence:
   - Result: pending
 
@@ -248,13 +231,23 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-12 validates E-12
-  - Required evidence: Test showing `StallTimeout` records preserved worktree path and snapshots dirty edits.
+  - Required evidence: Test showing `StallTimeout` records the preserved lane and snapshots dirty edits before returning.
   - Observed evidence:
   - Result: pending
+
+- [ ] V-13 validates E-13
+  - Required evidence: Regression test showing a timeout has exactly one termination/cleanup owner and preserves the existing timeout result.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
 - Size assessment: standard
 - Cohesion rationale: not required
 
-This IPD addresses confirmed bugs in runner correctness, process lifecycle, signal handling, and queue initialization. It requires human review and explicit approval before any execution. Under the execution contract, implementation must proceed in isolated worktrees with path-scoped commits and full pytest test verification.
+This IPD addresses confirmed runner correctness, lifecycle, signal, queue, and timeout defects. It requires human review and explicit approval before execution.
+
+Scope fence: declare only the paths in `- Scope-Paths:`. If a necessary path lies outside that fence, make the minimal edit and justify it with `aw ipd finalize --scope-reason`; acknowledge a declared but unmodified path with `--scope-ack`.
+
+Execution contract: resolve every open question before execution; work in an isolated worktree; commit only task-owned paths after verifying the staged set; never push. Paste the actual output of every validation command into the matching `V-*` evidence block. After `aw ipd lint --phase pre-transition` conforms and all `V-*` evidence is complete, finalize through `aw ipd finalize` so the plan moves through its lifecycle honestly.

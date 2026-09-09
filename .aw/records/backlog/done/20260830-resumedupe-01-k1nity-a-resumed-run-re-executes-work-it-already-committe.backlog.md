@@ -1,12 +1,13 @@
 - Id: k1nity
-- Status: graduated
-- Blocks-Release: next
+- Status: done
 - Set: resumedupe
 - Priority: high
 - Work-Kind: bug
 - Summary: A resumed run re-executes work it already committed on its own lane, doubling spend, because telling the agent it is resuming is not enough to make it check
 
 ## Workflow history
+- 2026-09-09 done (aw set): Clear the discharged release gate now that the item is done: the gate was satisfied by executed plan txc9l1 (cited as evidence in the previous transition), so leaving Blocks-Release: next on a closed item would keep asserting an outstanding release blocker and keep check.from-backlog-gate-mismatch firing against that terminal plan's correctly-absent gate.
+- 2026-09-09 done (aw set): Close done: the graduated plan txc9l1 (From-Backlog: k1nity) is in executed/ with every V-01..V-05 Result: pass, so the fix shipped and the release gate this item carried is discharged. Closing also resolves check.from-backlog-gate-mismatch, which compared this item's live Blocks-Release: next against the executed plan's absent gate; the plan is terminal and must not be edited in place, so the correct carrier to update is the item.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the fix is not on main, so the item now carries Blocks-Release: next explicitly rather than relying on a successor plan to carry it.
 
 OBSERVED 2026-08-30 on at least three resumed runs, with the duplication VERIFIED byte-identical.
