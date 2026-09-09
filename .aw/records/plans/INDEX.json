@@ -4984,6 +4984,16 @@
     "disposition": "pending",
     "kind": "child",
     "order": 1,
+    "path": "pending/20260908-defreport-01-b7xarm-require-an-affirmative-or-negative-defect-report-from-every.ipd.md",
+    "plan_id": "b7xarm",
+    "set_id": "defreport",
+    "status": "to-review"
+  },
+  {
+    "date": "2026-09-08",
+    "disposition": "pending",
+    "kind": "child",
+    "order": 1,
     "path": "pending/20260908-depblock-01-akzy45-distinguish-not-ready-yet-from-can-never-be-ready-so-a-trans.ipd.md",
     "plan_id": "akzy45",
     "set_id": "depblock",

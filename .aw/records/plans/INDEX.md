@@ -2,7 +2,7 @@
 
 # Plans by topic (Set)
 
-Showing the 40 most-recent of 275 Sets; the full manifest is INDEX.json.
+Showing the 40 most-recent of 276 Sets; the full manifest is INDEX.json.
 
 ## actmodel
 
@@ -30,6 +30,10 @@ Showing the 40 most-recent of 275 Sets; the full manifest is INDEX.json.
 - `ao1rb7` [pending] 00 pending/20260908-commitguard-00-ao1rb7-commit-path-safety-wire-the-existing-gates-and-make-the-tool.ipd.md
 - `kbqpkn` [pending] 01 pending/20260908-commitguard-01-kbqpkn-wire-the-four-unwired-gates-and-install-the-missing-pre-push.ipd.md
 - `y9vpvv` [pending] 02 pending/20260908-commitguard-02-y9vpvv-add-a-plan-less-aw-commit-and-land-the-ruled-must-wording.ipd.md
+
+## defreport
+
+- `b7xarm` [pending] 01 pending/20260908-defreport-01-b7xarm-require-an-affirmative-or-negative-defect-report-from-every.ipd.md
 
 ## depblock
 
@@ -186,11 +190,6 @@ Showing the 40 most-recent of 275 Sets; the full manifest is INDEX.json.
 - `zz5yxq` [pending] 01 pending/20260908-runnoop-01-zz5yxq-split-reviewed-out-of-the-run-success-bar-so-an-approval-blo.ipd.md
 - `m85gxh` [pending] 02 pending/20260908-runnoop-02-m85gxh-report-a-per-artifact-disposition-line-and-reason-for-every.ipd.md
 - `bsc457` [pending] 03 pending/20260908-runnoop-03-bsc457-print-an-end-of-run-disposition-summary-with-per-disposition.ipd.md
-
-## runrecon
-
-- `d91i3e` [pending] 01 pending/20260908-runrecon-01-d91i3e-point-a-driver-run-at-the-verb-that-can-help-it-instead-of-f.ipd.md
-- `fduoj4` [pending] 02 pending/20260908-runrecon-02-fduoj4-reconcile-a-crashed-step-from-its-own-recorded-outcome-inste.ipd.md
 
 ## (singletons: no Set)
 
