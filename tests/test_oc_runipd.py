@@ -5281,5 +5281,68 @@ class VerifierRoutingHostAsymmetryTests(unittest.TestCase):
         self.assertIn("OpenCode host only", help_text)
 
 
+class OcStreamTrackerOutputModeTests(unittest.TestCase):
+    def test_run_opencode_updates_tracker_across_output_modes(self):
+        for mode in ("clean", "raw", "quiet"):
+            with self.subTest(mode=mode):
+                run_dir = Path(tempfile.mkdtemp()) / f"run-track-{mode}"
+                run_dir.mkdir(parents=True)
+                (run_dir / "sessions").mkdir(parents=True, exist_ok=True)
+                repo = run_dir / "repo"
+                repo.mkdir()
+                plan = run_dir / "plan.ipd.md"
+                plan.write_text("# Test plan\n", encoding="utf-8")
+                prompt_file = run_dir / "prompts" / "01-prompt.md"
+                prompt_file.parent.mkdir(parents=True, exist_ok=True)
+                prompt_file.write_text("test prompt", encoding="utf-8")
+
+                state = {
+                    "run_id": f"run-track-{mode}",
+                    "repo": str(repo),
+                    "options": {"output_mode": mode},
+                }
+                item = {
+                    "id6": "wir001",
+                    "setid": "testset",
+                    "position": 1,
+                    "action": "execute",
+                }
+
+                stream_events = [
+                    '{"type":"step_finish","part":{"tokens":{"total":1500,"input":1200,"output":300},"cost":0.015}}\n',
+                    f'{{"type":"tool_use","part":{{"tool":"write","state":{{"status":"completed","metadata":{{"filepath":"{repo}/src/foo.py"}}}}}}}}\n',
+                ]
+
+                class FakeProc:
+                    def __init__(self, *args, **kwargs):
+                        self.pid = 12345
+                        self.stdout = iter(stream_events)
+                        self.returncode = 0
+
+                    def poll(self):
+                        return 0
+
+                    def wait(self, timeout=None):
+                        return 0
+
+                tracker = driver.StreamTracker()
+                with mock.patch("subprocess.Popen", side_effect=FakeProc):
+                    with mock.patch("sys.stdout", new_callable=io.StringIO):
+                        driver.run_opencode(
+                            state,
+                            run_dir,
+                            item,
+                            plan,
+                            prompt_file,
+                            1,
+                            tracker=tracker,
+                        )
+
+                self.assertEqual(tracker.input_tokens, 1200)
+                self.assertEqual(tracker.output_tokens, 300)
+                self.assertAlmostEqual(tracker.cost, 0.015)
+                self.assertIn("src/foo.py", tracker.modified_files)
+
+
 if __name__ == "__main__":
     unittest.main()

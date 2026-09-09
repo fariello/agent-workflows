@@ -225,5 +225,34 @@ class VerbosityFlagTests(unittest.TestCase):
         self.assertEqual(reloaded["options"]["verbosity"], 1)
 
 
+class OcStreamTrackerWiringTests(unittest.TestCase):
+    def test_tracker_wiring_in_oc_runipd_pipeline(self):
+        import inspect
+
+        # Verify run_queue instantiates StreamTracker and passes tracker
+        rq_source = inspect.getsource(oc_runipd.run_queue)
+        self.assertIn("tracker = StreamTracker()", rq_source)
+        self.assertIn(
+            "execute_item(run_dir, state, runnable, recovery=recovery, tracker=tracker)",
+            rq_source,
+        )
+        self.assertIn("render_run_summary_table(", rq_source)
+        self.assertIn("tracker=tracker", rq_source)
+
+        # Verify execute_item accepts and passes tracker
+        ei_source = inspect.getsource(oc_runipd.execute_item)
+        self.assertIn("tracker: StreamTracker | None = None", ei_source)
+        self.assertIn("run_opencode(", ei_source)
+        self.assertIn("tracker=tracker", ei_source)
+
+        # Verify run_opencode initializes Statusline with tracker and routes to render_event
+        ro_source = inspect.getsource(oc_runipd.run_opencode)
+        self.assertIn("tracker: StreamTracker | None = None", ro_source)
+        self.assertIn("tracker.begin_turn()", ro_source)
+        self.assertIn("statusline = Statusline(", ro_source)
+        self.assertIn("tracker=tracker", ro_source)
+        self.assertIn("render_event(", ro_source)
+
+
 if __name__ == "__main__":
     unittest.main()

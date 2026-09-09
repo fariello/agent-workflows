@@ -5837,12 +5837,10 @@ def run_opencode(
                     # runstop foi1b3 (level 3, spec R10/A3): a level >= 3 request means the TURN
                     # itself must stop, at the next OBSERVED safe checkpoint.
                     #
-                    # THE PARSE IS DELIBERATELY NOT `render_event`. `render_event` is called only in
-                    # the `output_mode == "clean"` branch below, so in `raw` and `quiet` modes nothing
-                    # would parse the line and a `render_event`-based checkpoint would silently never
-                    # fire - the feature would depend on an unrelated display flag. The detector in
-                    # `runner_stop` does its own minimal decode and runs for EVERY line here, before
-                    # any mode branch. Do not move it into the branch below.
+                    # THE PARSE IS DELIBERATELY NOT `render_event`. Even though `render_event` updates
+                    # `tracker` across output modes below, the detector in `runner_stop` does its own
+                    # minimal decode and runs for EVERY line here, before any mode branch. Do not move
+                    # it into the branch below.
                     #
                     # The definition itself is spec `c4gd2h` OQ-01's resolution: after a COMPLETED
                     # tool/step event, before the next is dispatched, observed from this very stream.
@@ -5887,6 +5885,14 @@ def run_opencode(
                     if output_mode == "raw":
                         sys.stdout.write(line)
                         sys.stdout.flush()
+                        if tracker is not None:
+                            render_event(
+                                line,
+                                pal,
+                                tracker=tracker,
+                                verbosity=verbosity,
+                                repo_root=agent_dir,
+                            )
                     elif output_mode == "clean":
                         rendered = render_event(
                             line,
@@ -5897,6 +5903,14 @@ def run_opencode(
                         )
                         if rendered is not None:
                             statusline.write_event(rendered)
+                    elif tracker is not None:
+                        render_event(
+                            line,
+                            pal,
+                            tracker=tracker,
+                            verbosity=verbosity,
+                            repo_root=agent_dir,
+                        )
                 # runstop m0z0ti (level 4): the stream also ENDS when `force_watch` reaped a silent
                 # child, which is how the blocking iteration above is unblocked at all. Re-check here
                 # so that path raises the same `StopNowForce` rather than falling through to a normal
