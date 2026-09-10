@@ -1,5 +1,7 @@
 # IPD: Make the run viewer tests own their data instead of borrowing the machine's live run tree
 
+RETIRED 2026-09-10: the central premise no longer holds. The 14 live-tree-dependent cases in `tests/test_run_viewer.py` were converted to a synthetic fixture by plan `xbwq8n` (`runanalytics` Order 01) on 2026-09-08, one day after this plan was authored; superseded by `.aw/records/plans/executed/20260908-runanalytics-01-xbwq8n-canonical-run-root-analytics-namespace-and-discovery-isolati.ipd.md` (merged at `0d349cc5`). MEASURED TWICE, independently, in the plan's own load-bearing condition: a FRESH CLONE with zero `.aw/records/runs/` entries now reports `75 passed` for that file, where this plan states it fails with 14 failures. `tests/test_run_viewer.py:3` and `:25` now carry the fixture and the module-level hazard warning this plan proposed building. THE SURVIVING GAP IS CARRIED FORWARD, NOT DROPPED: E-03's regression guard was never built, so nothing prevents a new test re-introducing the box-local dependency; that is filed as its own backlog item, `rcmbnb` (`.aw/records/backlog/open/20260910-testisoguard-01-rcmbnb-run-viewer-live-tree-regression-guard.backlog.md`), which carries the completed sweep and the measured current state so none of this analysis is lost. E-04's sweep was completed by hand instead: of the five remaining `dir="."` occurrences, four are prose (`:25`, `:365`, `:375`, `:1910`) and the fifth (`:1954`) is a usage-error case that exits 2 before reading anything, verified passing in the fresh clone, so NO live-tree read remains. This plan is retired rather than executed because its work is already done; it is NOT filed as executed, which would falsely claim this plan implemented it.
+
 - Date: 2026-09-07
 - Kind: child
 - Concern: 14 tests in `tests/test_run_viewer.py` read the LIVE `.aw/records/runs/` tree instead of a fixture, and that directory is GITIGNORED box-local driver state. So they pass only on a machine that has run the driver and fail everywhere else: measured 2026-09-08 in a fresh `git clone` of this repository (`14 failed, 32 passed`, 0 run dirs) versus the primary checkout (`46 passed`, 135 run dirs). The failure message names the cause exactly: `AssertionError: run- not found in no matching runs found`, i.e. the test fails on a CORRECT program, because a tree with no run directories genuinely has no runs to list.
@@ -8,7 +10,7 @@
 - Scope: Convert the 14 live-tree-dependent cases in `tests/test_run_viewer.py` to own their data via a synthetic run tree, so the file passes in a fresh clone, in a lane worktree, and in the primary checkout alike. Add a guard that prevents regression. Touch NO production code: the CLI's behavior on an empty tree is already correct and must not change.
 - Scope-Paths: tests/test_run_viewer.py, tests/test_run_viewer_isolation.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: superseded
 - Set: testiso
 - Order: 1
 - Highest E allocated: 04
@@ -18,6 +20,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-10 superseded (aw set): RETIRED as superseded: premise dead. The 14 live-tree-dependent cases this plan targets were converted to a synthetic fixture by plan xbwq8n (runanalytics Order 01) on 2026-09-08, ONE DAY AFTER this plan was authored. Verified independently 2026-09-10 in the plan's own load-bearing condition: a fresh clone with zero .aw/records/runs/ entries reports '75 passed' for tests/test_run_viewer.py, where this plan states it fails with 14 failures. NOT filed executed, because this plan implemented nothing; the work was done elsewhere and claiming otherwise would be false. THE SURVIVING GAP IS CARRIED FORWARD, NOT DROPPED: E-03's regression guard was never built and is now backlog rcmbnb, which also records the completed E-04 sweep (of five remaining dir='.' occurrences, four are prose and the fifth exits 2 before reading anything, so no live-tree read remains). PROVENANCE: last night's automated review of this plan (run-20260910T004521Z-2724478, position 34) was killed by the 600s stall guard after going silent mid-review, writing no review record; its 15 recorded reasoning steps reached this same conclusion and I re-verified the decisive claim rather than inheriting it. Backlog agrlvw, which this plan graduated from, is left open for the maintainer since its defect is fixed but by other work.
 
 - 2026-09-08 to-review (opencode its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `agrlvw`. Every claim re-measured at HEAD rather than inherited: the item said 15 failures, the current count is 14 (verified in a fresh clone AND in a lane worktree, identical sets), so the plan states 14 and records the discrepancy rather than propagating the stale number. The lane-worktree reproduction is NEW evidence the item could not have had, and it is why this is worth doing before more plans execute: every isolated execution turn currently carries these 14 in its baseline.
 
