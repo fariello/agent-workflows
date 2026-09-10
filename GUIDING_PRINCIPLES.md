@@ -127,11 +127,7 @@ Do not repeat, preview, or separately summarize the choices that the interactive
 
 Keep the context short enough to fit comfortably on a terminal screen. If it is too long, reduce it to the minimum facts needed to make an informed choice. If additional detail is imperative, provide it in the chat (last resort) and say so clearly in the question tool's main text.
 
-Before asking, silently confirm:
-- Can the user answer without reopening other material?
-- Is every included fact necessary?
-- Is the reason for asking clear?
-- Have I avoided repeating the tool's choices?
+The pre-flight self-check list that used to sit here (can the user answer without reopening other material, is every included fact necessary, is the reason for asking clear, have I avoided repeating the tool's choices) MOVED on 2026-09-09 into the `askme` memory kernel, which is where composition actually happens. It is not duplicated here (P8); read it there. It moved because a mandated re-read of this principle was measured to prevent nothing: it was performed on 2026-09-08 and the prompt composed immediately afterwards was still unintelligible to the maintainer, because a checklist stated one indirection away from the composition step does not get applied at the composition step.
 
 The `askme` workflow is the invocable entry point that applies this principle to a repository's open questions: it sorts them into what the repository can answer, what only the human can decide, and what can wait, then asks and records the answers. It references this principle rather than restating it (P8). It exists because this principle alone was measured insufficient: agents that have it loaded still finish work with the human's questions unasked, so `aw ipd lint` refuses a question marked blocking that is still open, and names that workflow as the remedy (see DECISIONS D151).
 
