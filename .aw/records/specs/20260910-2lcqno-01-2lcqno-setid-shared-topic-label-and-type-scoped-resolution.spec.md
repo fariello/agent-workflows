@@ -1,7 +1,7 @@
 # Spec: Setid as a shared cross-type topic label, with type-scoped resolution
 
 - Date: 2026-09-10
-- Status: draft
+- Status: to-review
 - Id: 2lcqno
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 4w7d6s
@@ -170,4 +170,4 @@ the split, because otherwise acceptance criterion 3 cannot be evaluated.
 
 ## Workflow history
 
-- 2026-09-10 note (aw specs): OQ-01 resolved from measurement, not asked: DO NOT report a cross-type setid at all. The question stated its own rule (under roughly a dozen info lines it is discoverability, at scale it is noise under a new severity); measured on the default aw check scope at HEAD it is 38 findings across 28 distinct setids, three times the threshold, so the info variant fails its own test. Added the stronger independent reason: narrating the NORMAL state trains readers to treat cross-type sharing as remarkable, which is the belief that produced the reversed design, and unlike check.stale-index-missing (expected but ACTIONABLE) a cross-type setid needs no action. Recorded that filename-level grep and aw find already serve topic discovery, and instructed the implementer to emit nothing rather than relabel or flag-guard the cross-type branch. Spec now carries zero open questions.
+- 2026-09-10 to-review (aw specs): Ready for critique: seven normative items, five measurements, three accepted costs, six acceptance criteria, and zero open questions (OQ-01 resolved from measurement).
