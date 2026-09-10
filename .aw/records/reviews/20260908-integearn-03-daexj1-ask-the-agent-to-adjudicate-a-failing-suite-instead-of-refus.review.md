@@ -72,3 +72,26 @@ Per the escalation rule, PR-401 is raised in the plan as an open question carryi
 Nothing was rejected. The approach, the maintainer's escalation design, and the post-merge revalidation
 ruling are all sound; what review supplied was the spec reconciliation the plan deferred, a live bug at
 its own seam, corrected precedent, and one blocking security question the maintainer must answer.
+
+## Round 2
+
+Round 2 exists ONLY to close PR-401, whose escalated question the maintainer answered on 2026-09-08. It
+re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so the answered question left PR-401 reading `OPEN` while
+`subject_gating_blocks` kept refusing the plan on a settled decision. Measured at HEAD `dcb5a2a4`: plan
+OQ-02 reads `- Status: resolved` carrying `- Finding: PR-401`. Appending a round is the sanctioned
+mechanism, since `current_findings` reads only the last round (`review_findings.py:236-243`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-401 | BLOCKER | IN-SCOPE | B. Security (an agent may clear a test it broke) | plan OQ-02 (`- Status: resolved`, `- Finding: PR-401`) | Carried forward from round 1 and now CLOSED BY THE MAINTAINER, WHO REJECTED THE FINDING'S FRAMING RATHER THAN ACCEPTING IT. Round 1 argued the plan lets an agent adjudicate a suite it may itself have broken and that the mitigation could not detect deception. The maintainer's ruling of 2026-09-08 refused the abuse framing as a red herring: a pre-test cannot detect deception, any agent capable of deceit can rewrite the gate that constrains it, and "we're mitigating sloppiness, not malice. Asking the agent is 100% the right move." They also noted rigid programmatic gates here "keep biting us in time and money". So option (c) and every hard refusal keyed on the verdict are REFUSED. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's recorded decision, with the REAL justification substituted for the abuse argument: the agent cannot answer accurately even when perfectly honest, because nothing tells it what was already failing. Hence the resolution is KEEP ASKING THE AGENT, ADD NO HARD GATE, and give it a pre-work suite baseline as INFORMATION, run in parallel in its own worktree pinned to the item's recorded base commit. That baseline was split out to child `9lyg5h` rather than absorbed here. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Round 1 raised this as an authority/abuse problem and the maintainer rejected that framing. Should PR-401 be closed, or re-scoped to the honest-error case? | Close it `FIXED` and record the re-framing, because the mitigation the maintainer accepted (a baseline as information) addresses the honest-error case that actually exists, and no finding remains for the abuse case they refused to defend against. | Re-scoping PR-401 to the honest-error case and keeping it open, rejected because the plan already carries that mitigation by way of child `9lyg5h`, so the finding would gate a plan whose remedy is already designed and owned; keeping the abuse framing on the record as unresolved, rejected because the maintainer explicitly withdrew it and re-litigating it wastes their time. | Plan OQ-02's recorded ruling of 2026-09-08 with the maintainer's reasoning quoted in substance; child `9lyg5h` owns the parallel baseline. | yes |

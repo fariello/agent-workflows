@@ -69,3 +69,27 @@ correct for a plan whose remaining work would reverse an executed plan's recorde
 - Pre-review snapshot: skipped, target plan committed and unchanged
 - Hardened result: see the `plan-review: harden commitguard-01 kbqpkn (revisions applied)` commit
 - Push: not performed
+
+## Round 2
+
+Round 2 exists ONLY to close PR-801, whose escalated question the maintainer answered on 2026-09-10. It
+re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so the answered question left PR-801 reading `OPEN` while
+`subject_gating_blocks` kept refusing the plan on a settled decision. Measured at HEAD `dcb5a2a4`: plan
+OQ-01 reads `- Status: resolved` carrying `- Finding: PR-801`. Appending a round is the sanctioned
+mechanism, since `current_findings` reads only the last round (`review_findings.py:236-243`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-801 | BLOCKER | IN-SCOPE | F. Principles (wiring any gate reverses a recorded decision) | plan OQ-01 (`- Status: resolved`, `- Finding: PR-801`) | Carried forward from round 1 and now CLOSED BY THE MAINTAINER, who CONFIRMED round 1's reading rather than reversing it. Round 1 measured that all four gates are opt-in by a deliberate decision (`diundn` OQ-01) rather than by oversight, so every wiring this plan contemplated would reverse a recorded position and the plan had no clearable wiring deliverable. Ruling of 2026-09-10 (`/askme`): KEEP ALL FOUR OPT-IN, wire none, ship only E-06's installability test, which is exactly the disposition round 1 named as defensible. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's recorded decision; `diundn` OQ-01's opt-in posture stands unreversed and E-01's rule (a deliberately-excluded gate must NOT be wired by this plan) now applies to all four. Their stated reasoning: the two clean gates would deliver the same verdict sooner and on one machine only, since `aw check` in required CI already enforces all four fail-closed. Re-measured before asking, at HEAD `81413101`: dependency gate exit 0, backlog close gate exit 0, `aw precommit-scope-gate` STILL refuses a clean tree, prepush gate refuses by design. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | Does the maintainer's ruling leave this plan with a deliverable, given it was authored to wire gates? | YES, and the scope narrows to E-06's installability test alone. | Retiring the plan as having nothing to do, rejected because E-06 proves each of the four CAN be installed correctly by anyone who wants it, which is currently unproven and is the one thing the ruling does not foreclose. | The maintainer's 2026-09-10 answer recorded in plan OQ-01, which explicitly selected "ship only E-06's wiring test"; round 1's own finding that this "loses nothing that CI does not already cover". | yes |
+| D-2 | Does the `wmnmei` fix (making the scope advisory measure the isolated lane) authorize wiring the scope gate later? | NO. A future plan proposing to wire it needs a NEW decision and may not cite the `wmnmei` fix as authorization. | Treating the scope gate as provisionally approved once its clean-tree refusal is fixed, rejected because the ruling declined wiring on POSTURE grounds (imposition), not on the gate's correctness, so repairing the correctness defect does not address the reason it was declined. | The maintainer's ruling reasoning, recorded in plan OQ-01, turns on local hooks not being an imposed authority; `wmnmei` OQ-01's separate answer addresses only which tree the advisory measures. | yes |

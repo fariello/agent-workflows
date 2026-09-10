@@ -102,3 +102,26 @@ declare one of the two runner modules in their own `Scope-Paths`, which Order 04
 | D-4 | Should the parent's Scope-Paths be `.aw/records/plans/pending` or the `none` sentinel that `yeh7gc` uses? | `.aw/records/plans/pending`. | `none` (as `orchprobe`'s parent declares). | Verified both against `ipd_lifecycle._scope_match`: `none` matches nothing, so the plan's own lifecycle move leaves `none` declared-but-unmodified and finalize demands a `--scope-ack` for it. `.aw/records/plans/pending` matches the plan's own path and needs no ack. The majority in-repo precedent (`cczotj`, `3m0urk`) agrees. | yes |
 
 No `Reversible: no` decision was taken in this round.
+
+## Round 2
+
+Round 2 exists ONLY to close PR-002, whose question is now moot on measured evidence. It re-critiques
+nothing: every other round-1 finding was already `FIXED` and is superseded unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so the resolved question left PR-002 reading `OPEN` while
+`subject_gating_blocks` kept refusing this orchestrator. Measured at HEAD `dcb5a2a4`: plan OQ-01 reads
+`- Status: resolved` carrying `- Finding: PR-002`. Appending a round is the sanctioned mechanism, since
+`current_findings` reads only the last round (`review_findings.py:236-243`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-002 | HIGH | UNDER-SCOPE | G. Executability (conceptual density per E-item) | plan OQ-01 (`- Status: resolved`, `- Finding: PR-002`); the nine children's current E/V counts | Carried forward from round 1 and now MOOT: the outcome it asked for ALREADY HAPPENED and the maintainer already approved the result. Round 1's premise was "all ten children carry EXACTLY THREE E-items (31 in the Set)". RE-MEASURED 2026-09-10: the nine work children carry 6, 8, 7, 8, 9, 8, 8, 9 and 10 E-items, 74 in the Set, with V-count equal to E-count in every child. The four children round 1 singled out as densest are now the finest cut (`aflsz3` 9, `6eq3oq` 8, `ixis0c` 9, `9xycbh` 10). Re-measured against the corpus round 1 compared to: 104 pending plans carrying E-items, range 1 to 11, median 6, so every child now sits at or above that median. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed as satisfied by outcome (b), the reviewer's own recommendation, without renumbering the Set or changing ownership. All nine work children were set `approved` in commit `a0b242f0` (2026-09-08 17:22), AFTER the review that raised this finding, so the maintainer has signed off on the re-cut shape; that approval is stronger evidence than a fresh opinion about whether re-cutting was warranted. NOTE this closes the DENSITY finding only and validates no child's CONTENT. This orchestrator remains `reviewed` and still needs its own approval before the Set runs. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | PR-002 asked the maintainer to choose between accepting the density, re-cutting, or splitting. Should it be re-asked now? | NO. Close it as moot and do not spend a maintainer prompt on a decision the repository has already recorded. | Re-asking to obtain an explicit answer, rejected because `askme` forbids asking the human what the repository already answers, and the children's `approved` status is that answer; leaving it open, rejected because a spent premise would gate the Set indefinitely. | Re-measured E/V counts per child at HEAD `c329713c`; commit `a0b242f0` setting all nine children `approved` after the raising review. | yes |
