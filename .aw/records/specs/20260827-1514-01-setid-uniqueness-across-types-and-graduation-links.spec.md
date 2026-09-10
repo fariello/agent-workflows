@@ -59,6 +59,20 @@ source->child forward link + the creation/setter enforcement.
 
 ## 3. The invariant (normative)
 
+> **REVERSED BY MAINTAINER DECISION 2026-09-10 (see OQ-03). DO NOT IMPLEMENT I1, I2, I3 or G1 AS WRITTEN
+> BELOW.** The maintainer ruled that a setid is a SHARED CROSS-TYPE TOPIC LABEL, not a unique identity, so
+> cross-type sharing is CORRECT and must not be prevented. The measurements behind the reversal are
+> recorded in full under OQ-03: 117 of 433 setids already span types by design, review names deliberately
+> inherit their subject's setid, and the motivating `agentadhere` failure was a LOOKUP defect (the setter
+> held both the setid and the target type and still refused) rather than a naming one.
+> WHAT SURVIVES: **I4** (type-scoped resolution) is the real fix and is now the spec's centre of gravity,
+> and the within-type descriptive-consistency rule stays. **G2**, **G4** and **G5** survive as the typed
+> link model, since id6 remains the identity. **I2 is inverted**: `check.setid-collision` must be
+> DOWNGRADED, not hardened, because it currently reports 86 findings at severity `error` (invariant
+> `I-09`) of which 78 are the backlog+plans topic sharing this decision endorses.
+> This spec is `draft` and MUST be revised before implementation; the sections below are preserved
+> unedited as the record of the superseded design, per the convention of correcting rather than rewriting.
+
 - **I1 (cross-type uniqueness).** A setid MUST be unique across ALL record types. The same setid token
   MUST NOT appear under two different record types. (Within-type descriptive consistency, already
   checked, is retained.)
@@ -135,30 +149,88 @@ shared setid. Instead:
 ### OQ-01: Does `Graduated-To` also apply to spec->spec or backlog->spec graduations, or only ->plan-Set?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: The observed pattern is source->plan-Set. Default `Graduated-To`
-  targets plan Sets; generalize only if a real spec->spec/backlog->spec graduation is needed. Decide at
-  review.
+- Resolution or deferral rationale: RESOLVED 2026-09-10 AS **YES, GENERALIZE**, by applying this
+  question's OWN stated rule rather than by asking: it said "generalize only if a real
+  spec->spec/backlog->spec graduation is needed", which is a measurement, and the measurement now says
+  such graduations EXIST. Counted across all 29 specs at HEAD: 4 specs carry a non-empty
+  `- From-Backlog:` (a backlog->spec graduation) and 1 carries a non-empty `- From-Spec:` (a spec->spec
+  graduation), so 5 real non-plan-Set graduations are already in the tree. When this question was
+  authored on 2026-08-27 the observed pattern was source->plan-Set only; that premise has since expired.
+  CONSEQUENCE FOR THE DESIGN: `Graduated-To` must accept a spec target, not only a plan Set, or those 5
+  existing sources cannot record what they became and the forward half of the bidirectional link is
+  silently unavailable for them. Note the field is specified as multi-valued and keyed by setid, and a
+  spec target is addressable the same way, so this widens the VALUE domain rather than the shape.
+  ALSO NOTE the repository already treats a spec as a legitimate graduation target elsewhere: `AGENTS.md`
+  states a spec "is an equally valid gate carrier, so a spec-first graduation can legitimately close its
+  item", and `check.from-spec-dangling` ships as the mirror of `check.from-backlog-dangling`. So the
+  plan-Set-only default would have contradicted a rule already in force.
 
 ### OQ-02: Within-type setid reuse with the SAME descriptive across Orders is legitimate clustering - confirm I1 does not over-constrain it.
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: none
-- Resolution or deferral rationale: I1 targets CROSS-TYPE duplication; the existing within-type
-  descriptive-consistency rule is retained unchanged. Confirm the predicate distinguishes "same setid,
-  same type, same descriptive, different Order" (legitimate Set clustering) from a true collision.
+- Resolution or deferral rationale: RESOLVED 2026-09-10 AS **CONFIRMED, I1 DOES NOT OVER-CONSTRAIN
+  LEGITIMATE CLUSTERING**, and resolved by measurement rather than by asking because the question asked
+  only to CONFIRM a property of shipped code, which is a fact the repository holds. MEASURED THREE WAYS
+  in a scratch tree against the shipped `check_engine.check_collisions`, not by reading it alone:
+  (1) THE LEGITIMATE CASE PASSES. Three plans sharing setid `samesetid` AND the same descriptive across
+  Orders 01/02/03 produce **0** findings. This is the exact shape the question worried about.
+  (2) THE CROSS-TYPE CASE STILL FIRES. Adding a backlog item on the same setid produces **1** finding:
+  `setid samesetid conflicts with ...(different type: plans vs backlog)`.
+  (3) THE WITHIN-TYPE CONFLICTING-DESCRIPTIVE CASE STILL FIRES. Adding a fourth plan on the same setid
+  with a DIFFERENT descriptive produces a second, distinct finding naming both descriptives.
+  So the predicate already discriminates on exactly the two axes the invariant needs (type, then
+  descriptive) and treats Order as irrelevant, which is what makes same-setid clustering legitimate. The
+  mechanism, for the implementer: it keys `seen_sets` on the setid alone and compares the stored
+  `(type, descriptive)` pair, emitting only on a type difference or on two non-None differing
+  descriptives; a repeated setid with matching type and matching descriptive falls through silently.
+  IMPLEMENTATION CONSTRAINT THIS IMPLIES, worth stating because the hard-enforcement change is where it
+  could be lost: the creation-time and setter-time guards I1 adds MUST reuse this same predicate rather
+  than re-deriving uniqueness, or the new hard path can easily forbid the clustering the detect-only path
+  correctly allows. That is the one way this confirmation could stop being true.
 
 ### OQ-03: Is a fresh-setid mint on graduation compatible with the intuitive same-name mental model (agentadhere backlog -> agentadhere plan Set)?
 
 - Blocking: no
-- Status: open
-- Owner: none
-- Resolution or deferral rationale: The typed bidirectional links (From-Backlog/From-Spec + Graduated-To)
-  preserve the TRACEABLE connection without the colliding name; the human-readable slug can still echo the
-  source (only the setid token must differ). Confirm the graduation tool derives a distinct-but-recognizable
-  child setid.
+- Status: resolved
+- Owner: maintainer
+- Resolution or deferral rationale: RESOLVED BY THE MAINTAINER 2026-09-10 (`/askme`) AS **KEEP THE SETID
+  SHARED AS A CROSS-TYPE TOPIC LABEL; FIX THE AMBIGUOUS LOOKUP INSTEAD, AND DOWNGRADE THE FALSE ERROR**.
+  This REVERSES the premise of this spec's central invariant I1 (see the amendment note in Section 3) and
+  therefore answers OQ-03 by removing the question: no fresh-setid mint is wanted, so there is no
+  distinct-but-recognizable child setid to derive.
+  THE MAINTAINER'S REASONING, recorded because it is the load-bearing part: research, specs, prompts and
+  IPDs concerning one issue ARE naturally one set to a user, and a shared setid makes that relationship
+  obvious while distinct setids OBFUSCATE it. They framed the alternative reading honestly (a setid as
+  things that "run together", i.e. a plan-execution batch) and observed that under it the setid becomes
+  effectively useless for most artifacts and always useless for specs, since no "spec set" exists.
+  THE MEASUREMENTS THAT SETTLED IT, taken at HEAD before the decision and shown to the maintainer:
+  (1) CROSS-TYPE SHARING IS THE DOMINANT PATTERN, NOT DRIFT. Of 433 distinct filename-slot setids, **117
+  span more than one record type**. The widest are genuine topics: `agentadhere` covers 7 plans + 1
+  backlog item + 5 research reports (13 files), `lanectn` covers 7 plans + 7 reviews + 1 walkthrough. I1
+  would have forbidden all 117.
+  (2) IT IS PARTLY AUTOMATIC AND DELIBERATE. `review_findings.build_review_name` constructs a review's
+  name from the SUBJECT's setid and the SUBJECT's id6 ("the join key ... not a fresh identifier"), so
+  plans+reviews sharing a setid is designed behavior. That combination alone accounts for 47 of the 117,
+  plus 38 more as backlog+plans+reviews.
+  (3) THE MOTIVATING FAILURE IS A LOOKUP DEFECT, NOT A NAMING ONE. The Section 1 error ("selector
+  'agentadhere' resolved to artifact(s) of type ['backlog', 'research'] ... scoped to 'plans'") shows the
+  setter HELD both the setid and the target type and still refused. Resolution by (type, setid) was
+  available and unused.
+  (4) THE CHECK IS CURRENTLY MISLABELLING CORRECT BEHAVIOR. `check.setid-collision` ships at severity
+  `error` under invariant `I-09` and reports **86** live findings, 78 of them backlog+plans, i.e. mostly
+  the graduation topic-sharing this decision endorses.
+  WHAT REPLACES I1, stated so no implementer inherits the reversed rule by accident: setid is a GROUPING
+  LABEL, not an identity. The identity invariant already exists and is already hard (id6, D140), and every
+  cross-tree link is keyed by id6 (`From-Backlog`, `From-Spec`, and a review's inherited subject id6). So
+  tools MUST resolve by `(type, setid)` or by id6 and MUST NOT assume a bare setid is globally unique.
+  ACCEPTED COST: a bare setid remains ambiguous by design, so every name-taking verb needs a type scope or
+  a disambiguating prompt. That is the price of filename-level topic discovery, which the maintainer
+  judged worth more than global uniqueness.
 
 ## Workflow history
-- 2026-08-27 draft (opencode its_direct/pt3-claude-opus-4.8-1m-us): authored as the follow-on rationale for a setid-uniqueness tooling IPD Set, correcting the soft/detect-only setid-collision posture (awcheck-02-xwxxo8 E-02) to a hard, prevented, cross-type-unique invariant, and replacing shared-setid graduation coupling with typed bidirectional links (From-Backlog/From-Spec by id6 + new multi-valued Graduated-To by setid). Origin: `aw ipd set approved agentadhere` failed on a cross-type setid collision. Parent (uniform-naming 20260817-2147-01) is implemented/frozen; this extends it. REVISABLE before implementation.
+
+- 2026-09-10 note (aw specs): askme 2026-09-10: all three open questions resolved. OQ-01 and OQ-02 resolved from measurement by the agent (each stated its own decision rule; both rules were decidable once measured). OQ-03 resolved BY THE MAINTAINER and it REVERSES the spec's central invariant: a setid is a SHARED cross-type TOPIC label, not a unique identity, so I1/I2/I3/G1 must NOT be implemented as written. Basis measured before asking: 117 of 433 setids span types by design, review names deliberately inherit the subject's setid (47 of those 117), and the motivating agentadhere failure was a lookup defect. I4 (type-scoped resolution) becomes the fix; check.setid-collision must be downgraded from its current error severity, where it reports 86 findings, 78 of them correct behavior. A reversal banner now heads Section 3; the superseded design text is preserved unedited. Spec stays draft and needs revision before implementation.
