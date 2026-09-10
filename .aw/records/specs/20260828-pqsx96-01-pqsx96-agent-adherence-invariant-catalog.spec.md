@@ -141,6 +141,7 @@ one exists. An invariant with no deterministic observable is labeled honestly.
 | I-13 | An agent genuinely read and understood the plan/rules it is executing. | Guidance (unverifiable) | NONE. No durable artifact proves private cognition; a checker can at most require observable preparatory artifacts (a begin receipt, a decisions register entry) as a proxy. | Convert to observable proxies where possible (begin receipt, recorded decisions); otherwise honestly labeled unverifiable. | Fundamentally unverifiable from artifacts (findings 4.7, 10); do NOT build a control that claims to prove it. |
 | I-14 | Authorship in a shared dirty worktree is attributable. | Guidance / Authority invariant (unverifiable locally) | NONE reliable locally: file timestamps and an agent's narrative do not prove who owns a change in a shared checkout. | Isolated worktrees + declared file scope (phase 3) make attribution possible by construction; without isolation it is unverifiable. | Do not infer authorship from timestamps or narrative; the honest fix is isolation, not inference (findings 5.5-relevant, 7.5, 10). |
 | I-15 | Local history / hash chains are not silently forged. | Guidance (locally forgeable) | A hash chain detects ACCIDENTAL corruption and makes an unsupported edit conspicuous; it does NOT prove authenticity against an actor who can edit the record, the keys, and the checker. | A local append-only-shaped log/hash chain is a consistency aid; non-forgeable provenance needs an external key/service (phase 8, deferred). | Locally forgeable with broad access; a "round"/inconsistent timestamp is a heuristic signal, not deterministic proof (findings 5.4, 6, 10). |
+| I-16 | Setid SEMANTICS: a setid is a SHARED cross-type TOPIC grouping label, NOT a unique identity. The same token MAY appear under any number of record types when the artifacts concern one topic; identity is the id6 (I-09 family / D140), and a setid-taking verb resolves within a known type. | Repository invariant | Deterministically detectable in BOTH directions: a setid used within ONE type with two DIFFERENT descriptives is a real inconsistency (`check.setid-collision`'s surviving half); a setid spanning types is NOT a defect and must not be reported as drift. Type-scoped resolution is testable against a token that genuinely spans types. | `check_engine.check_collisions` (the within-type descriptive comparison only) and the type-scoped resolution path in the setid-taking verbs. Spec `2lcqno` is the normative source. | No check can distinguish a DELIBERATE topic share from two unrelated efforts that happened to pick the same token; that judgement is human. A bare setid is therefore ambiguous by design, which is an accepted cost, not a defect to detect. |
 
 ### 3.1 Coverage note
 
@@ -173,6 +174,29 @@ Additional worked traces, to show the catalog covers the existing engine:
   **I-08**. Each existing control therefore has a named catalog home, and each future phase-1
   rule must name one before it is added.
 
+- A MISFILING CORRECTED 2026-09-10, recorded rather than silently repointed because the code still
+  carries the old value. `check.setid-collision` is registered in `check_engine.py:95-97` as
+  `RuleSpec("error", ASSURANCE_REPOSITORY, DET_DETERMINISTIC, "I-09")`, but **I-09 is
+  filename-grammar conformance**, and setid semantics is not filename grammar; this catalog did not
+  mention setid at all before today (grep: zero hits). The rule therefore traced to an invariant that
+  does not describe it. Its correct home is the new **I-16**, added above.
+  THE MISFILING WAS MASKED BY A COINCIDENCE WORTH NAMING: the rule's own subject, the setid, IS a
+  component of the filename grammar, so "I-09" looked plausible to every reader. What I-09 governs is
+  the SHAPE of a name; what this rule governs is whether one token may be REUSED across types, which
+  is a semantic question the grammar is silent on.
+  NOTE the two id6 rules registered under I-09 (`check.id6-collision`, `check.id6-identity-slot`) are
+  NOT being repointed: the identity-slot rule genuinely is about the filename slot, so its I-09 home is
+  at least defensible. Only the setid rule is a clear mismatch.
+  I-16 ALSO CORRECTS THE INVARIANT'S CONTENT, not merely its number. Until 2026-09-10 the repository
+  was heading toward "a setid MUST be unique across all record types" (spec `4w7d6s`, now
+  `superseded`); the maintainer REVERSED that, so the cataloged invariant is the OPPOSITE of what the
+  registered `error`-severity rule currently enforces. That is why the rule reports 78 findings for
+  correct behavior, and it is why re-scoping the rule (not renumbering it) is the actual work. The
+  normative source is spec `2lcqno`.
+  CONSEQUENCE FOR THE IMPLEMENTER: when `check.setid-collision` is re-scoped to its within-type half,
+  update its `RuleSpec` invariant from `"I-09"` to `"I-16"` in the same change, so the code and this
+  catalog agree. Until then they disagree, and this bullet is the record of why.
+
 ## 5. Non-goals (this child)
 
 - NO enforcement code (no schema, engine, hooks, or CI): those are phases 1 through 5. This
@@ -186,4 +210,4 @@ Additional worked traces, to show the catalog covers the existing engine:
 
 ## Workflow history
 
-- 2026-08-28 created (aw specs): Phase-0 foundation for the agentadhere layered defense: threat model, three assurance classes, and an invariant catalog with observable-evidence tags.
+- 2026-09-10 note (aw specs): Added catalog invariant I-16 (setid SEMANTICS: a setid is a SHARED cross-type TOPIC label, not a unique identity) and recorded a misfiling correction in Section 4. check.setid-collision is registered under I-09, but I-09 is filename-grammar conformance and this catalog did not mention setid at all; the rule traced to an invariant that does not describe it. The misfiling was masked because a setid IS part of the filename grammar, so I-09 looked plausible: I-09 governs a name's SHAPE, while this rule governs whether one token may be REUSED across types, which the grammar is silent on. I-16 also corrects the invariant's CONTENT, not just its number: the repository was heading toward cross-type uniqueness (spec 4w7d6s, now superseded) and the maintainer reversed it on 2026-09-10, so the cataloged invariant is now the OPPOSITE of what the registered error-severity rule enforces, which is why it reports 78 findings for correct behavior. The two id6 rules under I-09 are deliberately NOT repointed, since the identity-slot rule genuinely concerns the filename slot. Left the code unchanged on purpose: the RuleSpec invariant must change from I-09 to I-16 in the same commit that re-scopes the rule, and Section 4 records that the two disagree until then.
