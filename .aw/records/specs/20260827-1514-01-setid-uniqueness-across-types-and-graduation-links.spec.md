@@ -1,7 +1,7 @@
 # Spec: setid uniqueness across types + bidirectional graduation links
 
 - Date: 2026-08-27
-- Status: draft
+- Status: superseded
 - Author: opencode its_direct/pt3-claude-opus-4.8-1m-us
 - Id: 4w7d6s
 - Summary: Make a Set id (setid) a hard, prevented, cross-type-unique identity, and replace shared-setid graduation coupling with typed bidirectional links (child From-Backlog/From-Spec by id6; source Graduated-To by setid).
@@ -233,4 +233,4 @@ shared setid. Instead:
 
 ## Workflow history
 
-- 2026-09-10 note (aw specs): askme 2026-09-10: all three open questions resolved. OQ-01 and OQ-02 resolved from measurement by the agent (each stated its own decision rule; both rules were decidable once measured). OQ-03 resolved BY THE MAINTAINER and it REVERSES the spec's central invariant: a setid is a SHARED cross-type TOPIC label, not a unique identity, so I1/I2/I3/G1 must NOT be implemented as written. Basis measured before asking: 117 of 433 setids span types by design, review names deliberately inherit the subject's setid (47 of those 117), and the motivating agentadhere failure was a lookup defect. I4 (type-scoped resolution) becomes the fix; check.setid-collision must be downgraded from its current error severity, where it reports 86 findings, 78 of them correct behavior. A reversal banner now heads Section 3; the superseded design text is preserved unedited. Spec stays draft and needs revision before implementation.
+- 2026-09-10 superseded (aw specs): SUPERSEDED BY SPEC 2lcqno (.aw/records/specs/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md). The maintainer REVERSED this spec's central invariant on 2026-09-10 during an /askme round: a setid is a SHARED CROSS-TYPE TOPIC LABEL, not a unique identity. DEAD: I1 (cross-type uniqueness), I2's hardening direction (the check must be DOWNGRADED, not promoted), I3 (prevention at creation), G1 (fresh child setid on graduation). SURVIVING and carried forward into 2lcqno Section 2: I4 (type-scoped resolution, now the primary deliverable) and G2/G3/G4/G5 (the id6-keyed graduation links). Measured basis: 117 of 433 filename setids span types by design; review filenames deliberately inherit the subject's setid and id6 as a join key (47 of those 117); the motivating agentadhere failure was a LOOKUP defect, since the setter held both the setid and the target type and still refused; and check.setid-collision reports 38 findings by default and 86 with --all, of which only 5 (the within-type descriptive conflicts) are genuine. This document is retained UNEDITED below its Section 3 reversal banner as the historical record of the superseded design.
