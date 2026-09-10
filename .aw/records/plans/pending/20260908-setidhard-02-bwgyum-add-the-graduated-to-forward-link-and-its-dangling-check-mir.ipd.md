@@ -28,7 +28,13 @@
 
 ## Goal
 
-Give graduation a machine-readable forward link so a source can say what it became, making the shared setid unnecessary rather than merely forbidden.
+Give graduation a machine-readable forward link so a source can say what it became, answering that question without a corpus scan.
+
+GOAL AMENDED 2026-09-10, AND THE ORIGINAL WORDING IS RECORDED BECAUSE IT IS NOW FALSE. It read: "making the shared setid unnecessary rather than merely forbidden." The maintainer REVERSED that premise on 2026-09-10: a setid is a SHARED, cross-type TOPIC label, and a source and the plan Set it graduated into may, and by default DO, keep the same setid. So this link does NOT replace the shared name and must not be described as doing so.
+
+THIS PLAN SURVIVES UNCHANGED IN SCOPE, and only its justification moves. It graduated from spec `4w7d6s` G3; that spec is now `superseded` by `.aw/records/specs/20260910-2lcqno-01-2lcqno-setid-shared-topic-label-and-type-scoped-resolution.spec.md` (`2lcqno`), whose Section 2 carries G3 and G5 forward EXPLICITLY as still correct, for the reason stated in its N7: the typed links are the machine-readable truth, while a shared name is a human affordance and not a resolvable reference. It is now the ONLY surviving member of its Set (orchestrator `yku4ga` and siblings `drzbs9`/`dw7i3m` are retired to `superseded/`) and stands alone, which is correct because it already declared `- Item-Dependencies: none`.
+
+TWO INSTRUCTIONS FOR THE EXECUTOR THAT FOLLOW FROM THE REVERSAL. FIRST, do NOT write anywhere, in code comments or plan prose, that this link exists because the shared setid is being removed; that reason is dead, and the Concern above still argues it. SECOND, E-03's resolution is ALREADY CORRECT and was audited on 2026-09-10 (checklist T-06): it resolves a `Graduated-To` setid via `check_engine._parse_setid` over `_iter_plan_ipds`, which is PLANS-ONLY, so it is inherently type-scoped and satisfies `2lcqno` N3. It will NOT be confused by a backlog item or research report sharing the setid, which is now the EXPECTED case rather than a collision. Keep it plans-scoped; do not "improve" it into an all-types search.
 
 ## Detailed Implementation Checklist (TODO)
 
