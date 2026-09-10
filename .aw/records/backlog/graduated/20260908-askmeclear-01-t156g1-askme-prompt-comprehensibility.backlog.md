@@ -1,11 +1,12 @@
 - Id: t156g1
-- Status: open
+- Status: graduated
 - Set: askmeclear
 - Priority: high
 - Work-Kind: bug
 - Summary: askme produced an unintelligible prompt that passed all nine exit-gate checks; the gate is entirely mechanical so it cannot test comprehensibility
 
 ## Workflow history
+- 2026-09-10 graduated (aw set): Graduated into plan 5wtzqv (Set askmefix), which carries - From-Backlog: t156g1 and fixes all four diagnosed defects in one change: the anti-jargon rule gains a positive obligation (the generic-placeholder anti-pattern is named a violation), the symptom is required before any option in a fixed symptom-choice-consequence order, Step 1's sort gains an already-states-a-decision-rule test (the root cause: the measured question was answered by plan zzcrlo's own OQ-03 plus a measurement already in hand), and incomprehension through any channel including the free-text option becomes discard-and-re-ask. Plus the one deliberately non-mechanical exit-gate item, and the mandated P12 re-read dropped with the citation kept and the pre-flight list given exactly one home (relocate-versus-reference left as non-blocking OQ-01, bounded by P12's six other callers). SCOPE AND VALIDATION POSTURE WERE SET BY THE MAINTAINER INTERACTIVELY 2026-09-09: all four causes in one plan, and NO trial-run gate. They rejected my claim that any part could be 'automated': 'neither my request (prompt) nor your response go through any tool that you or I control', which is correct, so the plan's tests are scoped honestly as anti-deletion presence guards on the workflow body and the plan states plainly that comprehensibility is unproven. graduated NOT done: the design is handed off, no code is written.
 - 2026-09-08 created (aw backlog): FILED from a measured failure during /aw askme on plan zzcrlo, at the maintainer's request. The maintainer reported: 'I wanted to pick write your own and say I did not understand a single word of your explanation.' The prompt satisfied every exit-gate item, which is the finding: all nine checks are mechanical (id6 used? recommendation labelled?) and comprehensibility is not, so the gate passes a prompt that fails its only purpose. Three defects with three different fixes, plus a maintainer-raised recommendation to DROP the mandated GUIDING_PRINCIPLES P12 re-read (it was performed in this run and prevented nothing, because the needed guidance is not in P12) while keeping the citation and moving P12's pre-flight self-check list into the askme kernel where composition happens.
 
 MEASURED 2026-09-09, and the evidence is a prompt that PASSED EVERY EXIT-GATE ITEM and was still
