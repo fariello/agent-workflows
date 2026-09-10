@@ -46,6 +46,19 @@ LAYOUT_SCHEMA = ".aw/system/layout.schema.json"
 # The `.aw/`-relative patterns as they must appear in the framework-owned `.aw/.gitignore`.
 IGNORE_PATTERNS = ("system/layout.json", "system/layout.schema.json")
 
+# idxuntrack Order 02 (yvvf98 E-05/E-06), backlog ila6vl: the four GENERATED manifest indexes, which
+# are gitignored for the same reason the layout artifacts above are (byte-deterministically
+# regenerated from the artifact files, so every tracked diff is derived) plus one the layout
+# artifacts do not have: a tracked auto-regenerated file CONFLICTS on any concurrent lane by
+# construction, which stranded lane `ueg5cf`'s 2477 tested lines on 2026-09-06.
+MANIFEST_IGNORE_PATTERNS = (
+    "records/plans/INDEX.json",
+    "records/plans/INDEX.md",
+    "records/research/INDEX.json",
+    "records/research/INDEX.md",
+)
+MANIFEST_PATHS = tuple(f".aw/{p}" for p in MANIFEST_IGNORE_PATTERNS)
+
 
 def _install(repo: Path) -> dict:
     """Run the shared install core the way every entry point does."""
@@ -407,6 +420,202 @@ class LayoutArtifactsGitignoreTests(unittest.TestCase):
             ).returncode,
             0,
             "the TRACKED comms inbox lane must NOT be gitignored",
+        )
+
+
+class ManifestIndexGitignoreTests(unittest.TestCase):
+    """idxuntrack Order 02 (yvvf98 E-05/E-06): the four generated manifest indexes are gitignored.
+
+    Deliberately mirrors `LayoutArtifactsGitignoreTests` above rather than introducing a new harness,
+    per E-05: that class already solved this exact problem shape (a generated, gitignored artifact
+    proven ignored IN EFFECT with real `git check-ignore`, on BOTH the fresh-template and the
+    back-fill code paths, attributed to `.aw/.gitignore` and not the user's root file).
+
+    WHY A GUARD TEST AT ALL, since the gitignore lines are right there in the source: the failure this
+    fences is a SILENT RE-TRACKING. The manifests are regenerated on nearly every `aw` status write,
+    so if a future change drops a pattern, the files reappear as tracked content and the churn plus
+    the lane-conflict failure class both return with nothing failing to say so.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _ignore_source(self, repo: Path, rel: str) -> str:
+        """The gitignore FILE git attributes the rule to, per `git check-ignore -v`."""
+
+        res = git(repo, "check-ignore", "-v", rel)
+        self.assertEqual(
+            res.returncode, 0, f"{rel} is not gitignored at all (stderr: {res.stderr})"
+        )
+        return res.stdout.split(":", 1)[0]
+
+    def _materialize(self, repo: Path) -> None:
+        """Create the four manifests on disk, as `aw index` would."""
+
+        for rel in MANIFEST_PATHS:
+            p = repo / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("{}\n", encoding="utf-8")
+
+    def test_template_carries_all_four_patterns(self) -> None:
+        # A FRESH install writes the template verbatim, so the patterns must be in the template
+        # itself, not only in the back-fill list.
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            self.assertIn(f"\n{pattern}\n", INS._AW_GITIGNORE_TEMPLATE)
+
+    def test_patterns_are_anchored_specific_paths_not_bare_index_names(self) -> None:
+        # The `/inbox/` trap the template documents at length: a bare `INDEX.json` is unanchored and
+        # would match an INDEX.json at ANY depth in ANY tree, silently swallowing unrelated files.
+        lines = [
+            ln.strip()
+            for ln in INS._AW_GITIGNORE_TEMPLATE.splitlines()
+            if ln.strip() and not ln.strip().startswith("#")
+        ]
+        for bare in ("INDEX.json", "INDEX.md"):
+            self.assertNotIn(
+                bare,
+                lines,
+                f"a BARE {bare} pattern matches at any depth; write the specific paths",
+            )
+
+    def test_fresh_install_ignores_all_four_manifests(self) -> None:
+        repo = _seed_committed_repo(self.base, "manifests-fresh")
+        _install(repo)
+        self._materialize(repo)
+
+        aw_gitignore = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            self.assertIn(f"\n{pattern}\n", aw_gitignore)
+
+        porcelain = git(repo, "status", "--porcelain").stdout
+        self.assertNotIn(
+            "INDEX.",
+            porcelain,
+            f"a generated manifest index is visible to git:\n{porcelain}",
+        )
+
+        for rel in MANIFEST_PATHS:
+            self.assertEqual(
+                self._ignore_source(repo, rel),
+                ".aw/.gitignore",
+                f"{rel} must be ignored by the framework-owned .aw/.gitignore",
+            )
+
+    def test_manifests_are_untracked_after_install(self) -> None:
+        # The outcome the item exists for, asserted on the INDEX rather than on the ignore file: a
+        # pattern can be present while the path is still TRACKED (gitignore does not untrack), which
+        # is precisely the state this plan's `git rm --cached` had to fix.
+        repo = _seed_committed_repo(self.base, "manifests-untracked")
+        _install(repo)
+        self._materialize(repo)
+        git(repo, "add", "-A")
+        tracked = git(repo, "ls-files").stdout.splitlines()
+        offenders = [p for p in tracked if p.endswith(("INDEX.json", "INDEX.md"))]
+        self.assertEqual(
+            offenders, [], f"generated manifest indexes got tracked: {offenders}"
+        )
+
+    def test_root_gitignore_carries_no_manifest_entry(self) -> None:
+        # Same precision as the layout twin: `.aw/` is framework-owned and is the correct home; the
+        # user's ROOT `.gitignore` must never gain one of these rules.
+        repo = _seed_committed_repo(self.base, "manifests-rootfile")
+        _install(repo)
+        root_text = (repo / ".gitignore").read_text(encoding="utf-8")
+        self.assertNotIn(
+            "INDEX.", root_text, "a manifest entry leaked into the ROOT .gitignore"
+        )
+        self.assertIn(
+            "*.user-tmp",
+            root_text,
+            "the installer clobbered the user's own .gitignore line",
+        )
+
+    def test_backfill_adds_the_patterns_to_a_pre_existing_gitignore(self) -> None:
+        # The ONLY path that reaches an ALREADY-INSTALLED repo, and the one a template-only edit
+        # silently fails: such a repo already HAS a `.aw/.gitignore`, so `_ensure_aw_gitignore` takes
+        # the append branch and never re-reads the template.
+        repo = _seed_committed_repo(self.base, "manifests-backfill")
+        _install(repo)
+        gi = repo / ".aw/.gitignore"
+        stripped = "\n".join(
+            line
+            for line in gi.read_text(encoding="utf-8").splitlines()
+            if line.strip() not in MANIFEST_IGNORE_PATTERNS
+        )
+        gi.write_text(stripped + "\n", encoding="utf-8")
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            self.assertNotIn(f"\n{pattern}\n", gi.read_text(encoding="utf-8"))
+        # The pre-existing content must survive the back-fill (no clobber).
+        self.assertIn("records/*/untracked/", gi.read_text(encoding="utf-8"))
+
+        INS._ensure_aw_gitignore(repo)
+
+        text = gi.read_text(encoding="utf-8")
+        self.assertIn(
+            "records/*/untracked/", text, "back-fill clobbered pre-existing content"
+        )
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            lines = [ln for ln in text.splitlines() if ln.strip() == pattern]
+            self.assertEqual(
+                len(lines),
+                1,
+                f"back-fill wrote {len(lines)} copies of {pattern}, want 1",
+            )
+        self._materialize(repo)
+        for rel in MANIFEST_PATHS:
+            self.assertEqual(self._ignore_source(repo, rel), ".aw/.gitignore")
+
+    def test_backfill_is_idempotent(self) -> None:
+        repo = _seed_committed_repo(self.base, "manifests-backfill-idem")
+        _install(repo)
+        for _ in range(3):
+            INS._ensure_aw_gitignore(repo)
+        text = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            self.assertEqual(
+                len([ln for ln in text.splitlines() if ln.strip() == pattern]),
+                1,
+                f"duplicate {pattern} line after repeated _ensure_aw_gitignore calls",
+            )
+
+    def test_reinstall_does_not_duplicate_the_patterns(self) -> None:
+        repo = _seed_committed_repo(self.base, "manifests-reinstall-idem")
+        _install(repo)
+        _install(repo)
+        text = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        for pattern in MANIFEST_IGNORE_PATTERNS:
+            self.assertEqual(
+                len([ln for ln in text.splitlines() if ln.strip() == pattern]), 1
+            )
+
+    def test_template_and_this_repos_own_gitignore_agree(self) -> None:
+        # F-7: this repo's `.aw/.gitignore` is byte-identical to the template, and the next install
+        # would re-diff the repo against its own template if E-01 and E-06 ever diverged.
+        own = Path(__file__).resolve().parents[1] / ".aw/.gitignore"
+        if not own.is_file():  # pragma: no cover - not a managed checkout
+            self.skipTest("no .aw/.gitignore in this checkout")
+        self.assertEqual(
+            own.read_text(encoding="utf-8"),
+            INS._AW_GITIGNORE_TEMPLATE,
+            "this repo's .aw/.gitignore and _AW_GITIGNORE_TEMPLATE have diverged",
+        )
+
+    def test_unrelated_index_json_at_another_depth_is_not_ignored(self) -> None:
+        # The anchoring proven IN EFFECT, not just by reading the pattern: a file that happens to be
+        # named INDEX.json somewhere else must stay visible to git.
+        repo = _seed_committed_repo(self.base, "manifests-anchor")
+        _install(repo)
+        other = repo / "docs/INDEX.json"
+        other.parent.mkdir(parents=True, exist_ok=True)
+        other.write_text("{}\n", encoding="utf-8")
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", "docs/INDEX.json").returncode,
+            0,
+            "an unrelated INDEX.json outside .aw/records was swallowed by an unanchored pattern",
         )
 
 
