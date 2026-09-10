@@ -9,15 +9,17 @@
 - Scope: Edit the `askme` workflow BODY (`.aw/system/workflows/askme/askme.md`) to fix all four defects: give the anti-jargon rule a positive obligation, require the SYMPTOM before the CHOICE, make Step 1 test whether the owning artifact already states a decision rule, and name the incomprehension case explicitly as discard-and-re-ask. Add ONE deliberately non-mechanical exit-gate item. Drop the mandated P12 re-read while KEEPING the citation, and MOVE P12's pre-flight self-check list into the kernel. Add presence tests so a later agent cannot silently delete these rules. EXCLUDES adding prose to P12 (forbidden by the item), any behavior change to `aw ipd lint`'s blocking-question gate, any spec amendment, and any claim that the fix is PROVEN to produce understandable questions.
 - Scope-Paths: .aw/system/workflows/askme/askme.md, tests/test_askme_workflow_body.py, CHANGELOG.md, DECISIONS.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: approved
 - Set: askmefix
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: 5wtzqv
+- Approval: 2026-09-10, recorded via aw ipd set: status set to approved
 - From-Backlog: t156g1
 
 ## Workflow history
+- 2026-09-10 approved (aw set): status set to approved
 
 - 2026-09-09 to-review (opencode/its_direct/pt3-claude-opus-5-1m-us): Graduated from backlog `t156g1` at the maintainer's instruction, given interactively this session: asked whether to fix all four causes in one change or only the sort, they chose "One plan covering all four causes plus the readability check". `t156g1` carries no `- Blocks-Release:`, so this plan inherits none; do not add one.
   THE MAINTAINER SETTLED THE VALIDATION POSTURE, AND IT NARROWED THIS PLAN, so the reasoning is recorded rather than the outcome alone. I first proposed a trial run (compose a real question under the new instructions; the fix is not done until the maintainer says it was clear) as the only evidence that tests the actual claim. They rejected the framing twice. On my claim that the mechanical half could be "automated": "how exactly would you 'automate' checks? I ask you to ask me questions, neither my request (prompt) nor your response go through any tool that you or I control." That is CORRECT and I had overclaimed: the exchange passes through no tool either party controls, so no test can observe a prompt or a reply. Their ruling: "I think that the only thing we can do is try to improve the instructions for the `/aw askme` command and skills." So E-07's tests are scoped HONESTLY as anti-deletion regression guards on the file's text, in the established shape of `tests/test_plan_review_parity.py:327-345` (which pins the Fix Bar sentence verbatim), and V-07 must NOT be written as evidence that questions became understandable. THERE IS NO TRIAL-RUN GATE in this plan, deliberately.
