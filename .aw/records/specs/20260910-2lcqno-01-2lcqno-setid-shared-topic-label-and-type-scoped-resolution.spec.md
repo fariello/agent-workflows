@@ -145,17 +145,29 @@ the split, because otherwise acceptance criterion 3 cannot be evaluated.
 ### OQ-01: Should a cross-type setid be reported at `info` for discoverability, or not reported at all?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: maintainer
-- Resolution or deferral rationale: N5 says a cross-type setid is not a FINDING, which settles that it
-  must not fail a gate. It leaves open whether it is worth surfacing as `info` (a "this topic spans 3
-  types" note, which is genuinely useful for topic discovery) or omitted entirely (quieter, and avoids
-  re-teaching agents that cross-type sharing is suspicious). DECIDABLE ONCE MEASURED, so it is likely the
-  implementer's rather than the maintainer's: count how many `info` lines this would add to a default
-  `aw check` run. If it is under roughly a dozen it is a feature; if it is 78 it is noise restored under
-  a new severity. Note the precedent for the quiet choice: `check.stale-index-missing` was deliberately
-  registered at `info` so a normal, expected state does not fail a gate.
+- Resolution or deferral rationale: RESOLVED 2026-09-10 AS **DO NOT REPORT IT AT ALL**, by applying this
+  question's own stated decision rule once the number was measured. The rule was: under roughly a dozen
+  `info` lines it is a discoverability feature, at scale it is noise restored under a new severity.
+  MEASURED on the DEFAULT `aw check` scope at HEAD: **38 findings across 28 distinct setids**, every one
+  of them cross-type (the 5 within-type descriptive cases appear only under `--all`). That is three times
+  the threshold this question set, and it is 28 separate topics a reader would have to dismiss on every
+  run, so the `info` variant fails its own test.
+  A SECOND REASON, INDEPENDENT OF THE COUNT, and the stronger one: an `info` line saying "this setid
+  spans three types" trains a reader (and an agent) to treat cross-type sharing as REMARKABLE, which is
+  exactly the belief that produced the reversed design. Under N1 it is the NORMAL, CORRECT state, and a
+  check that narrates the normal state is not discoverability, it is a standing suggestion that something
+  might be wrong. The precedent cited in this question cuts the same way: `check.stale-index-missing` was
+  registered at `info` for a state that is expected but ACTIONABLE (run `aw index`). A cross-type setid is
+  expected and requires NO action, so it has nothing to report.
+  WHAT SERVES TOPIC DISCOVERY INSTEAD, since the underlying need is real: the filename already carries the
+  setid, so `ls`, `grep`, and `aw find` already answer "what else is in this topic" without a check rule.
+  That is the affordance the maintainer's decision preserved; it does not need a second, noisier channel.
+  CONSEQUENCE FOR THE IMPLEMENTER: the re-scoped `check.setid-collision` emits NOTHING for a cross-type
+  setid. Do not add an `info` rule, and do not keep the cross-type branch behind a flag: acceptance
+  criterion 1 requires those 38 findings to disappear, not to be relabelled.
 
 ## Workflow history
 
-- 2026-09-10 note (aw specs): Authored as the REPLACEMENT for spec 4w7d6s, whose central invariant the maintainer reversed on 2026-09-10. Supersedes rather than revises because 23 artifacts cite 4w7d6s and roughly half its normative content (I1, I2's direction, I3, G1) is dead; a spec whose every section carried a not-this-part caveat would be worse than an honest historical record plus a clean successor. Carries the surviving half forward verbatim in Section 2 (the id6-keyed graduation links, the forward Graduated-To link, the link asymmetry, both-direction validation, the within-type descriptive rule) so no reader has to consult a superseded document across a reversal. Records all five deciding measurements, the maintainer's own reasoning, the three accepted costs, and the separate doctor-versus-check include_retired defect that must not be inherited. One open question (OQ-01, non-blocking): whether a cross-type setid should be surfaced at info severity or not at all, with the deciding measurement stated so the implementer can settle it.
+- 2026-09-10 note (aw specs): OQ-01 resolved from measurement, not asked: DO NOT report a cross-type setid at all. The question stated its own rule (under roughly a dozen info lines it is discoverability, at scale it is noise under a new severity); measured on the default aw check scope at HEAD it is 38 findings across 28 distinct setids, three times the threshold, so the info variant fails its own test. Added the stronger independent reason: narrating the NORMAL state trains readers to treat cross-type sharing as remarkable, which is the belief that produced the reversed design, and unlike check.stale-index-missing (expected but ACTIONABLE) a cross-type setid needs no action. Recorded that filename-level grep and aw find already serve topic discovery, and instructed the implementer to emit nothing rather than relabel or flag-guard the cross-type branch. Spec now carries zero open questions.
