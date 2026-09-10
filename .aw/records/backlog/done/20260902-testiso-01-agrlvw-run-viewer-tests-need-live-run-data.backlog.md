@@ -1,5 +1,5 @@
 - Id: agrlvw
-- Status: graduated
+- Status: done
 - Blocks-Release: next
 - Set: testiso
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: 15 tests in tests/test_run_viewer.py depend on gitignored live run data under .aw/records/runs/, so they pass only on a machine that has run the driver and fail in every fresh clone and in CI
 
 ## Workflow history
+- 2026-09-10 done (aw set): FULLY ADDRESSED, verified 2026-09-10 against every requirement this item states, not just its headline. THE FIX: the 15 live-tree-dependent cases were converted to a synthetic fixture (_build_viewer_fixture, tests/test_run_viewer.py:36) by plan xbwq8n (runanalytics Order 01, executed, merged 0d349cc5) on 2026-09-08. THE ITEM'S OWN REPRODUCTION NOW PASSES: a fresh clone with ZERO .aw/records/runs/ entries reports '75 passed' for that file (the item measured '0 run dirs -> 15 failed, 21 passed'), and all 8 tests it names by name pass there (14 passed, 61 deselected). A FULL bare suite in that fresh clone reports 8 failures, and NONE is in test_run_viewer.py and none is a gitignored-state failure; all 8 reproduce identically on main (7 re-run there: 7 failed), so they are pre-existing and unrelated. THE ITEM'S THIRD ASK, a regression guard, IS NOT BUILT and is carried forward as backlog rcmbnb (low, chore) rather than dropped; the item is closed anyway because its DEFECT is fixed and prevention is a separate, non-blocking concern. THE ITEM'S 'ADJACENT' ASK WAS PERFORMED: no test reads .aw/records/history.jsonl, .aw/worktrees/ or .aw/state/runtime/ from the live tree (every hit is inside a temp fixture), and the only dir='.' outside test_run_viewer.py (test_doctor_and_marker.py:91) stubs run_doctor so it reads nothing; the clean fresh-clone result for that whole class is the proof. RELEASE GATE, stated explicitly because the normal route is unavailable: this item carries Blocks-Release: next, and its graduated plan utwr6y was RETIRED superseded (not executed), so the plan-handoff route cannot carry the gate. Closed via the SATISFIED route with in-tree evidence (tests/test_run_viewer.py) instead, since the gating defect is demonstrably fixed on main. Maintainer instructed this close 2026-09-10 after being shown the analysis.
 - 2026-09-08 graduated (aw set): Graduated to plan utwr6y (to-review), which carries From-Backlog: agrlvw and inherits Blocks-Release: next.
 - 2026-09-03 set (aw backlog): GATED by the 2026-09-03 all-bugs-block-release audit (maintainer rule: we do not ship with known bugs). Work-Kind is bug and the defect is live on main, so the item now carries Blocks-Release: next. Status and Priority unchanged; no code touched.
 
