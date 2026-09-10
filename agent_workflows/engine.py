@@ -4343,6 +4343,20 @@ records/runs/
 # tracking generated output is exactly the git drift install-time emission exists to avoid.
 system/layout.json
 system/layout.schema.json
+# The generated plans/research manifest indexes (idxuntrack, backlog ila6vl): GENERATED
+# byte-deterministically from the artifact files themselves by `aw index <type>`, so every diff is
+# derived and tracking them is the same git drift the layout.json lines above exist to avoid. They
+# are also actively harmful when tracked: an auto-regenerated file conflicts on any concurrent lane
+# BY CONSTRUCTION, and on 2026-09-06 a conflict in records/plans/INDEX.json was the SOLE cause of
+# lane `ueg5cf`'s aborted merge-back, stranding 2477 lines of correct, tested code (`git merge-tree`
+# confirmed the real code auto-merged cleanly). Regenerate a local view with `aw index plans` /
+# `aw index research`; a fresh clone has none until then, which `check.stale-index-missing` reports
+# at `info` rather than failing. Written as four ANCHORED specific paths, never a bare `INDEX.json`
+# that would match at any depth (the same trap the `/inbox/` comment above warns about).
+records/plans/INDEX.json
+records/plans/INDEX.md
+records/research/INDEX.json
+records/research/INDEX.md
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
@@ -5400,6 +5414,20 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
     for _layout_pattern in ("system/layout.json", "system/layout.schema.json"):
         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_layout_pattern)), text):
             additions.append(_layout_pattern)
+    # idxuntrack Order 02 (yvvf98 E-06), backlog ila6vl: back-fill the four generated manifest
+    # indexes. The template above reaches a FRESH install only, so this is the ONLY path that reaches
+    # an ALREADY-INSTALLED repo; without it every managed repo keeps TRACKING an auto-regenerated file
+    # and keeps the `ueg5cf` conflict-on-every-concurrent-lane failure class live everywhere but here.
+    # Four ANCHORED specific paths, matched (and written) line-anchored for the `/inbox/` reason: a
+    # bare `INDEX.json` would match at any depth in any tree.
+    for _index_pattern in (
+        "records/plans/INDEX.json",
+        "records/plans/INDEX.md",
+        "records/research/INDEX.json",
+        "records/research/INDEX.md",
+    ):
+        if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_index_pattern)), text):
+            additions.append(_index_pattern)
     if additions:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"

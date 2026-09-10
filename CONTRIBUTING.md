@@ -51,8 +51,12 @@ To keep the repository clean and avoid accidental commits or drift, every file b
 Never hand-edit generated files. Use the owning CLI verb:
 
 - **Command Shims (`.opencode/commands/`, `.claude/commands/`)**: `aw install .` or `python3 install-workflows.py`.
-- **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw index plans`.
-- **Research Manifest (`.aw/records/research/INDEX.json`, `INDEX.md`)**: `aw research index`.
+- **Plans Manifest (`.aw/records/plans/INDEX.json`, `INDEX.md`)**: `aw index plans`. GENERATED,
+  GITIGNORED, LOCAL: not committed, absent in a fresh clone until you generate it, and absent in a new
+  worktree until you generate it there. A missing manifest is reported at `info` severity, not as a
+  failure; a present-but-stale one is a real finding.
+- **Research Manifest (`.aw/records/research/INDEX.json`, `INDEX.md`)**: `aw research index`. Same
+  regime: generated, gitignored, local, never committed.
 - **IPD Checklists and Verification IDs (`E-*`, `V-*`)**: `aw ipd sync <plan.md>`.
 - **Version Metadata (`.aw/system/VERSION`)**: `make version-file VERSION=<X.Y.Z>`.
 

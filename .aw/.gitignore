@@ -32,3 +32,17 @@ records/runs/
 # tracking generated output is exactly the git drift install-time emission exists to avoid.
 system/layout.json
 system/layout.schema.json
+# The generated plans/research manifest indexes (idxuntrack, backlog ila6vl): GENERATED
+# byte-deterministically from the artifact files themselves by `aw index <type>`, so every diff is
+# derived and tracking them is the same git drift the layout.json lines above exist to avoid. They
+# are also actively harmful when tracked: an auto-regenerated file conflicts on any concurrent lane
+# BY CONSTRUCTION, and on 2026-09-06 a conflict in records/plans/INDEX.json was the SOLE cause of
+# lane `ueg5cf`'s aborted merge-back, stranding 2477 lines of correct, tested code (`git merge-tree`
+# confirmed the real code auto-merged cleanly). Regenerate a local view with `aw index plans` /
+# `aw index research`; a fresh clone has none until then, which `check.stale-index-missing` reports
+# at `info` rather than failing. Written as four ANCHORED specific paths, never a bare `INDEX.json`
+# that would match at any depth (the same trap the `/inbox/` comment above warns about).
+records/plans/INDEX.json
+records/plans/INDEX.md
+records/research/INDEX.json
+records/research/INDEX.md
