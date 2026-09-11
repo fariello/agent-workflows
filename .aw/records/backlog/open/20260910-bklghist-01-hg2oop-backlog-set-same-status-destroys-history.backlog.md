@@ -3,12 +3,90 @@
 - Set: bklghist
 - Priority: high
 - Work-Kind: bug
-- Summary: aw backlog set on a same-status item DESTROYS the existing workflow history, replacing every prior line with one new line, and exits 0
+- Summary: The durable workflow history lives in a GITIGNORED sidecar while the inline record is slimmed to one line, so reasoning recorded by aw specs note / aw backlog set does not survive a clone
 
 ## Workflow history
 - 2026-09-10 created (aw backlog): aw backlog set on a same-status item DESTROYS the existing workflow history, replacing every prior line with one new line, and exits 0
 
-## The defect
+## CORRECTED 2026-09-10, SAME DAY IT WAS FILED: THE TRUNCATION IS DELIBERATE, THE DEFECT IS ELSEWHERE
+
+I FILED THIS WRONG AND AM CORRECTING IT RATHER THAN QUIETLY CLOSING IT. The original report below said
+the history truncation is an accidental data-loss bug in a fixed-template renderer. It is not. Slimming
+the inline `## Workflow history` to the LATEST ONE record is an INTENTIONAL, reviewed, executed design
+decision: plan `awhistory-02` (`b0behn`, executed 2026-08-18, spec `20260818-1525-02` OQ-2) routed the
+specs and backlog writers to a global sidecar and deliberately slimmed the inline block, keeping exactly
+one line so `aw attention`'s `last_history_at` derivation keeps working. `backlog._reattach_history`
+(`backlog.py:628-649`) implements it, and its own comment says so: "the inline block keeps only the
+LATEST record; the full chronological log lives in the global .aw/records/history.jsonl sidecar".
+
+So the OBSERVED BEHAVIOR in the reproduction below is real and correctly measured, but it is the
+feature working as designed, not a renderer bug. Two claims in the original report are WRONG and must
+not be acted on: that `_render_item`'s fixed template is the cause (the slim happens in
+`_reattach_history`, which exists precisely to carry prior history forward), and that the fix is to make
+the section append-only (that would revert a reviewed decision and break the `attention` contract that
+decision was shaped around).
+
+## THE REAL DEFECT THIS EXPOSED, which is worse and is why the item stays open
+
+**THE DURABLE HISTORY IS GITIGNORED, SO IT DOES NOT SURVIVE A CLONE.** The design is sound only if the
+sidecar is as durable as the record it replaced. It is not:
+
+```text
+$ git check-ignore -v .aw/records/history.jsonl
+.aw/.gitignore:11:records/history.jsonl	.aw/records/history.jsonl
+```
+
+Measured consequence on this very cleanup. Three `aw specs note` calls recorded substantial reasoning
+(why spec `4w7d6s` was superseded rather than revised; why invariant `I-16` was added and what the
+`I-09` misfiling was; why the cross-type finding must not be reported even at `info`). All three now
+exist ONLY in the gitignored sidecar. What a fresh clone sees:
+
+```text
+$ grep -c '^- 2026' .aw/records/specs/20260910-2lcqno-...spec.md
+1
+$ grep -c '^- 2026' .aw/records/specs/20260828-pqsx96-...spec.md
+1
+```
+
+The sidecar holds them (204 records total, including all four of mine), but a clone has none of it. So
+the repository's own rule is violated by its own tooling: `AGENTS.md` states an answer must never live
+only in a gitignored tree because it "would not survive", and the workflow-history convention exists so
+the reasoning travels with the repo. Right now every `aw specs note` and `aw backlog set` message is
+one machine away from being lost, and the loss is invisible because the inline line still looks present.
+
+This is ALSO why the near-miss below mattered: on a multi-record item, the pre-`awhistory-02` records
+still sitting inline are the ONLY committed copy, and a `set` call silently drops them. Measured: 5
+backlog items still carry 4 to 7 inline records (`dcla4g` has 7), all of them legacy and all of them
+committed-only.
+
+## What should actually happen (supersedes the original suggested fix below)
+
+Decide which of these the maintainer wants; do NOT revert `awhistory-02`:
+
+1. **TRACK THE SIDECAR** (drop `records/history.jsonl` from `.aw/.gitignore`). Smallest change, makes the
+   durable log actually durable. Cost: it is append-only per machine and would conflict on concurrent
+   writes, which is presumably why it was ignored in the first place. That reason should be checked
+   rather than assumed.
+2. **KEEP MORE THAN ONE INLINE RECORD** (say, the latest N, or every record whose message exceeds a
+   trivial length). Keeps provenance committed without abandoning the slimming rationale.
+3. **REFUSE TO SLIM A RECORD THE SIDECAR CANNOT HOLD**, i.e. write inline whenever the sidecar write
+   fails. Note `backlog.py:557` swallows sidecar failures in a bare `except Exception: pass`, so today a
+   failed sidecar write plus a successful slim loses the record entirely with no signal.
+4. **ACCEPT IT AND FIX THE DOCS**, stating plainly that inline history is a one-line pointer and that
+   durable history is machine-local. Honest, but it contradicts the durability rule in `AGENTS.md`.
+
+RECOMMENDATION: (1) plus (3), because together they make the claim "the full log lives in the sidecar"
+actually true. (2) is the fallback if tracking the sidecar is genuinely unworkable.
+
+## ALSO STILL TRUE AND WORTH FIXING INDEPENDENTLY
+
+There is no `aw backlog note` verb (only `new`, `set`, `check`), which is why annotating an item at all
+requires a status-setting call. `aw specs note` exists and is the obvious precedent. Adding it would
+remove the need to abuse `set` for annotation, which is how this whole thread started.
+
+---
+
+## ORIGINAL REPORT, PRESERVED (its diagnosis is wrong; its measurements are correct)
 
 `aw backlog set <item> --status <its CURRENT status> --message "..."` REBUILDS the item from a fixed
 template instead of appending to it, so the entire `## Workflow history` section is replaced by a single
