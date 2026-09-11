@@ -1,9 +1,11 @@
 - Id: ycg597
 - Status: open
+- Blocks-Release: next
 - Set: verdshadow
 - Priority: medium
 - Work-Kind: bug
 - Summary: A tooled 'aw set reviewed' history line is misread as a review record, shadowing the real review verdict
 
 ## Workflow history
+- 2026-09-11 open (aw set): Gated per the maintainer's rule of 2026-09-11 that every bug blocks the next release. Filed ungated earlier the same session.
 - 2026-09-11 created (aw backlog): Filed 2026-09-10 from an /askme round, per the carrier rule. THE DEFECT: plan_readiness.is_review_history_entry decides a history record IS a review record by scanning its status token for a review word, so a TOOLED bookkeeping line like '- 2026-09-10 reviewed (aw set): set Item-Dependencies to executed:76w6mq' returns True. Since newest_verdict consults only the NEWEST such record, any aw set / aw ipd dependencies write performed AFTER a review SHADOWS that review's verdict, and newest_verdict then returns polarity None because the tooled line states no verdict. MEASURED at HEAD 5692797e: 2 of 104 pending plans are in this state (8b9ufm and xo3244); xo3244 entered it when this session set its dependency edge with the sanctioned tool, so the defect is triggered by CORRECT tool use, not by hand-editing. WHY IT MATTERS: newest_verdict is one of three inputs approval_refusals composes, and its docstring states the discriminator 'is the central correctness requirement of the approval gate'. Today the consequence is benign-by-luck (None is treated as no-signal rather than as a refusal, and the structured Readiness field is consulted first), so no plan is currently mis-approved. But the gate is reading a line that states nothing instead of the review that stated something, which means a genuine REJECT verdict could be shadowed by a later tooled status write. Scope: make the discriminator distinguish a REVIEW record from a tooled bookkeeping record (the actor field already differs: '(aw set)' vs an agent/model string, and a real review record carries a verdict token), and add a test that a tooled entry appended after a REJECT review does not shadow it. Do NOT fix this by having newest_verdict skip records with no verdict token: that would silently accept a malformed review record as absent.

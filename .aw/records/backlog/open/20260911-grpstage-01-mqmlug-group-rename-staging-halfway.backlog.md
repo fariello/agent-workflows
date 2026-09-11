@@ -1,9 +1,11 @@
 - Id: mqmlug
 - Status: open
+- Blocks-Release: next
 - Set: grpstage
 - Priority: high
 - Work-Kind: bug
 - Summary: aw group --rename --apply stages a rename as delete-only, so the executed-transition hook refuses its own self-commit
 
 ## Workflow history
+- 2026-09-11 open (aw set): Gated per the maintainer's rule of 2026-09-11 that every bug blocks the next release ('We don't ship known bugs'). This item was filed ungated earlier the same session, which is the violation that prompted Set nobugship.
 - 2026-09-11 created (aw backlog): Filed 2026-09-10 after the maintainer ran six aw group --rename --apply commands and ALL SIX had their self-commit REFUSED. MEASURED at HEAD 50c60393: the verb renames the file on disk correctly and rewrites INDEX.json/INDEX.md, then its self-commit fails with 'aw ipd executed-transition gate REFUSED this commit ... raw plan->executed transition (moved into executed/) with NO matching finalize evidence'. THE CAUSE IS STAGING SHAPE, NOT THE GATE'S POLICY. After the verb runs, git status shows the OLD path staged as D (deleted) while the NEW path is untracked (??). The gate's _staged_plan_executed_transitions reads 'git diff --cached --name-status -M' and, for a non-rename code, sets old_path=None for A/M/C, so once the new path is staged alone it looks like a plan APPEARING in executed/ with no predecessor, which is exactly the hand-mv pattern the gate exists to refuse. PROOF THE GATE IS CORRECT: staging BOTH sides makes git report R099 for all six (a rename WITHIN executed/), and executed_transition_gate.check() then returns exit 0. So the gate reasons correctly about renames; the verb simply never presented one. WHY THIS IS HIGH: the verb's own self-commit path is unusable on any plan in a terminal directory, and its failure message points the operator at 'aw ipd finalize', which is the WRONG remedy for a rename and would be refused or nonsensical for an already-executed plan. An operator following the message would be misled. Scope: have the verb stage the deletion and the addition TOGETHER (or use git mv) before invoking its commit helper, so a rename is presented as a rename. Add a regression test renaming a plan inside executed/ and asserting the self-commit succeeds. Do NOT fix this by exempting the gate or by passing --no-verify.
