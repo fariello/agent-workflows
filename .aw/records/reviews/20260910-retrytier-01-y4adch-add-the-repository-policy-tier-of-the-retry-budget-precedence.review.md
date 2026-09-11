@@ -75,3 +75,22 @@ within E-05. No product code was modified.
 | D-3 | The plan never posed the optional-versus-required parameter question (PR-002). Ask, or resolve it? | Resolve it with a recommendation plus a mandatory guard, as new OQ-04 | Ask the maintainer (rejected: it is an implementation-shape call with a measurable right answer, not a risk or scope decision, so asking would spend a human turn on something the call-site count settles); leave it unstated (rejected: it decides whether six correct assertions get rewritten, and an executor choosing under pressure would likely pick optional without adding the guard that makes optional safe) | Ten call sites counted; `test_an_out_of_range_value_refuses_the_whole_run` (`:642-649`) supplies the guard pattern | yes |
 | D-4 | OQ-03 asks whether to land this before the budget is ever spent. Resolve it? | No. Leave it with the maintainer, `Blocking: no`, with the measurement confirmed and one consequence added for the decision | Resolve it as land-now (rejected: pure priority, which is the human's, and the plan is already written for that reading so nothing is blocked); resolve it as park (rejected: same reason, and it would discard completed design work over a scheduling preference) | `plan_retry`/`retry_budget_remaining` still callerless at review; `xipfy1` still `to-review`; AGENTS.md reserves priority to the human | yes |
 | D-5 | The plan's `run_recovery.py`, `config.py` and test anchors are correct while every `runner_shared.py` anchor is stale (PR-005). Correct them silently, or name the pattern? | Correct them AND name the pattern, recording that these anchors were already wrong once and which two of them are lines the plan forbids editing | Just fix the numbers (rejected: the executor will re-read the file at a later HEAD where they may have drifted again, so the durable instruction is "re-locate by symbol, this file moves", not a fresher number) | Every anchor measured at `c8461ef5`; two drifted lines are the resume refusal and the owner constant, both in the plan's do-not-touch list | yes |
+
+## Round 2
+
+Round 2 exists ONLY to close the finding(s) below, whose escalated question(s) the maintainer answered on
+2026-09-10. It re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded
+unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` forever while
+`subject_gating_blocks` keeps refusing the plan on a decision that has been made. Appending a round is
+the sanctioned mechanism, since `ReviewDocument.current_findings` reads only the LAST round
+(`review_findings.py:236-243`). This is the SECOND such cleanup in one session; the durable fix is plan
+`qhy3i3` E-07, which is authored and awaiting approval.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-004 | HIGH | IN-SCOPE | A. Correctness (no shipped precedent for the posture) | plan OQ-01 (`- Status: resolved`, `- Finding: PR-004`) | Carried forward from round 1 and now CLOSED BY THE MAINTAINER. Round 1 raised it to blocking because the plan's premise that the repository had "shipped BOTH postures" was measured FALSE: both existing config keys fall back quietly, so fail-closed would have introduced a second posture with no precedent to follow. Ruling of 2026-09-10: FALL BACK TO THE DEFAULT AND EMIT A VISIBLE WARNING naming the key and the bad value, which is the reviewer's third option rather than either of the plan's two. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's recorded decision. Two obligations were added to the plan: the fallback-and-warn behavior must be written down at the implementation site as the PRECEDENT for future `project.json` keys, and the CLI/config asymmetry (a per-invocation mistake refuses, a shared-file mistake warns) is now DELIBERATE and must not be 'fixed' later. |

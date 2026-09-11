@@ -105,3 +105,22 @@ V-items unchanged at six each, bijection intact.
 | D-3 | E-02 versus E-03 conflict over the orchestrator injection sites: pick the resolution, or require the executor to decide? | Require a DECIDED, stated, tested treatment, with the constraint named (no Set killed `dead-children` while its child has budget) | Picking "treat refused as non-actionable-but-not-dead" myself; picking "leave sites 3 to 5 alone" myself; leaving the conflict unmentioned | Both resolutions are defensible and the choice depends on implementation shape that does not exist yet, so fixing one would over-constrain the executor. What was NOT acceptable was silence: the plan shipped an instruction ("enumerate every reader") that would surface the conflict mid-execution with no guidance. Naming the invariant is the smallest sufficient fix | yes |
 | D-4 | OQ-02 (`PARTIAL` versus a new token): resolve from evidence or leave to the executor? | Resolve as reuse `PARTIAL`, permitting a documented divergence | Leaving it open; mandating `PARTIAL` with no divergence allowed | The question itself named the deciding fact ("check whether anything parses the outcome string"), and measuring it cost one search: nothing parses it. With the domain free, reuse wins on comprehension, and E-01 independently surfaces the refusal on the item row so the outcome word is not the sole carrier of meaning. Left divergence permitted because the requirement is only "not `COMPLETED`" | yes |
 | D-5 | Should the reviewer fix the environmental suite failure (another party's gitignored `opencode-recovery/` tree)? | No: record it, name the cause and the tracking item, forbid touching it | Deleting the tree; adjusting the parity test's expected set; adding it to `.gitignore` differently | It is another party's gitignored session transcripts in a shared checkout, and the shared-checkout rule forbids cleaning up work that is not mine. It is already tracked as backlog `8kttqq` (`open`), and it is outside both this plan's `Scope-Paths` and a review's authority, since reviews change plans and not code | yes |
+
+## Round 2
+
+Round 2 exists ONLY to close the finding(s) below, whose escalated question(s) the maintainer answered on
+2026-09-10. It re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded
+unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` forever while
+`subject_gating_blocks` keeps refusing the plan on a decision that has been made. Appending a round is
+the sanctioned mechanism, since `ReviewDocument.current_findings` reads only the LAST round
+(`review_findings.py:236-243`). This is the SECOND such cleanup in one session; the durable fix is plan
+`qhy3i3` E-07, which is authored and awaiting approval.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-101 | HIGH | IN-SCOPE | C. Architecture (overlap with an approved plan) | plan OQ-04 (`- Status: resolved`, `- Finding: PR-101`) | Carried forward from round 1 and now CLOSED BY THE MAINTAINER. Round 1 found `r2i1b1` is already `approved` and builds this plan's E-01 mechanism generally, in the same function, so the order decides how much work this plan does. Ruling of 2026-09-10: `r2i1b1` LANDS FIRST, then this plan, so E-01 shrinks to writing a refusal record in the shared shape plus the `outcome_str` fix with no renderer branch of its own. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision. Accepted cost recorded explicitly: the dishonest `COMPLETED` reporting persists until both land, and because this plan is release-gated the 2.0.0 gate now waits on `r2i1b1` executing first. Obligation on the executor: consume `r2i1b1`'s record rather than inventing a parallel one, and do NOT fall back to a bespoke renderer branch if it has not landed. No dependency edge was added, since this is preference rather than correctness. |

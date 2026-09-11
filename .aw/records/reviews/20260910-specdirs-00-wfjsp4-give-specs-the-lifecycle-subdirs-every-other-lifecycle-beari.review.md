@@ -84,3 +84,23 @@ Nothing in the Set's approach was rejected. The thesis, the reader-first sequenc
 and the decision to split reader from migration are all sound and all re-verified. What review supplied was
 the symmetric write-side gap, the approved-spec contract the change falsifies, and four measurement
 corrections that would each have misled an executor.
+
+## Round 2
+
+Round 2 exists ONLY to close the finding(s) below, whose escalated question(s) the maintainer answered on
+2026-09-10. It re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded
+unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` forever while
+`subject_gating_blocks` keeps refusing the plan on a decision that has been made. Appending a round is
+the sanctioned mechanism, since `ReviewDocument.current_findings` reads only the LAST round
+(`review_findings.py:236-243`). This is the SECOND such cleanup in one session; the durable fix is plan
+`qhy3i3` E-07, which is authored and awaiting approval.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | UNDER-SCOPE | C. Architecture (one of three writers taught) | plan OQ-04 (`- Status: resolved`, `- Finding: PR-001`) | Carried forward from round 1 and now CLOSED, with the maintainer widening the answer beyond what the finding proposed. Round 1 measured that the Set teaches only ONE of three spec-placement writers, so executing it would establish the invariant and break it on the next transition or creation. Ruling of 2026-09-10: not 'add the writer child' but BUILD ONE SHARED PLACEMENT LIBRARY and adopt it per type, replacing the existing plans and backlog branches so duplicated knowledge shrinks rather than grows. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision, which supersedes the finding's own remedy. Measured basis recorded in the plan: there is NO relocation module, only an if/elif chain at `status_set.py:822-864`; each type stores its status-to-directory knowledge differently; and the pattern already failed this way once (`status_set.py:856-860`). Carrier filed as backlog `x9qv9q` so the library work survives the re-scope. |
+| PR-002 | BLOCKER | UNDER-SCOPE | B. Contracts (amending an approved spec undeclared) | plan OQ-05 (`- Status: resolved`, `- Finding: PR-002`) | Carried forward from round 1 and now CLOSED. Round 1 found the Set falsifies an approved spec's record-class row (`kw5y2s`, `specs` row reads "Single directory; frontmatter status tracking") while no child declared that `.spec.md` and the Set's own spec-sync section asserted no amendment was expected. Ruling of 2026-09-10: AMEND IT WITHIN THE SET, with the path DECLARED in `- Scope-Paths:` up front. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision. Three alternatives were explicitly declined: amend-first (aspirational documentation), abandon the migration, and ship-with-the-contradiction. Recorded that the amendment must describe the SHARED placement model rather than merely adding a subdir list to the `specs` row, and that the false 'No spec amendment is expected' claim must be corrected in the re-scope. |

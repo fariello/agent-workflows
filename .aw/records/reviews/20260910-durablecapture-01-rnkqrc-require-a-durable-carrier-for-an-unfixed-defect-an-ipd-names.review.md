@@ -107,3 +107,22 @@ V-items unchanged at six each, bijection intact.
 | D-3 | E-05's cutover reuse is unset here (PR-305). Mandate one boundary mechanism, or offer options? | Offer three explicit options and require the choice stated and demonstrated | Mandating reuse of `dependency_schema_cutover`; mandating a new marker; mandating the `- Date:` comparison | Mandating reuse would ship a rule whose error tier is unreachable while its test passes, which is the worst outcome; mandating a new config surface pre-empts a design choice the executor is better placed to make with the code in front of them. What was NOT acceptable was silence, since the plan asserted staged severity works without checking whether the mechanism was configured | yes |
 | D-4 | Is the expired/incorrect detail in this plan (PR-302, PR-303, PR-307) grounds for REPLAN? | No: REVIEWED - OPEN QUESTIONS with revisions applied | REJECT - NEEDS REPLAN | Every load-bearing premise re-verified TRUE (all five dead-code findings, both precedents, the attention mapping). The corrections are numbers, citations and one contradictory sentence, plus two implementation seams that bounded edits supplied. Only the OQ-05 scope question genuinely needs an answer, and E-01 is valid under either | yes |
 | D-5 | Should the reviewer fix the environmental suite failure (another party's gitignored `opencode-recovery/` tree)? | No: record it, name the cause and tracking item, forbid touching it | Deleting the tree; adjusting the parity test's expected set | It is another party's gitignored session transcripts in a shared checkout, which the shared-checkout rule forbids cleaning up; it is already tracked as backlog `8kttqq` (`open`); and it is outside both this plan's `Scope-Paths` and a review's authority, since reviews change plans and not code | yes |
+
+## Round 2
+
+Round 2 exists ONLY to close the finding(s) below, whose escalated question(s) the maintainer answered on
+2026-09-10. It re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded
+unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` forever while
+`subject_gating_blocks` keeps refusing the plan on a decision that has been made. Appending a round is
+the sanctioned mechanism, since `ReviewDocument.current_findings` reads only the LAST round
+(`review_findings.py:236-243`). This is the SECOND such cleanup in one session; the durable fix is plan
+`qhy3i3` E-07, which is authored and awaiting approval.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-301 | BLOCKER | IN-SCOPE | C. Architecture (unreachable read as scoped) | plan OQ-05 (`- Status: resolved`, `- Finding: PR-301`) | Carried forward from round 1 and now CLOSED by a NARROWER AND STRONGER ruling than the finding contemplated. Round 1 found the plan's history instructs the predicate to read a normalized report on the run record, which no declared scope path can reach (0 tracked files under `.aw/records/runs/`). Ruling of 2026-09-10, verbatim: "All defects require one or more backlogs or plans to address. The report is not needed. A backlog item or IPD is. This is a MUST, not a should." | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision, which rejected the compromise offered rather than choosing it: the run-record read is DROPPED AS UNNECESSARY, not deferred, so no follow-up item is owed. The plan already builds the ruling, since E-02's HANDOFF escape requires a carrier resolving to a `backlog/open/` item or a non-terminal plan and explicitly rejects one resolving into `executed/`. Recorded that E-05's staged severity is a ROLLOUT mechanism whose end state is `error`, and that the plan's own history instruction to read the report is SUPERSEDED. |

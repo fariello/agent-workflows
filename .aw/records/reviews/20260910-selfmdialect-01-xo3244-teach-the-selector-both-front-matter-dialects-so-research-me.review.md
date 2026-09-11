@@ -89,3 +89,23 @@ harmonize `_STATUS_RE` are all correct and all re-verified. What review supplied
 central safety claim plus the mechanism that actually secures it, the destructive-verb exposure the
 acceptance question omitted, the composition-order constraint with `76w6mq`, a second test class the docstring
 rewrite would break, and corrected baselines.
+
+## Round 2
+
+Round 2 exists ONLY to close the finding(s) below, whose escalated question(s) the maintainer answered on
+2026-09-10. It re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded
+unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` forever while
+`subject_gating_blocks` keeps refusing the plan on a decision that has been made. Appending a round is
+the sanctioned mechanism, since `ReviewDocument.current_findings` reads only the LAST round
+(`review_findings.py:236-243`). This is the SECOND such cleanup in one session; the durable fix is plan
+`qhy3i3` E-07, which is authored and awaiting approval.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-301 | HIGH | IN-SCOPE | A. Correctness (composition order) | plan OQ-03 (`- Status: resolved`, `- Finding: PR-301`) | Carried forward from round 1 and now CLOSED BY THE MAINTAINER. Round 1 found the two plans compose in ONE order only and neither declared the edge: without `76w6mq` first, this plan's YAML fallback never fires on the affected document because the bullet reader still finds a quoted foreign id6. Ruling of 2026-09-10: DECLARE THE EDGE. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision and ACTED ON: `- Item-Dependencies:` is now `executed:76w6mq`, set with `aw ipd dependencies set` rather than hand-edited, so a runner holds this item `dependency-blocked` and reports why. Re-verified the defect is live: the doc's first bullet `Id:` returns `uyeko5` (a real executed plan) against its own YAML `27rjro`, and `aw check all` reports `check.id6-collision` for it. |
+| PR-303 | HIGH | IN-SCOPE | B. Contracts (a mutating verb widens) | plan OQ-01 (`- Status: resolved`, `- Finding: PR-303`) | Carried forward from round 1 and now CLOSED. Round 1 corrected the plan's framing twice: the figure is not 5-to-52, and the change is NOT confined to a query, because `aw archive` takes a research target and MOVES files. Ruling of 2026-09-10: ACCEPT BOTH surfaces, with a new obligation to PROVE the default preview lists the full widened set before any move. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's decision. Re-measured: 118 research files, 110 with a parsable status (`reference` 58, `archive` 31, `todo` 20, `active` 1), so the accepted framing is an ORDER OF MAGNITUDE rather than a fixed figure. The recorded consent is explicitly the WIDER one and may not be cited as query-only. Bounding affordance confirmed: `aw archive` previews by default and requires `--apply`. |
