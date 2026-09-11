@@ -9,7 +9,7 @@
 - Scope-Paths: agent_workflows/check_engine.py, agent_workflows/ipd_lint.py, agent_workflows/ipd_schema.py, tests/test_durable_capture.py
 - Item-Dependencies: executed:b7xarm
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: durablecapture
 - Order: 1
 - Highest E allocated: 06
@@ -19,6 +19,7 @@
 - Blocks-Release: next
 
 ## Workflow history
+- 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-05 was answered on 2026-09-10 (a carrier is required, the run-record report is not) and the finding it escalated, PR-301, is now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (aw set): plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-301..PR-310, nine FIXED and PR-301 escalated as blocking OQ-05; Readiness no-go pending that answer
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-301..PR-310, nine FIXED and PR-301 escalated as blocking OQ-05; Readiness `no-go` pending that answer. Reviewed at HEAD `32948d10`; `aw ipd lint --phase author` CONFORMED (0 findings) before semantic review and `--phase review-finalize` after. DISCLOSURE: same model family as the author, so this is near-self-review; its value is in what was EXECUTED.
   EVERY DEAD-CODE CLAIM IS TRUE AND I RE-RAN ALL OF THEM. `rg -c H_DEFERRED agent_workflows/ipd_lint.py` exits 1 (zero matches) while `ipd_schema.py:48` declares it and `:70`/`:86` put it in BOTH H2 orders; `rg -c From-Backlog agent_workflows/ipd_lint.py` exits 1; `open_question_error` (`ipd_schema.py:1340-1354`) really does accept any non-empty rationale and really does say "Semantics are the reviewer's job"; `OQ_FIELDS` (`:1315-1329`) really is declared-and-never-read with that fact written in the comment; and `attention.py:1246` really maps `executed` -> `done`. The precedents are real and correctly identified, though both citations drifted: `CloseVerdict` is at `:1963` (not `:1934`) and `evaluate_blocking_close` at `:1980` (not `:1951`). This is careful, well-sourced work and I weakened none of it.

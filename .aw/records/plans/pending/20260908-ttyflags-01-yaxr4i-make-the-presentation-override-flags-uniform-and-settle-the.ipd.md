@@ -7,7 +7,7 @@
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/term.py, agent_workflows/result_types.py, docs/cli-output-contract.md, tests/test_term.py, tests/test_output_contract.py, tests/test_flag_surface_uniformity.py
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: ttyflags
 - Order: 1
 - Highest E allocated: 08
@@ -16,6 +16,7 @@
 - From-Backlog: isg0kg
 
 ## Workflow history
+- 2026-09-10 readiness re-check (opencode its_direct/pt3-claude-opus-5-1m-us): `- Readiness:` CHANGED `no-go` -> `go-pending-approval`. THIS IS A RE-CHECK, NOT A REVIEW: no finding was re-derived and no plan content was re-critiqued. The three `no-go` conditions were RECOMPUTED with the shipped predicates and each was found clear: `plan_readiness.has_unresolved_blocking_question` -> False; `review_findings.subject_gating_blocks` -> empty; `plan_readiness.newest_verdict` polarity -> neutral (not negative). Specifically, its blocking OQ-01 was answered on 2026-09-10 (correct the document, retract the auto-switch explicitly) and the finding it escalated, PR-001, is now closed in review round 2. Performed at HEAD `5692797e` at the maintainer's explicit instruction of 2026-09-10, who was shown that 12 of 15 `no-go` plans were held by stale bookkeeping and chose to have them fixed with evidence recorded rather than re-reviewed. This is the SECOND such cleanup in one session; the durable fix is plan `qhy3i3` E-07, authored and awaiting approval. HUMAN APPROVAL IS STILL REQUIRED AND WAS NOT GIVEN: `go-pending-approval` means the plan awaits sign-off, and nothing here approves it or clears it to execute. Only a review may set `go`.
 - 2026-09-10 reviewed (opencode/its_direct/pt3-claude-opus-5-1m-us): /plan-review: REVIEWED - OPEN QUESTIONS; PR-001..PR-008 fixed; OQ-01 remains OPEN (maintainer ruling required, no interactive channel this run); readiness no-go
 - 2026-09-10 /plan-review (opencode/its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; readiness NO-GO. PR-001..PR-008 FIXED; OQ-01 remains OPEN and is the sole blocker.
   THE PLAN'S TECHNICAL DIAGNOSIS IS ACCURATE IN EVERY PARTICULAR, WHICH IS UNUSUAL AND WORTH RECORDING. I re-measured independently rather than trusting it, and all of it held: 25 of 219 nested subcommands lack `--no-color`, with the SAME 25 names; `--color` and `--tty` are both at 0 of 219; a piped `select_output` gives `mode=OutputMode.HUMAN color=False` while a TTY gives `HUMAN color=True`; and `result_types.py` contains exactly TWO `isatty` mentions, both inside the docstring that makes the false claim. The doc-versus-code divergence is real and total.
