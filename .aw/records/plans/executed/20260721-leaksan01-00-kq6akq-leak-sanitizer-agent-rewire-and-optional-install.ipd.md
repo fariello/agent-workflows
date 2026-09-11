@@ -6,7 +6,7 @@
 - Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: kq6akq
-- Set: leak-sanitizer (leak sanitizer agent rewire and optional install)
+- Set: leaksan01
 - Order: 0
 - Approval: 2026-07-21, human ("20260721-leak-sanitizer-00-kq6akq-leak-sanitizer-agent-rewire-and-optional-install Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; G1-G7 fixed; OQ1/OQ3 resolved, OQ2 from evidence).
 

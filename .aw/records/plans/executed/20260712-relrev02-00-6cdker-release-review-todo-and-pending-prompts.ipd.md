@@ -15,9 +15,8 @@
   suite green (183 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: 6cdker
-- Set: release-review (release review todo and pending prompts)
+- Set: relrev02
 - Order: 0
-
 ## Workflow history
 
 - 2026-07-12 drafted (its_direct/pt3-claude-opus-4.8-1m-us): captured from an interactive session

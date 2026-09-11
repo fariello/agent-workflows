@@ -12,9 +12,8 @@
   Executed 2026-07-11 (changes 1-4); full suite green (171 tests).
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: ez65jl
-- Set: release-review (release review terminal decision and ci verify)
+- Set: relrev01
 - Order: 0
-
 ## Workflow history
 
 - 2026-07-11 drafted (its_direct/pt3-claude-opus-4.8-1m-us): stub from an interactive session;

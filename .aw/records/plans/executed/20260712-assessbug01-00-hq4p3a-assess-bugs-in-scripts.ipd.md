@@ -6,9 +6,8 @@
 - Status: executed
 - Author: Antigravity (Gemini 1.5 Pro)
 - Id: hq4p3a
-- Set: assess-bugs (assess bugs in scripts)
+- Set: assessbug01
 - Order: 0
-
 ## Workflow history
 
 - 2026-07-12 /assess bugs (Antigravity/Gemini): assessed python scripts; proposed 4 changes.

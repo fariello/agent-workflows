@@ -6,7 +6,7 @@
 - Status: executed
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: s3axqd
-- Set: release-review (release review full release publishes gh release)
+- Set: relrev03
 - Order: 0
 - Approval: 2026-07-21, human ("Approved. Go.") after /plan-review (APPROVE WITH REVISIONS APPLIED; PR-001 fixed; OQ1/OQ2 resolved).
 

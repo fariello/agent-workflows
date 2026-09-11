@@ -6,7 +6,7 @@
 - Status: EXECUTED 2026-07-04 (approved after plan-review). All 3 steps applied and validated.
 - Author: opencode (its_direct/pt3-claude-opus-4.8-1m-us)
 - Id: g2payb
-- Set: assess-documentation (assess documentation 2)
+- Set: assessdoc01
 - Order: 0
 - Run record: `workflow-artifacts/assess-documentation/20260704-180630/`
 
