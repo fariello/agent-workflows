@@ -9,7 +9,7 @@
 - Status: to-review
 - Set: planprio
 - Order: 1
-- Highest E allocated: 06
+- Highest E allocated: 07
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: lkexaw
 
@@ -68,6 +68,14 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   COVER THE CASE THAT WOULD MASS-FAIL THE CORPUS, because that is the failure this design exists to avoid: a plan in `executed/` with neither field must produce NO finding at any phase.
   - Depends on: E-05
   - Expected outcome: tests covering refusal, sentinel-advisory, terminal exemption and scaffold emission, each shown failing against pre-change code.
+  - Execution state: pending
+
+- [ ] E-07 REMOVE OR NARROW THE `-` CLEARING CHOICE ON `aw ipd set`, which this Set's own gate turns into a defect. `--priority` and `--work-kind` currently accept `-` meaning "clear this field" (documented in their help as "'-' clears it"). Once E-03 makes both fields required at the ready-to-execute gate, clearing either on a non-terminal plan produces a plan the gate REFUSES, so the flag becomes a way to manufacture a plan that cannot run.
+  THE MAINTAINER AUTHORIZED THIS ON 2026-09-10 while answering `b5sfwm` OQ-02: they ruled NO `-` on either sibling verb and called the plan-side one "a defect to fix". That question was about `aw backlog set`, which will now ship WITHOUT `-`; this item is the plan-side half, so the two verbs end up symmetric rather than divergent.
+  CHOOSE BETWEEN REMOVAL AND NARROWING AND SAY WHY. Removing the choice outright is simplest and matches the sibling. Narrowing it to a plan that is already grandfathered (or terminal) preserves a genuine use, editing an exempt plan's metadata, at the cost of a conditional flag. Either is acceptable; a silent third option, leaving it as-is, is not.
+  DO NOT BREAK AN EXISTING CALLER SILENTLY: if any test, workflow or template passes `-` to either flag, name it and update it in the same change rather than letting it fail later.
+  - Depends on: E-03
+  - Expected outcome: `aw ipd set --priority -` either refuses with a message naming the gate, or is accepted only for a grandfathered/terminal plan; the choice and its reason are recorded; no existing caller is left broken.
   - Execution state: pending
 
 Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids.
@@ -160,6 +168,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Required evidence: paste `python3 -m pytest tests/test_plan_priority_required.py -o addopts=""` with per-test names, then the FALSIFICATION: the same file against pre-change code showing the new cases FAIL. Finally paste the bare `python3 -m pytest` summary line and compare it to the baseline established before the first edit, naming any failure as pre-existing or new.
   - Observed evidence:
   - Result: pending
+- [ ] V-07 validates E-07
+  - Required evidence: paste `aw ipd set --help` showing the `--priority`/`--work-kind` choice lists AFTER the change, and state which route was taken (removal or narrowing) with its reason. Then paste the behavioral proof with unpiped exit codes: `aw ipd set <status> <non-terminal-plan> --priority -` REFUSED with a message naming the gate; and, if narrowing was chosen, the same invocation ACCEPTED against a grandfathered or terminal plan. Paste a grep over `tests/`, `.aw/system/workflows/` and any template for a caller passing `-` to either flag, and either state that none exists or show the updated caller. Finally confirm the sibling `aw backlog set` ships WITHOUT `-`, so the two verbs are symmetric, by pasting its help.
+  - Observed evidence:
+  - Result: pending
+
 
 ## Approval and execution gate
 
