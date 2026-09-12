@@ -1,11 +1,14 @@
 - Id: hdhzr2
-- Status: open
+- Status: graduated
+- Blocks-Release: next
 - Set: hdhzr2
 - Priority: high
 - Work-Kind: bug
 - Summary: aw doctor reads a nonexistent VERSION path (.aw/VERSION, .agents/VERSION) and reports 'not installed' on a correctly installed repo
 
 ## Workflow history
+- 2026-09-12 graduated (aw set): Design handed off to a review-ready IPD authored from repo-verified root cause
+- 2026-09-12 open (aw set): status set to open
 - 2026-09-12 created (aw backlog): Found by an upgrade rehearsal against a real 1.2.1 legacy repo (tools/aw_upgrade_test.py)
 
 doctor.py reads the installed framework version from '.aw/VERSION' or '.agents/VERSION'. Neither is a real location: engine.read_installed_version probes '.aw/system/VERSION', '.aw/system/workflows/VERSION', then '.agents/workflows/VERSION' (engine.py read_installed_version). So doctor's version currency check always sees None.
