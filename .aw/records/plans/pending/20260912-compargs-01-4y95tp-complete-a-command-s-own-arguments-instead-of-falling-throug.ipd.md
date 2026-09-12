@@ -7,8 +7,8 @@
   THE REPORTED CASE HAS ITS OWN SEPARATE CAUSE: POSITIONAL CHOICES ARE NEVER INTROSPECTED. `aw completion`'s valid values are a POSITIONAL argument with `choices`, not subparsers, so `introspect_cli_tree` records `subcommands: {}` for it (verified: `t['subcommands']['completion']` has keys `['flags','subcommands']` and an EMPTY subcommands dict). The tree walker only descends `_SubParsersAction`, so a command whose arguments are expressed as positional `choices` contributes nothing. Fixing the fall-through alone would make `aw completion <TAB>` offer NOTHING, which is better than a wrong answer but still not the right one.
   WHY THIS MATTERS MORE THAN A COSMETIC ANNOYANCE. A wrong completion is worse than no completion: it asserts that a token is valid, and a user who trusts it gets an error whose cause looks like the tool rather than the suggestion. The maintainer hit exactly that sequence within seconds of completion starting to work, which is also why it was invisible until now: completion was inert on this machine until the same session fixed it.
   AND THE INSTALLED SCRIPT IS A FROZEN SNAPSHOT NOBODY REFRESHES. The generated file is written once by `aw completion install`; nothing in the install/upgrade path regenerates it (`grep -rn 'completion' agent_workflows/engine.py` shows no regen/refresh call). So a framework upgrade that adds or renames a command leaves the user completing a stale vocabulary, and this defect's fix will not reach an already-installed user until they re-run the verb.
-- Scope: Make the generated completion offer a COMMAND'S OWN arguments rather than the top-level command list. Three parts: (1) remove the top-level fall-through so a command with nothing to suggest suggests NOTHING; (2) teach `introspect_cli_tree` to capture positional `choices` so commands like `completion` contribute their real values; (3) decide and record whether the installed script is refreshed on upgrade, since the fix otherwise never reaches an installed user. EXCLUDES dynamic completion of id6s, setids and file paths, which the verb's `--help` already defers to a later `tabcomp` child; EXCLUDES zsh/fish beyond the equivalent generator change if it is cheap and correct; and EXCLUDES any change to the drop-in layout or the rc stanza (`compinert` Set owns that).
-- Scope-Paths: agent_workflows/completion.py, tests/test_completion.py
+- Scope: Make the generated completion offer a COMMAND'S OWN arguments rather than the top-level command list. Three parts: (1) remove the top-level fall-through so a command with nothing to suggest suggests NOTHING; (2) teach `introspect_cli_tree` to capture positional `choices` so commands like `completion` contribute their real values; (3) WARN when an installed script is stale, without rewriting it (maintainer ruling 2026-09-12), since the fix otherwise never reaches an installed user and staleness is silent today. EXCLUDES dynamic completion of id6s, setids and file paths, which the verb's `--help` already defers to a later `tabcomp` child; EXCLUDES zsh/fish beyond the equivalent generator change if it is cheap and correct; and EXCLUDES any change to the drop-in layout or the rc stanza (`compinert` Set owns that).
+- Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
 - Status: to-review
 - From-Backlog: g99sg7
@@ -17,7 +17,7 @@
 - Blocks-Release: next
 - Set: compargs
 - Order: 1
-- Highest E allocated: 04
+- Highest E allocated: 05
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4y95tp
 
@@ -60,6 +60,17 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: `aw completion <TAB>` yields the five real targets and nothing else; a command with both subcommands and choices offers the union.
   - Execution state: pending
 
+- [ ] E-05 WARN WHEN AN INSTALLED COMPLETION IS STALE, WITHOUT REWRITING IT (maintainer ruling 2026-09-12, OQ-01).
+  WIDEN THE EXISTING PREDICATE, DO NOT ADD A SURFACE. `_completion_tip` (`cli.py:5519`) already prints the enable-tip when completion is ABSENT and returns silently otherwise, because `_completion_configured` (`:5509`) composes `is_completion_installed`, a PRESENCE check. The never-installed case is therefore already covered; the STALE case takes the silent branch and is the whole gap. Add a second state rather than a second mechanism.
+  DETECT BY BYTE COMPARISON, WHICH IS MEASURED SUFFICIENT: comparing the installed file's body, minus the injected `INSTALL_SENTINEL` line, against a fresh `generate_bash_completion()` returns True on a current install (verified at review). No version stamp, no timestamp, no hash file is needed, and each would be a new artifact to keep in sync.
+  NEVER REWRITE THE FILE HERE. The ruling is warn-only, and this is the load-bearing constraint: the user's completion file is theirs once written, and `compinert` is concurrently establishing that user-scoped writes require consent. `aw install` must not touch `~/.local/share/bash-completion/completions/` at all.
+  SAY WHAT TO RUN, in the maintainer's own shape: name `aw completion install` explicitly, and say that completion is OUTDATED rather than broken, since the stale script still works for every command whose name did not change.
+  DO IT ONCE PER INVOCATION, NOT PER REPO. This is a per-user/per-machine concern and `_completion_tip`'s docstring already records that reasoning for the absent case; a batch install across many repos must not repeat the warning per target.
+  COMPARE PER DETECTED SHELL ONLY. Do not warn about zsh when the user runs bash; `_detect_shell` already scopes the existing tip and the same scoping applies.
+  - Depends on: E-03
+  - Expected outcome: `aw install` warns exactly once when the installed completion differs from what the current CLI would generate, names `aw completion install`, and writes nothing; the absent case keeps today's tip and a current install stays silent.
+  - Execution state: pending
+
 - [ ] E-04 TEST BY DRIVING THE GENERATED FUNCTION, NOT BY READING THE SCRIPT, and cover the regression that started this.
   THE TECHNIQUE THAT FOUND THIS BUG, and the one the tests should use: source the generated script in a subshell, set `COMP_WORDS`/`COMP_CWORD`, call `_aw_completion`, and inspect `COMPREPLY`. Asserting on the script's TEXT would have passed throughout, because the text was always internally consistent; only executing it revealed that `aw find <TAB>` returns 47 command names.
   THE FOUR CASES: `aw completion <TAB>` yields exactly the five targets; `aw find <TAB>` yields EMPTY (the fall-through regression); a subcommand-bearing command such as `aw ipd <TAB>` still yields its subcommands, so E-01 did not break the working half; and `aw completion in<TAB>` yields `install` ALONE, which is the maintainer's exact reported sequence and must no longer offer `include index`.
@@ -87,7 +98,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-2 | HIGH | positional `choices` are never introspected | `introspect_cli_tree` descends only `_SubParsersAction`, so `completion`'s `subcommands` is `{}` despite a fixed `bash\|zsh\|fish\|install\|uninstall` vocabulary. Fixing F-1 alone would make it offer nothing. | `t['subcommands']['completion']` inspected |
 | F-3 | HIGH | the completion led the user into an error | `aw completion in<TAB>` offered `include index install`; taking `index` produced `error: unknown completion target 'index'`. A wrong suggestion asserts validity, so the user blames the tool rather than the hint. | the maintainer's session transcript 2026-09-12 |
 | F-4 | MEDIUM | no test would have caught it | `tests/test_completion.py` has no assertion on the second-level reply or the fall-through. Text-level assertions could not catch it: the script was always internally consistent. | grep over the test file |
-| F-5 | MEDIUM | the installed script is a frozen snapshot | nothing in the install/upgrade path regenerates it, so an upgrade that adds or renames a command leaves a stale vocabulary, and this fix will not reach an installed user until they re-run `aw completion install`. | `grep -rn 'completion' agent_workflows/engine.py` |
+| F-5 | MEDIUM | the installed script is a frozen snapshot AND staleness is silent | nothing in the install/upgrade path regenerates it, so an upgrade that adds or renames a command leaves a stale vocabulary. Worse, `_completion_tip` goes SILENT once a file exists, because `_completion_configured` composes `is_completion_installed`, a presence check, so the outdated state is unreportable today. RESOLVED 2026-09-12: detect and WARN, never rewrite (E-05). Byte comparison against a fresh generation is measured sufficient. | `grep -rn 'completion' agent_workflows/engine.py`; `cli.py:5509-5530`; comparison run at review |
 | F-6 | LOW | the defect was masked until today | completion was inert on the reporting machine because bash-completion was not loaded for interactive shells (`compinert` Set, backlog `lalwnj`), so nobody could observe the wrong suggestions. | that Set's evidence |
 
 ## Proposed changes (ordered, validatable)
@@ -95,7 +106,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 1. Remove the post-`esac` top-level fall-through so a command with nothing to offer offers nothing (E-01).
 2. Capture positional `choices` under their own key in the CLI tree (E-02).
 3. Emit those choices, merged with subcommands where both exist (E-03).
-4. Test by DRIVING the generated function, pinning the reported invalid suggestion as absent (E-04).
+4. Warn on a stale installed script without rewriting it, by widening the existing tip predicate (E-05).
+5. Test by DRIVING the generated function, pinning the reported invalid suggestion as absent (E-04).
 
 ## Deferred / out of scope (with reason)
 
@@ -130,7 +142,10 @@ No spec governs completion; `generate_bash_completion`'s docstring is the contra
 - Blocking: no
 - Status: open
 - Owner: none
-- Resolution or deferral rationale: RAISED, NOT RESOLVED, AND DELIBERATELY LEFT TO THE MAINTAINER, because it is a scope-and-behavior decision rather than a fact. THE FACT is settled: nothing regenerates the installed script today, so this plan's fix reaches an already-installed user only when they re-run `aw completion install`, and any future command rename silently leaves them completing a vocabulary that no longer exists. THE DECISION is whether the installer should rewrite a file in the user's home directory on every upgrade. Arguments both ways are real: regenerating keeps completion honest and is a file this tool already owns and sentinels, but it also means an upgrade touches `~/.local/share/...` without asking, and the `compinert` Set is concurrently establishing that user-scoped writes want consent. NOT MARKED BLOCKING because Orders E-01 through E-04 are complete and correct without it; the staleness is a pre-existing condition this plan neither creates nor worsens. If the maintainer wants it, it is a small addition to the install path plus a test; if not, the honest alternative is a line in `aw doctor` reporting that the installed completion is older than the CLI.
+- Resolution or deferral rationale: ANSWERED BY THE MAINTAINER 2026-09-12: `aw install` should DETECT AND WARN, never silently rewrite. Verbatim: "`aw install` should check and warn 'run `aw completion install` if you want tab-completion for `aw`' or similar." So the installed script is never rewritten behind the user's back, and staleness stops being silent. That is a THIRD option better than the two this question originally framed (rewrite-on-upgrade vs. do-nothing), and it is consistent with the `compinert` ruling that user-scoped writes need consent: a warning asks, a rewrite assumes.
+  IT ALSO GENERALIZES THE EXISTING HOOK RATHER THAN ADDING A NEW ONE. `_completion_tip` (`cli.py:5519`) already prints "Tip: Enable tab-completion with 'aw completion install'" when completion is ABSENT and returns silently when present, because `_completion_configured` composes `is_completion_installed`, which is a PRESENCE check only (`cli.py:5509-5514`). So the never-installed case is already handled and the STALE case is the gap: an installed-but-outdated script takes the silent branch. The fix is to widen that one predicate and add a second message, not to build a new surface.
+  STALENESS IS TRIVIALLY DETECTABLE, MEASURED AT REVIEW: comparing the installed file's body (minus the injected sentinel line) against a fresh `generate_bash_completion()` returns True on a current install, so a byte comparison is sufficient and needs no version stamp. E-05 owns this.
+  NOT BLOCKING, and now carried by an executable item rather than an open question.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -148,6 +163,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-03 validates E-03
   - Required evidence: paste the DRIVEN result for `aw completion <TAB>` showing exactly `bash fish install uninstall zsh`. Confirm by grep that the generated script contains no runtime callback into `aw` (it must stay static and self-contained).
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-05 validates E-05
+  - Required evidence: paste all THREE states from real runs. ABSENT: no installed file, output shows today's enable-tip. CURRENT: a freshly installed file, output shows NEITHER tip nor warning. STALE: mutate the installed file (or generate against a tree with an extra command), output shows the warning naming `aw completion install`. THEN paste `git status`/`ls -l --time-style=full-iso` on the completion directory before and after the stale run, proving the file was NOT rewritten or touched; a modified file is a FAILED validation regardless of the warning being correct. Finally, paste a multi-repo `aw install` showing the warning appears ONCE, not per repo.
   - Observed evidence:
   - Result: pending
 
