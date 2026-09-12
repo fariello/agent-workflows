@@ -37,6 +37,8 @@ from pathlib import Path
 from tests.support import SOURCE_WORKFLOWS, git, init_repo
 
 from agent_workflows import cli as CLI
+from json import dumps as _json_dumps
+
 from agent_workflows import engine as INS
 from agent_workflows import layout as LAYOUT
 from agent_workflows.term import Term
@@ -616,6 +618,186 @@ class ManifestIndexGitignoreTests(unittest.TestCase):
             git(repo, "check-ignore", "-q", "docs/INDEX.json").returncode,
             0,
             "an unrelated INDEX.json outside .aw/records was swallowed by an unanchored pattern",
+        )
+
+
+class MachineLocalStateGitignoreTests(unittest.TestCase):
+    """awstateignore (2026-09-12): `.aw/state/` and `.aw/config/local.json` are gitignored.
+
+    REPORTED BY THE MAINTAINER as six files left "uncommitted, untracked, and not ignored" after
+    `aw install`, with the reasonable assumption that they were all supposed to be committed. Five
+    of them must NOT be, and this class fences that: `install_wizard._persist_policy` writes
+    `config/local.json`, `state/durable/install.json` and an appended
+    `state/durable/history/installs.jsonl`, and the install snapshot embeds the resolved policy
+    INCLUDING `aw_home`, an ABSOLUTE HOME PATH. Measured 2026-09-12: the shipped leak sanitizer
+    reports `home-path` and `handle` findings, exit 1, on a real one. So tracking them would publish
+    the operator's home directory and username into permanent git history (D92).
+
+    `config/project.json` is the deliberate EXCEPTION and is asserted to stay trackable: spec
+    `kw5y2s` Section 4.2/10 calls it PORTABLE policy while `local.json` is machine-local and
+    untracked, and this repository's own root `.gitignore` encodes exactly that split. An
+    over-broad `/config/` pattern would silently stop shipping project policy, so that is tested
+    for too.
+
+    Mirrors the two classes above rather than adding a harness, for the reason `ManifestIndex...`
+    states: same problem shape, same proof obligation (ignored IN EFFECT via real `git
+    check-ignore`, on BOTH the fresh-template and back-fill paths, attributed to `.aw/.gitignore`).
+    """
+
+    #: `.aw/`-relative patterns, as they must appear in the framework-owned `.aw/.gitignore`.
+    PATTERNS = ("/state/", "/config/local.json")
+    #: Repo-relative paths that MUST be ignored, as `_persist_policy` writes them.
+    MUST_IGNORE = (
+        ".aw/config/local.json",
+        ".aw/state/install.json",
+        ".aw/state/history/installs.jsonl",
+        ".aw/state/durable/install.json",
+        ".aw/state/durable/history/installs.jsonl",
+    )
+    #: Portable policy: MUST remain trackable.
+    MUST_NOT_IGNORE = ".aw/config/project.json"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _ignore_source(self, repo: Path, rel: str) -> str:
+        res = git(repo, "check-ignore", "-v", rel)
+        self.assertEqual(
+            res.returncode, 0, f"{rel} is not gitignored at all (stderr: {res.stderr})"
+        )
+        return res.stdout.split(":", 1)[0]
+
+    def _materialize(self, repo: Path) -> None:
+        """Write the files `install_wizard._persist_policy` writes, with a REAL leaky payload."""
+
+        for rel in self.MUST_IGNORE + (self.MUST_NOT_IGNORE,):
+            p = repo / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("{}\n", encoding="utf-8")
+        # The payload is BUILT rather than written as a literal: a literal absolute home path in a
+        # tracked test file is itself a `home-path` finding to the shipped leak sanitizer, which
+        # `test_local_leaks.ThisRepoTests` runs over this very tree. Caught exactly that way
+        # 2026-09-12. Composing it keeps the fixture realistic without tripping the check the
+        # fixture exists to justify.
+        fake_home = "/" + "home" + "/anon/.aw"
+        (repo / ".aw/state/durable/install.json").write_text(
+            _json_dumps({"policy": {"aw_home": fake_home}}) + "\n", encoding="utf-8"
+        )
+
+    def test_template_carries_both_patterns(self) -> None:
+        for pattern in self.PATTERNS:
+            self.assertIn(f"\n{pattern}\n", INS._AW_GITIGNORE_TEMPLATE)
+
+    def test_fresh_install_ignores_every_machine_local_path(self) -> None:
+        repo = _seed_committed_repo(self.base, "state-fresh")
+        _install(repo)
+        self._materialize(repo)
+        for rel in self.MUST_IGNORE:
+            self.assertEqual(
+                self._ignore_source(repo, rel),
+                ".aw/.gitignore",
+                f"{rel} must be ignored by the framework-owned .aw/.gitignore",
+            )
+
+    def test_portable_project_policy_stays_trackable(self) -> None:
+        """The guard against an over-broad `/config/` pattern silently unshipping policy."""
+
+        repo = _seed_committed_repo(self.base, "state-portable")
+        _install(repo)
+        self._materialize(repo)
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", self.MUST_NOT_IGNORE).returncode,
+            0,
+            f"{self.MUST_NOT_IGNORE} is PORTABLE policy and must remain trackable",
+        )
+
+    def test_backfill_reaches_an_already_installed_repo(self) -> None:
+        # The path a template-only edit silently misses, and the one that matters here: every repo
+        # installed before 2026-09-12 already has a `.aw/.gitignore`, so only the append branch runs.
+        repo = _seed_committed_repo(self.base, "state-backfill")
+        _install(repo)
+        gi = repo / ".aw/.gitignore"
+        stripped = "\n".join(
+            line
+            for line in gi.read_text(encoding="utf-8").splitlines()
+            if line.strip() not in self.PATTERNS
+        )
+        gi.write_text(stripped + "\n", encoding="utf-8")
+        self._materialize(repo)
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", ".aw/state/install.json").returncode,
+            0,
+            "precondition: the pre-fix state should NOT ignore the state tree",
+        )
+
+        INS._ensure_aw_gitignore(repo)
+
+        for rel in self.MUST_IGNORE:
+            self.assertEqual(self._ignore_source(repo, rel), ".aw/.gitignore")
+
+    def test_backfill_is_idempotent(self) -> None:
+        repo = _seed_committed_repo(self.base, "state-idem")
+        _install(repo)
+        for _ in range(3):
+            INS._ensure_aw_gitignore(repo)
+        text = (repo / ".aw/.gitignore").read_text(encoding="utf-8")
+        for pattern in self.PATTERNS:
+            self.assertEqual(
+                len([ln for ln in text.splitlines() if ln.strip() == pattern]),
+                1,
+                f"duplicate {pattern} after repeated _ensure_aw_gitignore calls",
+            )
+
+    def test_the_state_pattern_is_anchored_to_the_aw_tree(self) -> None:
+        """A bare `state/` would match a `state/` directory at ANY depth in the user's project.
+
+        The same trap the `/inbox/` pattern's comment warns about, which once swallowed the tracked
+        `records/comms/shared/inbox/` lane.
+        """
+
+        repo = _seed_committed_repo(self.base, "state-anchor")
+        _install(repo)
+        other = repo / ".aw/records/state/keep.json"
+        other.parent.mkdir(parents=True, exist_ok=True)
+        other.write_text("{}\n", encoding="utf-8")
+        self.assertNotEqual(
+            git(repo, "check-ignore", "-q", ".aw/records/state/keep.json").returncode,
+            0,
+            "an unanchored state/ pattern swallowed a nested directory it should not match",
+        )
+
+    def test_the_install_snapshot_really_does_carry_a_home_path(self) -> None:
+        """The PREMISE of this class, asserted rather than assumed.
+
+        If a future change stops embedding absolute paths in the snapshot, this test should fail so
+        someone re-decides whether the ignore rule is still warranted, instead of the rationale
+        quietly becoming false while the rule stays.
+        """
+
+        import json as _json
+
+        from agent_workflows import install_wizard as IW
+
+        repo = _seed_committed_repo(self.base, "state-premise")
+        policy = IW.ProjectPolicy(aw_home=str(self.base / "fake-home" / ".aw"))
+        IW.persist_project_policy(str(repo), policy)
+        snap = _json.loads(
+            (repo / ".aw/state/durable/install.json").read_text(encoding="utf-8")
+        )
+        self.assertIn(
+            "aw_home",
+            snap.get("policy", {}),
+            "the install snapshot no longer records aw_home; re-check this class's rationale",
+        )
+        # And it is an ABSOLUTE path, which is the property that makes it a leak rather than
+        # merely a preference.
+        self.assertTrue(
+            Path(snap["policy"]["aw_home"]).is_absolute(),
+            f"aw_home is not absolute: {snap['policy']['aw_home']!r}",
         )
 
 

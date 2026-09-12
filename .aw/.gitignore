@@ -46,3 +46,16 @@ records/plans/INDEX.json
 records/plans/INDEX.md
 records/research/INDEX.json
 records/research/INDEX.md
+# The per-machine state tree and the machine-local config binding. NEVER committed, and this is a
+# LEAK-CONTAINMENT rule rather than a tidiness one: `state/durable/install.json` records the
+# resolved policy INCLUDING absolute paths (`aw_home`), and `state/*/history/installs.jsonl` appends
+# one such snapshot per install, so tracking them publishes the operator's home directory and
+# username into permanent git history (D92). Verified 2026-09-12: the shipped sanitizer flags a real
+# `install.json` as `home-path` + `handle` findings, exit 1.
+# This mirrors what THIS repository already does in its own root `.gitignore` (`.aw/state/` and
+# `.aw/config/local.json`), which is the authority for the intent: spec `kw5y2s` Section 4.2/10 calls
+# `config/project.json` PORTABLE (tracked) and `config/local.json` machine-local and UNTRACKED.
+# `project.json` is deliberately NOT listed here: it is portable policy and SHOULD be committed.
+# ANCHORED for the `/inbox/` reason, and `state/` covers `durable/` and `runtime/` both.
+/state/
+/config/local.json

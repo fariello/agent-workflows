@@ -15,6 +15,7 @@ Stdlib ``unittest`` (repository convention).
 from __future__ import annotations
 
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -646,13 +647,30 @@ class ParityTests(unittest.TestCase):
             "CLAUDE.md",
             "GEMINI.md",
         }
+
+        # ASK GIT WHAT IS TRACKED rather than walking the filesystem. `rglob("*")` plus a hardcoded
+        # prefix skiplist read every UNTRACKED and GITIGNORED file too, which made this test fail on
+        # any working copy that happened to contain local agent output: a gitignored
+        # `opencode-recovery/` tree of session dumps produced 1746 spurious "unexpected copies" and
+        # a permanently red suite for anyone who had one (2026-09-12).
+        #
+        # The claim under test is about what this REPOSITORY ships, so the tracked set is both the
+        # correct population and self-maintaining: a skiplist has to be edited every time a new
+        # scratch directory appears, and silently over-reports until someone does.
+        tracked = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "ls-files", "-z", "--", "*.py", "*.md"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split("\0")
+
         found = set()
-        for path in REPO_ROOT.rglob("*"):
-            if not path.is_file() or path.suffix not in (".py", ".md"):
+        for rel in tracked:
+            if not rel or rel.startswith((".aw/records/", "tests/")):
                 continue
-            rel = path.relative_to(REPO_ROOT).as_posix()
-            if rel.startswith((".git/", ".aw/records/", ".aw/worktrees/", "tests/")):
-                continue
+            path = REPO_ROOT / rel
+            if not path.is_file():
+                continue  # a staged deletion, or a submodule entry
             try:
                 text = path.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):

@@ -4357,6 +4357,19 @@ records/plans/INDEX.json
 records/plans/INDEX.md
 records/research/INDEX.json
 records/research/INDEX.md
+# The per-machine state tree and the machine-local config binding. NEVER committed, and this is a
+# LEAK-CONTAINMENT rule rather than a tidiness one: `state/durable/install.json` records the
+# resolved policy INCLUDING absolute paths (`aw_home`), and `state/*/history/installs.jsonl` appends
+# one such snapshot per install, so tracking them publishes the operator's home directory and
+# username into permanent git history (D92). Verified 2026-09-12: the shipped sanitizer flags a real
+# `install.json` as `home-path` + `handle` findings, exit 1.
+# This mirrors what THIS repository already does in its own root `.gitignore` (`.aw/state/` and
+# `.aw/config/local.json`), which is the authority for the intent: spec `kw5y2s` Section 4.2/10 calls
+# `config/project.json` PORTABLE (tracked) and `config/local.json` machine-local and UNTRACKED.
+# `project.json` is deliberately NOT listed here: it is portable policy and SHOULD be committed.
+# ANCHORED for the `/inbox/` reason, and `state/` covers `durable/` and `runtime/` both.
+/state/
+/config/local.json
 """
 
 # setupmarker Order 01: the per-repo, per-machine, gitignored "run setup here" reminder that replaces
@@ -5428,6 +5441,19 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
     ):
         if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_index_pattern)), text):
             additions.append(_index_pattern)
+    # awstateignore (2026-09-12, maintainer report): back-fill the per-machine state tree and the
+    # machine-local config binding. Reported as six files left "uncommitted, untracked, and not
+    # ignored" after `aw install`; five of them MUST stay untracked, because
+    # `state/durable/install.json` and the `installs.jsonl` history carry the resolved policy
+    # INCLUDING `aw_home`, an absolute home path (D92). Measured: the shipped sanitizer reports
+    # `home-path` + `handle` on a real one. Only `config/project.json` is portable, and it is
+    # deliberately absent from this list so it stays tracked.
+    # This is the ONLY path that reaches an ALREADY-INSTALLED repo, the same reason the layout and
+    # INDEX back-fills above exist; without it every repo installed before today keeps offering these
+    # files to `git add -A`.
+    for _local_pattern in ("/state/", "/config/local.json"):
+        if not re.search(r"(?m)^{0}[ \t]*$".format(re.escape(_local_pattern)), text):
+            additions.append(_local_pattern)
     if additions:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"

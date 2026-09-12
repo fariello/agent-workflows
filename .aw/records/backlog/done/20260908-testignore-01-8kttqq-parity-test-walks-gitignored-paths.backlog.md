@@ -1,11 +1,12 @@
 - Id: 8kttqq
-- Status: open
+- Status: done
 - Set: testignore
 - Priority: medium
 - Work-Kind: bug
 - Summary: test_reporting_contract parity test walks GITIGNORED directories, so any local agent dump (e.g. opencode-recovery/) fails the suite on a clean tree
 
 ## Workflow history
+- 2026-09-12 done (aw set): FIXED 2026-09-12 exactly as this item proposed: test_only_expected_files_contain_the_full_contract_prose now enumerates candidates from 'git ls-files -z -- *.py *.md' instead of walking REPO_ROOT.rglob('*') with a hardcoded prefix skiplist, so gitignored and untracked files are never read. An UNTRACKED file cannot be 'a new independently maintained copy' of the contract, so the tracked set is both the correct population and self-maintaining. DID NOT add opencode-recovery/ to a skiplist, which the item explicitly warned against. CHECKED THE SIBLINGS as instructed: grepped rglob across tests/ and this was the ONLY test walking the live tree; test_attention.py:260/267 and test_cli_layout.py:99 also use rglob('*') but over TEMPORARY directories, which is correct. VERIFIED with the item's own recipe (a gitignored dir holding a .md containing the sentence -> test passes) and that a TRACKED decoy still FAILS it, so the guard still guards. Full bare suite is now GREEN for the first time in days: 5969 passed, 3 skipped, 2 xfailed; previously 1 failed, 5968 passed.
 - 2026-09-08 created (aw backlog): test_reporting_contract parity test walks GITIGNORED directories, so any local agent dump (e.g. opencode-recovery/) fails the suite on a clean tree
 
 FOUND WHILE GRADUATING AN UNRELATED BATCH of backlog items (2026-09-08), when a bare
