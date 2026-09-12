@@ -128,7 +128,12 @@ class TestInstallWizardPolicy(unittest.TestCase):
             output,
             "Output contained ANSI escape sequences when color was disabled!",
         )
-        self.assertIn("OK             Policy validated.", output)
+        # The label is padded for column alignment; the WIDTH is term.py's business (narrowed
+        # 2026-09-12 from 13 to the labels `status()` actually emits). What this test cares about is
+        # linear plain text, so assert the shape rather than a hardcoded column count.
+        self.assertIn("OK", output)
+        self.assertIn("Policy validated.", output)
+        self.assertRegex(output, r"(?m)^OK\s{2,}Policy validated\.$")
 
 
 class PhysicalLayoutWizardTests(unittest.TestCase):

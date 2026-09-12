@@ -676,6 +676,32 @@ class InterviewTests(unittest.TestCase):
         self.assertEqual(store.writes, [])
 
 
+class SaveQuestionDefaultsToYesTests(unittest.TestCase):
+    """The save question defaults YES (maintainer request 2026-09-12).
+
+    By the time it is asked, the user has picked a model, a variant and an agent and been shown a
+    preview, so Enter should complete the thing they were doing. The safety property this does NOT
+    weaken is that a save still requires the user to reach this question at all: EOF, an interrupt,
+    a quit word, and an explicit `n` each write nothing, and all four are covered by
+    `NonSaveWritesNothingTests`.
+    """
+
+    def test_pressing_enter_at_the_save_question_SAVES(self):
+        store = _Store()
+        script = _Script(["gem", "1", "1", "", ""] + ["n", "n"])
+        result = W.run_wizard(_io(script, store=store))
+        self.assertTrue(result.saved, "empty input should take the YES default")
+        self.assertEqual(len(store.writes), 1)
+        self.assertIn("gem", store.writes[0].profiles)
+
+    def test_the_save_prompt_renders_the_yes_default(self):
+        script = _Script(["gem", "1", "1", "", ""] + ["n", "n"])
+        W.run_wizard(_io(script, store=_Store()))
+        save_prompts = [p for p in script.prompts if "Save profile" in p]
+        self.assertTrue(save_prompts, f"no save prompt was rendered: {script.prompts}")
+        self.assertIn("[Y/n]", save_prompts[0])
+
+
 class NonSaveWritesNothingTests(unittest.TestCase):
     """Every non-save path: no write call at all, and `saved=False`."""
 
@@ -692,8 +718,16 @@ class NonSaveWritesNothingTests(unittest.TestCase):
         result = self._assert_no_write(_Script(["gem", "1", "1", "", "n"]), "declined")
         self.assertFalse(result.cancelled)
 
-    def test_the_save_question_defaults_to_no_on_empty_input(self):
-        result = self._assert_no_write(_Script(["gem", "1", "1", "", ""]), "declined")
+    def test_an_explicit_no_to_the_save_question_writes_nothing(self):
+        """The save question DEFAULTS TO YES since 2026-09-12, so declining must be explicit.
+
+        This replaces a test that asserted an empty answer declined. That polarity was reversed on
+        maintainer request; what still matters, and is what this asserts, is that an explicit `n`
+        writes nothing at all. The empty-input case is now covered by
+        `SaveQuestionDefaultsToYesTests` below, which proves Enter SAVES.
+        """
+
+        result = self._assert_no_write(_Script(["gem", "1", "1", "", "n"]), "declined")
         self.assertFalse(result.saved)
 
     def test_an_explicit_quit_word_cancels(self):
@@ -757,19 +791,68 @@ class DefaultQuestionTests(unittest.TestCase):
             len([p for p in prompts if "default" in p.lower() and "?" in p]), 2
         )
 
-    def test_both_default_questions_render_and_take_no(self):
+    def test_the_two_default_questions_carry_DIFFERENT_polarities(self):
+        """The profile question defaults YES only when no default exists; the runner one stays NO.
+
+        Maintainer request 2026-09-12, and the asymmetry is the point rather than an inconsistency.
+        Adopting a FIRST default profile displaces nothing, so Enter may accept it. Making OpenCode
+        the default IPD RUNNER affects host-neutral dispatch (`ygzq71`) for an unrelated user, so it
+        was not in the requested set and keeps its opt-in default.
+
+        Replaces a test asserting BOTH took no on empty input.
+        """
+
         script = _Script(_SAVE_ANSWERS + ["", ""])
         store = _Store()
         result = W.run_wizard(_io(script, store=store))
         self.assertTrue(result.saved)
-        self.assertFalse(result.made_default_profile)
+        # Empty input ACCEPTS the first default profile ...
+        self.assertTrue(result.made_default_profile)
+        self.assertEqual(store.writes[0].default_profile_for("oc"), "gem")
+        # ... and still DECLINES the default runner.
         self.assertFalse(result.made_default_runner)
-        written = store.writes[0]
-        self.assertIsNone(written.default_profile_for("oc"))
-        self.assertIsNone(written.default_runner)
-        for prompt in script.prompts:
-            if "default" in prompt.lower() and "?" in prompt:
-                self.assertIn("[y/N]", prompt)
+        self.assertIsNone(store.writes[0].default_runner)
+
+        rendered = {p for p in script.prompts if "default" in p.lower() and "?" in p}
+        self.assertTrue(
+            any(
+                "the default OpenCode profile?" in p and "[Y/n]" in p for p in rendered
+            ),
+            f"first-default profile question should default YES: {rendered}",
+        )
+        self.assertTrue(
+            any("default IPD runner?" in p and "[y/N]" in p for p in rendered),
+            f"default-runner question should stay NO: {rendered}",
+        )
+
+    def test_an_EXISTING_default_profile_is_not_replaced_by_pressing_enter(self):
+        """With a default already set, the question reverts to default NO.
+
+        This is the guard on the 2026-09-12 change, which the maintainer scoped as "IFF no default
+        exists yet". Silently displacing a default the user chose earlier could move their runs onto
+        a different, possibly costlier, model, which is the same surprise `add_profile`'s no-clobber
+        rule exists to prevent.
+        """
+
+        cfg = RP.add_profile(
+            RP.empty_config(), "old", RP.LaunchProfile(runner="oc", model=_FLASH)
+        )
+        cfg = RP.set_default_profile(cfg, "old")
+        store = _Store(cfg)
+        script = _Script(_SAVE_ANSWERS + ["", ""])
+        result = W.run_wizard(_io(script, store=store))
+        self.assertTrue(result.saved)
+        self.assertFalse(
+            result.made_default_profile, "Enter must not displace an existing default"
+        )
+        self.assertEqual(store.writes[0].default_profile_for("oc"), "old")
+        self.assertTrue(
+            any(
+                "the default OpenCode profile?" in p and "[y/N]" in p
+                for p in script.prompts
+            ),
+            "existing-default question must render the NO default",
+        )
 
     def test_the_first_profile_does_not_become_the_default_automatically(self):
         script = _Script(_SAVE_ANSWERS + ["n", "n"])

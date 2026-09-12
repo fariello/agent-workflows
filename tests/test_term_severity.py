@@ -82,57 +82,123 @@ class TermSeverityLabelTests(unittest.TestCase):
 
 
 class TermStatusLabelPaddingTests(unittest.TestCase):
-    """E-03 / V-03: Term.status_label fixed-width padding to NOT-INSTALLED (13)."""
+    """`Term.status_label` pads to the labels `status()` ACTUALLY emits (7), not to the widest key.
 
-    def test_status_label_padded_in_monochrome(self):
+    NARROWED 2026-09-12 on maintainer request ("OK             " wasted terminal real estate). The
+    original width was 13, taken from `NOT-INSTALLED`, the longest entry in `_STATUS_STYLE`. But
+    `NOT-INSTALLED` is never passed to `status()`: measured across every call site, only fail/info/
+    ok/skip/warn/ignored are, and the currency words render through `_status_badge_256` in tables
+    that do their own layout. So the old padding aligned these lines against a label that never
+    appears on them, costing 6 columns on all of them.
+
+    Alignment among the labels that DO share these lines is preserved, which is what the padding is
+    for.
+    """
+
+    def test_status_label_pads_to_the_widest_STATUS_LINE_label(self):
         term = T.Term(color=False)
-        lbl_ok = term.status_label("ok")
-        lbl_not_installed = term.status_label("not-installed")
-        lbl_current = term.status_label("current")
-        lbl_stale = term.status_label("stale")
+        width = len("IGNORED")  # the longest label `status()` emits
+        self.assertEqual(T._STATUS_WIDTH, width)
 
-        self.assertEqual(len(lbl_ok), 13)
-        self.assertEqual(len(lbl_not_installed), 13)
-        self.assertEqual(len(lbl_current), 13)
-        self.assertEqual(len(lbl_stale), 13)
+        self.assertEqual(term.status_label("ok"), "OK     ")
+        self.assertEqual(term.status_label("info"), "INFO   ")
+        self.assertEqual(term.status_label("skip"), "SKIP   ")
+        self.assertEqual(term.status_label("warn"), "WARN   ")
+        self.assertEqual(term.status_label("fail"), "FAIL   ")
+        self.assertEqual(term.status_label("ignored"), "IGNORED")
+        for key in T._STATUS_LINE_LABELS:
+            self.assertEqual(len(term.status_label(key)), width, key)
 
-        self.assertEqual(lbl_ok, "OK           ")
-        self.assertEqual(lbl_not_installed, "NOT-INSTALLED")
-        self.assertEqual(lbl_current, "CURRENT      ")
-        self.assertEqual(lbl_stale, "STALE        ")
+    def test_a_label_longer_than_the_width_is_never_truncated(self):
+        """A currency word still renders IN FULL; it is simply not padded to.
+
+        Truncating would destroy meaning, which the whole word-first convention exists to protect.
+        """
+
+        term = T.Term(color=False)
+        self.assertEqual(term.status_label("not-installed"), "NOT-INSTALLED")
+        self.assertEqual(term.status_label("current"), "CURRENT")
 
     def test_status_label_padded_with_color(self):
         term = T.Term(color=True)
         lbl_ok = term.status_label("ok")
-        lbl_not_installed = term.status_label("not-installed")
 
-        # Visual text width (stripped of ANSI) is fixed at 13
-        self.assertEqual(len(_ANSI.sub("", lbl_ok)), 13)
-        self.assertEqual(len(_ANSI.sub("", lbl_not_installed)), 13)
+        self.assertEqual(len(_ANSI.sub("", lbl_ok)), len("IGNORED"))
         self.assertIn("OK", _ANSI.sub("", lbl_ok))
-        self.assertIn("NOT-INSTALLED", _ANSI.sub("", lbl_not_installed))
+        # The visible word is colored; the padding is not inside the escape sequence.
+        self.assertTrue(lbl_ok.endswith("     "), repr(lbl_ok))
 
     def test_status_method_message_column_aligns(self):
         buf = io.StringIO()
         term = T.Term(stream=buf, color=False)
         term.status("ok", "/path/to/repo_a")
-        term.status("not-installed", "/path/to/repo_b")
-        term.status("stale", "/path/to/repo_c")
+        term.status("warn", "/path/to/repo_b")
+        term.status("ignored", "/path/to/repo_c")
 
         lines = buf.getvalue().splitlines()
         self.assertEqual(len(lines), 3)
-        # Column 0..12 is the 13-char status word; column 13..14 is 2 spaces; column 15 starts the message
-        self.assertEqual(lines[0], "OK             /path/to/repo_a")
-        self.assertEqual(lines[1], "NOT-INSTALLED  /path/to/repo_b")
-        self.assertEqual(lines[2], "STALE          /path/to/repo_c")
-        self.assertEqual(lines[0].find("/path"), 15)
-        self.assertEqual(lines[1].find("/path"), 15)
-        self.assertEqual(lines[2].find("/path"), 15)
+        # 7-char status word, 2 spaces, then the message at column 9.
+        self.assertEqual(lines[0], "OK       /path/to/repo_a")
+        self.assertEqual(lines[1], "WARN     /path/to/repo_b")
+        self.assertEqual(lines[2], "IGNORED  /path/to/repo_c")
+        for line in lines:
+            self.assertEqual(line.find("/path"), 9)
 
     def test_status_style_includes_severity_entries(self):
         self.assertIn("error", T._STATUS_STYLE)
         self.assertIn("warn", T._STATUS_STYLE)
         self.assertIn("info", T._STATUS_STYLE)
+
+
+class YesNoSuffixTests(unittest.TestCase):
+    """`term.yes_no_suffix` is the ONE renderer for interactive yes/no prompt suffixes.
+
+    Added 2026-09-12 with the maintainer's request to bold the default. The invariant worth pinning
+    is that CASE carries the meaning and BOLD is only a redundant cue, so a pipe, `NO_COLOR`, a dumb
+    terminal and a screen reader all keep the information.
+    """
+
+    def test_monochrome_renders_plain_case_only(self):
+        mono = T.Term(color=False)
+        self.assertEqual(T.yes_no_suffix(True, term=mono), "[Y/n]")
+        self.assertEqual(T.yes_no_suffix(False, term=mono), "[y/N]")
+
+    def test_color_bolds_only_the_default_letter(self):
+        color = T.Term(color=True)
+        yes = T.yes_no_suffix(True, term=color)
+        no = T.yes_no_suffix(False, term=color)
+
+        # Stripped of ANSI, identical to the monochrome rendering: no information lives in color.
+        self.assertEqual(_ANSI.sub("", yes), "[Y/n]")
+        self.assertEqual(_ANSI.sub("", no), "[y/N]")
+        # The emphasized letter is the DEFAULT one, not both.
+        self.assertIn("\033[1mY\033[0m".replace("\033", "\x1b"), yes)
+        self.assertIn("\033[1mN\033[0m".replace("\033", "\x1b"), no)
+        self.assertNotIn("\x1b[1mn", yes)
+        self.assertNotIn("\x1b[1my", no)
+
+    def test_the_wizard_and_the_cli_share_this_renderer(self):
+        """A second implementation is how the two flows drift apart, so assert one source."""
+
+        from agent_workflows import cli as C, runner_profile_wizard as W
+
+        mono = T.Term(color=False)
+        self.assertEqual(C._yes_no(True, mono), "[Y/n]")
+
+        script_prompts = []
+
+        class _IO:
+            ask = staticmethod(lambda p: (script_prompts.append(p), "y")[1])
+            emit = staticmethod(lambda *_a, **_k: None)
+
+            def line(self, *_a, **_k):
+                return None
+
+        io = W.WizardIO(
+            ask=lambda p: (script_prompts.append(p), "y")[1], emit=lambda *_a: None
+        )
+        W.ask_yes_no(io, "Q?", default=True)
+        self.assertTrue(script_prompts and "[Y/n]" in script_prompts[0], script_prompts)
 
 
 class DoctorSeveritySourceTests(unittest.TestCase):

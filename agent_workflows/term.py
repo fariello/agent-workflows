@@ -68,7 +68,23 @@ _STATUS_STYLE = {
     "not-installed": ("NOT-INSTALLED", "gray"),
     "unknown": ("UNKNOWN", "gray"),
 }
-_STATUS_WIDTH = max(len(w) for w, _ in _STATUS_STYLE.values())
+# Labels that `Term.status()` actually emits, which is what the padding exists to align.
+# MEASURED 2026-09-12 across every `term.status("...")` call site: fail (55), info (44), ok (31),
+# skip (21), warn (19), ignored (1). `NOT-INSTALLED` and the other currency words are NEVER passed
+# to `status()`; they render through `_status_badge_256` in the `aw list`/`aw doctor` currency
+# tables, which do their own layout. Padding every line to 13 therefore bought alignment with a
+# label that never appears on these lines and cost 6 columns of terminal width on all 171 of them.
+_STATUS_LINE_LABELS = (
+    "ok",
+    "info",
+    "skip",
+    "warn",
+    "fail",
+    "failed",
+    "error",
+    "ignored",
+)
+_STATUS_WIDTH = max(len(_STATUS_STYLE[k][0]) for k in _STATUS_LINE_LABELS)
 
 
 def should_color(stream: Optional[TextIO] = None) -> bool:
@@ -698,3 +714,24 @@ def severity_label(kind: str, term: Optional[Term] = None) -> str:
     """Convenience helper to format a P14 bracketed severity label using ``term`` or a default Term."""
     t = term or Term()
     return t.severity_label(kind)
+
+
+def yes_no_suffix(default: bool, *, term: Optional[Term] = None) -> str:
+    """Render a yes/no prompt suffix with the DEFAULT letter emphasized: ``[Y/n]`` or ``[y/N]``.
+
+    ONE renderer for every interactive yes/no prompt, so the emphasis cannot drift between the
+    setup flow and the runner-profile wizard (they previously built the suffix independently).
+
+    THE CASE IS THE CONTRACT AND THE BOLD IS A REDUNDANT CUE, in the same relationship as a status
+    LABEL and its color (see `_STATUS_STYLE`): the capital letter states which answer Enter takes,
+    and bold merely makes it easier to see. So a monochrome terminal, a pipe, `NO_COLOR`, and a
+    screen reader all keep the full meaning, and no caller has to special-case them.
+
+    Note the ``default`` argument decides only which letter is capitalized; it does NOT decide what
+    an empty answer does. That remains the caller's job, and the two must agree.
+    """
+
+    t = term or Term()
+    if default:
+        return "[" + t.colorize("Y", "bold") + "/n]"
+    return "[y/" + t.colorize("N", "bold") + "]"

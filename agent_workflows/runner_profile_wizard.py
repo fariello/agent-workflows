@@ -36,17 +36,23 @@ have been wrong, and each has a named falsifier in `tests/test_runner_profile_wi
 4. THE PREVIEW IS EXACT. Before the save question the user sees the stored profile fields AND the
    equivalent OpenCode argv fragment, built from the same resolved values that will be written.
    An approximate preview would be worse than none, because it would be trusted.
-5. NOTHING IS WRITTEN UNLESS THE USER SAYS YES. Save defaults to NO. Cancellation, EOF,
-   KeyboardInterrupt, an exhausted retry budget, and a declined save all return without calling
-   the writer at all, so a declined flow leaves the config bytes BYTE-IDENTICAL (asserted by
-   byte comparison in the tests, not merely by inspection).
+5. NOTHING IS WRITTEN UNLESS THE USER CONFIRMS. Cancellation, EOF, KeyboardInterrupt, an
+   exhausted retry budget, and a declined save all return without calling the writer at all, so a
+   declined flow leaves the config bytes BYTE-IDENTICAL (asserted by byte comparison in the tests,
+   not merely by inspection). Since 2026-09-12 the save question DEFAULTS TO YES, which is a
+   change to what Enter does and NOT a change to this property: the user still has to reach that
+   question, having chosen a model and seen the exact preview, and can still decline or quit.
 
-DEFAULTS ARE TWO SEPARATE QUESTIONS, BOTH DEFAULT NO (E-04). Saving `gem` must not silently
-change what an unqualified `aw oc run` does: that is a different decision from creating an alias,
-so it is a different question. "Make NAME the default OpenCode profile?" and "Make OpenCode the
-default IPD runner?" are asked independently, the second only when it would actually change
-something, and DECLINING EITHER PRESERVES ITS PRIOR VALUE. Every accepted change lands in ONE
-atomic write (`runner_profiles.save`), so a wizard cannot leave a half-applied configuration.
+DEFAULTS ARE TWO SEPARATE QUESTIONS WITH DIFFERENT POLARITIES (E-04, amended 2026-09-12). Saving
+`gem` must not silently change what an unqualified `aw oc run` does: that is a different decision
+from creating an alias, so it is a different question. "Make NAME the default OpenCode profile?"
+defaults YES only when NO default profile exists yet, because adopting a first default displaces
+nothing; once a default exists the question reverts to NO so pressing Enter can never demote a
+profile the user chose earlier, possibly onto a costlier model. "Make OpenCode the default IPD
+runner?" keeps its NO default and is asked only when it would actually change something, because
+it affects host-neutral dispatch for a user who may not want it. DECLINING EITHER PRESERVES ITS
+PRIOR VALUE. Every accepted change lands in ONE atomic write (`runner_profiles.save`), so a wizard
+cannot leave a half-applied configuration.
 """
 
 from __future__ import annotations
@@ -54,7 +60,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Mapping, Optional, Sequence, Tuple
 
-from agent_workflows import oc_models, runner_profiles as rp
+from agent_workflows import oc_models, runner_profiles as rp, term as _term
 
 #: Models shown per page when the (possibly filtered) catalog is longer than this.
 PAGE_SIZE = 20
@@ -170,11 +176,16 @@ def _read(io: WizardIO, prompt: str) -> str:
 def ask_yes_no(io: WizardIO, question: str, default: bool = False) -> bool:
     """Ask a yes/no question with an EXPLICIT rendered default; empty input takes the default.
 
-    Every consequential question in this module passes ``default=False``. EOF and interrupt are a
-    cancel rather than a silent yes, so an unattended pipe can never accept a change.
+    THE DEFAULT LETTER IS BOLD when the stream is a capable TTY, so the answer Enter will give is
+    visible at a glance rather than inferred from letter case alone (maintainer request
+    2026-09-12). Case still carries the meaning in monochrome and when piped, so the cue is
+    REDUNDANT rather than load-bearing, matching the status-label convention in `term.py`.
+
+    EOF and interrupt remain a cancel rather than a silent yes, so an unattended pipe can never
+    accept a change no matter which way the default points.
     """
 
-    suffix = "[Y/n]" if default else "[y/N]"
+    suffix = _term.yes_no_suffix(default)
     for _attempt in range(MAX_ATTEMPTS):
         answer = _read(io, f"{question} {suffix} ").lower()
         if not answer:
@@ -429,7 +440,12 @@ def opencode_argv_fields(profile: rp.LaunchProfile) -> List[str]:
 
 
 def preview_lines(name: str, profile: rp.LaunchProfile) -> List[str]:
-    """The exact preview block: stored fields, then the equivalent OpenCode argv fragment."""
+    """The exact preview block: stored fields, then the equivalent OpenCode argv fragment.
+
+    DELIBERATELY PLAIN TEXT. Two `aw oc profile` code paths in `cli.py` reuse this for their own
+    non-interactive previews, and the block is asserted by substring in the tests, so styling
+    belongs at the DISPLAY seam (`emit_preview`) rather than baked into the strings.
+    """
 
     lines = [
         "",
@@ -445,9 +461,33 @@ def preview_lines(name: str, profile: rp.LaunchProfile) -> List[str]:
     return lines
 
 
+#: Field labels inside the preview block, emphasized so the VALUES stand out from the scaffolding.
+_PREVIEW_FIELDS = ("runner:", "model:", "variant:", "agent:")
+
+
 def emit_preview(io: WizardIO, name: str, profile: rp.LaunchProfile) -> None:
+    """Print the preview, bolding the two headings and dimming nothing (maintainer request).
+
+    Styling is applied HERE and only when the stream is a capable TTY, so `preview_lines` stays a
+    pure text function for its other callers. Every character of the plain block still appears; the
+    emphasis is additive, which keeps the preview EXACT as principle 4 of this module requires.
+    """
+
+    t = _term.Term()
     for line in preview_lines(name, profile):
-        io.line(line)
+        stripped = line.strip()
+        if (
+            stripped.endswith("will be stored as:")
+            or stripped == "Equivalent OpenCode launch:"
+        ):
+            io.line(t.colorize(line, "bold"))
+        elif any(stripped.startswith(f) for f in _PREVIEW_FIELDS):
+            label, _, value = line.partition(":")
+            io.line(f"{t.colorize(label, 'bold')}:{value}")
+        elif stripped.startswith("opencode run "):
+            io.line(t.colorize(line, "cyan"))
+        else:
+            io.line(line)
 
 
 # ==================================================================================================
@@ -462,11 +502,16 @@ def run_wizard(
     replace: bool = False,
     ask_defaults: bool = True,
 ) -> WizardResult:
-    """Run one profile interview end to end. Writes AT MOST ONCE, and only on an explicit yes.
+    """Run one profile interview end to end. Writes AT MOST ONCE, and never without confirmation.
 
-    Sequence: name -> model -> variant -> agent -> EXACT preview -> save? (default NO) ->
-    default-profile? (default NO) -> default-runner? (default NO, and only when it would change
-    something) -> ONE atomic write of everything accepted.
+    Sequence: name -> model -> variant -> agent -> EXACT preview -> save? (default YES) ->
+    default-profile? (default YES only when NO default exists yet, else NO) -> default-runner?
+    (default NO, and only when it would change something) -> ONE atomic write of everything
+    accepted.
+
+    THE DEFAULTS WERE FLIPPED ON 2026-09-12 at the maintainer's request, and what protects the user
+    is unchanged: this function still writes AT MOST ONCE, EOF/interrupt/a quit word still cancel
+    without writing, and an existing default profile is still never displaced by pressing Enter.
 
     ``ask_defaults=False`` suppresses both default questions (a caller that has already decided,
     such as a fully specified noninteractive `add`). Every failure and every decline returns
@@ -515,13 +560,16 @@ def run_wizard(
         emit_preview(io, profile_name, profile)
 
         io.line("")
-        if not ask_yes_no(io, f"Save profile {profile_name!r}?", default=False):
+        # DEFAULT YES (maintainer request 2026-09-12): by this point the user has chosen a model,
+        # a variant and an agent, and just been shown a preview, so saving is the obvious intent.
+        # Declining stays one keystroke away and still writes nothing.
+        if not ask_yes_no(io, f"Save profile {profile_name!r}?", default=True):
             note("Not saved; nothing was changed.")
             return WizardResult(
                 saved=False, reason="declined", config=cfg, messages=messages
             )
 
-        # ---- E-04: two SEPARATE default questions, both default NO ---------------------------
+        # ---- E-04: two SEPARATE default questions, with DIFFERENT polarities (2026-09-12) ----
         make_default_profile = False
         make_default_runner = False
         if ask_defaults:
@@ -532,6 +580,14 @@ def run_wizard(
                 io.line(f"{profile_name!r} is already your default OpenCode profile.")
                 make_default_profile = False
             else:
+                # THE DEFAULT POINTS YES ONLY WHEN NO DEFAULT EXISTS YET (maintainer request
+                # 2026-09-12, explicitly conditioned). With no default set, accepting is
+                # near-certainly what the user wants and the change displaces nothing. But when a
+                # default ALREADY exists, Enter must not silently REPLACE it: that would demote a
+                # profile the user deliberately chose earlier, possibly onto a costlier model, and
+                # is exactly the class of surprise `add_profile`'s no-clobber rule exists to
+                # prevent. So the existing-default branch keeps default=False and additionally
+                # SHOWS what would be replaced.
                 if current_default:
                     io.line(
                         f"Your current default OpenCode profile is {current_default!r} "
@@ -540,7 +596,7 @@ def run_wizard(
                 make_default_profile = ask_yes_no(
                     io,
                     f"Make {profile_name!r} the default OpenCode profile?",
-                    default=False,
+                    default=not current_default,
                 )
             if cfg.default_runner != RUNNER:
                 # ONLY asked when it would change something. `default_runner` matters for
@@ -621,7 +677,9 @@ def run_session(
         if result.cancelled:
             break
         try:
-            if not ask_yes_no(io, "Configure another profile?", default=False):
+            # DEFAULT YES (maintainer request 2026-09-12). Answering no ends the session and
+            # keeps everything already saved, so the friendlier default costs nothing.
+            if not ask_yes_no(io, "Configure another profile?", default=True):
                 break
         except WizardCancelled:
             break

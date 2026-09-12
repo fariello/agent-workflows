@@ -41,6 +41,7 @@ from . import run_dispatch as _run_dispatch
 from .project_schema import DeliveryMode, Preset, RecordsBackend
 from .result_types import ConflictingFlagsError, select_output
 from .term import Term
+from . import term as _term_mod
 
 # --------------------------------------------------------------------------------------
 # Argument parsing
@@ -5527,6 +5528,16 @@ def _completion_tip(term: Term) -> None:
     term.status("ok", "Tip: Enable tab-completion with 'aw completion install'")
 
 
+def _yes_no(default: bool, term: Term) -> str:
+    """Render a yes/no prompt suffix with the default letter bolded, via the ONE shared renderer.
+
+    Thin wrapper over `term.yes_no_suffix` so these `input()` call sites read as prompts rather
+    than as string building, and so the emphasis convention cannot drift from the wizard's.
+    """
+
+    return _term_mod.yes_no_suffix(default, term=term)
+
+
 def _resolve_completion_choice(args: argparse.Namespace) -> Optional[str]:
     """Resolve `--completion [auto|bash|zsh|fish|none]` to a shell name, or None for 'do nothing'.
 
@@ -5570,10 +5581,21 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
             "and does NOT modify your ~/.bashrc, ~/.zshrc, or config.fish."
         )
         try:
-            answer = input("  Install shell completion? [y/N] ").strip().lower()
+            # DEFAULT YES (maintainer request 2026-09-12): tab-completion is additive, writes ONE
+            # file outside any rc/dotfile, and is trivially removable, so Enter should accept it.
+            # An explicit `--completion none`, `--yes`, or a non-TTY all still install nothing;
+            # those paths returned above and are unaffected by this polarity.
+            answer = (
+                input(f"  Install shell completion? {_yes_no(True, term)} ")
+                .strip()
+                .lower()
+            )
         except EOFError:
             return
-        if answer not in ("y", "yes"):
+        # Anything other than an explicit no proceeds, which is what a YES default means. Safe
+        # here because the action is additive, writes ONE file outside any rc/dotfile, and is
+        # undone by `aw completion uninstall`.
+        if answer in ("n", "no", "q", "quit"):
             term.status(
                 "skip", "Skipped; enable it later with 'aw completion install'."
             )
@@ -5595,14 +5617,20 @@ def _configure_completion(args: argparse.Namespace, term: Term) -> None:
 def _configure_runner_profiles(args: argparse.Namespace, term: Term) -> None:
     """Offer the runner-profile interview ONCE per `aw setup`, default NO (`p7xhhm` E-01).
 
-    THE POLARITY IS THE WHOLE POINT. A runner profile binds a MODEL to a short alias, and a model
-    is a cost and a behavior decision that belongs to the user, not to an installer. So this step
-    is strictly OPT-IN: it asks one gate question whose default is NO, and every other path
-    (`--yes`, no TTY, empty input, EOF, interrupt, a declined save) leaves
-    `runner-profiles.json` BYTE-IDENTICAL. `--yes` deliberately does NOT consent here even though
-    it preauthorizes install mutations, because "install the framework into these repos I already
-    listed" and "pick a model for me" are different kinds of decision; the completion step above
-    set that precedent (`_configure_completion`), and this follows it.
+    WHAT THIS GATE PROTECTS, AND WHAT IT NO LONGER CLAIMS. A runner profile binds a MODEL to a
+    short alias, and a model is a cost and a behavior decision that belongs to the user, not to an
+    installer. Every SILENT path therefore still leaves `runner-profiles.json` BYTE-IDENTICAL:
+    `--yes`, no TTY, EOF, interrupt, and a declined save. `--yes` deliberately does NOT consent
+    here even though it preauthorizes install mutations, because "install the framework into these
+    repos I already listed" and "pick a model for me" are different kinds of decision; the
+    completion step above set that precedent (`_configure_completion`), and this follows it.
+
+    THE PROMPT DEFAULT NOW POINTS YES (maintainer request 2026-09-12), reversing what this
+    docstring previously called "strictly OPT-IN". The distinction that makes this safe is between
+    OPENING THE INTERVIEW and WRITING A PROFILE: Enter now opens the interview, which then asks its
+    own questions and writes only after its own explicit save confirmation. So the protection was
+    never really carried by this question's polarity; it is carried by the silent paths above and
+    by the wizard's save gate, both unchanged. An unattended or piped run still writes nothing.
 
     HOST-LEVEL, ONCE PER INVOCATION, exactly like the completion step and for the same reason: a
     profile store is per-user and per-machine, so asking inside the per-repo install loop would
@@ -5653,10 +5681,23 @@ def _configure_runner_profiles(args: argparse.Namespace, term: Term) -> None:
     if cfg.profiles:
         term.kv("Existing profiles", ", ".join(sorted(cfg.profiles)))
     try:
-        answer = input("  Set up a runner profile now? [y/N] ").strip().lower()
+        # DEFAULT YES (maintainer request 2026-09-12). NOTE this REVERSES the polarity this
+        # function's own docstring argued for (`p7xhhm` E-01), and the docstring above is updated
+        # rather than left contradicting the code. What has NOT changed is the part that actually
+        # protects the user: `--yes`, a non-TTY, EOF, and a declined save each still leave
+        # `runner-profiles.json` byte-identical, and the wizard writes only after its own
+        # confirmation. Enter now opens the interview; it does not choose a model.
+        answer = (
+            input(f"  Set up a runner profile now? {_yes_no(True, term)} ")
+            .strip()
+            .lower()
+        )
     except EOFError:
         return
-    if answer not in ("y", "yes"):
+    # Anything other than an explicit no OPENS THE INTERVIEW, which writes nothing by itself; the
+    # wizard asks its own save question (defaulting yes only after a preview) and can still be
+    # cancelled with `q` at any prompt.
+    if answer in ("n", "no", "q", "quit"):
         term.status("skip", "Skipped; set one up later with 'aw oc profile add'.")
         return
 
