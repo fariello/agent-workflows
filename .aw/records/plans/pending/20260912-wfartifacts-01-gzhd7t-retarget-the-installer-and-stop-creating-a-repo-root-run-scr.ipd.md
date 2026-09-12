@@ -8,7 +8,7 @@
 - Scope: Stop creating a repo-root run-scratch directory on install, retarget `ARTIFACTS_DIR` and the README emission to `.aw/workflow-artifacts/`, and make `check_gitignore` report the path that now matters. EXCLUDES the gitignore pattern itself (Order 02, which must land first), the README's CONTENT (Order 04), the shipped body references (Order 03), and migrating existing content (Order 05).
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, tests/test_engine_install.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: approved
 - Priority: high
 - Work-Kind: bug
 - Readiness: go-pending-approval
@@ -19,8 +19,10 @@
 - Highest E allocated: 03
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: gzhd7t
+- Approval: 2026-09-12, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-12 approved (aw set): status set to approved
 - 2026-09-12 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED in place, none deferred, none REPLAN. aw ipd lint conformed at --phase author before semantic review and at --phase review-finalize after every revision. THE REVIEW RE-MEASURED EVERY NUMERIC CLAIM RATHER THAN TRUSTING IT, which is what produced the findings: the 86 occurrences, the 0 prefixed, the 29 repos, the 11-file and 3-file affected repos, the 170 reviews, the 42/10 test refs and all four engine.py citations re-verified EXACTLY, but the file count was 27 and is 25 (grep -rl without --include matched three __pycache__ binaries) and two per-file figures mixed grep -c lines with grep -o occurrences (18/11 vs the true 20/12). PR-002 found the riskiest gap: Order 05 described a MOVE where both trees are populated and three workflow names collide, so it is a MERGE; no RUN_ID collides because run ids are timestamps, but that is the data's property not the design's, so a merge test is now mandatory. PR-004 NARROWED Order 04 after finding the shipped agents-README.md template is already CORRECT and a fresh install receives it, so the wrong .aw/records/README.md is local drift from the Order 11 migration and the template must NOT be edited. PR-003 named the five tests that assert the defect. Also added, per the maintainer's instruction: an isolated-worktree clause to all six execution contracts, recording that aw oc run / aw agy run default isolate_worktree True and that a hand run must allocate its own lane. Typed review records written for all six. No product code was modified by this review. HUMAN APPROVAL IS STILL REQUIRED.
 - 2026-09-12 to-review (aw set): Authored as Order 07 delivery (Set wfartifacts) from backlog o9inwt: the spec's run-scratch relocation was implemented in this repo but never delivered to the shipped surface (86 stale references, installer still creating a repo-root dir with a 'DO NOT gitignore' README, 29 repos affected). Review-ready: no TODO placeholders, E/V bijection complete, every V-item demands pasted evidence.
 
