@@ -6,7 +6,8 @@
 - Scope: Make the VERSION written into a target reflect the framework actually being installed, by resolving the value on the write path instead of copying bytes. Decide and implement the dev-checkout policy, and record the manifest's `installed_version` consistently.
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
+- Readiness: go-pending-approval
 - Set: verstamp
 - Order: 1
 - Highest E allocated: 04
@@ -15,6 +16,7 @@
 - From-Backlog: ygtykn
 
 ## Workflow history
+- 2026-09-12 reviewed (aw set): /plan-review: APPROVE WITH REVISIONS APPLIED
 
 - 2026-09-12 to-review (opencode): authored from backlog item ygtykn; write-path root cause verified in-tree.
 - 2026-09-12 draft (opencode): created.
@@ -39,9 +41,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: installing from a dirty dev checkout writes the resolved version (e.g. `1.3.0rc2.dev2553+g87759153`) into the target's `.aw/system/VERSION`, not `1.2.1`.
   - Execution state: pending
 
-- [ ] E-03 Ensure the manifest's `installed_version` records the SAME resolved value it stamps into the file. It is written at engine.py:5885 inside `install_into_repo`; confirm which source it uses and make the two agree, so a future reader cannot get two different answers for one install.
+- [ ] E-03 CONFIRM (do not assume) that the manifest's `installed_version` follows the file automatically, and add no code if it does. It is assigned `read_installed_version(repo_root) or ""` at engine.py:5885, i.e. it READS BACK the just-written target file rather than deriving the version independently, so fixing E-02 should fix the manifest with no further change. This item exists to VERIFY that inference against a real install, because the alternative (two independent derivations) is the failure mode this plan is correcting elsewhere. Record which it turned out to be.
   - Depends on: E-02
-  - Expected outcome: for one install, the target's VERSION file and `managed-sections.json`'s `installed_version` are byte-identical strings.
+  - Expected outcome: for one install, the target's VERSION file and `managed-sections.json`'s `installed_version` are byte-identical strings, achieved with no manifest-specific code change; or, if they diverge, a named reason and the minimal fix.
   - Execution state: pending
 
 ### Task group 2: Regression test
@@ -73,7 +75,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 1. Record the dev-checkout policy decision (E-01), since E-02's shape depends on it.
 2. Substitute the resolved version for the verbatim byte copy at the VERSION read point (E-02).
-3. Make the manifest agree with the file (E-03).
+3. Verify the manifest inherits the corrected value through its existing read-back, adding code only if it does not (E-03).
 4. Add the divergence test that the current suite lacks (E-04).
 
 ## Deferred / out of scope (with reason)
