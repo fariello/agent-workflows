@@ -102,3 +102,25 @@ itself, and the deferral of type-scoped resolution to Order 02 are all correct a
 | D-6 | Does E-03's invariant repoint risk breaking a test that asserts an invariant family? | No. The field has no validator and no value-asserting consumer, so the repoint is safe by construction. | Keeping the warning (rejected: it would send an executor hunting a coupling that does not exist, and might invite a defensive no-op edit). | `grep I-09\|I-16 tests/` returning only two prose comments; no `.invariant` assertion for this rule | yes |
 | D-7 | Is the plan's 38-versus-86 gap the whole story? | No: there are three populations, because doctor demotes `executed/` findings independently of `include_retired`. | Accepting the two-way framing (rejected: E-04's outcome would then be unreachable, and an executor aligning `include_retired` alone would report success while the surfaces still disagreed). | `doctor.py:517-521`; measured `aw check` 38, `aw doctor` 81, predicate 86 | yes |
 | D-8 | Should the review report GO - PENDING HUMAN APPROVAL, given that 8 of 10 findings are fixed? | No: `REVIEWED - OPEN QUESTIONS` and NO-GO, because a blocking question remains open by this review's own act. | Reporting go-pending-approval (rejected: the readiness vocabulary reserves NO-GO for a genuine not-ready condition, and an unanswered blocking question that determines whether two items have any effect is exactly that). | the plan-review readiness rules; `aw ipd lint` returning `IPD-Q501` at review-finalize | yes |
+
+## Round 2
+
+Round 2 exists ONLY to close PR-001, whose escalated question the maintainer resolved on 2026-09-10. It
+re-critiques nothing: every other round-1 finding was already `FIXED` and is superseded unchanged.
+
+WHY IT IS NEEDED: the escalation contract (`plan-review.md:335-341`) defines the path INTO a blocking
+question and no path back, so an answered question leaves its finding reading `OPEN` while
+`subject_gating_blocks` keeps refusing the plan. Appending a round is the sanctioned mechanism, since
+`current_findings` reads only the last round (`review_findings.py:236-243`).
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | A. Correctness (which population the rule scans) | plan OQ-01 (`- Status: resolved`, `- Finding: PR-001`); backlog `k16uuq`, `mqmlug` | Carried forward from round 1 and now CLOSED, by a route the finding did not contemplate. Round 1 escalated whether the rule should scan retired records, having measured that excluding them makes the surviving within-type emission report ZERO because all five conflicts live in `executed/`. The maintainer dissolved the question instead of choosing a side: "Why not use the rename function to rename the files with new setid names like relrev01, relrev02, etc.?" Once the offending names are correct the rule reports zero because NOTHING IS WRONG rather than because it is looking away, so the include-versus-exclude trade disappears. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Closed on the maintainer's resolution. THE RENAMES ARE DONE: all six were applied and committed (`release-review` -> `relrev01`/`relrev02`/`relrev03`, `leak-sanitizer` -> `leaksan01`, `assess-documentation` -> `assessdoc01`, `assess-bugs` -> `assessbug01`), carried by backlog `k16uuq`. The rule's DEFAULT SCOPE IS UNCHANGED by this plan, so E-02 and E-05 keep the within-type emission as authored and no scope-widening work is needed. The second axis (the `aw doctor` executed-demotion) is NOT settled here and NOT required by this plan; it remains the separate defect filed as backlog `lmjc8h`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-1 | The maintainer resolved OQ-01 by fixing the data rather than choosing a scope. Does PR-001 close, and does this plan change? | Close PR-001 and leave this plan's scope UNCHANGED: the rename removed the finding's subject, so no rule-scoping change is warranted. | Widening the rule to scan `executed/` by default, rejected because it would report five things nobody can act on and the maintainer chose the data fix instead. Recording the rule as dormant-by-design, rejected because after the rename its silence is CORRECT rather than dormant, which is a materially different statement. | Plan OQ-01's recorded resolution; the six renames committed on 2026-09-10; backlog `k16uuq` carrying the rename and its two traps (these setids are live workflow names; all three `release-review` plans were Order 00, so a shared setid with distinct Orders is the better shape for a future ACTIVE-plan case). | yes |
