@@ -107,3 +107,39 @@ when citing the count. Also corrected: five pending plans now declare `selectors
 | D-2 | E-04 (normalize quoting) and E-05 (identical resolution) cannot both hold. Which yields? | E-04 yields: pin today's behavior with a characterization test, hand normalization to Order 02. | Drop E-05's identical-resolution bar (rejected: it is the plan's whole acceptance argument and the only proof a matching-engine change is safe); keep both and let the executor decide (rejected: guarantees a mid-run contradiction with no correct resolution); normalize and accept the changed answer (rejected: the Scope forbids changing which record wins, and this is the class of change `selectors.py:112-120` says requires owning a contract change). | Simulated normalization measured at review: `aw find research awoptimize` four files by substring becomes one by setid. `selectors.py:112-120` `_STATUS_RE` parity precedent. Order 02 already owns quote normalization at a report-only site. | yes |
 | D-3 | Should the filter be narrowed to `id6`, or kept across `id6`/`stem`/`substring` as authored? | Narrow to `id6` alone. | Keep all three (rejected on measurement: `stem`/`substring` already pay the full read before their rules run, so filtering them saves zero and costs a parse per candidate); reorder precedence to make the filename rules filterable (rejected: explicitly forbidden by the plan, the item, and `PrecedenceForcesFrontMatterReadsTests`, and it changes which record wins). | Instrumented `_read_header` per kind at review: 616 reads for every kind including `stem` and `substring`. `_PRECEDENCE` (`selectors.py:71`) places `setid`/`status` at 3/4 and the filename rules at 5/6. | yes |
 | D-4 | Is the nine-versus-ten count a defect in one of the two sibling plans? | Neither: it is a read-window difference, documented in both directions rather than "corrected". | Change this plan to ten to match Order 02 (rejected: nine is exactly what a resolver reading `_HEADER_BYTES` can see, so ten would be wrong HERE); change Order 02 to nine (rejected: out of scope for this review, and ten is right for a whole-file report). | Both scans run at review: bounded 4096-byte window finds 9, full body finds 10, the tenth beyond the window. `selectors.py:317` `_HEADER_BYTES = 4096`. | yes |
+
+## Round 2
+
+Opened 2026-09-11 to close PR-001, whose escalated question the maintainer ANSWERED. Round 1 is left
+exactly as written: the findings gate reads only the CURRENT round, and the reviews README states rounds
+are appended rather than edited, so silently flipping round 1's `OPEN` cell would hide that the question
+was ever put. NO PLAN CONTENT WAS RE-CRITIQUED IN THIS ROUND and no new finding was derived; this round
+records one disposition and nothing else. No product code was modified.
+
+WHAT THE MAINTAINER DECIDED, and it was a FOURTH option none of the three PR-001 offered: KEEP THE TESTS,
+DROP THE FILTER. Round 1 framed the choice as execute-as-narrowed / re-scope-onto-the-display-layer /
+defer-to-not-executed. The maintainer instead re-scoped the plan IN PLACE, keeping E-01 and E-04 and
+declining the filter outright. That is narrower than (A), which would still have shipped the filter, and
+less wasteful than (C), which would have retired an authored plan to write a near-identical one. Stated
+basis: at ~12.8ms net of a ~450ms wait the filter does not justify changing the ONE resolver every verb
+and all ten record types route through, and the corpus-wide differential needed to prove it safe is
+expensive precisely BECAUSE the change is dangerous.
+
+THE FINDING IS THEREFORE `FIXED`, NOT `DEFERRED`. The distinction matters and is worth stating, because
+`review_findings.Finding.is_resolved` treats `deferred` as UNRESOLVED and it would keep gating. PR-001's
+substance was that the plan's rationale did not survive its own measurement; the remediation is that the
+rationale and the work it justified are BOTH GONE from the plan. Nothing about PR-001 is outstanding or
+awaiting a later pass, which is what `deferred` would assert.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | HIGH | IN-SCOPE | C. Architecture and operability / G. Plan executability | Round 1's measurement, unchanged: of ~450ms, interpreter+import ~115ms, resolver TOTAL ~42.5ms (traversal ~29.5ms irreducible, header reads ~13.4ms), display `scan_plans` ~113.6ms; net prize ~12.8ms. Maintainer ruling 2026-09-11. | Carried forward from round 1: THE PLAN'S PRIZE IS ~3% OF WHAT AN OPERATOR WAITS FOR, so its performance rationale did not justify a change to the shared resolver. Re-recorded here only to carry its disposition; the measurement is not re-derived. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED BY DESCOPE, on the maintainer's 2026-09-11 ruling. The filter is DECLINED, not deferred: E-02, E-03, E-05 and E-06 are REMOVED from the plan (they existed only to measure, build, prove and time it), the watermark advanced to 07 so their ids are retired rather than reused, `Work-Kind` moved `feature` -> `chore` since nothing user-visible changes, and the title, Concern, Scope and Goal were rewritten so the plan no longer claims a speedup. What remains is E-01 (contract pins), E-04 (quoting characterization) and a new E-07 recording the declined optimization, the id6-only limitation, the F-16 slot hazard and the frozen-precedence rationale in the comment block. The ~113.6ms display-layer double read is carried by its own backlog item so the real cost is not lost. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-5 | PR-001's question is answered. Amend round 1's cell, or open a round 2? | Open ROUND 2 and record the disposition here. | Edit round 1's `OPEN` cell to `FIXED` in place (rejected: the reviews README states rounds are appended rather than edited, and rewriting a completed round hides that the question was ever escalated, which is the audit trail PR-001 exists to leave); leave PR-001 `OPEN` and let the plan stay unapprovable (rejected: that is the exact one-directional escalation defect the maintainer's handoff names as recurring, and `qhy3i3` E-07 is authored to fix it durably). | `.aw/records/reviews/README.md` on appending `## Round <n>`; `review_findings.current_findings()` reads only the current round; precedent set by `wlxkoz`'s round 2 D-1. | yes |
+| D-6 | Is a descoped finding `FIXED` or `DEFERRED`? | `FIXED`. | `DEFERRED` (rejected on mechanics AND on meaning: `Finding.is_resolved` treats `deferred` as unresolved so it would keep gating, and `deferred` asserts a deliberate decision not to fix something still outstanding, while here the finding's subject was removed from the plan entirely). | `agent_workflows/review_findings.py:176-181`, which documents `deferred` as UNRESOLVED and why. | yes |
