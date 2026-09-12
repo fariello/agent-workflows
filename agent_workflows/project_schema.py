@@ -71,9 +71,28 @@ class RootClass(str, Enum):
     while this enum answers "which independently PLACEABLE unit is it?". ``config`` and ``state``
     each split in two because the halves have OPPOSITE git policies that
     ``validate_placement_combination`` enforces below: ``config_local`` and ``state_runtime`` MUST
-    NOT be tracked in any git repository, while ``config_project`` and ``state_durable`` normally
-    are. Collapsing this enum to four would erase the distinction that keeps machine-local config
-    and runtime scratch out of a commit.
+    NOT be tracked in any git repository, while ``config_project`` is portable and IS tracked.
+    Collapsing this enum to four would erase the distinction that keeps machine-local config and
+    runtime scratch out of a commit.
+
+    ``state_durable`` IS AN EXCEPTION THAT THIS DOCSTRING USED TO STATE BACKWARDS, corrected
+    2026-09-12 on the maintainer's ruling. The schema PERMITS tracking it (``validate_placement_
+    combination`` forbids only the two classes above, and the ``private-target`` preset still emits
+    ``state_durable: target-tracked``/``target-git``), but IN PRACTICE IT IS GITIGNORED: the
+    framework-owned ``.aw/.gitignore`` written by ``engine._AW_GITIGNORE_TEMPLATE`` ignores the whole
+    ``state/`` tree, and this repository's own root ``.gitignore`` has done the same since D92.
+
+    THE REASON IS LEAK CONTAINMENT, AND IT OVERRIDES THE PLACEMENT VALUE. ``state/durable/install.json``
+    embeds the resolved policy INCLUDING ``aw_home``, an ABSOLUTE HOME PATH, and
+    ``state/durable/history/installs.jsonl`` appends one such snapshot per install. Measured: the
+    shipped leak sanitizer reports ``home-path`` and ``handle`` on a real one, exit 1. Tracking them
+    would publish the operator's home directory and username into permanent git history.
+
+    SO THE PLACEMENT VALUE IS NOT THE AUTHORITY ON TRACKEDNESS for this one class, and a reader who
+    needs to know whether a path is committed should consult the gitignore, not this enum. The
+    remaining divergence (a preset that still SAYS ``target-tracked`` for a tree that is ignored) is
+    recorded in backlog ``2812t3`` rather than fixed here, because changing preset output is a
+    contract change with its own blast radius.
     """
 
     SYSTEM = "system"

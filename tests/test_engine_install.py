@@ -32,6 +32,7 @@ import json
 import stat
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from tests.support import SOURCE_WORKFLOWS, git, init_repo
@@ -798,6 +799,103 @@ class MachineLocalStateGitignoreTests(unittest.TestCase):
         self.assertTrue(
             Path(snap["policy"]["aw_home"]).is_absolute(),
             f"aw_home is not absolute: {snap['policy']['aw_home']!r}",
+        )
+
+
+class InstallerCommitSetTests(unittest.TestCase):
+    """The installer's path-scoped commit must not be handed paths git sees no change in.
+
+    REGRESSION for a real failure a maintainer hit 2026-09-12 running `aw install` in a target repo:
+    the run ended `Error: git commit failed.` with `no changes added to commit`, leaving a modified
+    `.aw/.gitignore` uncommitted. TWO defects composed.
+
+    FIRST, `.aw/.gitignore` was missing from the commit set. It is TRACKED, and `_ensure_aw_gitignore`
+    appends to it, but it reaches the set through neither `installed` (the manifest install reports it
+    `[already current]`, because the manifest hash matches BEFORE the append) nor `agents_status`.
+
+    SECOND, and this is what actually produced the error, the install manifest is appended as
+    `[overwrite]` on EVERY run even when its bytes are unchanged. `git commit -- <paths>` fails when
+    NONE of the given paths has a stageable change, so a repo whose framework was fully current
+    offered exactly one path, that path had no diff, and the commit died.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _commit_set(self, repo: Path) -> dict:
+        """Capture what `prompt_and_run_commit` would offer, without committing."""
+
+        captured: dict = {}
+        real = INS.subprocess.run
+
+        def fake_run(cmd, *a, **k):
+            if isinstance(cmd, list) and cmd[:2] == ["git", "commit"]:
+                captured["paths"] = cmd[cmd.index("--") + 1 :]
+
+                class _R:
+                    returncode = 0
+
+                return _R()
+            return real(cmd, *a, **k)
+
+        plan = INS.InstallPlan(
+            source_root=SOURCE_WORKFLOWS,
+            repo_root=repo,
+            dry_run=False,
+            backup=False,
+            prune=False,
+            no_color=True,
+            yes=True,
+        )
+        with mock.patch.object(INS.subprocess, "run", fake_run):
+            INS.prompt_and_run_commit(
+                plan=plan,
+                installed=[".aw/system/managed-sections.json [overwrite]"],
+                pruned=[],
+                agents_status={},
+                backups_ignore_status="",
+                use_git=True,
+                artifacts=[],
+                untracked_ignore_status="",
+            )
+        return captured
+
+    def test_an_unchanged_path_is_not_offered_for_commit(self) -> None:
+        """The direct cause of the reported failure."""
+
+        repo = _seed_committed_repo(self.base, "commit-unchanged")
+        _install(repo)
+        git(repo, "add", "-A")
+        git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
+        # Tree is clean, so the manifest that `installed` claims was overwritten has NO diff.
+        self.assertEqual(git(repo, "status", "--porcelain").stdout.strip(), "")
+
+        captured = self._commit_set(repo)
+        self.assertNotIn(
+            "paths",
+            captured,
+            "a commit was attempted with no changed path, which is the failure under test",
+        )
+
+    def test_a_backfilled_aw_gitignore_IS_offered_for_commit(self) -> None:
+        repo = _seed_committed_repo(self.base, "commit-gitignore")
+        _install(repo)
+        git(repo, "add", "-A")
+        git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base")
+        gi = repo / ".aw/.gitignore"
+        gi.write_text(
+            gi.read_text(encoding="utf-8") + "# a back-filled line\n", encoding="utf-8"
+        )
+
+        captured = self._commit_set(repo)
+        self.assertIn(
+            ".aw/.gitignore",
+            captured.get("paths", []),
+            "a modified tracked .aw/.gitignore must be committed, not left dirty",
         )
 
 

@@ -3507,6 +3507,60 @@ def prompt_and_run_commit(
     ):
         files_to_commit[".gitignore"] = "modified"
 
+    # awstateignore follow-up (2026-09-12): `.aw/.gitignore` is TRACKED, and a back-fill in
+    # `_ensure_aw_gitignore` may have just appended a pattern to it. It reaches this set through
+    # NEITHER `installed` (the manifest install skips it as `[already current]`, because the manifest
+    # hash matches before the append) NOR `agents_status`, so it was left modified-but-uncommitted.
+    # Worse, `git commit -- <paths>` is PATH-SCOPED, so on a run where the back-fill was the ONLY
+    # change the command was handed a path list with nothing staged in it and FAILED outright with
+    # "no changes added to commit", leaving the user at a red error with a dirty tree. Measured in a
+    # real target repo 2026-09-12.
+    #
+    # ASK GIT rather than tracking a flag: the append happens on several paths (`write_setup_marker`,
+    # the records-migration branch, a future caller), and only one of them is reachable from any given
+    # entry point (`engine.run` for `aw install` vs `cli._install_one` for `aw setup`). A dirty-check
+    # is correct for all of them and cannot go stale.
+    if use_git:
+        _aw_gi = Path(plan.repo_root) / AW_GITIGNORE_PATH
+        if _aw_gi.is_file():
+            _dirty = subprocess.run(
+                ["git", "status", "--porcelain", "--", AW_GITIGNORE_PATH],
+                cwd=str(plan.repo_root),
+                capture_output=True,
+                text=True,
+            )
+            if _dirty.returncode == 0 and _dirty.stdout.strip():
+                files_to_commit[AW_GITIGNORE_PATH] = "modified"
+
+    # DROP PATHS GIT SEES NO CHANGE IN, which is what actually makes the commit reliable.
+    # `git commit -- <paths>` FAILS ("no changes added to commit") when NONE of the given paths has a
+    # staged or stageable change, so one stale entry can sink an otherwise-fine run. And the install
+    # manifest is a standing example: it is appended as `[overwrite]` on EVERY run (see the
+    # `manifest_rel` append in `install_all`) even when its bytes are identical, so a repo whose
+    # framework is fully current offered exactly one path, that path had no diff, and the commit
+    # errored out in the user's face with a dirty tree left behind (measured 2026-09-12).
+    # Filtering here rather than at each producer keeps the guarantee in ONE place: whatever a
+    # producer claims, only paths with a real change are offered.
+    if use_git and files_to_commit:
+        _probe = subprocess.run(
+            ["git", "status", "--porcelain", "--"] + sorted(files_to_commit),
+            cwd=str(plan.repo_root),
+            capture_output=True,
+            text=True,
+        )
+        if _probe.returncode == 0:
+            _changed = set()
+            for _line in _probe.stdout.splitlines():
+                _entry = _line[3:].strip().strip('"')
+                if " -> " in _entry:  # a rename: `old -> new`
+                    _entry = _entry.split(" -> ", 1)[1]
+                _changed.add(_entry)
+            for _rel in list(files_to_commit):
+                # A `removed` entry is a deletion whose path may legitimately be gone; keep it if git
+                # reports it, drop it only when git is silent about it too.
+                if _rel not in _changed:
+                    del files_to_commit[_rel]
+
     if not files_to_commit:
         return
 
@@ -5384,16 +5438,25 @@ def _merge_tree(old: Path, new: Path) -> None:
         pass
 
 
-def _ensure_aw_gitignore(repo_root: Path) -> None:
+def _ensure_aw_gitignore(repo_root: Path) -> bool:
     """awgitignore Order 01: ensure the single framework-owned `repo/.aw/.gitignore` exists and
     ignores every records untracked/ lane (`records/*/untracked/`). Create it (from the template) if
     absent; append the pattern if a `.aw/.gitignore` exists without it. `.aw/` is framework-owned, so
-    this is safe to write freely (it is NOT the user's root `.gitignore`)."""
+    this is safe to write freely (it is NOT the user's root `.gitignore`).
+
+    RETURNS True IFF THIS CALL WROTE THE FILE, so the caller can include `.aw/.gitignore` in the
+    installer's commit set. Without that, a back-fill that appends a pattern to an ALREADY-TRACKED
+    `.aw/.gitignore` leaves it modified-but-uncommitted, and the installer's own
+    `git commit -- <paths>` then FAILS with "no changes added to commit" whenever the back-fill was
+    the only change in the run (measured 2026-09-12 in a target repo where every framework file was
+    already current).
+    """
+
     gi = Path(repo_root) / ".aw" / ".gitignore"
     if not gi.is_file():
         gi.parent.mkdir(parents=True, exist_ok=True)
         gi.write_text(_AW_GITIGNORE_TEMPLATE, encoding="utf-8")
-        return
+        return True
     text = gi.read_text(encoding="utf-8")
     additions = []
     if "records/*/untracked/" not in text:
@@ -5413,10 +5476,12 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
     # pre-existing BARE line is REPAIRED (rewritten to the anchored form) rather than accepted, and
     # the presence test matches the pattern LINE only, never the substring `inbox/` that the
     # explanatory comment above it also contains.
+    wrote = False
     bare_inbox = re.compile(r"(?m)^inbox/[ \t]*$")
     if bare_inbox.search(text):
         text = bare_inbox.sub("/inbox/", text)
         gi.write_text(text, encoding="utf-8")
+        wrote = True
     if not re.search(r"(?m)^/inbox/[ \t]*$", text):
         additions.append("/inbox/")
     # wslayout Order 04 (hauwqh): back-fill the install-time-emitted layout artifacts on a repo
@@ -5458,6 +5523,8 @@ def _ensure_aw_gitignore(repo_root: Path) -> None:
         gi.write_text(
             text.rstrip("\n") + "\n" + "\n".join(additions) + "\n", encoding="utf-8"
         )
+        wrote = True
+    return wrote
 
 
 def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str]:
@@ -5524,7 +5591,13 @@ def emit_layout_artifacts(repo_root: Path, *, dry_run: bool = False) -> list[str
 
 def write_setup_marker(repo_root: Path) -> Path:
     """setupmarker Order 01: write the self-explaining `.aw/setup-repo-needed.md` reminder + ensure
-    `.aw/.gitignore` ignores it. Idempotent. Returns the marker path."""
+    `.aw/.gitignore` ignores it. Idempotent. Returns the marker path.
+
+    NOTE `.aw/.gitignore` is TRACKED, so the `_ensure_aw_gitignore` back-fill here is a real
+    working-tree change. `prompt_and_run_commit` picks it up with a `git status` dirty-check rather
+    than from a signal passed by this function, because the append also happens on paths that never
+    reach here (measured 2026-09-12: omitting it made the installer's path-scoped commit fail).
+    """
     root = Path(repo_root)
     marker = root / SETUP_MARKER_PATH
     marker.parent.mkdir(parents=True, exist_ok=True)
