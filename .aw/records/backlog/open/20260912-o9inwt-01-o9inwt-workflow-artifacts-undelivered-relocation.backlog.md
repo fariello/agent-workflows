@@ -44,9 +44,10 @@ THE MIGRATION MOVED THIS REPO AND STOPPED THERE. Nothing that a TARGET repo rece
    "workflow-artifacts/ is not ignored (advisory: working material will be tracked in git)". It
    never ignores it and never mentions `.aw/workflow-artifacts/`.
 5. 29 repos on this machine already carry a repo-root `workflow-artifacts/`. Most track only the stray
-   README, but some hold genuinely COMMITTED run records predating the decision (`gits`: 11 files
-   across two assess runs; `fariel.com`: 3 including two advise session summaries). A migration must
-   `git mv` these, never delete them.
+   README, but some hold genuinely COMMITTED run records predating the decision (one repo with 11
+   files across two assess runs; another with 3 including two advise session summaries). The repo
+   names are deliberately omitted: they are private, and this item is a public artifact. A migration
+   must `git mv` these, never delete them.
 
 ## Two further defects found while checking, both in THIS repo
 

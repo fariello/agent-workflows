@@ -8,9 +8,10 @@
 - Scope: Stop creating a repo-root run-scratch directory on install, retarget `ARTIFACTS_DIR` and the README emission to `.aw/workflow-artifacts/`, and make `check_gitignore` report the path that now matters. EXCLUDES the gitignore pattern itself (Order 02, which must land first), the README's CONTENT (Order 04), the shipped body references (Order 03), and migrating existing content (Order 05).
 - Scope-Paths: agent_workflows/engine.py, tests/test_installer.py, tests/test_engine_install.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Priority: high
 - Work-Kind: bug
+- Readiness: go-pending-approval
 - Blocks-Release: next
 - From-Backlog: o9inwt
 - Set: wfartifacts
@@ -20,6 +21,7 @@
 - Id: gzhd7t
 
 ## Workflow history
+- 2026-09-12 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED in place, none deferred, none REPLAN. aw ipd lint conformed at --phase author before semantic review and at --phase review-finalize after every revision. THE REVIEW RE-MEASURED EVERY NUMERIC CLAIM RATHER THAN TRUSTING IT, which is what produced the findings: the 86 occurrences, the 0 prefixed, the 29 repos, the 11-file and 3-file affected repos, the 170 reviews, the 42/10 test refs and all four engine.py citations re-verified EXACTLY, but the file count was 27 and is 25 (grep -rl without --include matched three __pycache__ binaries) and two per-file figures mixed grep -c lines with grep -o occurrences (18/11 vs the true 20/12). PR-002 found the riskiest gap: Order 05 described a MOVE where both trees are populated and three workflow names collide, so it is a MERGE; no RUN_ID collides because run ids are timestamps, but that is the data's property not the design's, so a merge test is now mandatory. PR-004 NARROWED Order 04 after finding the shipped agents-README.md template is already CORRECT and a fresh install receives it, so the wrong .aw/records/README.md is local drift from the Order 11 migration and the template must NOT be edited. PR-003 named the five tests that assert the defect. Also added, per the maintainer's instruction: an isolated-worktree clause to all six execution contracts, recording that aw oc run / aw agy run default isolate_worktree True and that a hand run must allocate its own lane. Typed review records written for all six. No product code was modified by this review. HUMAN APPROVAL IS STILL REQUIRED.
 - 2026-09-12 to-review (aw set): Authored as Order 07 delivery (Set wfartifacts) from backlog o9inwt: the spec's run-scratch relocation was implemented in this repo but never delivered to the shipped surface (86 stale references, installer still creating a repo-root dir with a 'DO NOT gitignore' README, 29 repos affected). Review-ready: no TODO placeholders, E/V bijection complete, every V-item demands pasted evidence.
 
 - 2026-09-12 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
@@ -52,6 +54,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 - [ ] E-03 PROVE A FRESH INSTALL PRODUCES NO REPO-ROOT DIRECTORY AND UPDATE THE TESTS THAT PIN THE OLD BEHAVIOR.
   EXPECT EXISTING TESTS TO FAIL, and treat that as the signal rather than a nuisance: 42 references to `workflow-artifacts`/`ARTIFACTS_DIR` exist across 10 test files (`test_installer.py`, `test_awretrofit_install_selfheal.py`, `test_acceptance_matrix.py`, `test_packaging.py` and others). Each must be re-pointed or deliberately re-scoped, and any that asserts the repo-root README is INSTALLED is asserting the defect and must be inverted.
+  THE DEFECT-ASSERTING SITES ARE NAMED IN F-7 so you do not have to hunt: `test_installer.py:394` (`is_file()` on the repo-root README), `:406` (its "Git Guidelines" content), `:409-410` (a re-run preserves a customized copy), and `test_awretrofit_install_selfheal.py:69`/`:78` (`git_add_optional` on the same path). The `test_installer.py:409` case is the subtle one: PRESERVING a user's customized README is correct behavior that should survive at the NEW path, so re-point it rather than delete it.
   THE NEW ASSERTION THAT MATTERS: after `install_into_repo` on a fresh repo, `(repo / "workflow-artifacts").exists()` is FALSE. That single line is the maintainer's report turned into a test.
   RUN THE SUITE BARE and compare the FAILURE SET, not counts.
   - Depends on: E-02
@@ -77,7 +80,8 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-2 | HIGH | the constant still points at the repo root | `ARTIFACTS_DIR = "workflow-artifacts/"`. | `engine.py:237` |
 | F-3 | MEDIUM | the advisory is wrong in both branches | `check_gitignore` reports either "is ignored (correct...)" or "is not ignored (advisory...)" about a path that should not exist. | `engine.py:2664-2676`, printed at `:3729` |
 | F-4 | MEDIUM | a third copy of the bad prose is inline | `_ensure_artifacts_readme`'s OSError fallback duplicates the README text, so fixing the template alone leaves live bad prose. | `engine.py:5153-5162` |
-| F-5 | MEDIUM | 42 test references pin the old behavior | across 10 files; some assert the repo-root README IS installed, i.e. they assert the defect. | grep over `tests/` |
+| F-5 | MEDIUM | 42 test references pin the old behavior | across 10 files (both figures re-verified at review); some assert the repo-root README IS installed, i.e. they assert the defect. | grep over `tests/` |
+| F-7 | MEDIUM | THE DEFECT-ASSERTING TESTS ARE NAMED, so the executor does not have to hunt for them | `tests/test_installer.py:394` asserts `workflow-artifacts/README.md` `is_file()` and `:406` asserts its content contains "Git Guidelines"; `:409-410` then asserts a re-run PRESERVES a customized copy. `tests/test_awretrofit_install_selfheal.py:69`/`:78` exercise `git_add_optional` on that same path and its module docstring already cites "Order 07 gitignores workflow-artifacts", so that file half-knew. Each needs re-pointing to `.aw/workflow-artifacts/README.md` or re-scoping, not deletion. | read at review |
 | F-6 | LOW | the pre-D19 migration must survive | `LEGACY_ARTIFACTS_DIR` moves `repository-review/` into the artifacts tree; it needs retargeting, not deletion. | `engine.py:238`, `:2608-2613` |
 
 ## Proposed changes (ordered, validatable)
@@ -148,5 +152,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 EXECUTION CONTRACT. Commit only files this plan changed, path-scoped (`git commit -m msg -- <paths>`); never `git add -A` and never push. Verify the staged set with `git diff --cached --name-only` before every commit and RE-VERIFY after any failed hook, since `pre-commit`'s stash/restore can leave a co-worker's paths in the index in this shared checkout. Paste ACTUAL command output for every validation item; never claim a result you did not run. Re-locate every symbol by NAME rather than by the line numbers cited here, which are accurate at authoring time only. Run the suite BARE (`python3 -m pytest`) and judge on the FAILURE-SET delta, not counts. Run `aw sanitize --agent` before treating any output as shareable.
 
 DO NOT DELETE A USER'S COMMITTED RUN RECORDS, anywhere in this Set. Relocation preserves history; deletion is unrecoverable and is the one outcome worse than leaving the retired directory in place.
+
+ISOLATE THE WORKTREE (maintainer instruction 2026-09-12). If you run this plan through `aw oc run` / `aw agy run` you already have this: `isolate_worktree` DEFAULTS TRUE (`oc_runipd.py:3048`, `:6106`; `agy_runipd.py:2055`, `:3254`), so the agent turn, verifier and finalize happen on an `aw/lane/<id6>` branch in a fresh worktree while the main tree stays untouched, and changes return through the merge-and-revalidate gate. Do NOT pass `--no-isolate-worktree`.
+IF YOU EXECUTE BY HAND, ALLOCATE ONE YOURSELF rather than editing the main checkout: `git worktree add ../aw-lane-<id6> -b aw/lane/<id6>`, work and commit there, then merge back. THIS SET MAKES THAT PARTICULARLY IMPORTANT for two measured reasons. FIRST, Order 03 rewrites 25 shipped files and Orders 01/02/05 all edit `engine.py`, so a half-finished hand run leaves the installer and the shipped bodies DISAGREEING, which is the exact defect state this Set exists to end. SECOND, this is a SHARED CHECKOUT with concurrent agents and humans, and an isolated lane is what keeps a partial rewrite of `.aw/system/workflows/` from being visible to (or swept into a commit by) someone else mid-run.
+NOTE THE ONE THING ISOLATION DOES NOT COVER: Order 05 must be TESTED against scratch clones, never against a user's real repository. A worktree isolates THIS repo's tree; it does nothing to protect the OTHER repositories on the machine whose committed run records that plan is designed to move (the two counted in Order 05's findings).
 
 POST-GATE LIFECYCLE MOVE. Do not claim done or move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` above carries concrete pasted evidence.

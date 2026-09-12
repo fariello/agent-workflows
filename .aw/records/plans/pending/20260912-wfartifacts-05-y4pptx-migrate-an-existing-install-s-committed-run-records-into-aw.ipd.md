@@ -2,15 +2,16 @@
 
 - Date: 2026-09-12
 - Kind: child
-- Concern: 29 REPOS ON ONE MACHINE ALREADY CARRY THE RETIRED LAYOUT, AND SOME OF IT IS COMMITTED. Measured 2026-09-12: 29 repos under the maintainer's `VC/` tree have a repo-root `workflow-artifacts/`. Most track only the stray README, but `gits` tracks 11 files across two assess runs (`assess-bugs/20260726-115243/`, `assess-testing/20260726-124752/`, each with `decisions.md`, `evidence.md`, `findings.csv`, `ipd-link.md`, `report.md`) and `fariel.com` tracks 3 including two advise session summaries. Orders 01 through 04 fix what a FRESH install produces and change nothing for these.
+- Concern: 29 REPOS ON ONE MACHINE ALREADY CARRY THE RETIRED LAYOUT, AND SOME OF IT IS COMMITTED. Measured 2026-09-12: 29 repos under the maintainer's `VC/` tree have a repo-root `workflow-artifacts/`. Most track only the stray README, but REPO-A tracks 11 files across two assess runs (`assess-bugs/<RUN_ID>/`, `assess-testing/<RUN_ID>/`, each with `decisions.md`, `evidence.md`, `findings.csv`, `ipd-link.md`, `report.md`) and REPO-B tracks 3 including two advise session summaries. The two repositories are deliberately NOT named here: they are the maintainer's private repos, and a plan is a public artifact. Orders 01 through 04 fix what a FRESH install produces and change nothing for these.
   THE EXISTING TOOL DOES NOT DO THIS JOB. `tools/untrack-workflow-artifacts.py` UNTRACKS IN PLACE: it removes index entries, keeps the working tree, and writes an ignore rule for the repo-root path. It never moves anything under `.aw/`, and it is not wired into `aw install` (`grep -rn 'untrack_workflow_artifacts' agent_workflows/` -> nothing). So it leaves the double home Order 07 existed to end, and it must not be mistaken for this deliverable.
   THIS IS THE ONLY CHILD THAT TOUCHES A USER'S COMMITTED HISTORY, which is why it is last and why its bar is highest. Deleting a user's committed run records would destroy review history they chose to keep; silently committing a relocation into a tracked path would publish local context (D92). Both failure modes are worse than leaving the old directory alone, so the migration must be conservative and must refuse rather than guess.
 - Scope: On `aw install`, relocate an existing repo's run records from the repo-root `workflow-artifacts/` into `.aw/workflow-artifacts/`, preserving committed history with `git mv`, never deleting user content, and refusing rather than guessing when the situation is ambiguous. EXCLUDES the fresh-install layout (Orders 01, 02), prose (Orders 03, 04), and any change to `tools/untrack-workflow-artifacts.py`'s in-place behavior, which stays available for a user who wants only to untrack.
 - Scope-Paths: agent_workflows/engine.py, tests/test_engine_install.py
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Priority: high
 - Work-Kind: bug
+- Readiness: go-pending-approval
 - Blocks-Release: next
 - From-Backlog: o9inwt
 - Set: wfartifacts
@@ -20,6 +21,7 @@
 - Id: y4pptx
 
 ## Workflow history
+- 2026-09-12 reviewed (aw set): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-001..PR-004 all FIXED in place, none deferred, none REPLAN. aw ipd lint conformed at --phase author before semantic review and at --phase review-finalize after every revision. THE REVIEW RE-MEASURED EVERY NUMERIC CLAIM RATHER THAN TRUSTING IT, which is what produced the findings: the 86 occurrences, the 0 prefixed, the 29 repos, the 11-file and 3-file affected repos, the 170 reviews, the 42/10 test refs and all four engine.py citations re-verified EXACTLY, but the file count was 27 and is 25 (grep -rl without --include matched three __pycache__ binaries) and two per-file figures mixed grep -c lines with grep -o occurrences (18/11 vs the true 20/12). PR-002 found the riskiest gap: Order 05 described a MOVE where both trees are populated and three workflow names collide, so it is a MERGE; no RUN_ID collides because run ids are timestamps, but that is the data's property not the design's, so a merge test is now mandatory. PR-004 NARROWED Order 04 after finding the shipped agents-README.md template is already CORRECT and a fresh install receives it, so the wrong .aw/records/README.md is local drift from the Order 11 migration and the template must NOT be edited. PR-003 named the five tests that assert the defect. Also added, per the maintainer's instruction: an isolated-worktree clause to all six execution contracts, recording that aw oc run / aw agy run default isolate_worktree True and that a hand run must allocate its own lane. Typed review records written for all six. No product code was modified by this review. HUMAN APPROVAL IS STILL REQUIRED.
 - 2026-09-12 to-review (aw set): Authored as Order 07 delivery (Set wfartifacts) from backlog o9inwt: the spec's run-scratch relocation was implemented in this repo but never delivered to the shipped surface (86 stale references, installer still creating a repo-root dir with a 'DO NOT gitignore' README, 29 repos affected). Review-ready: no TODO placeholders, E/V bijection complete, every V-item demands pasted evidence.
 
 - 2026-09-12 draft (opencode its_direct/pt3-claude-opus-5-1m-us): created.
@@ -37,10 +39,12 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 - [ ] E-01 WRITE THE MIGRATION AS A SEPARATE, TESTABLE FUNCTION BEFORE WIRING IT INTO INSTALL, taking a repo root and returning what it did.
   THREE CASES, EACH DISTINCT: (a) files TRACKED under the repo-root path -> `git mv` into `.aw/workflow-artifacts/` so history follows; (b) files present but UNTRACKED (already ignored, or never committed) -> a plain filesystem move, since git has nothing to preserve; (c) the stray README ALONE and nothing else -> remove it rather than relocate it, because Order 04 replaces its content and a copy of the retired prose is exactly what should not survive.
   PRESERVE THE RUN-DIRECTORY STRUCTURE: `workflow-artifacts/assess-bugs/20260726-115243/report.md` must land at `.aw/workflow-artifacts/assess-bugs/20260726-115243/report.md`. Flattening or renaming a `<RUN_ID>` would break the `<workflow>/<RUN_ID>/` shape Order 07 specified and make the records harder to read than leaving them alone.
+  THE DESTINATION IS OFTEN ALREADY POPULATED, SO THIS IS A MERGE AND NOT A MOVE (F-7, found at review). Measured in THIS repository: `workflow-artifacts/` holds 5 entries and `.aw/workflow-artifacts/` holds 10, and three workflow names exist in BOTH (`assess-bugs`, `assess-documentation`, `release-review`). A move that assumes an empty or absent destination will either fail on the existing directory or, worse, replace it. MERGE PER `<workflow>/<RUN_ID>/` LEAF: create the workflow directory if absent, then move each run directory into it.
+  RUN-ID COLLISION IS UNLIKELY BUT NOT IMPOSSIBLE, AND THE REASON MATTERS. Measured here, ZERO `<RUN_ID>`s collide across those three shared workflows, because a `<RUN_ID>` is a timestamp (`20260817-135746`) and two runs of the same workflow in the same second is the only way to collide. So the common case is a clean merge; do NOT conclude from that measurement that collision handling is unnecessary, since the refusal rule below is what makes the rare case safe rather than destructive.
   REFUSE, DO NOT GUESS, when the destination already holds a file at the same relative path with different bytes: report it and leave BOTH in place. A silent overwrite of a run record is unrecoverable for the user.
   DO NOT DELETE USER CONTENT IN ANY CASE except (c), and state that as an invariant in the code.
   - Depends on: none
-  - Expected outcome: a standalone function handling the tracked, untracked, and README-only cases, preserving `<workflow>/<RUN_ID>/` structure, refusing on a conflicting destination, and never deleting user content outside case (c).
+  - Expected outcome: a standalone function handling the tracked, untracked, and README-only cases, MERGING into an already-populated destination per `<workflow>/<RUN_ID>/` leaf, preserving that structure, refusing on a conflicting destination, and never deleting user content outside case (c).
   - Execution state: pending
 
 - [ ] E-02 WIRE IT INTO THE INSTALL PATH SO IT REACHES EVERY ENTRY POINT, NOT JUST ONE.
@@ -84,12 +88,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 | Id | Severity | Area | What | Evidence |
 |---|---|---|---|---|
-| F-1 | HIGH | committed run records exist in user repos | `gits` tracks 11 files across `assess-bugs/20260726-115243/` and `assess-testing/20260726-124752/`; `fariel.com` tracks 3 including two advise session summaries. | `git ls-files workflow-artifacts` in each |
+| F-1 | HIGH | committed run records exist in user repos | One repo tracks 11 files across two assess runs; another tracks 3 including two advise session summaries. Names omitted (private repos; a plan is a public artifact). | `git ls-files workflow-artifacts` in each |
 | F-2 | HIGH | 29 repos carry the retired layout | measured across the maintainer's `VC/` tree; Orders 01-04 change nothing for any of them. | per-repo directory check |
 | F-3 | HIGH | the existing tool does NOT do this job | `tools/untrack-workflow-artifacts.py` untracks IN PLACE, keeps the working tree, writes a repo-root ignore rule, moves nothing under `.aw/`, and has no caller in `agent_workflows/`. | the tool; grep for callers |
 | F-4 | HIGH | this is the only child touching committed history | so deletion is unrecoverable and a silent relocation into a tracked path would publish local context (D92). | scope of the change |
 | F-5 | MEDIUM | most repos hold only the stray README | so the common case is a removal, not a relocation, and treating every repo as a migration would leave copies of the retired prose behind. | the same per-repo scan |
 | F-6 | MEDIUM | an agent already mis-relocated records | into `.aw/records/reviews/untracked/`, a TRACKED typed tree rather than the scratch home. | maintainer report 2026-09-12 |
+| F-7 | HIGH | THE DESTINATION IS OFTEN ALREADY POPULATED, so this is a MERGE and the plan described only a move | In this repository `workflow-artifacts/` has 5 entries and `.aw/workflow-artifacts/` has 10, sharing three workflow names (`assess-bugs`, `assess-documentation`, `release-review`). An implementation assuming an absent destination fails on the existing directory or replaces it. ZERO `<RUN_ID>`s collide because run ids are timestamps, so the merge itself is clean here. | `ls` + `comm` per workflow, at review |
 
 ## Proposed changes (ordered, validatable)
 
@@ -113,6 +118,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Required tests / validation
 
 - THE TRACKED CASE WITH HISTORY PROOF: a COMMITTED repo-root run record is relocated and `git log --follow` still reaches its original commit. Asserting only the new location would pass for a copy-and-delete that lost history.
+- THE MERGE CASE, which is the common case rather than an edge (F-7): a destination that ALREADY holds other runs of the same workflow keeps them, and gains the relocated one. Seed both trees with different `<RUN_ID>`s under one workflow name and assert the union survives.
 - NOTHING LOST: the before/after set of run-record relative paths is equal modulo the prefix.
 - THE UNTRACKED CASE: a plain move, no git operation attempted.
 - THE README-ONLY CASE: removed rather than relocated, since Order 04 replaces its content.
@@ -141,7 +147,7 @@ THE INSTALLER'S OUTPUT IS THE USER-FACING DOCUMENTATION of this behavior, and E-
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
 - [ ] V-01 validates E-01
-  - Required evidence: paste the function and quote the invariant comment stating it never deletes user content outside the README-only case. Show the three cases are distinguished in code, and quote the refusal branch. Paste a worked example of a preserved path mapping (`workflow-artifacts/assess-bugs/<RUN_ID>/report.md` -> `.aw/workflow-artifacts/assess-bugs/<RUN_ID>/report.md`).
+  - Required evidence: paste the function and quote the invariant comment stating it never deletes user content outside the README-only case. Show the three cases are distinguished in code, and quote the refusal branch. Paste a worked example of a preserved path mapping (`workflow-artifacts/assess-bugs/<RUN_ID>/report.md` -> `.aw/workflow-artifacts/assess-bugs/<RUN_ID>/report.md`). Quote the code that MERGES into an existing destination workflow directory rather than replacing or failing on it (F-7); an implementation that only handles an absent destination is a FAILED validation, since the populated case is the common one.
   - Observed evidence:
   - Result: pending
 
@@ -151,7 +157,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
   - Result: pending
 
 - [ ] V-03 validates E-03
-  - Required evidence: paste the passing tests. For the tracked case, paste the ACTUAL `git log --follow` output for a relocated file showing it reaches the pre-migration commit; absence of that output is a FAILED validation even if the file exists at the new path. Paste the before/after path-set comparison showing equality modulo the prefix. Paste the refusal case showing both files still present and the reported message. Then paste BARE `python3 -m pytest` summary lines before and after with the failure-SET delta stated.
+  - Required evidence: paste the passing tests. For the tracked case, paste the ACTUAL `git log --follow` output for a relocated file showing it reaches the pre-migration commit; absence of that output is a FAILED validation even if the file exists at the new path. Paste the before/after path-set comparison showing equality modulo the prefix. Paste the MERGE case showing a pre-existing destination run SURVIVED alongside the relocated one. Paste the refusal case showing both files still present and the reported message. Then paste BARE `python3 -m pytest` summary lines before and after with the failure-SET delta stated.
   - Observed evidence:
   - Result: pending
 
@@ -168,5 +174,9 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 EXECUTION CONTRACT. Commit only files this plan changed, path-scoped (`git commit -m msg -- <paths>`); never `git add -A` and never push. Verify the staged set with `git diff --cached --name-only` before every commit and RE-VERIFY after any failed hook, since `pre-commit`'s stash/restore can leave a co-worker's paths in the index in this shared checkout. Paste ACTUAL command output for every validation item; never claim a result you did not run. Re-locate every symbol by NAME rather than by the line numbers cited here, which are accurate at authoring time only. Run the suite BARE (`python3 -m pytest`) and judge on the FAILURE-SET delta, not counts. Run `aw sanitize --agent` before treating any output as shareable.
 
 DO NOT DELETE A USER'S COMMITTED RUN RECORDS, anywhere in this Set. Relocation preserves history; deletion is unrecoverable and is the one outcome worse than leaving the retired directory in place.
+
+ISOLATE THE WORKTREE (maintainer instruction 2026-09-12). If you run this plan through `aw oc run` / `aw agy run` you already have this: `isolate_worktree` DEFAULTS TRUE (`oc_runipd.py:3048`, `:6106`; `agy_runipd.py:2055`, `:3254`), so the agent turn, verifier and finalize happen on an `aw/lane/<id6>` branch in a fresh worktree while the main tree stays untouched, and changes return through the merge-and-revalidate gate. Do NOT pass `--no-isolate-worktree`.
+IF YOU EXECUTE BY HAND, ALLOCATE ONE YOURSELF rather than editing the main checkout: `git worktree add ../aw-lane-<id6> -b aw/lane/<id6>`, work and commit there, then merge back. THIS SET MAKES THAT PARTICULARLY IMPORTANT for two measured reasons. FIRST, Order 03 rewrites 25 shipped files and Orders 01/02/05 all edit `engine.py`, so a half-finished hand run leaves the installer and the shipped bodies DISAGREEING, which is the exact defect state this Set exists to end. SECOND, this is a SHARED CHECKOUT with concurrent agents and humans, and an isolated lane is what keeps a partial rewrite of `.aw/system/workflows/` from being visible to (or swept into a commit by) someone else mid-run.
+NOTE THE ONE THING ISOLATION DOES NOT COVER: Order 05 must be TESTED against scratch clones, never against a user's real repository. A worktree isolates THIS repo's tree; it does nothing to protect the OTHER repositories on the machine whose committed run records that plan is designed to move (the two counted in Order 05's findings).
 
 POST-GATE LIFECYCLE MOVE. Do not claim done or move this plan to `.aw/records/plans/executed/` until `aw ipd lint --phase pre-transition` conforms and every `V-*` above carries concrete pasted evidence.
