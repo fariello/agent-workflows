@@ -3,11 +3,11 @@
 - Date: 2026-09-13
 - Kind: orchestrator
 - Concern: Four consecutive IPD batch runs on 2026-09-13 failed heavily, each for the same structural reason: one item's own bookkeeping left the shared checkout dirty, and a whole-tree gate then refused every remaining item. RE-MEASURED AT REVIEW from each run's `state.json` rather than trusted: 68 refusals across three runs (27 of 42, 23 of 41, 18 of 43), every one naming a single uncommitted backlog markdown file, plus 36 cascaded `dependency-blocked`; two verified lanes stranded; ~$131 of agent cost across the four runs producing four executed plans. NOT a 100% failure rate: each of the three large runs did execute at least one item and complete several reviews, so the honest claim is "the majority of every run was lost", which is damning enough without overstating.
-- Scope: Remove the two dirty-tree guards that block work without preventing harm, and stop the runner writing to the shared checkout mid-run at all. Five children: the pre-launch refusal, the pre-merge prediction, the backlog close, orchestrator retirement, and review isolation. Excludes the merge-and-revalidate suite run, which is the check that does real work and is deliberately KEPT.
-  THIS SET COLLIDES WITH THREE APPROVED, RELEASE-BLOCKING PLANS AND MUST BE SEQUENCED AGAINST THEM, WHICH IS THE FINDING REVIEW ADDS. See "Collisions with approved work" below and blocking OQ-02. In short: `fujm0y` is APPROVED to WIDEN the very function Order 02 DELETES, `3i0aaz` is APPROVED to EXTEND the very refusal Order 01 REMOVES to a second code path, and `51vw4y` is APPROVED to make the refusal Order 02 deletes NON-TERMINAL. All three carry `Blocks-Release: next`. None was mentioned in any of the five children.
+- Scope: Stop the runner blocking work it will not touch, and stop it writing to the shared checkout mid-run. SIX children: the pre-launch refusal (isolated path only), the integration-refusal reclassification, the backlog close, orchestrator retirement, review isolation, and the failed-retirement index residue. Excludes the merge-and-revalidate suite run, which is the check that does real work and is deliberately KEPT. Excludes DELETING either dirty-tree guard, per OQ-02's resolution.
+  THE COLLISION WITH THREE APPROVED RELEASE-BLOCKING PLANS IS RESOLVED AND DISSOLVED, NOT PENDING. Round 1 of review found that `fujm0y`, `51vw4y` and `3i0aaz` (each `Status: approved`, `Blocks-Release: next`) were signed off to widen, preserve, or extend exactly what Orders 01 and 02 then proposed to delete. OQ-02 was resolved to answer (c) and BOTH children were revised accordingly: Order 01 now removes the refusal for the ISOLATED path only and its spec amendment PRESERVES R5.4's obligation for the shared-tree path that `3i0aaz` E-03 extends; Order 02 now KEEPS `dirty_tree_overlap` and reduces to reclassifying a git local-changes refusal from `merge-conflict` to `integration-blocked`. VERIFIED AT REVIEW ROUND 2 by re-reading both children: Order 02's E-01/E-04/E-05 are WITHDRAWN and its surviving items are E-02/E-03 only. So NO approved plan is contradicted, NO release blocker is negated, and Orders 01 and 02 are no longer gated on anything. Read "Collisions with approved work" below as the RECORD of a resolved conflict, not as a live warning.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, agent_workflows/ipd_lifecycle.py, tests/test_lane_clean_base.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_orchestrator_retirement.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: to-review
+- Status: reviewed
 - Readiness: no-go
 - Set: dirtygates
 - Order: 0
@@ -18,6 +18,8 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-13 reviewed (aw set): /plan-review round 2: APPROVE WITH REVISIONS APPLIED; PR-010..PR-022; readiness go-pending-approval
+- 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review ROUND 2: REVIEWED - OPEN QUESTIONS; PR-010..PR-022; readiness no-go (PR-022 escalated as blocking OQ-04, the only unfixed finding; the other twelve are FIXED). `aw ipd lint` CONFORMING at `--phase author` on the orchestrator and all SIX children before semantic review, and at `--phase review-finalize` after. ROUND 1'S BLOCKER PR-001 IS DISCHARGED, verified in the children's EXECUTABLE text rather than the parent's prose: Order 02 now carries only E-02/E-03 with the deletion items withdrawn, Order 01's E-04 splits spec R5.4 by path with V-04 enforcing it, and `dirty_tree_overlap` still has one definition and one live caller. All round-1 measurements independently recomputed from `state.json` and they hold (27/42, 23/41, 18/43 blocked; 8/12/16 cascaded; $130.96 across five runs; the two stranded lanes are `merge-conflict` carrying git's own text). WHAT ROUND 2 FOUND is a different defect class: the resolution DID NOT PROPAGATE. Nine findings are stale text that would misdirect an executor, and three are consequential. PR-010 (BLOCKER): the orchestrator's own checklist still ordered the executor to stop predicting the merge and delete `dirty_tree_overlap`, the exact act the same document's OQ-02 withdrew. PR-016 (HIGH): the completion criteria still demanded "No pre-merge prediction exists", so a correctly executed Set would fail its own definition of done. PR-013 (BLOCKER, MEASURED): Order 04 E-06's prescribed CAS-then-ff-only sequence is a NO-OP THAT REPORTS SUCCESS; built twice in scratch repos, the merge prints "Already up to date." and touches nothing, leaving the `D `/`A ` inverse dirt F-7 forbids and making the peer-protecting refusal unreachable. Corrected by ordering (the ff-only merge must ITSELF advance the branch; clean case leaves exactly ` M peer.txt` with peer bytes verbatim, contended case refuses rc=1 with HEAD unmoved), and the resulting tension with `commit_isolated`'s own CAS is now named for E-01 to resolve. PR-011/PR-014/PR-015 (HIGH): Orders 02 and 04 still declared resolved questions BLOCKING and pointed at withdrawn or carved-out items, and PR-015 found a genuinely ORPHANED test obligation (the `test_ipd_lifecycle_cli.py` cleanliness hole attached to an E-item that now lives in Order 06), re-assigned in writing. PR-018 added the missing V-evidence that the RETAINED guard survived, without which an implementation could reclassify the post-merge branch while quietly deleting the pre-merge check. PR-022 (HIGH, left OPEN deliberately): Orders 01, 02 and 04 carry stale `Readiness: no-go` from their own round-1 reviews although their blocking questions are now resolved; NOT fixed here because `Readiness` is another review's attestation output and writing it would forge the evidence the auto-approve predicate reads. Each needs its own `/plan-review` round 2. No product code was modified by this review.
 - 2026-09-13 to-review (aw set): status set to to-review
 
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
@@ -34,13 +36,13 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: sequence the children
 
-- [ ] E-01 Execute Order 01 (`d7qoxv`): delete the pre-launch dirty-tree refusal, report it as a warning, and amend spec `7ckptx` R5.4 and A14 to match.
+- [ ] E-01 Execute Order 01 (`d7qoxv`): turn the pre-launch dirty-tree refusal into a warning FOR THE ISOLATED PATH ONLY, and amend spec `7ckptx` R5.4 and A14 so the obligation is SPLIT BY PATH rather than removed. RESTATED AT REVIEW ROUND 2 to match what Order 01 now says: it does NOT delete the refusal outright, and the shared-tree obligation must survive for `3i0aaz` E-03 to extend. Not gated: OQ-02 is resolved.
   - Depends on: none
-  - Expected outcome: an isolated turn launches against a checkout holding an unrelated dirty tracked path, and the dirty paths are reported rather than refused.
+  - Expected outcome: an isolated turn launches against a checkout holding an unrelated dirty tracked path and the dirty paths are reported rather than refused, WHILE spec R5.4 still carries a refusal obligation for the non-isolated path.
   - Execution state: pending
-- [ ] E-02 Execute Order 02 (`metc8b`): stop predicting the merge with `dirty_tree_overlap` and let the real `git merge` attempt decide, mapping its refusal onto `integration-blocked`.
+- [ ] E-02 Execute Order 02 (`metc8b`): KEEP `dirty_tree_overlap` and reclassify a REAL `git merge` local-changes refusal from the terminal `merge-conflict` to the deferrable `integration-blocked`, keyed on a structural discriminator rather than git's English. CORRECTED AT REVIEW ROUND 2: the earlier wording ("stop predicting the merge with `dirty_tree_overlap`") describes Order 02's WITHDRAWN items and contradicted the OQ-02 resolution recorded in this same plan; the prediction stays. Not gated.
   - Depends on: none
-  - Expected outcome: a lane whose changes do not conflict integrates even with a dirty main tree; a genuine clash is refused by git, named by git, and non-destructive.
+  - Expected outcome: a local-changes refusal is recorded `integration-blocked` (retryable) carrying git's own text, a genuine content conflict still records `merge-conflict`, and the two are told apart by `MERGE_HEAD` presence rather than by message text.
   - Execution state: pending
 - [ ] E-03 Execute Order 03 (`9iq461`): perform the backlog close inside the lane so it lands if and only if the merge lands.
   - Depends on: none
@@ -74,52 +76,57 @@ The six are INDEPENDENT by design, so a review may approve and run any subset. O
 
 ## Completion criteria (the whole Set is done only when)
 
-- No gate refuses an isolated turn because of a dirty path the turn will not touch.
-- No pre-merge prediction exists; a merge-back is decided by attempting the merge.
-- A run performs NO edit, move, or commit in the shared checkout for a successful item, FOR EVERY ACTION TYPE (execute, review, orchestrate).
-- A failed orchestrator retirement leaves the shared checkout byte-identical to how it found it.
-- The merge-and-revalidate suite run is still in place and still gates integration.
+- No PRE-LAUNCH gate refuses an ISOLATED turn because of a dirty path the turn will not touch.
+- A pre-launch refusal obligation still exists for the NON-ISOLATED (shared-tree) path, so `3i0aaz` E-03 has a requirement to extend.
+- The pre-merge overlap check STILL EXISTS (`dirty_tree_overlap` retained), and a real git local-changes refusal is recorded as the deferrable `integration-blocked` rather than the terminal `merge-conflict`. CORRECTED AT REVIEW ROUND 2: the earlier criterion "No pre-merge prediction exists" was the pre-OQ-02 end state and would have failed a correctly executed Set.
+- A run performs NO edit, move, or commit in the shared checkout for a successful item, FOR EVERY ACTION TYPE (execute, review, orchestrate), EXCEPT the single reconciliation Order 04 E-06 owns, which F-7 measures as unavoidable and which must be a refusing fast-forward.
+- A failed orchestrator retirement leaves the shared checkout byte-identical to how it found it (Order 06).
+- The merge-and-revalidate suite run is still in place and still gates integration for EXECUTE turns.
 - Both hosts behave identically for every change above.
 
-## Collisions with approved work (added at review; read before executing any child)
+## Collisions with approved work (RESOLVED at review round 1; kept as the record)
 
-MEASURED AT REVIEW, by resolving each id6 in `pending/` and reading its front matter. Three plans are
-`Status: approved`, `Readiness: go-pending-approval`, and `Blocks-Release: next`, and each one is
-approved to do the OPPOSITE of a child of this Set to the SAME symbol. None of the five children names
-any of them, so an executor working only from this Set cannot see the conflict.
+THIS SECTION DESCRIBES A CONFLICT THAT NO LONGER EXISTS, and it is retained because the reasoning is
+what justifies the shapes Orders 01 and 02 now carry. Do NOT read it as a reason to hold either child.
 
-| Approved plan | Its approved instruction | The child that contradicts it |
+WHAT ROUND 1 MEASURED, by resolving each id6 in `pending/` and reading its front matter. Three plans are
+`Status: approved`, `Readiness: go-pending-approval`, and `Blocks-Release: next`, and each was approved
+to do the OPPOSITE of a child of this Set to the SAME symbol, while no child named any of them.
+
+| Approved plan | Its approved instruction | What the child does NOW (post-revision) |
 |---|---|---|
-| `fujm0y` (Set `mergedirty`, Order 1) | WIDEN `dirty_tree_overlap`'s input from `lane.changed_files` to the `git merge-tree --write-tree` result diffed against HEAD, so refusal is MORE accurate | Order 02 E-04 DELETES `dirty_tree_overlap` outright and requires `grep` to return zero hits |
-| `51vw4y` (Set `integpath`, Order 3) | Add a non-terminal `integration-deferred` status plus a three-rung ladder ON TOP OF the dirty-overlap refusal ("THE REFUSAL ITSELF IS CORRECT AND MUST SURVIVE ... changes only the DISPOSITION after a refusal, never the refusal condition") | Order 02 E-01 deletes the refusal condition the ladder is built on |
-| `3i0aaz` (Set `dirtybase`, Order 1) | EXTEND the clean-base REFUSAL to the `--no-isolate-worktree` path by relaxing the `isolate` condition, and add `--allow-dirty-base` as the consent escape hatch (with a spec `25kzda` 2.1 amendment) | Order 01 E-01/E-02 delete the refusal on the isolated path and E-04 rewrites spec `7ckptx` R5.4 from a refusal obligation to a reporting obligation |
+| `fujm0y` (Set `mergedirty`, Order 1) | WIDEN `dirty_tree_overlap`'s input from `lane.changed_files` to the `git merge-tree --write-tree` result diffed against HEAD, so refusal is MORE accurate | NO CONFLICT. Order 02 KEEPS the symbol; its deletion items E-01/E-04/E-05 are WITHDRAWN. `fujm0y` may still widen it. |
+| `51vw4y` (Set `integpath`, Order 3) | Add a non-terminal `integration-deferred` status plus a three-rung ladder ON TOP OF the dirty-overlap refusal ("THE REFUSAL ITSELF IS CORRECT AND MUST SURVIVE ... changes only the DISPOSITION after a refusal, never the refusal condition") | NO CONFLICT, and now COMPLEMENTARY. Order 02's surviving E-02 reclassifies a git local-changes refusal onto the `integration-blocked` arm, which is the exact arm `51vw4y` E-01 makes deferrable. |
+| `3i0aaz` (Set `dirtybase`, Order 1) | EXTEND the clean-base REFUSAL to the `--no-isolate-worktree` path by relaxing the `isolate` condition, and add `--allow-dirty-base` as the consent escape hatch (with a spec `25kzda` 2.1 amendment) | NO CONFLICT. Order 01 now changes the ISOLATED path only, and its E-04 SPLITS spec `7ckptx` R5.4 by path, preserving the shared-tree obligation `3i0aaz` E-03 builds on. Its V-04 FAILS the item if that obligation is left absent. |
 
-`fujm0y` additionally declares `Item-Dependencies: executed:51vw4y`, and `51vw4y` has NOT executed
-(`integration-deferred` greps to ZERO in `agent_workflows/`, and `integration-blocked` is still in both
-hosts' `TERMINAL_STATES`, verified by importing both modules at review). So `fujm0y` is currently
-`dependency-blocked` at dispatch and cannot land before this Set unless `51vw4y` runs first.
+WHY THE RESOLUTION IS SOUND RATHER THAN A COMPROMISE, and this is the part worth keeping: the two
+guards had ASYMMETRIC MEASURED EVIDENCE. The pre-launch WHOLE-TREE refusal has 68 measured refusals
+against it in one night and no measured save, so removing it for the isolated path is evidence-led. The
+INTEGRATION-TIME overlap check has a measured save behind it (the 2026-09-05 incident, where four lanes
+were refused and all four merged clean later), so keeping it and letting `fujm0y` widen it and `51vw4y`
+make it recoverable is also evidence-led. Answer (c) is not a split of the difference; it is the answer
+each guard's own record supports.
 
-THIS IS A SEQUENCING AND AUTHORITY QUESTION, NOT A MERGE-ORDER QUESTION, so the runner's isolation does
-NOT solve it. Worktrees make concurrent EDITS to one file safe; they cannot decide whether a function
-should exist. Whichever lands second silently negates the other's approved intent, and in two of the
-three cases the loser is a plan a human has already signed off as gating the release. Resolve OQ-02
-before executing Orders 01 or 02.
-
-WHAT REVIEW DID NOT DO: it did not decide the answer. The argument for this Set is strong and measured
-(see the corrected F-3 and the git measurements re-verified at review), and the argument for
-`51vw4y`'s ladder is also strong. Choosing between "delete the guard" and "make the guard accurate and
-recoverable" is a maintainer's call about the release, so it is escalated rather than resolved.
+ONE SEQUENCING FACT REMAINS TRUE AND IS NOT A BLOCKER FOR THIS SET. `fujm0y` declares
+`Item-Dependencies: executed:6sb3yu, executed:51vw4y`. Re-verified at review round 2: `6sb3yu` IS in
+`.aw/records/plans/executed/`, and `51vw4y` has NOT executed (`integration-deferred` greps to ZERO under
+`agent_workflows/`, and `integration-blocked` is still in both hosts' `TERMINAL_STATES`, obtained by
+importing both modules). So `fujm0y` is `dependency-blocked` at dispatch until `51vw4y` runs. That is a
+fact about the `mergedirty`/`integpath` queue, NOT a constraint on this Set: no child of this Set touches
+`TERMINAL_STATES` or `dirty_tree_overlap`'s body any more, so this Set may run in any order relative to
+those three plans.
 
 ## Cross-IPD validation
 
-- Spec coherence: only Order 01 amends a spec (`7ckptx` R5.4/A14). After the Set, re-read that requirement and confirm no other child contradicts it.
-- Prose coherence: `lane_containment.evaluate_clean_base`'s docstring contrasts itself with `dirty_tree_overlap`. Both are changed by this Set, so confirm the final text describes what shipped and names no deleted symbol.
+- Spec coherence: only Order 01 amends a spec (`7ckptx` R5.4/A14) in the default case; Order 04 must amend `77tr3o` ONLY IF its OQ-03 had ruled "fork", which it did not (it ruled option (a), change the shared body), so no `77tr3o` amendment is expected. After the Set, re-read R5.4 and confirm the shared-tree obligation survives.
+- Prose coherence: `lane_containment.evaluate_clean_base`'s docstring contrasts itself with `dirty_tree_overlap` (`lane_containment.py:2571`). ONLY Order 01 changes that paragraph now, because Order 02 withdrew its counterpart edit, so the paired cross-reference must still name `dirty_tree_overlap` as a LIVE symbol afterwards. VERIFIED AT REVIEW ROUND 2: `dirty_tree_overlap` is referenced in prose at `wtiso_gate.py:287,296`, `runner_shutdown.py:333`, `runner_shared.py:866` and `oc_runipd.py:1961` as well; since the symbol survives, none of those needs touching, which is a direct saving from the OQ-02 resolution.
 - Host parity: confirm each child changed both runners where the behavior is shared. Spec `7ckptx` R4 treats a host-only guard as a divergence, and `z2isfg` already left agy behind once on a neighbouring gate.
 - End-to-end: run a multi-item batch with a deliberately dirty unrelated tracked path in the checkout and confirm every item runs. That is the direct regression for the three measured outages.
 
 ## Deferred / out of scope (with reason)
 
-- The merge-and-revalidate suite run. KEPT deliberately: it re-runs validation against the combined result, which is where a genuine stale base surfaces as a test failure rather than a guess. Orders 01 and 02 both depend on it remaining.
+- The merge-and-revalidate suite run. KEPT deliberately: it re-runs validation against the combined result, which is where a genuine stale base surfaces as a test failure rather than a guess. Order 01 depends on it remaining.
+- DELETING `dirty_tree_overlap`, and deleting the pre-launch refusal for the SHARED-TREE path. Both were in scope when this Set was authored and both are now OUT, by OQ-02's resolution to answer (c). Recorded here so a later reader does not treat the Set's title ("let git be the authority on a merge") as still describing a deletion: the title now overstates what ships, and the Scope line above governs.
 - Path-scoping the pre-launch gate to `Scope-Paths` instead of removing the refusal. Considered and rejected in Order 01's deferred section, with the reasoning recorded there.
 - The `git mv` relocation fix. ALREADY DONE and landed as commit `c53849e5` before this Set was written, with the suite green. It removes the cause of the dirty path; this Set removes the guards that amplified it into an outage. Both were needed.
 - A full audit of every coordinator-side write to the shared checkout. Order 04 fixes retirement only; a wider audit would be its own plan.
@@ -127,8 +134,8 @@ recoverable" is a maintainer's call about the release, so it is escalated rather
 
 ## Scope check
 
-- Over-scope: Order 02 may touch several test files that only pin `dirty_tree_overlap` by identity. That breadth follows from an existing anti-fork convention, not from scope creep, and Order 02's OQ-01 lets review choose the narrower option.
-- Under-scope: this Set does not add a replacement for either removed guard. That is the point: one prevented nothing (measured), and the other was less accurate than the thing it predicted. The real check, merge-and-revalidate, already exists and stays.
+- Over-scope, RESOLVED AT REVIEW ROUND 2 rather than left as a caveat: the earlier note warned that Order 02 "may touch several test files that only pin `dirty_tree_overlap` by identity". That breadth is GONE, because the OQ-02 resolution withdrew the deletion. Order 02 now touches only the post-merge failure branch and its tests. NOTE ONE RESIDUAL DECLARATION TO RECONCILE: Order 02 still declares `agent_workflows/lane_containment.py` and `tests/test_lane_clean_base.py` in `Scope-Paths` although no surviving item edits either (its change 5 is WITHDRAWN and change 1 is WITHDRAWN). Its executor must either drop them from the declaration or acknowledge each with `--scope-ack` at finalize; flagged here because a declared-but-unmodified path costs a `--scope-ack` for no reason (PR-012).
+- Under-scope: this Set no longer removes either guard wholesale, so the "no replacement guard" concern narrows to ONE case: the pre-launch refusal on the ISOLATED path. That removal has a named downstream replacement (merge-and-revalidate, which stays) plus a measured disproof (Order 01 F-3) that the gate deferred rather than prevented the harm. The shared-tree path keeps its refusal, so no path is left both unguarded and unmeasured.
 
 ## Required tests / validation
 
@@ -139,13 +146,14 @@ recoverable" is a maintainer's call about the release, so it is escalated rather
 
 ## Open questions
 
-### OQ-02: Three approved release-blocking plans are approved to do the OPPOSITE of Orders 01 and 02. Which intent wins?
+### OQ-02 (RESOLVED, answer (c) adopted and both children revised): Three approved release-blocking plans were approved to do the OPPOSITE of Orders 01 and 02. Which intent wins?
 
 - Blocking: yes
 - Status: resolved
 - Owner: maintainer
 - Finding: PR-001
 - Resolution or deferral rationale: NOT resolvable from repository evidence, because the repository contains a human approval on BOTH sides. `fujm0y`, `51vw4y` and `3i0aaz` are each `Status: approved` with `Blocks-Release: next`, and each is approved to widen, preserve, or extend exactly what a child here removes (see "Collisions with approved work"). The decision is a release-scope and risk-appetite judgement, which AGENTS.md reserves to the maintainer, and it is irreversible in the direction this Set proposes: deleting `dirty_tree_overlap` and rewriting spec `7ckptx` R5.4 discards work already reviewed and signed off, and `51vw4y`'s ladder cannot be built afterwards without re-adding the refusal. RESOLVED 2026-09-13 (author revision at the maintainer's direction): ANSWER (c), THE SPLIT ALONG THE MEASURED EVIDENCE, which was this review's own recommendation. NO APPROVED PLAN IS CONTRADICTED and no release blocker is negated, so the collision is DISSOLVED rather than adjudicated. Concretely: Order 01 now removes the pre-launch whole-tree refusal for the ISOLATED path only and its spec amendment PRESERVES R5.4's obligation for the shared-tree path, which is what `3i0aaz` E-03 is approved to extend (that path has 68 measured refusals against it and no measured save). Order 02 now KEEPS `dirty_tree_overlap` and reduces to reclassifying a git local-changes refusal from the terminal `merge-conflict` to the deferrable `integration-blocked`, so `fujm0y` may still widen it and `51vw4y` may still build its ladder on it (that check has a measured save behind it in the 2026-09-05 incident). Orders 03, 04, 05 and 06 were never in conflict. See the revision commit and each child's own resolved OQ for the reasoning.
+  VERIFIED AT REVIEW ROUND 2 THAT THE RESOLUTION LANDED IN THE CHILDREN, because a resolution recorded only on the parent is a claim about work nobody did. Order 02 now carries exactly two execution items (E-02, E-03), its "Proposed changes" marks E-01/E-04/E-05 WITHDRAWN, no deliverable of its touches `dirty_tree_overlap`'s body, and its OQ-03 records option (b). Order 01's E-04 now reads "SO THE OBLIGATION IS SPLIT BY PATH, NOT REMOVED", and its V-04 fails the item if the amended requirement leaves `3i0aaz` E-03 nothing to build on. So the collision is dissolved IN THE EXECUTABLE TEXT, not only in this rationale. CONSEQUENCE: NEITHER ORDER 01 NOR ORDER 02 IS GATED ANY MORE. Round 2 corrected the stale sentences elsewhere in this Set that still said they were (PR-010, PR-011); if you find another, it is stale text and this paragraph governs.
   THE THREE COHERENT ANSWERS, each with its real cost. (a) THIS SET WINS: retire `fujm0y` and `51vw4y` to `superseded/` with a reason, and narrow `3i0aaz` to its untracked REPORT plus the shared-tree case only, dropping the refusal extension. Cost: discards two reviewed release blockers, one of which addresses a measured 2026-09-05 incident that lost 7 of 34 items, and that incident's cause (a lane refused at 08:06 that would have merged at 08:40) is NOT addressed by this Set at all. (b) THE APPROVED PLANS WIN: execute `51vw4y` then `fujm0y` then `3i0aaz`, and reduce Order 02 to nothing and Order 01 to the reporting change only. Cost: keeps a guard this Set argues is less accurate than git, and leaves the whole-tree pre-launch refusal that measurably cost 68 items in one night. (c) SPLIT ALONG THE MEASURED EVIDENCE, which is this review's recommendation: the pre-launch WHOLE-TREE refusal (Order 01) is the one with 68 measured refusals against it and NO measured save, so remove it; the INTEGRATION-TIME overlap check (Order 02) has a measured save behind it in the 2026-09-05 incident, so keep the symbol and let `fujm0y` widen it and `51vw4y` make it recoverable, which delivers this Set's actual goal (a non-conflicting lane integrates) without deleting anything approved. Under (c), Orders 03, 04 and 05 are unaffected and can proceed independently.
   WHAT REVIEW ESTABLISHED SO THE CHOICE IS INFORMED, measured in a scratch repo at review and matching the plan's own F-1/F-2/F-3: a real `git merge` with a NON-overlapping dirty path SUCCEEDS and preserves the dirt; with an OVERLAPPING dirty path it REFUSES, names the file, aborts, and leaves both main and the dirty content intact; `git merge-tree --write-tree` returns rc=0 in BOTH cases and is therefore not a valid predictor. So "let git decide" is technically sound. The question is not whether it works; it is whether deleting an approved, release-gating guard is the right way to get there.
 
@@ -156,6 +164,18 @@ recoverable" is a maintainer's call about the release, so it is escalated rather
 - Owner: maintainer
 - Finding: PR-002
 - Resolution or deferral rationale: Order 01 removes the refusal at a call site guarded by `if isolate and self_finalize and not is_review`, so it changes ISOLATED runs only, and its F-3 disproof is specifically about a LANE ("a worker lane cut from HEAD lacked an uncommitted change"). That disproof does NOT transfer to a shared-tree run, where the agent writes directly into a tree already holding another party's uncommitted work and its own changes cannot be distinguished from theirs at commit time. Approved plan `3i0aaz` E-03 exists precisely to ADD the refusal to that path, calling it "the case where dirt is MOST dangerous, since the agent writes directly into the tree it is polluting". Order 01 nowhere states whether it intends to block that. Blocking because if the answer is "the shared-tree refusal is still wanted", Order 01's spec amendment to R5.4 must PRESERVE the obligation for the non-isolated case rather than replacing it wholesale, and an amendment that removes it is not something an agent should decide: R5.4 is an approved contract and the weaker version cannot be un-shipped once other plans are reviewed against it. RESOLVED 2026-09-13 (author revision at the maintainer's direction): ONLY FOR AN ISOLATED RUN. The shared-tree refusal is KEPT, because the F-3 disproof is specific to a lane cut from a commit and does not transfer to a tree the agent writes into directly, and because `3i0aaz` E-03 is approved to extend exactly that refusal. Order 01's E-04 now SPLITS R5.4's obligation by path rather than replacing it, and its V-04 fails the item if the amended requirement leaves `3i0aaz` nothing to build on.
+
+### OQ-04: Orders 01, 02 and 04 carry a stale `Readiness: no-go`. Who re-reviews them, given this review's ledger was the orchestrator alone?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Finding: PR-022
+- Resolution or deferral rationale: NOT resolvable by this reviewer, because the fix is an ATTESTATION THIS REVIEW DID NOT EARN. THE FACTS, measured at review round 2: Orders 01 (`d7qoxv`), 02 (`metc8b`) and 04 (`u23gbn`) each carry `- Readiness: no-go`, written by their OWN round-1 reviews at a time when each had a blocking question OPEN. All three of those questions are now RESOLVED (Order 01 OQ-02, Order 02 OQ-03, Order 04 OQ-03), and this round verified the resolutions genuinely landed in their executable checklists. So the recorded readiness no longer describes any of the three.
+  WHY THIS IS NOT COSMETIC. AGENTS.md states the auto-approve predicate reads the `Readiness` FIELD FIRST and only falls back to the workflow history when the field is ABSENT. A stale `no-go` is therefore not a neutral leftover: it is a live refusal. The practical consequence is that after human approval this Set would execute Orders 03, 05 and 06 and SILENTLY SKIP the three plans carrying the outage fix that motivated the whole Set, which is the opposite of the intent and would be discovered only by noticing what did not run.
+  WHY I DID NOT SIMPLY WRITE THE FIELD, which is the tempting one-line fix. `Readiness` is an OUTPUT of a review OF THAT PLAN. AGENTS.md forbids writing another role's attestation field and names this exact field as the canonical case, because the gate reads the field as evidence that a review cleared the plan. My Step 0 ledger was the orchestrator alone; I read all six children as EVIDENCE and corrected measurably false statements in three of them, but I did not perform an independent full review of each. Writing `go-pending-approval` into three plans I did not fully review would fabricate precisely the evidence the predicate consumes, and under `--full-auto` that fabrication is what promotes a plan to approved.
+  THE OPTIONS, so the decision is a choice and not a chore. (a) RUN `/plan-review` ON EACH of `d7qoxv`, `metc8b` and `u23gbn` individually, so each earns its own round-2 record and its own honest readiness. This is the recommendation: it is the only route that produces real attestations, and each plan has changed materially since its round 1 (Order 02 lost three E-items, Order 04 lost two to Order 06 and had its central mechanism corrected here). (b) ACCEPT the risk and approve the Set knowing three children will not auto-promote, promoting them by hand instead. (c) DECIDE that the maintainer's own direction to revise these plans constitutes the clearance, and record that as the attestation with `--by-human`, which is legitimate because a human may attest what an agent may not.
+  BLOCKING because it is not a preference: left unanswered, the Set half-executes silently, and the failure mode is an ABSENCE, which is the hardest kind to notice. It blocks the SET's readiness, not the orchestrator's own correctness, which is clean.
 
 ### OQ-01: Should this Set also make worktree isolation mandatory rather than a default?
 
@@ -196,7 +216,7 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 ## Approval and execution gate
 
 - Size assessment: standard
-- Cohesion rationale: five independent children share one root cause and one test surface, so they are reviewed together and may be executed separately. Note that "independent" is true of their FILE scopes and false of their intent once the approved plans in "Collisions with approved work" are considered: Orders 01 and 02 are gated on blocking OQ-02, while Orders 03, 04 and 05 are genuinely independent and unaffected by it.
+- Cohesion rationale: SIX independent children share one root cause and one test surface, so they are reviewed together and may be executed separately. CORRECTED AT REVIEW ROUND 2: an earlier version said "five" children and that Orders 01 and 02 were gated on blocking OQ-02. Both statements are now false. OQ-02 is RESOLVED to answer (c) and both children were revised to that shape, so all six are independent in intent as well as in file scope. The one real ordering constraint left is internal and stated in the child table: Orders 01 and 02 no longer touch each other's prose, and Order 06 was carved from Order 04 precisely so it carries no architecture decision.
 
 Execution contract: commit only files each plan changed, path-scoped, never `git add -A`, never push. Paste actual runner output for every test claim. Order 01 amends an approved spec and declares that spec file in its `Scope-Paths`.
 
