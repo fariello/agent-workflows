@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-12
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -112,3 +112,51 @@ requirement conditional in the checkpoint layer rather than in `META_REQUIRED`, 
 corpus the Set's two frames left out, the shipped enum rules its sentinel collides with, two evidence
 commands that cannot answer their own question, one deliverable parked where nothing performs it, and four
 corrected figures.
+
+## Round 2
+
+
+Opened 2026-09-12 to record the maintainer's answers to the questions round 1 escalated. Round 1 is left
+exactly as written: the findings gate reads only the CURRENT round, and the reviews README states rounds
+are appended rather than edited, so flipping a round-1 cell would hide that the question was ever put.
+NO PLAN CONTENT WAS RE-CRITIQUED IN THIS ROUND and no new finding was derived; this records dispositions
+and the in-plan edits that carry them. No product code was modified.
+
+THE MAINTAINER ANSWERED THE SET'S ROOT QUESTION AND TWO CONSEQUENCES, in one interactive round:
+
+RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01, chosen over stamping a grandfather sentinel
+inside Order 01 (the shipped `Scope-Paths` precedent round 1 cited) and over staging the gate as
+advisory. So no exemption marker is written anywhere and the corpus is real-valued before the gate
+exists. The maintainer reached this by asking directly "Why not just do Order 02 and 03 before 01?",
+which the review had costed but not recommended; the cost that made it viable is Ruling 2.
+
+RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 separate answers:
+`lanectn`/`xdr83v` high+bug (Concern: teardown destroys content silently; already gated);
+`runnerbugs`/`hp9rot` high+bug (self-describing: "bugs/correctness", "verified runner defects");
+`orchprobe`/`m7gvuz`+`r2i1b1` medium+bug (correctness defects, no data loss);
+`runanalytics` all 9 children medium+feature (new capability, nothing pre-existing breaks).
+
+RULING 3, GATING: "ALL BUGS MUST BLOCK THE NEXT RELEASE", verbatim, widening the reviewer's proposal.
+Put as a decision separate from naming the work-kind, and the maintainer widened it deliberately, so
+`hp9rot`, `m7gvuz` and `r2i1b1` gain `Blocks-Release: next` in the SAME setter call that writes
+`Work-Kind: bug`.
+
+A CORRECTION MADE DURING THAT ROUND, worth recording because it wasted a turn: the reviewer's first
+framing conflated `Priority`/`Work-Kind` (which this Set makes REQUIRED) with `From-Backlog` (which it
+does not touch and which stays optional; 28 of 120 pending plans have none and remain legal). The
+maintainer caught it with "Are you planning on making all plans require From-Backlog?". `From-Backlog`
+matters here for ONE reason only: Order 02 backfills by INHERITING from the source item, so its absence
+is why 13 plans needed a human decision at all.
+
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | C. Architecture and operability / G. Plan executability | round 1's measurement, unchanged: the gate mirrors `_scope_paths_gate_applies` and fires at EVERY phase for a ready-to-execute plan; 18 of 25 approved pending plans carry neither field, 13 with no source item to inherit from | Carried forward from round 1: LANDING THE GATE FIRST STRANDS THE ALREADY-APPROVED QUEUE. Re-recorded here only to carry its disposition; the measurement is not re-derived. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED BY RULING 1 (ordering inverted), NOT by a sentinel. OQ-02 is now `resolved` and carries all three rulings. The orchestrator's child table and sequencing prose must be rewritten so 02 and 03 precede 01, and Order 01's `- Item-Dependencies:` must name them rather than being named by them; the plan states that leaving the authored order with a note is NOT acceptable, because a reader executing the table top to bottom would reproduce the stranding. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Round 1 costed three options and recommended none. The maintainer proposed a fourth framing (just reverse the order). Accept it, or hold out for one of the three? | ACCEPT THE REVERSAL. It IS option (b) from round 1, which the review had costed honestly but presented last. | Stamp-inside-Order-01 (rejected by the maintainer: writes a sentinel the corpus then has to explain and the backfills have to replace); stage-the-gate-as-advisory (rejected: an unflipped advisory is the exact failure this Set exists to correct). | Round 1's own costing of option (b); Ruling 2 removes its only real cost by supplying the 13 values. | yes |

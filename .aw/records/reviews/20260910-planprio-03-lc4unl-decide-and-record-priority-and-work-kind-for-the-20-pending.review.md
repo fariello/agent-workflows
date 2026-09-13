@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-12
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -157,3 +157,54 @@ Every decision above is `Reversible: yes`, so recording is sufficient and no esc
 the three findings already escalated. None changes a published interface, migrates data, deletes
 anything, or touches a released artifact; the three that could have (reordering the Set, adding a
 dependency edge, deciding the setter's history behavior) are precisely the three left to the maintainer.
+
+## Round 2
+
+
+Opened 2026-09-12 to record the maintainer's answers to the questions round 1 escalated. Round 1 is left
+exactly as written: the findings gate reads only the CURRENT round, and the reviews README states rounds
+are appended rather than edited, so flipping a round-1 cell would hide that the question was ever put.
+NO PLAN CONTENT WAS RE-CRITIQUED IN THIS ROUND and no new finding was derived; this records dispositions
+and the in-plan edits that carry them. No product code was modified.
+
+THE MAINTAINER ANSWERED THE SET'S ROOT QUESTION AND TWO CONSEQUENCES, in one interactive round:
+
+RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01, chosen over stamping a grandfather sentinel
+inside Order 01 (the shipped `Scope-Paths` precedent round 1 cited) and over staging the gate as
+advisory. So no exemption marker is written anywhere and the corpus is real-valued before the gate
+exists. The maintainer reached this by asking directly "Why not just do Order 02 and 03 before 01?",
+which the review had costed but not recommended; the cost that made it viable is Ruling 2.
+
+RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 separate answers:
+`lanectn`/`xdr83v` high+bug (Concern: teardown destroys content silently; already gated);
+`runnerbugs`/`hp9rot` high+bug (self-describing: "bugs/correctness", "verified runner defects");
+`orchprobe`/`m7gvuz`+`r2i1b1` medium+bug (correctness defects, no data loss);
+`runanalytics` all 9 children medium+feature (new capability, nothing pre-existing breaks).
+
+RULING 3, GATING: "ALL BUGS MUST BLOCK THE NEXT RELEASE", verbatim, widening the reviewer's proposal.
+Put as a decision separate from naming the work-kind, and the maintainer widened it deliberately, so
+`hp9rot`, `m7gvuz` and `r2i1b1` gain `Blocks-Release: next` in the SAME setter call that writes
+`Work-Kind: bug`.
+
+A CORRECTION MADE DURING THAT ROUND, worth recording because it wasted a turn: the reviewer's first
+framing conflated `Priority`/`Work-Kind` (which this Set makes REQUIRED) with `From-Backlog` (which it
+does not touch and which stays optional; 28 of 120 pending plans have none and remain legal). The
+maintainer caught it with "Are you planning on making all plans require From-Backlog?". `From-Backlog`
+matters here for ONE reason only: Order 02 backfills by INHERITING from the source item, so its absence
+is why 13 plans needed a human decision at all.
+
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | G. Plan executability / C. Right-sizing | round 1: Set inheritance resolves ZERO plans while E-02 precedes E-03 | Carried forward: THE PARTITION ORDER MADE THE INHERITANCE ROUTE DEAD, so E-02 could resolve nothing before E-03 ran. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | MOOT UNDER RULING 2 for this execution: the per-Set table supplies all 13 values directly, so no inheritance route is needed. OQ-02 is `resolved` and instructs the executor to treat Ruling 2 as E-03's ANSWER rather than re-asking, while still re-deriving the population per E-01 and RAISING any plan found outside the recorded 13 instead of inferring a value for it. |
+| PR-002 | BLOCKER | IN-SCOPE | G. Plan executability | round 1: four plans can inherit for free IF sibling 02 runs first | Carried forward: THE INDEPENDENCE CLAIM DEPENDED ON SIBLING ORDER. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | MOOT UNDER RULING 2: the table covers all 13 including those four, so independence stands and no route is built. OQ-03 is `resolved` and says to keep the observation as a note only. |
+| PR-003 | BLOCKER | IN-SCOPE | G. Plan executability | the parent's OQ-02, now resolved; this plan's `- Item-Dependencies: executed:lkexaw` | Carried forward: SAME INVERTED DEPENDENCY EDGE as sibling 02's PR-001, deliberately worded to be decided ONCE at the parent. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED BY RULING 1, identically: the edge is inverted and must be removed. OQ-04 is `resolved`. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Ruling 3 gates three plans on `next` as a side effect of a metadata backfill. Is that in scope for THIS plan? | YES, and in the SAME setter call as `--work-kind bug`, per the maintainer's explicit widening. | Write `bug` now and gate later in `qmgn12` (rejected: it would leave a live `Work-Kind: bug` with no `Blocks-Release`, which is exactly the inconsistency `qmgn12` is built to DETECT, and in a shared checkout another agent's `aw check` could observe and report that window). | Maintainer Ruling 3 verbatim; E-04 and V-04 amended to require the flags together and to fail a bug lacking a gate. | yes |
+| D-2 | Should Ruling 3 be applied repo-wide while we are here? | NO. Scoped to this plan's measured 13. | Sweep every `bug` artifact in the repo (rejected: that is `qmgn12`'s deliverable, and touching artifacts this plan never measured is scope creep in a shared checkout). | The plan's own population definition; `qmgn12`'s scope. | yes |

@@ -1,5 +1,5 @@
 - Id: o9inwt
-- Status: open
+- Status: done
 - Blocks-Release: next
 - Set: o9inwt
 - Priority: high
@@ -7,6 +7,7 @@
 - Summary: Order 07's run-scratch relocation was never delivered to the shipped surface: 86 bare workflow-artifacts/ refs, the installer still creates a repo-root dir with a 'DO NOT gitignore' README, and 29 existing installs need migrating
 
 ## Workflow history
+- 2026-09-13 done (aw set): Closed done per check.orphaned-live-blocker: the release gate is PRESERVED VIA HANDOFF, not dropped. All six wfartifacts plans (re772u, gzhd7t, vh14ku, 9x1rps, l1c1iz, y4pptx) carry From-Backlog: o9inwt and Blocks-Release: next, and the orchestrator re772u is approved, so 2.0.0 still cannot ship until the work lands. This closes the ITEM, not the work; I filed the plans earlier and left the item open, which is the bookkeeping gap the rule exists to catch.
 - 2026-09-12 created (aw backlog): Order 07's run-scratch relocation was never delivered to the shipped surface: 86 bare workflow-artifacts/ refs, the installer still creates a repo-root dir with a 'DO NOT gitignore' README, and 29 existing installs need migrating
 
 ## Reported by the maintainer 2026-09-12

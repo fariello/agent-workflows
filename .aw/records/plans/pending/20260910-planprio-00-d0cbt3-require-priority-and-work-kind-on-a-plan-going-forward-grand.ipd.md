@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: planprio
 - Order: 0
 - Highest E allocated: 02
@@ -110,13 +110,30 @@ Order 01 must state whether any spec describes these fields as optional. NOT YET
 ### OQ-02: Landing the gate first strands the plans that are already approved to run. Reverse the order, stamp the corpus inside Order 01, or stage the gate?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
 - Resolution or deferral rationale: THE DEFECT IS MEASURED, NOT PREDICTED, and the numbers are what make it blocking. The gate Order 01 installs mirrors `_scope_paths_gate_applies` (`ipd_lint.py:904-913`), which fires when the requested checkpoint is `pre-execution` OR the plan's persisted `- Status:` is at the ready-to-execute tier, so it applies at EVERY phase to an already-approved plan; verified at review by removing `Scope-Paths` from an approved pending plan and getting `IPD-M106` at `--phase author`. MEASURED at HEAD `3ae4735e`: 25 pending plans are `approved`/`auto-approved` and 18 of them carry neither field. Of those 18, only 5 can be reached by Order 02's inheritance; the other 13 (one `lanectn`, two `orchprobe`, nine `runanalytics`, one `runnerbugs`) carry no `- From-Backlog:` at all and therefore need Order 03's human decision table. Because Orders 02 and 03 both declare `- Item-Dependencies: executed:lkexaw`, the moment Order 01 lands those 18 plans fail `aw ipd lint` at every phase and `aw ipd begin` refuses them fail-closed (`ipd_lifecycle.py:991-1007`), so `aw oc run` / `aw agy run` cannot execute them until BOTH backfills have run and, for the 13, until a human has answered a table. The parent's authored justification for the ordering ("backfilling before the gate exists would write values nothing enforces") does not survive contact with the mechanism: a value written before the gate exists is precisely what the gate then finds satisfied.
   THE SHIPPED PRECEDENT THIS SET COPIES ALREADY SOLVED THIS AND THE SET DROPPED THE STEP. `20260823-ipdgates-02-oorry1-canonical-scope-paths-allowlist-schema-and-grandfather-polic.ipd.md` is the plan that introduced the `Scope-Paths` gate this Set mirrors, and its E-03 (`:48`) STAMPED `Scope-Paths: grandfathered` onto ~21 pre-cutoff pending plans in the SAME child that added the gate, for the stated reason that "none is retroactively blocked once E-02's gate is live" (`:50`). Measured today, 20 plans still carry that sentinel, all now in `executed/`. Nothing in this Set writes an exemption marker onto any existing pending plan, so the exemption exists in the code and on zero artifacts.
   THREE OPTIONS, EACH COSTED. (a) STAMP INSIDE ORDER 01: Order 01 writes the exemption marker onto every existing pending plan in the same change that installs the gate, exactly as `oorry1` did. Cost: Order 01's `Scope-Paths` must grow `.aw/records/plans/pending`, its diff gains ~109 one-line metadata edits in a shared checkout, and OQ-02's answer must also settle the criterion-4 collision (the marker must be accepted by the two shipped enum rules). Benefit: the boundary becomes auditable per plan, the queue never breaks, and Orders 02 and 03 then merely REPLACE a marker with a real value, which is a strictly safer operation than filling a hole. (b) REVERSE THE ORDER: run 02 and 03 first and make Order 01 depend on both. Cost: the 13 no-source plans gate the entire Set on a human answering a table before any code lands, and both children's `- Item-Dependencies:` lines must be rewritten; a plan authored between the backfill and the gate lands with no fields and no marker. Benefit: no sentinel is ever written. (c) STAGE THE GATE: Order 01 lands the lint diagnostic as ADVISORY and a later step flips it to blocking after the backfills. Cost: contradicts Order 01's E-03 as authored, and an unflipped advisory is the failure mode this whole Set exists to correct (a rule that gates nothing). Benefit: nothing breaks at any instant.
   RECOMMENDATION (a), because it is the shipped precedent for this exact hazard in this exact gate, it keeps the maintainer's "required going forward, grandfather the legacy corpus" intent literally true of the artifacts rather than only of the code, and it removes the dependency edge that makes the Set fragile. DELIBERATELY NOT DONE HERE: this review did not reorder the Set, did not edit either child's `- Item-Dependencies:`, and did not widen Order 01's `Scope-Paths`. Only this orchestrator was in the review's scope ledger, and choosing among the three is a scope-and-appetite call that belongs to the maintainer.
+  MAINTAINER RULINGS 2026-09-12 (recorded from an interactive round; these settle the Set's ordering and the 13 undecided plans).
+
+  RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01. The maintainer chose this over stamping a grandfather sentinel inside Order 01 and over staging the gate as advisory. So NO exemption marker is written anywhere, the corpus is real-valued before the gate exists, and Order 01's dependency edges must be rewritten to depend on 02 and 03 rather than the reverse. The authored justification for gating first ("backfilling before the gate exists would write values nothing enforces") is REJECTED: a value written before the gate exists is exactly what the gate then finds satisfied.
+    WHY THE COST IS ACCEPTABLE, having been measured and put to them: only 5 of the 18 approved-and-missing plans can inherit from a source item, so the other 13 needed values before any code could land. That is settled by Ruling 2. The residual gap (a plan authored between the backfill and the gate arriving with neither fields nor marker) is NARROW because Order 01 also fixes `aw ipd scaffold`, which never emitted these fields at all and is the root cause of near-zero adoption.
+
+  RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 individual answers:
+    | Set | Plans | Priority | Work-Kind | Basis |
+    |---|---|---|---|---|
+    | `lanectn` | `xdr83v` | high | bug | Concern: teardown destroys content silently (data loss); already carries `Blocks-Release: next`, so `high` is the only value consistent with that gate. |
+    | `runnerbugs` | `hp9rot` | high | bug | Self-describing: Concern reads "bugs/correctness (assess-bugs)", Scope reads "Verified runner defects". |
+    | `orchprobe` | `m7gvuz`, `r2i1b1` | medium | bug | Both are correctness defects (work reported complete that nobody performed; a refusal no surface reports), not new capability. Neither loses data. |
+    | `runanalytics` | all 9 children | medium | feature | New telemetry/cache/SPA/data-sharing capability; nothing pre-existing breaks in its absence. |
+
+  RULING 3, GATING, and it is the widest of the three: ALL BUGS MUST BLOCK THE NEXT RELEASE. Verbatim. So `hp9rot`, `m7gvuz` and `r2i1b1` gain `- Blocks-Release: next` as part of writing their `Work-Kind: bug` (`xdr83v` already has it). This was put to them as a separate decision from naming the work-kind, and they widened it deliberately.
+    THE EXECUTOR MUST NOT TREAT THIS AS OPTIONAL OR AS THIS SET'S INVENTION: it is the same standing rule the `nobugship` Set (`qmgn12`) exists to make durable, applied here to the plans this Set touches. Writing `Work-Kind: bug` WITHOUT the gate would leave the corpus in exactly the inconsistent state that Set is being built to detect.
+    DO NOT WIDEN IT BEYOND THIS SET'S POPULATION. Gating every `bug` artifact repo-wide is `qmgn12`'s job, not this backfill's; touching plans outside the measured 13 would be scope creep into a shared checkout.
+  CONSEQUENCE FOR THIS ORCHESTRATOR: the child table and any sequencing prose must be rewritten so 02 and 03 precede 01, and Order 01's `- Item-Dependencies:` must name them rather than being named BY them. Do not leave the authored order in the table with a note; a reader executing the table top to bottom would reproduce the stranding this ruling exists to avoid.
 
 ## Validation and cross-check (verify before reporting the Set complete)
 

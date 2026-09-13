@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-12
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -158,3 +158,52 @@ Every decision above is `Reversible: yes`, so recording is sufficient and no esc
 the finding already escalated. None changes a published interface, migrates data, deletes anything, or
 touches a released artifact; the two that could have (choosing the Set's ordering, changing the shared
 status setter) are precisely the two left to the maintainer.
+
+## Round 2
+
+
+Opened 2026-09-12 to record the maintainer's answers to the questions round 1 escalated. Round 1 is left
+exactly as written: the findings gate reads only the CURRENT round, and the reviews README states rounds
+are appended rather than edited, so flipping a round-1 cell would hide that the question was ever put.
+NO PLAN CONTENT WAS RE-CRITIQUED IN THIS ROUND and no new finding was derived; this records dispositions
+and the in-plan edits that carry them. No product code was modified.
+
+THE MAINTAINER ANSWERED THE SET'S ROOT QUESTION AND TWO CONSEQUENCES, in one interactive round:
+
+RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01, chosen over stamping a grandfather sentinel
+inside Order 01 (the shipped `Scope-Paths` precedent round 1 cited) and over staging the gate as
+advisory. So no exemption marker is written anywhere and the corpus is real-valued before the gate
+exists. The maintainer reached this by asking directly "Why not just do Order 02 and 03 before 01?",
+which the review had costed but not recommended; the cost that made it viable is Ruling 2.
+
+RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 separate answers:
+`lanectn`/`xdr83v` high+bug (Concern: teardown destroys content silently; already gated);
+`runnerbugs`/`hp9rot` high+bug (self-describing: "bugs/correctness", "verified runner defects");
+`orchprobe`/`m7gvuz`+`r2i1b1` medium+bug (correctness defects, no data loss);
+`runanalytics` all 9 children medium+feature (new capability, nothing pre-existing breaks).
+
+RULING 3, GATING: "ALL BUGS MUST BLOCK THE NEXT RELEASE", verbatim, widening the reviewer's proposal.
+Put as a decision separate from naming the work-kind, and the maintainer widened it deliberately, so
+`hp9rot`, `m7gvuz` and `r2i1b1` gain `Blocks-Release: next` in the SAME setter call that writes
+`Work-Kind: bug`.
+
+A CORRECTION MADE DURING THAT ROUND, worth recording because it wasted a turn: the reviewer's first
+framing conflated `Priority`/`Work-Kind` (which this Set makes REQUIRED) with `From-Backlog` (which it
+does not touch and which stays optional; 28 of 120 pending plans have none and remain legal). The
+maintainer caught it with "Are you planning on making all plans require From-Backlog?". `From-Backlog`
+matters here for ONE reason only: Order 02 backfills by INHERITING from the source item, so its absence
+is why 13 plans needed a human decision at all.
+
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | G. Plan executability | the parent's OQ-02, now resolved; this plan's `- Item-Dependencies: executed:lkexaw` | Carried forward: THIS PLAN'S DEPENDENCY EDGE IS THE PARENT'S BLOCKING DEFECT, so it could not be settled here. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED BY RULING 1. The `executed:lkexaw` edge is INVERTED and must be removed: Order 01 now depends on THIS plan. OQ-03 is `resolved` and says so explicitly rather than leaving the executor to infer it. |
+| PR-002 | BLOCKER | IN-SCOPE | A. Correctness and data integrity / F. Honest documentation | measured at round 1 on orchestrator `5lxvl3`: a same-status write appends a history line asserting a transition that did not happen | Carried forward: A SAME-STATUS WRITE FABRICATES A HISTORY LINE unless `--message` is passed, and the 5 approved plans were the exposed population. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | RESOLVED BY RULING 1's CONSEQUENCE. Running before the gate removes the stranding risk that made deferring the 5 approved plans attractive, so the concern reduces to writing a TRUTHFUL `--message` (fields backfilled by inheritance from the named source item, never wording that asserts a lifecycle transition). OQ-02 now records that, and that the 5 must NOT be deferred. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Should the 5 approved plans still be deferred, as round 1 offered? | NO. Backfill them, with a truthful `--message`. | Defer them to a later child (rejected: deferral was only necessary because the gate was landing first, and Ruling 1 removes that; deferring would leave 5 approved plans without values for no remaining reason). | Ruling 1; round 1's own measurement that the risk came from gate ordering rather than from the write itself. | yes |

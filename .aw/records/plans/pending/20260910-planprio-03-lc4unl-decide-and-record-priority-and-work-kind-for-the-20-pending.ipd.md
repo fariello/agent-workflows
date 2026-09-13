@@ -7,7 +7,7 @@
 - Scope-Paths: .aw/records/plans/pending
 - Item-Dependencies: executed:lkexaw
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - Set: planprio
 - Order: 3
 - Highest E allocated: 06
@@ -68,8 +68,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   PASS `--message`, BECAUSE A SAME-STATUS WRITE OTHERWISE FABRICATES A HISTORY LINE. MEASURED at review on orchestrator `5lxvl3` (`approved`): without it the setter appends `- <date> approved (aw set): status set to approved`, asserting a transition that did not happen. 13 of the 28 plans here are `approved`, so this is the majority of the population rather than an edge case. Sibling 02's blocking OQ-02 owns the question of whether that is acceptable; whatever it answers applies here identically and this plan must not answer it independently.
   PASS `--no-commit`. Otherwise the setter offers to commit after each write, and accepting mid-loop in this shared checkout sweeps whatever else is staged.
   NEVER HAND-EDIT FRONT MATTER. The setter owns field position (it inserts both directly after `- Status:`, verified) and the history record.
+  CARRY THE RELEASE GATE IN THE SAME INVOCATION FOR EVERY `bug` (Ruling 3, maintainer 2026-09-12: "ALL BUGS MUST BLOCK THE NEXT RELEASE"). Add `--blocks-release next` alongside `--work-kind bug` in the SAME `aw ipd set` call, so the two land atomically: `hp9rot`, `m7gvuz` and `r2i1b1` need it, and `xdr83v` already carries it (pass the flag anyway; it is idempotent, and verifying afterwards is cheaper than remembering which one was exempt).
+  WRITING `bug` WITHOUT THE GATE IS THE FAILURE MODE TO AVOID, not a lesser version of the task. It would leave exactly the inconsistency the `nobugship` Set (`qmgn12`) is being built to DETECT: a live `Work-Kind: bug` artifact with no `Blocks-Release`. Two separate writes would also leave a window in which that state exists in the corpus, which in a shared checkout another agent's `aw check` run can observe and report as a defect.
+  DO NOT WIDEN THE GATE BEYOND THIS PLAN'S MEASURED POPULATION. Ruling 3 is scoped to the 13 plans this plan decides. Gating every `bug` artifact repo-wide is `qmgn12`'s deliverable; sweeping other plans here would be scope creep in a shared checkout and would touch artifacts this plan never measured.
   - Depends on: E-03
-  - Expected outcome: every confirmed unit written; every invocation used an id6, a dry-run preflight, `--no-commit` and a truthful `--message`; no plan's `- Status:` changed; nothing written in a non-interactive run where E-03 deferred.
+  - Expected outcome: every confirmed unit written WITH `--blocks-release next` on every `bug` in the same call; every invocation used an id6, a dry-run preflight, `--no-commit` and a truthful `--message`; no plan's `- Status:` changed; nothing written in a non-interactive run where E-03 deferred.
   - Execution state: pending
 
 - [ ] E-05 DERIVE THE CHILDREN FROM THEIR NOW-DECIDED ORCHESTRATORS, which is the step that makes E-02's partition pay off and which the authored plan had no item for.
@@ -180,7 +183,7 @@ N/A: sibling 01 amends the spec defining the metadata fields. This plan writes v
 ### OQ-02: Set inheritance resolves zero plans while E-02 precedes E-03. Invert the order, or drop the route?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
 - Resolution or deferral rationale: MEASURED BY COMPUTATION, NOT PREDICTED, WHICH IS WHY IT IS BLOCKING. E-02 as authored inherits from a Set orchestrator "where the orchestrator carries both fields", and it runs BEFORE E-03. Over the live population at HEAD `5e0e9873`, NOT ONE of the orchestrators of the 28 plans carries both fields, so the condition is satisfied for 0 of 28 and the entire population falls through to E-03's human list. The plan's whole value proposition (roughly a dozen decisions rather than 24) evaluates to zero reduction as written, and the maintainer would be handed the 28-question table they explicitly asked to avoid.
@@ -188,27 +191,78 @@ N/A: sibling 01 amends the spec defining the metadata fields. This plan writes v
   THREE OPTIONS. (a) INVERT: E-02 becomes a PARTITION step that writes nothing, E-03 decides the 13 units (orchestrators plus the individual remainder), E-04 writes them, and a new step derives the children afterwards. Cost: one more E-item and a checklist that no longer reads as decide-then-derive-in-one-pass; the plan grows from 4 items to 6. Benefit: the route delivers its measured reduction, the human sees 13 rows instead of 28, and each row can state how many plans it settles. (b) DROP SET INHERITANCE and decide all 28 individually. Cost: 28 judgements, which is what the maintainer declined, and it discards a derivation the repository already treats as legitimate elsewhere. Benefit: the simplest possible checklist. (c) SEED THE ORCHESTRATORS MECHANICALLY (for example give every orchestrator `medium`) then derive. Cost: that is FABRICATION, which `xprio`'s own ruling forbids and which this plan's conventions section explicitly names as the line not to cross. Benefit: no human needed.
   RECOMMENDATION (a), and review has already restructured the plan that way so the shape is inspectable: E-02 now partitions and writes nothing, E-03 asks about the 13 units with a coverage column, E-04 writes the decided values, and the new E-05 derives the children once their orchestrators have values. It is BLOCKING nonetheless because the restructure changes what the maintainer is asked to confirm (13 orchestrator-and-individual rows rather than a per-plan list), and that is their call to accept.
   (c) IS THE ONE TO AVOID: it would satisfy the board's Priority column while making every value untrustworthy, which is the opposite of what this Set exists to achieve.
+  MAINTAINER RULINGS 2026-09-12 (recorded from an interactive round; these settle the Set's ordering and the 13 undecided plans).
+
+  RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01. The maintainer chose this over stamping a grandfather sentinel inside Order 01 and over staging the gate as advisory. So NO exemption marker is written anywhere, the corpus is real-valued before the gate exists, and Order 01's dependency edges must be rewritten to depend on 02 and 03 rather than the reverse. The authored justification for gating first ("backfilling before the gate exists would write values nothing enforces") is REJECTED: a value written before the gate exists is exactly what the gate then finds satisfied.
+    WHY THE COST IS ACCEPTABLE, having been measured and put to them: only 5 of the 18 approved-and-missing plans can inherit from a source item, so the other 13 needed values before any code could land. That is settled by Ruling 2. The residual gap (a plan authored between the backfill and the gate arriving with neither fields nor marker) is NARROW because Order 01 also fixes `aw ipd scaffold`, which never emitted these fields at all and is the root cause of near-zero adoption.
+
+  RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 individual answers:
+    | Set | Plans | Priority | Work-Kind | Basis |
+    |---|---|---|---|---|
+    | `lanectn` | `xdr83v` | high | bug | Concern: teardown destroys content silently (data loss); already carries `Blocks-Release: next`, so `high` is the only value consistent with that gate. |
+    | `runnerbugs` | `hp9rot` | high | bug | Self-describing: Concern reads "bugs/correctness (assess-bugs)", Scope reads "Verified runner defects". |
+    | `orchprobe` | `m7gvuz`, `r2i1b1` | medium | bug | Both are correctness defects (work reported complete that nobody performed; a refusal no surface reports), not new capability. Neither loses data. |
+    | `runanalytics` | all 9 children | medium | feature | New telemetry/cache/SPA/data-sharing capability; nothing pre-existing breaks in its absence. |
+
+  RULING 3, GATING, and it is the widest of the three: ALL BUGS MUST BLOCK THE NEXT RELEASE. Verbatim. So `hp9rot`, `m7gvuz` and `r2i1b1` gain `- Blocks-Release: next` as part of writing their `Work-Kind: bug` (`xdr83v` already has it). This was put to them as a separate decision from naming the work-kind, and they widened it deliberately.
+    THE EXECUTOR MUST NOT TREAT THIS AS OPTIONAL OR AS THIS SET'S INVENTION: it is the same standing rule the `nobugship` Set (`qmgn12`) exists to make durable, applied here to the plans this Set touches. Writing `Work-Kind: bug` WITHOUT the gate would leave the corpus in exactly the inconsistent state that Set is being built to detect.
+    DO NOT WIDEN IT BEYOND THIS SET'S POPULATION. Gating every `bug` artifact repo-wide is `qmgn12`'s job, not this backfill's; touching plans outside the measured 13 would be scope creep into a shared checkout.
+  SETTLED BY RULING 2, WHICH IS THE PRODUCT OF E-03 ALREADY HAVING BEEN PERFORMED. The maintainer was put the decidable units as ONE per-Set list on 2026-09-12 and accepted a four-row table, so the ordering question about E-02 vs E-03 is now moot for THIS execution: the values exist. The executor must still re-derive the population at execution time per E-01 and must treat Ruling 2 as the ANSWER to E-03 rather than re-asking, but if E-01 finds a plan outside the recorded 13, that plan needs a fresh decision and must be raised rather than inferred.
 
 ### OQ-03: Four plans can inherit for free IF sibling 02 runs first. Does this plan still claim independence?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-002
 - Resolution or deferral rationale: THE INDEPENDENCE CLAIM IS TRUE FOR CORRECTNESS AND FALSE FOR COST, and the distinction was invisible until the orchestrators were inspected individually. This plan's gate says it "is INDEPENDENT of sibling 02 and may run before, after or concurrently with it, because E-01 tests for the fields rather than for the source reference, so whichever runs second simply sees a smaller population." The FIELDS test is indeed order-safe: nothing is double-written either way. But the INHERITANCE PAYOFF is not.
   MEASURED: two Sets in this population have an orchestrator that carries a RESOLVABLE `- From-Backlog:` and therefore gets its values from sibling 02, not from a human. `orchprobe`'s orchestrator is `yeh7gc` (source `5ev6lh`) with 3 children in the population, and `lanectn`'s is `h0zljh` (source `vqv9im`) with 1. So 4 children can be derived at zero human cost IF sibling 02 has already run, and become 4 unnecessary rows on the maintainer's table if this plan runs first.
   THREE OPTIONS. (a) DECLARE AN ORDERING PREFERENCE WITHOUT A HARD EDGE: state in the gate that running after sibling 02 is preferred because it shrinks the human list by 4, while keeping the plans independently runnable. Cost: a runner may still pick either order, so the saving is not guaranteed. Benefit: no new dependency edge, no new failure mode, and the preference is recorded where an operator sees it. (b) ADD A REAL EDGE (`- Item-Dependencies:` gains `executed:8u6770`). Cost: this plan then cannot run until sibling 02 completes, and sibling 02 currently carries its OWN two blocking questions, so the edge imports that delay; it also removes the concurrency the parent's child table explicitly permits. Benefit: the 4 free derivations are guaranteed. (c) HAVE E-02 RESOLVE AN ORCHESTRATOR'S SOURCE ITSELF rather than waiting for sibling 02 to write it. Cost: duplicates sibling 02's logic in a second plan, which is the drift this repository repeatedly pays for; the two would then have to agree about resolution and exclusion rules. Benefit: order becomes genuinely irrelevant.
   RECOMMENDATION (a), because the cost of the wrong order is 4 extra confirmations rather than a wrong outcome, and a hard edge would couple this plan to a sibling that is itself blocked. Whichever is chosen, the gate's current independence sentence must be qualified: it is order-safe but not order-neutral.
+  MAINTAINER RULINGS 2026-09-12 (recorded from an interactive round; these settle the Set's ordering and the 13 undecided plans).
+
+  RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01. The maintainer chose this over stamping a grandfather sentinel inside Order 01 and over staging the gate as advisory. So NO exemption marker is written anywhere, the corpus is real-valued before the gate exists, and Order 01's dependency edges must be rewritten to depend on 02 and 03 rather than the reverse. The authored justification for gating first ("backfilling before the gate exists would write values nothing enforces") is REJECTED: a value written before the gate exists is exactly what the gate then finds satisfied.
+    WHY THE COST IS ACCEPTABLE, having been measured and put to them: only 5 of the 18 approved-and-missing plans can inherit from a source item, so the other 13 needed values before any code could land. That is settled by Ruling 2. The residual gap (a plan authored between the backfill and the gate arriving with neither fields nor marker) is NARROW because Order 01 also fixes `aw ipd scaffold`, which never emitted these fields at all and is the root cause of near-zero adoption.
+
+  RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 individual answers:
+    | Set | Plans | Priority | Work-Kind | Basis |
+    |---|---|---|---|---|
+    | `lanectn` | `xdr83v` | high | bug | Concern: teardown destroys content silently (data loss); already carries `Blocks-Release: next`, so `high` is the only value consistent with that gate. |
+    | `runnerbugs` | `hp9rot` | high | bug | Self-describing: Concern reads "bugs/correctness (assess-bugs)", Scope reads "Verified runner defects". |
+    | `orchprobe` | `m7gvuz`, `r2i1b1` | medium | bug | Both are correctness defects (work reported complete that nobody performed; a refusal no surface reports), not new capability. Neither loses data. |
+    | `runanalytics` | all 9 children | medium | feature | New telemetry/cache/SPA/data-sharing capability; nothing pre-existing breaks in its absence. |
+
+  RULING 3, GATING, and it is the widest of the three: ALL BUGS MUST BLOCK THE NEXT RELEASE. Verbatim. So `hp9rot`, `m7gvuz` and `r2i1b1` gain `- Blocks-Release: next` as part of writing their `Work-Kind: bug` (`xdr83v` already has it). This was put to them as a separate decision from naming the work-kind, and they widened it deliberately.
+    THE EXECUTOR MUST NOT TREAT THIS AS OPTIONAL OR AS THIS SET'S INVENTION: it is the same standing rule the `nobugship` Set (`qmgn12`) exists to make durable, applied here to the plans this Set touches. Writing `Work-Kind: bug` WITHOUT the gate would leave the corpus in exactly the inconsistent state that Set is being built to detect.
+    DO NOT WIDEN IT BEYOND THIS SET'S POPULATION. Gating every `bug` artifact repo-wide is `qmgn12`'s job, not this backfill's; touching plans outside the measured 13 would be scope creep into a shared checkout.
+  MOOT UNDER RULING 2: the per-Set table covers all 13 plans directly, including the four that could have inherited from a sibling, so no inheritance route is needed to resolve them and this plan's independence claim stands. Keep the free-inheritance observation as a note only; do not build a route this ruling makes unnecessary.
 
 ### OQ-04: This plan's dependency edge is the parent's blocking defect. Answer the PARENT's OQ-02, then bring this plan's `- Item-Dependencies:` into agreement.
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-003
 - Resolution or deferral rationale: ANSWERED AT THE PARENT, NOT HERE, AND RECORDED HERE SO THE GATE HOLDS ON THIS FILE TOO. `- Item-Dependencies: executed:lkexaw` makes this plan wait for the child that installs the requiredness gate. The parent's review measured that ordering as stranding 18 already-approved pending plans the moment sibling 01 lands, because the gate fires at EVERY lint phase for a plan whose persisted status is at the ready-to-execute tier; of those 18, 13 have no source and therefore need THIS plan's decision table, which is what makes the circularity acute: the plans the gate strands are disproportionately the ones only this plan can unblock. The parent offers three costed options (stamp the exemption marker inside Order 01 as the shipped `oorry1` precedent did; reverse the order; or stage the gate as advisory) and recommends the first.
   DECIDE IT ONCE, on the parent (`d0cbt3` OQ-02), and record the same answer here. If the answer removes or reverses the edge, the `- Item-Dependencies:` line in this file must change in the same commit, because the parent's child table and this child's front matter are two statements of one fact.
   DO NOT DEFEND THE EDGE WITH THIS PLAN'S AUTHORED JUSTIFICATION, which the parent's measurement contradicts: "deciding values before the gate and the scaffold fix exist would write values nothing enforces" inverts the mechanism, since a value written before the gate exists is precisely what the gate then finds satisfied.
+  MAINTAINER RULINGS 2026-09-12 (recorded from an interactive round; these settle the Set's ordering and the 13 undecided plans).
+
+  RULING 1, ORDERING: RUN ORDERS 02 AND 03 BEFORE ORDER 01. The maintainer chose this over stamping a grandfather sentinel inside Order 01 and over staging the gate as advisory. So NO exemption marker is written anywhere, the corpus is real-valued before the gate exists, and Order 01's dependency edges must be rewritten to depend on 02 and 03 rather than the reverse. The authored justification for gating first ("backfilling before the gate exists would write values nothing enforces") is REJECTED: a value written before the gate exists is exactly what the gate then finds satisfied.
+    WHY THE COST IS ACCEPTABLE, having been measured and put to them: only 5 of the 18 approved-and-missing plans can inherit from a source item, so the other 13 needed values before any code could land. That is settled by Ruling 2. The residual gap (a plan authored between the backfill and the gate arriving with neither fields nor marker) is NARROW because Order 01 also fixes `aw ipd scaffold`, which never emitted these fields at all and is the root cause of near-zero adoption.
+
+  RULING 2, THE 13 UNDECIDED PLANS, accepted as a per-Set table rather than 13 individual answers:
+    | Set | Plans | Priority | Work-Kind | Basis |
+    |---|---|---|---|---|
+    | `lanectn` | `xdr83v` | high | bug | Concern: teardown destroys content silently (data loss); already carries `Blocks-Release: next`, so `high` is the only value consistent with that gate. |
+    | `runnerbugs` | `hp9rot` | high | bug | Self-describing: Concern reads "bugs/correctness (assess-bugs)", Scope reads "Verified runner defects". |
+    | `orchprobe` | `m7gvuz`, `r2i1b1` | medium | bug | Both are correctness defects (work reported complete that nobody performed; a refusal no surface reports), not new capability. Neither loses data. |
+    | `runanalytics` | all 9 children | medium | feature | New telemetry/cache/SPA/data-sharing capability; nothing pre-existing breaks in its absence. |
+
+  RULING 3, GATING, and it is the widest of the three: ALL BUGS MUST BLOCK THE NEXT RELEASE. Verbatim. So `hp9rot`, `m7gvuz` and `r2i1b1` gain `- Blocks-Release: next` as part of writing their `Work-Kind: bug` (`xdr83v` already has it). This was put to them as a separate decision from naming the work-kind, and they widened it deliberately.
+    THE EXECUTOR MUST NOT TREAT THIS AS OPTIONAL OR AS THIS SET'S INVENTION: it is the same standing rule the `nobugship` Set (`qmgn12`) exists to make durable, applied here to the plans this Set touches. Writing `Work-Kind: bug` WITHOUT the gate would leave the corpus in exactly the inconsistent state that Set is being built to detect.
+    DO NOT WIDEN IT BEYOND THIS SET'S POPULATION. Gating every `bug` artifact repo-wide is `qmgn12`'s job, not this backfill's; touching plans outside the measured 13 would be scope creep into a shared checkout.
+  ANSWERED BY RULING 1, identically to sibling 02's OQ-03: the `executed:lkexaw` edge is INVERTED and must be removed. Order 01 depends on this plan, not the reverse.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -231,7 +285,8 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-04 validates E-04
   - Required evidence: for the FIRST plan written, paste the `--dry-run` output showing exactly ONE plan named and `unchanged`, then the real invocation and its `git diff` showing only the two fields plus one history line changed with `- Status:` unchanged. Paste the history line and confirm it carries the supplied `--message` rather than `status set to approved`. Paste the full command list proving every invocation used an id6 and `--no-commit`; a single setid invocation is a FAILED validation given the measured `executed -> approved` result on `runanalytics`. Confirm no hand-edit was used.
-  - Observed evidence:
+    - Required evidence (Ruling 3): paste `grep -h '^- \(Work-Kind\|Blocks-Release\):' <file>` for ALL FOUR bug plans (`xdr83v`, `hp9rot`, `m7gvuz`, `r2i1b1`) showing `bug` and `next` together on each. A plan carrying `Work-Kind: bug` with NO `Blocks-Release` is a FAILED validation even if every value in the table is otherwise correct, because that is precisely the state `qmgn12` exists to detect. ALSO paste `aw check` showing no `check.blocking-*` or gate-mismatch finding introduced by these writes, and confirm by count that NO plan outside the measured population gained a gate.
+- Observed evidence:
   - Result: pending
 
 - [ ] V-05 validates E-05
