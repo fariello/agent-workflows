@@ -6,17 +6,17 @@
 - Scope: The two gaps that are unambiguous and self-contained. IN: pre-write existence validation with an explicit escape hatch for a deliberate forward reference, and a `remove` subcommand that drops a single edge idempotently. OUT: source-side dependency fields on backlog and specs, setid-valued edges, and a close-time dependency gate, each of which needs a design decision or a prerequisite this plan does not own.
 - Scope-Paths: agent_workflows/status_set.py, agent_workflows/cli.py, tests/test_dependency_verb.py
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: depverb
 - Order: 1
 - Highest E allocated: 06
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: f6idxs
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: rxoazt
 
 ## Workflow history
+- 2026-09-13 executed (aw oc run): aw oc run self-finalize: f6idxs verified (set depverb, attempt 1). [Scope reconciliation - out-of-scope agent_workflows/command_surface.py: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope tests/test_ipd_item_dependencies.py: changed by the plan's approved execution (auto-reconciled by aw oc run)]
 - 2026-09-13 executed (opencode its_direct/pt3-claude-opus-5-1m-us): EXECUTED in lane `f6idxs` of run `run-20260913T031521Z-1774617`, commit `ecf5c703`. All six E-items performed and all six V-items verified with pasted evidence. SUITE: baseline `6034 passed, 3 skipped, 2 xfailed`, after `6074 passed, 3 skipped, 2 xfailed`, delta exactly the 40 new tests, no regressions. `aw check` gains NO diagnostic: finding counts identical rule-for-rule against pristine HEAD (201 = 201) and zero `check.ipd-dependency-*` on the live tree. `aw ipd lint --phase pre-transition` CONFORMING.
   THE REVIEW'S CENTRAL FINDING WAS FOLLOWED AND HELD UP. E-01 resolves through `check_engine.build_dependency_index` + `_resolve_edge`, NOT `match_selector`, so the setter and `aw check` provably name the same condition (V-01 pastes both verdicts side by side), and the `ambiguous` verdict F-11 uncovered is refused unconditionally, including under `--allow-dangling`.
   ONE FINDING CORRECTED, RECORDED RATHER THAN WORKED AROUND (D3). F-14 and E-03 both stated the grammar 'redirects `state:ipd:executed:` to canonical `executed:`'. MEASURED: it REFUSES it (`ipd_schema._parse_item_dependency_edge` returns 'is illegal; use the canonical ...'), and that refusal is deliberate per spec 2.7, which requires the `executed:` spelling so execution EVIDENCE is also demanded. Implementing the predicted redirect would have weakened a shipped contract, so the refusal is now PINNED for both verbs and canonical matching is proven with a spelling the grammar genuinely accepts (reordering plus whitespace). E-06's case (l) is satisfied; only its example changed.
