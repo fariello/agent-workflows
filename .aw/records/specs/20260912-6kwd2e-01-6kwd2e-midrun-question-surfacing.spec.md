@@ -1,13 +1,14 @@
 # Spec: Surfacing a mid-run question to the human without stopping the queue
 
 - Date: 2026-09-12
-- Status: reviewed
+- Status: approved
 - Id: 6kwd2e
 - Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
 - Work-Kind: feature
 - Scope: How a review or execute turn under `aw oc run` / `aw agy run` asks the human a question that did not exist before the turn: park the item, keep the queue moving, ask in bulk at the drain, and resume without discarding work.
 
 ## Workflow history
+- 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-301..SR-306, all six FIXED, none deferred, no question left open (OQ-02 resolved by this review). THE STRONGEST OF THE FOUR AND THE ONE WHOSE CITATIONS MOST NEEDED CHECKING; the load-bearing ones all hold (question: deny, the 600s stall kill, the 10s exact-phrase gate whose timeout can never grant, the interrupt menu's unbounded read, the preserved-lane path, the ledger's human-actor rule). TWO MATERIAL CORRECTIONS. R4a.1's 'already exists' is true of the RENDERER and false of the WRITER: write_local_projections has NO caller in the package and neither runner imports set_records, so no live run has ever written the projection and aw runs questions returns exit 2 for every real run; R4a.1 must WIRE it, not move a call. And R4a.6 named the wrong surface: the cross-tree class comes from an ARTIFACT-status map that parking does not touch (a parked plan already maps to ready), so the work is in the live-run column where awaiting-human would today render as the truncated 'awaitin', and the grouping an implementer would naturally choose is the blocked cluster OQ-01 ruled against. Added A40/A41 for R1.5 and R7.1, the two uncovered requirements whose failures are silent. Re-phrased A1/A17 against a queue SHAPE after all nine measured plans moved to approved in one day. OQ-02 resolved from evidence: plans-only is a CONSEQUENCE (no host registers --type), so R1.1 now sweeps the resolved queue rather than a hardcoded tree.
 
 - 2026-09-12 created (aw specs): How a review or execute turn under a runner asks the human a question that did not exist before the turn: park the item, keep the queue moving, and ask in bulk.

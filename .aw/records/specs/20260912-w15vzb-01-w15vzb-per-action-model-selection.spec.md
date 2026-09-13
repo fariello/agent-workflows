@@ -1,13 +1,14 @@
 # Spec: Per-action model selection: the unit a model attaches to
 
 - Date: 2026-09-12
-- Status: reviewed
+- Status: approved
 - Id: w15vzb
 - Author: aw specs new
 - Scope: A model preference attaches to a ROLE (a kind of work), declared in a top-level roles map that extends verify_with rather than superseding it
 - From-Backlog: 0k74my
 
 ## Workflow history
+- 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-201..SR-205, all five FIXED, none deferred. THE DECISION RECORD IS EXEMPLARY AND THE SPEC HAD NO ACCEPTANCE CRITERIA AT ALL: nine MUSTs, zero criteria, so Section 9's claim that seven requirements are implemented was unrefusable. Added twelve criteria with a coverage map, three marked OUTSTANDING (A-8 needs the consumer, A-9 a verdict store that does not exist, A-10 the version bump that must ship WITH the consumer). Two properties the spec argues for had nothing checking them: the byte-identical resolution of every pre-existing configuration (the 'extend, do not supersede' promise it calls 'asserted rather than assumed') and the distinct role-map provenance. R-9 was conditional on an open question living only in plan btot17, so the spec now carries it as OQ-01 with owner, ruling and closing conditions (non-blocking because R-9's typed refusal keeps the pair inexpressible). Section renumbered after MEASURING that attention's OQ regex rejects a '7a.' heading, so the question is actually counted. VERIFIED every implementation claim: ROLE_NAMES exactly six, SCHEMA_VERSION 2, ALLOWED_PROFILE_KEYS unwidened, 131 passed in 2.42s, and zero runner_profiles hits in agy_runipd.py confirming the OC-only reach. Recorded a naming hazard: host_adapters defines a disjoint closed set also called roles.
 - 2026-09-13 to-review (aw set): Records the actmodel-01 (btot17) decision: a model preference attaches to a ROLE from a closed vocabulary, declared in a top-level roles map that EXTENDS verify_with as a new bottom tier of the one existing chain. Sections 4.1-4.6 carry the four questions the backlog item reserved, with the maintainer's fitness-for-task reframing replacing the item's cost framing. R-1..R-5, R-9 and R-6 case A are implemented and tested; R-6 case B, R-7 and R-8 are outstanding and need the consumer that does not exist yet, so this is NOT implemented and is offered for critique.
 

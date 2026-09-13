@@ -1,7 +1,7 @@
 # Spec: Cross-artifact lifecycle symbols and ANSI status styling
 
 - Date: 2026-09-13
-- Status: reviewed
+- Status: approved
 - Priority: high
 - Blocks-Release: next
 - Id: uonrjg
@@ -9,6 +9,7 @@
 - Scope: A single accessible glyph and ANSI vocabulary for artifact statuses, artifact id6s, and live runner activity across human terminal views.
 
 ## Workflow history
+- 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-401..SR-409, all nine FIXED, none deferred, none open. THE DESIGN IS SOUND; the findings are about COVERAGE and about relationships to other specs. OVERRIDE AUTHORITY recorded (new 0.5) on the maintainer's ruling, scoped to DISPLAY only, superseding 25kzda 5.6's five-color runner scheme (itself approved and release-gating) and requiring the implementing plan to amend that spec rather than leave two live tables. FIVE ORPHAN STATUS WORDS were in no mapping table and would each have rendered a gray '?', violating the spec's own A2: needs_input and awaiting-human -> waiting-input (satisfying 6kwd2e R4a.6, since 214 differs from blocked's 208), ran -> recovering, unknown_outcome -> failed, quarantined -> parked. OQ-01's PREMISE WAS WRONG and that was the session's most useful finding: the accessibility lens was STALE, not in conflict. DECISIONS D42 already required 'degrade through 256/16/none' and the lens still said 'prefer the 16 named colors', which is why D133 had to be an exception to a superseded rule. The lens is corrected (it ships to every managed repo) and this spec now carries the full ladder in 9.3a with one depth resolver, an AUTHORED 16-color palette with named collapses, and USER CONFIGURABILITY of depth and scheme. TWO FINDINGS RECORD MY OWN ERRORS: I proposed ran -> done (refuted twice over: 25kzda makes a ran item exit 1 and 7.2 already forbids styling unverified completion as success) and I proposed deferring configurability (no advantage, since configured and detected depth are one decision at one seam, and detection cannot see a colorblind user). SEQUENCING: implementing after yaxr4i is safe and recommended; 12a requires a declared executed:yaxr4i edge and a RE-REVIEW of this spec once yaxr4i lands, since it moves the flag surface A11-A13 rest on.
 - 2026-09-13 to-review (aw set): Maintainer direction 2026-09-13: priority high, gates the next release (2.0.0). Recorded during /spec-review, before the review's own transition.
 - 2026-09-13 to-review (aw set): Lifecycle glyph, active overlay, accessibility, mapping, architecture, and verification contracts finalized for review.

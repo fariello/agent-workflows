@@ -1,7 +1,7 @@
 # Spec: Setid as a shared cross-type topic label, with type-scoped resolution
 
 - Date: 2026-09-10
-- Status: reviewed
+- Status: approved
 - Id: 2lcqno
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - From-Spec: 4w7d6s
@@ -278,6 +278,7 @@ requires is only that the two surfaces AGREE and that the choice be stated.
   unchanged, so nothing here turns on the exact figure.)
 
 ## Workflow history
+- 2026-09-13 approved (aw set, --by-human): status set to approved
 - 2026-09-13 reviewed (aw set): spec-review round 1 (opencode/its_direct/pt3-claude-opus-5-1m-us): APPROVE WITH REVISIONS APPLIED; SR-001..SR-009, all nine FIXED, none deferred, none open. Re-measured every count at HEAD 9697856e and four of six acceptance criteria were falsified by drift while the ARGUMENT strengthened (cross-type sharing grew 117 -> 130 topics), so Section 5 was rewritten in SHAPE terms with a re-derive-and-report-the-denominator rule. THE FINDING THAT CHANGES AN IMPLEMENTER'S EXPECTATION: the 5 within-type descriptive conflicts N5 exists to preserve were RENAMED AWAY on 2026-09-11 (4f1ca199), so that branch now returns ZERO on every population and is LATENT BY DESIGN, pinned by a fixture. The motivating failure also no longer reproduces: the typed path was fixed in 91077905 BEFORE this spec was authored, so N3 needs PINNING not building and the live defect is the UNTYPED path. Added the keying fix N5 requires (seen_sets is setid-keyed, so deleting the cross-type branch turns a noisy miss silent), the three-way doctor/check population split, and the direct-PATH forged-attestation hole N3 must not be read as closing. DISCLOSED: verifying the quoted failure with a bare 'aw ipd set approved agentadhere' reverted 7 executed plans out of executed/; reverted path-scoped, verified byte-identical, nothing committed, and the warning is now in the spec.
 
 - 2026-09-10 to-review (aw specs): Ready for critique: seven normative items, five measurements, three accepted costs, six acceptance criteria, and zero open questions (OQ-01 resolved from measurement).
