@@ -37,57 +37,57 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: establish intent before turning anything on
 
-- [ ] E-01 For EACH of the four unwired gates, determine and record whether being unwired is DELIBERATE or an oversight, before wiring any of them. The item is explicit that this must not be assumed ("do not assume 'unwired' means 'forgotten'"), and REVIEW HAS NOW ANSWERED IT FOR ALL FOUR: every one is deliberately opt-in. Your job is therefore to VERIFY that finding and record the citations, not to discover the answer, and if you reach a different verdict you must say what evidence overturns the one below.
+- [x] E-01 For EACH of the four unwired gates, determine and record whether being unwired is DELIBERATE or an oversight, before wiring any of them. The item is explicit that this must not be assumed ("do not assume 'unwired' means 'forgotten'"), and REVIEW HAS NOW ANSWERED IT FOR ALL FOUR: every one is deliberately opt-in. Your job is therefore to VERIFY that finding and record the citations, not to discover the answer, and if you reach a different verdict you must say what evidence overturns the one below.
   THE MEASURED ANSWER, to be re-verified rather than trusted: executed plan `diundn` OQ-01 is `RESOLVED - OPT-IN` for the pre-commit scope gate AND the pre-push gate, explicitly "NEVER installed by default", on the stated rationale that "local hooks are opt-in feedback, not an imposed authority boundary". `engine.create_precommit_scope_gate_hook` and `create_prepush_authorization_gate_hook` both document "opt-in-only (never default-installed)". `backlog-blocking-close-gate` is documented in AGENTS.md as "NOT installed by default" and its installer says the same. `ipd_dependency_statement_gate.py` opens "OPT-IN local pre-commit gate". A mechanical cross-check: `grep -ci opt-in` over the six hook modules gives 0 and 0 for the two WIRED gates and 3, 2, 3, 2 for the four unwired ones, an exact partition.
   SO THE DEFAULT VERDICT FOR ALL FOUR IS "LEAVE OPT-IN", AND WIRING ANY OF THEM REQUIRES THE MAINTAINER'S ANSWER TO OQ-01 (now `Blocking: yes`). That is not this plan failing; it is this plan's own rule working ("a gate whose exclusion turns out to be deliberate must NOT be wired by this plan"). Report the table and stop at the gate rather than wiring against a resolved decision.
   DISTINGUISH "NOT DEFAULT-INSTALLED" FROM "NOT INSTALLABLE". Every one of the four HAS a working idempotent no-clobber installer, so an operator who wants a gate already has a supported route. The question OQ-01 asks is whether THIS repository's own `.pre-commit-config.yaml` should register them for everyone who clones it, which is a different question from whether the capability exists.
   - Depends on: none
   - Expected outcome: a four-row table naming each gate, its intent verdict (wire / leave opt-in), and the citation behind that verdict; plus an explicit statement of whether your verdicts agree with review's all-four-opt-in finding and, if not, what evidence overturns it.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Confirm each gate is SAFE to run on every commit before making it always-on, because an always-on gate that false-positives is worse than an unwired one. The repository has a recorded instance of exactly that harm: backlog `gjadwm` observes that "a gate that false-positives on correct behavior TRAINS agents to bypass it", and its case-2 false positive cost a legitimate edit that was DROPPED rather than committed (its 2026-09-08 note records the choice, on an ALREADY-WIRED gate, which is the sharpest available evidence that this risk is not theoretical). So for each gate to be wired, run it BY HAND against the current tree and against a representative staged change, and record whether it passes clean. A gate that refuses a legitimate current state must be fixed or left unwired, not turned on with a known false positive.
+- [x] E-02 Confirm each gate is SAFE to run on every commit before making it always-on, because an always-on gate that false-positives is worse than an unwired one. The repository has a recorded instance of exactly that harm: backlog `gjadwm` observes that "a gate that false-positives on correct behavior TRAINS agents to bypass it", and its case-2 false positive cost a legitimate edit that was DROPPED rather than committed (its 2026-09-08 note records the choice, on an ALREADY-WIRED gate, which is the sharpest available evidence that this risk is not theoretical). So for each gate to be wired, run it BY HAND against the current tree and against a representative staged change, and record whether it passes clean. A gate that refuses a legitimate current state must be fixed or left unwired, not turned on with a known false positive.
   TWO OF THE FOUR ALREADY FAIL THIS CHECK, MEASURED AT REVIEW, so expect exclusions rather than clearances. `precommit-scope-gate` exits 1 against a CLEAN working tree with 174 `check.scope-drift` refusals, all of them naming three OTHER agents' in-flight plans (`xdr83v`, `yvvf98`, `hp9rot`) whose frozen begin bases are behind main. That is precisely the false-positive class this item forbids wiring: it would refuse every commit in this repository until those plans finalize, for reasons having nothing to do with the committer. Note this is the SAME defect plan `wmnmei` (Set `rcptstale`) is graduating to fix, and it is not fixed yet, so the honest verdict today is EXCLUDE. `prepush-authorization-gate` exits 1 on any push lacking `AW_PUSH_AUTHORIZED=1`, which is not a bug but its DESIGNED behavior; see E-04, because "safe" means something different for a gate whose whole purpose is to interrupt.
   THE OTHER TWO ARE CLEAN: `ipd-dependency-statement-gate` and `backlog-blocking-close-gate` both exit 0 against the current tree. They are the only two candidates whose safety check passes, and both are still gated on OQ-01.
   RE-MEASURE RATHER THAN INHERIT: these figures are perishable (the scope-gate count tracks other agents' in-flight plans and moved 110 -> 174 within two days), so run all four yourself, paste UNPIPED exit codes, and report your own numbers.
   - Depends on: E-01
   - Expected outcome: for each gate, pasted evidence of a by-hand run against the real tree with its UNPIPED exit code, and against a legitimate staged change; any false positive named and its gate EXCLUDED with the reason; explicit confirmation of whether `precommit-scope-gate` still refuses a clean tree.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: wire them
 
-- [ ] E-03 Register the gates E-01 and E-02 cleared, in `.pre-commit-config.yaml`, following the shape the two ALREADY-WIRED local hooks use so the new entries are consistent rather than novel: `local` repo, `language: system`, `pass_filenames: false`, `always_run: true`, `entry: python3 -m agent_workflows <verb>`. Keep each hook's `id` equal to its verb name, as the existing two do, so the mapping from a failing hook to the command that reproduces it is obvious. Do NOT change any gate's own code in this plan: wiring is configuration, and a gate that needs a code change to be safely wired belongs in its own item (this is exactly the relationship between `precommit-scope-gate` and the scope-attribution work in flight).
+- [x] E-03 Register the gates E-01 and E-02 cleared, in `.pre-commit-config.yaml`, following the shape the two ALREADY-WIRED local hooks use so the new entries are consistent rather than novel: `local` repo, `language: system`, `pass_filenames: false`, `always_run: true`, `entry: python3 -m agent_workflows <verb>`. Keep each hook's `id` equal to its verb name, as the existing two do, so the mapping from a failing hook to the command that reproduces it is obvious. Do NOT change any gate's own code in this plan: wiring is configuration, and a gate that needs a code change to be safely wired belongs in its own item (this is exactly the relationship between `precommit-scope-gate` and the scope-attribution work in flight).
   THE CLEARED SET MAY LEGITIMATELY BE EMPTY, AND THAT IS A VALID COMPLETED OUTCOME. Given E-01's all-four-opt-in finding and E-02's two measured false positives, the honest cleared set today is at most `ipd-dependency-statement-gate` and `backlog-blocking-close-gate`, and both remain gated on OQ-01. If OQ-01 resolves to "keep all four opt-in", this E-item is satisfied by RECORDING that no gate was registered and why, NOT by wiring something to have shipped a change. Do not widen the cleared set to justify the plan.
   ADD THE HONEST-LIMIT COMMENT ALONGSIDE, following the file's own habit: every existing local gate carries a comment block stating what it catches AND its bypassable local-only limit. A newly registered gate that arrives without that comment would be the first in the file to omit it, which is the drift E-05 exists to prevent.
   - Depends on: E-02
   - Expected outcome: the cleared gates appear in `.pre-commit-config.yaml` in the established local-hook shape with their honest-limit comment, no gate module modified; OR an explicit record that the cleared set was empty, with the reason.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 INSTALL THE `pre-push` STAGE, which is the half of Finding 2 that no amount of config alone fixes: re-measured at review, the only installed hook in the repository's git dir is still `pre-commit`, so `prepush-authorization-gate` cannot fire even when registered. Add `pre-push` to the installed hook types (pre-commit supports `default_install_hook_types`) and register the push gate for that stage specifically, not for `pre-commit`, since a push gate on every commit would refuse work that is not being pushed.
+- [x] E-04 INSTALL THE `pre-push` STAGE, which is the half of Finding 2 that no amount of config alone fixes: re-measured at review, the only installed hook in the repository's git dir is still `pre-commit`, so `prepush-authorization-gate` cannot fire even when registered. Add `pre-push` to the installed hook types (pre-commit supports `default_install_hook_types`) and register the push gate for that stage specifically, not for `pre-commit`, since a push gate on every commit would refuse work that is not being pushed.
   `29wvmj` HAS LANDED: it is `- Status: executed` and no longer "approved in flight", so this is now an EXTENSION of a known baseline rather than a possible collision. The file already carries `default_install_hook_types: [pre-commit, pre-merge-commit]` and `default_stages: [pre-commit]`, with `ipd-executed-transition-gate` opting into `pre-merge-commit` through its own explicit `stages:`. Extend the first list to include `pre-push`; do not touch the second key or `29wvmj`'s comment block.
   `default_stages: [pre-commit]` IS PINNED FOR A REASON THAT APPLIES DIRECTLY TO YOU, and the file states it: it would otherwise default to ALL stages, so adding a hook type would also run every content-MUTATING hook (ruff --fix, whitespace/eof fixers) in that stage. For `pre-push` that would mean rewriting files during a push. So the push gate MUST carry its own explicit `stages: [pre-push]`, exactly as the executed-transition gate carries its own, and `default_stages` must stay `[pre-commit]`.
   TWO EXISTING TESTS WILL FAIL AND MUST BE UPDATED DELIBERATELY, which this plan did not anticipate. `tests/test_executed_transition_gate.py::PreCommitConfigStageRegistrationTests` asserts `default_install_hook_types == ["pre-commit", "pre-merge-commit"]` EXACTLY, so adding `pre-push` breaks it; and `test_only_the_gate_opts_into_pre_merge_commit` asserts the opted-in list equals exactly `["ipd-executed-transition-gate"]`, which stays true for `pre-merge-commit` but is the pattern your new test must mirror rather than duplicate. Update the first assertion to include `pre-push` and say so; do NOT weaken either test into a subset check, because their exactness is what makes them catch an accidental stage. That file is NOT in `Scope-Paths` and must be added; see the Scope check.
   THE PUSH GATE'S "SAFETY" IS NOT CLEANLINESS: it refuses EVERY push without `AW_PUSH_AUTHORIZED=1`, by design (measured: exit 1 on a bare invocation). So E-02's clean-run criterion cannot clear it the way it clears an ordinary gate, and wiring it changes the local push workflow for anyone who installs hooks in this repository. State explicitly which behavior you consider acceptable and confirm it against OQ-01's answer, because "the gate works" and "the gate should be on by default here" are different claims.
   - Depends on: E-03
   - Expected outcome: `pre-push` is an installed hook type with `default_stages` unchanged and the push gate carrying its own `stages: [pre-push]`; the push gate runs on push and NOT on commit; `29wvmj`'s entries and comment preserved byte-for-byte; the two existing config assertions updated deliberately and not weakened.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 PRESERVE EVERY HONEST-LIMIT DISCLOSURE, which is the one caveat the item says still matters: "a bypassable guard must never be DESCRIBED as a boundary, because that is how a fail-open check comes to be trusted." Verify the disclosures already present survive wiring verbatim: `prepush_authorization_gate.py:4` ("CONVENIENCE / FEEDBACK ONLY ... explicitly NOT an authority boundary") and `:62` (the printed "LOCAL, OPT-IN, bypassable (`--no-verify`) FEEDBACK hook" limit), and `precommit_scope_gate.py:66` ("NOT an authority boundary - the authoritative gate is `aw check` in required CI"). If wiring a gate makes any of those sentences misleading, UPDATE THE SENTENCE to stay true rather than leaving it, and say which ones changed.
+- [x] E-05 PRESERVE EVERY HONEST-LIMIT DISCLOSURE, which is the one caveat the item says still matters: "a bypassable guard must never be DESCRIBED as a boundary, because that is how a fail-open check comes to be trusted." Verify the disclosures already present survive wiring verbatim: `prepush_authorization_gate.py:4` ("CONVENIENCE / FEEDBACK ONLY ... explicitly NOT an authority boundary") and `:62` (the printed "LOCAL, OPT-IN, bypassable (`--no-verify`) FEEDBACK hook" limit), and `precommit_scope_gate.py:66` ("NOT an authority boundary - the authoritative gate is `aw check` in required CI"). If wiring a gate makes any of those sentences misleading, UPDATE THE SENTENCE to stay true rather than leaving it, and say which ones changed.
   THE "OPT-IN" PROBLEM IS NOT HYPOTHETICAL AND IT IS BIGGER THAN THIS PLAN ASSUMED: it affects EVERY gate you wire, in more than one place each. Wiring a gate makes the word "OPT-IN" false in (a) its module docstring, (b) its PRINTED refusal text, and (c) its `engine.create_*_hook` docstring's "opt-in-only (never default-installed)" claim. Measured counts of "opt-in" per module: `precommit_scope_gate` 3, `prepush_authorization_gate` 2, `ipd_dependency_statement_gate` 3, `backlog_blocking_close_gate` 2. So this is a multi-site edit per gate, not one sentence.
   THAT CREATES A CONTRADICTION WITH E-03's "DO NOT CHANGE ANY GATE'S OWN CODE", and you must resolve it explicitly rather than by precedence. E-03 forbids touching gate modules; E-05 requires correcting sentences that live IN those modules. The narrow reading that keeps both true: E-03 forbids changing what a gate DECIDES, while E-05 permits correcting a now-false DISCLOSURE STRING. State which files you touched under that reading and confirm no predicate, exit code or message-selection logic changed (`git diff` on the hook modules should show only docstring and literal-text lines). If you wire nothing, this item is satisfied by confirming every disclosure is still accurate UNCHANGED, which is the cheapest and most likely outcome.
   DO NOT "FIX" THE DISCLOSURES IF YOU WIRE NOTHING. If OQ-01 keeps the gates opt-in, every existing sentence remains true and must be left byte-identical; editing them would create the very drift this item guards against.
   - Depends on: E-03, E-04
   - Expected outcome: every disclosure is still accurate after wiring; any sentence made untrue by wiring is corrected at ALL its sites (module docstring, printed text, installer docstring) and named; the E-03-versus-E-05 boundary stated with a `git diff` showing no logic change; or, if nothing was wired, confirmation that every disclosure is unchanged and still true.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it stays wired
 
-- [ ] E-06 Add a test asserting every gate verb that SHOULD be wired IS wired, driven by an explicit declared list rather than by whatever the file happens to contain, so a future gate cannot be added and silently left unwired. This is the durable deliverable AND, given E-01's finding, it is very likely the plan's ONLY shipped deliverable: the item's Finding 2 exists because four gates accumulated with nobody noticing, and a test that pins the intended state is valuable whether that state is "wired" or "deliberately exempt". The test must enumerate the gate verbs, the stage each belongs to, and an explicit EXEMPTION list for any gate deliberately left opt-in (with the reason and its citation as a comment), then assert the config matches.
+- [x] E-06 Add a test asserting every gate verb that SHOULD be wired IS wired, driven by an explicit declared list rather than by whatever the file happens to contain, so a future gate cannot be added and silently left unwired. This is the durable deliverable AND, given E-01's finding, it is very likely the plan's ONLY shipped deliverable: the item's Finding 2 exists because four gates accumulated with nobody noticing, and a test that pins the intended state is valuable whether that state is "wired" or "deliberately exempt". The test must enumerate the gate verbs, the stage each belongs to, and an explicit EXEMPTION list for any gate deliberately left opt-in (with the reason and its citation as a comment), then assert the config matches.
   THE EXEMPTION LIST IS THE POINT, NOT A FALLBACK. If OQ-01 keeps all four opt-in, this test's declared list is four exemptions plus two wired gates, and it still closes the accumulation hazard: a NEW gate added later appears in neither list and fails the test, forcing a deliberate decision. Write it so that adding a gate verb without classifying it FAILS, which is the property that makes it durable. Discover the verb set from the CLI or the `hooks/` package rather than hardcoding six names, or the test cannot notice a seventh gate.
   DROP THE "ASSERT IT FAILS AGAINST HEAD" REQUIREMENT AS WRITTEN, because it presumes gates get wired. Replace it with the honest equivalent: demonstrate the test is not vacuous by showing it FAIL under a deliberate perturbation (remove a wired gate's entry, or add a fake gate verb to neither list), then revert. Paste both the failure and the revert.
   MIRROR, DO NOT DUPLICATE, `tests/test_executed_transition_gate.py::PreCommitConfigStageRegistrationTests`, which already asserts config-level stage registration for one gate and carries the honest caveat that "This is a CONFIGURATION assertion only. It is NOT evidence that the stage fires." Adopt that caveat verbatim in the new test's docstring, and do not re-assert what that class already covers.
   - Depends on: E-05
   - Expected outcome: a test driven by a DISCOVERED verb set with a declared wired list and a cited exemption list, proven non-vacuous by a reverted perturbation, carrying the configuration-only caveat, and failing when a new gate verb is left unclassified.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -194,35 +194,324 @@ A SECOND DOCUMENTATION AUTHORITY WAS MISSED AND MATTERS MORE: executed plan `diu
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the four-row decision table with, for each gate, its intent verdict and the exact citation (file:line, `diundn` OQ-01, or the AGENTS.md section) behind it. A verdict with no citation does not satisfy this item. THEN state explicitly whether your verdicts agree with review's finding that ALL FOUR are deliberately opt-in, and if any verdict differs, paste the evidence that overturns `diundn` OQ-01. Paste the `grep -ci "opt-in"` counts over all six hook modules as the mechanical cross-check.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: VERIFIED AT HEAD `78aa3b31`; MY VERDICTS AGREE WITH REVIEW ON ALL FOUR, and no evidence overturning `diundn` OQ-01 was found. Decision table:
 
-- [ ] V-02 validates E-02
+    | Gate verb | Intent verdict | Citation |
+    |---|---|---|
+    | `precommit-scope-gate` | LEAVE OPT-IN | `agent_workflows/hooks/precommit_scope_gate.py:1` "OPT-IN local pre-commit gate"; `:17` "This is OPT-IN best-effort FEEDBACK, not an authority boundary"; `agent_workflows/engine.py:5086` "no-clobber, opt-in-only (never default-installed)"; `engine.py:4997` "NOT installed by default setup path (opt-in only)"; `diundn` OQ-01 (`.aw/records/plans/executed/20260825-agentadhere-05-diundn-...ipd.md:101`) "RESOLVED - OPT-IN ... NEVER installed by default"; reaffirmed by this plan's OQ-01 2026-09-10 |
+    | `prepush-authorization-gate` | LEAVE OPT-IN | `hooks/prepush_authorization_gate.py:1` "OPT-IN local pre-push gate"; `:4` "CONVENIENCE / FEEDBACK ONLY - it is explicitly NOT an authority boundary"; `engine.py:5102` "Idempotent, no-clobber, opt-in-only"; same `diundn` OQ-01 line 101 covers this gate ("the pre-commit scope gate AND the pre-push gate"); declined by this plan's OQ-01 2026-09-10 |
+    | `backlog-blocking-close-gate` | LEAVE OPT-IN | `hooks/backlog_blocking_close_gate.py:26` "This hook is OPT-IN (NOT installed by default)"; `engine.py:4841` "OPTIONALLY (opt-in) wire ... NOT called by the default setup path"; `AGENTS.md:178-179` "An OPT-IN local pre-commit hook (`backlog-blocking-close-gate`) ... It is NOT installed by default"; `cli.py:518` help text "OPT-IN only" |
+    | `ipd-dependency-statement-gate` | LEAVE OPT-IN | `hooks/ipd_dependency_statement_gate.py:1` "OPT-IN local pre-commit gate"; `:6` "This LOCAL, opt-in, COMMIT-SCOPED pre-commit hook"; `engine.py:4940` "OPTIONALLY (opt-in) wire ... NOT called by the default setup path"; `cli.py:531` "OPT-IN only" |
+
+    So the CLEARED SET IS EMPTY: E-01's own rule ("a gate whose exclusion turns out to be deliberate must NOT be wired by this plan") applies to all four, and OQ-01's maintainer ruling of 2026-09-10 ("KEEP ALL FOUR OPT-IN, WIRE NONE OF THEM") is the governing decision.
+
+    MECHANICAL CROSS-CHECK, `grep -ci "opt-in"` over all six hook modules (plus `__init__.py`), re-measured at `78aa3b31`. The partition reproduces EXACTLY as review filed it (0 for both WIRED gates, nonzero for all four unwired):
+
+    ```
+    $ for f in agent_workflows/hooks/*.py; do printf '%s\t%s\n' "$(grep -ci "opt-in" "$f")" "$f"; done
+    2	agent_workflows/hooks/backlog_blocking_close_gate.py
+    0	agent_workflows/hooks/executed_transition_gate.py
+    0	agent_workflows/hooks/__init__.py
+    3	agent_workflows/hooks/ipd_dependency_statement_gate.py
+    3	agent_workflows/hooks/precommit_scope_gate.py
+    2	agent_workflows/hooks/prepush_authorization_gate.py
+    0	agent_workflows/hooks/status_untooled_gate.py
+    ```
+
+    ALSO CONFIRMED (F-10, so "opt-in" is not read as "unavailable"): all four have working installers in `engine.py` (`create_precommit_scope_gate_hook:5082`, `create_prepush_authorization_gate_hook:5098`, `create_backlog_close_gate_hook:4834`, `create_dependency_gate_hook:4933`), each idempotent and no-clobber via the shared `_wire_optin_precommit_hook`, which returns immediately when `install=False`.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: for EACH of the four gates (not only those to be wired), paste the by-hand run against the real tree: command, UNPIPED exit code, and output (truncate a long refusal but state the total count). Paste a run against a representative legitimate staged change. Name every gate that false-positived and show it was EXCLUDED rather than wired. Specifically state whether `precommit-scope-gate` still refuses a clean tree and with how many findings, and whether `wmnmei` has landed.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL FOUR RUN BY HAND at HEAD `78aa3b31`, exit codes measured UNPIPED (`cmd >file 2>&1; echo $?`), in this lane worktree `.aw/worktrees/kbqpkn`.
 
-- [ ] V-03 validates E-03
+    RUN 1, CLEAN TREE (`git status --porcelain` printed NOTHING, 0 lines):
+
+    ```
+    $ python3 -m agent_workflows precommit-scope-gate >scope.out 2>&1; echo "exit=$?"
+    exit=1
+    $ grep -c "check.scope-drift" scope.out
+    131
+    $ grep -o "check\.[a-z-]*" scope.out | sort | uniq -c
+        131 check.scope-drift
+    ```
+
+    So YES: `precommit-scope-gate` STILL REFUSES A CLEAN TREE, with 131 findings (my own number; review measured 174 two days earlier, and the plan warned the count is perishable because it tracks other agents' in-flight plans). Every finding is `check.scope-drift` and every one is attributed to ANOTHER agent's in-flight plan, not to me. Sample of the refusal (truncated; all 131 share this shape):
+
+    ```
+    aw pre-commit scope/invariant gate REFUSED this commit (local prevention; a staged change violates a repository invariant or falls outside a plan's declared Scope-Paths):
+      - .../plans/pending/20260901-lanectn-05-xdr83v-retention-preserve-a-lane-holding-unclassifiable-content.ipd.md: check.scope-drift: changed path '.aw/.gitignore' is outside the plan's declared Scope-Paths
+          fix: restrict the change to Scope-Paths, or declare the path in the plan's Scope-Paths (then re-`aw ipd begin`), or reconcile it at `aw ipd finalize`
+      - .../20260901-lanectn-05-xdr83v-...ipd.md: check.scope-drift: changed path 'README.md' is outside the plan's declared Scope-Paths
+      - .../20260908-runnerbugs-01-hp9rot-...ipd.md: check.scope-drift: changed path '.aw/system/workflows/index.md' is outside the plan's declared Scope-Paths
+    ```
+
+    Plans named, counted from the clean-tree run: `xdr83v` (lanectn-05) and `hp9rot` (runnerbugs-01). Both are OTHER agents' pending plans with frozen begin bases trailing main. `yvvf98` (named at review) no longer appears, and `lznpv6` appears only in the staged run below; the set drifts with other agents' work, which is precisely the defect.
+
+    ```
+    $ python3 -m agent_workflows prepush-authorization-gate >prepush.out 2>&1; echo "exit=$?"
+    exit=1
+    aw pre-push authorization gate PREVENTED this push (local accidental-push guard; set AW_PUSH_AUTHORIZED=1 to acknowledge an intended, authorized push):
+      - <push>: check.push-unauthorized: a push was attempted with no local authorization acknowledgement; this LOCAL hook prevents an accidental push. It is NOT an authority boundary (it is bypassable and not cloned by default); real push authorization is a protected branch / required CI / brokered credential
+          fix: if this push is intended and authorized, set AW_PUSH_AUTHORIZED=1 to acknowledge (local convenience only), or push through the authorized path (protected branch / CI)
+    (HONEST LIMIT: this is a LOCAL, OPT-IN, bypassable (`--no-verify`) FEEDBACK hook, NOT an authority boundary and NOT independent authorization - a local env ack is settable by the agent. Real push authorization is a protected branch / required CI / brokered credential.)
+
+    $ AW_PUSH_AUTHORIZED=1 python3 -m agent_workflows prepush-authorization-gate >push-ack.out 2>&1; echo "exit=$?"
+    exit=0     # empty output; confirms the exit 1 above is the DESIGNED unacknowledged-push refusal, not a bug
+
+    $ python3 -m agent_workflows ipd-dependency-statement-gate >dep.out 2>&1; echo "exit=$?"
+    exit=0     # empty output, clean
+
+    $ python3 -m agent_workflows backlog-blocking-close-gate >backlog.out 2>&1; echo "exit=$?"
+    exit=0     # empty output, clean
+    ```
+
+    RUN 2, REPRESENTATIVE LEGITIMATE STAGED CHANGE (this plan's own new test file staged, verified with `git diff --cached --name-only` -> `tests/test_gate_wiring.py` alone):
+
+    ```
+    $ python3 -m agent_workflows ipd-dependency-statement-gate; echo $?   -> exit=0 (clean)
+    $ python3 -m agent_workflows backlog-blocking-close-gate;  echo $?   -> exit=0 (clean)
+    $ python3 -m agent_workflows prepush-authorization-gate;    echo $?   -> exit=1 (designed, unchanged)
+    $ python3 -m agent_workflows precommit-scope-gate;          echo $?   -> exit=1, 134 check.scope-drift findings
+    $ grep -c "test_gate_wiring" scope-staged.out
+    3
+      - .../20260901-lanectn-05-xdr83v-...ipd.md: check.scope-drift: changed path 'tests/test_gate_wiring.py' is outside the plan's declared Scope-Paths
+      - .../20260908-runnerbugs-01-hp9rot-...ipd.md: check.scope-drift: changed path 'tests/test_gate_wiring.py' is outside the plan's declared Scope-Paths
+      - .../20260908-awinbox-01-lznpv6-...ipd.md: check.scope-drift: changed path 'tests/test_gate_wiring.py' is outside the plan's declared Scope-Paths
+    ```
+
+    THAT IS THE FALSE POSITIVE MADE CONCRETE AND IT IS SHARPER THAN REVIEW'S VERSION: staging my OWN in-scope file (declared in this plan's `Scope-Paths` as `tests/test_gate_wiring.py`) produces THREE refusals attributing my legitimate edit to three OTHER agents' plans (`xdr83v`, `hp9rot`, `lznpv6`). Had this gate been wired, it would have refused this plan's own commit, leaving only `--no-verify` (forbidden) or reverting the wiring, exactly the harm `gjadwm` records.
+
+    GATES THAT FALSE-POSITIVED AND ARE THEREFORE EXCLUDED: `precommit-scope-gate` (131 clean-tree / 134 staged findings, none mine). `prepush-authorization-gate` is EXCLUDED for a different reason: its exit 1 is DESIGNED (proven by the `AW_PUSH_AUTHORIZED=1` run returning 0), so E-02's clean-run criterion cannot clear it and the decision is posture, settled by OQ-01. The two CLEAN gates (`ipd-dependency-statement-gate`, `backlog-blocking-close-gate`) pass the safety check but are excluded by OQ-01's ruling, not by measurement.
+
+    `wmnmei` HAS NOT LANDED: `python3 -m agent_workflows find plans wmnmei` -> `pending  wmnmei  rcptstale  .aw/records/plans/pending/20260908-rcptstale-01-wmnmei-decide-what-a-frozen-begin-base-means-once-main-has-moved-an.ipd.md`. So the underlying stale-frozen-base defect is still open and the scope gate remains unwirable regardless of posture. (`h9cn0y` is confirmed `executed`, so OQ-02's "wait for it" reasoning stays spent.)
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste the `.pre-commit-config.yaml` diff showing any new entries in the established local-hook shape WITH their honest-limit comment, and paste `git diff -- agent_workflows/hooks/` proving no gate's DECISION logic changed (docstring/literal-text lines only, or no diff at all). IF THE CLEARED SET WAS EMPTY, paste `git diff -- .pre-commit-config.yaml` showing NO change and state the reason; that is a valid completed outcome and must not be dressed up as a wiring.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE CLEARED SET WAS EMPTY, so NO gate was registered and `.pre-commit-config.yaml` is byte-unchanged. This is the valid completed outcome E-03 names, not a wiring:
 
-- [ ] V-04 validates E-04
+    ```
+    $ git diff -- .pre-commit-config.yaml | wc -l
+    0
+    $ git diff -- agent_workflows/hooks/ agent_workflows/engine.py .pre-commit-config.yaml | wc -l
+    0
+    ```
+
+    REASON, in one line each: all four candidates are deliberately opt-in (V-01), the maintainer's OQ-01 ruling of 2026-09-10 was KEEP ALL FOUR OPT-IN / WIRE NONE, and independently two of them fail E-02's safety check today (V-02: the scope gate refuses 131 findings on a clean tree; the push gate refuses every unacknowledged push by design). Registering any of them would have reversed `diundn` OQ-01 without authority.
+
+    NO GATE MODULE WAS MODIFIED (the `git diff` above is empty across `agent_workflows/hooks/` in full), so no gate's decision logic, exit code, or message-selection changed. The plan's own scope check anticipated this: `.pre-commit-config.yaml`, `agent_workflows/engine.py` and `agent_workflows/hooks/` are DECLARED-BUT-UNMODIFIED and are acknowledged at finalize with `--scope-ack` rather than an invented edit.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste the installed hook list BEFORE and AFTER, paste `default_install_hook_types` and `default_stages` after the edit showing `29wvmj`'s entries preserved and `default_stages` still `[pre-commit]`, and paste the push gate's own `stages:` line. Paste a push attempt or `pre-commit run --hook-stage pre-push` showing the gate FIRES, and an ordinary commit showing it does NOT fire there. PASTE THE UPDATED `tests/test_executed_transition_gate.py` ASSERTIONS and their passing output, showing they were updated to the new exact values and NOT weakened to subset checks. If the push stage was not installed (OQ-01 unresolved or gate excluded), state that plainly and paste the unchanged config instead.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE `pre-push` STAGE WAS DELIBERATELY NOT INSTALLED, because the only hook that would run in it is `prepush-authorization-gate`, which OQ-01 ruled stays opt-in (V-01) and which E-02 could not clear (V-02). Installing a hook TYPE for a hook nobody registered would change every contributor's install for no effect, so the honest action is none. Stated plainly rather than performed:
 
-- [ ] V-05 validates E-05
+    ```
+    $ ls "$(git rev-parse --git-common-dir)/hooks/" | grep -v sample
+    pre-commit
+    ```
+
+    That is the installed hook list BEFORE and AFTER, unchanged (one line, `pre-commit` only). `29wvmj`'s two keys are preserved byte-for-byte because nothing was edited:
+
+    ```
+    $ grep -n "default_install_hook_types\|^default_stages" .pre-commit-config.yaml
+    17:default_install_hook_types: [pre-commit, pre-merge-commit]
+    23:default_stages: [pre-commit]
+    $ git diff -- .pre-commit-config.yaml | wc -l
+    0
+    ```
+
+    NO push-gate `stages:` line exists, since the gate is not registered. NO push attempt or `--hook-stage pre-push` run is pasted, and NO ordinary-commit non-firing evidence is pasted, because there is nothing wired to fire; fabricating either would be evidence for a change that was not made. NOTE that the packaged installer already carries the correct shape for whoever opts in later: `engine.py:5027` `_PREPUSH_GATE_BLOCK` includes `stages: [pre-push]` on the hook itself, so the `default_stages: [pre-commit]` pin stays intact by construction.
+
+    `tests/test_executed_transition_gate.py` WAS NOT MODIFIED and its two exact assertions were NOT weakened, which is correct precisely because `default_install_hook_types` did not change. Both still pin the exact values and both still pass:
+
+    ```
+    $ git diff -- tests/test_executed_transition_gate.py | wc -l
+    0
+    ```
+
+    ```python
+    # tests/test_executed_transition_gate.py:591 (unchanged)
+    self.assertEqual(data.get("default_install_hook_types"), ["pre-commit", "pre-merge-commit"])
+    # :606-611 (unchanged)
+    self.assertEqual(data.get("default_stages"), ["pre-commit"])
+    ...
+    self.assertEqual(opted_in, ["ipd-executed-transition-gate"])
+    ```
+
+    ```
+    $ python3 -m pytest tests/test_gate_wiring.py tests/test_executed_transition_gate.py -o addopts="" -q
+    .....................................                                    [100%]
+    37 passed in 3.28s
+    ```
+
+    F-7b's warning was therefore correct in mechanism but did not trigger: those assertions break only if `pre-push` is ADDED to the list, which OQ-01's ruling made unnecessary.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste each disclosure sentence as it stands after this plan's changes, and for each state whether it remained accurate or was corrected. If any gate became always-on, paste the corrected sentence at ALL THREE sites (module docstring, printed refusal text, `engine.create_*_hook` docstring) and paste the `grep -ci "opt-in"` count for that module before and after. IF NOTHING WAS WIRED, paste `git diff -- agent_workflows/hooks/ agent_workflows/engine.py` showing NO disclosure was touched, and confirm each remains true.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NOTHING WAS WIRED, so every disclosure was left BYTE-IDENTICAL and every one remains TRUE. E-05's instruction for this branch is explicit ("DO NOT 'FIX' THE DISCLOSURES IF YOU WIRE NOTHING"), and editing them would have created the very drift the item guards against.
 
-- [ ] V-06 validates E-06
+    ```
+    $ git diff -- agent_workflows/hooks/ agent_workflows/engine.py | wc -l
+    0
+    ```
+
+    EACH DISCLOSURE AS IT STANDS, with its accuracy verdict (all four "remained accurate, UNCHANGED"):
+
+    - `hooks/prepush_authorization_gate.py:4`: "This hook is CONVENIENCE / FEEDBACK ONLY - it is explicitly NOT an authority boundary." STILL TRUE: the gate is not registered anywhere, and even wired it would be a local bypassable hook.
+    - `hooks/prepush_authorization_gate.py:62`: "(HONEST LIMIT: this is a LOCAL, OPT-IN, bypassable (`--no-verify`) FEEDBACK hook, NOT an authority boundary and NOT independent authorization ...)". STILL TRUE, and the word "OPT-IN" remains literally accurate because the gate stays unregistered; this is the sentence that WOULD have needed correcting had the gate been wired.
+    - `hooks/precommit_scope_gate.py:66`: "(This is a LOCAL best-effort OPT-IN hook; `--no-verify` bypasses it, it is not cloned by default, and it is NOT an authority boundary - the authoritative gate is `aw check` in required CI.)". STILL TRUE, unchanged.
+    - `hooks/precommit_scope_gate.py:17`: "This is OPT-IN best-effort FEEDBACK, not an authority boundary; the authoritative boundary is phase-5 CI running the same engine." STILL TRUE, unchanged.
+    - Also unchanged and still true: `hooks/backlog_blocking_close_gate.py:26` ("This hook is OPT-IN (NOT installed by default)"), `hooks/ipd_dependency_statement_gate.py:1` ("OPT-IN local pre-commit gate"), and the installer docstrings `engine.py:5086` / `engine.py:5102` ("opt-in-only (never default-installed)").
+
+    `grep -ci "opt-in"` counts BEFORE and AFTER are IDENTICAL (2/0/0/3/3/2/0 across the seven files in `agent_workflows/hooks/`, exactly as pasted in V-01), which is the mechanical proof no disclosure site moved.
+
+    THE E-03-VERSUS-E-05 BOUNDARY did not have to be exercised: E-05's permission to correct a now-false disclosure string activates only when a gate becomes always-on. Since none did, no file under `agent_workflows/hooks/` was touched at all, so a fortiori no predicate, exit code, or message-selection logic changed. AGENTS.md was likewise not edited: both statements the plan's spec-sync section requires to stay true (git hooks are local/not cloned/skippable so `aw check` + CI is the authority; `backlog-blocking-close-gate` is NOT installed by default) remain accurate verbatim, and `diundn` OQ-01 stands UNREVERSED, so there is no superseding line to record.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste the test's source showing the DISCOVERED verb set, the declared wired list, and the exemption list with each exemption's reason and citation. Paste the test's FAILING output under a deliberate perturbation (a wired gate's entry removed, or a fake gate verb classified in neither list) and then the revert, proving it is not vacuous. Paste its passing result. Paste the configuration-only caveat adopted from `PreCommitConfigStageRegistrationTests`. Paste `pre-commit run --all-files` before and after (after re-running `pre-commit install`), and the bare `python3 -m pytest` summary line with the failure-set delta stated against your own measured baseline.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NEW FILE `tests/test_gate_wiring.py` (10 tests). THE VERB SET IS DISCOVERED FROM `cli.py`, not hardcoded, so a seventh gate is noticed:
+
+    ```python
+    def discover_gate_verbs(cli_source: str) -> dict[str, str]:
+        """Return ``{cli verb: hooks module name}`` for every gate verb the CLI dispatches. ..."""
+        found: dict[str, str] = {}
+        for node in ast.walk(ast.parse(cli_source)):
+            if not isinstance(node, ast.If):
+                continue
+            test = node.test
+            if not (isinstance(test, ast.Compare) and len(test.ops) == 1
+                    and isinstance(test.ops[0], ast.Eq)
+                    and isinstance(test.left, ast.Attribute) and test.left.attr == "command"
+                    and isinstance(test.comparators[0], ast.Constant)
+                    and isinstance(test.comparators[0].value, str)):
+                continue
+            modules: set[str] = set()
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.ImportFrom) and sub.module == "agent_workflows.hooks":
+                    modules |= {alias.name for alias in sub.names}
+            if len(modules) == 1:
+                found[test.comparators[0].value] = modules.pop()
+        return found
+    ```
+
+    Discovery is cross-checked for BIJECTION against the modules physically present in `agent_workflows/hooks/` (`test_discovery_finds_a_gate_verb_for_every_hook_module`), and proven non-vacuous on a synthetic source (`test_discovery_is_not_vacuous`: a verb NOT ending in `-gate` is still found, an ordinary verb importing nothing from `hooks` is not). Discovered set at `78aa3b31`: `backlog-blocking-close-gate`, `ipd-dependency-statement-gate`, `ipd-executed-gate`, `ipd-status-untooled-gate`, `precommit-scope-gate`, `prepush-authorization-gate`.
+
+    THE DECLARED WIRED LIST, carrying the stage each gate belongs to:
+
+    ```python
+    WIRED_BY_DEFAULT: dict[str, tuple[str, ...]] = {
+        # integpath `29wvmj` OQ-03 option (b): git runs `pre-merge-commit`, NOT `pre-commit`, for an
+        # AUTOMATED merge, so the terminal-transition gate must opt into both stages explicitly.
+        "ipd-executed-gate": ("pre-commit", "pre-merge-commit"),
+        # proclint `79li67`: the intermediate-status sibling of the terminal gate; commit-scoped only.
+        "ipd-status-untooled-gate": ("pre-commit",),
+    }
+    ```
+
+    THE EXEMPTION LIST, four rows, each with reason AND citation (full citations in the file's comments; the values themselves name the decision):
+
+    ```python
+    EXEMPT_OPT_IN: dict[str, str] = {
+        "precommit-scope-gate": "diundn OQ-01 RESOLVED - OPT-IN; reaffirmed kbqpkn OQ-01 2026-09-10",
+        "prepush-authorization-gate": "diundn OQ-01 RESOLVED - OPT-IN; declined kbqpkn OQ-01 2026-09-10",
+        "backlog-blocking-close-gate": "AGENTS.md 'NOT installed by default'; kbqpkn OQ-01 2026-09-10",
+        "ipd-dependency-statement-gate": "module docstring 'OPT-IN'; kbqpkn OQ-01 2026-09-10",
+    }
+    ```
+
+    THE CONFIGURATION-ONLY CAVEAT, adopted verbatim from `PreCommitConfigStageRegistrationTests` and present at both `tests/test_gate_wiring.py:17` (module docstring) and `:250` (`WiredGateRegistrationTests` docstring):
+
+    > This is a CONFIGURATION assertion only. It is NOT evidence that the stage fires.
+
+    NON-VACUOUSNESS, PROVEN THREE WAYS. (a) Pure-function perturbation, permanent in the file, needing no tree edit: `test_an_unclassified_new_gate_verb_fails` feeds `classify()` a synthetic seventh verb and asserts exactly one violation naming it and the word "NEITHER"; `test_a_removed_gate_verb_fails` asserts the reverse (a declared verb the CLI no longer dispatches). (b) PERTURBATION A against the REAL config, a wired gate's entry deleted:
+
+    ```
+    $ python3 -m pytest tests/test_gate_wiring.py -o addopts="" -q     # ipd-status-untooled-gate entry removed
+    FAILED tests/test_gate_wiring.py::WiredGateRegistrationTests::test_each_wired_gate_uses_the_established_local_hook_shape
+    FAILED tests/test_gate_wiring.py::WiredGateRegistrationTests::test_each_wired_gate_is_registered_for_its_declared_stages
+    2 failed, 8 passed in 0.55s
+    E  AssertionError: 'ipd-status-untooled-gate' not found in {...} : wired gate verb 'ipd-status-untooled-gate' is not registered
+    ```
+
+    (c) PERTURBATION B, an EXEMPT gate registered (the exact decision-reversal this file must catch):
+
+    ```
+    $ python3 -m pytest tests/test_gate_wiring.py -o addopts="" -q     # ipd-dependency-statement-gate wired
+    FAILED tests/test_gate_wiring.py::WiredGateRegistrationTests::test_no_unclassified_packaged_verb_is_registered
+    FAILED tests/test_gate_wiring.py::WiredGateRegistrationTests::test_each_exempt_gate_is_absent_from_the_config
+    2 failed, 8 passed in 0.56s
+    E  AssertionError: 'ipd-dependency-statement-gate' not found in {'ipd-executed-gate': (...), 'ipd-status-untooled-gate': (...)} : ipd-dependency-statement-gate is registered but not declared
+    ```
+
+    REVERT after each perturbation, proving the config is byte-unchanged (both perturbations were applied to a saved copy and restored; each was re-run against the FINAL formatted test file):
+
+    ```
+    $ git status --porcelain
+    ?? tests/test_gate_wiring.py
+    $ git diff -- .pre-commit-config.yaml | wc -l
+    0
+    $ python3 -m pytest tests/test_gate_wiring.py -o addopts="" -q
+    ..........                                                               [100%]
+    10 passed in 0.91s
+    ```
+
+    BARE SUITE. THE RUNNER'S OWN ENV BREAKS THE BARE SUITE IN A LANE, so both numbers are reported. `AW_EXECUTION_ROLE=worker` is exported into this turn (correctly: it is what makes `aw ipd begin`/`finalize` refuse from a worker), but it LEAKS INTO PYTEST SUBPROCESSES and 17 lifecycle tests then observe the refusal they were written to exercise. BASELINE MEASURED BY ME, before any edit, at `78aa3b31`:
+
+    ```
+    $ python3 -m pytest                       # with AW_EXECUTION_ROLE=worker inherited
+    17 failed, 6007 passed, 3 skipped, 2 xfailed in 84.05s (0:01:24)
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest
+    6024 passed, 3 skipped, 2 xfailed in 107.19s (0:01:47)
+    ```
+
+    AFTER my change, same tree, same command:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest
+    6034 passed, 3 skipped, 2 xfailed in 75.10s (0:01:15)
+    ```
+
+    FAILURE-SET DELTA IS EMPTY: 0 failures before, 0 after (+10 passed, exactly this file's 10 new tests). NOTE the plan's stated baseline of `1 failed ... test_reporting_contract.py::ParityTests::test_only_expected_files_contain_the_full_contract_prose` did NOT reproduce: that failure was caused by ~189 untracked `opencode-recovery/*.md` files in the shared main checkout, and this lane worktree does not contain them (`git status --porcelain` is empty here), so the environmental failure is absent rather than fixed. The 17 `AW_EXECUTION_ROLE` failures are likewise environmental, are identical before and after, and are named rather than counted: `test_oc_runipd.py::SelfFinalizeHelperTests` (2), `::WorktreeIsolationTests` (3), `::FailClosedIntegrationGuardTests` (2), `test_agy_runipd_cli.py::AgySelfFinalizeTests` (1), `::AgyWorktreeIsolationTests` (3), `::AgyFailClosedIntegrationGuardTests` (2), `test_ipd_lifecycle_cli.py::BeginCliTests` (2), `test_worker_role_refusal.py::ChildEnvWorkerRoleTests::test_driver_own_process_is_not_worker_role` (1), `test_novalnomerge_integration.py::EndToEndIntegrationTests::test_validation_off_run_records_the_suite_signal_not_a_stranded_item` (1). All 17 pass with the variable unset, before and after, so none is attributable to this plan. RECORDED AS DECISION 03-kbqpkn-D1.
+
+    `pre-commit run --all-files` BEFORE (clean tree, `pre-commit install` re-run not required since `default_install_hook_types` was never changed; verified the installed set is still just `pre-commit`):
+
+    ```
+    trim trailing whitespace.................................................Passed
+    fix end of files.........................................................Passed
+    check yaml...............................................................Passed
+    check for added large files..............................................Passed
+    Detect hardcoded secrets.................................................Passed
+    ruff.....................................................................Passed
+    ruff-format..............................................................Failed
+    - hook id: ruff-format
+    - files were modified by this hook
+    1 file reformatted, 452 files left unchanged
+    no local leaks in tracked files..........................................Passed
+    no raw plan->executed commit (use aw ipd finalize).......................Passed
+    no untooled plan status change (use aw set)..............................Passed
+    ```
+
+    AFTER (with `tests/test_gate_wiring.py` staged):
+
+    ```
+    ... identical through `ruff` ...
+    ruff-format..............................................................Failed
+    - hook id: ruff-format
+    - files were modified by this hook
+    1 file reformatted, 453 files left unchanged
+    no local leaks in tracked files..........................................Passed
+    no raw plan->executed commit (use aw ipd finalize).......................Passed
+    no untooled plan status change (use aw set)..............................Passed
+    ```
+
+    THE `ruff-format` FAILURE IS PRE-EXISTING AND IS NOT MINE, proven by identity: the reformatted file is `tests/test_cli_output_docs_rollout.py` in BOTH runs (`python3 -m ruff format --check tests/test_cli_output_docs_rollout.py` -> "1 file would be reformatted" at `:145`, last touched by commit `6e6b9bd0` "awcliux Order 05 (e8hu4s)"). The only delta is 452 -> 453 unchanged files, which is my new file joining the CLEAN set. My file passes both hooks standalone: `python3 -m ruff check tests/test_gate_wiring.py` -> "All checks passed!" (exit 0) and `ruff format --check` -> "1 file already formatted" (exit 0). I did NOT commit or revert the other party's file; `git restore` was used only to undo the hook's automatic rewrite of it, leaving their tree state as found. RECORDED AS DECISION 03-kbqpkn-D2.
+  - Result: pass
 
 ## Approval and execution gate
 
