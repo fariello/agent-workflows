@@ -7,7 +7,7 @@
 - Scope: REVISED 2026-09-13 to OQ-03 option (b): the pre-merge overlap prediction is KEPT (two approved plans improve it), and this plan now only RECLASSIFIES a real `git merge` local-changes refusal from `merge-conflict` to the deferrable `integration-blocked`, and proves that path is non-destructive. Excludes the pre-launch gate (Order 01), the backlog close (Order 03), orchestrator retirement (Order 04), and the merge-and-revalidate suite run, which is KEPT.
 - Scope-Paths: agent_workflows/runner_shared.py, agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_lane_clean_base.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: dirtygates
 - Order: 2
@@ -18,6 +18,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-13 to-review (aw set): status set to to-review
 
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-201..PR-206; five FIXED, PR-201 (BLOCKER) left OPEN and escalated as blocking OQ-03; review record written; Readiness no-go.
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

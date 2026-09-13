@@ -6,7 +6,7 @@
 - Scope: Perform the backlog item's status move inside the lane, before the lane's finalize commit, so it lands if and only if the merge lands. Excludes the pre-launch gate (Order 01), the integration gate (Order 02), and orchestrator retirement (Order 04). Excludes changing which items are ELIGIBLE to close; the eligibility rule is reused unchanged.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py
 - Item-Dependencies: none
-- Status: reviewed
+- Status: to-review
 - Readiness: go-pending-approval
 - Set: dirtygates
 - Order: 3
@@ -17,6 +17,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-13 to-review (aw set): status set to to-review
 
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review round 1: APPROVE WITH REVISIONS APPLIED; PR-301..PR-306 all FIXED; review record written; Readiness go-pending-approval. No collision with the approved `integpath`/`mergedirty`/`dirtybase` plans, unlike Orders 01 and 02.
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.

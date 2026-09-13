@@ -7,7 +7,7 @@
   THIS SET COLLIDES WITH THREE APPROVED, RELEASE-BLOCKING PLANS AND MUST BE SEQUENCED AGAINST THEM, WHICH IS THE FINDING REVIEW ADDS. See "Collisions with approved work" below and blocking OQ-02. In short: `fujm0y` is APPROVED to WIDEN the very function Order 02 DELETES, `3i0aaz` is APPROVED to EXTEND the very refusal Order 01 REMOVES to a second code path, and `51vw4y` is APPROVED to make the refusal Order 02 deletes NON-TERMINAL. All three carry `Blocks-Release: next`. None was mentioned in any of the five children.
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/runner_shared.py, agent_workflows/lane_containment.py, agent_workflows/ipd_lifecycle.py, tests/test_lane_clean_base.py, tests/test_runner_shared.py, tests/test_oc_runipd.py, tests/test_agy_runipd_cli.py, tests/test_orchestrator_retirement.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: dirtygates
 - Order: 0
@@ -18,6 +18,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-13 to-review (aw set): status set to to-review
 
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-001..PR-009; PR-001 (BLOCKER) and PR-002 (HIGH) left OPEN and escalated to blocking OQ-02/OQ-03; review record written; Readiness no-go.

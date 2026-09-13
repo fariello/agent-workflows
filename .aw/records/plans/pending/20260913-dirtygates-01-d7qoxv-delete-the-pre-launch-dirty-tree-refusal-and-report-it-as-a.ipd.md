@@ -7,7 +7,7 @@
 - Scope: Turn the pre-launch clean-base REFUSAL into a non-blocking WARNING on both hosts, and amend spec 7ckptx R5.4 plus its acceptance criterion A14 to match. Excludes the integration-time overlap check (Order 02), the backlog close (Order 03), and orchestrator retirement (Order 04).
 - Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_lane_clean_base.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
 - Item-Dependencies: none
-- Status: reviewed
+- Status: to-review
 - Readiness: no-go
 - Set: dirtygates
 - Order: 1
@@ -18,6 +18,7 @@
 - Work-Kind: bug
 
 ## Workflow history
+- 2026-09-13 to-review (aw set): status set to to-review
 
 - 2026-09-13 reviewed (opencode (its_direct/pt3-claude-opus-5-1m-us)): /plan-review round 1: REVIEWED - OPEN QUESTIONS; PR-101..PR-107; six FIXED, PR-101 (HIGH) left OPEN and escalated as blocking OQ-02; OQ-01 resolved from evidence; review record written; Readiness no-go.
 - 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
