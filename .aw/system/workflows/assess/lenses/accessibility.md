@@ -52,15 +52,26 @@ styling must survive.
 - **Respect the user's and terminal's stated capability (Perceivable/Robust).** Honor the
   `NO_COLOR` convention (any value => disable color), detect non-TTY output
   (`isatty()` false when piped/redirected => plain output by default), and degrade for
-  `TERM=dumb` / unset `TERM`. Support an explicit `FORCE_COLOR` override. Do not assume
-  256-color or truecolor; fall back through 16-color and then no-color. Never hardcode a
-  foreground color that assumes a specific background (light-on-light / dark-on-dark
-   vanishes); prefer the terminal's default fg/bg and the 16 named colors, which users
-   theme for their own contrast. (Exception, maintainer-directed per DECISIONS D133: the
-   `aw attention` human/TTY view uses xterm-256 colors. The invariant that matters is kept:
-   color is never the sole carrier of meaning there either - the status WORD and the
-   readiness-class section name are always printed, and `NO_COLOR`/non-TTY/`TERM=dumb`
-   still degrade to a plain, machine-readable line.)
+  `TERM=dumb` / unset `TERM`. Support an explicit `FORCE_COLOR` override.
+  **DEGRADE THROUGH 256 -> 16 -> NONE** (DECISIONS D42). 256-color is the TOP tier and may be
+  used where it earns its keep; it is not an assumption to avoid, because virtually every
+  terminal of the last two decades supports it. What is required is that the tiers below it
+  still work: a 16-color terminal gets a 16-color rendering, and a no-color context gets plain
+  text. Never hardcode a foreground color that assumes a specific background (light-on-light /
+  dark-on-dark vanishes), and prefer the terminal's default fg/bg where a color adds nothing.
+  A USER'S EXPLICIT CHOICE OUTRANKS DETECTION. Detection cannot know that a user is colorblind,
+  is on a light theme, or simply dislikes the palette, so a tool SHOULD let the user pin the
+  color depth and (where it has a palette) choose or override the scheme. `NO_COLOR` still wins
+  over any such setting: an accessibility convention is not something a preference may defeat.
+  THE INVARIANT THAT MATTERS AT EVERY TIER: color is never the sole carrier of meaning. The
+  status WORD (or an equivalent symbol/prefix) is always printed, so meaning survives
+  monochrome, piping, and a screen reader.
+  (HISTORY, kept because this paragraph previously said the opposite and a reader may have the
+  old wording in mind: it used to read "Do not assume 256-color... prefer the 16 named colors",
+  which CONTRADICTED D42's own 256/16/none ladder and forced DECISIONS D133 to be written as an
+  `aw attention`-only "exception" to a rule D42 had already superseded. D133's substance is now
+  the general rule above and needs no exception. Corrected 2026-09-13 during the review of spec
+  `uonrjg`, which surfaced the contradiction.)
 - **Motion, flashing, and redraw (Operable).** Spinners, rapid progress redraws, and
   `SGR 5` (blink) are hostile to some users (photosensitivity, vestibular, cognitive) and
   spam screen readers and log files. Keep animation to a TTY only, offer a quiet/plain

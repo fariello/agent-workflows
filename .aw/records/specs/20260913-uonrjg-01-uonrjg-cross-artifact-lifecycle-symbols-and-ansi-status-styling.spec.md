@@ -440,6 +440,67 @@ The system MUST preserve current `NO_COLOR`, `FORCE_COLOR`, `TERM=dumb`, TTY, st
 redirection behavior. `FORCE_COLOR` affects ANSI only and MUST NOT force Unicode onto an incompatible
 stream.
 
+### 9.3a Color depth: the 256 -> 16 -> none ladder, and the user's override
+
+ADDED AT REVIEW, 2026-09-13, on the maintainer's ruling. Section 5's table is the 256-COLOR tier. It is
+the top rung of a three-rung ladder, not the only rendering, and the tier in force is resolved ONCE by
+the same seam that resolves everything else about presentation.
+
+**R9.3a.1 THE LADDER IS 256 -> 16 -> NONE**, per DECISIONS D42 ("degrade through 256/16/none"). A
+256-capable context gets Section 5 verbatim. A 16-color context gets the authored 16-color palette of
+R9.3a.3. A no-color context gets plain text with the glyph and word intact, exactly as Section 9.3
+already requires. THIS SPEC IS NOT AN EXCEPTION TO THE ACCESSIBILITY LENS AND MUST NOT BE WRITTEN AS ONE:
+the lens states this same ladder (corrected 2026-09-13, having previously contradicted D42), so the two
+documents now agree and an implementation satisfies both at once.
+
+**R9.3a.2 THE DEPTH IS A RESOLVED VALUE, NOT A GUESS AT EACH CALL SITE.** Nothing in the package resolves
+color DEPTH today: `term.should_color` returns a plain boolean and `COLORTERM`, `256color` and any depth
+logic grep to zero. So the resolver is new work, it belongs beside `should_color` in `term.py`, and it
+MUST have exactly one definition. Precedence, highest first:
+
+```text
+NO_COLOR / --no-color / TERM=dumb / non-TTY   ->  none      (unchanged, and unconditional)
+explicit user depth setting                   ->  that tier
+detected capability (COLORTERM, TERM, etc.)   ->  that tier
+default                                       ->  256
+```
+
+`NO_COLOR` OUTRANKS THE USER'S DEPTH SETTING DELIBERATELY. It is an accessibility convention and a
+preference may not defeat it; a user who wants color pins a depth AND does not set `NO_COLOR`. Note the
+default is 256 rather than the most conservative rung, which is the whole point of D42: the conservative
+default is what produced a decade of monochrome tooling.
+
+**R9.3a.3 THE 16-COLOR PALETTE IS AUTHORED, NOT DERIVED, AND ITS COLLAPSES ARE NAMED.** Section 5 uses 11
+distinct 256 indices and 16-color has no room for them, so a mechanical nearest-neighbour mapping would
+silently merge stages that must stay distinguishable. The 16-color tier MUST therefore be an explicit
+table, and it MUST preserve these separations, which are the ones Section 5 exists to protect: `ready` is
+not `done`; `blocked` is not `failed`; `waiting-input` is not `blocked`. The following collapses are
+EXPECTED and ACCEPTABLE, because in each case the glyph and the word still separate the states:
+
+- the five active subtypes (`reviewing`, `executing`, `verifying`, `integrating`, `recovering`) and
+  `active` collapse to ONE yellow. They already share one color at 256; only their glyphs differ.
+- the four grays (`parked`, `superseded`, `abandoned`, `unknown`, `none`, `formative`) collapse to plain
+  or to one dim-free neutral. They differ by at most one index at 256 (244 versus 245), so this tier loses
+  almost nothing.
+
+**R9.3a.4 THE SCHEME AND THE DEPTH ARE BOTH USER-CONFIGURABLE**, through the existing `aw config` store
+(`config.CONFIG_SCHEMA` is a declarative `ConfigKeySpec` map, so this is a schema entry rather than a new
+mechanism). At minimum a user MUST be able to pin the DEPTH. A user SHOULD additionally be able to
+override an individual stage's color, because that is the only remedy for the case detection cannot see.
+
+WHY CONFIGURABILITY IS IN THIS SPEC RATHER THAN DEFERRED, recorded because the reviewer initially proposed
+deferring it and the maintainer rejected that, correctly. FIRST, it is the same decision at the same seam:
+a configured depth and a detected depth answer one question ("which tier?"), so building detection alone
+means writing that resolver with one input and reopening it later, along with every call site's precedence
+assumption. SECOND, and decisive on accessibility grounds, DETECTION CANNOT SEE THE USER. A terminal that
+reports 256-color tells you nothing about whether its user can distinguish 208 from 214, and Section 5
+puts `blocked` and `waiting-input` on exactly that adjacent-orange pair. Without an override, the user
+this lens exists to protect has no recourse but to wait for a later spec. That is the wrong order.
+
+**R9.3a.5 EVERY TIER KEEPS THE INVARIANT.** The glyph and the native word are present at 256, at 16, and
+at none. No tier may become the only place a state is distinguishable, which is what makes the collapses
+in R9.3a.3 acceptable rather than lossy.
+
 ### 9.4 Width and variation selectors
 
 Renderers MUST treat a lifecycle symbol as an opaque grapheme, not index or truncate it by code point.
@@ -650,7 +711,22 @@ through the merge-and-revalidate gate. Those four are ordinary rebase friction a
   different reasons, and `docs/cli-output-contract.md` still carries the unretracted promise until
   `yaxr4i` E-05 lands. An implementer reading that document instead of this line would conclude A11 is
   conditional. It is not.
-- **A12** `AW_ASCII_ONLY=1` and `FORCE_ASCII=1` use the exact fallbacks in section 5 and retain words.
+- **A12** `AW_ASCII_ONLY=1` and `FORCE_ASCII=1` use the exact fallbacks in section 5 and retain words. Both
+  variables are already implemented (`term.py:224-227`), so this criterion tests existing behavior.
+- **A12a** (R9.3a.1, R9.3a.2) One depth resolver exists, with exactly one definition, and the precedence
+  chain of R9.3a.2 holds at every rung. Assert each rung explicitly: `NO_COLOR` with a pinned depth still
+  yields plain text; a pinned depth overrides detection; detection overrides the default; the default is
+  256. The `NO_COLOR`-beats-preference case is the one a well-meaning implementation is most likely to get
+  backwards, so it must be asserted rather than assumed.
+- **A12b** (R9.3a.3) The 16-color tier renders from an AUTHORED table, and the three separations survive
+  it: `ready` is distinguishable from `done`, `blocked` from `failed`, and `waiting-input` from `blocked`.
+  Assert the expected collapses TOO (the five active subtypes to one yellow, the grays to one neutral), so
+  a later change cannot quietly re-expand them into colors 16-color terminals cannot show.
+- **A12c** (R9.3a.4) A user can pin the depth through `aw config`, and an invalid value is REFUSED at
+  validation with a message naming the accepted set. A user-supplied per-stage color override applies where
+  implemented. Assert that a pinned depth does NOT defeat `NO_COLOR`.
+- **A12d** (R9.3a.5) At all three tiers the glyph and the native word are present. Run the same fixture at
+  256, at 16, and at none, and assert no state is distinguishable by color alone at any tier.
 - **A13** `FORCE_COLOR=1` enables ANSI according to existing precedence but does not override ASCII stream
   capability.
 - **A14** `--agent` and `--json` output contains no ANSI and no schema-breaking decorated status value.
@@ -738,9 +814,32 @@ Added at review, 2026-09-13:
 
 ### OQ-01: Must the accessibility lens's 256-color exception be widened, and does this spec owe a 16-color fallback?
 
-- Blocking: yes
-- Status: open
+- Blocking: no
+- Status: resolved
 - Owner: maintainer
+- Resolution: RESOLVED 2026-09-13, AND THE QUESTION'S PREMISE WAS WRONG, which is the useful part. It
+  assumed a conflict between this spec and the accessibility lens. THE LENS WAS SIMPLY STALE: the
+  maintainer recalled having already ruled the ladder the other way, and DECISIONS **D42** confirms it,
+  requiring terminal output to "degrade through 256/16/none", i.e. 256 as the TOP tier. That ruling was
+  never written into the lens, whose body still read "Do not assume 256-color... prefer the 16 named
+  colors". So the lens contradicted D42, and DECISIONS D133 had to be phrased as an `aw attention`-only
+  "exception" to a rule D42 had already superseded. This spec was ALIGNED with D42 all along and needed no
+  override.
+  THREE THINGS FOLLOW, all ruled by the maintainer. (1) THE LENS IS CORRECTED, not overridden:
+  `.aw/system/workflows/assess/lenses/accessibility.md` now states the 256/16/none ladder, folds D133's
+  substance in as the general rule, adds that a user's explicit choice outranks detection while `NO_COLOR`
+  outranks the choice, and keeps a short history note so a reader holding the old wording is not confused.
+  (2) THIS SPEC CARRIES THE FULL LADDER, as new Section 9.3a with criteria A12a to A12d, including an
+  AUTHORED 16-color palette whose acceptable collapses are named, because 11 distinct indices cannot be
+  mapped mechanically onto 16 colors. (3) CONFIGURABILITY IS IN THIS SPEC TOO, not deferred.
+  ON THAT LAST POINT THE REVIEWER WAS WRONG AND IS RECORDING IT: I proposed deferring configurability to a
+  follow-on spec, arguing it was new surface. The maintainer asked what the advantage was, and there is
+  none. Configured depth and detected depth answer ONE question at ONE seam, so splitting them means
+  writing the resolver twice and reopening every call site's precedence. And detection cannot see the user:
+  a terminal reporting 256-color says nothing about whether its user can distinguish 208 from 214, which is
+  exactly the `blocked`/`waiting-input` pair, so deferring the override would strand the very users the
+  lens protects. `config.CONFIG_SCHEMA` is also a declarative map, so a depth key is a schema entry rather
+  than a mechanism, making the deferral argument weak on cost as well.
 - Resolution or deferral rationale: THIS IS THE ONE CONFLICT THE OVERRIDE RULING DOES NOT SETTLE, because
   the counterparty is not a competing spec but a RUBRIC THIS SPEC SHOULD SATISFY.
   `.aw/system/workflows/assess/lenses/accessibility.md:56-63` says "Do not assume 256-color or truecolor;
