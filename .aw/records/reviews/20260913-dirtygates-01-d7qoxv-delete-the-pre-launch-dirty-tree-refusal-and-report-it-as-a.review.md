@@ -87,3 +87,96 @@ D-2 is `Reversible: no` and is ESCALATED as required: raised in this plan as OQ-
 and `- Finding: PR-101`, so the lint gate refuses the plan at every checkpoint until the maintainer
 answers. It is the same decision as the orchestrator's OQ-03, carried here because this plan performs the
 spec amendment.
+
+## Round 2
+
+Reviewed at HEAD `59cdc718`, as an INDIVIDUAL review of this child. It exists because the orchestrator's
+round-2 review raised OQ-04: Orders 01, 02 and 04 carried a stale `Readiness: no-go` from their round-1
+reviews although their blocking questions had been resolved, and that field could not honestly be rewritten
+by a review whose ledger was the parent. This is the review that earns the field for `d7qoxv`.
+
+Structural preflight `aw ipd lint --phase author` CONFORMED (clean, 0 findings) before semantic review;
+`--phase review-finalize` re-run after revisions and it now reports exactly one finding, the deliberate
+`IPD-Q501` for the new blocking OQ-03.
+
+DISCLOSURE: same model family as the author and as the round-1 reviewer, so treat this as a near-self-review
+worth less than an independent one. Its value rests on what was MEASURED at this HEAD.
+
+ROUND 1'S BLOCKER IS GENUINELY DISCHARGED. PR-101 escalated the collision with approved `3i0aaz` over the
+spec obligation; OQ-02 resolved to the path split and E-04 now reads "SO THE OBLIGATION IS SPLIT BY PATH,
+NOT REMOVED", with V-04 failing the item if `3i0aaz` E-03 is left nothing to build on. Re-verified
+independently rather than trusted: R5.4 at `:416-420` and A14 at `:570-572` are exactly where the plan cites
+them; both call sites open with the identical `if isolate and self_finalize and not is_review:` (oc `:6122`,
+agy `:3262`); `CleanBaseResult.reason` at `:2545-2551` still begins "refusing to launch an unattended
+isolated turn"; the baseline is `15 passed`; and all four `initialize_run`/`refuse_unimplemented_run_flags`
+anchors behind OQ-01 are correct. Every anchor in this plan resolved.
+
+WHAT ROUND 2 FOUND IS A SECOND, DIFFERENT COLLISION WITH THE SAME APPROVED PLAN, AND ROUND 1 MISSED IT.
+OQ-02 split the SPEC and the BEHAVIOR by path, which was the right answer and dissolved that conflict. It
+said nothing about the TEST FILE. There, the two plans issue contradictory instructions about one file, with
+a human approval behind one of them. `3i0aaz` requires `tests/test_lane_clean_base.py` to stay green WITH AN
+EMPTY DIFF, three times over: E-06 says leave it "UNEDITED so the two guards are provably independent"; V-06
+demands "`git diff --stat` EMPTY for that file. That empty diff is what proves E-03 relaxed a CONDITION
+rather than rewriting a rule"; and its scope fence DELIBERATELY omits the file so any edit is a declared
+violation. This plan's E-05 rewrites four of that file's tests and declares it in `Scope-Paths`. Whichever
+runs second either fails its own validation or reverts the other. `3i0aaz` E-03's expected outcome also
+asserts "the isolated path's message and behavior are unchanged", which is exactly what this plan changes.
+Neither plan is wrong on its own terms, which is why this is escalated (OQ-03) rather than decided:
+recommended answer is deliberate sequencing (`3i0aaz` first), because the empty-diff proof is meaningful
+only at that plan's execution and is spent once consumed.
+
+THE TEST CENSUS WAS ALSO INCOMPLETE, AND THE MISSING ONE IS THE SUBTLE KIND. E-05 enumerated four tests;
+reading the file in full found a fifth, `test_the_two_checks_answer_different_questions:274`, whose docstring
+states "clean-base REFUSES, overlap does not ... asserted as behaviour so the two checks cannot quietly
+collapse into one". Its assertions are on the RULE, which E-03 keeps, so it will probably stay GREEN while
+its docstring becomes false. A test that passes while documenting behavior the code no longer has is worse
+than one that fails, because nothing surfaces it. Its disposition is now a docstring correction with
+assertions untouched.
+
+TWO SMALLER CORRECTIONS AND ONE POSITIVE RESULT. E-01 still instructed the executor to emit the stderr
+warning at the per-item call site, contradicting this plan's own resolved OQ-01 in the same document, so the
+per-run/per-item split is now written into E-01 itself rather than only into the question. The title
+("Delete the pre-launch dirty-tree refusal") overstates what ships now that the refusal is retained for the
+shared-tree path, recorded in Scope rather than fixed by a rename. And the attempt-key rename was VERIFIED
+SAFE, which the plan asserted without establishing: `grep -rn "clean_base"` finds consumers in exactly three
+modules plus the one test file, and nothing in `render_stream.py`, `attention.py` or any viewer surface reads
+the key or the event name.
+
+I DID NOT WEAKEN THE PLAN'S GOAL, and the evidence for it is stronger than the plan claimed in one respect:
+the three other `item["status"] = "blocked"` producers per host were located and are now explicitly excluded
+from the change, so the removal is narrower and safer than "stop writing blocked" would have been.
+
+No product code was modified by this review.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-101 | HIGH | IN-SCOPE | B, D | `3i0aaz:12`; this plan's E-04; spec `:416-420`, `:570-572` | CARRIED FROM ROUND 1 AND NOW DISCHARGED. The spec-obligation collision with approved `3i0aaz` is resolved by the path split; verified E-04 performs a split rather than a replacement and V-04 enforces it. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | OQ-02 resolved by the maintainer; E-04 and V-04 carry it. Stale "pending OQ-03" gating language removed in five places. |
+| PR-108 | BLOCKER | IN-SCOPE | D (invariants), E (testing), G | `3i0aaz` E-06 `:91`, V-06 `:212-214`, fence `:252`, Scope-Paths `:10`, E-03 outcome `:67`; this plan's `Scope-Paths:8` and E-05 | A SECOND collision with the same approved release-blocking plan, over `tests/test_lane_clean_base.py`. `3i0aaz` requires it byte-identical as its load-bearing proof and leaves it undeclared so any edit is a violation; E-05 rewrites four of its tests and declares it. Whichever runs second breaks: this plan first makes `3i0aaz`'s V-06 unobtainable; `3i0aaz` first makes E-05 a fence violation. Not solvable by worktree isolation, which makes concurrent edits safe but cannot arbitrate contradictory instructions. | C:Medium; U:Low; S:Low; F:High; Overall:Medium-High | OPEN | Escalated as blocking OQ-03 with three costed answers and a recommendation (sequence `3i0aaz` first, which costs neither plan its proof). New F-9 records the evidence. E-05 and the gate now forbid starting it before the answer; E-01 to E-04 explicitly remain ungated so the plan is not stalled wholesale. |
+| PR-109 | HIGH | UNDER-SCOPE | E (testing), G | `tests/test_lane_clean_base.py:274-299` read in full at review | THE CENSUS IS FIVE, NOT FOUR. `test_the_two_checks_answer_different_questions:274` asserts the clean-base/overlap contrast and documents "clean-base REFUSES" as deliberate behavior. Its assertions target the RULE (kept by E-03) so it likely stays GREEN while its docstring turns false, which no assertion would catch. E-05 dispositioned only four tests. | C:Low; U:Low; S:Low; F:Medium-High; Overall:Low | FIXED | New F-10. E-05 now names all five with a disposition each; `:274` gets a docstring correction with assertions untouched, and going red there is defined as evidence the RULE was changed (which E-03 forbids). V-05 requires the corrected docstring pasted. |
+| PR-110 | HIGH | IN-SCOPE | C (architecture), G | this plan's E-01 versus its own OQ-01 resolution | E-01 still instructed "emit the dirty-path list as a WARNING to stderr" at the PER-ITEM call site, while OQ-01 in the same document had resolved that the stderr line goes ONCE PER RUN. Round 1 recorded the conflict inside the question but never fixed the item, so an executor reading the checklist ships the N-times noise `3i0aaz`'s review explicitly rejected. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | E-01 rewritten: record per item HERE, stderr line once per run from `initialize_run` (all four anchors verified), with the de-duplication alternative permitted but requiring a comment. The coordination obligation with `3i0aaz` E-02's report at the same seam is stated in the item. V-01 now requires a three-item run proving the line appears ONCE. |
+| PR-111 | MEDIUM | UNDER-SCOPE | A (correctness), D | `oc_runipd.py:6129`, `:6174`, `:6244`; `agy_runipd.py:3269`, `:3302`, `:3381` | THREE SITES PER HOST WRITE `item["status"] = "blocked"` and only the first is this gate. The plan described its change as stopping the terminal disposition without bounding it to the clean-base site, so a literal-minded executor could generalize it and silently disable two unrelated refusals. | C:Low; U:Low; S:Low; F:Medium-High; Overall:Low | FIXED | All six anchors measured and recorded in E-01 with an explicit instruction not to generalize; V-01 requires the grep showing three sites per host still present. |
+| PR-112 | MEDIUM | UNDER-SCOPE | E (testing) | this plan's Required tests; OQ-02's path split | NO TEST PROVED THE SPLIT WAS HONORED. The plan's validation covered the isolated path becoming a report, but nothing asserted the SHARED-TREE path still refuses, which is the entire substance of OQ-02's resolution and the property `3i0aaz` inherits. A correct-looking execution could have removed both and passed. | C:Low; U:Low; S:Low; F:Medium-High; Overall:Low | FIXED | Required tests gain the shared-tree regression (refusal preserved under `--no-isolate-worktree`, or, pre-`3i0aaz`, the spec obligation proven still present) plus a rule-unchanged assertion. |
+| PR-113 | MEDIUM | IN-SCOPE | G (honest documentation) | plan title versus Scope after OQ-02 | The title says "Delete the pre-launch dirty-tree refusal"; after OQ-02 the refusal is RETAINED for the shared-tree path and only the isolated path becomes a report. A title that overstates the change misleads every future reader and every index listing. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Recorded in Scope that the title overstates and that the Scope line governs; NOT renamed, because renaming churns the slug and every cross-reference and AGENTS.md reserves plan naming to `aw rename plans` (D-7). |
+| PR-114 | LOW | IN-SCOPE | G (executability) | five sites citing "the orchestrator's blocking OQ-03" | Five passages still told the executor to treat the spec split as "pending the orchestrator's blocking OQ-03". That question is resolved AND was renumbered to OQ-02 during the orchestrator's round 2, so the citation pointed at a question number that now means something else entirely. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | All five corrected to state the question is resolved, with the renumbering noted so a reader who remembers the old number is not confused. Note the number OQ-03 is now REUSED here for PR-108's new question, which is exactly why the stale citations had to go. |
+| PR-115 | LOW | IN-SCOPE | G | `Item-Dependencies: none`; OQ-03 recommended answer | `Item-Dependencies:` is `none`, and OQ-03's recommended answer would make that false by requiring `executed:3i0aaz`. Left unstated, an executor would treat the ordering as free. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Recorded in the scope check as an under-scope note, with an instruction not to add the dependency before the question is answered nor to assume the ordering is free. |
+| PR-116 | LOW | IN-SCOPE | G, E | `grep -rn "clean_base" agent_workflows/ tests/ --include=*.py` at review | POSITIVE RESULT, recorded rather than left implicit. The plan asserted the attempt-key rename was safe but never established it. Verified: consumers exist in exactly three modules plus the one test file, and nothing in `render_stream.py`, `attention.py` or any viewer reads the key or the event name, so the rename cannot silently break a reporting surface. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | New F-11 records the search and its result, so the executor does not re-derive it and a later reader knows it was done rather than assumed. |
+| PR-117 | LOW | IN-SCOPE | G | Deferred section, Scope check (pre-edit) | The deferred section still described the work as "deleting the refusal" and did not list the shared-tree path as deliberately out of scope, so the single most important boundary of the revised plan appeared nowhere in the section whose job is to state boundaries. | C:Low; U:Low; S:Low; F:Low; Overall:Low | FIXED | Deferred section rewritten with the shared-tree refusal as an explicit preserved exclusion, `dirty_tree_overlap`'s retention noted, and the co-worker-attribution problem correctly attributed to the shared-tree case. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-5 | PR-108 (the test-file ownership collision) is a BLOCKER. Resolve it by narrowing E-05, or escalate? | Escalate as blocking OQ-03, with E-01 to E-04 explicitly ungated so the plan is not stalled wholesale. | Narrow E-05 to a new test file now (presupposes answer (b) and would leave four tests asserting a refusal the code no longer performs); or declare this plan the owner and amend `3i0aaz`'s V-06 (edits an approved release-blocking plan's validation without authority). | The repository holds a HUMAN approval on `3i0aaz` (`:12`, `Blocks-Release: next`) whose V-06 names the empty diff as its proof. AGENTS.md reserves release-scope and public-contract calls to the human, and `plan-review.md:227-229` reserves unilateral narrowing for cases repairable with bounded edits that do not presuppose a maintainer decision. Answer (b) has a measurable cost (four tests left asserting removed behavior) that makes silent selection wrong. | no |
+| D-6 | Should this review edit `3i0aaz` to resolve the collision, since it is the "owning plan" for the empty-diff requirement? | No. Leave `3i0aaz` untouched and escalate. | Edit `3i0aaz` E-06/V-06 to drop the empty-diff proof, per `plan-review.md:224-226` (fix in the owning plan). | `3i0aaz` is `Status: approved` and outside this review's Step 0 ledger. Editing an APPROVED plan's validation is not a bounded in-place revision, it retracts a proof a human signed off on; and AGENTS.md's shared-checkout rule forbids reworking another party's approved artifact. The fix-in-the-owning-plan rule governs findings that SPAN plans under review, not amendments to approved work. | yes |
+| D-7 | The title now overstates the change. Rename the plan file, or record the discrepancy? | Record it in Scope. | `aw rename plans` to a title matching the reduced scope. | A rename changes the `<slug>` in the uniform artifact name and every cross-reference (the orchestrator's child table, this plan's review record, three sibling plans, the plans index). Cost of a stale-but-explained title is one paragraph; cost of a rename is a wide reference update for no behavioral gain. Same reasoning applied to the orchestrator in its round-2 D-3. | yes |
+| D-8 | Which readiness does this plan carry? | `no-go`, verdict REVIEWED - OPEN QUESTIONS. | `go-pending-approval`, on the grounds that eleven of twelve findings are FIXED and OQ-02 is resolved. | `plan-review.md:543-545` makes NO-GO correct when ANY open question or ANY unfixed BLOCKER remains; OQ-03 is open and PR-108 is an unfixed BLOCKER. `aw ipd lint --phase review-finalize` independently reports `IPD-Q501` for the open blocking question, which is the gate agreeing. So OQ-04 on the orchestrator is answered for THIS child: its `no-go` is now EARNED rather than stale. | yes |
+
+D-5 is `Reversible: no` and is ESCALATED as required: raised in this plan as OQ-03 with `- Blocking: yes`
+and `- Finding: PR-108`, so the lint gate refuses the plan at every checkpoint until the maintainer answers.
+
+NOTE ON THE ORCHESTRATOR'S OQ-04: it asked who would re-review the three children carrying a stale
+`no-go`. For `d7qoxv` the answer is now on record: this round did it, and the `no-go` STANDS, but for a
+NEW and different reason (PR-108) rather than the resolved one. That is a materially better position than
+before, because the field is now honest. `metc8b` and `u23gbn` still carry unverified `no-go` values.
