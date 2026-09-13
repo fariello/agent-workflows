@@ -26,6 +26,12 @@ Schema version 2 document (version 1 is still READ unchanged; see :data:`SCHEMA_
         "validate": false,                    # optional TRI-STATE verification default
         "verify_with": "opus"                 # optional; the fallback VERIFIER profile
       },
+      "roles": {                              # optional; FITNESS FOR TASK, not cost control
+        "write-prose": "sonnet",              # each value is a PROFILE REFERENCE, never a model
+        "write-code": "opus",
+        "check-content": "haiku",
+        "verify": "opus"                      # the verifier role, an ENTRY in this same map
+      },
       "profiles": {
         "gem": {
           "runner": "oc",                     # required; canonicalized ("opencode" -> "oc")
@@ -100,6 +106,54 @@ decides WHETHER a verifier turn runs at all, `verify_with` decides WHICH profile
 one does. Two switches for one behavior is precisely what the `validate` precedence chain
 exists to avoid.
 
+THE `roles` MAP GENERALIZES `verify_with` TO EVERY KIND OF WORK (`actmodel` Order 01,
+`btot17`), and it EXTENDS that field rather than superseding or layering beside it. A role is a
+KIND OF WORK, and the vocabulary is closed (:data:`ROLE_NAMES`)::
+
+    write-prose  write-code  write-code-fast  research-online  check-content  verify
+
+IT IS FITNESS FOR TASK, NOT COST CONTROL, and the distinction decides the design. The
+maintainer's ruling was explicit: "It is NOT about just getting a cheap model. It's about
+getting the best model for the job." A cheap-model story would have justified deferring the
+whole mechanism until some cheap action existed to use it; a fitness story applies to EVERY
+run, because a mismatched model costs QUALITY on work that was going to happen anyway.
+
+EACH VALUE IS A PROFILE REFERENCE, for exactly `verify_with`'s reason. A bare model string
+would fork the one place a launch identity is defined and would be the first field to escape
+this module's validation, so a role names a whole ALREADY-VALIDATED profile, and a dangling
+role reference is REFUSED AT LOAD TIME by the same integrity check
+(:func:`_validate_referential_integrity`).
+
+THE VOCABULARY IS CLOSED RATHER THAN OPEN, and that is a validation decision rather than a
+taste one. An arbitrary action key cannot be checked, so a preference for a MISSPELLED action
+would be a silent no-op: it would sit in the store looking effective and route nothing. A
+closed enum makes that a load-time refusal, which is the same trade `FORBIDDEN_PROFILE_KEYS`
+and the dangling-reference check already make everywhere else in this module.
+
+`verify` IS AN ENTRY IN THIS MAP, and it is ONE CHAIN with `verify_with` rather than a second
+switch. The role map is a NEW BOTTOM TIER, consulted only where the shipped chain had already
+fallen through to ABSENT::
+
+    explicit --verify-with  >  profile's own `verify_with`  >  `defaults.verify_with`  >
+    `roles["verify"]`  >  ABSENT ("the verifier uses the EXECUTOR's own launch")
+
+So it can only ADD an answer where there was none; it can never CHANGE an answer an existing
+document already produced. Every configuration written before this field resolves
+byte-identically, which is asserted rather than assumed.
+
+A ROLE NAMES ONE PROFILE, DELIBERATELY, AND THE PAIR IS AN OPEN QUESTION. The maintainer's
+fifth example ("Writing code fast? Gemini 3.8 Flash, with Opus 5 validation") wants a role to
+name a PRODUCING model plus a VALIDATING one, and the ruling recorded that as the NEXT step
+(`btot17` OQ-05) rather than part of this one. An object value is therefore REFUSED with a
+message naming that open question, so the pair cannot become quietly expressible without a
+decision: it crosses `validate` (WHETHER a verifier runs) and `verify_with` (WHICH profile
+does), which this module says must not be conflated.
+
+NOTHING CONSUMES THE MAP YET, and saying so here is the honest boundary. This module declares
+and validates `roles`; no driver reads it, so declaring a role routes NO model until a
+follow-on plan wires one. The field is inert-but-validated on purpose: the schema is the part
+that must be agreed before a consumer hard-codes a shape.
+
 STORAGE IS USER-LOCAL AND SEPARATE ON PURPOSE. The file is
 ``<config_dir>/runner-profiles.json`` (:func:`store_path`, reusing
 :func:`agent_workflows.config.config_dir` so there is ONE XDG convention), NOT tracked
@@ -156,6 +210,19 @@ SCHEMA_VERSION = 2
 #: actually saves through `aw oc profile ...`. `verify_with` is accepted in a v1 document too:
 #: the reader is version-agnostic about the FIELD, so a hand-written store is not punished for
 #: carrying it while declaring 1.
+#:
+#: `roles` DELIBERATELY DID NOT BUMP THIS (DECISION 01-btot17-D2), which declines to follow
+#: 06-kgpptv-D2's precedent for a stated reason rather than by oversight. That precedent turns
+#: entirely on WHICH REFUSAL an OLDER aw shows a user who has a document carrying the new key:
+#: bumped, the old aw says "Upgrade aw rather than editing the file"; unbumped, it says "unknown
+#: field(s) ['roles']", which invites hand-deleting a field the new aw owns. That difference only
+#: MATTERS once such a document exists, and none can: no writer emits `roles` (the wizard writes
+#: profiles only) and no consumer reads it, because this Order ships the schema and no routing.
+#: So a bump now would spend a version number, and a user-facing documentation edit, on a field
+#: nothing can yet carry. The bump is the REQUIRED COMPANION of the first plan that makes the key
+#: consumable, and is recorded as such in that plan's spec. The asymmetry is why this is safe:
+#: staying at 2 and bumping later is free, while bumping early cannot be undone without breaking
+#: a store already written as 3.
 SUPPORTED_SCHEMA_VERSIONS: frozenset = frozenset((1, 2))
 
 #: The store's file name, inside :func:`agent_workflows.config.config_dir`.
@@ -174,9 +241,47 @@ STORE_NAME = "runner-profiles.json"
 SHIPPED_VALIDATE_DEFAULT = False
 
 #: Top-level document keys. Anything else is refused (no silent widening).
+#:
+#: ``roles`` is TOP LEVEL rather than per-profile (DECISION 01-btot17-D1), because a role is a
+#: property of the WORK and not of one launch identity: "which model writes prose" no more belongs
+#: inside the ``gem`` profile than ``defaults.profiles`` does. Per-profile placement would also let
+#: N profiles each declare a role map with no rule saying which wins, which is the "two switches for
+#: one behavior" defect this module's precedence chains exist to prevent.
 ALLOWED_DOCUMENT_KEYS: frozenset = frozenset(
-    ("schema_version", "default_runner", "defaults", "profiles")
+    ("schema_version", "default_runner", "defaults", "profiles", "roles")
 )
+
+#: The CLOSED role vocabulary: the kinds of work a model can be chosen FOR (`actmodel` Order 01,
+#: `btot17`; DECISION 01-btot17-D3).
+#:
+#: THE FIRST FIVE ARE THE MAINTAINER'S OWN CATEGORIES, taken verbatim from the 2026-09-08 ruling
+#: ("Writing prose? Sonnet 5. Writing code? Opus 5. Writing code fast? Gemini 3.8 Flash, with Opus 5
+#: validation. Doing research online? GPT 5.6 Sol High. Checking content? Haiku.") rather than
+#: reinterpreted, so the stored vocabulary is the one the decision was made in.
+#:
+#: ``verify`` IS THE SIXTH AND IS NOT ONE OF THE FIVE, deliberately. The shipped `verify_with` field
+#: had to become an ENTRY in this map rather than remain a parallel field, and mapping it onto
+#: ``check-content`` would have been wrong twice: `verify_with` is per-PROFILE ("verify THIS
+#: profile's work with X") while ``check-content`` is a kind of work, and the existing
+#: `--verify-with` chain would then silently be a second way to set ``check-content``.
+#:
+#: CLOSED, NOT OPEN, is the validation decision (F-13): an arbitrary action key cannot be checked, so
+#: a preference for a misspelled action would be a SILENT NO-OP sitting in the store looking
+#: effective. Adding a role is a one-line edit here plus the test that pins this set, which is the
+#: point: it is a decision, not a typo.
+ROLE_NAMES: Tuple[str, ...] = (
+    "write-prose",
+    "write-code",
+    "write-code-fast",
+    "research-online",
+    "check-content",
+    "verify",
+)
+
+#: The role name whose value participates in the `verify_with` precedence chain as its BOTTOM tier
+#: (DECISION 01-btot17-D4). Named rather than spelled inline so :func:`resolve` and the vocabulary
+#: cannot drift.
+ROLE_VERIFY = "verify"
 
 #: Keys inside the top-level ``defaults`` object. ``profiles`` holds the per-runner default
 #: profile map; ``validate`` is the tri-state verification default; ``verify_with`` is the
@@ -392,6 +497,10 @@ class ProfileConfig:
     validate: Optional[bool] = None
     #: ``defaults.verify_with``: the fallback VERIFIER profile name, or ``None`` for unspecified.
     verify_with: Optional[str] = None
+    #: The top-level ``roles`` map: role NAME (one of :data:`ROLE_NAMES`) -> profile NAME. EMPTY is
+    #: the normal state and means "no role declares a preference", which is every document written
+    #: before this field existed. A DEFAULTED field, so every existing construction site is unchanged.
+    roles: Mapping[str, str] = field(default_factory=dict)
     profiles: Mapping[str, LaunchProfile] = field(default_factory=dict)
     source: Optional[Path] = None
     present: bool = False
@@ -403,6 +512,7 @@ class ProfileConfig:
             self, "default_profiles", MappingProxyType(dict(self.default_profiles))
         )
         object.__setattr__(self, "profiles", MappingProxyType(dict(self.profiles)))
+        object.__setattr__(self, "roles", MappingProxyType(dict(self.roles)))
 
     # -- reads -------------------------------------------------------------------------------
 
@@ -424,6 +534,20 @@ class ProfileConfig:
 
         return self.default_profiles.get(canonical_runner(runner))
 
+    def profile_for_role(self, role: str) -> Optional[str]:
+        """Return the profile NAME this role prefers, or ``None`` when the role is unset.
+
+        Validates the ROLE NAME, so a caller asking for a role that is not in the vocabulary gets a
+        typed refusal rather than a silent ``None`` that reads as "no preference configured". That
+        distinction is the whole reason the vocabulary is closed (DECISION 01-btot17-D3): a misspelled
+        role must be a visible error, not an inert lookup miss.
+
+        Returns a NAME, not a launch, exactly as ``verify_with`` does: the caller resolves the name
+        with its own :func:`resolve` call, which keeps resolution ONE HOP.
+        """
+
+        return self.roles.get(validate_role_name(role))
+
     def to_document(self) -> Dict[str, Any]:
         """Return the canonical JSON document, omitting absent optional parts."""
 
@@ -439,6 +563,11 @@ class ProfileConfig:
             defaults["verify_with"] = self.verify_with
         if defaults:
             doc["defaults"] = defaults
+        # OMITTED WHEN EMPTY, not written as `{}`. An absent key is the documented "no role declares
+        # a preference" state, so a document with no roles serializes to the bytes it did before this
+        # field existed, which is what keeps `config_digest` stable for every existing store.
+        if self.roles:
+            doc["roles"] = {role: self.roles[role] for role in sorted(self.roles)}
         doc["profiles"] = {
             name: self.profiles[name].to_document() for name in sorted(self.profiles)
         }
@@ -496,6 +625,10 @@ PROVENANCE_HOST_DEFAULT = "host-default"  # nothing supplied it; pass no argumen
 #: executor's own resolved argument". Rendering them the same would tell an operator the verifier
 #: ran on the host default when it actually ran on the executor's model.
 PROVENANCE_SAME_AS_EXECUTOR = "same-as-executor"
+#: The top-level `roles` map supplied it (`actmodel` Order 01, `btot17`; DECISION 01-btot17-D4). A
+#: DISTINCT value from `defaults`, because the two are different tiers of the same chain and an
+#: operator debugging "why did the verifier run on that model" needs to know WHICH one spoke.
+PROVENANCE_ROLE_MAP = "role-map"
 
 PROVENANCE_VALUES: frozenset = frozenset(
     (
@@ -507,6 +640,7 @@ PROVENANCE_VALUES: frozenset = frozenset(
         PROVENANCE_SHIPPED,
         PROVENANCE_HOST_DEFAULT,
         PROVENANCE_SAME_AS_EXECUTOR,
+        PROVENANCE_ROLE_MAP,
     )
 )
 
@@ -566,6 +700,30 @@ def validate_profile_name(name: Any) -> str:
         raise ProfileSchemaError(
             f"invalid profile name {name!r}: use lowercase letters, digits and hyphens, "
             f"beginning with a letter, at most {MAX_PROFILE_NAME_LEN} characters"
+        )
+    return name
+
+
+def validate_role_name(name: Any) -> str:
+    """Validate a ROLE name against the CLOSED vocabulary, or raise :class:`ProfileSchemaError`.
+
+    The refusal LISTS the vocabulary, because the failure this prevents is a silent no-op: an
+    unvalidated role key (`"write_code"`, `"writecode"`, `"reviewer"`) would sit in the store looking
+    effective and route nothing at all, and the operator would only discover it by noticing the wrong
+    model in the bill. That is the same class of invisible failure the dangling-reference check
+    exists to stop, so it gets the same load-time treatment.
+    """
+
+    if not isinstance(name, str):
+        raise ProfileSchemaError(
+            f"role name must be a string, got {type(name).__name__}"
+        )
+    if name not in ROLE_NAMES:
+        known = ", ".join(ROLE_NAMES)
+        raise ProfileSchemaError(
+            f"unknown role {name!r}; the vocabulary is CLOSED and registers: {known}. A role is a "
+            "KIND OF WORK, not an arbitrary step name: an open key could not be validated, so a "
+            "misspelled role would silently route nothing."
         )
     return name
 
@@ -686,6 +844,69 @@ def parse_profile(name: str, raw: Any) -> LaunchProfile:
     )
 
 
+def parse_roles(raw: Any) -> Dict[str, str]:
+    """Validate the top-level ``roles`` map into role NAME -> profile NAME (fail closed).
+
+    Both sides are validated: the KEY against the closed vocabulary
+    (:func:`validate_role_name`) and the VALUE against the profile-name grammar every other
+    reference in this module uses. Whether the value RESOLVES is a document-level question,
+    answered by :func:`_validate_referential_integrity`, which already owns exactly that question
+    for ``defaults.profiles`` and ``verify_with``.
+
+    AN OBJECT VALUE IS REFUSED BY NAME, and the message says the pair is an OPEN QUESTION rather
+    than an oversight (`btot17` OQ-05, DECISION 01-btot17-D5). The maintainer's own fifth example
+    ("Writing code fast? Gemini 3.8 Flash, with Opus 5 validation") wants a role to name a PRODUCING
+    model plus a VALIDATING one, and that was deliberately recorded as the NEXT step: it crosses
+    `validate` (WHETHER a verifier turn runs) and `verify_with` (WHICH profile runs it), which this
+    module says must not be conflated, and it would have to say whether it inherits the one-hop rule.
+    Refusing it here is what keeps the pair from becoming quietly expressible without a decision.
+    """
+
+    if not isinstance(raw, Mapping):
+        raise ProfileSchemaError("'roles' must be an object")
+    roles: Dict[str, str] = {}
+    for role, target in raw.items():
+        validate_role_name(role)
+        if isinstance(target, Mapping):
+            raise ProfileSchemaError(
+                f"roles[{role!r}] must be a single profile NAME string, not an object. A role "
+                'naming a PRODUCING model plus a VALIDATING one ("write code fast, validated by a '
+                'stronger model") is an OPEN DESIGN QUESTION (`btot17` OQ-05), not an oversight: it '
+                "crosses 'validate' (whether a verifier turn runs) and 'verify_with' (which profile "
+                "runs it), and it must say whether it inherits the ONE-HOP rule. It is deliberately "
+                "not expressible until that is decided."
+            )
+        if not isinstance(target, str):
+            raise ProfileSchemaError(
+                f"roles[{role!r}] must be a profile NAME string (a reference to a profile), got "
+                f"{type(target).__name__}. It is deliberately not an inline model: a reference "
+                "reuses a whole validated profile, including its variant and agent."
+            )
+        roles[role] = validate_profile_name(target)
+    return roles
+
+
+def _validate_role_reference(
+    role: str, target: str, profiles: Mapping[str, Any]
+) -> None:
+    """A ``roles`` entry must name an EXISTING profile (`btot17` E-05).
+
+    Same class, same load-time timing, and the same reason as :func:`_validate_verify_reference`: a
+    reference resolving to nothing would fall through as though the role had never been set, so the
+    operator would believe a chosen model was doing the work when the run's default was. Refusing at
+    load makes a typo visible at write time rather than in the bill.
+    """
+
+    if target not in profiles:
+        known = ", ".join(sorted(profiles)) or "(none)"
+        raise ProfileSchemaError(
+            f"roles[{role!r}] points at {target!r}, which does not exist (known profiles: "
+            f"{known}). Remove the role or create the profile; a dangling role reference would "
+            "fall through as if the role were never set, so the work would silently run on a "
+            "model nobody chose for it."
+        )
+
+
 def _validate_verify_reference(
     where: str, target: str, profiles: Mapping[str, Any]
 ) -> None:
@@ -718,6 +939,7 @@ def _validate_referential_integrity(
     default_profiles: Mapping[str, str],
     profiles: Mapping[str, LaunchProfile],
     verify_with: Optional[str] = None,
+    roles: Optional[Mapping[str, str]] = None,
 ) -> None:
     """A default reference must resolve to an existing profile OF THAT RUNNER.
 
@@ -726,7 +948,8 @@ def _validate_referential_integrity(
     one the user chose.
 
     Every ``verify_with`` reference (each profile's own, plus ``defaults.verify_with``) must
-    resolve too; see :func:`_validate_verify_reference`.
+    resolve too; see :func:`_validate_verify_reference`. Every ``roles`` entry must resolve, on the
+    same rule and for the same reason; see :func:`_validate_role_reference`.
     """
 
     for runner, profile_name in sorted(default_profiles.items()):
@@ -754,6 +977,8 @@ def _validate_referential_integrity(
             )
     if verify_with is not None:
         _validate_verify_reference("defaults.verify_with", verify_with, profiles)
+    for role in sorted(roles or {}):
+        _validate_role_reference(role, (roles or {})[role], profiles)
 
 
 def from_document(
@@ -819,8 +1044,16 @@ def from_document(
                 f"got {type(raw_verify_with).__name__}"
             )
         raw_verify_with = validate_profile_name(raw_verify_with)
+    # `roles` is read at ANY supported version, deliberately (DECISION 01-btot17-D2), matching the
+    # precedent that a v1 document may carry `verify_with`: the reader is version-agnostic about the
+    # FIELD, so a hand-written store is not punished for using it while declaring an older version.
+    roles = parse_roles(raw.get("roles", {}))
     _validate_referential_integrity(
-        default_runner, default_profiles, profiles, verify_with=raw_verify_with
+        default_runner,
+        default_profiles,
+        profiles,
+        verify_with=raw_verify_with,
+        roles=roles,
     )
 
     return ProfileConfig(
@@ -829,6 +1062,7 @@ def from_document(
         default_profiles=default_profiles,
         validate=validate,
         verify_with=raw_verify_with,
+        roles=roles,
         profiles=profiles,
         source=source,
         present=present,
@@ -978,6 +1212,7 @@ def _replace(cfg: ProfileConfig, **changes: Any) -> ProfileConfig:
         "default_profiles": dict(cfg.default_profiles),
         "validate": cfg.validate,
         "verify_with": cfg.verify_with,
+        "roles": dict(cfg.roles),
         "profiles": dict(cfg.profiles),
         "source": cfg.source,
         "present": cfg.present,
@@ -989,6 +1224,7 @@ def _replace(cfg: ProfileConfig, **changes: Any) -> ProfileConfig:
         result.default_profiles,
         result.profiles,
         verify_with=result.verify_with,
+        roles=result.roles,
     )
     return result
 
@@ -1108,6 +1344,27 @@ def set_verify_with_default(cfg: ProfileConfig, name: Optional[str]) -> ProfileC
 
     target = None if name is None else validate_profile_name(name)
     return _replace(cfg, verify_with=target)
+
+
+def set_role(cfg: ProfileConfig, role: str, name: Optional[str]) -> ProfileConfig:
+    """Return a new config whose ``roles[role]`` is set, or REMOVED with ``None``.
+
+    Both sides are validated before anything changes: the role against the closed vocabulary and the
+    target against the profile grammar, with resolution proven by
+    :func:`_validate_referential_integrity` through :func:`_replace`, so this mutator can create
+    neither an unknown role nor a dangling reference.
+
+    ``None`` REMOVES the entry rather than storing a null, because an absent role is the documented
+    "no preference" state and a null would be a third state the schema does not have.
+    """
+
+    validate_role_name(role)
+    roles = dict(cfg.roles)
+    if name is None:
+        roles.pop(role, None)
+    else:
+        roles[role] = validate_profile_name(name)
+    return _replace(cfg, roles=roles)
 
 
 # ==================================================================================================
@@ -1292,6 +1549,19 @@ def resolve(
     elif cfg.verify_with is not None:
         resolved_verify_with = cfg.verify_with
         provenance["verify_with"] = PROVENANCE_DEFAULTS
+    elif cfg.roles.get(ROLE_VERIFY) is not None:
+        # THE ROLE MAP IS THE NEW BOTTOM TIER, below `defaults.verify_with` and above ABSENT
+        # (`actmodel` Order 01, `btot17`; DECISION 01-btot17-D4). Position is the whole safety
+        # argument: this branch is reached ONLY where the shipped chain had already fallen through to
+        # ABSENT, so the role map can ADD an answer where there was none but can never CHANGE one an
+        # existing document already produced. That is what makes "every configuration written before
+        # this field resolves byte-identically" a structural fact rather than a hope.
+        #
+        # It is ONE CHAIN, not a second switch: `verify` is an ENTRY in the role map rather than a
+        # parallel field, so an operator who has learned how `validate` and `verify_with` resolve does
+        # not have to learn a second rule, which is precisely the defect the module docstring names.
+        resolved_verify_with = cfg.roles[ROLE_VERIFY]
+        provenance["verify_with"] = PROVENANCE_ROLE_MAP
     else:
         resolved_verify_with = None
         provenance["verify_with"] = PROVENANCE_SAME_AS_EXECUTOR
