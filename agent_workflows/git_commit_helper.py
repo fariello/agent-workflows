@@ -321,6 +321,23 @@ def _staged_paths(repo_root: Path) -> List[str]:
     return [ln.strip() for ln in out.splitlines() if ln.strip()]
 
 
+def _in_index(repo_root: Path, rel_path: str) -> bool:
+    """Whether the index still holds an entry for ``rel_path``.
+
+    Distinguishes the two reasons a path can be absent from the WORKING TREE, which `git add` treats
+    very differently. A tracked file the caller DELETED is still in the index, so `git add -- <path>`
+    correctly stages that deletion. A file that was moved with `git mv` is NOT in the index at its old
+    location (the rename is already staged), so naming it makes `git add` fail with "pathspec did not
+    match any files" AND stage nothing else in the same invocation.
+
+    `git ls-files --error-unmatch` is the direct question and needs no output parsing: it exits 0 when
+    the index has the entry and nonzero when it does not.
+    """
+
+    rc, _out, _err = _git(repo_root, ["ls-files", "--error-unmatch", "--", rel_path])
+    return rc == 0
+
+
 def _ignored_paths(repo_root: Path, rel_paths: Sequence[str]) -> List[str]:
     """Subset of ``rel_paths`` that ``git add`` would REFUSE because .gitignore excludes them.
 
@@ -531,13 +548,32 @@ def offer_commit(
         # --- Stage ONLY the requested paths (never -A/-a). ---
         # git add -- <path> on a deleted path stages the deletion; a nonexistent, never-tracked
         # path would error, so we let git report it and surface as an error outcome.
-        rc, _out, err = _git(repo_root, ["add", "--", *rel_paths])
-        if rc != 0:
-            # Roll back any partial staging of OUR paths so we leave the index as we found it.
-            _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
-            return CommitOutcome(
-                STATUS_ERROR, None, (), f"git add failed: {err.strip()}"
-            )
+        #
+        # AN ALREADY-STAGED RENAME'S SOURCE IS NEITHER. Relocating callers now use `git mv`
+        # (`artifact_core.git_mv`), which STAGES the rename, so the OLD path is already in the index
+        # and is gone from disk. `git add` on it fails "pathspec did not match any files", which took
+        # the WHOLE commit down (git add stages nothing on failure) and left the move half-committed:
+        # measured 2026-09-13, commit `52837644` holds the addition alone and the unstaged deletion it
+        # left behind refused 27 of 42 items in run `run-20260913T031350Z-1732436`.
+        # Such a path needs no `git add` at all, so drop it from the ADD set while keeping it in
+        # `rel_paths` for the staged-intersection and commit steps below.
+        #
+        # THE TEST IS "GONE FROM DISK AND ALREADY GONE FROM HEAD'S WORKING SET", i.e. a path that no
+        # longer exists and that the index no longer has an entry for. Do NOT test membership in
+        # `_staged_paths()`: for a staged rename git reports only the DESTINATION there, so the source
+        # is absent from it and a `p not in _staged_paths()` test wrongly keeps the source in the ADD
+        # set, which is the same failure with extra steps (measured while writing this fix).
+        add_paths = [
+            p for p in rel_paths if (repo_root / p).exists() or _in_index(repo_root, p)
+        ]
+        if add_paths:
+            rc, _out, err = _git(repo_root, ["add", "--", *add_paths])
+            if rc != 0:
+                # Roll back any partial staging of OUR paths so we leave the index as we found it.
+                _git(repo_root, ["reset", "--quiet", "HEAD", "--", *rel_paths])
+                return CommitOutcome(
+                    STATUS_ERROR, None, (), f"git add failed: {err.strip()}"
+                )
 
         # Which of our requested paths actually ended up staged (existed / had a diff)?
         now_staged = set(_staged_paths(repo_root))

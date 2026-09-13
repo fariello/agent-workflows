@@ -898,9 +898,40 @@ def apply_status_change(
     updated_text = "\n".join(new_lines).rstrip() + "\n"
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # RELOCATE WITH `git mv`, NOT write-then-unlink.
+    #
+    # THE BUG THIS FIXES, measured 2026-09-13 on run `run-20260913T031350Z-1732436`: this function
+    # used to `atomic_write` the destination and then `unlink` the source, which git sees as TWO
+    # unrelated facts (an untracked file appeared; a tracked file vanished) that a caller then has to
+    # find and stage together. `oc_runipd.commit_backlog_close` does exactly that pairing and it
+    # committed only the ADD (commit `52837644` contains `A done/...` and no `D graduated/...`),
+    # leaving the deletion uncommitted in the main tree. The spec-R5.4 clean-base guard then
+    # correctly refused every following unattended isolated turn, so ONE unstaged deletion the tooling
+    # itself left behind blocked 27 of that run's 42 items.
+    #
+    # `git mv` makes the relocation a SINGLE staged rename, so there are no halves to pair up and no
+    # half to lose. This is also the pattern already used by every other relocating surface in the
+    # package (`artifact_rename`, `plans_archive`, `plans_refs`, `research_refs`, `research_archive`,
+    # `engine`); this function was the lone exception, which is why the class of bug reached only here.
+    #
+    # ORDER IS LOAD-BEARING: move FIRST, then write the updated content at the destination. Writing
+    # first would leave an untracked file at `dest_path`, which makes `git mv` refuse (destination
+    # exists), and the fallback would then hide the failure. `git_mv` already falls back to a plain
+    # filesystem move when the source is untracked, so a not-yet-tracked artifact still relocates.
+    moving = dest_path.resolve() != rec.path.resolve()
+    if moving and rec.path.exists():
+        _core.git_mv(
+            repo_root,
+            str(rec.path.relative_to(repo_root)),
+            str(dest_path.relative_to(repo_root)),
+        )
+
     _core.atomic_write(dest_path, updated_text)
 
-    if dest_path.resolve() != rec.path.resolve() and rec.path.exists():
+    # Belt and braces: if the source somehow survived the move (a fallback that copied rather than
+    # moved), drop it, because a surviving source is the very dirty-path residue described above.
+    if moving and rec.path.exists():
         try:
             rec.path.unlink()
         except OSError:

@@ -2707,10 +2707,22 @@ def _finalize_transaction(
     dest_path = repo_root / journal["dest_path"]
 
     # --- READY_TO_COMMIT: stage only owned paths, then the single lifecycle commit. ---
-    stage = [p for p in owned_paths if (repo_root / p).exists() or p == plan_rel]
-    rc, _out, err = _git(repo_root, ["add", "--", *stage])
-    if rc != 0:
-        return _rollback_and_return(f"git add failed ({err.strip()})")
+    #
+    # TWO PATH SETS, deliberately, because `git add` and `commit_isolated` need different things now
+    # that `apply_status_change` relocates with `git mv`.
+    #
+    # `git mv` STAGES the rename, so the plan's OLD location is already in the index and is gone from
+    # disk. Passing it to `git add` fails with "pathspec did not match any files" and rolls the whole
+    # finalize back, so `add_paths` covers only paths that still EXIST. But `commit_isolated` mirrors
+    # each named path into a private worktree and propagates a DELETION for one that is absent, so it
+    # must still hear about the old location or the commit would contain the addition alone -- exactly
+    # the half-move that left a dirty tree and refused 27 items of run `run-20260913T031350Z-1732436`.
+    add_paths = [p for p in owned_paths if (repo_root / p).exists()]
+    stage = list(owned_paths)
+    if add_paths:
+        rc, _out, err = _git(repo_root, ["add", "--", *add_paths])
+        if rc != 0:
+            return _rollback_and_return(f"git add failed ({err.strip()})")
     journal["phase"] = PHASE_READY_TO_COMMIT
     journal["staged"] = stage
     _write_finalize_journal(repo_root, journal)
