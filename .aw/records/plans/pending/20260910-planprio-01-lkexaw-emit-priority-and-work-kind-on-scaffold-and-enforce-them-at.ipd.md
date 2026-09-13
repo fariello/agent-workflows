@@ -6,15 +6,17 @@
 - Scope: Emit both fields in the scaffold skeleton, enforce them at the ready-to-execute lint gate with a reserved sentinel for the pre-cutoff corpus, admit that sentinel in the two SHIPPED enum rules that currently reject it, register the `aw check` rule, regenerate the two IPD templates the scaffold change breaks, update the four `-`-clearing test callers E-07 breaks, and amend the governing IPD spec whose field enumeration currently omits both. Does NOT change the shared vocabulary, does NOT add a sort key, and does NOT touch specs, research or backlog items.
 - Scope-Paths: agent_workflows/ipd_authoring.py, agent_workflows/ipd_schema.py, agent_workflows/ipd_lint.py, agent_workflows/check_engine.py, agent_workflows/cli.py, tests/test_plan_priority_required.py, tests/test_work_kind.py, tests/test_ipd_priority.py, .aw/system/workflows/assess/templates/ipd.md, .aw/system/workflows/assess/templates/orchestrator-ipd.md, .aw/records/specs/20260802-1904-01-ipd-structure-and-linting.spec.md
 - Item-Dependencies: executed:8u6770, executed:lc4unl
-- Status: reviewed
+- Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
 - Order: 1
 - Highest E allocated: 09
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: lkexaw
+- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): status set to approved
 - 2026-09-13 reviewed (aw set): set Item-Dependencies to executed:8u6770, executed:lc4unl
 - 2026-09-13 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): plan-review complete: REVIEWED - OPEN QUESTIONS; PR-001 BLOCKER open and escalated to blocking OQ-02 (the parent reversed this Set's order and this plan's Item-Dependencies still records the old one); PR-002..PR-013 FIXED. Readiness no-go.
 
