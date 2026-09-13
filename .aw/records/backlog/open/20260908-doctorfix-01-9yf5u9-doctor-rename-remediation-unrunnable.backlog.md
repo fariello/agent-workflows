@@ -1,11 +1,13 @@
 - Id: 9yf5u9
 - Status: open
+- Blocks-Release: next
 - Set: doctorfix
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw doctor prints an unrunnable rename remediation: 'aw rename <type> <path>' exits 2 without --slug, and with --slug but no --apply it exits 0 having written nothing
 
 ## Workflow history
+- 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): aw doctor prints an unrunnable rename remediation: 'aw rename <type> <path>' exits 2 without --slug, and with --slug but no --apply it exits 0 having written nothing
 
 FOUND 2026-09-08 while fixing the `aw doctor` findings on this repo (8 `check.name-nonconformant`

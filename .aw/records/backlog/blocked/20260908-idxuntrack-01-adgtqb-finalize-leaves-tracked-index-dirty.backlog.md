@@ -1,13 +1,15 @@
 - Id: adgtqb
 - Status: blocked
+- Blocks-Release: next
+- Gate-Kind: artifact
+- Gate-Ref: yvvf98
 - Set: idxuntrack
 - Priority: high
 - Work-Kind: bug
 - Summary: Every aw ipd finalize leaves the tracked plans manifests dirty: idxuntrack child 4r0qp1 removed INDEX.json from every commit path-set but child yvvf98 never untracked it, so HEAD's index goes stale while aw index plans --check reads disk and reports clean
-- Gate-Kind: artifact
-- Gate-Ref: yvvf98
 
 ## Workflow history
+- 2026-09-13 blocked (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): FILED from a measured incident during aw agy run 3m0urk (run-20260908T212520Z-3675719): the orchestrator retirement committed only the plan file and left .aw/records/plans/INDEX.json modified. Investigated rather than assumed: the runner and _finalize_transaction both behaved exactly as written and TESTED, so this is filed as a half-landed Set, not as a runner bug. BLOCKED on yvvf98 (idxuntrack Order 02, approved, pending, dependency satisfied) because that plan IS the fix; a typed gate refuses a graduation attempt that would otherwise re-add the manifests to owned_paths and break the three tests pinning their absence.
 
 MEASURED 2026-09-08 during `aw agy run 3m0urk` (run `run-20260908T212520Z-3675719`). The runner

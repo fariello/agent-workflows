@@ -1,11 +1,13 @@
 - Id: pfh5qa
 - Status: open
+- Blocks-Release: next
 - Set: runspendrep
 - Priority: medium
 - Work-Kind: bug
 - Summary: run summary table reports 0.00 spend and blank tokens for an interrupted item while aw runs reports 2.17 and 3.62M for the same item, so the two surfaces disagree and the table under-reports real spend
 
 ## Workflow history
+- 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-10 created (aw backlog): run summary table reports 0.00 spend and blank tokens for an interrupted item while aw runs reports 2.17 and 3.62M for the same item, so the two surfaces disagree and the table under-reports real spend
 
 MEASURED 2026-09-10 in `run-20260910T004521Z-2724478` (opencode, 39 items, position 34, plan `utwr6y`,

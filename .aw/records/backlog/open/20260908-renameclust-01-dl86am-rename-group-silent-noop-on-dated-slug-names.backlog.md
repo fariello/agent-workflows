@@ -1,11 +1,13 @@
 - Id: dl86am
 - Status: open
+- Blocks-Release: next
 - Set: renameclust
 - Priority: medium
 - Work-Kind: bug
 - Summary: aw rename and aw group silently no-op on a legacy dated-slug name: compute_target_name's _DATED_SLUG_FACET_RE branch discards to-id6/set/order and returns the input with err None, so a re-cluster reports success having changed nothing
 
 ## Workflow history
+- 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-08 created (aw backlog): aw rename and aw group silently no-op on a legacy dated-slug name: compute_target_name's _DATED_SLUG_FACET_RE branch discards to-id6/set/order and returns the input with err None, so a re-cluster reports success having changed nothing
 
 FOUND 2026-09-08 while fixing `check.name-nonconformant` findings. Three legacy-named records cannot

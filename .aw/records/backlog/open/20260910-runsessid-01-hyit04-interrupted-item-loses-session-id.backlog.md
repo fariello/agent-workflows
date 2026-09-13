@@ -1,11 +1,13 @@
 - Id: hyit04
 - Status: open
+- Blocks-Release: next
 - Set: runsessid
 - Priority: medium
 - Work-Kind: bug
 - Summary: run state.json records session_id null for an interrupted item although its session log carries a real session id, so the Set is missing from run-summary session continuity and cannot be resumed under its session
 
 ## Workflow history
+- 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-10 created (aw backlog): run state.json records session_id null for an interrupted item although its session log carries a real session id, so the Set is missing from run-summary session continuity and cannot be resumed under its session
 
 MEASURED 2026-09-10 in `run-20260910T004521Z-2724478` (opencode, 39 items, position 34, plan `utwr6y`),

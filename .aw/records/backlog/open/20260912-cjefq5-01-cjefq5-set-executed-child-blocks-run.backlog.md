@@ -1,11 +1,13 @@
 - Id: cjefq5
 - Status: open
+- Blocks-Release: next
 - Set: cjefq5
 - Priority: high
 - Work-Kind: bug
 - Summary: aw oc run on a Set with an already-executed child blocks the entire Set: the queue entry gets file=null and status=reviewed instead of the discovered executed status
 
 ## Workflow history
+- 2026-09-13 open (aw set): Gate on next per the all-bugs-block-release ruling: every bug blocks the next release
 - 2026-09-12 created (aw backlog): aw oc run on a Set with an already-executed child blocks the entire Set: the queue entry gets file=null and status=reviewed instead of the discovered executed status
 
 ## Observed
