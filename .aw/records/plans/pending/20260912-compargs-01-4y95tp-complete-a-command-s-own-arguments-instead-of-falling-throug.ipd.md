@@ -11,14 +11,14 @@
 - Scope-Paths: agent_workflows/completion.py, agent_workflows/cli.py, tests/test_completion.py
 - Item-Dependencies: none
 - Status: reviewed
-- Readiness: no-go
+- Readiness: go-pending-approval
 - From-Backlog: g99sg7
 - Priority: medium
 - Work-Kind: bug
 - Blocks-Release: next
 - Set: compargs
 - Order: 1
-- Highest E allocated: 07
+- Highest E allocated: 08
 - Author: opencode its_direct/pt3-claude-opus-5-1m-us
 - Id: 4y95tp
 
@@ -79,12 +79,23 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   - Expected outcome: the four unconditional cases green; the two conditional cases present or explicitly recorded as not-applicable with OQ-02's answer cited.
   - Execution state: pending
 
-- [ ] E-05 KEEP THE TWO COMPLETION SURFACES IN AGREEMENT, per whatever OQ-03 decides.
+- [ ] E-05 KEEP THE TWO COMPLETION SURFACES IN AGREEMENT. OQ-03 IS ANSWERED (maintainer 2026-09-12): MAKE THEM AGREE. The amend-the-docstring branch is CLOSED and must not be taken.
   THE CONTRACT IS DOCUMENTED, NOT INFERRED: `_subcommand_candidates`'s docstring says it "mirrors the generated static scripts so `__complete` and the offline scripts agree on the static layer". E-01 through E-03 change the static side only, so this item is what stops the change from breaking that sentence.
   MEASURED STARTING POINT: `complete_query` already returns `[]` for `aw completion <TAB>`, `aw find <TAB>` and `aw install <TAB>`, so it does NOT need E-01's fix; the divergence E-02/E-03 introduce is the choices half, where the static script would offer `migrate-layout`'s actions and the dynamic engine would not.
-  EITHER MAKE THEM AGREE OR AMEND THE DOCSTRING, and do not do neither. If OQ-03 says share the capture, have `_subcommand_candidates` consume the same key E-02 writes. If OQ-03 says the surfaces may legitimately differ, edit that docstring in the same change so the code stops asserting a parity it no longer keeps.
+  SHARE THE CAPTURE: have `_subcommand_candidates` consume the same key E-02 writes, so the two surfaces cannot drift by construction rather than by discipline. Do NOT amend the parity docstring to license a difference; the maintainer declined that, and positional `choices` are STATIC vocabulary by the contract's own definition (fixed, not read from disk), so they belong in the mirrored layer.
+  DO NOT COLLAPSE THE TWO SURFACES INTO ONE. Not authorized: they exist for different reasons (an offline script with no interpreter cost; a live engine that reads repository state), and the docstring asks them to AGREE on the static layer, not to become one code path.
+  ADD A PARITY TEST, which is the durable half and which nothing provides today. Assert that for the same word list the static script's `COMPREPLY` and `complete_query`'s return agree on the static layer, with `aw completion <TAB>` as an explicit case. Without it, the next change reintroduces this divergence silently, exactly as this plan nearly did.
   - Depends on: E-04
   - Expected outcome: `complete_query` and the generated script return the same candidates for the same position on every command E-03 touched, OR the parity docstring amended with the reason, with OQ-03's answer cited either way.
+  - Execution state: pending
+
+- [ ] E-08 GIVE `aw completion`'s POSITIONAL REAL `choices`, WITHOUT WHICH THE REPORTED CASE CANNOT BE FIXED (OQ-02, maintainer ruling 2026-09-12).
+  THIS PLAN'S AUTHORED PREMISE WAS FALSE AND THIS ITEM IS THE CORRECTION. Verified twice: that positional reports `choices=None` with `metavar='bash|zsh|fish|install|uninstall'`, so the vocabulary exists ONLY as a DISPLAY string and E-02's capture had nothing to find. Adding `choices` is what converts a vocabulary already fixed in practice into one the tooling can see.
+  DERIVE THE LIST, DO NOT WRITE A SECOND LITERAL. `completion.SUPPORTED_SHELLS` already exists and `--shell` already uses it as `choices`; build the positional's list from that plus the two verbs. A hand-written second copy reintroduces the drift this defect is made of, one field over.
+  THIS IS A DELIBERATE NARROWING OF A PUBLIC SURFACE, so treat the two things it breaks as work, not as surprises. FIRST, `tests/test_completion.py:206-214` (`test_parser_shape_allows_child03_extension`) PINS the free-form shape and asserts the parse is "not constrained by `choices=`". UPDATE it rather than deleting it: its intent (a future verb parses without a redesign) survives, but such a verb must now be REGISTERED, and the test's comment must say the constraint was tightened on purpose so a reader does not read it as the guarantee being dropped. SECOND, `cli.py:4735-4737` documents the free-form shape as intentional; amend that comment in the same change.
+  THE ERROR MESSAGE MOVES FROM THE HANDLER TO ARGPARSE, and the maintainer accepted that visible cost. Today an unknown target reaches the handler, which raises `unknown completion target 'index' (expected bash|zsh|fish|install|uninstall)`. With `choices`, argparse rejects at parse time with its own wording and exit code. Confirm the new message is at least as clear, and if the handler's validation becomes unreachable, REMOVE it rather than leaving two validators that can disagree.
+  - Depends on: E-02
+  - Expected outcome: the positional carries `choices` derived from `SUPPORTED_SHELLS` plus the verbs; the pinned shape test is updated with its reason; the `cli.py` shape comment is amended; and dead handler validation is removed rather than orphaned.
   - Execution state: pending
 
 - [ ] E-06 WARN WHEN AN INSTALLED COMPLETION IS STALE, WITHOUT REWRITING IT (maintainer ruling 2026-09-12, OQ-01).
@@ -206,7 +217,7 @@ A FOURTH IS CONDITIONAL ON OQ-03: `_subcommand_candidates`'s docstring asserts t
 ### OQ-02: `aw completion`'s vocabulary is not in argparse `choices`, so the plan's mechanism cannot fix the reported case. How is it made completable?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-001
 - Resolution or deferral rationale: MEASURED BY SIMULATION, NOT PREDICTED, WHICH IS WHY IT IS BLOCKING. The plan's premise is that `completion` has "a fixed `bash|zsh|fish|install|uninstall` vocabulary" that `introspect_cli_tree` fails to see. VERIFIED AT REVIEW: it has no such vocabulary in the parser. `target` is declared `nargs="?"`, `default=None`, `choices=None`, with `metavar='bash|zsh|fish|install|uninstall'` (`cli.py:4727-4734`); the valid set is enforced by a runtime `if shell not in ("bash","zsh","fish")` in `_run_completion` (`cli.py:10466`). Running E-02's rule exactly as specified over that parser captures `[]`. So E-03's stated outcome is unreachable and E-04's two `completion` test cases would fail for a reason no amount of generator work fixes.
@@ -214,11 +225,17 @@ A FOURTH IS CONDITIONAL ON OQ-03: `_subcommand_candidates`'s docstring asserts t
   THREE OPTIONS, EACH COSTED. (a) LEAVE `aw completion <TAB>` OFFERING NOTHING. Cost: the maintainer's exact reported command still offers no help, though it no longer offers a WRONG answer, which is the larger half of the bug. Benefit: zero contract change, zero risk, and E-01 alone already removes the misleading suggestion. (b) ADD `choices=[*SUPPORTED_SHELLS, "install", "uninstall"]` TO THE POSITIONAL. Cost: argparse then rejects an unknown target with its own usage error instead of the current hand-written message naming `aw completion --help`, so the error UX changes and `_run_completion`'s `if` becomes dead code; `test_parser_shape_allows_child03_extension` may need review. Benefit: one line, the vocabulary becomes machine-readable everywhere, and E-02's mechanism then genuinely reaches the reported case. (c) TEACH THE GENERATOR TO READ `metavar` WHEN IT LOOKS LIKE A PIPE-DELIMITED VOCABULARY. Cost: a heuristic on a HELP-TEXT field, which is exactly the "guessing" E-02 forbids in its own third paragraph, and it would silently break if anyone rewords a metavar. Benefit: no CLI contract change at all.
   RECOMMENDATION (b), because it converts a vocabulary that is already fixed in practice into one the tooling can see, and the cost is a bounded, visible change to one error message rather than a heuristic. (c) is the one to avoid: parsing help text is the same class of guess that produced this defect. If the maintainer prefers (a), that is entirely defensible and E-01 alone still resolves the reported harm; E-03/E-04 must then drop their `completion` claims, which they now do conditionally.
   DELIBERATELY NOT DONE HERE: review did not add `choices`, did not touch the parser, and did not change the pinned shape test. Narrowing a public CLI contract is the maintainer's decision.
+  ANSWERED BY THE MAINTAINER 2026-09-12: ADD REAL `choices` TO THE POSITIONAL, then make BOTH surfaces emit it. Chosen over shipping E-01 alone and over parsing the `metavar`.
+    THE REVIEW'S MEASUREMENT IS ACCEPTED AND RE-VERIFIED, and it means this plan's authored premise was FALSE. Re-run at the time of the ruling: the `completion` subparser's positional reports `choices=None` with `metavar='bash|zsh|fish|install|uninstall'`. So the vocabulary lives ONLY in a DISPLAY string, and E-02's "capture positional `choices`" could never have reached the case the maintainer reported. The plan asserted a fixed `choices` vocabulary that does not exist; that sentence must be corrected, not merely supplemented.
+    SO THE FIX IS A DELIBERATE, BOUNDED CLI CONTRACT CHANGE, which is why it needed a human. `cli.py:4735-4737` records the current shape as intentional ("the `install`/`uninstall` verbs are ADDITIVE on child 01's free-form `target` positional"), and `tests/test_completion.py:206-214` PINS it: `test_parser_shape_allows_child03_extension` asserts `parse_args(["completion","install"])` succeeds and is "not constrained by `choices=`". Adding `choices` narrows a public surface, so:
+    UPDATE THAT PINNED TEST RATHER THAN DELETING IT. Its intent (a future verb parses without a redesign) survives; what changes is that the verb must now be REGISTERED in `choices` to parse. Rewrite the assertion to that effect and say so in the test's comment, so a reader sees the constraint was tightened on purpose and not that the forward-compat guarantee was dropped.
+    THE ERROR MESSAGE WILL CHANGE, and that is the visible cost the maintainer accepted: today an unknown target reaches the handler, which raises `unknown completion target 'index' (expected bash|zsh|fish|install|uninstall)`; with `choices` argparse rejects it at parse time with its own wording and exit code. VERIFY the new message is at least as clear, and if the handler's validation becomes dead code, remove it rather than leaving two validators that can disagree.
+    KEEP THE VOCABULARY IN ONE PLACE. `SUPPORTED_SHELLS` already exists in `completion.py` and `--shell` already uses it as `choices`; derive the positional's `choices` from that plus the two verbs rather than writing a second literal list, or the `metavar` drift this defect is made of simply reappears one field over.
 
 ### OQ-03: The plan changes one of two completion surfaces and breaks their documented parity. Which surface owns positional choices?
 
 - Blocking: yes
-- Status: open
+- Status: resolved
 - Owner: maintainer
 - Finding: PR-002
 - Resolution or deferral rationale: THE PLAN DOES NOT MENTION THE SECOND SURFACE AT ALL, which is why this needs an answer before E-03 lands. There are two: the STATIC generated script (what the maintainer's shell runs; verified that the installed file is the static generator's output with zero `__complete` references) and the DYNAMIC `complete_query` behind `aw __complete`. MEASURED: `complete_query` already returns `[]` for `aw completion <TAB>`, `aw find <TAB>` and `aw install <TAB>`, so it does NOT have the fall-through defect and needs no part of E-01.
@@ -226,6 +243,12 @@ A FOURTH IS CONDITIONAL ON OQ-03: `_subcommand_candidates`'s docstring asserts t
   THREE OPTIONS. (a) SHARE THE CAPTURE: `_subcommand_candidates` consumes the same key E-02 writes, so both surfaces gain choices together. Cost: `complete_query` runs inside a <50ms budget the module docstring records, and it already builds the parser for the static layer, so the marginal cost is a dict lookup rather than a new scan; small but must be measured. Benefit: parity preserved, one behavior to reason about. (b) STATIC ONLY, AND AMEND THE DOCSTRING to say the surfaces deliberately differ on positional choices. Cost: two behaviors a user can hit depending on whether argcomplete is active, which is the kind of divergence that produces "it works in my other shell" reports. Benefit: smallest change. (c) DECIDE THE DYNAMIC ENGINE SHOULD OWN CHOICES and have the static script defer, which it cannot do without a runtime callback E-03 correctly forbids. Cost: contradicts the static-and-self-contained contract. Benefit: none identified.
   RECOMMENDATION (a), because the parity sentence is load-bearing (it is why a user gets the same answer with and without argcomplete) and the marginal cost is a lookup on a parser the function already builds. (c) is not viable. E-05 now carries whichever answer is chosen and requires the docstring amended if the answer is (b).
   DELIBERATELY NOT DONE HERE: review did not modify `complete_query` or the parity docstring, because choosing between one behavior and two is a design call with a user-visible consequence.
+  ANSWERED BY THE MAINTAINER 2026-09-12 AS PART OF THE SAME RULING: FIX BOTH SURFACES, preserving the parity contract rather than falsifying it.
+    THE REVIEW IS RIGHT THAT THIS PLAN NEVER MENTIONED THE SECOND SURFACE, and that is an authoring failure rather than a scope choice: I checked the static generator only. Verified at the ruling: `complete_query` (`completion.py:625`) is a second, DYNAMIC engine behind `aw __complete`, and `_subcommand_candidates`'s docstring (`:593-596`) states it "mirrors the generated static scripts so `__complete` and the offline scripts agree on the static layer". That is an explicit parity contract in the same file this plan edits.
+    MEASURED CONSEQUENCE OF THE AUTHORED PLAN, which is what makes this blocking rather than tidy: `complete_query(['aw','completion',''],2)` returns `[]` today, so had E-02/E-03 taught only the static generator, the static script would have offered the five targets while the dynamic engine offered nothing for the same keystroke. The contract would have been false, in the file that documents it, as a side effect of a change that never named it.
+    SO EVERY ITEM THAT TEACHES THE STATIC LAYER MUST TEACH BOTH. Positional `choices` are part of the STATIC layer by the contract's own definition (they are fixed vocabulary, not repository state), so they belong in the mirrored path, NOT in the dynamic-only layers that resolve id6s and Set ids from disk.
+    ADD A PARITY TEST, which is the durable half. Nothing today asserts the two surfaces agree, which is precisely why this plan could have broken the contract silently. Assert that for the same word list, the static script's `COMPREPLY` and `complete_query`'s return AGREE on the static layer, and include `aw completion <TAB>` as a case. Without it the next change reintroduces the divergence.
+    DO NOT COLLAPSE THE TWO SURFACES. That is not authorized here: they exist for different reasons (an offline script with no interpreter cost, and a live engine that reads repository state), and the docstring asks them to AGREE on the static layer, not to become one code path.
 
 ## Validation and cross-check (verify before reporting done)
 
@@ -253,6 +276,11 @@ Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` 
 
 - [ ] V-05 validates E-05
   - Required evidence: paste OQ-03's recorded answer and which option it selected. THEN paste, for every command E-03 touched, the candidates from BOTH surfaces side by side: the driven `COMPREPLY` from the generated script, and `complete_query(words, cword)` for the same position, showing they AGREE. If OQ-03 chose option (b), paste the amended `_subcommand_candidates` docstring instead, showing it no longer claims a parity the code does not keep. A run that changes the static side and shows no dynamic-side evidence either way is a FAILED validation.
+  - Observed evidence:
+  - Result: pending
+
+- [ ] V-08 validates E-08
+  - Required evidence: paste the parser introspection BEFORE and AFTER, showing `choices=None` becoming the real list, and confirm by quotation that the list is DERIVED from `completion.SUPPORTED_SHELLS` rather than hand-written (a second literal list is a FAILED validation, since that is the same drift this defect is made of). Paste the updated `test_parser_shape_allows_child03_extension` with its diff and its amended comment, and state explicitly that the forward-compat intent is preserved. Paste the amended `cli.py:4735-4737` shape comment. Paste the ACTUAL argparse error for `aw completion index` before and after, and either show the handler's validation removed or explain why it is still reachable. THEN paste the DRIVEN `aw completion <TAB>` result showing the five targets, which is the maintainer's reported command finally working.
   - Observed evidence:
   - Result: pending
 

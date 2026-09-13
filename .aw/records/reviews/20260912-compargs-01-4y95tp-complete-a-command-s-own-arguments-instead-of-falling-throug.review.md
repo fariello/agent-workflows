@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-12
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -152,3 +152,42 @@ the two findings already escalated. None changes a published interface, migrates
 or touches a released artifact; the two that COULD have (adding `choices` to a public positional,
 amending a parity contract) are precisely the two that were escalated to the maintainer rather than
 taken on reviewer authority.
+
+## Round 2
+
+Opened 2026-09-12 to record the maintainer's answers to the two questions round 1 escalated. Round 1 is
+left exactly as written, per the reviews README: the gate reads only the CURRENT round, and rewriting a
+completed round would hide that the questions were put. No plan content was re-critiqued in this round
+beyond applying the rulings, and no product code was modified.
+
+A NOTE ON AUTHORSHIP, since it bears on how much this round is worth. Round 1 was performed by a
+different agent than the one that AUTHORED the plan, and it found the plan's central premise to be
+false. This round is written by the plan's author, who VERIFIED both escalations independently before
+accepting them rather than deferring to them.
+
+BOTH ESCALATIONS RE-VERIFIED TRUE. OQ-02: the `completion` positional reports `choices=None` with
+`metavar='bash|zsh|fish|install|uninstall'`, so the vocabulary is a DISPLAY string and E-02's capture
+had nothing to find; the free-form shape is documented as intentional at `cli.py:4735-4737` and PINNED
+by `tests/test_completion.py:206-214`. OQ-03: `complete_query` (`completion.py:625`) is a second
+surface, `_subcommand_candidates`'s docstring (`:593-596`) states it mirrors the static scripts so the
+two agree on the static layer, and `complete_query(['aw','completion',''],2)` returns `[]` today, so
+teaching only the static generator would have falsified that contract in the file documenting it.
+
+THE AUTHORING FAILURE IS WORTH NAMING PLAINLY: the plan asserted a fixed `choices` vocabulary that does
+not exist, and checked one of two surfaces. Both were verifiable in one command each. The lesson this
+round records is that "introspection does not see X" needed a measurement of WHY, not an assumption
+about where X lived.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | A. Correctness / G. Plan executability | `choices=None` and the `metavar` re-measured at round 2; `cli.py:4735-4737`; `tests/test_completion.py:206-214` | Carried forward from round 1: THE PLAN'S MECHANISM CANNOT FIX THE REPORTED CASE, because `aw completion`'s vocabulary is not in argparse `choices` at all. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | RESOLVED by the maintainer choosing to ADD REAL `choices` (OQ-02), over shipping E-01 alone and over parsing the `metavar` (which round 1 correctly flagged as the same class of guess that produced the defect). New E-08/V-08 own it: derive the list from `SUPPORTED_SHELLS` rather than writing a second literal, UPDATE the pinned shape test with its reason rather than deleting it, amend the `cli.py` shape comment, and remove the handler validation that argparse makes unreachable. The plan's false premise is corrected in the OQ text rather than left standing beside its resolution. |
+| PR-002 | HIGH | IN-SCOPE | C. Architecture and operability / D. Anti-regression | `completion.py:593-596`, `:625`; `complete_query(['aw','completion',''],2)` -> `[]`, re-run at round 2 | Carried forward: THE PLAN CHANGES ONE OF TWO SURFACES AND WOULD FALSIFY THEIR DOCUMENTED PARITY, which it never mentioned. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | RESOLVED by the maintainer choosing to FIX BOTH SURFACES (OQ-03). E-05's open branch is CLOSED: it now says share the capture so the two cannot drift by construction, and the amend-the-docstring escape is explicitly forbidden. Collapsing the surfaces is also forbidden, since they exist for different reasons. E-05 additionally requires a PARITY TEST, which nothing provides today and whose absence is why this plan could have broken the contract silently. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Round 1 was written by a different agent and found the author's premise false. Accept it, or re-litigate? | ACCEPT, after independently verifying both escalations rather than deferring to them. Both reproduced in one command each. | Re-argue the premise (rejected: `choices=None` is not a matter of interpretation); accept without checking (rejected: a review's value is in what it measured, and confirming that is cheaper than trusting it). | The two re-measurements recorded above. | yes |
+| D-2 | Does adding `choices` need its own E-item, or does correcting E-02 suffice? | ITS OWN ITEM, E-08. | Fold it into E-02 (rejected: E-02 is a generic introspection change while this is a deliberate narrowing of a PUBLIC CLI surface that breaks a pinned test and moves an error message; bundling them would hide a contract change inside a refactor). | The pinned test and the intentional-shape comment, both of which E-08 must change. | yes |
