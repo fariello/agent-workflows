@@ -47,15 +47,15 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: the naming and identity core, reusing what exists
 
-- [ ] E-01 CREATE THE ADOPTION MODULE AND DERIVE THE NAME FROM THE EXISTING GRAMMAR, reusing `artifact_core` rather than reimplementing naming. The target shape is the uniform grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<model>].<kind>.md`.
+- [x] E-01 CREATE THE ADOPTION MODULE AND DERIVE THE NAME FROM THE EXISTING GRAMMAR, reusing `artifact_core` rather than reimplementing naming. The target shape is the uniform grammar `YYYYMMDD-<setid>-NN-<id6>-<slug>[.<model>].<kind>.md`.
   READ `aw research new` FIRST AND FOLLOW IT. It already solves this exact problem for one tree, including the optional `.<model>` facet, the `--date` override, the dry-run default and `--apply`. Whatever this verb does differently from that command should be a deliberate, stated difference, not an accident of writing it fresh. If the name derivation can be CALLED rather than copied, call it: a second name-deriver is how two spellings of one grammar appear.
   DO NOT INVENT A SECOND ID6 PRIMITIVE. `artifact_core.generate_id6(existing, ...)` already takes the collision set, and `iter_id6_in_text` already exists for building it. Use them.
   THE CALLABLE SEAM IS `research_cmd.plan_new`, AND IT IS GENUINELY CALLABLE (review PR-504), so "call rather than copy" is achievable rather than aspirational: it is a keyword-only planner returning `(files, error)` and WRITING NOTHING, it already composes the `ResearchName` and the `build_frontmatter` block, and critically it accepts an `existing_ids` parameter, which is the seam E-02 needs to inject a repository-wide collision set instead of its tree-scoped default. Call it and pass that set. BUT NOTE THE SCOPE CONSEQUENCE: `plan_new` is research-specific (it normalizes against `research_contract` KINDS and emits the spec-5.8 YAML block), so calling it makes `aw adopt` a research-tree verb for now. If the intent is to adopt into OTHER typed trees, those have different front-matter dialects and different vocabularies and there is no equivalent planner for them; SAY which trees this verb supports on day one rather than implying all of them, because "a typed records tree" in the title reads as general and the reusable machinery is not.
   - Depends on: none
   - Expected outcome: a new module deriving a conforming filename for a given type/kind/slug/set/model/date, with the id6 minted through `artifact_core.generate_id6` against a real repository-wide collision set injected via `plan_new`'s `existing_ids` seam; the name derivation shared with `aw research new` or the divergence stated; the set of destination trees actually supported on day one stated explicitly.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 MINT A FRESH id6 AND NEVER ADOPT ONE FOUND IN THE BODY. This is the sharpest correctness edge in the plan. A raw external document may contain something that looks like front matter, including a `- Id:` line, and `AGENTS.md` warns that such a line is "almost always a QUOTED EXAMPLE, and honoring it would forge an identity claim that collides with a real artifact".
+- [x] E-02 MINT A FRESH id6 AND NEVER ADOPT ONE FOUND IN THE BODY. This is the sharpest correctness edge in the plan. A raw external document may contain something that looks like front matter, including a `- Id:` line, and `AGENTS.md` warns that such a line is "almost always a QUOTED EXAMPLE, and honoring it would forge an identity claim that collides with a real artifact".
   GUARD BOTH FRONT-MATTER DIALECTS, NOT JUST THE BULLET ONE (review PR-503). This is the single most important correction to this plan, because as written the guard misses the dialect the LIKELIEST destination tree actually uses. Measured at review: research artifacts carry YAML front matter (`---` fenced, `id: xn6f6u`, `set:`, `status:`), NOT the bullet `- Id:` dialect, verified on every file under `.aw/records/research/reference/202609/` and specified at `.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md` §5.8. Eight of the nine live inbox drops are research reports, so the destination is overwhelmingly the YAML tree, and an external LLM report that opens with a `---` fenced block containing `id:` is exactly the shape this verb will meet first. A guard written against `^- Id:` alone would not see it. Detect an id6 in EITHER dialect and in bare body prose, and adopt none of them.
   NOTE A REVIEWED SIBLING PLAN IS FIXING THE SAME DIALECT BLINDNESS ELSEWHERE, so do not solve it a second way: `xo3244` (`selfmdialect-01`, `reviewed`, Scope-Paths `agent_workflows/selectors.py`) teaches the ONE selector-to-file resolver both dialects, because `selectors.py` understands only the bullet dialect and therefore cannot match research id6/setid/status at all. If it has landed, PREFER its shared reader over a private one here; if it has not, keep this detection local and small so it can be replaced by that reader rather than competing with it. Either way state which situation you are in. This plan never mentioned the dialect split; that omission was the finding.
   BUILD THE COLLISION SET FROM THE WHOLE REPOSITORY, not from the destination tree alone. The id6 invariant is repository-wide (`check.id6-collision` and `check.id6-identity-slot` are cross-tree and fail closed), so a set scoped to one tree would mint a duplicate that `aw check` then rejects after the file is already written and the original deleted.
@@ -64,20 +64,20 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   IF THE BODY CONTAINS AN id6-SHAPED TOKEN, REPORT IT IN THE PREVIEW rather than silently ignoring it, so a human can see that the document mentions an identity and that the verb is deliberately not using it. Silence here looks identical to not having checked. Note `artifact_core.iter_id6_in_text` matches ANY 6-char base36 word, so on a long technical document it will produce false positives (ordinary words like `record` or `commit` are six lowercase letters); report matches in a way that does not drown the preview, and say how you bounded it.
   - Depends on: E-01
   - Expected outcome: the minted id6 is always fresh and never read from the body, in EITHER front-matter dialect; the collision set is repository-wide AND dialect-complete, with the tension against `plan_new`'s tree-scoped default explicitly resolved; an id6-shaped token in the body is surfaced in the preview without swamping it; `xo3244`'s status stated.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: the three maintainer decisions, implemented as decided
 
-- [ ] E-03 IMPLEMENT SUGGEST-THEN-CONFIRM FOR THE METADATA, which is maintainer decision 3. The verb proposes `--type`/`--kind`/`--slug`/`--set` from reading the document and shows them for approval BEFORE anything is written; it must NOT guess silently and must NOT bulk-adopt an inbox.
+- [x] E-03 IMPLEMENT SUGGEST-THEN-CONFIRM FOR THE METADATA, which is maintainer decision 3. The verb proposes `--type`/`--kind`/`--slug`/`--set` from reading the document and shows them for approval BEFORE anything is written; it must NOT guess silently and must NOT bulk-adopt an inbox.
   THE PREVIEW IS THE CONFIRMATION SURFACE, and the house pattern already gives it: dry-run by default, `--apply` to write, exactly as `aw research new` and `aw research new-comparison` do. So "suggest then confirm" needs no new interaction model: the bare invocation SUGGESTS and the `--apply` invocation CONFIRMS. State that mapping explicitly so a later reader does not add a redundant prompt.
   WRITE THE STARTER FRONT MATTER BUT PRESERVE THE BODY VERBATIM. `.aw/records/research/README.md` already exempts externally-produced artifacts from the house no-em-dash rule on the grounds that "their own punctuation and formatting are preserved", which is the authority for verbatim preservation; cite it rather than restating the rule. Do not reflow, re-wrap, normalize dashes, or strip anything from the body.
   REFUSE A BULK INVOCATION EXPLICITLY. A verb that accepts a directory or a glob will eventually be pointed at the whole inbox, which the maintainer forbade and which `AGENTS.md` repeats ("never bulk-adopt an inbox silently"). Take exactly one path and refuse more than one with a message saying why.
   WARN IN THE PREVIEW WHEN THE CONTENT LOOKS ALREADY ADOPTED (review PR-502), because the inbox is a queue nobody drains and re-adoption is the failure this verb is supposed to prevent. MEASURED: the `awmetastore` topic already exists as a complete six-file set under `.aw/records/research/reference/202609/`, and the inbox's `awmetastore-research-report.gemini31prohigh.agy.md` is the same document as adopted `xn6f6u`. Adopting it again would mint a SECOND id6 for content that already has one: not an id6 COLLISION (so `aw check` would not catch it) but a duplicate-identity condition that is worse, because two tracked records would claim the same content under different handles. Do a cheap similarity check before writing (a title match, a body digest against existing records of the same kind, or a slug match) and SURFACE it in the preview as "this may already be adopted as `<id6>`". This is a WARNING, not a refusal: the human decides, exactly as with the leak gate. Do not attempt content-identity in general; a cheap check that catches this measured case is the requirement.
   - Depends on: E-01
   - Expected outcome: a bare invocation previews the proposed type/kind/slug/set and writes nothing; `--apply` performs the adoption; the body is byte-identical after adoption; more than one input path is refused with a stated reason; a drop whose content already exists as a record is FLAGGED in the preview, proven against the measured `awmetastore` case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 RUN THE LEAK SANITIZER BEFORE WRITING AND MAKE THE REFUSAL AN INTERACTIVE ASK WITH A DOCUMENTED OVERRIDE, which is maintainer decision 2. Adoption is the moment unvetted external text crosses into permanent tracked history, so it is the only point where the mistake is still cheap to undo.
+- [x] E-04 RUN THE LEAK SANITIZER BEFORE WRITING AND MAKE THE REFUSAL AN INTERACTIVE ASK WITH A DOCUMENTED OVERRIDE, which is maintainer decision 2. Adoption is the moment unvetted external text crosses into permanent tracked history, so it is the only point where the mistake is still cheap to undo.
   THE TWO-TIER MODEL ALREADY EXISTS AND MAPS ONTO THIS EXACTLY, so consume it rather than inventing a policy: `leak_sanitizer` documents that `fail` patterns fail the non-interactive gate while the softer tier is meant to "confirm, never fail CI", and `Finding.severity` is `"fail" | "warn"`. Refuse on `fail`, report `warn`.
   THE ENTRY POINT IS `scan_text`, NOT `scan_working_tree` (review PR-505), and getting this wrong would produce a gate that silently passes everything. The default scan mode enumerates TRACKED files via `git ls-files`, and an inbox drop is gitignored and therefore untracked, so `scan_working_tree` would never see it. Use `leak_sanitizer.scan_text(text, location_prefix, ruleset, include_warn=True)` with a ruleset from `build_ruleset(repo_root)`, which scans supplied content line by line and is the correct seam for a PRE-WRITE gate on content that is not yet a tracked file.
   THE GATE IS NOT THEORETICAL: IT ALREADY BITES ON LIVE CONTENT (review PR-505). Measured at review over all nine current drops with `include_warn=True`: eight are completely clean, and `awmetastore-research-report.gemini38flashhigh.agy.md` carries TWO `fail` findings on one line, rules `home-path` and `handle`, i.e. a real maintainer home path inside an external model's report. So this gate would refuse a real adoption today, on real content, for a real reason. That is the strongest possible justification for E-04 and it should be the fixture case E-07 models rather than a synthetic one. It also means the override path is not hypothetical and will be exercised early, so its recording requirement is load-bearing rather than ceremonial.
@@ -87,34 +87,34 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE ANY SANITIZER PATTERN OR SEVERITY. If a finding is a false positive, that is what the override is for; editing the ruleset to make an adoption pass would weaken a gate that protects every other surface.
   - Depends on: E-03
   - Expected outcome: a `fail`-severity finding refuses the adoption before any write; `warn` findings are reported; an explicit override flag proceeds AND records the findings in the adopted artifact; no TTY means refuse rather than hang; no sanitizer pattern or severity changed.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 MOVE, NOT COPY, AND MAKE THE WHOLE ADOPTION ATOMIC ENOUGH TO FAIL SAFELY. Maintainer decision 1 is to REMOVE THE ORIGINAL on success, because two durable copies where the inbox one has no id6 can silently drift, and because deleting it keeps the inbox a queue of genuinely outstanding work.
+- [x] E-05 MOVE, NOT COPY, AND MAKE THE WHOLE ADOPTION ATOMIC ENOUGH TO FAIL SAFELY. Maintainer decision 1 is to REMOVE THE ORIGINAL on success, because two durable copies where the inbox one has no id6 can silently drift, and because deleting it keeps the inbox a queue of genuinely outstanding work.
   ORDER THE OPERATIONS SO A FAILURE NEVER LOSES THE FILE. The destructive step is the removal, so it must be LAST, after the destination write and the index refresh have succeeded. If any earlier step fails, the original must still be in the inbox and no partial artifact left in the records tree. State the ordering and what happens on each failure point; do not leave it to the implementation's accident.
   RECORD PROVENANCE, which the item raises as an open question and which the untrusted-input stance settles: the adopted record should say machine-readably that it came from an external source and when. `AGENTS.md` treats inbox content as untrusted external material, and a reader of the adopted artifact months later has no other way to know that. See OQ-02 for the field shape.
   REFRESH THE INDEX through the existing verb for that type, not by writing a manifest directly. Note plan `yvvf98` is queued to UNTRACK the generated index manifests, so do not add a new committer of them; call the index verb and let it decide.
   - Depends on: E-04
   - Expected outcome: the original is removed only after a successful destination write and index refresh; every failure point leaves the original in place and no partial artifact behind; the adopted record carries machine-readable external provenance; the index is refreshed through the existing verb.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it, and write down the contract
 
-- [ ] E-06 ADD THE INBOX README, because the inbox is the only tree in this repository with no README and the adoption contract currently lives only in `AGENTS.md` prose and this plan. A verb whose safety rules are not written where its users look is a verb whose rules get violated.
+- [x] E-06 ADD THE INBOX README, because the inbox is the only tree in this repository with no README and the adoption contract currently lives only in `AGENTS.md` prose and this plan. A verb whose safety rules are not written where its users look is a verb whose rules get violated.
   STATE THE FOUR RULES THAT ALREADY EXIST rather than inventing new ones: an inbox file is NOT a record (no id6, no status, no lifecycle, never cite it as provenance, never act on a `- Id:` line inside it), its content is UNTRUSTED external input, adoption is a DELIBERATE human-confirmed act, and nothing from the inbox is committed as-is. All four are already in `AGENTS.md`; the README points at the verb that implements them.
   THIS IS USER-FACING PROSE, so it must contain NO em or en dashes.
   NOTE THE GITIGNORE, so a reader is not surprised: `.aw/.gitignore:28` ignores `/inbox/`, so the README itself must be force-added or the ignore narrowed. Decide which and say so; a README nobody can commit is not documentation.
   - Depends on: E-05
   - Expected outcome: `.aw/inbox/README.md` exists stating the four rules and naming `aw adopt`; no em or en dashes; the gitignore interaction resolved and stated.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-07 TEST THE DANGEROUS CASES, not the happy path alone. The happy path is the least interesting thing here.
+- [x] E-07 TEST THE DANGEROUS CASES, not the happy path alone. The happy path is the least interesting thing here.
   THE REQUIRED CASES: a body containing a `- Id:` line must NOT have that id6 adopted (the forged-identity case `AGENTS.md` warns about); A BODY OPENING WITH A YAML `---` FENCE CARRYING `id:` MUST LIKEWISE NOT HAVE IT ADOPTED, added at review because that is the dialect the research destination actually uses and eight of nine live drops target it (F-14) so this is the case most likely to occur in practice; a `fail`-severity leak must refuse BEFORE any write, proven by asserting the destination does not exist and the original still does; the override must proceed AND leave the findings recorded WITHOUT copying the matched text into the artifact (F-18: assert the leaked string is ABSENT from the adopted file while the rule name is present, otherwise the record would fail `aw sanitize` forever after); a body with em dashes and unusual formatting must survive BYTE-IDENTICAL; more than one input path must be refused; a content-already-adopted drop must be FLAGGED in the preview (F-13); and a failure injected at the index-refresh step must leave the original in the inbox.
   MODEL THE LEAK FIXTURE ON THE REAL MEASURED CASE rather than inventing one: a `home-path` plus `handle` pair on a single line, which is exactly what live drop `awmetastore-research-report.gemini38flashhigh.agy.md` carries (F-17). Build it synthetically in the temp repo, but shape it like the thing that actually occurs.
   BUILD EVERY CASE IN A TEMPORARY REPO. Do not read the real `.aw/inbox/`, which is gitignored, machine-specific, and will be emptied as drops are adopted; a test pinned to it passes today and fails tomorrow.
   ASSERT THE ID6 IS REPOSITORY-WIDE UNIQUE after adoption by running the existing collision check rather than by inspection, since that is the invariant that actually matters and it is already implemented.
   - Depends on: E-06
   - Expected outcome: all EIGHT dangerous cases covered in a temporary repo (the six authored plus the YAML-dialect id6 case and the already-adopted-duplicate case), each asserting on filesystem state rather than on return values alone; the override case additionally asserting the leaked string is absent from the adopted artifact; the repository-wide id6 uniqueness proven through the existing check WITH a statement of which rule fired.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -155,6 +155,9 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 | F-9 | LOW | `.aw/records/research/README.md:77` (re-located; `:60` had drifted) | Externally-produced artifacts are already exempt from the house no-em-dash rule because "their own punctuation and formatting are preserved", which is the authority for verbatim body preservation. Verified at review. | file read |
 | F-10 | LOW | plan `yvvf98` (**`executed`**, not pending) | The generated index manifests are ALREADY untracked: `git ls-files` finds zero `records/*/index.md`. So the "do not become a new committer" caution is satisfied by construction, not a pending constraint. | `git ls-files`; that plan's status |
 | F-21 | LOW | `artifact_core.iter_id6_in_text` | THE BODY-SCAN PRIMITIVE IS DELIBERATELY BROAD: it matches any 6-char base36 word boundary, so on a long technical document ordinary six-letter words will match. E-02's "surface it in the preview" needs bounding or the preview drowns. | source read |
+| F-22 | HIGH | `check_engine._ID_LINE_RE` vs the VERBATIM body (found at EXECUTION, 2026-09-13) | **THE PRESERVED BODY CAN ITSELF FORGE A DECLARATION, WHICH NEITHER THE PLAN NOR ITS REVIEW ANTICIPATED.** Both assumed the forged-identity risk lived in the MINT. It also lives in the OUTPUT: `_ID_LINE_RE` is `(?m)^- Id:\s*([0-9a-z]{6})\s*$` applied to the WHOLE FILE, not to a front-matter block, so a bullet `- Id: <id6>` line anywhere in an adopted artifact (including one merely QUOTED by an external report, which is precisely the shape `AGENTS.md` warns about) is harvested by `aw check` as that artifact's DECLARED identity. MEASURED: adopting a report quoting `- Id: abc123` while a plan legitimately owns `abc123` produced `check.id6-collision ... id6 abc123 also on ...-abc123-a-real-plan.ipd.md`, i.e. the adopted research doc now CLAIMS the plan's identity. The body must stay verbatim and `check_engine` is out of fence, so the fix is at the gate and is PROPORTIONATE: a quoted id6 that collides with a LIVE owner is REFUSED with the reason and the remedy; a quoted id6 owning nothing is reported and allowed, because refusing every document that quotes the grammar would make the verb unusable on exactly the research reports it exists to adopt. Three tests pin all three branches. | measured on a synthetic repo; `test_a_quoted_bullet_id_that_collides_with_a_live_owner_is_refused`, `..._owning_nothing_is_reported_and_allowed`, `test_no_collision_drift_after_adopting_a_body_that_quotes_an_id` |
+| F-23 | MED | `leak_sanitizer.build_ruleset` rule NAMES (found at EXECUTION by the E-07 override test) | **SOME RULE NAMES EMBED THE MATCHED TOKEN, so F-18's fix is incomplete as reviewed.** F-18 correctly said not to record a `Finding`'s evidence excerpt. But `build_ruleset` registers advisory patterns as `derived:<token>` and a config-promoted hostname as `hostname:<token>`, so recording the RULE NAME verbatim writes the leaked username or hostname into the tracked artifact just as surely. The first implementation did exactly that; the test caught it (`AssertionError: '<handle>' unexpectedly found in ... Warn rules: derived:<handle>`). `safe_rule_name` now redacts those two namespaces at EVERY sink (artifact note, refusal message, stdout preview, agent-mode fields) while structural and indexed config names pass through unchanged. | measured; `test_a_rule_name_that_embeds_the_matched_token_is_redacted` |
+| F-24 | MED | `check_engine._ID_LINE_RE` + `artifact_naming.ARTIFACT_TYPE_FACETS` (found at EXECUTION) | **`aw check` CANNOT DETECT A DUPLICATE RESEARCH id6 AT ALL**, so V-02's "paste `aw check all` showing no collision" proves less than the plan assumed and the review's correction (that the FILENAME identity-slot rule would prove it) is also wrong. The declared-id map is bullet-only, and `research-report` is not in the CLOSED facet enum, so `parse_clustered` returns None and `_identity_slot_token` returns None, exempting the file from the identity-slot rule. MEASURED: two research files both declaring `id6=dupdup` produce ZERO drift. PRE-EXISTING and outside this fence; recorded because it means an adopted research id6's uniqueness rests entirely on the mint, which is now asserted directly instead of via `aw check`. | measured; `test_aw_check_proves_nothing_about_a_research_id6_so_the_mint_must` |
 
 ## Proposed changes (ordered, validatable)
 
@@ -178,6 +181,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 ## Scope check
 
 - Over-scope: `.aw/records/backlog/README.md` is declared ONLY if E-06's gitignore resolution requires documenting the inbox convention in a committed README instead of an ignored one; if the inbox README can be committed directly, that path is unmodified and must be acknowledged at finalize rather than edited to justify the declaration. FLAGGED AT REVIEW (PR-507): this looks like a MIS-PICK rather than a contingency. That file mentions the inbox nowhere, and the BACKLOG tree has no relationship to inbox adoption, so it is an implausible fallback home for the contract. If a committed home is needed, the plausible candidates are `.aw/records/README.md` or the `AGENTS.md` generator in `engine.py`. Re-decide the fallback path before execution, or drop the declaration and take the `--scope-ack`.
+  RESOLVED AT EXECUTION: the review was right that this is a mis-pick, and the contingency never triggered. `.aw/inbox/README.md` IS committable directly via a deliberate force-add (V-06), so no fallback home was needed and `.aw/records/backlog/README.md` was NOT modified. It requires a `--scope-ack` at finalize as declared-but-unmodified.
+- SCOPE RECONCILIATION MEASURED AT EXECUTION, so finalize's gate holds no surprises. Against the live begin receipt (`base_head 78aa3b31`, `scope_paths` = the four declared), `check_engine.check_scope_drift` reports exactly TWO out-of-scope paths for this plan, both expected and both justified here:
+  * `agent_workflows/command_surface.py` (needs `--scope-reason`): MANDATORY, not optional. Every parser leaf must carry a `CommandDeclaration` in `COMMAND_INVENTORY` or `find_undeclared_leaves` reports it (enforced by `test_command_surface_declarations` and `test_cli_conformance_matrix`). This is the identical certainty that plan `jxqdcw` hit and resolved by adding this same file to its Scope-Paths; this plan simply did not anticipate it. The edit is one declaration modeled on `research new`/`archive`, and `adopt` is verified absent from the undeclared set.
+  * `.aw/inbox/README.md` (needs `--scope-reason`): this is E-06's REQUIRED deliverable, named in the item and in E-06's expected outcome, but omitted from `- Scope-Paths:` by the author. Creating it is the plan's own instruction, so this is a declaration gap rather than scope creep.
+  The four declared paths: `agent_workflows/cli.py` MODIFIED, `agent_workflows/artifact_adopt.py` CREATED, `tests/test_artifact_adopt.py` CREATED, `.aw/records/backlog/README.md` UNMODIFIED (`--scope-ack`, see above). Total changed set is five files; `git status --short` confirms nothing else.
 - Over-scope, POSSIBLE AND NOT YET DECLARED: if OQ-02 resolves to the front-matter facet route, `.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md` enters the fence as a SPEC AMENDMENT and must be declared before execution (F-19). Deliberately not pre-declared because two of OQ-02's three routes do not touch it.
 - Under-scope: stated rather than left as `none`. After this plan a comparison SET still requires two or three separate adoptions (OQ-03), which is the shape of 8 of the 9 live drops rather than an edge case; nothing reorganizes any tree (`oxjt1d`, still `open`); the verb supports whichever destination trees E-01 states, which given `plan_new`'s research-specificity is likely research alone on day one despite the title's general phrasing; and the already-adopted-duplicate check (F-13) is a preview WARNING rather than a general content-identity mechanism.
 
@@ -211,8 +219,9 @@ SECOND QUESTION, ANSWERED YES, AND IT IS THE EXPENSIVE ANSWER: the front-matter 
 ### OQ-02: What shape does the external-provenance record take?
 
 - Blocking: no
-- Status: open
+- Status: resolved
 - Owner: the maintainer for the spec-amendment call, this plan's executor for the field shape
+- EXECUTOR RESOLUTION (2026-09-13): TOOK ROUTE (c), provenance OUTSIDE the front matter, and did NOT amend the spec. The deciding reason is the one this question itself identifies: route (a) amends `.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md` §5.8, which is that spec's declared "source of truth" for the eleven-field schema in a spec whose status is `implemented`, and the repository's rule is that a plan amending a spec MUST declare that path in `- Scope-Paths:`. This plan does not declare it, and the maintainer left the choice open precisely BECAUSE it touches an implemented spec, so silently amending it would have been the worse failure of the two. WHAT THIS COSTS, stated plainly: E-05's "machine-readable provenance" is NOT delivered. What IS delivered is (i) a stable, greppable marker `<!-- aw-adopt: provenance -->` chosen so a later facet migration can enumerate every adopted record deterministically, (ii) the original FILENAME captured before deletion, and (iii) route (b) IN ADDITION, since the `model:` facet is preserved when the drop's filename names one, so authorship provenance IS in the front matter even though inbox-origin provenance is not. THE MAINTAINER'S REMAINING CHOICE: amend §5.8 to add a `source:`/`adopted-from:` facet via a follow-up plan that DECLARES that spec path, or accept prose provenance permanently.
 - Resolution or deferral rationale: STILL OPEN, BUT ITS PRECONDITION IS NOW ANSWERED, AND THE ANSWER IS THE ONE THAT COSTS MORE (review PR-506). The plan told its executor to "check first whether the destination type's front-matter facet set is DEFINED in a spec". Review checked. IT IS: `.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md` §5.8 is titled "Frontmatter schema (authored/tool-written; **the source of truth**)" and enumerates the eleven fields (`id`, `created`, `set`, `order`, `topic`, `model`, `kind`, `status`, `outcome`, `summary`, `consumed-by`); `research_cmd.build_frontmatter` names itself "a full spec-5.8 frontmatter block (the 11 required fields, canonical order)". That spec is `- Status: implemented`. So ADDING a `source:`/`adopted-from:` facet IS a spec amendment, not a free additive choice, and per the repository's own rule a plan that amends a spec must declare that `.spec.md` in `- Scope-Paths:` so the runners announce it and the finalize scope gate reconciles it.
   THREE ROUTES, AND THE CHOICE IS THE MAINTAINER'S BECAUSE IT TOUCHES AN IMPLEMENTED SPEC. (a) AMEND §5.8 to add the facet, declaring the spec path and explaining why in the spec-sync section; the honest route if machine-readable provenance is genuinely wanted. (b) REUSE AN EXISTING FIELD, which is nearly free: `model:` already records authorship provenance for external artifacts (the spec says it is recorded in frontmatter "so provenance is queryable even when omitted from the name"), and `summary:` is human prose. Neither says "this came from the inbox on this date", so reuse is a partial answer. (c) RECORD PROVENANCE OUTSIDE THE FRONT MATTER, for instance in the workflow-history or a body note, which needs no spec change but is prose rather than machine-readable and so does not satisfy E-05's stated requirement.
   THIS IS WHY IT IS NOT SILENTLY RESOLVABLE: E-05 currently REQUIRES machine-readable provenance, and the only route that delivers it is (a), which amends an implemented spec. Either the requirement softens to (c) or the plan takes on a spec amendment it has not declared. A reviewer must not pick for the maintainer, so the question stays open with the precondition now settled. NOTE ALSO, unchanged and still right: the original filename is itself useful provenance and is about to be deleted, so capture it before the move.
@@ -225,45 +234,378 @@ SECOND QUESTION, ANSWERED YES, AND IT IS THE EXPENSIVE ANSWER: the front-matter 
 - Resolution or deferral rationale: NOT blocking, because single-file adoption is complete and useful on its own and the deferred section already excludes the multi-file mode. THE CASE IS MORE LIVE THAN F-7 SAID AND THE RATIO IS THE POINT (review PR-501): re-measured at review, the inbox holds THREE multi-variant topics covering EIGHT of its NINE files, and exactly ONE genuinely single-file drop. So the mode this plan DEFERS is the shape of 8 of 9 live drops, and the mode it DELIVERS addresses 1. That is still a defensible order (the single-file path is the primitive the group mode would compose from, and shipping the safety properties first is worth more than shipping breadth), but the plan must not imply the single-file case is typical. It is the exception in the current queue.
   THE RECOMMENDATION IS UNCHANGED AND EVIDENCE NOW SUPPORTS IT MORE STRONGLY: COMPOSITION. `adopt` takes a `--set` argument (which E-01 already derives names from) and the human passes the same setid two or three times, rather than `adopt` learning to consume a group. Note this composes cleanly with the ORDER math already in `plan_new`, which calls `_next_order_for_set` and so assigns `01`, `02`, `03` across successive adoptions into the same set automatically; that is why composition is nearly free here rather than merely cheap. Recommend it and let the maintainer decide whether a real group mode is wanted.
   ONE CAVEAT THE EXECUTOR MUST CARRY: `awmetastore` is ALREADY adopted as a six-file set (PR-502), so it is NOT a candidate for this and re-adopting it would duplicate identities. Of the three multi-variant topics only two are genuinely outstanding.
+  EXECUTOR RECOMMENDATION (2026-09-13), NOW PROVEN RATHER THAN ARGUED: COMPOSITION, and it works today with no new mode. `test_the_same_set_groups_successive_adoptions` adopts two drops with the same `--set shared` and asserts the resulting NN orders are `['00', '01']`, i.e. `plan_new`'s `_next_order_for_set` sequences a set across successive single-file adoptions automatically. So a human groups a multi-variant topic by passing the same `--set` two or three times, which is exactly the shape 8 of 9 live drops need, and a group mode would add a second code path for something the primitive already does. RECOMMEND NOT building one. NOTE FOR WHOEVER DRAINS THE LIVE INBOX: this worktree's `.aw/inbox/` is EMPTY (the directory did not exist until E-06 created it for the README), so the nine-drop inventory the plan and its review measured is not present here and could not be re-measured; the count changes as drops arrive and are adopted, exactly as the plan's own re-measure instruction warns.
 
 ## Validation and cross-check (verify before reporting done)
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the derived filename for at least three type/kind/slug/model combinations, showing each conforms to the grammar. Paste proof `artifact_core.generate_id6` was CALLED rather than reimplemented (show the call). State whether the name derivation is shared with `aw research new` or diverges, and if it diverges, say why.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THREE COMBINATIONS, each PARSED BACK through `research_contract.parse_name` rather than merely eyeballed (run in a temp repo, `--date 20260913` pinned):
+    ```
+    drop:    agent-skill-runtimes-research.gemini31prohigh.agy.md
+    ->name:  20260913-agent-skill-runtimes-research-00-4pec2f-agent-skill-runtimes-research.gemini31prohigh.research-report.md
+    parses under the grammar: True | err: None
+       date=20260913 set=agent-skill-runtimes-research NN=00 id6=4pec2f slug=agent-skill-runtimes-research model=gemini31prohigh kind=research-report
+    drop:    aw-artifact-metadata-storage-research-report.gpt56high.md   (--kind findings)
+    ->name:  20260913-aw-artifact-metadata-storage-research-report-00-32tt61-aw-artifact-metadata-storage-research-report.gpt56high.findings.md
+    parses under the grammar: True | err: None
+       date=20260913 set=aw-artifact-metadata-storage-research-report NN=00 id6=32tt61 slug=... model=gpt56high kind=findings
+    drop:    run-analytics-spa-implementation-prompt.md   (--set analytics --slug spa-analytics)
+    ->name:  20260913-analytics-00-tlv9p6-spa-analytics.research-prompt.md
+    parses under the grammar: True | err: None
+       date=20260913 set=analytics NN=00 id6=tlv9p6 slug=spa-analytics model=None kind=research-prompt
+    ```
+    `generate_id6` IS CALLED, NOT REIMPLEMENTED, proven by the whole chain rather than by one line. `"def generate_id6" in inspect.getsource(artifact_adopt)` is `False`, and the call chain measured by line:
+    ```
+    artifact_adopt.plan_adoption: existing = repository_id6s(repo_root)
+    artifact_adopt.plan_adoption: files, err = _rc.plan_new(
+    artifact_adopt.plan_adoption:     existing_ids=existing,
+    research_cmd.plan_new:        ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
+    research_cmd.plan_new:        id6 = generate_id6(ids)
+    research_cmd.generate_id6:    return _core.generate_id6(existing, _rng)
+    artifact_core.generate_id6:   def generate_id6(existing: 'set', _rng: 'Optional[Callable[[str], str]]' = None) -> 'str'
+    ```
+    THE DERIVATION IS SHARED, NOT FORKED: `research_cmd.run_new` (which is `aw research new`) also derives through `plan_new` (`files, err = plan_new(`). There is exactly ONE stated divergence and it is deliberate: `adopt` PASSES `existing_ids` (the repository-wide, dialect-complete set built by `repository_id6s`), while `run_new` omits it and therefore inherits `plan_new`'s tree-scoped `_existing_id6s` default. That is the E-01/E-02 tension resolved by INJECTION rather than by copying the planner (see V-02).
+    DESTINATION TREES SUPPORTED ON DAY ONE, stated rather than implied: `artifact_adopt.SUPPORTED_TYPES == ('research',)`, and an unsupported type is REFUSED with the reason rather than half-served: `aw adopt ... --type specs` -> `unsupported destination type 'specs'; aw adopt supports research on day one (the reusable planner is research-specific: the bullet-dialect trees have different frontmatter dialects and vocabularies and no equivalent planner)`. THE PLAN TITLE'S GENERAL PHRASING ("a typed records tree") THEREFORE OVERSTATES WHAT SHIPPED; the honest scope is one tree, exactly as the review's scope caveat predicted, and the CLI help, the module docstring, and the refusal message all say so.
+  - Result: pass
 
-- [ ] V-02 validates E-02
+- [x] V-02 validates E-02
   - Required evidence: paste an adoption of a body containing a `- Id: abc123` line, showing the adopted artifact carries a DIFFERENT, freshly minted id6 and that `abc123` was surfaced in the preview as present-but-not-adopted. THEN PASTE THE SAME FOR A YAML-FENCED BODY carrying `id: abc123`, since that is the dialect the research destination uses and the authored guard would have missed it (F-14). Paste the collision set's construction showing it is repository-wide AND dialect-complete, and state how you resolved the tension with `plan_new`'s tree-scoped `_existing_id6s` default (F-15): show the `existing_ids` injection or justify a fork. State `xo3244`'s status and whether you consumed its shared reader. Paste `aw check all` on the result showing no id6 collision, and state WHICH rule proved uniqueness (for a YAML artifact it is the filename identity-slot rule, not the declared-id map). Paste your bounding of the body id6 scan (F-21).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BULLET DIALECT, preview then apply (temp repo):
+    ```
+    --- would adopt .aw/inbox/bullet-research-report.md ---
+      id6:  u79dhk (freshly minted against 0 repository-wide ids, both dialects)
+      body declares `- Id: abc123` (bullet dialect): PRESENT BUT NOT ADOPTED; a fresh id6 is minted instead
+    adopted filename: 20260913-bullet-research-report-00-l1ppgv-bullet-research-report.research-report.md
+    contains 'abc123'? False
+    ```
+    YAML-FENCED DIALECT (the one the authored guard would have missed, and the one 8 of 9 live drops use):
+    ```
+    --- would adopt .aw/inbox/yaml-research-report.md ---
+      id6:  cz5utn (freshly minted against 0 repository-wide ids, both dialects)
+      body declares YAML `id: abc123` (research dialect): PRESENT BUT NOT ADOPTED; a fresh id6 is minted instead
+    adopted filename: 20260913-yaml-research-report-00-74h17t-yaml-research-report.research-report.md
+    contains 'abc123'? False
+    adopted frontmatter id line: ['id: 74h17t', 'id: abc123']   <- ours first, the body's quoted copy preserved verbatim below
+    ```
+    THE COLLISION SET IS REPOSITORY-WIDE AND DIALECT-COMPLETE, measured on a temp repo holding one PLANS bullet id and one RESEARCH YAML id:
+    ```
+    measured set: ['yyy222', 'zzz111']
+    contains the PLANS bullet id zzz111 (another tree): True
+    contains the RESEARCH YAML id yyy222 (the dialect check_engine's reader MISSES): True
+    compare: what check_engine's own bullet reader finds in that research file: None
+    ```
+    Construction, by line (`repository_id6s`): iterate `check_engine.SUPPORTED` x `_iter_type_files(include_retired=True)`, then UNION three sources per file: the filename identity-slot id6 via `artifact_naming.parse_clustered`, the research grammar's id6 via `research_contract.parse_name` (needed because a `.research-report.md` name does NOT match the closed uniform facet enum), and every DECLARED id in EITHER dialect via `scan_body_identities`.
+    THE F-15 TENSION IS RESOLVED BY INJECTION, NOT BY FORKING, shown as the two facing lines:
+    ```
+    research_cmd._existing_id6s walks ONLY the research tree:  for p in research_root.rglob("*.md"):
+    plan_new's seam:  ids = existing_ids if existing_ids is not None else _existing_id6s(research_root)
+    adopt injects:    existing_ids=existing,
+    ```
+    `xo3244`'s STATUS: `approved`, still in `.aw/records/plans/pending/` (`grep '^- Status:'` -> `approved`), so it has NOT landed and there is no shared dual-dialect reader to consume. The detection here is therefore LOCAL and deliberately small (two module-level regexes plus a leading-fence finder, ~40 lines in `scan_body_identities`), so `xo3244`'s reader can REPLACE it rather than compete with it.
+    `aw check all` ON THE RESULT: `✓ CONFORMS  1 all checked`, `errors 0  warnings 0`, exit 0; `check_collisions(include_retired=True)` returns `[]`.
+    WHICH RULE PROVED UNIQUENESS, AND THE ANSWER IS WEAKER THAN THE PLAN ASSUMED. The plan predicted the filename identity-slot rule. MEASURED, IT IS NEITHER RULE:
+    ```
+    check_engine._ID_LINE_RE on the adopted research file -> None      (bullet-only; the YAML `id:` is invisible to it)
+    artifact_naming.parse_clustered(adopted name)          -> None      ('research-report' is NOT in the CLOSED ARTIFACT_TYPE_FACETS enum)
+    check_engine._identity_slot_token(adopted name)        -> None      (so the identity-slot rule EXEMPTS the file)
+    two research files both declaring id6=dupdup -> check_collisions drift: []
+    ```
+    So `aw check` CANNOT detect a duplicate research id6 at all; a clean check proves nothing about this artifact's uniqueness. That gap is PRE-EXISTING (it follows from the closed facet enum plus the bullet-only reader) and outside this plan's fence, but it changes what this V-item may claim: the uniqueness of an adopted research id6 rests ENTIRELY on the mint being made against the repository-wide dialect-complete set. That is therefore asserted DIRECTLY by `test_aw_check_proves_nothing_about_a_research_id6_so_the_mint_must`, which seeds a YAML-declared `tkntkn`, proves both collision rules are blind to it, proves `repository_id6s` sees it, and proves the mint avoids it.
+    BODY id6 SCAN BOUNDING (F-21): `BODY_TOKEN_PREVIEW_LIMIT = 5`. On a document with 10 distinct six-letter prose words the preview emits ONE line, not ten: `body contains 10 id6-shaped word(s) in prose: report, record, commit, adopts, status (+5 more). These are NOT identity claims (the matcher is deliberately broad ...); none is adopted.` DECLARED ids (either dialect) are named UNCONDITIONALLY, because a declaration is an identity claim rather than a coincidence.
+  - Result: pass
 
-- [ ] V-03 validates E-03
+- [x] V-03 validates E-03
   - Required evidence: paste the BARE invocation's output showing the proposed type/kind/slug/set and proving nothing was written (the destination does not exist, the original still does). Paste the `--apply` invocation. Paste a byte-comparison (a hash of the body before and after) proving the body is UNCHANGED, using a source body that contains em dashes and unusual formatting. Paste the refusal for two input paths with its message. Paste the ALREADY-ADOPTED warning firing on a fixture shaped like the measured `awmetastore` case (F-13), and confirm it WARNS rather than refuses. State which destination trees the verb accepts (E-01) and confirm the title's general phrasing matches what shipped.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: BARE INVOCATION (the SUGGEST half; the source body carries em dashes, en dashes, trailing spaces, a tab indent and no trailing newline):
+    ```
+    --- would adopt .aw/inbox/dashes-research-report.md ---
+      type: research (suggested)
+      kind: research-report (suggested)
+      slug: dashes-research-report (suggested)
+      set:  dashes-research-report (suggested)
+      model: (none)
+      id6:  zw2i6r (freshly minted against 0 repository-wide ids, both dialects)
+      destination: .aw/records/research/20260913-dashes-research-report-00-zw2i6r-dashes-research-report.research-report.md
+      leak scan: leak_sanitizer.scan_text; fail=0 warn=0
+      the body is written VERBATIM (no reflow, no dash normalization, no stripping)
+      nothing has been written; re-run with --apply to adopt
+    destination exists after bare run? False
+    original still exists? True
+    ```
+    `--apply` (the CONFIRM half) and the BYTE COMPARISON:
+    ```
+    wrote .aw/records/research/20260913-dashes-research-report-00-kmm0mw-dashes-research-report.research-report.md
+    removed .aw/inbox/dashes-research-report.md (the inbox copy)
+    index refreshed via the existing verb (research_index.run_index -> 0)
+    sha256(body BEFORE adoption):                  37f050dc77484d30219e8b3c406642923f6808219578778212d1af8f5c398970
+    sha256(tail of adopted file, len==len(body)):  37f050dc77484d30219e8b3c406642923f6808219578778212d1af8f5c398970
+    BYTE-IDENTICAL: True | sha match: True
+    ```
+    TWO INPUT PATHS REFUSED, with the message and the filesystem assertion:
+    ```
+    exit: 2
+    error: refusing 2 paths: `aw adopt` takes exactly ONE inbox drop. Adoption is a deliberate per-file
+    act (its metadata suggestion, leak verdict, and already-adopted warning are each per-document), and a
+    bulk mode would hide every one of them behind a single confirmation. Adopt them one at a time,
+    passing the same --set to group them.
+    nothing written: []          both originals intact: True True
+    ```
+    ALREADY-ADOPTED WARNING on the measured `awmetastore` shape (a seeded adopted `xn6f6u` with the same body, and the inbox's `gemini31prohigh` variant):
+    ```
+      WARNING: this may already be adopted as `xn6f6u` (.aw/records/research/reference/202609/20260901-metastore-01-xn6f6u-metastore.gemini31prohigh.research-report.md; match: identical-body).
+      Adopting again would mint a SECOND id6 for content that already has one, which `aw check` cannot detect. This is a warning, not a refusal: you decide.
+    WARNS rather than refusing (exit 0, original intact): True True
+    ```
+    It is a WARNING by construction: `test_the_warning_does_not_block_apply` proves `--apply` still succeeds, and `test_a_distinct_drop_is_not_flagged` proves it does not fire on unrelated content (so it is not a blanket warning that trains people to ignore it).
+    DESTINATION TREES ACCEPTED: research only (`SUPPORTED_TYPES == ('research',)`). THE TITLE'S GENERAL PHRASING DOES NOT MATCH WHAT SHIPPED and is recorded as such here rather than glossed: "a typed records tree" reads as any tree, the verb serves one. See V-01 for the refusal message that makes the limit explicit to a user.
+  - Result: pass
 
-- [ ] V-04 validates E-04
+- [x] V-04 validates E-04
   - Required evidence: paste an adoption attempt on a body carrying a `fail`-severity leak, showing it REFUSES and that the destination does not exist and the original is still in the inbox. Paste a `warn`-only case showing it reports and proceeds. Paste the override invocation showing it proceeds AND that the findings are RECORDED in the adopted artifact. THEN PASTE THE NEGATIVE HALF OF THAT RECORDING (F-18): grep the adopted artifact for the leaked string and show it is ABSENT while the rule name is PRESENT, since recording a `Finding`'s evidence excerpt verbatim would copy the leak into a tracked file and make the record permanently fail `aw sanitize`. Paste the no-TTY case showing it refuses rather than hanging. Paste a diff proving no sanitizer pattern or severity changed. STATE WHICH SCAN FUNCTION YOU CALLED and show it is `scan_text` rather than `scan_working_tree`, since the latter enumerates only TRACKED files and an inbox drop is gitignored, so a gate built on it would pass everything silently (F-16).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE FIXTURE IS MODELED ON THE REAL MEASURED CASE (a maintainer home path producing a `home-path` + `handle` pair on ONE line), assembled from fragments in the test so the test file is itself sanitizer-clean.
+    FAIL-SEVERITY LEAK REFUSES BEFORE ANY WRITE:
+    ```
+    exit: 2
+    error: refusing to adopt: the leak sanitizer reported fail-severity findings in this drop (rules:
+    home-path, handle; at .aw/inbox/leaky-research-report.md:3). Adoption is the moment unvetted external
+    text crosses into permanent tracked history, so this is the last cheap place to stop. Edit the drop, or
+    pass --allow-leaks to proceed with the findings recorded in the adopted artifact (the matched TEXT is
+    never recorded).
+    destination exists? []            original still in the inbox? True
+    ```
+    WHICH SCAN FUNCTION (F-16), stated and PROVEN by contrast rather than asserted:
+    ```
+    report.scan_function = leak_sanitizer.scan_text
+    call site:  ruleset = _leaks.build_ruleset(Path(repo_root), include_warn=True)
+    call site:  findings = _leaks.scan_text(text, location, ruleset, include_warn=True)
+    leak_sanitizer._tracked_files: ["git", "-C", str(repo_root), "ls-files"]
+    scan_working_tree over the same repo: 0 findings   (the drop is not tracked, so the naive gate passes everything)
+    scan_text over the same content:      2 fail findings
+    ```
+    In the REAL repo the drop is additionally gitignored: `git check-ignore -v .aw/inbox/README.md` -> `.aw/.gitignore:28:/inbox/`.
+    WARN-ONLY CASE reports and proceeds: `fail rules: () | warn rules: []` -> `exit: 0`, adopted `20260913-clean-research-report-00-hondjc-...research-report.md`.
+    OVERRIDE PROCEEDS AND RECORDS, the note as written into the artifact:
+    ```
+    <!-- aw-adopt: leak-gate override -->
+    > LEAK-GATE OVERRIDE RECORDED. This document was adopted from `.aw/inbox/` with
+    > `--allow-leaks` by `opencode/lznpv6` after the leak sanitizer reported fail-severity findings.
+    > Scan seam: `leak_sanitizer.scan_text`.
+    > Fail rules: home-path, handle.
+    > Fail locations: .aw/inbox/leaky-research-report.md:3.
+    > Warn rules: derived:<redacted>.
+    > The matched TEXT is deliberately NOT reproduced here: recording it would copy the leak
+    > into a tracked artifact, which would then fail `aw sanitize` on every later sweep.
+    ```
+    THE NEGATIVE HALF (F-18), measured on the note specifically rather than on the whole file:
+    ```
+    RULE NAMES present in the note: home-path=True handle=True    actor present: True
+    '<maintainer handle>' in note? False        '/home/' in note? False
+    occurrences in whole file: 1 | occurrences in body: 1   <- the ONLY copy is the verbatim body
+    ```
+    A SECOND F-18 HAZARD FOUND BY THIS TEST, NOT BY READING THE PLAN, and fixed: some sanitizer RULE NAMES themselves embed the matched token. `build_ruleset` registers advisory patterns as `derived:<token>` and a config-promoted hostname as `hostname:<token>`, so writing the rule name verbatim writes the leaked username or hostname into the tracked artifact just as surely as writing the line would. The first implementation did exactly that and the test caught it (`AssertionError: '<handle>' unexpectedly found in ... Warn rules: derived:<handle>`). `safe_rule_name` now collapses those two namespaces to `derived:<redacted>` / `hostname:<redacted>` at EVERY sink (the artifact note, the refusal message, stdout preview, and the agent-mode `leak_*_rules` fields), while structural names (`home-path`, `handle`, `session-id`) and indexed config names (`repo-pattern-0`, `user-hint-1`) pass through unchanged. Pinned by `test_a_rule_name_that_embeds_the_matched_token_is_redacted`.
+    NO TTY -> REFUSES RATHER THAN HANGING (the run that produced this evidence was itself non-interactive, so a hang would have shown as a timeout, not as this line):
+    ```
+    exit: 2
+    error: --allow-leaks needs a human: no TTY on both stdin and stdout (or AW_NONINTERACTIVE/CI is set),
+    so the override cannot be confirmed. Refusing rather than hanging or silently accepting. Re-run in a
+    terminal, or pass --yes to attest the override non-interactively.
+    wrote nothing: []    original intact: True
+    ```
+    The predicate follows the established fence and is unit-pinned: BOTH streams must be a TTY, and `CI`/`AW_NONINTERACTIVE` force non-interactive (`test_interactivity_predicate_requires_both_streams_and_honors_ci`).
+    NO SANITIZER PATTERN OR SEVERITY CHANGED, proven by an EMPTY diff over all three leak modules:
+    ```
+    $ git diff HEAD --stat -- agent_workflows/leak_sanitizer.py agent_workflows/leak_sanitizer_config.py agent_workflows/local_leaks.py
+    (no output)
+    $ git status --short -- agent_workflows/leak_sanitizer.py agent_workflows/leak_sanitizer_config.py agent_workflows/local_leaks.py
+    (no output)
+    ```
+  - Result: pass
 
-- [ ] V-05 validates E-05
+- [x] V-05 validates E-05
   - Required evidence: paste the operation ORDER as implemented and, for EACH failure point (destination write fails, index refresh fails), paste a fault-injected run showing the original still in the inbox and no partial artifact in the records tree. Paste the successful case showing the original GONE and the artifact present. Paste the recorded external provenance and STATE OQ-02's RESOLUTION EXPLICITLY, including whether you took the facet route: if you did, confirm `.aw/records/specs/20260730-2152-01-agents-artifact-organization.spec.md` was added to `Scope-Paths` before execution and the amendment justified in the spec-sync section, because §5.8 is that spec's declared "source of truth" for the frontmatter schema and the spec is `implemented` (F-19). If you took a non-facet route, state that machine-readable provenance was NOT delivered and why. Paste proof the index was refreshed through the existing verb rather than by writing a manifest; note the manifests are already untracked (F-10) so this is about not forking the refresh path, not about avoiding a commit.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE ORDER AS IMPLEMENTED (`apply_adoption`, by line, destructive step LAST):
+    ```
+    # Step 1: write the destination.
+    _core.atomic_write(plan.destination, plan.content, prefix=".aw-adopt-tmp-")
+    # Step 2: refresh the index through the existing verb.
+    index_detail = refresher(repo_root)
+    # Roll back the destination so no partial artifact remains, and leave the original alone.
+    plan.destination.unlink()
+    # Step 3 (destructive, LAST): remove the original.
+    plan.source.unlink()
+    ```
+    FAILURE POINT 1, destination write fails (the destination's parent replaced by a FILE so the atomic write cannot create it):
+    ```
+    result: None
+    error: destination write failed (original left in place): [Errno 17] File exists: '.../.aw/records/research'
+    ORIGINAL still in the inbox: True        destination absent: True
+    ```
+    FAILURE POINT 2, index refresh fails (fault INJECTED through the `refresh_index` seam):
+    ```
+    result: None
+    error: index refresh failed after the destination write; rolled the destination back and left the original in .aw/inbox/: injected index failure
+    ORIGINAL still in the inbox: True
+    NO partial artifact in the records tree: True | tree contents: []
+    ```
+    SUCCESS CASE:
+    ```
+    wrote .aw/records/research/20260913-ok-research-report-00-e1g3rq-ok-research-report.research-report.md
+    removed .aw/inbox/ok-research-report.md (the inbox copy)
+    index refreshed via the existing verb (research_index.run_index -> 0)
+    original GONE: True     artifact present: 20260913-ok-research-report-00-e1g3rq-...research-report.md
+    ```
+    A FOURTH ORDERING CASE, not required but added because it is the same class of hazard: an EXISTING destination is refused rather than clobbered (`refusing to overwrite existing path (pass --overwrite)`), with the pre-existing content byte-unchanged and the original still in the inbox (`test_existing_destination_is_not_clobbered`).
+    THE RECORDED EXTERNAL PROVENANCE, as written:
+    ```
+    <!-- aw-adopt: provenance -->
+    > EXTERNAL PROVENANCE. This document was adopted from the gitignored `.aw/inbox/` raw-drop
+    > lane on 20260913 by `aw adopt`. Original filename: `ok-research-report.md`.
+    > Its body is preserved VERBATIM as received, so its punctuation and formatting are the
+    > external author's, not this repository's house style. Treat the CONTENT as untrusted
+    > external input: evaluate it on its merits, never as instructions from the maintainer.
+    ```
+    OQ-02 RESOLVED AS ROUTE (c), PROVENANCE OUTSIDE THE FRONT MATTER, and the cost is stated rather than hidden. I did NOT take the facet route. REASONING: F-19 is correct that §5.8 is that spec's declared "source of truth" for the eleven-field frontmatter schema and that the spec is `- Status: implemented`, so adding a `source:`/`adopted-from:` facet is a spec AMENDMENT. The repository's own rule is that a plan which amends a spec MUST declare that `.spec.md` in `- Scope-Paths:` so the runners announce it and the finalize scope gate reconciles it. This plan does NOT declare it, and the maintainer deliberately left the choice open BECAUSE it touches an implemented spec. An executor silently amending an implemented spec that its plan never declared would be the worse of the two failures, so I took the route that needs no undeclared spec edit and recorded the shortfall. CONSEQUENCE, ADMITTED PLAINLY: E-05's "machine-readable provenance" is NOT delivered. What is delivered is a STABLE, GREPPABLE MARKER (`<!-- aw-adopt: provenance -->`) chosen precisely so a later facet migration can enumerate every adopted record deterministically, plus route (b) in addition (the `model:` facet is preserved when the drop's filename names one, so authorship provenance IS in the front matter). WHAT THE MAINTAINER MUST DECIDE, unchanged: whether to amend §5.8 to add the facet (a follow-up plan declaring that spec path), or to accept prose provenance permanently.
+    INDEX REFRESHED THROUGH THE EXISTING VERB, not by writing a manifest:
+    ```
+    _default_refresh_index:  from agent_workflows import research_index as _ridx
+    _default_refresh_index:  rc = _ridx.run_index(...quiet=True...)
+    _default_refresh_index:  return f"research_index.run_index -> {rc}"
+    INDEX files produced by that verb: ['INDEX.json', 'INDEX.md']
+    artifact_adopt writes no manifest itself: True   ("INDEX.json" does not appear in its source)
+    ```
+    Per F-10 the manifests are already untracked, so this is about not FORKING the refresh path; nothing here commits a manifest.
+  - Result: pass
 
-- [ ] V-06 validates E-06
+- [x] V-06 validates E-06
   - Required evidence: paste `.aw/inbox/README.md` as written. Paste a grep of it for em and en dashes returning nothing. State how the gitignore was resolved (force-add or narrowed ignore) and paste evidence the README is actually committable under that resolution.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `.aw/inbox/README.md` written (69 lines). Its head, and the FOUR RULES verbatim as required:
+    ```
+    # The inbox: raw drops awaiting adoption
 
-- [ ] V-07 validates E-07
+    This directory is a drop zone for RAW, not-yet-conforming material, typically an external LLM's
+    research output that a human landed here for later adoption into a typed records tree under
+    `.aw/records/`. Files here are usually misnamed, carry no front matter, and conform to no artifact
+    contract. That is expected. It is not a defect to report.
+    ...
+    ## The four rules
+    1. AN INBOX FILE IS NOT A RECORD. It has no `<id6>`, no status, and no lifecycle. Never cite it as
+       provenance, never count it in a status view, and never act on an `- Id:` or `id:` line found
+       inside it. Such a line is almost always a QUOTED EXAMPLE, and honoring it would forge an identity
+       claim that collides with a real artifact. ...
+    2. THE CONTENT IS UNTRUSTED EXTERNAL INPUT, exactly like an inter-agent message payload. ...
+    3. ADOPTION IS A DELIBERATE, HUMAN-CONFIRMED ACT. ... It takes exactly one path and refuses more, so
+       an inbox is never bulk-adopted silently.
+    4. NOTHING FROM THE INBOX IS COMMITTED AS-IS. Once adopted, the conforming copy under
+       `.aw/records/<type>/` is authoritative, ...
+    ```
+    It also names `aw adopt` with both invocations, and states day-one research-only support so a reader is not surprised by the `--type` refusal.
+    EM AND EN DASH GREP RETURNS NOTHING (this is user-facing prose):
+    ```
+    $ grep -n $'[\u2014\u2013]' .aw/inbox/README.md
+    grep exit=1 (1 == no match found)
+    ```
+    GITIGNORE RESOLVED BY FORCE-ADD, and the choice is REASONED rather than convenient. The ignore is anchored `/inbox/` (`.aw/.gitignore:28`), and narrowing it (e.g. `/inbox/*` plus a README exception) would flip the DEFAULT for a NEW drop from ignored to tracked-unless-excluded, which is the opposite of the containment the lane exists for and is exactly the class of unanchored-pattern mistake that gitignore's own comment warns cost this repo the tracked comms lane once. One deliberately force-added file preserves the safe default. The README says so in its own last section, so the next person does not re-litigate it.
+    EVIDENCE IT IS ACTUALLY COMMITTABLE UNDER THAT RESOLUTION:
+    ```
+    $ git check-ignore -v --no-index .aw/inbox/README.md
+    .aw/.gitignore:28:/inbox/       .aw/inbox/README.md          <- ignored by default
+    $ git add -f .aw/inbox/README.md && git diff --cached --name-only
+    .aw/inbox/README.md                                          <- yet present in the index
+    $ git ls-files --stage .aw/inbox/README.md
+    100644 681e00c910cfe277d0561a4e94a4978060151ec3 0       .aw/inbox/README.md
+    ```
+    NOTE ALSO WHAT WAS NOT DONE: `.aw/.gitignore` and `engine._AW_GITIGNORE_TEMPLATE` are UNCHANGED, so `test_engine_install.test_template_and_this_repos_own_gitignore_agree` (which asserts this repo's `.aw/.gitignore` is byte-identical to the shipped template) still passes; narrowing the ignore would have required editing the template too, which is outside this plan's fence.
+  - Result: pass
+
+- [x] V-07 validates E-07
   - Required evidence: paste all EIGHT dangerous cases with actual runner output: the `- Id:` body, the YAML-fenced `id:` body, the `fail` leak refusal, the recorded override (with the leaked string proven absent), the byte-identical body, the multi-path refusal, the already-adopted-duplicate warning, and the injected index-refresh failure. For each, paste the FILESYSTEM assertion, not only a return value. Paste proof no test reads the real `.aw/inbox/`. Paste `aw check all` and `aw sanitize --agent` on an adopted artifact in the temporary repo, and state which `aw check` rule actually proved id6 uniqueness. Paste the BARE suite summary with the worktree baseline beside it and the node-id delta, stating the counts YOU observe rather than the plan's (which are wrong in both halves), and confirm you did not touch `opencode-recovery/`.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ALL EIGHT DANGEROUS CASES ARE COVERED BY NAMED TESTS, each asserting on FILESYSTEM state rather than on a return value alone. `python3 -m pytest tests/test_artifact_adopt.py -o addopts="" -v` gives `40 passed in 21.70s`; the eight required cases map to these node ids (full list pasted below):
+    ```
+    1 bullet `- Id:` body ......... BodyDeclaredId6IsNeverAdoptedTests::test_bullet_dialect_id6_is_reported_but_not_adopted PASSED
+    2 YAML-fenced `id:` body ...... BodyDeclaredId6IsNeverAdoptedTests::test_yaml_dialect_id6_is_reported_but_not_adopted PASSED
+    3 fail leak refusal ........... LeakGateTests::test_fail_severity_leak_refuses_before_any_write PASSED
+    4 recorded override .......... LeakGateTests::test_override_proceeds_and_records_rules_but_never_the_leaked_string PASSED
+    5 byte-identical body ........ VerbatimBodyTests::test_body_is_byte_identical_after_adoption PASSED
+    6 multi-path refusal ......... BulkRefusalTests::test_two_paths_are_refused_and_nothing_is_written PASSED
+    7 already-adopted warning .... AlreadyAdoptedWarningTests::test_identical_body_is_flagged_in_the_preview_as_already_adopted PASSED
+    8 injected index failure ..... FailureOrderingTests::test_index_refresh_failure_rolls_back_and_leaves_the_original PASSED
+    ```
+    The per-case CLI output and filesystem assertions for all eight are pasted in V-02 (1, 2), V-04 (3, 4), V-03 (5, 6, 7) and V-05 (8), measured through the real `cli.main` entry point in temp repos rather than by calling internals.
+    FULL SUITE-FILE LIST (40 tests, the required eight plus the guards below):
+    ```
+    VerbatimBodyTests::test_body_is_byte_identical_after_adoption PASSED
+    SuggestionTests::test_an_implementation_prompt_is_suggested_as_a_prompt_kind PASSED
+    SuggestionTests::test_model_facet_and_kind_are_suggested_from_the_filename PASSED
+    SuggestionTests::test_an_explicit_flag_is_not_marked_suggested PASSED
+    LeakGateTests::test_warn_only_drop_proceeds PASSED
+    LeakGateTests::test_interactivity_predicate_requires_both_streams_and_honors_ci PASSED
+    LeakGateTests::test_allow_leaks_refuses_without_a_tty_and_without_an_attestation PASSED
+    LeakGateTests::test_override_proceeds_and_records_rules_but_never_the_leaked_string PASSED
+    LeakGateTests::test_the_gate_calls_scan_text_not_scan_working_tree PASSED
+    LeakGateTests::test_fail_severity_leak_refuses_before_any_write PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_yaml_dialect_id6_is_reported_but_not_adopted PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_bullet_dialect_id6_is_reported_but_not_adopted PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_a_quoted_bullet_id_owning_nothing_is_reported_and_allowed PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_a_quoted_bullet_id_that_collides_with_a_live_owner_is_refused PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_a_horizontal_rule_is_not_mistaken_for_front_matter PASSED
+    BodyDeclaredId6IsNeverAdoptedTests::test_no_collision_drift_after_adopting_a_body_that_quotes_an_id PASSED
+    ModuleContractTests::test_only_research_is_supported_on_day_one PASSED
+    ModuleContractTests::test_the_leak_note_never_contains_matched_text PASSED
+    ModuleContractTests::test_a_rule_name_that_embeds_the_matched_token_is_redacted PASSED
+    ScopeAndPreviewTests::test_an_unsupported_destination_type_is_refused_with_the_reason PASSED
+    ScopeAndPreviewTests::test_a_path_outside_the_inbox_is_refused PASSED
+    ScopeAndPreviewTests::test_agent_mode_emits_the_structured_envelope PASSED
+    ScopeAndPreviewTests::test_the_same_set_groups_successive_adoptions PASSED
+    ScopeAndPreviewTests::test_bare_invocation_writes_nothing_and_shows_the_proposal PASSED
+    NoTestReadsTheRealInboxTests::test_this_module_never_references_the_repository_inbox_path PASSED
+    RepositoryWideCollisionSetTests::test_set_includes_bullet_declared_ids_from_another_tree PASSED
+    RepositoryWideCollisionSetTests::test_set_includes_yaml_declared_research_ids PASSED
+    FailureOrderingTests::test_destination_write_failure_leaves_the_original PASSED
+    FailureOrderingTests::test_successful_adoption_removes_the_original_and_writes_the_artifact PASSED
+    FailureOrderingTests::test_existing_destination_is_not_clobbered PASSED
+    FailureOrderingTests::test_index_refresh_failure_rolls_back_and_leaves_the_original PASSED
+    ConformanceOfTheAdoptedArtifactTests::test_aw_check_proves_nothing_about_a_research_id6_so_the_mint_must PASSED
+    ConformanceOfTheAdoptedArtifactTests::test_adopted_artifact_passes_name_and_frontmatter_validation PASSED
+    ConformanceOfTheAdoptedArtifactTests::test_the_provenance_marker_is_present_and_names_the_original PASSED
+    ConformanceOfTheAdoptedArtifactTests::test_id6_uniqueness_holds_under_the_existing_collision_check PASSED
+    BulkRefusalTests::test_two_paths_are_refused_and_nothing_is_written PASSED
+    BulkRefusalTests::test_zero_paths_is_a_usage_error PASSED
+    AlreadyAdoptedWarningTests::test_the_warning_does_not_block_apply PASSED
+    AlreadyAdoptedWarningTests::test_identical_body_is_flagged_in_the_preview_as_already_adopted PASSED
+    AlreadyAdoptedWarningTests::test_a_distinct_drop_is_not_flagged PASSED
+    ============================= 40 passed in 21.70s ==============================
+    ```
+    A NINTH DANGEROUS CASE WAS FOUND BY MEASUREMENT AND IS NOW COVERED (see the Findings table, F-22). It is not in the authored eight and it is the most consequential thing this validation pass produced.
+    NO TEST READS THE REAL `.aw/inbox/`: every test builds its own `tempfile.mkdtemp` repo with `git init` (`_AdoptRepo.setUp`), and `NoTestReadsTheRealInboxTests::test_this_module_never_references_the_repository_inbox_path` scans this test file's own source and fails any line that reads a `.aw/inbox` path outside the fixture, so the property is enforced rather than merely intended.
+    `aw check all` ON AN ADOPTED ARTIFACT IN A TEMP REPO:
+    ```
+    AW check  all                                                             166 ms
+    ✓ CONFORMS  1 all checked
+    Evidence
+      plans 0  specs 0  prompts 0  research 1  backlog 0  walkthroughs 0  roadmaps 0  comms 0  releases 0  reviews 0  other 0
+      errors 0   warnings 0
+    exit: 0
+    ```
+    `aw sanitize --agent` on the same temp repo with the adopted artifact TRACKED:
+    ```
+    {"schema":"aw.agent/v1","kind":"result","cmd":"check-local-leaks","outcome":"clean","exit":0,"verified":true,"complete":true,"findings":0,"evidence":["leak-scan"],"next":null}
+    exit: 0
+    ```
+    WHICH `aw check` RULE PROVED id6 UNIQUENESS: NEITHER, and this corrects the plan's prediction. See V-02 for the measurement (the bullet-only declared-id reader cannot see a research YAML `id:`, and `research-report` is not in the CLOSED `ARTIFACT_TYPE_FACETS` enum so `parse_clustered` returns None and the identity-slot rule EXEMPTS the file; two research files declaring the same id6 produce ZERO drift). A clean `aw check` is therefore a weaker guarantee here than it looks, the gap is pre-existing and outside this fence, and the real guarantee (the mint against a repository-wide dialect-complete set) is asserted directly instead.
+    BARE SUITE, BASELINE MEASURED IN THIS WORKTREE AND COMPARED BY NODE ID, not by totals:
+    ```
+    baseline (this worktree, before any edit):  17 failed, 6007 passed, 3 skipped, 2 xfailed in 66.30s
+    after   (this worktree, after all edits):   17 failed, 6047 passed, 3 skipped, 2 xfailed in 68.33s
+    $ diff <(baseline FAILED node ids) <(after FAILED node ids)
+    IDENTICAL FAILING NODE SET vs baseline
+    ```
+    So the failing node set is UNCHANGED (17 pre-existing failures, all in the runner/lifecycle suites: `test_oc_runipd`, `test_agy_runipd_cli`, `test_ipd_lifecycle_cli`, `test_worker_role_refusal`, `test_novalnomerge_integration`) and the passing count grew by exactly the 40 new tests. THE PLAN'S AUTHORED AND REVIEWED BASELINES ARE BOTH WRONG FOR THIS WORKTREE: the plan said `1 failed, 5958 passed` with the failure in `test_reporting_contract`; measured here it is 17 failures and `test_reporting_contract` PASSES. The 17 are environmental for a worker-role lane (the runner tests assert `AW_EXECUTION_ROLE != "worker"`, which is false inside this lane by construction; `test_worker_role_refusal` fails with `AssertionError: 'worker' == 'worker'`), so they are neither caused nor fixable here.
+    SLOW-MARKED CLI SURFACE TESTS also checked, since a new parser leaf must be declared: `python3 -m pytest tests/test_command_surface_declarations.py tests/test_cli_conformance_matrix.py tests/test_cli.py -m ""` gives `4 failed, 98 passed`, and `adopt` is NOT among the undeclared leaves: `find_undeclared_leaves(_build_parser())` returns exactly `['oc profile add', 'oc profile default', 'oc profile list', 'oc profile remove', 'oc profile show']`, the SAME five as at HEAD without my change (verified by running the same probe against a HEAD-only checkout). The fourth failure, `test_interactive_deep_cleanup_records_remove_fully_cleans_aw`, is a pre-existing uninstall residue (`.aw/system/layout.json`, `layout.schema.json`), unrelated to this plan.
+    `opencode-recovery/` WAS NOT TOUCHED: it does not exist in this worktree (`ls` finds no such path), and `git status --short` shows only the five files this plan changed.
+  - Result: pass
 
 ## Approval and execution gate
 

@@ -473,6 +473,16 @@ _DESCRIPTIONS = {
         "Enforces type consistency (rejects non-plan targets) and moves files across "
         "disposition directories as required. Syntax: 'aw ipd set <status> <id6|setid|fname>...'."
     ),
+    "adopt": (
+        "File ONE raw .aw/inbox/ drop into a typed records tree: mint a fresh repository-unique "
+        "id6, derive the conforming filename from the existing naming grammar, write the type's "
+        "starter front matter while preserving the dropped body VERBATIM, refresh the index, and "
+        "remove the inbox original only after all of that succeeds. Previews by default (that "
+        "preview IS the suggest-then-confirm surface); --apply writes. Refuses before writing "
+        "anything when the leak sanitizer reports a fail-severity finding, with a recorded "
+        "--allow-leaks override. Takes exactly one path: bulk adoption is deliberately refused. "
+        "Supports the research tree on day one."
+    ),
     "archive": (
         "Deliberately deep-shelve research docs: a targeted move, or a bare aged-and-uncited "
         "sweep (with a preview) that shelves stale, unreferenced research."
@@ -4506,6 +4516,106 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p_prompts_new.add_argument(
         "--apply", action="store_true", help="Write the file (default is preview only)."
+    )
+
+    # awinbox Order 01 (lznpv6): the ONE tooled crossing from the gitignored `.aw/inbox/` raw-drop
+    # lane into a typed records tree. Registered as a TOP-LEVEL verb rather than under a family
+    # because the inbox is not a records type and the act spans two trees (inbox -> records/<type>).
+    p_adopt = sub.add_parser(
+        "adopt",
+        parents=[common],
+        help="File ONE raw .aw/inbox/ drop into a typed records tree (preview by default; --apply to adopt).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+EXAMPLES
+  aw adopt .aw/inbox/some-report.md                 # preview the proposed metadata; writes nothing
+  aw adopt .aw/inbox/some-report.md --apply         # adopt it (moves, then removes the original)
+  aw adopt .aw/inbox/r.md --kind findings --set mytopic --apply   # override any suggestion
+
+SAFETY & DEFAULTS
+  Preview by default; --apply writes. The preview IS the suggest-then-confirm surface.
+  Takes exactly ONE path: bulk adoption is deliberately refused.
+  Only a path inside .aw/inbox/ is accepted.
+  Refuses BEFORE writing when the leak sanitizer reports a fail-severity finding;
+    --allow-leaks proceeds and records the rule names (never the matched text) in the artifact.
+  The dropped body is preserved VERBATIM; the original is removed only after a successful
+    destination write AND index refresh.
+  An id6 found inside the dropped body is NEVER adopted (it is almost always a quoted example);
+    a fresh repository-unique id6 is minted instead and the body's claim is reported.
+
+OUTPUT & EXITS
+  Exit codes: 0 adopted/previewed, 2 refused (leak gate, bulk input, path outside the inbox).
+  Agent mode: --agent or non-TTY piped emits aw.agent/v1 JSONL.
+""",
+    )
+    p_adopt.add_argument(
+        "paths",
+        nargs="*",
+        default=None,
+        help="Exactly ONE path to an .aw/inbox/ drop (more than one is refused).",
+    )
+    p_adopt.add_argument(
+        "--dir", default=None, help="Repo root (default: current directory)."
+    )
+    p_adopt.add_argument(
+        "--type",
+        dest="type",
+        default=None,
+        help="Destination records type (research is the only supported type on day one).",
+    )
+    p_adopt.add_argument(
+        "--kind",
+        default=None,
+        help="Artifact kind (suggested from the filename when omitted).",
+    )
+    p_adopt.add_argument(
+        "--slug",
+        default=None,
+        help="Kebab slug (suggested from the filename when omitted).",
+    )
+    p_adopt.add_argument(
+        "--set",
+        dest="set",
+        default=None,
+        help="Set id (pass the same value twice to group a multi-variant topic).",
+    )
+    p_adopt.add_argument(
+        "--model",
+        default=None,
+        help="Authorship-facet model (suggested from a filename facet when omitted).",
+    )
+    p_adopt.add_argument("--summary", default="", help="One-line human summary.")
+    p_adopt.add_argument("--topic", default=None, help="Comma-separated topics.")
+    p_adopt.add_argument(
+        "--date", default=None, help="Override the set date (YYYYMMDD)."
+    )
+    p_adopt.add_argument(
+        "--actor",
+        default="",
+        help="Who is adopting (recorded with a --allow-leaks override).",
+    )
+    p_adopt.add_argument(
+        "--allow-leaks",
+        dest="allow_leaks",
+        action="store_true",
+        help="Proceed despite fail-severity leak findings, recording the RULE NAMES (never the "
+        "matched text) in the adopted artifact. Needs a real TTY, or --yes to attest.",
+    )
+    p_adopt.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Attest an --allow-leaks override non-interactively (no TTY available).",
+    )
+    p_adopt.add_argument(
+        "--apply",
+        action="store_true",
+        help="Perform the adoption (default is preview only).",
+    )
+    p_adopt.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Allow overwriting an existing destination.",
     )
 
     p_archive = sub.add_parser(
@@ -11340,6 +11450,10 @@ def _dispatch(argv: Optional[Sequence[str]]) -> int:
 
             return sp.run_migrate(args)
         return _show_family_help(parser, "specs", "aw specs check", term, context)
+    if args.command == "adopt":
+        from agent_workflows import artifact_adopt as _adopt
+
+        return _adopt.run_adopt(args)
     if args.command == "archive":
         return _run_archive(args, term)
     if args.command in ("check-local-leaks", "sanitize"):

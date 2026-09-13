@@ -478,6 +478,33 @@ COMMAND_INVENTORY: Tuple[CommandDeclaration, ...] = (
         ),
         exit_contract=(0, 2),
     ),
+    # awinbox Order 01 (lznpv6): `aw adopt` files ONE raw `.aw/inbox/` drop into a typed records
+    # tree. Declared as a `mutation` with `dry_run_default`, modeled on `research new` / `archive`:
+    # the preview/`--apply` pair IS its suggest-then-confirm gate, so there is no separate prompt.
+    CommandDeclaration(
+        command="adopt",
+        command_class="mutation",
+        human_recipe="preview",
+        agent_record_kind="result",
+        mutation_gate="dry_run_default",
+        empty_error_renderer="renderer_boundary",
+        legacy_flags=(
+            "--type",
+            "--kind",
+            "--slug",
+            "--set",
+            "--model",
+            "--summary",
+            "--topic",
+            "--date",
+            "--actor",
+            "--allow-leaks",
+            "--yes",
+            "--apply",
+            "--overwrite",
+        ),
+        exit_contract=(0, 2),
+    ),
     CommandDeclaration(
         command="archive",
         command_class="mutation",
