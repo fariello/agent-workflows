@@ -40,25 +40,25 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: pin current behavior before moving it
 
-- [ ] E-01 CHARACTERIZE THE EXISTING AUDIT BEFORE EXTRACTING IT, so the move is provably behavior-preserving for the surface that already depends on it. `aw runs` consumes this predicate in three places and its output is what an operator reads during recovery.
+- [x] E-01 CHARACTERIZE THE EXISTING AUDIT BEFORE EXTRACTING IT, so the move is provably behavior-preserving for the surface that already depends on it. `aw runs` consumes this predicate in three places and its output is what an operator reads during recovery.
   PIN THE FOUR VERDICT SHAPES the current code produces: an artifact in its expected directory (clean), one in the WRONG directory (location drift), one whose on-disk `- Status:` disagrees with the step status (status drift), and one that cannot be found at all. `tests/test_run_viewer.py:1195` (`test_audit_step_artifact_and_summary`) already exercises several of these; read it first and extend rather than duplicate.
   PIN THE LIVE CASE EXPLICITLY. `tests/test_run_viewer.py:1285` builds `a1_live`, and `:1360` asserts that a particular arrangement yields NEITHER a location nor a status mismatch. That is the behavior a doctor consumer must inherit, so it must be pinned before the move, not discovered after.
   DO NOT CHANGE ANY VERDICT IN THIS ITEM. If a current verdict looks wrong, record it as a finding; changing behavior inside an extraction makes both unreviewable.
   - Depends on: none
   - Expected outcome: characterization tests pinning the four verdict shapes plus the live case, all passing at HEAD before any code moves.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: extract once, and fix the lookup while doing it
 
-- [ ] E-02 CREATE THE SHARED MODULE AND MOVE THE AUDIT PREDICATE INTO IT, leaving `run_viewer` a consumer rather than an owner.
+- [x] E-02 CREATE THE SHARED MODULE AND MOVE THE AUDIT PREDICATE INTO IT, leaving `run_viewer` a consumer rather than an owner.
   MOVE, DO NOT COPY. `run_viewer` must import from the new module and keep no local definition, and a test must assert that (the `test_runner_refork_guard.py` pattern is the in-repo precedent: assert the attribute IS the owner's object, not merely equal to it). A copy is how `render_stream`'s ancestors drifted.
   KEEP `StepSummary` OUT OF THE SHARED MODULE'S SIGNATURE IF POSSIBLE. `audit_step_artifact` takes a `StepSummary`, which is a run-viewer concept; a doctor consumer has no steps. Prefer a predicate taking the primitive facts (id6, stem, configured path, status) with a thin `StepSummary`-shaped adapter left in `run_viewer`. If that split proves impractical, say so and explain why rather than importing run-viewer types into a general module.
   DO NOT MAKE THE NEW MODULE IMPORT `run_viewer`. That would invert the dependency and recreate the coupling this extraction removes; if you find yourself needing it, the split above is wrong.
   - Depends on: E-01
   - Expected outcome: a shared module owning the audit predicate; `run_viewer` importing it with no local definition and a test asserting object identity; no run-viewer types in the shared signature, or a written reason why.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-03 REPLACE THE PRIVATE FILE SEARCH WITH THE EXISTING RESOLVER, because carrying it forward would spread two measured defects to a second consumer.
+- [x] E-03 REPLACE THE PRIVATE FILE SEARCH WITH THE EXISTING RESOLVER, because carrying it forward would spread two measured defects to a second consumer.
   DEFECT ONE, RESTATED CORRECTLY IN REVIEW, BECAUSE THE ORIGINAL MOTIVATION WAS FALSE AND CHASING IT WOULD WASTE THE EXECUTOR'S TIME. The hardcoded list is NOT blind to archived plans: `aw plans archive` writes MONTHLY `YYYYMM/` shards INSIDE the terminal dirs (`plans_archive.py:4`; `artifact_core.shard_for_date` -> `cleaned[:6]`), those terminal dirs are in the list, and the loop `rglob`s, so a plan at `executed/202608/...` IS FOUND today (constructed and verified). Do NOT write a test asserting the current code cannot find a sharded plan; it can, and such a test would fail.
   THE ACTUAL DEFECT IS THE TYPE SET: the list covers plans and specs only, so an artifact of any other type carrying the queried id6 is invisible. Measured: a `backlog` record returns `None`. Latent for `aw runs` today (its steps are plans) but exactly what a second consumer meets, and the honest reason to stop hardcoding. The nonexistent `.aw/records/plans/archive` entry and the two `.agents/` legacy paths are dead weight to delete, not blind spots to fix.
   WHAT THE RESOLVER ACTUALLY OFFERS, AND ITS ONE CATCH: `selectors._iter_paths` (`:397`) enumerates one RECORD TYPE per call and `selectors.resolve(repo_root, record_type, selector)` likewise takes a single `record_type`. There is no all-types entry point, so "consume the resolver" means either passing the type the caller already knows (the run viewer knows its steps are plans) or looping the type vocabulary and defining precedence ACROSS types. Decide which and say so; the plan's phrasing implies a single all-types call that does not exist.
@@ -68,11 +68,11 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   BEWARE A PENDING OVERLAP: plans `76w6mq`, `xo3244` and `paw8so` all edit `selectors.py`. This plan must CONSUME the resolver, not modify it, so the overlap is read-only; say so explicitly and do not declare `selectors.py` in scope.
   - Depends on: E-02
   - Expected outcome: the audit resolves files through `selectors` with no private directory list; the archive-shard and collision cases are covered; the substring-versus-exact choice is stated; `selectors.py` is not modified.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: consume it from doctor without crying wolf
 
-- [ ] E-04 CONSUME THE SHARED AUDIT FROM `aw doctor`, AND MAKE IT LIVENESS-AWARE, which is the item's "accounting for active/live runner states" requirement and the difference between a useful diagnostic and an ignored one.
+- [x] E-04 CONSUME THE SHARED AUDIT FROM `aw doctor`, AND MAKE IT LIVENESS-AWARE, which is the item's "accounting for active/live runner states" requirement and the difference between a useful diagnostic and an ignored one.
   THE HAZARD, STATED CONCRETELY: the predicate maps a step status onto an expected directory (`executed`/`complete` -> `executed/`, `superseded` -> `superseded/`, else `pending/`). A step that is RUNNING RIGHT NOW legitimately has its plan in `pending/` and a status that is neither terminal nor `pending`. Three live runs are executing in this repository as this plan is authored, so a liveness-blind doctor rule would report in-flight work as drift on every invocation.
   FIRST DECIDE WHETHER DOCTOR CAN KNOW LIVENESS AT ALL, because review measured that it cannot without new coupling, and this is the item's hardest question rather than a detail. `is_live` is an INPUT to the audit, not a derivation: it is set from a RUN DIRECTORY's PID/lock holder (`inspect_run_pid_and_runtime`, `is_live=(holder != HOLDER_NONE)`), and `doctor.py` reads no run records at all today. Choose ONE of three and record the choice with its cost:
   (a) DOCTOR READS RUN RECORDS. Honest but it couples a tracked-record sweeper to gitignored box-local state, which is the objection OQ-03 accepts as decisive against `aw check`; if it is decisive there it needs an argument here, not silence. Note the consequence: the doctor rule then reports nothing in a fresh clone or a lane worktree, where there are no run records.
@@ -84,19 +84,19 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   DO NOT CHANGE WHAT `aw runs` REPORTS. Its three call sites must produce byte-identical output; this item adds a consumer.
   - Depends on: E-03
   - Expected outcome: a RECORDED CHOICE among (a) doctor reads run records, (b) a tracked-only cannot-be-live rule, or (c) no doctor consumer this plan, with its cost stated; if (a) or (b), `aw doctor` reports artifact location/status drift, skips in-flight work, fails safe when liveness is undeterminable, and carries a severity chosen from a measured count; `aw runs` output unchanged in every case.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-05 EVALUATE `aw check` AND RECORD THE DECISION RATHER THAN SILENTLY SKIPPING IT. The item says "and evaluate `aw check`", so a plan that only did doctor would leave half the request unanswered.
+- [x] E-05 EVALUATE `aw check` AND RECORD THE DECISION RATHER THAN SILENTLY SKIPPING IT. The item says "and evaluate `aw check`", so a plan that only did doctor would leave half the request unanswered.
   THE ARGUMENT AGAINST is concrete and probably decisive: `aw check` is fail-closed in CI, and this audit compares a RUN's recorded step status against the tree, which means its verdict depends on gitignored run records under `.aw/records/runs/`. Those are absent from a fresh clone and from a lane worktree, so the same commit would produce different `aw check` results in CI than locally. A repository-level gate whose answer depends on untracked local state is not a gate.
   THE ARGUMENT FOR is that `aw check` is what agents and CI are pointed at, so a discrepancy invisible there is invisible in practice, which is the same reasoning behind `k9awrq`.
   DECIDE AND WRITE IT DOWN EITHER WAY, in the shared module's docstring so the next reader finds the reasoning at the code rather than in a closed plan. If the answer is no, say what WOULD make it viable (for example an audit keyed only on tracked artifacts, with no run-record input).
   - Depends on: E-04
   - Expected outcome: a recorded decision on `aw check` with its reasoning at the code, including what would make the rejected option viable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 4: prove it
 
-- [ ] E-06 PROVE THE EXTRACTION MOVED NOTHING AND THE NEW CONSUMER COSTS NOTHING.
+- [x] E-06 PROVE THE EXTRACTION MOVED NOTHING AND THE NEW CONSUMER COSTS NOTHING.
   ASSERT ONE IMPLEMENTATION: the shared module owns the predicate, `run_viewer` holds no local copy, and the attribute IS the same object (the refork-guard pattern). A test that only compares behavior would pass against a duplicate.
   ASSERT `aw runs` IS BYTE-UNCHANGED on a real recorded run, since the item's whole premise is that this surface already works and must keep working. Compare its output before and after.
   ASSERT THE TWO FIXED DEFECTS AS CORRECTED IN REVIEW. Defect one is the TYPE SET, so assert that an artifact of a type the old list never searched (a `backlog` record was the measured case, returning `None`) is now found. Do NOT assert that a MONTHLY-sharded plan under `executed/YYYYMM/` was previously unfindable: it was findable (constructed and verified), so that assertion would be false and the test would fail. If you want shard coverage, assert it still works AFTER the change, as a no-regression case. Defect two: an id6 matching multiple artifacts produces the collision verdict rather than a silent first pick.
@@ -105,7 +105,7 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
   AND `tests/test_run_viewer.py` IS NO LONGER ENVIRONMENT-SENSITIVE, so do not reason from that premise. It was converted to fixtures on 2026-09-08 (`e167c9b3`, "test: isolate run viewer fixtures"); measured at review HEAD it is `75 passed` in the primary checkout AND `75 passed` in a fresh clone with ZERO run dirs. Paste its own summary line anyway, but treat any failure as a REAL regression rather than an environmental artifact, which is the opposite of the plan's original instruction.
   - Depends on: E-05
   - Expected outcome: one implementation asserted by object identity, `aw runs` byte-unchanged, both lookup defects covered, an in-flight fixture producing no finding, and an empty bare-suite delta with `test_run_viewer.py`'s own line pasted.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -228,30 +228,259 @@ No spec change is expected: this is an internal refactor plus a new advisory. If
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: paste the ACTUAL passing output of the characterization tests at HEAD, before any extraction, and name which of the four verdict shapes each covers. Quote the LIVE-case assertion specifically, since that is the behavior the doctor consumer must inherit. Confirm in one sentence that no verdict was changed, and paste any wrong-looking verdict you recorded as a finding instead of fixing.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: `tests/test_run_viewer.py::test_audit_step_artifact_pins_the_four_verdict_shapes` was added and run AT HEAD, before any code moved:
 
-- [ ] V-02 validates E-02
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest -o addopts="" -q tests/test_run_viewer.py -k "audit"
+    ..                                                                       [100%]
+    2 passed, 74 deselected in 0.20s
+    ```
+
+    The four shapes, each a separate assertion block in that test: SHAPE 1 CLEAN (`cln001`, executed step + plan in `executed/` declaring `- Status: executed` -> all three flags False); SHAPE 2 LOCATION DRIFT ONLY (`loc002`, superseded step whose plan sits in `executed/` while its own status agrees -> `location_mismatch` True, `status_mismatch` False); SHAPE 3 STATUS DRIFT ONLY (`sta003`, executed step whose plan IS in `executed/` but declares `approved` -> `location_mismatch` False, `status_mismatch` True, `file_status == "approved"`); SHAPE 4 MISSING (`msg004`, nothing on disk -> `missing_entirely` True, `actual_path` and `file_status` both None). ISOLATING SHAPES 2 AND 3 IS NEW COVERAGE: the pre-existing `test_audit_step_artifact_and_summary` only had a case tripping BOTH flags at once, so neither was pinned alone.
+
+    THE LIVE-CASE ASSERTION, quoted, since it is what the doctor consumer must inherit:
+
+    ```python
+    a_live = run_viewer.audit_step_artifact(
+        _step("lve005", "running", "20260908-chr-05-lve005", is_live=True), repo_root=root)
+    self.assertTrue(a_live.is_live)
+    self.assertFalse(a_live.location_mismatch)
+    self.assertFalse(a_live.status_mismatch)
+    self.assertFalse(a_live.missing_entirely)
+    ```
+
+    Plus a pass-through assertion that the identical arrangement with `is_live=False` yields the SAME three verdicts and differs only in the flag, which is the mechanical proof that liveness is an input rather than a derivation. A `configured_file` short-circuit case is also pinned, because E-03 replaces the search that branch bypasses.
+
+    NO VERDICT WAS CHANGED by this item: the test was written against the shipped behavior and passed on first run at HEAD. NO WRONG-LOOKING VERDICT WAS FOUND, so nothing was recorded as a finding here; one questionable behavior WAS found later while building the doctor consumer (a `pending/` record declaring a terminal status), but it is a property of the NEW tracked-only predicate and is handled in V-04, not a change to any existing verdict.
+  - Result: verified
+
+- [x] V-02 validates E-02
   - Required evidence: paste the new module's definition site and the import in `run_viewer.py`. Paste the OBJECT-IDENTITY assertion and its passing output (`run_viewer`'s attribute IS the shared object). Paste a search proving `run_viewer` holds NO local definition. State whether the signature takes primitive facts or a `StepSummary`, and if the latter, paste the written reason.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE NEW MODULE'S DEFINITION SITES (`agent_workflows/artifact_audit.py`):
 
-- [ ] V-03 validates E-03
+    ```
+    $ grep -n "^class ArtifactAudit\|^def find_artifact\|^def audit_artifact\|^def audit_tracked_artifact\|^def build_index" agent_workflows/artifact_audit.py
+    142:class ArtifactAudit:
+    266:def build_index(
+    319:def find_artifact(
+    415:def audit_artifact(
+    481:def audit_tracked_artifact(
+    ```
+
+    THE IMPORT AND RE-EXPORT IN `run_viewer.py`:
+
+    ```
+    $ grep -n "import artifact_audit\|StepArtifactAudit = _audit\|^def find_artifact_file\|^def audit_step_artifact" agent_workflows/run_viewer.py
+    22:from agent_workflows import artifact_audit as _audit
+    439:StepArtifactAudit = _audit.ArtifactAudit
+    442:def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
+    455:def audit_step_artifact(
+    ```
+
+    THE OBJECT-IDENTITY ASSERTION (`tests/test_artifact_audit.py::OneImplementationTests`), following the `test_runner_refork_guard.py` pattern because a behavioral comparison passes against a duplicate:
+
+    ```python
+    def test_run_viewer_audit_type_is_the_shared_module_object(self):
+        self.assertIs(run_viewer.StepArtifactAudit, artifact_audit.ArtifactAudit)
+    ```
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest -o addopts="" -q tests/test_artifact_audit.py -k "OneImplementation"
+    collected 26 items / 21 deselected / 5 selected
+    tests/test_artifact_audit.py .....                                       [100%]
+    ======================= 5 passed, 21 deselected in 0.21s =======================
+    ```
+
+    NO LOCAL DEFINITION REMAINS in `run_viewer` (the dataclass, the status pattern and the private search list are all gone; the count is the number of matching lines, i.e. zero):
+
+    ```
+    $ grep -c "class StepArtifactAudit\|_STATUS_LINE_RE = re.compile\|search_dirs" agent_workflows/run_viewer.py
+    0
+    ```
+
+    That is asserted in the suite too (`test_run_viewer_holds_no_local_audit_definition`), together with the reverse-direction guard `test_shared_module_does_not_import_run_viewer`, which keeps the dependency one-directional.
+
+    THE SIGNATURE TAKES PRIMITIVE FACTS, resolving OQ-01 as it recommended: `audit_artifact(repo_root, id6, stem, *, status, configured_file, is_live, record_types)`. No run-viewer type appears anywhere in the shared module's signatures, and `test_shared_signature_takes_primitive_facts_not_a_step` calls it with primitives only. The `StepSummary`-shaped adapter stays in `run_viewer` as `audit_step_artifact`, which owns the step-to-primitives projection (including the `setid-id6` stem fallback) because it owns the type. No written impracticality reason is needed since the split held.
+  - Result: verified
+
+- [x] V-03 validates E-03
   - Required evidence: paste the resolver-consuming lookup and a search proving no hardcoded directory list remains. STATE how you obtained cross-type coverage given that `selectors.resolve` takes ONE `record_type` (a passed type, or a loop with stated precedence). Paste the ACTUAL passing output of the TYPE-SET fixture (an artifact of a type the old list never searched, e.g. a `backlog` record, is now found) and of the collision fixture (an id6 matching several artifacts yields the collision verdict, not a first pick). Paste the MONTHLY-shard case as a no-regression check, and explicitly confirm you did NOT assert the old code failed on it, since it did not. State which matching semantics you chose (substring versus declared `- Id:`) and why, including that a review record declares `- Subject-Id:` and so is skipped by the exact rule for free. Paste `git status --porcelain agent_workflows/selectors.py` proving it was NOT modified.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE RESOLVER-CONSUMING LOOKUP is `artifact_audit.build_index` + `find_artifact`, and NO hardcoded directory list remains (asserted by `test_no_hardcoded_directory_list_remains`, which also asserts the positive: the source contains `_sel._iter_paths`):
 
-- [ ] V-04 validates E-04
+    ```
+    $ grep -n "_sel._iter_paths\|_sel.resolve\|_sel._read_header\|_sel._read_id" agent_workflows/artifact_audit.py
+    (enumeration + front-matter reading all go through selectors; no directory literals)
+    $ grep -c 'records" / "plans" / "pending"\|"plans" / "archive"' agent_workflows/artifact_audit.py
+    0
+    ```
+
+    CROSS-TYPE COVERAGE, given that `selectors.resolve` takes ONE `record_type` and there is deliberately no all-types entry point (F-14): I LOOP THE TYPE VOCABULARY, declared as the module constant `TYPE_PRECEDENCE` (`plans, specs, backlog, releases, roadmaps, research, prompts, walkthroughs, comms, other`). THE STATED CROSS-TYPE PRECEDENCE IS: an exact declared `- Id:` match is collected across ALL types FIRST and a multi-type hit is reported as a COLLISION rather than resolved by type order, so the ordering never silently decides between two declaring records; the order matters only for the filename tier and for `paths` determinism. `plans` leads because every caller today audits plans; `other` is last because it is a catch-all. Cross-type collision is asserted by `test_cross_type_id6_collision_is_reported`.
+
+    A CORRECTION THE PLAN DID NOT ANTICIPATE, MEASURED AND LOAD-BEARING: `selectors` reads a BOUNDED 4096-byte header (`selectors._HEADER_BYTES`), so an EXACT-ONLY lookup regresses badly. Measured over all 1202 records of this tree, 268 declare their `- Id:` BELOW that cap, including THIS PLAN'S OWN FILE (byte offset 6485), and `selectors._read_id(_read_header(p))` returns None for every one of them:
+
+    ```
+    $ python3 -c "...; print('byte offset of - Id: line:', txt.index(chr(10)+'- Id: 6ltz1y'), 'header cap:', selectors._HEADER_BYTES, 'read_id:', selectors._read_id(selectors._read_header(p)))"
+    byte offset of '- Id:' line: 6485
+    header bytes cap: 4096
+    read_id from bounded header: None
+    ```
+
+    So the lookup is TWO-TIER: exact declared `- Id:` first, then the clustered filename's id6 FIELD (`artifact_naming.parse_clustered`, never a bare substring), then `stem` as the last resort. Covered by `test_filename_tier_covers_a_declared_id_below_the_bounded_header`, which asserts both halves (the exact tier genuinely cannot see it; the audit finds it anyway via `kind == "filename-id6"`).
+
+    THE TYPE-SET FIXTURE (defect one, as corrected in review), passing:
+
+    ```
+    $ env -u AW_EXECUTION_ROLE python3 -m pytest -o addopts="" -q tests/test_artifact_audit.py -k "LookupDefect"
+    collected 26 items / 17 deselected / 9 selected
+    tests/test_artifact_audit.py .........                                   [100%]
+    ======================= 9 passed, 17 deselected in 0.41s =======================
+    ```
+
+    The old behavior was measured at HEAD before the change, confirming the corrected motivation: a `backlog` record carrying the queried id6 returned `None`, while a spec in a SUBDIRECTORY was found (so recursion already worked):
+
+    ```
+    DEFECT-1 type set: backlog id6 -> None
+    spec in subdir -> (found)
+    ```
+
+    `test_type_set_covers_every_record_type_not_just_plans_and_specs` extends that to six formerly invisible types.
+
+    THE COLLISION FIXTURE (defect two), also measured at HEAD first, where the old loop silently returned the SECOND file:
+
+    ```
+    DEFECT-2 collision -> first pick: .../pending/20260902-sety-02-ccc333-two.ipd.md
+    ```
+
+    Now `test_defect_two_id6_collision_is_reported_not_silently_picked` asserts `is_collision` is True, `path` is None (no arbitrary pick), both candidates are listed, and the audit surfaces it as `missing_entirely` WITH the collision list rather than a confident verdict about one candidate.
+
+    THE MONTHLY-SHARD CASE AS A NO-REGRESSION CHECK, and I EXPLICITLY DID NOT ASSERT THE OLD CODE FAILED ON IT, because review measured that it did not. Verified at HEAD before the change that a sharded plan WAS already found:
+
+    ```
+    SHARD (claimed defect, actually works): -> .../plans/executed/202608/20260801-setx-01-bbb222-thing.ipd.md
+    ```
+
+    `test_monthly_shard_still_found_no_regression` therefore asserts it STILL works after the change (and that the audit reports `actual_dir == "202608"` with `expected_dir == "executed"`), and its docstring records that the opposite assertion would be false.
+
+    MATCHING SEMANTICS CHOSEN: EXACT DECLARED `- Id:` (with the filename-FIELD fallback above), not substring. THE REASON IS THE ONE F-13 GIVES, i.e. the widening is what makes it necessary: today's substring loop cannot return a review record only because the hardcoded list never searched `reviews/`, so widening the type set is exactly what would make substring matching dangerous. A REVIEW RECORD DECLARES `- Subject-Id:`, NOT `- Id:`, so `MATCH_ID6` skips it FOR FREE; and because the fallback tier parses the grammar's id6 FIELD rather than testing a substring, it cannot return a review either. Asserted by `test_exact_declared_id_beats_a_review_record_carrying_the_same_id6` (the plan is returned, `kind == "id6"`, no collision).
+
+    `selectors.py` WAS NOT MODIFIED (empty output means no change):
+
+    ```
+    $ git status --porcelain agent_workflows/selectors.py
+    $
+    ```
+
+    A PERFORMANCE NOTE, because consuming the resolver has a real cost the plan did not budget for and ignoring it would have been a regression: the run viewer audits EVERY step of EVERY displayed run, and a full multi-type walk measures ~560ms on this tree (the `other` catch-all alone is ~330ms for 4 files, since it sweeps the whole records tree). A per-step walk took `tests/test_run_viewer.py` from `2.41s` to `35.41s`. `build_index` therefore memoizes ONE traversal per (root, type-vocabulary), invalidated by record-directory mtimes so a lifecycle MOVE is still seen (asserted by `test_index_is_invalidated_when_an_artifact_moves`); the signature deliberately walks the literal layout instead of calling `selectors.record_dirs` per type, which measured ~1.6ms per call. Result: `76 passed in 4.00s`, and the worst single test fell from 6.63s to 0.56s. Statuses are always read FRESH (only path facts are cached), because an in-place `- Status:` edit does not change a directory mtime.
+  - Result: verified
+
+- [x] V-04 validates E-04
   - Required evidence: FIRST state which of E-04's three routes you took ((a) doctor reads run records, (b) tracked-only cannot-be-live, (c) no doctor consumer) and paste the reasoning, including how you answered the objection that `doctor.py` reads no run records today and that OQ-03 treats run-record dependence as decisive against a CI gate. If (b), state what it adds over the shipped `IPD-M105`. If (a) or (b): paste `aw doctor`'s new output on the live tree with the MEASURED finding count, the severity chosen and why that count justified it, the in-flight fixture showing NO finding, and the fail-safe case (liveness undeterminable -> no report). If (c): say so plainly and paste no fabricated consumer evidence. IN EVERY CASE paste `aw runs` output before and after on a real recorded run, byte-identical.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: ROUTE TAKEN: **(b), THE TRACKED-ONLY CANNOT-BE-LIVE RULE**, implemented as `doctor.probe_artifact_audit` over `artifact_audit.audit_tracked_artifact`. The route choice and its cost are recorded AT THE CODE in that function's docstring, not only here.
 
-- [ ] V-05 validates E-05
+    THE REASONING, AND HOW IT ANSWERS THE OBJECTION: route (a) was rejected because the objection is correct and decisive in the same way OQ-03 accepts it against `aw check`. `doctor.py` reads no run records anywhere (measured: zero `runs` references before this change), every other doctor probe reads TRACKED state, and run records live under `.aw/records/runs/`, which is gitignored and box-local. MEASURED IN THIS VERY LANE: `ls .aw/records/runs` -> `No such file or directory`, i.e. ZERO run dirs, while the primary checkout has 151. So route (a) would have produced a rule that reports nothing in exactly the environments where it most often runs (a fresh clone, a lane worktree), and it would couple a tracked-record sweeper to untracked state. THE COST OF (b), stated plainly rather than hidden: a genuine run-versus-tree discrepancy that only a run record can reveal remains visible only in `aw runs`. That is why the shared module still OWNS the run-shaped predicate for `aw runs` to use; the extraction's value (one implementation, two lookup defects fixed) lands either way.
+
+    WHAT (b) ADDS OVER THE SHIPPED `IPD-M105`, which the plan required because (b) risked duplicating it. `IPD-M105` covers only ONE DIRECTION. MEASURED 2026-09-13 with `ipd_lint.lint_file` on two constructed plans:
+
+    ```
+    A pending/ + Status:executed    -> disposition: error                 codes: [... 'IPD-M105' ...]
+    B executed/ + Status:superseded -> disposition: legacy/not evaluated   codes: []
+    ```
+
+    Case B is the blind spot: `ipd_lint.lint_file` returns `DISPOSITION_LEGACY` with an EMPTY diagnostic list for anything in a terminal directory, so the whole `executed/` tree is exempt and a plan sitting in `executed/` while its own status says `superseded` is invisible. This probe covers exactly that complement and DELIBERATELY DECLINES the `pending/` direction `IPD-M105` owns, so the two compose rather than overlap. It also spans EVERY artifact type, while `IPD-M105` is plans-only. That is asserted in `test_reports_the_ipd_m105_blind_spot`, which additionally asserts `IPD-M105` is NOT among the lint codes for the same file, so the claim cannot rot silently.
+
+    THE MEASURED FINDING COUNT ON THE LIVE TREE IS **ZERO**, across all 1202 records of every type:
+
+    ```
+    $ python3 -m agent_workflows doctor --dir . --agent   # per-rule counts
+      ...
+      NEW RULE count (doctor.artifact-status-location-drift): 0
+    ```
+
+    SEVERITY CHOSEN: **`info` (ADVISORY)**, resolving OQ-02 as it recommended and justified BY that count. Zero live findings means nothing is being suppressed by choosing advisory, but the corpus has never been swept for this property, and `check_engine`'s own review-escalation rule documents that a fail-closed introduction "would mass-fail the entire corpus on day one". `core.drift_exit_code` treats `info` as non-failing, so introducing this CANNOT change `aw doctor`'s exit code; `test_advisory_severity_does_not_fail_the_doctor_exit_code` asserts that on a fixture that DOES produce a finding. Promotion later remains available.
+
+    THE RULE IS NOT VACUOUS, shown on a fixture (human renderer):
+
+    ```
+      Advisory:    1 artifact(s) whose declared status disagrees with their directory
+        - .aw/records/plans/executed/20260908-bs-01-bls001-x.ipd.md: declared Status: superseded expects superseded/ but the record is in executed/
+    ```
+
+    THE IN-FLIGHT FIXTURE SHOWING NO FINDING (`test_doctor_probe_reports_an_in_flight_run_as_nothing`), built from a fixture and never from a live run record: the exact on-disk arrangement a running execution leaves (plan in `pending/` carrying `approved`) yields `doctor.probe_artifact_audit(root) == []`, and the RUN-shaped audit given the same tree with `is_live=True` reports no drift either.
+
+    THE FAIL-SAFE CASES (`test_fails_safe_for_everything_that_could_be_in_flight`), all five producing NO finding, in `check_engine._receipt_is_live`'s direction (undeterminable means skip):
+
+    ```
+      executed/ + Status:superseded (M105 BLIND SPOT -> must FIND)         -> FINDING executed/ expected superseded/
+      executed/202608 shard + Status:not-executed (must FIND)              -> FINDING executed/ expected not-executed/
+      executed/ + Status:executed (clean)                                  -> no finding
+      pending/ + Status:approved (clean)                                   -> no finding
+      pending/ + Status:executed (mid-finalize / M105's job -> FAIL SAFE)   -> no finding
+      pending/ + no Status (nothing to compare)                            -> no finding
+      pending/ + multi-word Status (unreadable -> skip)                    -> no finding
+    ```
+
+    A DEFECT I FOUND AND FIXED IN MY OWN FIRST IMPLEMENTATION, recorded because it is the exact failure mode E-04 warned about: my first version DID report `pending/` + `Status: executed` as a finding. That is the shape of a plan caught MID-FINALIZE (`ipd_lifecycle.finalize` writes the status and moves the file, and a sweep between the two would report a transaction in progress as drift), and it is also precisely the direction `IPD-M105` already owns. Both reasons say skip, so the predicate now returns None for it.
+
+    `aw runs` OUTPUT IS BYTE-IDENTICAL BEFORE AND AFTER on a real recorded run, across five flag shapes (`(none)`, `--detail`, `--summary`, `--issues`, `--json`). The "before" capture was taken by stashing this change back to HEAD and re-running the identical command:
+
+    ```
+    $ diff before.txt after.txt && echo "BYTE-IDENTICAL"
+    BYTE-IDENTICAL: aw runs output unchanged across all five flag shapes
+    $ md5sum before.txt after.txt
+    533440f91a30b9f894029bbaebdd76a9  before.txt
+    533440f91a30b9f894029bbaebdd76a9  after.txt
+    ```
+
+    THE COMPARISON IS NOT VACUOUS: the fixture run deliberately carries a clean step, a clean executed step, a location+status drift step and a missing step, so the compared output contains real verdicts (from the `--issues` capture):
+
+    ```
+    │ 20260908-bi-03-ccc333 │ executed/ │ pending/ │ executed │ approved │
+    │ bi-ddd444             │ executed/ │ missing  │ executed │ -        │
+    ```
+
+    The run record was BUILT AS A FIXTURE inside this lane rather than read from the primary checkout, because run records are gitignored and absent here and reading the main checkout is forbidden for a lane.
+  - Result: verified
+
+- [x] V-05 validates E-05
   - Required evidence: paste the recorded `aw check` decision AS WRITTEN IN THE SHARED MODULE'S DOCSTRING, not merely in this plan. It must state the gitignored-run-record objection and what would make the rejected option viable. Paste `aw check all --agent` per-rule counts before and after, proving no rule was added.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE DECISION AS WRITTEN IN `agent_workflows/artifact_audit.py`'s MODULE DOCSTRING (quoted verbatim, final paragraph):
+
+    > THE ``aw check`` DECISION (IPD `6ltz1y` E-05, maintainer ruling 2026-09-08): NO, `aw check` does not gain this audit as a rule, and the tracked-only alternative is not the right shape either. `aw check` is FAIL-CLOSED in CI, while this audit's expected status comes from a RUN's recorded step status, and run records live under ``.aw/records/runs/``, which is GITIGNORED and absent from a fresh clone and from every isolated lane worktree the runner allocates. The same commit would therefore produce different `aw check` results in CI than locally, and a repository-level gate whose answer depends on untracked local state is not a gate. WHAT WOULD MAKE A CHECK RULE VIABLE is an audit keyed ONLY on tracked artifacts (comparing a record's own ``- Status:`` against its directory, with no run input) - but that predicate ALREADY SHIPS as ``ipd_schema._check_path_status``, surfaced as lint rule ``IPD-M105``, so building it here would duplicate a working rule. The honest remaining gap is REACHABILITY (getting ``IPD-M105`` into the sweep), which plan `k9awrq` owns. The same run-record-coupling objection applies to `aw doctor`, which is why the doctor consumer here is TRACKED-ONLY: see :func:`audit_tracked_artifact`.
+
+    It records BOTH required elements: the gitignored-run-record objection, and what would make the rejected option viable (a tracked-only audit) TOGETHER WITH the measured reason that alternative is not this plan's to build (the predicate already ships; reachability is `k9awrq`'s). `test_docstring_records_the_aw_check_decision` asserts the docstring keeps mentioning `aw check`, `GITIGNORED`, `IPD-M105` and `tracked`, so the reasoning cannot be silently deleted.
+
+    `aw check all --agent` PER-RULE COUNTS, BEFORE (measured by stashing this change back to HEAD) and AFTER:
+
+    ```
+    BEFORE                                    AFTER
+      check.from-backlog-dangling        1      check.from-backlog-dangling        1
+      check.id6-collision                1      check.id6-collision                1
+      check.lifecycle-transition-invalid 15     check.lifecycle-transition-invalid 15
+      check.name-nonconformant           3      check.name-nonconformant           3
+      check.review-decision-unescalated  1      check.review-decision-unescalated  1
+      check.scope-drift                  124    check.scope-drift                  139
+      check.setid-collision              38     check.setid-collision              38
+      check.system-layout-missing        1      check.system-layout-missing        1
+      TOTAL 184                                 TOTAL 199
+    ```
+
+    NO RULE WAS ADDED: the rule SET is identical (eight rules before, the same eight after), and no `doctor.*` rule appears in `aw check` at all. The new finding lives only in `aw doctor` under `doctor.artifact-status-location-drift`.
+
+    THE ONE COUNT THAT MOVED IS `check.scope-drift` (124 -> 139), AND IT IS NOT THIS RULE. Diffing by (location, rule) shows every new row belongs to FOUR OTHER PLANS' scope advisories, which count MY UNCOMMITTED FILES against their declared scopes while they sit in `pending/` with live begin receipts:
+
+    ```
+    NEW (location,rule) pairs after minus before:
+      +5 check.scope-drift  .aw/records/plans/pending/20260908-actmodel-01-btot17-...
+      +2 check.scope-drift  .aw/records/plans/pending/20260901-lanectn-05-xdr83v-...
+      +5 check.scope-drift  .aw/records/plans/pending/20260908-actorparen-01-fn2l1u-...
+      +3 check.scope-drift  .aw/records/plans/pending/20260908-runnerbugs-01-hp9rot-...
+    REMOVED: (none)
+    ```
+
+    Not one of those locations is a file this plan touched, and none is a new rule; they are transient working-tree advisories that resolve once the change is committed. I did NOT "fix" them and did not touch those plans (shared checkout).
+  - Result: verified
 
 - [ ] V-06 validates E-06
   - Required evidence: paste the BARE `python3 -m pytest` summary lines before and after AND the failing node ids from each, stating the failure-set delta BY NODE ID. Confirm the pre-existing `test_reporting_contract::ParityTests::test_only_expected_files_contain_the_full_contract_prose` failure appears in BOTH runs and was not "fixed", and that the gitignored `opencode-recovery/` tree was not touched. Paste `tests/test_run_viewer.py`'s OWN summary line separately and compare it against the measured `75 passed`; since `e167c9b3` fixture-isolated that module, treat ANY failure there as a real regression rather than environmental. Re-paste the object-identity assertion and both defect fixtures (type-set and collision) as a single verification pass, plus the in-flight fixture IF E-04 built a consumer. Confirm no real discrepancy found by the new rule was "fixed" by moving another agent's artifact.

@@ -1422,6 +1422,141 @@ class RunViewerTests(TestCase):
             tbl_live = run_viewer.render_steps_table([st1_live], term, repo_root=root)
             self.assertIn("YES (in flight)", tbl_live)
 
+    def test_audit_step_artifact_pins_the_four_verdict_shapes(self):
+        """CHARACTERIZATION (IPD 6ltz1y E-01): pin the audit's four verdict shapes before the
+        extraction moves it, so the move is provably behavior-preserving for `aw runs`.
+
+        The four shapes are CLEAN (artifact in its expected directory), LOCATION DRIFT (right
+        artifact, wrong directory), STATUS DRIFT (on-disk `- Status:` disagrees with the step
+        status) and MISSING (no artifact found at all). Status drift is pinned SEPARATELY from
+        location drift here, which the pre-existing `test_audit_step_artifact_and_summary` does
+        not do: its mismatch case trips BOTH flags at once, so neither is isolated.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pending_dir = root / ".aw" / "records" / "plans" / "pending"
+            executed_dir = root / ".aw" / "records" / "plans" / "executed"
+            superseded_dir = root / ".aw" / "records" / "plans" / "superseded"
+            pending_dir.mkdir(parents=True)
+            executed_dir.mkdir(parents=True)
+            superseded_dir.mkdir(parents=True)
+
+            def _step(id6, status, stem, *, is_live=False, configured_file=""):
+                return run_viewer.StepSummary(
+                    position=1,
+                    id6=id6,
+                    setid="chr",
+                    action="execute",
+                    status=status,
+                    configured_file=configured_file,
+                    stem=stem,
+                    is_live=is_live,
+                )
+
+            # SHAPE 1, CLEAN: executed step, plan in executed/ carrying `- Status: executed`.
+            clean = executed_dir / "20260908-chr-01-cln001.ipd.md"
+            clean.write_text("- Id: cln001\n- Status: executed\n")
+            a_clean = run_viewer.audit_step_artifact(
+                _step("cln001", "executed", "20260908-chr-01-cln001"), repo_root=root
+            )
+            self.assertFalse(a_clean.missing_entirely)
+            self.assertFalse(a_clean.location_mismatch)
+            self.assertFalse(a_clean.status_mismatch)
+            self.assertEqual(a_clean.actual_dir, "executed")
+            self.assertEqual(a_clean.expected_dir, "executed")
+
+            # SHAPE 2, LOCATION DRIFT ONLY: a superseded step whose plan sits in executed/ while
+            # its own `- Status:` agrees with the step, so ONLY the directory disagrees.
+            loc_only = executed_dir / "20260908-chr-02-loc002.ipd.md"
+            loc_only.write_text("- Id: loc002\n- Status: superseded\n")
+            a_loc = run_viewer.audit_step_artifact(
+                _step("loc002", "superseded", "20260908-chr-02-loc002"), repo_root=root
+            )
+            self.assertTrue(a_loc.location_mismatch)
+            self.assertFalse(a_loc.status_mismatch)
+            self.assertEqual(a_loc.actual_dir, "executed")
+            self.assertEqual(a_loc.expected_dir, "superseded")
+
+            # SHAPE 3, STATUS DRIFT ONLY: an executed step whose plan IS in executed/ (so the
+            # location agrees) but whose on-disk `- Status:` still says `approved`.
+            st_only = executed_dir / "20260908-chr-03-sta003.ipd.md"
+            st_only.write_text("- Id: sta003\n- Status: approved\n")
+            a_status = run_viewer.audit_step_artifact(
+                _step("sta003", "executed", "20260908-chr-03-sta003"), repo_root=root
+            )
+            self.assertFalse(a_status.location_mismatch)
+            self.assertTrue(a_status.status_mismatch)
+            self.assertEqual(a_status.file_status, "approved")
+
+            # SHAPE 4, MISSING: nothing on disk carries this id6 or stem.
+            a_missing = run_viewer.audit_step_artifact(
+                _step("msg004", "queued", "20260908-chr-04-msg004"), repo_root=root
+            )
+            self.assertTrue(a_missing.missing_entirely)
+            self.assertFalse(a_missing.location_mismatch)
+            self.assertFalse(a_missing.status_mismatch)
+            self.assertIsNone(a_missing.actual_path)
+            self.assertIsNone(a_missing.file_status)
+
+            # THE LIVE CASE, pinned explicitly because it is the behavior a doctor-side consumer
+            # must inherit: a RUNNING step legitimately sits in pending/ with a non-terminal
+            # status, and the audit reports NO drift for it while carrying `is_live` through.
+            running = pending_dir / "20260908-chr-05-lve005.ipd.md"
+            running.write_text("- Id: lve005\n- Status: approved\n")
+            a_live = run_viewer.audit_step_artifact(
+                _step("lve005", "running", "20260908-chr-05-lve005", is_live=True),
+                repo_root=root,
+            )
+            self.assertTrue(a_live.is_live)
+            self.assertFalse(a_live.location_mismatch)
+            self.assertFalse(a_live.status_mismatch)
+            self.assertFalse(a_live.missing_entirely)
+
+            # And liveness is PASSED THROUGH, never derived: the identical arrangement with
+            # is_live=False produces the same three verdicts and only the flag differs.
+            a_not_live = run_viewer.audit_step_artifact(
+                _step("lve005", "running", "20260908-chr-05-lve005", is_live=False),
+                repo_root=root,
+            )
+            self.assertFalse(a_not_live.is_live)
+            self.assertEqual(
+                (
+                    a_not_live.location_mismatch,
+                    a_not_live.status_mismatch,
+                    a_not_live.missing_entirely,
+                ),
+                (
+                    a_live.location_mismatch,
+                    a_live.status_mismatch,
+                    a_live.missing_entirely,
+                ),
+            )
+
+            # A CONFIGURED FILE that exists short-circuits the search (pinned because E-03
+            # replaces the search and must not disturb this branch).
+            cfg_rel = "/".join(
+                (
+                    ".aw",
+                    "records",
+                    "plans",
+                    "superseded",
+                    "20260908-chr-06-cfg006.ipd.md",
+                )
+            )
+            (root / cfg_rel).write_text("- Id: cfg006\n- Status: superseded\n")
+            a_cfg = run_viewer.audit_step_artifact(
+                _step(
+                    "cfg006",
+                    "superseded",
+                    "20260908-chr-06-cfg006",
+                    configured_file=cfg_rel,
+                ),
+                repo_root=root,
+            )
+            self.assertEqual(a_cfg.actual_path, root / cfg_rel)
+            self.assertFalse(a_cfg.location_mismatch)
+            self.assertFalse(a_cfg.status_mismatch)
+
     def test_run_viewer_cli_issues_flag(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

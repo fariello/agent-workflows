@@ -124,6 +124,10 @@ class ArtifactsProbeResult:
     executed_warnings: List[core.Drift] = field(default_factory=list)
     untracked_skipped: int = 0
     all_drift: List[core.Drift] = field(default_factory=list)
+    # IPD 6ltz1y E-04: the shared artifact location/status audit's findings, kept as their own list
+    # because they are ADVISORY (`info` severity, so `core.drift_exit_code` does not fail on them)
+    # and must be visible as facts without changing the exit code on introduction.
+    audit_advisories: List[core.Drift] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -140,6 +144,10 @@ class ArtifactsProbeResult:
                 for d in self.executed_warnings
             ],
             "untracked_skipped": self.untracked_skipped,
+            "audit_advisories": [
+                {"location": d.location, "rule": d.rule, "detail": d.detail}
+                for d in self.audit_advisories
+            ],
             "all_drift": [
                 {"location": d.location, "rule": d.rule, "detail": d.detail}
                 for d in self.all_drift
@@ -552,11 +560,92 @@ def probe_artifacts(
                     res.executed_warnings.append(drift_item)
                 else:
                     res.all_drift.append(drift_item)
+        # IPD 6ltz1y E-04: the SHARED artifact location/status audit, so `aw doctor` can see the
+        # drift `aw runs` could already see. See `probe_artifact_audit` for the route choice and why
+        # these findings are advisory.
+        res.audit_advisories = probe_artifact_audit(
+            repo_root, include_untracked=include_untracked
+        )
+        res.all_drift.extend(res.audit_advisories)
     except Exception as exc:
         res.all_drift.append(
             core.Drift("<artifacts>", "doctor.probe-failed", str(exc)[:120])
         )
     return res
+
+
+def probe_artifact_audit(
+    repo_root: Path, include_untracked: bool = False
+) -> List[core.Drift]:
+    """Artifact location-versus-status drift, through the ONE shared audit (`artifact_audit`).
+
+    THIS IS THE TRACKED-ONLY ROUTE (IPD 6ltz1y E-04 route (b)), chosen deliberately over giving
+    `aw doctor` a run-record reader. THE ARGUMENT, since the plan required the choice to be recorded
+    with its cost: the run-shaped audit's expected status comes from a RUN's recorded step status, and
+    run records live under `.aw/records/runs/`, which is GITIGNORED, box-local, and absent from a
+    fresh clone and from every isolated lane worktree the runner allocates by default (measured: this
+    lane has no `.aw/records/runs/` at all, while the primary checkout has 151 run dirs). `doctor.py`
+    reads no run records anywhere else, and OQ-03 accepts that same coupling objection as decisive
+    against an `aw check` rule; it is no less decisive here, because `aw doctor` is equally a
+    TRACKED-RECORD sweeper (every one of its other probes reads tracked state). Route (a) would have
+    made this rule report nothing in exactly the environments where it runs most often. THE COST OF
+    (b), stated plainly: a genuine run-versus-tree discrepancy that only a run record can reveal
+    stays visible only in `aw runs`. That is the honest trade, and it is why the SHARED module still
+    owns the run-shaped predicate for `aw runs` to use.
+
+    WHAT THIS ADDS OVER THE SHIPPED `IPD-M105`, which the plan required stating because (b) risks
+    duplicating a working rule: `IPD-M105` (`ipd_schema._check_path_status`) covers only ONE
+    DIRECTION. Measured 2026-09-13: a plan in `pending/` declaring `- Status: executed` does yield
+    `IPD-M105`, but the same file in `executed/` declaring `- Status: superseded` returns disposition
+    `legacy/not evaluated` with ZERO diagnostics, because `ipd_lint.lint_file` exempts the whole
+    terminal tree. This probe covers exactly that complement (a record in a terminal directory whose
+    own status names a different disposition) and deliberately declines the `pending/` direction
+    `IPD-M105` owns, so the two compose rather than overlap. It also spans EVERY artifact type, while
+    `IPD-M105` is plans-only.
+
+    ADVISORY (`info`) SEVERITY, FROM A MEASURED COUNT (OQ-02): the sweep finds ZERO findings across
+    all 1202 records of the live tree at authoring time, so nothing is being suppressed, but the
+    corpus has never been swept for this property and a rule that errors on day one against an
+    unswept corpus is how a check gets disabled rather than fixed. `core.drift_exit_code` treats
+    `info` as non-failing, so introducing this cannot change `aw doctor`'s exit code. Promoting it
+    later is available once the corpus has been swept deliberately.
+
+    FAILS SAFE in the direction `check_engine._receipt_is_live` establishes: anything that could
+    describe work in progress produces no finding. See `artifact_audit.audit_tracked_artifact` for
+    the exact skip list.
+    """
+    from agent_workflows import artifact_audit, selectors
+
+    out: List[core.Drift] = []
+    for record_type in artifact_audit.TYPE_PRECEDENCE:
+        try:
+            paths = list(selectors._iter_paths(repo_root, record_type))
+        except Exception:
+            continue
+        for p in paths:
+            if not include_untracked and "untracked" in p.parts:
+                continue
+            try:
+                audit = artifact_audit.audit_tracked_artifact(repo_root, p)
+            except Exception:
+                continue
+            if audit is None:
+                continue
+            try:
+                loc = str(p.relative_to(repo_root))
+            except ValueError:
+                loc = str(p)
+            out.append(
+                core.Drift(
+                    loc,
+                    "doctor.artifact-status-location-drift",
+                    f"declared Status: {audit.run_status} expects {audit.expected_dir}/ "
+                    f"but the record is in {audit.actual_dir}/",
+                    severity="info",
+                )
+            )
+    out.sort(key=lambda d: (d.location, d.rule))
+    return out
 
 
 def probe_sanitizer(repo_root: Path) -> SanitizerProbeResult:
@@ -1358,6 +1447,14 @@ def render_human_report(report: DoctorReport, term: T.Term) -> str:
         lines.append(
             f"  Notice:      Excluded {art.untracked_skipped} artifact(s) in untracked/ directories (use --include-untracked to include)"
         )
+    # IPD 6ltz1y E-04: the shared audit's advisories, reported as facts and labelled ADVISORY so a
+    # reader knows they do not fail the gate. Silence when clean, like the other sections.
+    if art.audit_advisories:
+        lines.append(
+            f"  Advisory:    {len(art.audit_advisories)} artifact(s) whose declared status disagrees with their directory"
+        )
+        for d in art.audit_advisories:
+            lines.append(f"    - {d.location}: {d.detail}")
 
     if art.all_drift:
         lines.append("  Findings:")
