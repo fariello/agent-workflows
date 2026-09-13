@@ -11,17 +11,17 @@
 - Scope: Add `aw adopt` to file ONE raw inbox drop into a typed records tree: mint a collision-checked id6, derive the conforming filename from the existing grammar, write the type's starter front matter while preserving the body VERBATIM, move rather than copy, refresh the index, and record provenance. Preview by default with `--apply` to write. Reuse `artifact_core` for naming and the leak sanitizer for the pre-write gate; invent neither. EXCLUDES applying the artifact-organization model to further trees (backlog `oxjt1d`); excludes bulk adoption; excludes any change to the leak sanitizer's patterns or severities; excludes changing what `.aw/inbox/` is or its gitignore status.
 - Scope-Paths: agent_workflows/cli.py, agent_workflows/artifact_adopt.py, tests/test_artifact_adopt.py, .aw/records/backlog/README.md
 - Item-Dependencies: none
-- Status: approved
+- Status: executed
 - Readiness: go-pending-approval
 - Set: awinbox
 - Order: 1
 - Highest E allocated: 07
 - Author: opencode/its_direct/pt3-claude-opus-5-1m-us
 - Id: lznpv6
-- Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 - From-Backlog: lsztiu
 
 ## Workflow history
+- 2026-09-13 executed (aw oc run): aw oc run self-finalize: lznpv6 verified (set awinbox, attempt 1). [Scope reconciliation - out-of-scope .aw/inbox/README.md: changed by the plan's approved execution (auto-reconciled by aw oc run); out-of-scope agent_workflows/command_surface.py: changed by the plan's approved execution (auto-reconciled by aw oc run); in-scope-unmodified .aw/records/backlog/README.md: declared-but-unmodified (auto-acknowledged by aw oc run)]
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-10 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review; APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. Findings PR-501..PR-508, all FIXED in place, no deferrals; OQ-02's precondition ANSWERED (which raises its cost) and OQ-03 re-grounded, both still open and non-blocking. Structural preflight `aw ipd lint --phase author` conformed before semantic review and `--phase review-finalize` conformed after. DISCLOSURE: same model family and session lineage as the author, so this is close to a self-review and worth less than an independent one.
