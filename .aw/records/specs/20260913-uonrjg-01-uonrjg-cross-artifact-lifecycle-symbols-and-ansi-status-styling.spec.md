@@ -34,6 +34,29 @@ index with no live activity, the same plan displays its stored `approved` state 
 Work-kind is deliberately excluded. `feature`, `bug`, `docs`, and similar classifications MUST NOT
 change the lifecycle glyph, lifecycle color, or id6 styling.
 
+## 0.5 Authority over other specs (added at review, 2026-09-13)
+
+THIS SPEC IS THE SINGLE AUTHORITY FOR LIFECYCLE COLOR, GLYPH, AND ASCII FALLBACK in human terminal
+output, and it OVERRIDES the earlier per-surface palettes named below. The maintainer ruled on
+2026-09-13 that where this spec conflicts with another on PRESENTATION, this spec wins.
+
+READ THE BOUNDARY OF THAT AUTHORITY PRECISELY, because it is narrow and the narrowness is what makes
+the override safe. This spec overrides how a state is DISPLAYED. It overrides nothing about what a
+state MEANS, which states exist, which transitions are legal, what a run's exit code is, or which
+section of a report an item appears in. Section 3's non-goals already say so, and the override does
+not widen them.
+
+| Superseded claim | Where | Status | What this spec replaces it with |
+|---|---|---|---|
+| The five-color runner scheme: cyan for "running or verifying", green for verified, yellow for "skipped, needs input, or ran but unverifiable", red for failed, gray for informational | `.aw/records/specs/20260826-0718-01-aw-run-deterministic-run-and-verify.spec.md` (`25kzda`) Section 5.6 | `approved`, `Blocks-Release: next` | Section 5's table. Three differences are deliberate: `running` and `verifying` get DISTINCT glyphs (`▶` versus `◆`) rather than sharing cyan; green is reserved for `done` while `ready` is cyan; and `blocked` is orange 208 rather than folded into yellow. `25kzda`'s outcome VOCABULARY, exit codes, and reporting columns are untouched. |
+| "The wizard MUST use the existing `Term` abstraction and 16 named colors", with green for recommended states | `.aw/records/specs/20260809-2211-01-aw-project-layout-storage-wizard-and-state.spec.md` Section 11.4 | `superseded` | Nothing, for two reasons: that spec is already superseded, and its successor (`20260810-1447-01`, `implemented`) carries the accessibility clause forward WITHOUT the 16-color restriction. The wizard is also not a lifecycle surface, so Section 3's non-goal on generic command outcomes exempts it. Recorded so Section 11.4 is not resurrected as a live palette. |
+| "Do not assume 256-color or truecolor; fall back through 16-color and then no-color ... prefer the terminal's default fg/bg and the 16 named colors", with a narrow `aw attention`-only xterm-256 exception attributed to DECISIONS D133 | `.aw/system/workflows/assess/lenses/accessibility.md:56-63` | not a spec; it is the normative rubric `20260706-0000-01` Goal 9 delegates to | REQUIRES AN AMENDMENT RATHER THAN AN OVERRIDE, because it is a rubric this spec should satisfy, not a competitor. The D133 exception is currently scoped to `aw attention` alone and must be widened to every renderer this spec names, in the same change that lands the resolver. See the open question in Section 16, which is the one thing here this spec does NOT settle on its own authority. |
+
+WHAT AN IMPLEMENTER MUST DO WITH THIS SECTION, so the override is real rather than asserted: the plan
+that lands the resolver MUST amend `25kzda` Section 5.6 to point here rather than leaving two live
+color tables in the tree, and MUST declare that spec file in its `Scope-Paths`. An override recorded
+only in the winning spec leaves the losing spec still saying the opposite to the next reader.
+
 ## 1. Problem
 
 The repository currently has several correct but independent status presentations. `term.py` owns a
@@ -97,6 +120,44 @@ override stored status or transition authority.
 A renderer-visible fact that the artifact or run record is invalid, contradictory, or failed. Integrity
 failure has higher display precedence than live activity because a plausible active glyph on invalid
 state is actively misleading.
+
+### 4.4a Why several native words share one stage (and where that hides a real duplication)
+
+MANY-TO-ONE IS THE DESIGN, NOT AN OVERSIGHT. Section 0 makes the native word authoritative and the glyph
+a redundant scanning aid, so a stage is deliberately shared by every native word with the same lifecycle
+meaning. This spec already does it in several places: `blocked`, `dependency-blocked`,
+`integration-blocked` and `merge-conflict` all render `⚠︎` while each printing its own word. A reader
+comparing two rows that share a glyph is seeing the aid work, not a table defect.
+
+THE WAITING CASE IS WORTH SPELLING OUT, because three names look interchangeable and are not. They sit at
+three different layers, and only the first is this spec's:
+
+| Name | Layer | What it is |
+|---|---|---|
+| `waiting-input` | presentation | THIS SPEC'S semantic stage: the glyph `…`, the ASCII `.`, color 214, bold |
+| `needs_input` | one gate's result | a GATE STATUS in `run_gates.ALL_GATE_STATUSES`, alongside `approved`, `rejected`, `timed_out`, `refused` and `aborted` |
+| `awaiting-human` | one queue item's state | a RUN DISPOSITION (spec `6kwd2e` R3.1): non-terminal, item parked, lane preserved, queue continues |
+
+They answer different questions. `needs_input` answers "what did this gate decide?" and can occur where
+there is no queue item at all; `awaiting-human` answers "what is this queued item doing?". A gate
+returning `needs_input` is one CAUSE of an item becoming `awaiting-human`, not a synonym for it. Both
+render `…` because a human reading a board wants one shape for "someone is waiting on me", and both keep
+their own word because the word is what says which system is waiting and why.
+
+AND NOW THE PART THAT IS A GENUINE SMELL RATHER THAN A PRESENTATION QUESTION, raised by the maintainer at
+review and recorded here because presentation is where it became visible. Two independent vocabularies
+exist for "a human is needed", and the reason is measurable: `run_gates.py` is UNWIRED TO BOTH RUNNERS
+(`grep run_gates` returns nothing in either driver, and spec `6kwd2e` records the same fact at its own
+Section 0.4). So `needs_input` has never had to coexist with a runner disposition, and `awaiting-human`
+was designed while the older mechanism sat unreachable. That is how two names for one situation get
+built without anyone choosing to build them.
+
+THIS SPEC DOES NOT RESOLVE IT, and must not: collapsing two state vocabularies is a lifecycle change,
+which Section 3 excludes, and it would mean editing a reviewed spec's requirement from a presentation
+spec. What this spec does is REFUSE TO HIDE IT. Rendering both as `…` is correct today and is explicitly
+NOT an endorsement of keeping both: if a later change wires `run_gates` into the runners, whoever does it
+should decide whether one of the two names retires. Recorded as the open question in Section 16 so the
+observation is not lost with this review.
 
 ### 4.5 One-character representation
 
@@ -266,7 +327,43 @@ only when the subtype is genuinely unavailable.
 | `blocked`, `dependency-blocked`, `integration-blocked`, `merge-conflict` | blocked |
 | `failed`, `failed-safely` | failed |
 | `not-attempted`, `cancelled` | abandoned |
+| `needs_input`, `awaiting-human` | waiting-input |
+| `ran` | recovering |
+| `unknown_outcome` | failed |
 | stale projected `abandoned?` or another inference | unknown |
+
+THE FOUR ROWS ABOVE WERE ADDED AT REVIEW (2026-09-13) and each closes a word this spec's own Section 6
+preamble and criterion A2 would otherwise have made a defect. They were absent, not decided against, so
+the table silently resolved five real states to `unknown` (`?`) in a spec whose stated rule is that
+falling through for a KNOWN status is a defect. The reasoning for each, since three of them were
+judgement calls:
+
+- `needs_input` (`run_gates.GATE_STATUS_NEEDS_INPUT`, a live constant) and `awaiting-human` (spec
+  `6kwd2e` R3.1) are MECHANICAL: both mean a human is required, which is exactly `waiting-input`. Note
+  this satisfies `6kwd2e` R4a.6, which forbids folding `awaiting-human` into the `blocked` group: 214 is
+  distinct from `blocked`'s 208 and `failed`'s 196. See 4.4a for why two names exist at all.
+- `ran` is `recovering`, NOT `done`, and the spec proves it twice. `25kzda` states that a `ran` item
+  "contributes non-success to aggregate calculation and therefore exit 1", and Section 7.2 of THIS spec
+  already forbids the alternative: "Unverified completion MUST NOT be styled as verified success merely
+  because work was performed." So green `✓` would paint an exit-1 item as success, the exact collapse
+  Section 5 exists to prevent. `recovering`'s defined meaning includes "or required", which fits an item
+  that needs a human to look at it. REJECTED: `done` (falsifies the exit code), `unknown` (`ran` is
+  precisely determined, not undeterminable), `waiting-input` (nothing is being asked), and a new 21st
+  stage (honest, but it widens a deliberately restrained table for one outcome, and the printed word
+  `ran` already carries the distinction). HONEST COST of the chosen answer: `↩︎` suggests a retry is
+  pending when none is scheduled, so the word is doing more work here than in any other row.
+- `unknown_outcome` (owned by spec `c4gd2h`, `implementing`) is `failed`, NOT this spec's generic
+  `unknown`. It is a REAL, NAMED, terminal disposition, whereas `unknown` means the state could not be
+  determined. Mapping a named disposition onto the lookup-failure glyph would erase the distinction
+  `c4gd2h` Section 0.0 exists to protect (that section exists because two definitions of this token
+  already collided once). A resolver MUST NOT treat the two as the same thing merely because both
+  contain the word "unknown".
+- `quarantined` (spec `ipd-spec` Section 13.3, emitted by `ipd_lint`) is `parked`: a quarantined plan is
+  deliberately set aside with a named owner and follow-up, which is `parked`'s meaning. REJECTED:
+  `blocked` (nothing external is obstructing it), `formative` (it may be a complete plan), and `failed`
+  (quarantine is a decision, not a failure). Note it is carried by a `- Quarantine:` FIELD rather than a
+  `- Status:` value, so a resolver reads it as an integrity/condition input per Section 8, not as a
+  native status; it is listed in this table because the lint view must show it without calling it a pass.
 
 An item that is presently verifying displays `verifying`, even if its last durable ledger event is
 `performed`. Once verification completes, it displays `done`. Unverified completion MUST NOT be styled
@@ -358,6 +455,26 @@ policy. The supported contract is:
 An implementation MAY add a shared display-width helper or a small dependency if needed, but MUST NOT
 create per-renderer width guesses.
 
+PRIOR ART CONFIRMS THIS SECTION AND NARROWS THE WORK (added at review, 2026-09-13). `render_stream.py`
+already carries a measured width policy for its own event glyphs and reaches the same conclusion this
+section does, so the requirement is not new ground:
+
+- It measured `unicodedata.east_asian_width` over its ten glyphs and found FIVE ambiguous, TWO OF WHICH
+  THIS SPEC ALSO USES AS LIFECYCLE GLYPHS: `▶` U+25B6 (this spec's `executing`) and `◇` U+25C7 (this
+  spec's `parked`). So the ambiguity Section 9.4 admits is already documented for this spec's own symbols,
+  not merely hypothesized.
+- It states its padding is computed in CODEPOINTS via `len` and that this is "exact only for glyphs a
+  terminal renders SINGLE-WIDTH", which is precisely the `len(styled_text)` failure this section forbids.
+- It solves it the way this spec does, with an ASCII substitution table selected by the same
+  `use_unicode` flag, and it explicitly records that "A TRUE display-width helper (a wcwidth-style 0/1/2
+  table) is deliberately NOT built here".
+
+CONSEQUENCE FOR THE IMPLEMENTER: no display-width helper exists in the package today (verified: no
+`wcwidth`, no `display_width` symbol), so if this spec's resolver needs one it is NEW work, and it must be
+shared rather than added beside the existing per-module policy. Reusing `render_stream`'s pattern (an
+ASCII table behind one capability flag) satisfies Section 9.4 without a width helper at all, which is the
+cheaper route and the one already proven here.
+
 ### 9.5 Machine output
 
 `--agent`, `--json`, pipes, and redirected output MUST contain no ANSI escapes. Existing machine schemas
@@ -437,6 +554,72 @@ Implementation is additive to human presentation and requires no data migration.
 Existing column order and machine fields MUST be preserved unless a separately reviewed interface change
 explicitly changes them. Human snapshot changes are expected where the new marker is introduced.
 
+## 12a. Approved plans already queued against these files (added at review, 2026-09-13)
+
+EIGHT APPROVED, UNEXECUTED PLANS DECLARE FILES THIS SPEC CLAIMS. None contradicts this design, and one is
+a genuine SEQUENCING DEPENDENCY that decides when the resolver can honestly be validated. Measured by
+reading each plan's `- Scope-Paths:` at HEAD; the runner isolates lanes and re-validates on merge, so
+file overlap alone is not a hazard and is not reported as one here.
+
+| Plan | Declares | Relationship |
+|---|---|---|
+| `yaxr4i` (`ttyflags` 01) | `term.py`, `cli.py`, `result_types.py`, `docs/cli-output-contract.md` | **UPSTREAM DEPENDENCY. See below.** |
+| `r2i1b1`, `ys1dor`, `zzcrlo`, `st5klo` | `render_stream.py` and both runners | MERGE FRICTION ONLY. Each adds or changes report CONTENT (a refusal record, an integration-aware outcome, a re-dispatch notice, an end-of-run spec-edit report); this spec restyles rows. Whichever lands second rebases. No vocabulary or palette claim in any of them. |
+| `pr5b0t` (`lanestrand` 01) | `attention_contract.py`, `attention.py` | COMPATIBLE. It adds stranded lanes as attention items "mapped onto the existing class vocabulary", so it adds no class and no status this spec must cover. |
+| `9iiqmm` (`awinbox` 02) | `attention.py` | COMPATIBLE. One advisory count line on the human board, not a lifecycle row. |
+| `quqyc4` (`nogitmsg` 01) | `attention.py`, `cli.py` | COMPATIBLE. A git-aware hint message, not lifecycle styling. |
+
+### `yaxr4i` IS UPSTREAM OF THIS SPEC AND SHOULD LAND FIRST
+
+It owns the presentation-override surface that Sections 9.3 and 11 are written against, and it is
+`approved` and runnable today. Three consequences, each verified rather than inferred:
+
+1. IT IS NOT A DESIGN CONFLICT. That plan explicitly records `STATUS_COLOR_256` and `Term.color256` as
+   "prior art, not a conflict", and it never touches the lifecycle color table this spec replaces. So
+   nothing in it needs overriding.
+2. IT ADDS THE FLAGS THIS SPEC ASSUMES. `--no-color` is currently missing from 25 of 219 subcommands
+   (measured in that plan, and the gap is regrowing as new subcommands miss the shared parent), and
+   `--color` has NO flag form at all, existing only as `FORCE_COLOR`. A13 of this spec speaks of
+   `FORCE_COLOR` "according to existing precedence", and that precedence is exactly what `yaxr4i`
+   settles. Landing this spec's resolver first would validate A11 to A13 against a surface about to move.
+3. IT CARRIES A SETTLED RULING THAT MAKES A11 SAFE, and this was CORRECTED at review after an earlier
+   draft of this section got it backwards. `yaxr4i` OQ-01 asked whether non-TTY stdout should select AGENT
+   mode as `docs/cli-output-contract.md:159-163` promises. It is `- Status: resolved`: the maintainer ruled
+   OPTION B on 2026-09-10, correct the document, because the promise NEVER SHIPPED (piping `aw` emits prose
+   today), nothing can depend on behavior that never existed, an unknown number of external consumers
+   depend on the ACTUAL behavior, and `--agent` already covers the capability. So piped output stays human,
+   A11 is UNCONDITIONAL, and the document is being retracted rather than implemented.
+   THE HAZARD THAT REMAINS IS A DOCUMENTATION LAG, not a design risk: the contract file still carries the
+   unretracted promise until `yaxr4i` E-05 rewrites it, so anyone validating A11 from that document rather
+   than from the ruling will reach the wrong conclusion. That is the strongest reason to land `yaxr4i`
+   first, and it is why A11 now cites the ruling in its own text.
+
+### Is it SAFE to implement this spec after `yaxr4i`? Yes, and it is the recommended order
+
+Stated as a direct answer because it is the question a reader of this section will have. Nothing in
+`yaxr4i` conflicts with this design (point 1), it ADDS the override surface Sections 9.3 and 11 assume
+(point 2), and its one blocking question is already resolved in the direction A11 needs (point 3). So
+executing this spec's resolver afterwards is safe, and the reverse order is the risky one, because it
+would validate A11 to A13 against flags and a document that are about to change.
+
+TWO OBLIGATIONS FOLLOW, both on the implementing plan rather than on `yaxr4i`:
+
+1. DECLARE THE EDGE. The plan that lands the resolver MUST carry an `- Item-Dependencies:` edge on
+   `yaxr4i` (spelled `executed:yaxr4i`), or state in writing why it does not need one. This spec does not
+   otherwise constrain execution order.
+2. RE-REVIEW THIS SPEC AFTER `yaxr4i` EXECUTES, BEFORE THE RESOLVER IS BUILT. This is a requirement, not a
+   suggestion, and the reason is that `yaxr4i` changes the very surface three of this spec's criteria are
+   written against: it adds `--color` where only `FORCE_COLOR` existed, adds `--no-color` to 25 of 219
+   subcommands, settles `--color`/`--no-color` precedence, and rewrites `docs/cli-output-contract.md`. A11,
+   A12 and A13 must be re-read against the flags and precedence as SHIPPED rather than as anticipated
+   here, and Section 9.3's "MUST preserve current ... behavior" needs re-pointing at whatever "current"
+   then means. Run `/spec-review` on this spec again at that point; a re-review appends a new round and
+   keeps the status `reviewed`, so it costs one cheap turn and prevents building against a stale contract.
+
+WHAT IS NOT A REASON TO WAIT, so the dependency is not overstated: file overlap with the four
+`render_stream.py` plans is NOT a hazard, because each execute turn gets an isolated worktree and returns
+through the merge-and-revalidate gate. Those four are ordinary rebase friction and impose no ordering.
+
 ## 13. Acceptance criteria
 
 - **A1** One canonical module defines every semantic stage, glyph, ASCII fallback, color, bold flag, and
@@ -457,7 +640,16 @@ explicitly changes them. Human snapshot changes are expected where the new marke
 - **A10** In full human rows, glyph, id6, and status use the same resolved color and bold flag. Titles and
   paths are not lifecycle-colored.
 - **A11** `NO_COLOR`, `TERM=dumb`, and non-TTY output contain no ANSI escapes and retain glyph plus word
-  when Unicode is supported.
+  when Unicode is supported (Section 9.3's ASCII fallback applies when it is not). THIS IS UNCONDITIONAL,
+  and the reason is a ruling rather than the current code's accident: `yaxr4i` OQ-01 was RESOLVED by the
+  maintainer on 2026-09-10 as OPTION B, correct the document, so piped output STAYS human-readable and
+  `--agent` remains the only way to get JSONL. The published "hard cutover" promise that non-TTY stdout
+  adopts `aw.agent/v1` is being RETRACTED, not implemented. So a piped invocation still emits human text
+  and this criterion applies to it in full.
+  DO NOT RE-DERIVE THIS FROM THE CODE ALONE. Today's behavior and the ruling agree, but they agree for
+  different reasons, and `docs/cli-output-contract.md` still carries the unretracted promise until
+  `yaxr4i` E-05 lands. An implementer reading that document instead of this line would conclude A11 is
+  conditional. It is not.
 - **A12** `AW_ASCII_ONLY=1` and `FORCE_ASCII=1` use the exact fallbacks in section 5 and retain words.
 - **A13** `FORCE_COLOR=1` enables ANSI according to existing precedence but does not override ASCII stream
   capability.
@@ -522,4 +714,68 @@ PLAN       +  v7g8h9  executed       Verified and merged
 - **D10:** Accept that Unicode ambiguous-width rendering varies by terminal, guarantee ASCII alignment,
   and keep width handling shared rather than allowing local guesses.
 
-There are no open design questions in this spec.
+Added at review, 2026-09-13:
+
+- **D11:** This spec is the single authority for lifecycle color and glyph and OVERRIDES the earlier
+  per-surface palettes, on the maintainer's ruling. The authority covers DISPLAY only and changes no
+  state, transition, exit code, or report section. Section 0.5 names what is superseded and requires the
+  implementing plan to amend `25kzda` Section 5.6 rather than leave two live tables in the tree.
+- **D12:** `needs_input` and `awaiting-human` both render as `waiting-input` (`…`, 214). Many native words
+  to one stage is the design (Section 4.4a), and this keeps `6kwd2e` R4a.6 satisfied because 214 is
+  distinct from `blocked`'s 208.
+- **D13:** `ran` renders as `recovering` (`↩︎`, 220), NOT `done`. Rejected `done` because `25kzda` makes a
+  `ran` item contribute non-success and exit 1, and because Section 7.2 of this spec already forbids
+  styling unverified completion as verified success. Rejected a new 21st stage as disproportionate, and
+  `unknown` because `ran` is precisely determined. Accepted cost: `↩︎` implies a pending retry when none is
+  scheduled, so the printed word carries more weight in this row than in any other.
+- **D14:** `unknown_outcome` renders as `failed`, not as this spec's generic `unknown`, because it is a
+  real named terminal disposition owned by `c4gd2h` and collapsing it into the lookup-failure glyph would
+  erase the distinction that spec's Section 0.0 exists to protect.
+- **D15:** `quarantined` renders as `parked`. It is carried by a `- Quarantine:` field rather than a
+  `- Status:` value, so a resolver reads it as a condition input per Section 8.
+
+## 16. Open questions
+
+### OQ-01: Must the accessibility lens's 256-color exception be widened, and does this spec owe a 16-color fallback?
+
+- Blocking: yes
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: THIS IS THE ONE CONFLICT THE OVERRIDE RULING DOES NOT SETTLE, because
+  the counterparty is not a competing spec but a RUBRIC THIS SPEC SHOULD SATISFY.
+  `.aw/system/workflows/assess/lenses/accessibility.md:56-63` says "Do not assume 256-color or truecolor;
+  fall back through 16-color and then no-color" and "prefer the terminal's default fg/bg and the 16 named
+  colors, which users theme for their own contrast", with a NARROW exception attributed to DECISIONS D133
+  scoped to the `aw attention` human view alone. That lens is the binding rubric which spec
+  `20260706-0000-01` Goal 9 delegates to, so it is not something this spec may simply override.
+  THIS SPEC EXTENDS xterm-256 TO EVERY RENDERER IT NAMES (both runners, indexes, lint views, run viewers,
+  status commands) and specifies NO 16-color degradation path at all. Two things follow and only a human
+  can choose between them. EITHER the D133 exception is widened to every renderer here, in the same change
+  that lands the resolver, accepting that a 16-color terminal gets approximate colors while the word and
+  glyph still carry the meaning. OR this spec owes a 16-color fallback column beside its ASCII column,
+  which is real added scope and a second table to keep correct.
+  WHY IT BLOCKS: the lens is the standard a reviewer would hold an implementation to, so shipping the
+  resolver without settling this leaves the implementing plan unable to satisfy both documents at once.
+  THE ACCESSIBILITY COST IS ALREADY PARTLY MITIGATED and that is worth weighing: this spec never makes
+  color the sole carrier (Section 11 item 2), so a user whose terminal renders 214 and 208 as the same
+  orange still reads `waiting-input` versus `blocked` from the word and from `…` versus `⚠︎`. The residual
+  risk is scanning speed on a dense board, not lost information.
+
+### OQ-02: Should one of `needs_input` and `awaiting-human` retire once `run_gates` is wired?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: RAISED BY THE MAINTAINER AT REVIEW, who observed that the waiting
+  states look near-identical. They are not identical (Section 4.4a sets out the three layers), but the
+  observation exposed a genuine duplication UPSTREAM of presentation: two independent vocabularies exist
+  for "a human is needed here", and the measured reason is that `run_gates.py` is UNWIRED TO BOTH RUNNERS
+  (it greps to zero in each driver; spec `6kwd2e` Section 0.4 records the same fact). So `needs_input` and
+  `awaiting-human` have never had to coexist in one running system, which is how two names for one
+  situation get built without anyone choosing to.
+  NOT BLOCKING, AND DELIBERATELY NOT THIS SPEC'S TO DECIDE. Collapsing two state vocabularies is a
+  lifecycle change, which Section 3 excludes, and it would mean amending a reviewed spec's requirement
+  from a presentation spec. Rendering both as `…` is correct today whether or not one later retires.
+  WHAT WOULD CLOSE IT: whoever wires `run_gates` into the runners decides whether the gate status and the
+  run disposition remain distinct or one becomes the single name. Recorded here so the observation is not
+  lost with this review; this spec's tables need no change either way.
