@@ -5,7 +5,7 @@
 - Concern: The pending plans that carry no resolvable `- From-Backlog:` cannot inherit `Priority` and `Work-Kind` from a source, so sibling 02's mechanical backfill leaves them empty. Without a value they stay unprioritized on the board, and they are disproportionately the plans with no backlog origin, which may be exactly the ones most needing triage. RE-MEASURED AT REVIEW (2026-09-12, HEAD `5e0e9873`): the population is 28, not the authored 24 nor the title's 20, spread over 10 Sets (`runanalytics` 10, `planprio` 4, `nobugship` 4, `orchprobe` 3, `setidfix` 2, and one each in `lanectn`, `defreport`, `integearn`, `runnerbugs`, `rdyrecheck`), and split by status 13 `approved`, 11 `reviewed`, 4 `to-review`. Do NOT re-quote these either; E-01 re-derives them.
 - Scope: Assign both fields to every pending plan sibling 02 could not reach, using a SECOND derivation route where one exists (a child inheriting from its Set orchestrator) and a single human decision list for the genuine remainder. Writes through the shipped `aw ipd set` setters only. Does NOT touch any plan sibling 02 handled, does NOT edit terminal plans, and does NOT change any vocabulary.
 - Scope-Paths: .aw/records/plans/pending
-- Item-Dependencies: executed:lkexaw
+- Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
@@ -16,6 +16,7 @@
 - Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): set Item-Dependencies to none
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN and escalated to blocking OQ-02), PR-002 (BLOCKER, OPEN and escalated to blocking OQ-03), PR-003 (BLOCKER, OPEN, inherits the parent's blocking OQ-02, escalated here as OQ-04), PR-004..PR-012 FIXED; readiness `no-go`. Record: `.aw/records/reviews/20260910-planprio-03-lc4unl-decide-and-record-priority-and-work-kind-for-the-20-pending.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. Suite measured bare at HEAD `5e0e9873`: `5971 passed, 3 skipped, 2 xfailed in 58.02s`. DISCLOSURE: same agent/model family authored this Set, so treat as a near-self-review; its value rests on what was EXECUTED.

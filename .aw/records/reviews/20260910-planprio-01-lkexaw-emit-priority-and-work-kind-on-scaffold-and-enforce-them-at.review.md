@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-13
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -61,3 +61,44 @@ because the fix spans three other plans' files and is the Set owner's act, not t
 | D-3 | PR-004 requires the shared choices assertion to change. Should `aw specs set` also drop the `-` sentinel so the one assertion stays undivided? | NO: change the plan verb only and split the assertion. | Remove `-` from both verbs (rejected: `Work-Kind` stays genuinely OPTIONAL on a spec, so clearing it there is a legal end state; the maintainer's 2026-09-10 ruling covered the backlog and plan verbs, not specs; and the parent `d0cbt3` already records this asymmetry as a deliberate, reasoned cost). | `tests/test_work_kind.py:212-235`; the maintainer ruling quoted in `b5sfwm` OQ-02; the parent's Deferred section. | yes |
 | D-4 | E-04 asked the executor to judge invariant-catalog fit. Which invariant id? | `""` (empty), with the reason recorded. | File under I-12 (rejected: I-12 is specifically the draft-to-`to-review` authoring nudge, not triage metadata). File under I-09 (rejected: that is the exact misfiling `check.setid-collision` is recorded as, and the convention comment calls a neighbouring id "a false trace"). Add a new catalog entry (rejected: that is a spec amendment this plan does not declare). | Catalog I-01..I-16 read in full (`pqsx96` spec `:129-144`); the convention at `check_engine.py:160-170`; both sibling rules registered `""` at `:247-259`. | yes |
 | D-5 | Should this review fix PR-001 by rewriting the three children's `Item-Dependencies` lines to match the parent's ruling? | NO: escalate as blocking OQ-02 and leave every file untouched. | Rewrite all three plus the parent's child table (rejected: three of the four files belong to other plans, only `lkexaw` was in the scope ledger, and the shared-checkout rule forbids editing another party's in-flight work). Note it as prose without escalating (rejected: a prose note gates nothing, and `IPD-Q501` is the mechanism that actually stops execution). | The scope-ledger rule in `plan-review.md:47-52`; AGENTS.md shared-checkout rule; `IPD-Q501` firing measured after the escalation. | yes |
+
+## Round 2
+
+Opened 2026-09-12 to close PR-001, whose escalated question the maintainer CONFIRMED and whose fix has
+now been applied. Round 1 is left exactly as written, per the reviews README: the gate reads only the
+CURRENT round, and rewriting the earlier cell would erase the fact that the contradiction was caught
+here. No plan content was re-critiqued in this round, and no product code was modified.
+
+ROUND 1 WAS RIGHT ON THE FACTS AND RIGHT TO REFUSE THE FIX. The contradiction it found was real and was
+an omission by the agent that recorded the maintainer's RULING 1 earlier the same day: the parent's OQ-02
+and both siblings' resolutions all SAID the `executed:lkexaw` edges were inverted and must be removed,
+and NO FILE'S DEPENDENCY DATA WAS REWRITTEN. Prose said one order; the machine-readable graph still
+encoded the other. Its refusal to fix it mid-review was also correct, since four files across three plans
+is a cross-plan edit no child declares in `Scope-Paths`.
+
+WHAT WAS APPLIED, by the Set's owner as a records fix at the maintainer's direction, through the tooled
+verb rather than by hand (`aw ipd dependencies set`, which canonicalizes and validates before writing):
+this plan gained `- Item-Dependencies: executed:8u6770, executed:lc4unl`; `8u6770` and `lc4unl` both
+dropped to `none`; and the parent's child table `Depends on` column was inverted to match.
+
+VERIFIED BY THE RUNNER'S OWN SCHEDULER RATHER THAN BY INSPECTION, which is the evidence that matters
+because the whole defect was a graph that disagreed with its prose: `oc_runipd.dependency_depth` over the
+corrected edges returns `8u6770` 0, `lc4unl` 0, `lkexaw` 1, and sorting by depth yields
+`['8u6770','lc4unl','lkexaw']`. The queue now executes the backfills first and this plan last.
+
+THE `Order` NUMBERS ARE DELIBERATELY UNCHANGED, and the parent's table now states that explicitly,
+because it is the misreading this correction invites: `Order` is the authored numbering and is no longer
+the execution order, while `Depends on` is authoritative. Renumbering would rewrite three filenames and
+every cross-reference in the Set for a cosmetic gain.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | A. Correctness / G. Plan executability | round 1's measurement, re-verified at round 2: all four files encoded the overturned order; `dependency_depth` now returns 0/0/1 for `8u6770`/`lc4unl`/`lkexaw` | Carried forward from round 1: THE PARENT'S RULING REVERSED THE SET ORDER AND ALL THREE CHILDREN STILL ENCODED THE OVERTURNED DIRECTION, so a runner sorting by dependency depth would have run this plan FIRST and stranded the 18 approved plans the ruling exists to protect. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | THE REVERSAL IS CONFIRMED AND THE GRAPH NOW MATCHES IT. Option (a) applied by the Set's owner as a records fix at the maintainer's direction: three `- Item-Dependencies:` lines rewritten via `aw ipd dependencies set`, and the parent's child table inverted. Proven with the runner's own `dependency_depth`, not by reading the files. OQ-02 is `resolved` and carries the applied change, the scheduler evidence, an explicit note that `Order` numbers are NOT the execution order, and a standing instruction to STOP if this plan ever becomes executable while a sibling is unexecuted, since that would mean the edge was lost again. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | Fix the four files as a records correction, or make the reordering an execution step in the parent? | RECORDS CORRECTION, by the Set's owner, at the maintainer's direction. | An E-item on the parent orchestrator (rejected by the maintainer as unnecessary ceremony for a metadata correction that carries no risk and can be proven immediately); renumber the `Order` fields to match execution order (rejected: rewrites three filenames and every cross-reference for a cosmetic gain, and `NN` is a stable authored identifier rather than a sequence promise). | Maintainer direction 2026-09-12; `dependency_depth` output before and after. | yes |

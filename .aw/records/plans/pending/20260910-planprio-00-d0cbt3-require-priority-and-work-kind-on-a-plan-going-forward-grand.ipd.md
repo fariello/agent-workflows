@@ -51,11 +51,15 @@ Add further leaves as `- [ ] E-NEW <action>` and run `aw ipd sync` to assign ids
 
 | Order | Id | Title | Depends on |
 |---|---|---|---|
-| 01 | `lkexaw` | Emit both fields on scaffold and enforce them at the ready-to-execute gate | none (SEE OQ-02) |
-| 02 | `8u6770` | Backfill the pending plans that can inherit from their source backlog item | `executed:lkexaw` (SEE OQ-02) |
-| 03 | `lc4unl` | Decide and record values for the pending plans with no source item | `executed:lkexaw` (SEE OQ-02) |
+| 01 | `lkexaw` | Emit both fields on scaffold and enforce them at the ready-to-execute gate | `executed:8u6770, executed:lc4unl` |
+| 02 | `8u6770` | Backfill the pending plans that can inherit from their source backlog item | none |
+| 03 | `lc4unl` | Decide and record values for the pending plans with no source item | none |
 
-Orders 02 and 03 are INDEPENDENT of each other and may run in either order or concurrently.
+THE ORDER COLUMN IS THE AUTHORED NUMBERING AND NO LONGER THE EXECUTION ORDER, which is the one thing a reader must not misread. Per the maintainer's RULING 1 of 2026-09-12 (OQ-02), Orders 02 and 03 EXECUTE FIRST and Order 01 executes LAST; the `Depends on` column is authoritative and the runner sorts by dependency depth, so it will schedule them correctly. The `Order` values are left as authored deliberately: renumbering them would rewrite three filenames and every cross-reference in this Set for a cosmetic gain, and the uniform naming grammar treats `NN` as a stable authored identifier rather than a promise about sequence.
+
+Orders 02 and 03 are INDEPENDENT of each other and may run in either order or concurrently. Order 01 requires BOTH, so it is scheduled only once both are `executed`.
+
+WHY THE EDGES POINT THIS WAY, stated here because the front matter cannot carry a reason: Order 01 installs a lint gate that fires at EVERY phase for a plan at the ready-to-execute tier, and 18 of the 25 currently approved pending plans carry neither field. Landing it before the backfills would make those 18 fail `aw ipd lint` and be refused by `aw ipd begin` until both backfills had run. The edges encode that, so the graph itself prevents the stranding rather than relying on an executor reading this prose.
 
 THE EDGES ABOVE ARE UNDER QUESTION, NOT SETTLED. Both backfills depending on Order 01 is what finding PR-001 identifies as the Set's blocking defect, because the gate Order 01 installs fires at EVERY lint phase for a plan already at the ready-to-execute tier. Whichever option OQ-02 selects, the child front matter must be brought into agreement with this table in the same change: the `- Item-Dependencies:` lines live in the children's own files and were deliberately NOT edited by this review, since only this orchestrator was in the review's scope ledger.
 

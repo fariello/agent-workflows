@@ -5,7 +5,7 @@
 - Concern: Most pending plans record the backlog item they graduated from, every one of those references resolves, and every source carries both `Priority` and `Work-Kind`. So those plans can be given both values with no judgement call, purely by inheriting from a source the plan itself names. RE-MEASURED AT REVIEW (2026-09-12, HEAD `fe57b1a4`), because the authored figures are stale: 120 pending plans (authored 104), 92 carrying `- From-Backlog:` (authored 84), 0 dangling, 0 sources missing a field, 11 plans ALREADY carrying both fields, so the real backfill population is 81 and the no-source remainder is 28 (authored 20). Do NOT re-quote these either; E-01 re-derives them.
 - Scope: Inherit `Priority` and `Work-Kind` from each pending plan's `- From-Backlog:` source, writing them through the shipped `aw ipd set` setters rather than by hand. Does NOT decide a value for any plan lacking a source (sibling 03 owns those), does NOT touch terminal plans, and does NOT change any vocabulary or add a sort key.
 - Scope-Paths: .aw/records/plans/pending
-- Item-Dependencies: executed:lkexaw
+- Item-Dependencies: none
 - Status: approved
 - Readiness: go-pending-approval
 - Set: planprio
@@ -16,6 +16,7 @@
 - Approval: 2026-09-13, recorded via aw ipd set: status set to approved
 
 ## Workflow history
+- 2026-09-13 approved (aw set): set Item-Dependencies to none
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-12 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): REVIEWED - OPEN QUESTIONS; PR-001 (BLOCKER, OPEN, inherits the parent's blocking OQ-02), PR-002 (HIGH, OPEN and escalated to blocking OQ-02 on this plan), PR-003..PR-011 FIXED; readiness `no-go` because two blocking questions remain. Record: `.aw/records/reviews/20260910-planprio-02-8u6770-backfill-priority-and-work-kind-on-the-84-pending-plans-that.review.md`. `aw ipd lint --phase author` CONFORMING (clean, 0 findings) before semantic review. Suite measured bare at HEAD `fe57b1a4`: `5971 passed, 3 skipped, 2 xfailed in 59.68s`. DISCLOSURE: same agent/model family authored this Set, so treat as a near-self-review; its value rests on what was EXECUTED.
