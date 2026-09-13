@@ -190,7 +190,7 @@ ALL OF IT IS GATED ON OQ-03, which asks whether this plan should proceed at all 
 ### OQ-03: Is this change worth its true cost, and if so, does the shared review session yield to isolation?
 
 - Blocking: yes
-- Finding: PR-501
+- Finding: PR-501, PR-505
 - Status: open
 - Owner: maintainer
 - Resolution or deferral rationale: NOT resolvable from repository evidence, because both halves are judgement calls the repository cannot make and one is irreversible in the direction this plan proposes.
