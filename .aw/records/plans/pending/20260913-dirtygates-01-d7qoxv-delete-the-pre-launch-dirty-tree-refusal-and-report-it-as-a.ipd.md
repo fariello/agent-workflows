@@ -1,0 +1,147 @@
+# IPD: Delete the pre-launch dirty-tree refusal and report it as a warning instead
+
+- Date: 2026-09-13
+- Kind: child
+- Concern: The spec-R5.4 clean-base gate refuses an unattended isolated turn when ANY tracked path in the shared checkout is dirty, regardless of whether the plan will touch that path. Measured 2026-09-13: one uncommitted backlog markdown file refused 27, 23 and 18 items across three consecutive runs (a 100% batch failure rate) while the runs had already spent $106. The gate does not prevent the harm it names; it only defers it.
+- Scope: Turn the pre-launch clean-base REFUSAL into a non-blocking WARNING on both hosts, and amend spec 7ckptx R5.4 plus its acceptance criterion A14 to match. Excludes the integration-time overlap check (Order 02), the backlog close (Order 03), and orchestrator retirement (Order 04).
+- Scope-Paths: agent_workflows/oc_runipd.py, agent_workflows/agy_runipd.py, agent_workflows/lane_containment.py, tests/test_lane_clean_base.py, .aw/records/specs/20260901-7ckptx-01-7ckptx-worker-lane-containment.spec.md
+- Item-Dependencies: none
+- Status: to-review
+- Set: dirtygates
+- Order: 1
+- Highest E allocated: 05
+- Author: opencode (its_direct/pt3-claude-opus-5-1m-us)
+- Id: d7qoxv
+- Priority: high
+- Work-Kind: bug
+
+## Workflow history
+
+- 2026-09-13 draft (opencode (its_direct/pt3-claude-opus-5-1m-us)): created.
+- 2026-09-13 to-review (opencode (its_direct/pt3-claude-opus-5-1m-us)): authored from a live measurement session. The gate was traced from the refusal text through `lane_containment.evaluate_clean_base` to both call sites, and the claim that it PREVENTS a stale-base failure was tested and DISPROVED (see Findings F-3).
+
+## Goal
+
+Stop a dirty path in the shared checkout from refusing unattended isolated turns that will never touch it. Report the dirty paths so the operator is informed, and let the merge-and-revalidate gate remain the thing that actually catches a stale base.
+
+## Detailed Implementation Checklist (TODO)
+
+Execution-state rule: mark an `E-*` item complete only after performing the action. That mark is not validation. Right-sizing rule: each E-item must address one concern and be executable in one focused pass; split when an E-item names multiple distinct deliverables or independent test-surfaces.
+
+### Task group 1: replace the refusal with a report
+
+- [ ] E-01 In `oc_runipd.py` at the pre-launch gate (`:6123`, `base = evaluate_clean_base_for_launch(repo)`), stop writing a terminal disposition when the base is not clean. Today the not-clean branch sets `attempt["disposition"] = "blocked"`, `item["status"] = "blocked"`, records `clean_base_refused` / `clean_base_dirty_paths`, saves state and skips the turn. Instead: emit the dirty-path list as a WARNING to stderr, record the same observation on the attempt under a NON-refusal key (e.g. `clean_base_warning` / `clean_base_dirty_paths`) so the run record still carries the fact, and PROCEED to `driver_begin` and lane allocation. Do not change `evaluate_clean_base`'s classification itself (E-03 owns the shared rule's docstring).
+  - Depends on: none
+  - Expected outcome: an isolated turn launched against a checkout holding a dirty tracked path proceeds, and the run record carries the dirty paths as a warning rather than a refusal.
+  - Execution state: pending
+- [ ] E-02 Apply the byte-equivalent change to `agy_runipd.py` at `:3263`, which is the same gate with the same placement (its own comment at `:3259` states it shares the RULE via `lane_containment.evaluate_clean_base`). HOST PARITY IS A REQUIREMENT, not a nicety: spec 7ckptx R4 treats a host-only guard as a divergence, and `z2isfg` already left agy behind once on the neighbouring begin-dirty gate ("AGY IS DEFERRED, NOT DONE"), which is exactly the asymmetry this item must not repeat.
+  - Depends on: E-01
+  - Expected outcome: both hosts warn and proceed; no host retains the refusal.
+  - Execution state: pending
+
+### Task group 2: keep the rule honest where it is defined
+
+- [ ] E-03 Update `lane_containment.CleanBaseResult.reason` (`:2543-2551`) and `evaluate_clean_base`'s docstring (`:2554-2582`) so the text describes a WARNING rather than a refusal. The current `reason` string literally begins "refusing to launch an unattended isolated turn", which would otherwise be printed by a code path that no longer refuses. Preserve the `clean` / `dirty_paths` shape and the deliberate `--untracked-files=no` exclusion unchanged, and preserve the docstring paragraph that contrasts this check with `dirty_tree_overlap` (Order 02 changes that neighbour; this item must not silently invalidate the cross-reference).
+  - Depends on: E-01
+  - Expected outcome: the emitted text matches the behavior; no string claims a refusal that cannot happen.
+  - Execution state: pending
+
+### Task group 3: the contract and its tests
+
+- [ ] E-04 Amend spec `7ckptx` R5.4 (`:416-420`) and acceptance criterion A14 (`:570-572`). R5.4 currently says the checkout "MUST have no dirty TRACKED paths, and a refusal MUST name them and occur BEFORE any worker process is spawned". Replace the refusal obligation with a reporting obligation, and record WHY in the amendment: (a) the gate does not prevent a stale-base failure, it defers it (F-3); (b) the merge-and-revalidate gate already re-runs the suite against the combined result, which is where a genuine stale base surfaces with real evidence; (c) the measured cost was three runs at 100% batch failure. KEEP R5.4's untracked-file exclusion and its rationale, which remain correct. A14 must be rewritten to assert the warning-and-proceed behavior rather than the refusal.
+  - Depends on: E-01, E-02
+  - Expected outcome: the spec and the code agree, and the amendment states the measurement that justified it.
+  - Execution state: pending
+- [ ] E-05 Update `tests/test_lane_clean_base.py` so it pins the NEW contract, and add the regression that the old contract lacked: a queue of several isolated execute items, with one dirty tracked path OUTSIDE every plan's declared scope, completes every item. That test is the direct regression for run `run-20260913T031148Z-1722898` (23 of 41 items blocked). Also assert the warning names the dirty path, so removing the refusal does not silently remove the operator's signal.
+  - Depends on: E-01, E-02, E-03
+  - Expected outcome: the suite fails if the refusal is reintroduced, and fails if the warning stops naming the paths.
+  - Execution state: pending
+
+## Project conventions discovered (Step 0)
+
+- The RULE lives once in `lane_containment` and each host injects its own git runner (`oc_runipd.py:1955`, `agy_runipd.py:1299`). Change the rule in one place; change the two call sites symmetrically.
+- Both runners deliberately avoid `input()` anywhere and hand children `stdin=subprocess.DEVNULL` under the `ttywedge (g40w37)` banner. This plan adds no prompt.
+- Warnings in these runners go to stderr so a caller parsing stdout for structured output is unaffected.
+
+## Findings
+
+| id | finding | evidence |
+|---|---|---|
+| F-1 | The gate is the only one of three dirty-tree gates that is NOT path-scoped. | `run_evidence.dirty_within` (`:223-241`) ignores disjoint dirty work by design, "the path-overlap rule that preserves a concurrent multi-agent workflow"; `runner_shared.dirty_tree_overlap` (`:888-917`) refuses only on intersection with the lane's changed files; `lane_containment.evaluate_clean_base` (`:2554`) is whole-tree and absolute. |
+| F-2 | The blast radius is the whole run, not one item. | Runs `run-20260913T031350Z-1732436` (27 of 42 blocked), `run-20260913T031148Z-1722898` (23 of 41), `run-20260913T031521Z-1774617` (18 of 43). Every refusal named the same single backlog markdown file. |
+| F-3 | THE GATE DOES NOT PREVENT THE HARM IT NAMES. Tested 2026-09-13. A worker lane cut from HEAD lacked an uncommitted `src/lib.py` change; its new test passed in the lane, merged with no overlap, then failed against the real tree (`assert 5 == 4`). Committing the same uncommitted change with NO lane involved produced the IDENTICAL failure. So the lane was never the cause; the gate defers the failure to whenever the operator commits, which must happen anyway. | reproduced in a scratch repo during the session that authored this plan |
+| F-4 | The failure F-3 describes is already caught downstream, with better evidence. | The merge-and-revalidate gate re-runs validation against the combined result (`oc_runipd.make_integration_validation_runner`, and `runner_shared.integrate_lane_branch` step 1), so a genuine stale-base problem appears as a test failure on the real tree rather than as a guess about a dirty file. |
+| F-5 | Untracked files are already excluded, deliberately, and that part is right. | `evaluate_clean_base`'s docstring: tightening to include untracked files "would make an unattended run unstartable in essentially any working checkout, which is why it must not be 'fixed'". |
+
+## Proposed changes (ordered, validatable)
+
+1. `oc_runipd.py` pre-launch gate: warn and proceed instead of blocking (E-01).
+2. `agy_runipd.py` twin: identical change (E-02).
+3. `lane_containment.py`: make the message and docstring describe a warning (E-03).
+4. Spec `7ckptx` R5.4 + A14: amend the obligation from refusal to report, recording the measurement (E-04).
+5. `tests/test_lane_clean_base.py`: pin the new contract and add the multi-item regression (E-05).
+
+## Deferred / out of scope (with reason)
+
+- Path-scoping the gate to `Scope-Paths` instead of deleting the refusal. CONSIDERED AND REJECTED during authoring: it keeps a gate that F-3 shows prevents nothing, adds a dependency on a DECLARATION (a worker can read a file it never declared), and still refuses in the case where the declaration happens to overlap. Deleting the refusal is simpler and strictly more useful. Recorded here because it was the author's own first proposal and the reasoning that killed it is worth keeping.
+- The integration-time overlap check (`dirty_tree_overlap`), the backlog close, and orchestrator retirement: Orders 02, 03 and 04 of this Set.
+- Making the runner distinguish dirty paths IT authored from a co-worker's. Not needed once the refusal is gone, and Order 03 removes the runner's own mid-run writes anyway.
+
+## Scope check
+
+- Over-scope: none.
+- Under-scope: this plan removes a refusal and does not add a replacement guard. That is deliberate per F-3/F-4: the replacement already exists downstream. If review disagrees, the alternative is the rejected path-scoping option above, which should then become its own plan rather than an expansion of this one.
+
+## Required tests / validation
+
+- `tests/test_lane_clean_base.py` updated and passing, including the new multi-item regression.
+- The full suite, run bare (`python3 -m pytest`), with the failure set compared against a baseline from the same commit. Paste both counts and the diff of FAILED sets.
+- A manual end-to-end check: with one dirty tracked path in the checkout, start a run of at least two isolated execute items and paste the output showing both items launching and the warning naming the path.
+
+## Spec / documentation sync
+
+- Spec `7ckptx` R5.4 and A14 are amended by E-04. This plan declares that spec file in `Scope-Paths`, which is what makes the amendment visible to the runner's declared-spec-edit announcement and to the finalize scope gate.
+- No user-facing README or CHANGELOG change: the behavior removed is a refusal nobody should have been relying on. If review disagrees, add a CHANGELOG note rather than widening code scope.
+
+## Open questions
+
+### OQ-01: Should the warning appear once per run or once per item?
+
+- Blocking: no
+- Status: open
+- Owner: maintainer
+- Resolution or deferral rationale: the dirty path does not change between items, so one warning per run carries the same information with less noise; but a per-item warning keeps the run record self-describing for each attempt. Non-blocking because either choice satisfies the reporting obligation E-04 writes into R5.4, and the run record keeps the paths on the attempt either way. Raised so whoever implements E-01 does not pick silently.
+
+## Validation and cross-check (verify before reporting done)
+
+Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
+
+- [ ] V-01 validates E-01
+  - Required evidence: paste the run output for an isolated execute item launched against a checkout with a dirty tracked path, showing the item PROCEEDING and the warning text. Paste the attempt record from `state.json` showing the dirty paths recorded under a non-refusal key and no `blocked` status.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-02 validates E-02
+  - Required evidence: paste the diff hunks for both hosts side by side, or a test that exercises both call sites, proving the change is symmetric. Naming the two line numbers is NOT sufficient evidence; show the code.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-03 validates E-03
+  - Required evidence: `grep` output proving no shipped string in `lane_containment.py` claims "refusing to launch" for this gate, plus the new text.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-04 validates E-04
+  - Required evidence: paste the amended R5.4 and A14 text, and confirm `aw specs check` conforms. The amendment must contain the measurement (three runs, the item counts) rather than only the new obligation.
+  - Observed evidence:
+  - Result: pending
+- [ ] V-05 validates E-05
+  - Required evidence: paste `python3 -m pytest tests/test_lane_clean_base.py` output with the count, and paste the bare full-suite counts before and after with the FAILED-set diff. A green subset alone is not sufficient.
+  - Observed evidence:
+  - Result: pending
+
+## Approval and execution gate
+
+- Size assessment: standard
+- Cohesion rationale: not required
+
+Execution contract: commit only files this plan changed, path-scoped, never `git add -A`, never push. Paste actual runner output for every test claim. This plan amends an approved spec, so the spec file is declared in `Scope-Paths` and the amendment's reason is recorded in the spec's own text, not only here.
+
+Post-gate lifecycle move: this plan reaches `executed/` only when every V-item above carries pasted evidence and `aw ipd lint --phase pre-transition` reports conforming.
