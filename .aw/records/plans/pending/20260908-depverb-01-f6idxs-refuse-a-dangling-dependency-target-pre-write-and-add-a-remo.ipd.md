@@ -17,6 +17,12 @@
 - From-Backlog: rxoazt
 
 ## Workflow history
+- 2026-09-13 executed (opencode its_direct/pt3-claude-opus-5-1m-us): EXECUTED in lane `f6idxs` of run `run-20260913T031521Z-1774617`, commit `ecf5c703`. All six E-items performed and all six V-items verified with pasted evidence. SUITE: baseline `6034 passed, 3 skipped, 2 xfailed`, after `6074 passed, 3 skipped, 2 xfailed`, delta exactly the 40 new tests, no regressions. `aw check` gains NO diagnostic: finding counts identical rule-for-rule against pristine HEAD (201 = 201) and zero `check.ipd-dependency-*` on the live tree. `aw ipd lint --phase pre-transition` CONFORMING.
+  THE REVIEW'S CENTRAL FINDING WAS FOLLOWED AND HELD UP. E-01 resolves through `check_engine.build_dependency_index` + `_resolve_edge`, NOT `match_selector`, so the setter and `aw check` provably name the same condition (V-01 pastes both verdicts side by side), and the `ambiguous` verdict F-11 uncovered is refused unconditionally, including under `--allow-dangling`.
+  ONE FINDING CORRECTED, RECORDED RATHER THAN WORKED AROUND (D3). F-14 and E-03 both stated the grammar 'redirects `state:ipd:executed:` to canonical `executed:`'. MEASURED: it REFUSES it (`ipd_schema._parse_item_dependency_edge` returns 'is illegal; use the canonical ...'), and that refusal is deliberate per spec 2.7, which requires the `executed:` spelling so execution EVIDENCE is also demanded. Implementing the predicted redirect would have weakened a shipped contract, so the refusal is now PINNED for both verbs and canonical matching is proven with a spelling the grammar genuinely accepts (reordering plus whitespace). E-06's case (l) is satisfied; only its example changed.
+  E-05 ROUTE CHOSEN ON MEASUREMENT (D1): an EQUIVALENT in-fence guard, not an extension of `_DRIVER_SOURCES`. Three of the four existing guard bodies are driver-specific, and decisively `test_drivers_reference_the_shared_dependency_api` requires `META_ITEM_DEPENDENCIES` in the source, measured TRUE for `status_set.py` but FALSE for `cli.py`. Extending would have forced a false assertion or a per-file exemption; `tests/test_runner_item_dependencies.py` was NOT modified and still passes.
+  TWO OUT-OF-FENCE PATHS NEED A `--scope-reason` AT FINALIZE (D4), neither opportunistic: `agent_workflows/command_surface.py` (a new parser leaf without a `CommandDeclaration` fails `find_undeclared_leaves` in CI, so the verb E-03 mandates cannot exist without it) and `tests/test_ipd_item_dependencies.py` (fixture seeding only, for a case whose invented target ids the new pre-write check correctly refuses; its subject is canonical ordering, so seeding preserves its intent rather than converting it into a test of the escape hatch).
+  NO SPEC AMENDMENT (D5): spec 2.7's 'only supported writer' sentence contrasts the TOOL with a hand edit, and `remove` upholds it by calling the SAME writer rather than adding one; the two `set` forms shown are illustrative, not an exhaustive enumeration bound by a test (unlike 2.1's flag grammar). Recorded as an optional documentation follow-up, not a contradiction.
 - 2026-09-13 approved (aw set): status set to approved
 
 - 2026-09-09 reviewed (opencode its_direct/pt3-claude-opus-5-1m-us): /plan-review APPROVE WITH REVISIONS APPLIED; readiness GO - PENDING HUMAN APPROVAL. PR-001..PR-008, ALL EIGHT FIXED, no open findings. `aw ipd lint --phase author` CONFORMING before semantic review and `--phase review-finalize` CONFORMING after every revision, so nothing here is structural. DISCLOSURE: same agent/model authored this plan, so this is a SELF-REVIEW, and its value rests on RE-RUNNING rather than re-reading: a fresh probe repo was built and the four gap claims were EXECUTED against the real CLI, and both candidate resolvers were CALLED in-process against the live tree.
@@ -36,50 +42,50 @@ Execution-state rule: mark an `E-*` item complete only after performing the acti
 
 ### Task group 1: validate existence before writing
 
-- [ ] E-01 Resolve every dependency TARGET and refuse pre-write when it does not resolve, in `run_dependencies_set_command` (find by SYMBOL; `agent_workflows/status_set.py:1489` at review, not `:1515`). The function already validates and canonicalizes the grammar BEFORE any write via `ipd_schema.canonical_item_dependencies` and refuses with "Refusing before making changes." (`:1527-1534`), so this adds an EXISTENCE check alongside the existing GRAMMAR check at the same point, reusing that refusal contract and its wording rather than inventing a second failure shape. Cover all three edge forms the grammar admits, since each names a target differently: `executed:<id6>`, `exists:<type>:<id6>` and `state:<type>:<status>:<id6>`. RE-MEASURED AT REVIEW at HEAD `0a2626c9`: all THREE forms are accepted today with exit 0 and the value is genuinely WRITTEN (not merely dry-run clean), which is a stronger reproduction than the plan's original dry-run-only evidence.
+- [x] E-01 Resolve every dependency TARGET and refuse pre-write when it does not resolve, in `run_dependencies_set_command` (find by SYMBOL; `agent_workflows/status_set.py:1489` at review, not `:1515`). The function already validates and canonicalizes the grammar BEFORE any write via `ipd_schema.canonical_item_dependencies` and refuses with "Refusing before making changes." (`:1527-1534`), so this adds an EXISTENCE check alongside the existing GRAMMAR check at the same point, reusing that refusal contract and its wording rather than inventing a second failure shape. Cover all three edge forms the grammar admits, since each names a target differently: `executed:<id6>`, `exists:<type>:<id6>` and `state:<type>:<status>:<id6>`. RE-MEASURED AT REVIEW at HEAD `0a2626c9`: all THREE forms are accepted today with exit 0 and the value is genuinely WRITTEN (not merely dry-run clean), which is a stronger reproduction than the plan's original dry-run-only evidence.
   USE `check_engine._resolve_edge` PLUS `build_dependency_index`, NOT THE SELECTOR RESOLVER, AND THIS IS THE ITEM'S MOST IMPORTANT CORRECTION (F-11). The authored instruction said to "resolve the target through the shared selector resolver so the setter agrees with `aw find` and with `aw check`". Measured, that would make the setter DISAGREE with `aw check`, because `aw check` does not use the selector resolver at all: `evaluate_ipd_dependencies` calls `build_dependency_index` (`check_engine.py:2347`) and `_resolve_edge` (`:2368`), which is a PURPOSE-BUILT edge resolver that (a) enforces the edge's TYPE via `ITEM_DEP_TYPE_TO_RECORD_TYPE` and (b) returns a three-way verdict `ok`/`dangling`/`ambiguous`. A `match_selector` existence check has no ambiguity concept, and the divergence is REAL rather than theoretical: id6 `uyeko5` is owned by one `plans` record AND two `research` records in this repository today, so `match_selector("uyeko5", scoped_type="plans")` returns one hit (a naive check says OK) while the shared evaluator can classify the same id6's ownership. Reusing `_resolve_edge` gets the type check and the ambiguous verdict for free and satisfies E-05 by construction; building on `match_selector` would create the second authority E-05 forbids.
   REFUSE ON `ambiguous` TOO, NOT ONLY ON `dangling`, since `_resolve_edge` returns both and `check.ipd-dependency-ambiguous` is a real rule. An ambiguous target is not a forward reference and must NOT be admitted by `--allow-dangling`; decide and state whether it is refusable at all (the reviewer's reading: yes, unconditionally, because unlike a dangling edge it can never become valid by the target being authored later).
   - Depends on: none
   - Expected outcome: a dangling target in any of the three forms exits nonzero with nothing written; an AMBIGUOUS target likewise, and not coverable by the escape hatch; a valid target still succeeds; the refusal text matches the existing pre-write refusal contract; the resolution goes through `_resolve_edge`, so the setter and `aw check` cannot disagree.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-02 Add the explicit escape hatch the item requires a decision on, rather than leaving today's accidental permissiveness. The item is direct: "authoring a chain top-down may legitimately need a forward reference to a plan that does not exist yet, so either require `--allow-dangling` for that case or require the target to exist unconditionally, but decide it rather than leaving today's accidental permissiveness." IMPLEMENT `--allow-dangling`, because the forward-reference case is real in this repository (Sets are routinely authored parent-first with children named before they exist) and an unconditional requirement would make that workflow impossible. The flag must be LOUD, not silent: print which targets were accepted as dangling, so the deferral is visible in the transcript, and note the edge remains fail-closed at the repository gate afterwards because `aw check` still reports it (`check.ipd-dependency-dangling` is `error` severity, `check_engine.py:211`).
+- [x] E-02 Add the explicit escape hatch the item requires a decision on, rather than leaving today's accidental permissiveness. The item is direct: "authoring a chain top-down may legitimately need a forward reference to a plan that does not exist yet, so either require `--allow-dangling` for that case or require the target to exist unconditionally, but decide it rather than leaving today's accidental permissiveness." IMPLEMENT `--allow-dangling`, because the forward-reference case is real in this repository (Sets are routinely authored parent-first with children named before they exist) and an unconditional requirement would make that workflow impossible. The flag must be LOUD, not silent: print which targets were accepted as dangling, so the deferral is visible in the transcript, and note the edge remains fail-closed at the repository gate afterwards because `aw check` still reports it (`check.ipd-dependency-dangling` is `error` severity, `check_engine.py:211`).
   SCOPE THE HATCH TO `dangling` ONLY. `_resolve_edge` also returns `ambiguous`, and that verdict is not a forward reference: an id6 owned by two artifacts does not become unambiguous by waiting, so admitting it under this flag would let the setter write an edge that can never resolve. State that boundary in the flag's help text, not only here.
   - Depends on: E-01
   - Expected outcome: without the flag a dangling target refuses; with it the write proceeds and NAMES each dangling target; an ambiguous target still refuses even WITH the flag; `aw check` still reports the dangling edge afterwards.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 2: add the remove verb
 
-- [ ] E-03 Add `aw ipd dependencies remove <selector> <edge...>`, registered beside `set` in `cli.py`. RE-MEASURED AT REVIEW: `aw ipd dependencies --help` shows the choices as `{set}` and `aw ipd dependencies remove ...` fails with `invalid choice: 'remove' (choose from 'set')`, exit 2. Implement it by REUSING the same machinery `set` uses rather than writing a second write path: `run_dependencies_set_command` drives a same-status no-op transition through `run_set_command` carrying the canonicalized value in `args.item_dependencies` (`status_set.py:1556-1573`), so persistence-on-no-op is inherited. Removal is therefore "parse the current statement, drop the named edges, canonicalize, write the remainder", and when the remainder is empty it must write the explicit zero `none` rather than an empty string, since `none` is the grammar's zero and an empty value would be malformed.
+- [x] E-03 Add `aw ipd dependencies remove <selector> <edge...>`, registered beside `set` in `cli.py`. RE-MEASURED AT REVIEW: `aw ipd dependencies --help` shows the choices as `{set}` and `aw ipd dependencies remove ...` fails with `invalid choice: 'remove' (choose from 'set')`, exit 2. Implement it by REUSING the same machinery `set` uses rather than writing a second write path: `run_dependencies_set_command` drives a same-status no-op transition through `run_set_command` carrying the canonicalized value in `args.item_dependencies` (`status_set.py:1556-1573`), so persistence-on-no-op is inherited. Removal is therefore "parse the current statement, drop the named edges, canonicalize, write the remainder", and when the remainder is empty it must write the explicit zero `none` rather than an empty string, since `none` is the grammar's zero and an empty value would be malformed.
   COMPARE EDGES IN CANONICAL FORM, NOT AS RAW STRINGS. `ipd_schema` gives every edge a `canonical()` rendering and `canonical_item_dependencies` normalizes an entire statement, so `remove` must canonicalize the operator's tokens BEFORE matching them against the parsed statement. Otherwise a spelling difference that the grammar treats as identical (whitespace, ordering, or the `state:ipd:executed:` form the parser explicitly redirects to canonical `executed:`) would be reported as an absent edge and refused by E-04, which would be a false negative on a correct request.
   REMOVAL MUST NOT VALIDATE EXISTENCE. An operator removing an edge whose target has since been deleted is the NORMAL repair case, so E-01's refusal must not apply to `remove`; wiring the new verb through a shared code path that validates targets would make a dangling edge unremovable, which is the opposite of the item's intent. State this explicitly and test it (E-06).
   MIND THE SELECTOR'S MULTI-MATCH LOOP. `run_dependencies_set_command` iterates `plan_matches` and drives one transition PER matched plan (`status_set.py:1555`), because a Set selector legitimately matches several plans. For `remove` that means the same edge is dropped from each matched plan and the ABSENT-EDGE decision in E-04 fires PER PLAN; decide and state whether one plan lacking the edge fails the whole invocation or only that plan, since the loop today accumulates `rc_final` rather than aborting.
   - Depends on: none
   - Expected outcome: removing one edge from a multi-edge statement leaves the others byte-identical; removing the last edge yields `none`; edges matched in canonical form; a dangling edge is still REMOVABLE; the multi-match semantics stated; the write goes through the existing no-op transition path.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-04 Define the ABSENT-EDGE semantics deliberately, per the item: "remove a single edge idempotently, and error (not silently no-op) when the named edge is absent, unless a `--if-present` style flag is passed." So the default is an ERROR naming the edge that was not found, and `--if-present` downgrades it to a no-op with a notice. The distinction matters because a silent no-op on a typo'd edge would leave the operator believing they removed something they did not, which is the same class of failure as GAP 4 one level up. Also state and test the IDEMPOTENCY property that the item asks for: removing an edge that is already gone under `--if-present` must be a clean no-op, not a partial write.
+- [x] E-04 Define the ABSENT-EDGE semantics deliberately, per the item: "remove a single edge idempotently, and error (not silently no-op) when the named edge is absent, unless a `--if-present` style flag is passed." So the default is an ERROR naming the edge that was not found, and `--if-present` downgrades it to a no-op with a notice. The distinction matters because a silent no-op on a typo'd edge would leave the operator believing they removed something they did not, which is the same class of failure as GAP 4 one level up. Also state and test the IDEMPOTENCY property that the item asks for: removing an edge that is already gone under `--if-present` must be a clean no-op, not a partial write.
   - Depends on: E-03
   - Expected outcome: removing an absent edge exits nonzero and names it; `--if-present` makes it exit 0 with a notice and no file change; repeated removal under `--if-present` is stable.
-  - Execution state: pending
+  - Execution state: performed
 
 ### Task group 3: prove it and keep one authority
 
-- [ ] E-05 Do NOT add a second evaluator or a second parser, and prove it. Spec `25kzda` section 2.10 is explicit: "All surfaces call this evaluator; none reimplements it." `check_engine.evaluate_ipd_dependencies` (find by symbol; `check_engine.py:2394` at review) is already consumed by `aw check` (`:2638`), `aw ipd lint` (`ipd_lint.py:1147`), the runner preflight (`oc_runipd.py:2562`) and the opt-in staged-overlay hook. The grammar authority is likewise single: `ipd_schema.parse_item_dependencies` (`:722`) and `canonical_item_dependencies` (`:778`).
+- [x] E-05 Do NOT add a second evaluator or a second parser, and prove it. Spec `25kzda` section 2.10 is explicit: "All surfaces call this evaluator; none reimplements it." `check_engine.evaluate_ipd_dependencies` (find by symbol; `check_engine.py:2394` at review) is already consumed by `aw check` (`:2638`), `aw ipd lint` (`ipd_lint.py:1147`), the runner preflight (`oc_runipd.py:2562`) and the opt-in staged-overlay hook. The grammar authority is likewise single: `ipd_schema.parse_item_dependencies` (`:722`) and `canonical_item_dependencies` (`:778`).
   E-01 MUST USE `_resolve_edge`, NOT THE SELECTOR RESOLVER, WHICH IS WHAT MAKES THIS ITEM SATISFIABLE RATHER THAN CONTRADICTORY (F-11). The authored plan told E-01 to use the selector resolver and told E-05 to prove no second authority appeared; those two instructions conflict, because `aw check` resolves edges through `build_dependency_index` + `_resolve_edge` and NOT through `match_selector`. Reusing `_resolve_edge` satisfies both instructions at once.
   THE GUARD YOU ARE MIRRORING DOES NOT COVER YOUR FILE, SO EXTEND IT DELIBERATELY OR SAY WHY NOT. `tests/test_runner_item_dependencies.py::AntiDivergenceGuardTests` scans `_DRIVER_SOURCES`, which is exactly `oc_runipd.py` and `agy_runipd.py` (`:46-49`); `status_set.py` and `cli.py` are NOT scanned, so the existing guard would pass unchanged even if this plan added a private dependency regex. Either add the two touched modules to that guard's source list (a `tests/test_runner_item_dependencies.py` edit, which is NOT in `Scope-Paths` and needs a `--scope-reason`), or put an equivalent guard in the new `tests/test_dependency_verb.py`. Choose and record; do not claim the existing guard covers work it cannot see.
   - Depends on: E-01, E-03
   - Expected outcome: a grep proving one grammar parser and one edge resolver remain; no new regex in either touched module; the four existing consumers unchanged; the anti-divergence guard demonstrably COVERING `status_set.py` and `cli.py`, either by extension or by a new equivalent, with the choice recorded.
-  - Execution state: pending
+  - Execution state: performed
 
-- [ ] E-06 Test the matrix, and pin the behaviors that must NOT change. Cover: each of the three edge forms with a dangling target refused pre-write; a valid target accepted; `--allow-dangling` accepting and naming; removing one edge of three; removing the last edge yielding `none`; removing an absent edge erroring; `--if-present` downgrading that to a no-op; and the two behaviors that already work correctly and must be preserved, namely the GRAMMAR refusal for a setid-shaped target (`exists:backlog:worksequence` -> exit 2, "not a 6-char base36 id6. Refusing before making changes.", nothing written, RE-VERIFIED at review) and the existing clear-by-empty-or-`none` behavior of `set`.
+- [x] E-06 Test the matrix, and pin the behaviors that must NOT change. Cover: each of the three edge forms with a dangling target refused pre-write; a valid target accepted; `--allow-dangling` accepting and naming; removing one edge of three; removing the last edge yielding `none`; removing an absent edge erroring; `--if-present` downgrading that to a no-op; and the two behaviors that already work correctly and must be preserved, namely the GRAMMAR refusal for a setid-shaped target (`exists:backlog:worksequence` -> exit 2, "not a 6-char base36 id6. Refusing before making changes.", nothing written, RE-VERIFIED at review) and the existing clear-by-empty-or-`none` behavior of `set`.
   THREE MORE CASES, EACH FROM A REVIEW MEASUREMENT. (j) AN AMBIGUOUS TARGET REFUSES, AND STILL REFUSES UNDER `--allow-dangling`, since `_resolve_edge` returns that third verdict and E-01/E-02 now handle it; seed the fixture with one id6 owned by two record types, which is a state this repository genuinely contains (`uyeko5`: one `plans` and two `research` records). (k) A DANGLING EDGE IS STILL REMOVABLE, proving E-01's validation does not leak into `remove` and make a broken edge unfixable. (l) AN EDGE SPELLED NON-CANONICALLY IS STILL MATCHED BY `remove` (for example a `state:ipd:executed:<id6>` token, which the parser redirects to canonical `executed:<id6>`), proving E-03 compares canonical forms rather than raw strings.
   ASSERT THE FAILING-FIRST CASE AGAINST THE WRITE, NOT THE DRY RUN. The plan cited a dry run exiting 0; review measured something stronger, so assert that: at HEAD, `aw ipd dependencies set <plan> exists:backlog:zzzzzz --yes` exits 0 AND the dangling value is genuinely written into `- Item-Dependencies:`. A dry-run-only assertion would understate the defect.
   Use a FIXTURE repository, not the live tree, since these are MUTATING verbs. Note the setter also appends a `## Workflow history` receipt and, for an `approved` plan, REWRITES the `- Approval:` line (measured at review; this is `apply_status_change`'s shared behavior for every setter, not deps-specific, F-13). Assert the dependency line, not whole-file equality, or the tests will fail on that unrelated churn.
   - Depends on: E-02, E-04, E-05
   - Expected outcome: TWELVE cases passing in a fixture repo; the dangling-refusal case shown failing before the change against a real WRITE; the setid grammar refusal and the clear path unchanged; assertions scoped to the dependency line so the receipt/Approval churn does not produce false failures.
-  - Execution state: pending
+  - Execution state: performed
 
 ## Project conventions discovered (Step 0)
 
@@ -179,35 +185,318 @@ TWO NEW OPERATOR-FACING STRINGS NEED WRITING, and both are in `cli.py`, which IS
 
 Validation-state rule: inspect evidence in a separate pass. Do not mark a `V-*` item complete from memory or from the matching execution checkmark.
 
-- [ ] V-01 validates E-01
+- [x] V-01 validates E-01
   - Required evidence: for EACH of the three edge forms (`executed:<id6>`, `exists:<type>:<id6>`, `state:<type>:<status>:<id6>`) paste the dangling-target invocation, its UNPIPED exit code, the refusal text, and proof nothing was written (the plan file's `Item-Dependencies` line unchanged; do NOT assert an empty `git diff`, since the setter also writes a history receipt on a successful path, F-13). Then paste a VALID target for one form succeeding. PASTE THE AMBIGUOUS CASE refusing too, seeded from a fixture with one id6 owned by two record types. PASTE THE CODE showing resolution goes through `check_engine._resolve_edge` and `build_dependency_index`, NOT through `match_selector`; a V-01 that shows a `match_selector`-based existence check FAILS, because that is the second authority E-05 forbids and it demonstrably diverges from `aw check` (F-11). Finally, paste `aw check`'s verdict on one dangling and one ambiguous edge beside the setter's refusal, showing the two surfaces name the SAME condition.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: All commands run against a FIXTURE repo (`/tmp/.../f6idxs-ev`, seeded by `.aw/tmp/f6idxs/mkfixture.sh`), never the live tree. Exit codes measured UNPIPED (`cmd >/dev/null 2>&1; echo $?`). The verb is invoked as `python3 -m agent_workflows ...` because the installed `aw` shim on this machine resolves to a DIFFERENT checkout; that was measured and is why every probe below is module-invoked.
 
-- [ ] V-02 validates E-02
+    ALL THREE EDGE FORMS REFUSE PRE-WRITE, and the on-disk line is unchanged in each case (baseline `- Item-Dependencies: none`):
+
+    ```text
+    $ ipd dependencies set aaaaaa executed:zzzzzz --yes
+    FAIL     aw ipd dependencies set: dangling Item-Dependencies target: executed:zzzzzz: no ipd artifact has id6 zzzzzz. Refusing before making changes.
+    INFO     Pass --allow-dangling to record a deliberate forward reference to a target that does not exist yet.
+    exit=2  (UNPIPED)
+    - Item-Dependencies: none
+
+    $ ipd dependencies set aaaaaa exists:backlog:zzzzzz --yes
+    FAIL     aw ipd dependencies set: dangling Item-Dependencies target: exists:backlog:zzzzzz: no backlog artifact has id6 zzzzzz. Refusing before making changes.
+    exit=2  (UNPIPED)
+    - Item-Dependencies: none
+
+    $ ipd dependencies set aaaaaa state:spec:approved:zzzzzz --yes
+    FAIL     aw ipd dependencies set: dangling Item-Dependencies target: state:spec:approved:zzzzzz: no spec artifact has id6 zzzzzz. Refusing before making changes.
+    exit=2  (UNPIPED)
+    - Item-Dependencies: none
+    ```
+
+    A VALID TARGET STILL SUCCEEDS, so the gate is not a blanket refusal:
+
+    ```text
+    $ ipd dependencies set aaaaaa executed:bbbbbb --yes
+    -    plan        20260908-fix-01-aaaaaa  unchanged
+    exit=0
+    - Item-Dependencies: executed:bbbbbb
+    ```
+
+    THE AMBIGUOUS CASE REFUSES, seeded from a fixture where ONE id6 (`dupdup`) is owned by TWO plans records (the same shape as the live multi-owner `uyeko5`):
+
+    ```text
+    $ ipd dependencies set aaaaaa executed:dupdup --yes
+    FAIL     aw ipd dependencies set: ambiguous Item-Dependencies target: executed:dupdup: id6 dupdup matches multiple ipd artifacts (.../20260908-fix-04-dupdup-p.ipd.md, .../20260908-fix-05-dupdup-p.ipd.md). Refusing before making changes.
+    INFO     An ambiguous target cannot be admitted with --allow-dangling; repair the duplicate stable identity instead.
+    exit=2
+    - Item-Dependencies: executed:bbbbbb   (unchanged)
+    ```
+
+    RESOLUTION GOES THROUGH THE CHECKER'S RESOLVER, NOT `match_selector` (F-11). The new `status_set.resolve_dependency_edge_targets` body is exactly:
+
+    ```python
+    from agent_workflows import check_engine as _ce
+    index = _ce.build_dependency_index(Path(repo_root))
+    for edge in edges:
+        verdict, detail = _ce._resolve_edge(edge, index)
+    ```
+
+    and `grep -n "def _resolve_edge\|def build_dependency_index" agent_workflows/status_set.py agent_workflows/cli.py` returns NOTHING, so neither module defines its own. Two tests assert this by BEHAVIOR rather than by reading the source, which is the stronger form: `test_the_setter_resolves_through_the_checkers_resolver_not_the_selector` patches `check_engine._resolve_edge` with a spy and asserts the spy RECORDED `executed:zzzzzz=dangling`, so a `match_selector`-based check would leave the spy uncalled and fail; and `test_the_typed_resolution_the_selector_could_not_do` proves the TYPE is enforced (a `plans`-owned id6 does not satisfy `exists:spec:`), which is precisely the enforcement `match_selector` lacks.
+
+    THE TWO SURFACES NAME THE SAME CONDITION, asserted by calling the shared evaluator on the same edges:
+
+    ```text
+    aw check on 'executed:zzzzzz' -> ['check.ipd-dependency-dangling']    setter said: "dangling"
+    aw check on 'executed:dupdup' -> ['check.ipd-dependency-ambiguous']   setter said: "ambiguous"
+    ```
+
+    `tests/test_dependency_verb.py::SetterAgreesWithCheckerTests` pins all four of these agreements.
+  - Result: pass
+
+- [x] V-02 validates E-02
   - Required evidence: paste the same dangling invocation WITH `--allow-dangling` showing it proceeds, showing the output NAMES the dangling target, and showing the resulting `Item-Dependencies` line. Paste the AMBIGUOUS case WITH `--allow-dangling` still REFUSING, proving the hatch is scoped to the `dangling` verdict only. Paste the flag's help text showing it states that boundary. Then paste `aw check` on the artifact afterwards, proving the dangling edge is still reported as an error at the repository gate.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE HATCH PROCEEDS AND NAMES THE TARGET (fixture repo `f6idxs-ev2`):
 
-- [ ] V-03 validates E-03
+    ```text
+    $ ipd dependencies set aaaaaa executed:zzzzzz --yes --allow-dangling
+    WARN     aw ipd dependencies set: accepting DANGLING target executed:zzzzzz (--allow-dangling): executed:zzzzzz: no ipd artifact has id6 zzzzzz
+    INFO     `aw check` still reports a dangling edge as an error (check.ipd-dependency-dangling); resolve it before the plan advances.
+    -    plan        20260908-fix-01-aaaaaa  unchanged
+    exit=0
+    - Item-Dependencies: executed:zzzzzz
+    ```
+
+    The target is NAMED (`executed:zzzzzz` appears in the WARN line), so the deferral is visible in the transcript rather than silent, and the output itself states that the repository gate still reports it.
+
+    `aw check` AFTERWARDS STILL ERRORS, so the edge remains fail-closed at the portable authority:
+
+    ```text
+    $ check plans --dir <fixture>
+      Issue: executed:zzzzzz: no ipd artifact has id6 zzzzzz
+      - .aw/records/plans/pending
+    ```
+
+    THE AMBIGUOUS CASE STILL REFUSES WITH THE FLAG, which is the boundary that makes the hatch honest:
+
+    ```text
+    $ ipd dependencies set aaaaaa executed:dupdup --yes --allow-dangling
+    FAIL     aw ipd dependencies set: ambiguous Item-Dependencies target: executed:dupdup: id6 dupdup matches multiple ipd artifacts (...fix-04-dupdup..., ...fix-05-dupdup...). Refusing before making changes.
+    INFO     An ambiguous target cannot be admitted with --allow-dangling; repair the duplicate stable identity instead.
+    exit=2
+    ```
+
+    THE HELP TEXT STATES THE BOUNDARY, so an operator reading only `--help` learns it rather than discovering it:
+
+    ```text
+    $ ipd dependencies set --help
+      --allow-dangling      Accept an edge whose target does not exist YET (a
+                            deliberate forward reference, e.g. authoring a Set
+                            parent-first). Each accepted target is named in the
+                            output, and 'aw check' still reports it as an error.
+                            This does NOT accept an AMBIGUOUS target (one id6
+                            owned by several artifacts), which is refused even
+                            with this flag because it can never become valid by
+                            waiting.
+    ```
+
+    `tests/test_dependency_verb.py::AllowDanglingTests` pins all five properties, including a subTest asserting the ambiguous refusal both WITHOUT and WITH the flag, and a guard that neither help text contains an em or en dash.
+  - Result: pass
+
+- [x] V-03 validates E-03
   - Required evidence: paste a plan with three edges, the `remove` invocation dropping one, and the resulting line showing the other two BYTE-IDENTICAL. Then paste removing the last edge and the resulting `- Item-Dependencies: none`. PASTE THE CANONICAL-MATCHING CASE: remove an edge spelled non-canonically (for example `state:ipd:executed:<id6>` for a canonical `executed:<id6>`) and show it is matched rather than reported absent. PASTE THE DANGLING-REMOVAL CASE: an edge whose target does not exist is still removable, proving E-01's validation did not leak into `remove` (F-14). State the multi-match semantics you chose and paste a two-plan selector exercising it. Paste a grep or trace proving the write went through the existing no-op transition path rather than a new writer.
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE VERB NOW EXISTS. At pristine HEAD `3c9663d5` the same invocation was `error: argument ipd_dependencies_command: invalid choice: 'remove' (choose from 'set')`, exit 2 (pasted under V-06). `ipd dependencies --help` now shows `{set,remove}`.
 
-- [ ] V-04 validates E-04
+    REMOVING ONE OF THREE LEAVES THE OTHERS BYTE-IDENTICAL:
+
+    ```text
+    seeded:   - Item-Dependencies: executed:bbbbbb, exists:spec:ssssss, state:backlog:open:bbbklg
+    $ ipd dependencies remove aaaaaa exists:spec:ssssss --yes
+    -    plan        20260908-fix-01-aaaaaa  unchanged
+    exit=0
+    result:   - Item-Dependencies: executed:bbbbbb, state:backlog:open:bbbklg
+    ```
+
+    REMOVING THE LAST EDGE YIELDS THE EXPLICIT `none`, not a blank and not `unresolved` (OQ-02):
+
+    ```text
+    $ ipd dependencies remove aaaaaa executed:bbbbbb --yes
+    exit=0
+    - Item-Dependencies: none
+    ```
+
+    A DANGLING EDGE IS STILL REMOVABLE, proving E-01's validation did NOT leak into `remove` (F-14):
+
+    ```text
+    - Item-Dependencies: executed:zzzzzz        (admitted earlier via --allow-dangling)
+    $ ipd dependencies remove aaaaaa executed:zzzzzz --yes
+    exit=0
+    - Item-Dependencies: none
+    ```
+
+    A NON-CANONICAL SPELLING IS STILL MATCHED (ordering reversed plus stray whitespace, which the grammar treats as identical; a raw-string compare would have called this ABSENT and refused it):
+
+    ```text
+    - Item-Dependencies: executed:bbbbbb, exists:spec:ssssss
+    $ ipd dependencies remove aaaaaa " exists:spec:ssssss , executed:bbbbbb " --yes
+    exit=0
+    - Item-Dependencies: none
+    ```
+
+    ONE PLAN CORRECTION, MEASURED. The plan's F-14 and E-03 both said the parser "redirects `state:ipd:executed:` to canonical `executed:`", and cited that as the canonical-matching case to test. IT DOES NOT REDIRECT; IT REFUSES. `ipd_schema._parse_item_dependency_edge` returns the error "state:ipd:executed:<id6> is illegal; use the canonical 'executed:<id6>' edge", so `canonical_item_dependencies("state:ipd:executed:bbbbbb")` is `(None, <that error>)`. Both verbs therefore refuse that token identically, since both go through the one grammar authority:
+
+    ```text
+    $ ipd dependencies remove aaaaaa state:ipd:executed:bbbbbb --yes
+    FAIL     aw ipd dependencies remove: invalid Item-Dependencies value: state:ipd:executed:<id6> is illegal; use the canonical 'executed:<id6>' edge in 'state:ipd:executed:bbbbbb'. Refusing before making changes.
+    exit=2
+    - Item-Dependencies: executed:bbbbbb   (unchanged)
+    ```
+
+    That is CORRECT behavior and is now pinned by `test_state_ipd_executed_is_a_grammar_error_in_both_verbs`, so a future reader does not re-derive the plan's wrong premise. The canonical-matching requirement is satisfied by the ordering/whitespace case above, which is the class of spelling difference the grammar genuinely accepts.
+
+    MULTI-MATCH SEMANTICS, CHOSEN AND STATED: the loop ACCUMULATES a non-zero exit rather than aborting, mirroring `set`. For a REPAIR verb that is right, because aborting on the first plan would make a partially-broken fleet unfixable in one call, while the non-zero exit still reports that something did not apply. A two-plus-plan setid selector exercising it:
+
+    ```text
+    (aaaaaa and bbbbbb declare the edge; cccccc + the two dupdup plans do not)
+    $ ipd dependencies remove fix exists:spec:ssssss --yes
+    -    plan        20260908-fix-01-aaaaaa  unchanged
+    -    plan        20260908-fix-02-bbbbbb  unchanged
+    FAIL     20260908-fix-03-cccccc-p.ipd.md: Item-Dependencies does not declare exists:spec:ssssss; nothing removed. Pass --if-present to treat an absent edge as a no-op.
+    FAIL     20260908-fix-04-dupdup-p.ipd.md: ... (same)
+    FAIL     20260908-fix-05-dupdup-p.ipd.md: ... (same)
+    exit=2   (accumulated, not aborted)
+    aaaaaa: - Item-Dependencies: none      <- still repaired
+    bbbbbb: - Item-Dependencies: none      <- still repaired
+    ```
+
+    THE WRITE GOES THROUGH THE EXISTING NO-OP TRANSITION PATH, NOT A NEW WRITER. `set` and `remove` both call the single hoisted `_write_item_dependencies`, which builds the same `Namespace(item_dependencies=..., args=[current, path])` and calls `run_set_command` at the plan's CURRENT status, so persistence-on-a-no-op is inherited exactly as `aw ipd set --from-backlog` inherits it. Proven by CALL rather than by grep: `test_removal_goes_through_the_one_shared_writer` patches `status_set._write_item_dependencies` with a spy and asserts the spy was called with the value `none`; a copied second writer would leave `calls == []` and fail.
+  - Result: pass
+
+- [x] V-04 validates E-04
   - Required evidence: paste removing an ABSENT edge showing a nonzero UNPIPED exit code and the message naming that edge; then the same with `--if-present` showing exit 0, a notice, and an unchanged file; then a second `--if-present` removal of the same absent edge showing identical output (idempotency).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: Fixture `f6idxs-ev3`, plan holding `- Item-Dependencies: executed:bbbbbb`.
 
-- [ ] V-05 validates E-05
+    ABSENT EDGE IS AN ERROR BY DEFAULT AND NAMES THE EDGE:
+
+    ```text
+    $ ipd dependencies remove aaaaaa exists:spec:ssssss --yes
+    FAIL     20260908-fix-01-aaaaaa-p.ipd.md: Item-Dependencies does not declare exists:spec:ssssss; nothing removed. Pass --if-present to treat an absent edge as a no-op.
+    exit=2   (UNPIPED)
+    - Item-Dependencies: executed:bbbbbb   (unchanged)
+    ```
+
+    `--if-present` DOWNGRADES IT TO A NOTICE AND A CLEAN NO-OP, AND A REPEAT IS IDENTICAL:
+
+    ```text
+    $ ipd dependencies remove aaaaaa exists:spec:ssssss --yes --if-present
+    INFO     20260908-fix-01-aaaaaa-p.ipd.md: edge(s) not present, nothing to remove (--if-present): exists:spec:ssssss
+    $ ipd dependencies remove aaaaaa exists:spec:ssssss --yes --if-present
+    INFO     20260908-fix-01-aaaaaa-p.ipd.md: edge(s) not present, nothing to remove (--if-present): exists:spec:ssssss
+    exit=0   (UNPIPED)
+    - Item-Dependencies: executed:bbbbbb   (unchanged after both)
+    ```
+
+    The two notices are BYTE-IDENTICAL, which is what idempotency means here, and the file is untouched, so it is a clean no-op rather than a partial write. `test_repeated_if_present_removal_is_idempotent` asserts the equality of the two captured outputs, not merely the two exit codes.
+
+    THE FLAG SUPPRESSES ONE CONDITION, NOT ALL ERRORS, which is what its help text promises: `test_if_present_does_not_suppress_a_malformed_edge` shows `remove aaaaaa not-an-edge --if-present` still exits non-zero with "Refusing before making changes." and writes nothing. `test_a_present_and_an_absent_edge_together_under_if_present` covers the mixed request: the present edge is removed, the absent one is noted, exit 0.
+  - Result: pass
+
+- [x] V-05 validates E-05
   - Required evidence: paste a grep showing no new `re.compile` mentioning a dependency field name and no second edge resolver in either touched module; paste the four existing consumer call sites unchanged; paste the `tests/test_runner_item_dependencies.py` result. THEN state which coverage route you took for the guard and prove it: if you extended `_DRIVER_SOURCES`, paste the extended tuple showing `status_set.py` and `cli.py` in it plus the `--scope-reason` you will carry at finalize; if you wrote an equivalent guard in `tests/test_dependency_verb.py`, paste it. A V-05 that cites the existing guard WITHOUT one of those two is incomplete, because that guard scans only the two driver files and cannot see this plan's code (F-12).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: NO NEW DEPENDENCY REGEX AND NO SECOND EDGE RESOLVER in either touched module:
 
-- [ ] V-06 validates E-06
+    ```text
+    $ grep -nE "re\.compile\([^\n]*(Item-Dependencies|Dependencies|Depends-on)" agent_workflows/status_set.py agent_workflows/cli.py
+      (none)
+    $ grep -n "def _resolve_edge\|def build_dependency_index" agent_workflows/status_set.py agent_workflows/cli.py
+      (none)
+    ```
+
+    THE EXISTING CONSUMER CALL SITES ARE UNCHANGED (`git diff` touches none of these lines):
+
+    ```text
+    agent_workflows/check_engine.py:2638:    return evaluate_ipd_dependencies(
+    agent_workflows/ipd_lint.py:1147:                for d in _ce.evaluate_ipd_dependencies(
+    agent_workflows/oc_runipd.py:2562:    drift = _ce.evaluate_ipd_dependencies(
+    agent_workflows/engine.py:4899:  (staged-overlay hook, delegating to the shared evaluator)
+    ```
+
+    `python3 -m pytest tests/test_runner_item_dependencies.py` result, together with the other dependency surfaces:
+
+    ```text
+    $ python3 -m pytest tests/test_dependency_verb.py tests/test_runner_item_dependencies.py tests/test_ipd_dependency_check.py tests/test_ipd_item_dependencies.py tests/test_ipd_dependency_statement_gate.py
+    197 passed in 20.44s
+    ```
+
+    THE GUARD ROUTE TAKEN, AND WHY. I wrote an EQUIVALENT guard in the in-fence `tests/test_dependency_verb.py::AntiDivergenceGuardTests` rather than extending `_DRIVER_SOURCES`, and the choice is on MEASUREMENT, not on the scope fence. I applied each of the existing class's four guard bodies to the two touched files before deciding, and three of them are DRIVER-SPECIFIC assertions rather than general ones: `test_no_driver_defines_the_deleted_private_parser` pins the removal of `_DEPS_RE`/`_read_deps`, symbols that only ever existed in the two runners; `test_no_driver_exposes_the_deleted_names` introspects the two driver MODULES by attribute; and `test_drivers_reference_the_shared_dependency_api` requires `META_ITEM_DEPENDENCIES` to appear in the source, which measured TRUE for `status_set.py` but FALSE for `cli.py`, whose dependency role is argument registration and dispatch and which correctly names no schema constant:
+
+    ```text
+    --- status_set.py   guard4 parse_item_dependencies=True  META_ITEM_DEPENDENCIES=True
+    --- cli.py          guard4 parse_item_dependencies=False META_ITEM_DEPENDENCIES=False
+    ```
+
+    So adding these two files to that tuple would have forced either a FALSE assertion about `cli.py` or a per-file exemption, and every failure message in that class says "driver", which these files are not. The equivalent guard asserts what is actually true of these modules, stays inside `Scope-Paths`, and needs NO `--scope-reason`. It carries seven tests: no dependency regex (same `re.compile` hint pattern, same newline bound and the same comments-stripped-but-strings-kept reasoning, so it cannot go vacuous); no locally defined `_resolve_edge`/`build_dependency_index`; the setter module DOES consume all three shared authorities; the resolver function does not name `match_selector` in CODE (tokenizer-stripped, because the docstring legitimately names it to warn against it); `check_engine` did not learn the verb names, pinning the dependency DIRECTION; both subcommands are declared parser leaves; and the two verbs share one declared contract.
+  - Result: pass
+
+- [x] V-06 validates E-06
   - Required evidence: paste all TWELVE cases with commands, UNPIPED exit codes and outcomes, including the three preservation cases (the setid grammar refusal with its exact message, the existing clear path, and the dangling edge remaining removable) and the ambiguous and canonical-matching cases. Paste the E-01 case FAILING against pre-change code, and assert it against the real WRITE rather than a dry run: at HEAD the invocation exits 0 AND the dangling value lands in `- Item-Dependencies:`. Paste the fixture setup proving the tests do not mutate the live tree, and show the assertions are scoped to the dependency line rather than whole-file equality (F-13).
-  - Observed evidence:
-  - Result: pending
+  - Observed evidence: THE E-01 CASE FAILING AGAINST PRE-CHANGE CODE, ASSERTED AGAINST THE REAL WRITE. Pristine HEAD `3c9663d5` was exported with `git archive HEAD | tar -x -C .aw/tmp/f6idxs/prechange` (verified pristine: `grep -c run_dependencies_remove_command` returns 0 there) and run against the same fixture. All THREE forms exit 0 AND the dangling value LANDS on disk, which is the stronger reproduction the plan required:
+
+    ```text
+    ### PRE-CHANGE (pristine HEAD 3c9663d5)
+    --- dangling form executed:zzzzzz            exit=0   - Item-Dependencies: executed:zzzzzz
+    --- dangling form exists:backlog:zzzzzz      exit=0   - Item-Dependencies: exists:backlog:zzzzzz
+    --- dangling form state:spec:approved:zzzzzz exit=0   - Item-Dependencies: state:spec:approved:zzzzzz
+    --- ambiguous executed:dupdup               exit=0   - Item-Dependencies: executed:dupdup
+    --- remove verb
+    agent-workflows ipd dependencies: error: argument ipd_dependencies_command: invalid choice: 'remove' (choose from 'set')
+    exit=2
+    ```
+
+    THE CASE MATRIX, every exit code measured UNPIPED. Each row's full transcript is pasted under the V-item it belongs to; this table is the index, not a substitute:
+
+    | # | Case | Command | Exit | Outcome |
+    |---|---|---|---|---|
+    | a | dangling `executed:` | `set aaaaaa executed:zzzzzz` | 2 | refused pre-write, line unchanged (V-01) |
+    | b | dangling `exists:` | `set aaaaaa exists:backlog:zzzzzz` | 2 | refused pre-write, line unchanged (V-01) |
+    | c | dangling `state:` | `set aaaaaa state:spec:approved:zzzzzz` | 2 | refused pre-write, line unchanged (V-01) |
+    | d | valid target | `set aaaaaa executed:bbbbbb` | 0 | written (V-01) |
+    | e | hatch accepts + names | `set aaaaaa executed:zzzzzz --allow-dangling` | 0 | WARN names the target (V-02) |
+    | f | remove one of three | `remove aaaaaa exists:spec:ssssss` | 0 | other two byte-identical (V-03) |
+    | g | remove the last edge | `remove aaaaaa executed:bbbbbb` | 0 | `- Item-Dependencies: none` (V-03) |
+    | h | remove an absent edge | `remove aaaaaa exists:spec:ssssss` | 2 | error NAMES the edge (V-04) |
+    | i | `--if-present` downgrade | same `--if-present`, twice | 0 | identical notice, no change (V-04) |
+    | j | ambiguous, with and without the hatch | `set aaaaaa executed:dupdup [--allow-dangling]` | 2 | refused BOTH ways (V-01/V-02) |
+    | k | dangling edge still removable | `remove aaaaaa executed:zzzzzz` | 0 | `none`; validation did not leak (V-03) |
+    | l | non-canonical spelling matched | `remove aaaaaa " exists:spec:ssssss , executed:bbbbbb "` | 0 | matched, not reported absent (V-03) |
+
+    THE THREE PRESERVATION CASES, all still behaving exactly as before this change:
+
+    ```text
+    (m) setid-shaped target, GRAMMAR refusal with its exact established message:
+    $ ipd dependencies set aaaaaa exists:backlog:worksequence --yes
+    FAIL     aw ipd dependencies set: invalid Item-Dependencies value: exists target 'worksequence' is not a 6-char base36 id6. Refusing before making changes.
+    exit=2
+    (this fails on the GRAMMAR, not on the new existence check, proving the new check sits ALONGSIDE it)
+
+    (n) the existing clear path:
+    $ ipd dependencies set aaaaaa none   ->  - Item-Dependencies: none
+    $ ipd dependencies set aaaaaa -      ->  - Item-Dependencies: none
+    (neither reaches the existence check; `unresolved` also still writes, pinned separately)
+
+    (k, restated as preservation) a dangling edge REMAINS REMOVABLE: pasted under V-03, exit 0.
+    ```
+
+    FIXTURE SETUP, PROVING THE TESTS DO NOT MUTATE THE LIVE TREE. `_FixtureRepo` builds each repo under `tempfile.TemporaryDirectory()` and registers `addCleanup(self.fx.cleanup)`, seeding its own `plans/pending`, `specs`, and `backlog/open` records plus the duplicate-id6 pair. Every CLI call passes `--dir str(self.fx.root)`. No test in the module reads or writes `.aw/records/` in this checkout; the only live-tree reads are the anti-divergence guard's `REPO_ROOT / "agent_workflows" / *.py` source reads, which are read-only by construction.
+
+    ASSERTIONS ARE SCOPED TO THE DEPENDENCY LINE, NOT WHOLE-FILE EQUALITY (F-13). The helper is:
+
+    ```python
+    _DEP_LINE_RE = re.compile(r"(?m)^- Item-Dependencies:[^\n]*$")
+    def dep_line(self, path=None) -> str:
+        m = _DEP_LINE_RE.search((path or self.plan).read_text(encoding="utf-8"))
+        return m.group(0) if m else ""
+    ```
+
+    Every "nothing was written" assertion compares `before == self.fx.dep_line()`, so the setter's shared history receipt and its `- Approval:` rewrite (out of scope, `apply_status_change`'s behavior for EVERY setter) cannot produce a false failure. The confirming detail is that these fixture plans are `approved`, so that rewrite genuinely happens on the success path and a whole-file assertion WOULD have failed.
+
+    FULL MODULE RESULT: `40 passed in 3.24s` (`python3 -m pytest tests/test_dependency_verb.py`), which is 12 matrix cases plus 3 preservation cases plus the agreement, guard, multi-match, and idempotency cases.
+  - Result: pass
 
 ## Approval and execution gate
 
