@@ -5,7 +5,7 @@
 - Reviewed-At: 2026-09-12
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
-- Readiness: no-go
+- Readiness: go-pending-approval
 
 ## Round 1
 
@@ -108,3 +108,49 @@ children, so renumbering would misdiagnose it.
 | D-2 | Should the 2 terminal carriers be brought into agreement some other way (a corrective IPD), rather than exempted? | LEFT TO OQ-03, and named inside option (a) as a directory-aware narrowing of the rule rather than an edit. | (a) Prescribing a corrective IPD per AGENTS.md's post-execution-gap rule, rejected as disproportionate: a finished plan's gate is history rather than a live release claim, so the honest fix is for the rule not to demand agreement from a terminal carrier at all, and that is a rule change the maintainer should authorize. (b) Prescribing an in-place edit to the two `executed/` plans, rejected outright: AGENTS.md forbids it explicitly. | `AGENTS.md:63`; the two carriers `5wtzqv` and `h9cn0y` measured in `executed/` | yes |
 | D-3 | The gateless population FELL from 28 to 22 between authoring and review. Treat that as invalidating the Set? | NO. Record both readings, require a third at execution, and keep the Set. | (a) Marking the Set REPLAN because its numbers moved, rejected as disproportionate: the thesis (the rule is unwritten) and the durable finding (0 of 11 graduated bugs carry the gate through the handoff) are unaffected, and the direction of movement does not weaken the case for making the rule mechanical. (b) Silently updating the counts, rejected because the AUTHORED reading is evidence of what the corpus looked like when the maintainer asked the question, and deleting it would hide that the drift is ongoing. | recomputed counts 196/112/68/46/22 against authored 187/103/60/32/28; graduation leak identical | yes |
 | D-4 | Should review verify the collision by experiment, or is reading the predicate enough? | EXPERIMENT, in a throwaway copy, and require the executor to repeat it. | Reading `check_release_gate_consistency` alone, rejected because the rule's exact firing condition depends on which iterators it scans and whether a missing carrier gate counts as a mismatch, and both are easy to misread; the experiment settled it in one step and produced the specific artifact name (`5wtzqv`, in `executed/`) that makes the finding actionable. Running it against the REAL tree, rejected outright: it would write a gate into a co-worker's backlog item in a shared checkout. | the copy-and-drive experiment; `check_engine.py:2205-2241`; scratch copy removed afterwards and `git status` confirmed clean | yes |
+
+## Round 2
+
+
+Opened 2026-09-12 to record the maintainer's answers to the three questions round 1 raised. Round 1 is
+left exactly as written: the findings gate reads only the CURRENT round, and the reviews README states
+rounds are appended rather than edited, so flipping a round-1 cell would hide that the questions were
+ever put. NO PLAN CONTENT WAS RE-CRITIQUED and no new finding was derived. No product code was modified.
+
+THE BLOCKING QUESTION WAS ANSWERED BY REFRAMING THE RULE, NOT BY ROUTING AROUND IT, and the maintainer's
+own question is what produced the reframing: "So any gate should be that no plan be non-blocking if it
+graduated from a blocking backlog item, but why would we care if a plan is blocking but the backlog is
+not?"
+
+I MEASURED BOTH DIRECTIONS IN A THROWAWAY CLONE BEFORE ACCEPTING IT, because the reframing only holds if
+the asymmetry is real. Gating graduated item `t156g1` produced exactly ONE finding naming carrier
+`5wtzqv` in `executed/` (delta +1 from a zero baseline). Adding `- Blocks-Release: next` to pending plan
+`yeh7gc`, whose item `5ev6lh` has NO gate, produced ZERO findings. The cause is structural: the
+comparison loop only populates `item_gate` for an item that HAS a gate (`check_engine.py:2207-2216`), so
+a gated plan under an ungated item is unreachable BY CONSTRUCTION.
+
+SO THE RULE ALREADY IMPLEMENTS THE ONE-WAY OBLIGATION and its name oversells it. What it protects is a
+DROPPED HANDOFF: a plan going non-blocking when it graduated from a blocking item. Read that way, a
+carrier in `executed/` is a case the rule should NEVER have flagged, since a finished plan cannot drop a
+future obligation and has no future release to gate. Flagging it demands an edit `AGENTS.md` forbids in
+order to assert a live claim on an artifact with no future.
+
+I TESTED WHETHER THE NARROWING IS PRINCIPLED OR A SPECIAL CASE, which is the objection it would otherwise
+attract: `check_engine.py` already ships `_EXECUTED_SEGMENT` (`:999`), an `is_retired` predicate
+documented for this purpose (`:483`), 31 references to terminal exclusion, and a NEIGHBOURING rule
+excluding `executed/` for the identical stated reason (`:1069-1070`). It follows precedent.
+
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-001 | BLOCKER | IN-SCOPE | A. Correctness and data integrity / G. Plan executability | round 1's execution-measured collision, re-verified at round 2 in a throwaway clone (+1 finding naming `5wtzqv` in `executed/`) | Carried forward from round 1: BACKFILLING A GRADUATED BUG'S GATE TRIPS THE SHIPPED `check.from-backlog-gate-mismatch` AT ERROR SEVERITY, and 2 of the 13 newly-flagged carriers are in `executed/`, which `AGENTS.md` forbids editing, so the Set could not reach its own completion criterion by any route it authorized. | C:Low; U:Low; S:Low; F:Medium; Overall:Medium | FIXED | RESOLVED BY REFRAMING THE RULE, which is neither of the two routes round 1 favoured. The rule is restated as the ONE-WAY obligation it already implements (a LIVE carrier must not drop a gate its item carries) and SKIPS a terminal carrier, reusing the shipped `is_retired`/`_EXECUTED_SEGMENT` precedent. The 11 live carriers are still co-updated; `5wtzqv` and `h9cn0y` are never touched. OQ-03 carries the ruling, the two measured directions, and an explicit instruction to add a test pinning BOTH so the rule cannot silently become symmetric again. Option (d) (flag only a both-gated conflict) was offered and DECLINED, because it would drop the dropped-handoff detection that is the rule's entire purpose. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|---|---|---|---|---|---|
+| D-1 | OQ-01: should `security` auto-gate the next release as `bug` now does? | NEITHER globally: make the gating work-kind set CONFIGURABLE per repository, defaulting to `bug` ALONE. Carried by backlog `0htqmm`; this Set does not implement it. | Gate `security` globally (declined: the maintainer has measured agent security classifications in THIS repo to be overstated, since an agent assumes an adversarial actor and "an adversarial agent can in fact overcome ANY security we put in place"); leave it ungated globally (declined: for most of their OTHER projects every security finding genuinely must block); gate `security`+`high` only (declined: makes the written rule two-dimensional, which defeats a Set that exists to state one rule plainly); default the new key to `bug`+`security` (declined: wrong for the very repo doing the configuring, and a default the reference repo must override is a bad default). | The `review_findings_gate` precedent (`config.py:1085-1104`): same problem shape, same file, unknown keys round-trip via `unknown_fields`, default documented. One live `security` item (`754txs`) measured, already carried by a plan. | yes |
+| D-2 | OQ-02: does a defect filed as `chore` escape the gate, and is that acceptable? | YES it escapes, and it is acceptable WITH THE LIMIT STATED IN WRITING. No mechanism added. | Add a reviewer-side audit of every `chore` (declined: a second classification pass with the same judgement problem one layer down); claim the gate is complete (declined: it demonstrably is not). | Measured the SAME DAY: `59t9x5` was filed `chore` because output was correct, then reclassified `bug` and gated by the maintainer. The mitigation is their perceptibility test, which makes the judgement measurable rather than a vibe. | yes |
+| D-3 | Should the auto-gate config be one work-kind key or a general all-gates object? | ONE key, work-kinds only. | A general `gates` object covering the inefficiency perceptibility test and future gates (declined by the maintainer: designs a surface before a second real case exists). | Maintainer ruling 2026-09-12; the perceptibility test stays prose in `zqs0px`'s written rule. | yes |
