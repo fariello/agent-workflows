@@ -4990,8 +4990,24 @@ def _offer_records_commit(
 
     if not paths:
         return
-    assume_yes = bool(getattr(args, "commit", False))
-    no_commit = bool(getattr(args, "no_commit", False))
+    is_agent_or_json = (
+        bool(
+            getattr(args, "agent", False)
+            or getattr(args, "json", False)
+            or getattr(args, "as_agent", False)
+        )
+        if args
+        else False
+    )
+    assume_yes = (
+        bool(
+            getattr(args, "commit", False)
+            or (getattr(args, "yes", False) and not is_agent_or_json)
+        )
+        if args
+        else False
+    )
+    no_commit = bool(getattr(args, "no_commit", False)) if args else False
     # jgcm68 D2: the backends git-mv their renames (pre-staging them), which makes offer_commit's
     # `git add -- <old-path>` fail. Unstage exactly these touched paths first so the helper cleanly
     # re-stages (and re-detects) them; scoped to the verb's own paths, never global.
@@ -5004,8 +5020,14 @@ def _offer_records_commit(
         no_commit=no_commit,
         on_unrelated_staged=on_unrelated_staged,
     )
+    if is_agent_or_json:
+        if outcome.status == _gch.STATUS_ERROR:
+            sys.stderr.write(f"warning: self-commit skipped: {outcome.message}\n")
+        return
     if outcome.status == _gch.STATUS_COMMITTED:
-        print(f"committed {len(outcome.staged)} path(s): {outcome.commit}")
+        print(f"Committed {len(outcome.staged)} path(s): {outcome.commit}:")
+        for p in outcome.staged:
+            print(p)
     elif outcome.status == _gch.STATUS_ERROR:
         print(f"warning: self-commit skipped: {outcome.message}")
 

@@ -205,6 +205,24 @@ def test_interactive_no_declines(repo: Path, rec, monkeypatch):
     rec.assert_contract_clean()
 
 
+def test_interactive_prompt_renders_paths_one_per_line(repo: Path, monkeypatch):
+    p1 = _write(repo, "a.txt", "a\n")
+    p2 = _write(repo, "b.txt", "b\n")
+    captured = []
+    monkeypatch.setattr(
+        "builtins.input", lambda prompt: (captured.append(prompt), "y")[1]
+    )
+    H.offer_commit(repo, [p1, p2], message="msg", interactive=True)
+    assert len(captured) == 1
+    expected = (
+        "The following path-scoped changes are ready to commit:\n"
+        "  a.txt\n"
+        "  b.txt\n"
+        "Commit these path-scoped changes? [Y/n] "
+    )
+    assert captured[0] == expected
+
+
 def test_interactive_defaults_to_tty_probe(repo: Path, rec, monkeypatch):
     """interactive=None consults sys.stdin.isatty (same signal as cli._confirm)."""
 

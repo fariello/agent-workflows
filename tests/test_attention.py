@@ -1057,6 +1057,61 @@ class AttentionTableFormattingAndSortingTests(unittest.TestCase):
         self.assertEqual(lines[1].split()[-4], "m-item")
         self.assertEqual(lines[2].split()[-4], "z-item")
 
+    def test_numbered_items_sort_by_n_before_id6(self):
+        items = [
+            att.Item(
+                "u23gbn",
+                ".aw/records/plans/pending/20260913-dirtygates-04-u23gbn.ipd.md",
+                "plans",
+                "reviewed",
+                A.READY,
+                None,
+                None,
+                priority="medium",
+            ),
+            att.Item(
+                "8lfoum",
+                ".aw/records/plans/pending/20260913-dirtygates-00-8lfoum.ipd.md",
+                "plans",
+                "reviewed",
+                A.READY,
+                None,
+                None,
+                priority="high",
+            ),
+            att.Item(
+                "4xt6u4",
+                ".aw/records/plans/pending/20260913-dirtygates-06-4xt6u4.ipd.md",
+                "plans",
+                "to-review",
+                A.READY,
+                None,
+                None,
+                priority="medium",
+            ),
+            att.Item(
+                "d7qoxv",
+                ".aw/records/plans/pending/20260913-dirtygates-01-d7qoxv.ipd.md",
+                "plans",
+                "reviewed",
+                A.READY,
+                None,
+                None,
+                priority="high",
+            ),
+        ]
+        out = att.render_table(items, [], show_all=True, term=att.T.Term(color=False))
+        lines = [line for line in out.splitlines() if line.strip()][1:]
+        # N column should sort 00, 01, 04, 06 despite priority differences
+        self.assertEqual(lines[0].split()[-3], "00")
+        self.assertEqual(lines[1].split()[-3], "01")
+        self.assertEqual(lines[2].split()[-3], "04")
+        self.assertEqual(lines[3].split()[-3], "06")
+        self.assertEqual(lines[0].split()[-2], "8lfoum")
+        self.assertEqual(lines[1].split()[-2], "d7qoxv")
+        self.assertEqual(lines[2].split()[-2], "u23gbn")
+        self.assertEqual(lines[3].split()[-2], "4xt6u4")
+
 
 class AttentionFilteringTests(unittest.TestCase):
     def test_parse_filter_tokens(self):

@@ -303,8 +303,8 @@ def _prompt(message: str, paths: Sequence[str]) -> bool:
     explicit 'n'/'no' is a safe NO.
     """
 
-    shown = ", ".join(paths)
-    prompt = f"{message}\n  {shown}\nCommit these path-scoped changes? [Y/n] "
+    shown = "\n".join(f"  {p}" for p in paths)
+    prompt = f"{message}\n{shown}\nCommit these path-scoped changes? [Y/n] "
     try:
         answer = input(prompt).strip().lower()
     except EOFError:

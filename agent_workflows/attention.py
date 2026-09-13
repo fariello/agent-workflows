@@ -2110,7 +2110,7 @@ def render_table(
     """Render items in a compact columnar table for interactive/TTY viewing.
 
     Columns: Status (8), [Run (7)], Type (8), Blocks (6), Priority (8), Readiness (9), OQs (3), Exec (4), Valid (5), Date (8), SetID, N, ID6 (6), Deps.
-    Sorted by Type, Blocking (non-blocking first), Priority (none first, then low, med, high), name.
+    Sorted by Type, Blocking (non-blocking first), SetID, N, ID6, Priority (none first, then low, med, high), name.
     """
     if term is None:
         term = T.Term(color=True)
@@ -2160,9 +2160,30 @@ def render_table(
             type_word = _SINGULAR_TYPE.get(it.tree, it.tree)
             blk_ver = _resolve_release_version(repo_root, it.blocks_release)
             is_blocking = 0 if (blk_ver == "-" or not it.blocks_release) else 1
+            date, set_id, num, id6 = _extract_identity_parts(it)
             prio_rank = PRIORITY_RANK.get((it.priority or "").lower(), 0)
             name = _identity_stem(it.path)
-            return (type_word, is_blocking, prio_rank, name, it.path)
+            if num.isdigit():
+                return (
+                    type_word,
+                    is_blocking,
+                    0,
+                    date,
+                    set_id,
+                    int(num),
+                    id6 if id6 != "-" else (it.id or ""),
+                    prio_rank,
+                    name,
+                    it.path,
+                )
+            return (
+                type_word,
+                is_blocking,
+                1,
+                prio_rank,
+                name,
+                it.path,
+            )
 
         visible.sort(key=_sort_key)
     # The table is ONE flat list, not per-class sections, so there is no section header to hoist a

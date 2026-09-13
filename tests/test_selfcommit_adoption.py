@@ -565,6 +565,28 @@ class StatusSetCommitTests(unittest.TestCase):
         self.assertNotIn("unrelated.txt", files)
         self.assertTrue(any("pl0005" in f for f in files))
 
+    def test_yes_flag_commits_and_prints_one_path_per_line(self):
+        import io
+        from unittest import mock
+
+        _write_plan(self.plans_dir, id6="pl0006", set_id="s", order=1, slug="a")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "seed")
+        before = _head(self.repo)
+
+        buf = io.StringIO()
+        with mock.patch("sys.stdout", buf):
+            # run with yes=True (default in _run_set) and commit=False
+            rc = self._run_set(["approved", "pl0006"], commit=False)
+        self.assertEqual(rc, 0)
+        after = _head(self.repo)
+        self.assertNotEqual(before, after, "--yes must auto-commit")
+
+        output = buf.getvalue()
+        expected_line = f"Committed 1 path(s): {after}:"
+        self.assertIn(expected_line, output)
+        self.assertIn(".aw/records/plans/pending/20260823-s-01-pl0006-a.ipd.md", output)
+
 
 # --------------------------------------------------------------------------------------
 # V-06: specs dual path each fires exactly once

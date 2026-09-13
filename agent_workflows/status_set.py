@@ -1178,12 +1178,39 @@ def _offer_self_commit(
         repo_root,
         paths,
         message=f"chore({label}): set status {target_status}",
-        assume_yes=bool(getattr(args, "commit", False)) if args else False,
+        assume_yes=bool(
+            getattr(args, "commit", False)
+            or (
+                getattr(args, "yes", False)
+                and not (
+                    getattr(args, "agent", False)
+                    or getattr(args, "json", False)
+                    or getattr(args, "as_agent", False)
+                )
+            )
+        )
+        if args
+        else False,
         no_commit=bool(getattr(args, "no_commit", False)) if args else False,
         on_unrelated_staged="scope",
     )
+    is_agent_or_json = (
+        bool(
+            getattr(args, "agent", False)
+            or getattr(args, "json", False)
+            or getattr(args, "as_agent", False)
+        )
+        if args
+        else False
+    )
+    if is_agent_or_json:
+        if outcome.status == _gch.STATUS_ERROR:
+            sys.stderr.write(f"warning: self-commit skipped: {outcome.message}\n")
+        return
     if outcome.status == _gch.STATUS_COMMITTED:
-        print(f"committed {len(outcome.staged)} path(s): {outcome.commit}")
+        print(f"Committed {len(outcome.staged)} path(s): {outcome.commit}:")
+        for p in outcome.staged:
+            print(p)
     elif outcome.status == _gch.STATUS_ERROR:
         print(f"warning: self-commit skipped: {outcome.message}")
 

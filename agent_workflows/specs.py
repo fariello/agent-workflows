@@ -698,12 +698,41 @@ def _offer_specs_set_commit(args, path: Path, new_status: str) -> None:
         Path(repo_root),
         [str(path)],
         message=f"chore(specs): set status {new_status}",
-        assume_yes=bool(getattr(args, "commit", False)),
-        no_commit=bool(getattr(args, "no_commit", False)),
+        assume_yes=bool(
+            getattr(args, "commit", False)
+            or (
+                getattr(args, "yes", False)
+                and not (
+                    getattr(args, "agent", False)
+                    or getattr(args, "json", False)
+                    or getattr(args, "as_agent", False)
+                )
+            )
+        )
+        if args
+        else False,
+        no_commit=bool(getattr(args, "no_commit", False)) if args else False,
         on_unrelated_staged="scope",
     )
+    is_agent_or_json = (
+        bool(
+            getattr(args, "agent", False)
+            or getattr(args, "json", False)
+            or getattr(args, "as_agent", False)
+        )
+        if args
+        else False
+    )
+    if is_agent_or_json:
+        if outcome.status == _gch.STATUS_ERROR:
+            sys.stderr.write(f"warning: self-commit skipped: {outcome.message}\n")
+        return
     if outcome.status == _gch.STATUS_COMMITTED:
-        sys.stdout.write(f"committed {len(outcome.staged)} path(s): {outcome.commit}\n")
+        sys.stdout.write(
+            f"Committed {len(outcome.staged)} path(s): {outcome.commit}:\n"
+        )
+        for p in outcome.staged:
+            sys.stdout.write(f"{p}\n")
     elif outcome.status == _gch.STATUS_ERROR:
         sys.stdout.write(f"warning: self-commit skipped: {outcome.message}\n")
 
