@@ -19,6 +19,7 @@ from typing import Any
 
 from agent_workflows import agent_schema as _agent_schema
 from agent_workflows import platform_lock
+from agent_workflows import artifact_audit as _audit
 from agent_workflows.attention import _TREE_COLOR_256, _identity_stem
 from agent_workflows.render_stream import format_tokens
 from agent_workflows.runner_shared import (
@@ -425,137 +426,51 @@ def _find_stem_for_id6(repo_root: Path, id6: str) -> str | None:
     return None
 
 
-_STATUS_LINE_RE = re.compile(r"(?m)^- Status:\s*(\S+)\s*$")
-
-
-@dataclass
-class StepArtifactAudit:
-    step_id6: str
-    stem: str
-    run_status: str
-    missing_entirely: bool = False
-    location_mismatch: bool = False
-    status_mismatch: bool = False
-    actual_dir: str | None = None
-    expected_dir: str | None = None
-    file_status: str | None = None
-    actual_path: Path | None = None
-    is_live: bool = False
+# THE AUDIT PREDICATE AND ITS FILE LOOKUP LIVE IN `artifact_audit`, NOT HERE (IPD 6ltz1y E-02/E-03).
+# `aw runs` and `aw doctor` must not compute artifact location/status drift two different ways, which
+# is the same reason `render_stream` and `evaluate_review_finding_escalation` exist. These names are
+# re-exported for the run viewer's own call sites (and its tests) and are the SAME OBJECTS as the
+# owner's - asserted by object identity in `tests/test_artifact_audit.py`, following the
+# `tests/test_runner_refork_guard.py` pattern, because a behavioral comparison passes against a copy.
+#
+# `StepArtifactAudit` is an ALIAS of `artifact_audit.ArtifactAudit`, whose `id6` field replaced the
+# run-specific name `step_id6`; `find_artifact_file` is a thin path-returning shim over the shared
+# lookup, which additionally reports an id6 COLLISION the old first-match-wins loop hid.
+StepArtifactAudit = _audit.ArtifactAudit
 
 
 def find_artifact_file(repo_root: Path, id6: str, stem: str) -> Path | None:
-    """Search the repository for an artifact markdown file matching id6 or stem."""
-    if not id6 and not stem:
-        return None
-    search_dirs = [
-        repo_root / ".aw" / "records" / "plans" / "pending",
-        repo_root / ".aw" / "records" / "plans" / "executed",
-        repo_root / ".aw" / "records" / "plans" / "superseded",
-        repo_root / ".aw" / "records" / "plans" / "not-executed",
-        repo_root / ".aw" / "records" / "plans" / "reusable",
-        repo_root / ".aw" / "records" / "plans" / "archive",
-        repo_root / ".aw" / "records" / "specs",
-        repo_root / ".agents" / "plans" / "pending",
-        repo_root / ".agents" / "plans" / "executed",
-    ]
-    for d in search_dirs:
-        if not d.is_dir():
-            continue
-        for p in d.rglob("*.md"):
-            if id6 and id6 in p.name:
-                return p
-            if stem and stem in p.name:
-                return p
-    return None
+    """The artifact declaring ``id6`` (or named by ``stem``), or None. Thin shim over the shared
+    lookup, kept because this module's callers want a bare path.
+
+    Resolves through ``artifact_audit.find_artifact``, which consumes ``selectors`` instead of a
+    private directory list: see that module's docstring for the two defects the private loop carried
+    (a hardcoded plans+specs-only type set, and first-match-wins with no collision policy). An id6
+    COLLISION returns None here rather than an arbitrary pick; a caller that needs to SEE the
+    collision calls ``artifact_audit.find_artifact`` directly.
+    """
+    return _audit.find_artifact(repo_root, id6, stem).path
 
 
 def audit_step_artifact(
     step: StepSummary, repo_root: Path = Path(".")
-) -> StepArtifactAudit:
-    """Audit a step's artifact location and status on disk."""
-    id6 = step.id6
-    stem = step.stem or (f"{step.setid}-{step.id6}" if step.setid else step.id6)
-    cfg = step.configured_file
-    st = "complete" if step.status == "substantially-complete" else step.status
+) -> _audit.ArtifactAudit:
+    """Audit a STEP's artifact location and status: the run-viewer-shaped adapter over the shared
+    predicate.
 
-    if st in ("executed", "complete"):
-        expected_dir_name = "executed"
-    elif st == "superseded":
-        expected_dir_name = "superseded"
-    elif st == "not-executed":
-        expected_dir_name = "not-executed"
-    elif st == "reusable":
-        expected_dir_name = "reusable"
-    else:
-        expected_dir_name = "pending"
-
-    actual_file = None
-    if cfg and (repo_root / cfg).is_file():
-        actual_file = repo_root / cfg
-    else:
-        actual_file = find_artifact_file(repo_root, id6, stem)
-
-    if actual_file is None:
-        return StepArtifactAudit(
-            step_id6=id6,
-            stem=stem,
-            run_status=st,
-            missing_entirely=True,
-            location_mismatch=False,
-            status_mismatch=False,
-            actual_dir=None,
-            expected_dir=expected_dir_name,
-            file_status=None,
-            actual_path=None,
-            is_live=step.is_live,
-        )
-
-    actual_dir_name = actual_file.parent.name
-    loc_mismatch = actual_dir_name != expected_dir_name
-
-    file_status = None
-    status_mismatch = False
-    try:
-        txt = actual_file.read_text(encoding="utf-8", errors="ignore")
-        m = _STATUS_LINE_RE.search(txt)
-        if m:
-            file_status = m.group(1).strip()
-            f_norm = (
-                "complete" if file_status == "substantially-complete" else file_status
-            )
-            if st in ("executed", "complete"):
-                if f_norm not in ("executed", "complete"):
-                    status_mismatch = True
-            elif st == "reviewed":
-                if f_norm not in ("reviewed", "approved"):
-                    status_mismatch = True
-            elif st in ("queued", "running", "dependency-blocked", "blocked"):
-                if f_norm not in (
-                    "approved",
-                    "to-review",
-                    "draft",
-                    "reviewed",
-                    "queued",
-                    "running",
-                ):
-                    status_mismatch = True
-            else:
-                if f_norm != st:
-                    status_mismatch = True
-    except Exception:
-        pass
-
-    return StepArtifactAudit(
-        step_id6=id6,
-        stem=stem,
-        run_status=st,
-        missing_entirely=False,
-        location_mismatch=loc_mismatch,
-        status_mismatch=status_mismatch,
-        actual_dir=actual_dir_name,
-        expected_dir=expected_dir_name,
-        file_status=file_status,
-        actual_path=actual_file,
+    This adapter exists so the shared module never has to know what a ``StepSummary`` is (IPD 6ltz1y
+    OQ-01): the audit takes primitive facts (id6, stem, configured path, status, liveness), and the
+    step-to-primitives projection - including the ``setid-id6`` stem fallback - belongs to the run
+    viewer, which owns the type. ``is_live`` is passed THROUGH to the shared predicate, which records
+    it without deriving it; liveness comes from this module's own run-directory probe
+    (``inspect_run_pid_and_runtime``) and nothing in the shared module can compute it.
+    """
+    return _audit.audit_artifact(
+        repo_root,
+        step.id6,
+        step.stem or (f"{step.setid}-{step.id6}" if step.setid else step.id6),
+        status=step.status,
+        configured_file=step.configured_file,
         is_live=step.is_live,
     )
 
@@ -1478,7 +1393,7 @@ def format_artifact_audit_summary(
     seen: set[str] = set()
     discrepancies: list[StepArtifactAudit] = []
     for a in audits:
-        key = a.step_id6 or a.stem
+        key = a.id6 or a.stem
         if key in seen:
             continue
         seen.add(key)
@@ -1499,7 +1414,7 @@ def format_artifact_audit_summary(
     rows = []
 
     for a in discrepancies:
-        raw_item_id = a.stem or a.step_id6
+        raw_item_id = a.stem or a.id6
         if a.is_live:
             flag_txt = (
                 term.color256("[in flight]", 214)
