@@ -5,6 +5,7 @@
 - Reviewed-At: 2026-09-13
 - Reviewer: opencode its_direct/pt3-claude-opus-5-1m-us
 - Verdict: REVIEWED - OPEN QUESTIONS
+- Rounds: 3 (the CURRENT round is the last one written; the findings gate reads it alone)
 
 ## Round 1
 
@@ -100,3 +101,119 @@ carrying `- Blocking: yes` and `- Finding: PR-401`, so `aw ipd lint` refuses the
 checkpoint until the maintainer answers (verified: `IPD-Q501` at `--phase review-finalize`). It is the
 architectural counterpart of the orchestrator's OQ-02 and of Order 02's OQ-03, narrowed to the
 transaction body.
+
+## Round 3
+
+Reviewed at HEAD `5b0396b0`. Structural preflight `aw ipd lint --phase author` CONFORMED (clean, 0
+findings) before semantic review, and conformed again after the E-07/E-08 additions once their V-items
+were added (the linter caught the missing bijection itself, `IPD-I303` twice, which is the gate working).
+At `--phase review-finalize` it now reports exactly one finding, `IPD-Q501` for the blocking OQ-04 this
+round raised, which is the intended disposition for an escalated question.
+
+DISCLOSURE: same repository and same model family as the author, so this remains close to a self-review.
+Its value rests on what was DRIVEN. Measured this round, all against real code rather than scratch
+analogues: F-1a's baseline reproduced by instrumenting a real successful retirement in the repository's
+own fixture; `commit_isolated` CALLED with a mutation staged in a separate coordinator worktree, to see
+what it actually does; the whole proposed sequence built end to end (worktree mutate, worktree commit,
+no ref advance, ff-only merge) and its shared-tree result measured; a third merge arm (peer COMMIT rather
+than peer edit) measured for its exit code; `_refresh_plans_index_fail_loud` run at the position the new
+ordering would put it in and the manifest then checked; `_rollback_precommit` CALLED with a
+worktree-shaped journal against a peer edit; the `commit_isolated` and `offer_commit` caller sets
+enumerated by grep; and both required suites run for real counts.
+
+ROUND 2'S FIXES HELD. The corrected ff-only-as-the-advance ordering (F-10) is right, and this round
+re-measured its clean and contended arms and confirmed both. The OQ-03 propagation (PR-014) and the
+E-03/E-04 re-assignment (PR-015) were correctly applied. Nothing from round 2 was reopened.
+
+THE FINDING THAT WOULD HAVE STOPPED EXECUTION IMMEDIATELY IS PR-021, AND IT WAS FOUND BY CALLING THE
+FUNCTION RATHER THAN READING IT. E-01's central instruction was "the existing pattern to reuse is
+`commit_lock.commit_isolated`". It cannot be reused, and not for the CAS-ordering reason round 2
+identified: `commit_isolated` copies each named path FROM the shared tree INTO its own worktree
+(`commit_lock.py:226-231`) and propagates a deletion when the shared source is absent (`:232-234`). Its
+direction is shared -> worktree, so a mutation made in a coordinator-owned worktree is invisible to it.
+Called exactly as E-01 prescribes, it returned `error` / "git add failed in isolated worktree: fatal:
+pathspec 'p/executed/plan.md' did not match any files", HEAD unmoved, nothing committed. An executor
+following E-01 literally would have hit this in the first hour. The sound shape was then built and
+measured end to end and is now written into E-01.
+
+THE TWO FINDINGS THAT MATTER MOST ARE DEFECTS THE PLAN'S OWN CHANGE CREATES, AND BOTH WERE OWNED BY
+NOBODY. This is the class this review exists to catch, because each would have shipped as a silent
+regression inside a change whose stated purpose is to make the repository safer.
+
+PR-022 (F-12): the relocation INVERTS the `plans-index-refresh-fail-loud` gate from a guard into a false
+pass. `_refresh_plans_index_fail_loud` regenerates the manifests by scanning the plans tree ON DISK
+(`plans_index.scan_plans` walks `rglob("*.md")`) and it runs inside the mutating phase, AFTER today's
+shared-tree `git mv`. Move the relocation into the worktree and the shared disk still shows the plan at
+`pending/`, so the manifest is generated describing the OLD layout, converges against it, and the gate
+PASSES; the ff-only merge then relocates the file and the manifest is instantly stale. MEASURED: the
+manifest contained the `pending/` path and not the `executed/` one, and `aw index plans --check` returned
+rc=1 reporting `check.stale-index-stale` on both manifests at `warning` severity, which fails the gate.
+So the transaction would report success while leaving precisely the state the gate exists to prevent.
+`ROLLUP_SHARED_GATES` (`:2066`) declares the rollup KEEPS this gate and spec `77tr3o` OQ-1 requires a
+test to pin that it does; round 1's F-9 already established the guarding test checks only the gate's
+NAME, so this loss would have been invisible. New E-07 and V-07.
+
+PR-024 (F-14): the rollback becomes a peer-data-destroying write, which is the exact harm this Set
+exists to stop. Step 2 of `_rollback_precommit` (`:1910-1920`) unconditionally writes the snapshot bytes
+over the plan's original path. Correct today, because this transaction is the party that moved that file
+away. Once the relocation happens in the worktree the shared-tree file is never touched, so the same
+write becomes an unconditional overwrite of whatever a peer has there. Note the asymmetry that makes it
+reachable: step 1 (`:1888-1908`) DOES guard the destination against `moved_bytes` and refuses a
+destructive restore on mismatch; `original_path` has no guard because until now it needed none. MEASURED
+against the real function with a worktree-shaped journal: before `'- Status: approved\nPEER EDIT IN
+FLIGHT, uncommitted\n'`, after `'- Status: approved\nORIGINAL\n'`. The peer's bytes were gone. The call
+then returned `ok=False` for an unrelated fixture reason, which is itself the sharper point: the
+destructive write is not undone by the later failure, so even a rollback that REPORTS failure has
+already destroyed the edit. New E-08 and V-08.
+
+A THIRD RECONCILIATION ARM WAS MISSING (PR-023, F-13). E-06 measured a clean case and a contended one.
+If a peer COMMITS to main between the worktree snapshot and the merge, no fast-forward exists at all:
+`git merge --ff-only` exits 128 (not the 1 of the overwrite refusal) with "fatal: Not possible to
+fast-forward", HEAD unmoved, the landed commit not an ancestor of HEAD, and the shared tree CLEAN. That
+is materially different from the contended arm and is exactly what `commit_isolated` already calls
+`ISO_RACED`, so the existing vocabulary should be reused. E-06 and V-06 now require the arms be
+distinguished by exit code and tree state, never by string-matching git's prose.
+
+ONE STALE OBLIGATION AND ONE WRONG COUNT (PR-025). Round 2 correctly established this plan needs
+`tests/test_ipd_lifecycle_cli.py`, but left it as a prose instruction to add the path during execution
+rather than declaring it. That is a trap: `Scope-Paths` is inside the frozen region
+(`frozen_region_digest`, `:495-503`), so editing it mid-execution invalidates the begin receipt and
+`finalize_precheck` refuses as STALE (`:1476-1483`). Declared now, together with the two files F-11
+makes unavoidable. The suite count was also wrong: measured 57, not 58.
+
+THE BLOCKING QUESTION IS NEW AND IS THE DIRECT DESCENDANT OF OQ-03. Fixing `commit_isolated` means
+either extending it in place (it also backs `git_commit_helper.offer_commit`, the single shared commit
+path behind 7 call sites across 8 modules, which AGENTS.md documents as "immune by construction" to
+sweeping a co-worker's work into a commit) or adding a sibling and accepting a second implementation of
+the CAS and its `ISO_RACED` honesty. OQ-03's precedent argues for extending in place; OQ-03's own
+REASONING, that invisible divergence is the danger, argues against putting a documented safety guarantee
+at risk to avoid one extra function. A reviewer must not pick that. Escalated as OQ-04, `Blocking: yes`,
+gating every item in the plan (all of them depend on E-01 directly or transitively).
+
+No product code was modified by this review.
+
+### Findings
+
+| ID | Severity | Scope | Area | Evidence | Finding | Remediation Risk | Decision | Resolution |
+|----|----------|-------|------|----------|---------|------------------|----------|------------|
+| PR-021 | BLOCKER | IN-SCOPE | C (architecture), G (executability) | `commit_lock.py:226-234` (copy direction), `:270` (the CAS); measured `error` / "pathspec 'p/executed/plan.md' did not match any files"; callers `ipd_lifecycle.py:2752` and `git_commit_helper.py:595` | E-01'S CENTRAL "REUSE `commit_isolated`" INSTRUCTION IS NOT IMPLEMENTABLE. The helper copies each named path FROM the shared tree INTO its own worktree and propagates a deletion when the shared source is absent, so its direction is shared -> worktree and a mutation made in a coordinator-owned worktree is invisible to it. Called as E-01 prescribes it committed nothing and returned an error. This is stronger than round 2's CAS-ordering tension (F-10): the helper cannot see the work at all. Fixing it means either extending the function that also backs `offer_commit` (every `aw` self-commit) or adding a sibling that duplicates the CAS and `ISO_RACED`. | C:High; U:Low; S:Medium; F:High; Overall:High | OPEN | E-01 rewritten with the measured sound shape (commit in the coordinator's own worktree, stage only paths that exist, do NOT advance the ref, let E-06's ff-only merge advance it) which was verified end to end. New F-11. `commit_lock.py` and `tests/test_isolated_commit.py` added to `Scope-Paths`. The fork-or-extend decision ESCALATED as blocking OQ-04 with both costs measured; not a reviewer's call. |
+| PR-022 | BLOCKER | UNDER-SCOPE | A (correctness), D (anti-regression), E (testing) | `_refresh_plans_index_fail_loud` `:1656-1695` called at `:2700`; `plans_index.py:99` (`rglob` scan); measured `check.stale-index-stale` on both manifests, rc=1; severity `check_engine.py:336`; gate declared `:2066`; string-only test `tests/test_orchestrator_retirement.py:2079`,`:2104` | THE RELOCATION INVERTS A DECLARED GATE INTO A FALSE PASS, AND NO ITEM OWNED IT. The index refresh scans the plans tree on disk inside the mutating phase, after today's shared-tree `git mv`. Once the relocation moves to the worktree, the shared disk still shows `pending/`, so the manifest is generated for the OLD layout, converges, and the gate PASSES; the merge then makes it stale. Measured: manifest names the `pending/` path not the `executed/` one, `aw index plans --check` rc=1 with `check.stale-index-stale` (`warning`, fails the gate). The transaction reports success while leaving the exact state the gate prevents, and per F-9 the guarding test keys on the gate's NAME so the loss is invisible. Spec `77tr3o` OQ-1 requires a test to pin that the rollup keeps every gate the main path applies. | C:Medium; U:Low; S:Low; F:High; Overall:Medium | FIXED | New E-07 moves the refresh to AFTER the reconciliation, keeps it fail-loud, and requires a post-commit refresh failure be classified committed-incomplete rather than rolled back (a landed commit is resumed, never reverted, `:2884-2891`). New V-07 demands the before/after manifest samples AND proof the gate still refuses. New F-12. Goal and Scope updated to carry the obligation. |
+| PR-023 | HIGH | UNDER-SCOPE | A (correctness), E (testing) | measured: `git merge --ff-only` rc=128, "fatal: Not possible to fast-forward, aborting", HEAD unmoved, `merge-base --is-ancestor` false, `git status --porcelain` empty; `commit_lock.py:270-279` | A DIVERGED BRANCH IS A THIRD ARM E-06 DID NOT MEASURE. E-06 covered clean and contended (peer edits the moved file). A peer COMMIT landing between the worktree snapshot and the merge leaves no fast-forward at all, exiting 128 rather than 1, with a CLEAN tree and the plan still at `pending/`. That is a different condition from the overwrite refusal and needs its own classification; it is precisely `ISO_RACED`. Distinguishing the arms by git's prose would be fragile since the prefixes differ (`error:` vs `fatal:`). | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | E-06 gains the third arm with its measured exit code and the instruction to reuse the `ISO_RACED` vocabulary and classify by exit code plus tree state. Expected outcome and V-06 both extended. Required tests gains the diverged case. New F-13. |
+| PR-024 | BLOCKER | UNDER-SCOPE | A (correctness), B (data integrity), D | `_rollback_precommit` unguarded write `:1910-1920` vs its guarded twin `:1888-1908`; measured before `'...PEER EDIT IN FLIGHT, uncommitted\n'` / after `'...ORIGINAL\n'` | THE ROLLBACK BECOMES A PEER-DATA-DESTROYING WRITE, THE EXACT HARM THIS SET EXISTS TO STOP. Step 2 unconditionally writes the snapshot bytes over the plan's original path, which is correct only because this transaction is the party that moved that file away. Once the relocation happens in the worktree the shared file is never touched, so the write becomes an unconditional overwrite of a peer's content. Step 1 guards the destination against `moved_bytes`; `original_path` has no guard because until now it needed none. Measured: the peer's bytes were destroyed. The write is not undone by the later failure, so even a rollback that REPORTS failure has already destroyed the edit. | C:Low; U:Low; S:Medium-High; F:High; Overall:Medium | FIXED | New E-08 gives `original_path` the same guard the destination has, makes "leave it alone" the default under the new sequence, refuses with unknown-outcome naming the path on mismatch, and forbids undoing a landed merge. New V-08 requires the peer's bytes shown identical before and after AND the pre-fix baseline, so the item is not satisfiable by a fixture that never had a peer edit. New F-14. Named in the gate as a must-ship-with-E-01 condition. |
+| PR-025 | MEDIUM | IN-SCOPE | G (executability), evidence accuracy | `frozen_region_digest` `:495-503`, `finalize_precheck` stale refusal `:1476-1483`; measured `57 passed` for `tests/test_ipd_lifecycle_cli.py`, `112 passed` for `tests/test_orchestrator_retirement.py` | A STALE SCOPE OBLIGATION AND A WRONG COUNT. Round 2 established this plan needs `tests/test_ipd_lifecycle_cli.py` but left it as an instruction to ADD to `Scope-Paths` during execution. That is a trap rather than a chore: `Scope-Paths` is inside the frozen region, so editing it mid-execution invalidates the begin receipt and finalize refuses as STALE. Separately the plan claimed 58 tests in that suite; the real count is 57. | C:Low; U:Low; S:Low; F:Medium; Overall:Low | FIXED | `Scope-Paths` now declares all five files the E-items touch (the two F-11 forces plus the CLI suite). The execution-contract paragraph records the obligation as DISCHARGED and explains why a mid-execution scope edit is the wrong remedy. Count corrected to 57 with an instruction to re-measure and a note that `-o addopts=""` is required to see per-file counts. Scope check's under-scope note closed. |
+
+### Decisions
+
+| ID | Question | Chosen | Alternatives considered | Basis | Reversible |
+|----|----------|--------|-------------------------|-------|------------|
+| D-6 | `commit_isolated` cannot be reused (F-11). Should review pick between extending it and adding a sibling? | No. Raise it as blocking OQ-04 with both options costed, and gate every item on the answer. | Extend it in place, following OQ-03's precedent that one implementation beats two whose drift is invisible; or add a sibling, keeping `offer_commit`'s path provably untouched. | `commit_isolated` has two callers (`ipd_lifecycle.py:2752`, `git_commit_helper.py:595`), the second being `offer_commit`, the shared commit path behind 7 call sites across 8 modules that AGENTS.md documents as immune by construction to sweeping a co-worker's work into a commit. OQ-03's precedent points one way and its reasoning the other, so the two arguments genuinely conflict and the choice is a risk-appetite call AGENTS.md reserves to the maintainer. | no |
+| D-7 | The index-gate inversion (F-12): fix it in this plan, or file it separately since it is arguably a pre-existing ordering assumption? | Fix it here, as new E-07. | File a separate backlog item and let this plan ship the relocation alone; or leave it to Order 06, which already touches index residue. | The defect does not exist today: it is CREATED by this plan's E-01, so it is this plan's regression and nobody else's. Shipping E-01 without it leaves `check.stale-index-stale` unreported while a gate that `ROLLUP_SHARED_GATES:2066` declares kept reports success, which is the invisible-divergence class OQ-03 was resolved to avoid. Order 06 owns the RESIDUE of a failed retirement, a different condition. | yes |
+| D-8 | The rollback's unguarded write (F-14): does it belong to this plan or to Order 06, which owns rollback residue? | This plan, as new E-08. | Hand it to Order 06 with the rest of the rollback work. | Same basis as D-7 and stronger: the write is correct today and becomes destructive only because E-01 relocates the mutation, so it is this plan's regression. Order 06's scope is regenerated-index residue after a failed retirement, not the plan file's bytes. Deferring it would ship a measured data-loss path in the change whose stated purpose is to stop exactly that harm. | yes |
+| D-9 | E-05's prescribed observation seam patches two functions this plan itself changes. Re-specify it, or leave the executor to adapt? | Re-specify: require the BEFORE samples be captured against unmodified code first, then require the post-change counterpart instants be named and justified in the test docstring. | Leave it, since an executor would notice; or drop the comparison and assert only the post-change state. | E-07 relocates `_refresh_plans_index_fail_loud` and F-11 establishes `commit_isolated` no longer performs this commit, so both named patch points cease to mark the instants they were chosen for. A test that silently samples different instants before and after is not the comparison V-05 demands, and round 1 already had to fix an E-05 technique that could not produce its own evidence. | yes |
+| D-10 | Should `Scope-Paths` be corrected by review, or left as the execution-time instruction round 2 wrote? | Correct it now, declaring all five files. | Leave the prose instruction and let the executor add the paths in the first pass. | `Scope-Paths` is inside `frozen_region_digest` (`:495-503`) and `finalize_precheck` refuses a receipt whose frozen region changed (`:1476-1483`), so following the instruction would invalidate the receipt mid-execution. `tests/test_ipd_lifecycle_cli.py` was already established as needed in round 2, and F-11 makes `commit_lock.py` plus its suite unavoidable, so all five are known now and none rests on a guess. | yes |
+
+D-6 is `Reversible: no` and is ESCALATED as the workflow requires: raised in the reviewed plan as OQ-04
+carrying `- Blocking: yes` and `- Finding: PR-021`, so `aw ipd lint` refuses the plan at every checkpoint
+until the maintainer answers (verified: `IPD-Q501` at both `--phase author` and
+`--phase review-finalize`). It is OQ-03's descendant, one layer down: same question, about the shared
+commit helper rather than the shared transaction body.
